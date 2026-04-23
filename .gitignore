@@ -35,6 +35,13 @@ venv/
 Thumbs.db
 
 # Build outputs
+app/src-tauri/target/
+app/src-tauri/target-ci/
+src/node_modules/
+src/.next/
+src/out/
+
+# Build outputs
 src/node_modules/
 src/.next/
 src/out/
