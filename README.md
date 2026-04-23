@@ -28,3 +28,4 @@ cd app/src-tauri && cargo test --tests
 # Medoc_app
 # Medoc_app
 # Medoc
+# Medoc
