@@ -50,3 +50,5 @@ dist/
 
 # Rust build
 app/src-tauri/target/
+app/src-tauri/target/
+app/src-tauri/target-ci/
