@@ -1,0 +1,21 @@
+---
+description: Editing discipline — minimal edits, proof before refactors, mandatory post-edit validation
+alwaysApply: true
+---
+
+# Editing rules
+
+- Do not perform broad refactors before proving the problem with evidence.
+- Prefer minimal, high-confidence edits.
+
+## After each edit
+
+1. List changed files (paths).
+2. Explain why each change was made.
+3. Run validation (tests, build, lint — whatever applies).
+4. Show command output (or **NOT RUN** with reason).
+
+## Honesty about outcomes
+
+- If validation fails, do **not** claim success.
+- If partial progress was made, report partial progress honestly (what worked, what did not, what remains).

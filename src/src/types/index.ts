@@ -1,0 +1,31 @@
+export type {
+    Patient,
+    Personal,
+    Termin,
+    Patientenakte,
+    Anamnesebogen,
+    Untersuchung,
+    Behandlung,
+    Zahnbefund,
+    Dokument,
+    Zahlung,
+    Finanzdokument,
+    Leistung,
+    Produkt,
+    ExternerPartner,
+    AuditLog,
+    BlockierteZeit,
+} from "@/generated/prisma";
+
+export type {
+    Rolle,
+    Geschlecht,
+    PatientStatus,
+    AkteStatus,
+    TerminArt,
+    TerminStatus,
+    DokumentTyp,
+    ZahlungStatus,
+    ZahlungsArt,
+    LieferStatus,
+} from "@/generated/prisma";

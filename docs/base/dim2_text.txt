@@ -1,0 +1,15 @@
+--- Page 1 ---
+PatientenBereich "Rezeption"
+DokumentationssystemBereich "Arzt"RötgenbilderKunde
+ aushändigen ? Beschwerden aufnehmen Rezeptionner/inst
+Bearbeitete AkteNeue AkteNeue Patientenakte anlegen ?Patientenakte nicht vorbereitetbar/übergebenbarArzt  Rezept- und Attestinformationen fehlen in Akte Diagnosen eintragen ?Datenvalidierung durchführen
+ ? Termine nicht gut koordinierenTerminmanegmentsystemTermine Ansehen   Termine nicht editierbar / aktualisierbar ?Untersuchungsergebnisse nicht speichertbar  Ansicht redundant / verwirrt PersonalZahlungen dokumentieren Zahlungen dokumentieren Excel-File
+Behandlungsinformationen übermitteln
+ ? Verschidene/Komplexe Ansichten ?Anamnesebogenzu Verfügung stellenRötgenbilder physisch  Papierdokumente lassen sich nicht digital archivierenRötgenbilder digital  Zweites System erforderlich (Medienbruch)
+  Akte zeigt nur Teilinformationen / fehlt KontextRezepte/ Atteste/ Quittungeinnehmen ?Keine digitale Version  Keine Integration der Röntgendaten ins Hauptsystem
+ ? Unvollständige medizinische Angaben in der Akte  Fragen im Anamnesebogen nicht standardisiert
+ ?nicht in Akte Dokumentiert/HaftungsrisikoZahlungen
+  Kein Abgleich mit tatsächlichen Arztverfügbarkeiten ? Zuständer Mangel
+  Keine Priorisierung möglich  Fehlender Hinweis auf Rückrufwünsche  Fehlender Zugriffsschutz bei Systemstart  Falsche Angaben im Anamnesebogen  Patient versteht Rechnung oder Attest nicht  Rezeption nicht informiert über Therapieplan
+  widersprüchliche Informationen  Patient unterschreibt nicht
+  Leistungen nicht korrekt zugeordnet  Unvollstandig einfüllen

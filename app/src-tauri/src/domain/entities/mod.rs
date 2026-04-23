@@ -1,0 +1,27 @@
+pub mod anamnesebogen;
+pub mod attest;
+pub mod audit_log;
+pub mod behandlung;
+pub mod leistung;
+pub mod patient;
+pub mod patientenakte;
+pub mod personal;
+pub mod produkt;
+pub mod rezept;
+pub mod termin;
+pub mod zahlung;
+pub mod zahnbefund;
+
+pub use anamnesebogen::Anamnesebogen;
+pub use attest::Attest;
+pub use audit_log::AuditLog;
+pub use behandlung::{Behandlung, Untersuchung};
+pub use leistung::Leistung;
+pub use patient::Patient;
+pub use patientenakte::Patientenakte;
+pub use personal::{AerztSummary, Personal};
+pub use produkt::Produkt;
+pub use rezept::Rezept;
+pub use termin::Termin;
+pub use zahlung::Zahlung;
+pub use zahnbefund::Zahnbefund;

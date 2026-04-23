@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.5;
+        font-weight: 400;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        background-color: #1B1E2B;
+        color: #A6ACCD;
+    }
+
+    /* Custom scrollbar for Palenight */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #3B4058;
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #4E5472;
+    }
+}
+
+@layer components {
+
+    /* ── Glass panels (Apple HIG vibrancy) ── */
+    .glass {
+        background: rgba(41, 45, 62, 0.75);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(166, 172, 205, 0.08);
+    }
+
+    .glass-bright {
+        background: rgba(52, 57, 78, 0.8);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(166, 172, 205, 0.1);
+    }
+
+    /* ── Tonal surface cards (M3 elevation) ── */
+    .card {
+        background-color: #34394E;
+        border: 1px solid rgba(166, 172, 205, 0.06);
+        border-radius: 12px;
+    }
+
+    .card-elevated {
+        background-color: #3B4058;
+        border: 1px solid rgba(166, 172, 205, 0.08);
+        border-radius: 12px;
+    }
+
+    /* ── Fluent 2 focus ring ── */
+    .focus-ring {
+        @apply outline-none ring-0 transition-shadow;
+    }
+
+    .focus-ring:focus-visible {
+        @apply ring-2 ring-primary ring-offset-2 ring-offset-surface;
+    }
+
+    /* Respect OS “reduce motion” (WCAG 2.3.3) — disable decorative transitions */
+    @media (prefers-reduced-motion: reduce) {
+        .animate-fade-in,
+        .animate-scale-in,
+        .animate-slide-up,
+        .animate-slide-down {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+        }
+
+        .animate-spin {
+            animation-duration: 1.2s !important;
+        }
+    }
+}

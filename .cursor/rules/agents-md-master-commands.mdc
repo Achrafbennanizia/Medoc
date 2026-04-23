@@ -1,0 +1,11 @@
+---
+description: Bind all agents to workspace AGENTS.md and its Master commands section
+alwaysApply: true
+---
+
+# AGENTS.md and master commands
+
+- Read and follow **`AGENTS.md`** at the **repository root** (same directory as `app/`, `docs/`, etc.).
+- Treat the **Master commands** section there as **binding** project directives. If it conflicts with a vaguer suggestion, **Master commands win**.
+- If **`AGENTS.md`** was not read in this session, treat important project-wide policy there as **NOT OPENED** until you open it.
+- When the user adds new bullets under **Master commands**, apply them immediately in this workspace without waiting for other confirmation.

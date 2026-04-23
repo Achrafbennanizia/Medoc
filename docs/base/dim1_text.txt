@@ -1,0 +1,18 @@
+--- Page 1 ---
+Bereich "Arzt"
+Geräte
+DruckerDruck anstoßen
+ScannerRechnung  / Finanziales DokumentRechnung /Quittung
+Pharmaberater und Zusätliche Kosten
+SteuerberaterÜbergeben
+  Buchungsprüfung vor Jahresabschluss Ausstellung von Quittungen
+Finanzdokumente selektieren/verwalten/ausdrucken/sendenFinanzielle Dokumentation für Buchhaltung bereitstellen Informationen über Produkte
+Arzt
+SystemBehalten und dokumentieren
+von Arzt aufbewahrenmedizinische Produkte BereitstellenKataloge
+  Systemreaktion unklar / unpräzise steuerbar
+ ?Fehlfunktion  Gerät wird vom System nicht erkannt  Papierqualität mangelhaft / leicht beschädigbar  Schrift unleserlich 
+  Systemstörungen / Fehlermeldungen  Bedienung unverständlich / zu komplex ?nicht personalisiert
+  Drucker ohne Papier / Papierstau  Dokumentation unvollständig / Lückenhaft  nicht speicherbar  Kein Export im Steuerformat (z.?B. DATEV)  Keine automatische Datensicherung  Kommunikationslücke mit Steuerberater  Zeitmangel für Dokumentationsprüfung
+  Keine Verbindung zum Netzwerkdrucker  Unklare Abrechnungsrichtlinien  Keine digitale Signatur möglich
+  Falsche Zuordnung von Dokumenten

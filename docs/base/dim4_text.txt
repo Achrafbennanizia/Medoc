@@ -1,0 +1,28 @@
+--- Page 1 ---
+PatientenBereich "Rezeption"Bereich "Arzt"Bereich "Finanzen/Abrechnung"Praxis
+OUTGeräte Termine
+DatenbankRöntgenprogramm + ScannerPatientenakte
+Statistiken 
+Quittungen ScanenDatabaseCloudBackupControll SystemTerminmanagementsichtDokumentation/Medizinische Sicht
+Verwaltungssicht Termine koordinierenNeuer Kunde
+Quittungen DokumentierenAlter Kunde
+NotfallPersonalRezeptionner/inst Pharmaberater und Zusätliche KostenArzt
+Steuerberater
+SchnittstelleRöntgenbild-ProgrammRöntgenbild-ScannerMRT-SoftwareDruckerFinanzielle Dokumentation für Buchhaltung selektierenBearbeitete Akte
+Rezepte/Atteste/Quittung/Jahresabschluß ausdruckenRechnung in CloudScannerNeue Akte
+Akte zu Verifizierung stellenNeue Patientenakte anlegen
+INRechnung in Cloudmedizinische Produkte bereitstellen/dokumentieren  Buchungsprüfung vor Jahresabschluss
+FinanzsichtNach personlichen Daten fragen Termin vereinbarenBehandlungsinformationen übermittelnTerminbuchungen eintragen oder ändernRezepte und Atteste dokumentieren bestehende Akte öffnen
+Rezepte/Atteste selektieren
+Rechnung  / Finanziales DokumentRechnung  / Finanziales DokumentPatientenakte vorbereiten/weiterleiten  Ausstellung von QuittungenRezepte/Atteste/Quittung aushändigen
+Dokumment Verifizieren/ValidierenRollen des Personnal Verwaten Zahlungen dokumentierenBefunde, Diagnosen eintragenBefunde mitteilen
+Termine Ansehen und VerwaltenFinanzdokumente selektieren/verwalten/ausdrucken/senden
+Validierte AkteRead-only Akte
+Termin angefragtTermin bestätigtTermin durchgeführtTermin abgeschloßen Fragen/Beschwerden/Wünsche übergeben Informationen zur Behandlung gebenTermin bestätigen Beschwerden aufnehmen 
+Von Arzt/Rezeption genutzt
+MRT-Untersuchung abgeschlossenBerichtigung freigebenDatenvalidierung durchführenFinanzielle Dokumentation für Buchhaltung bereitstellen Informationen über Produkte
+ManagmentsystemStatistiken über KrankheitenStatistiken über GewinneStatistiken über KundenStatistiken über weitere AspekteFinanzenExterne BerichteSofortiger Zugriff / Priorität Zugriffs- und RollenverwaltungProtokollierung / AuditValidierungsschritte steuernPraxis kontrollierenNotfall bestätigen
+Quittungen/Bestellungen dokumentieren?Anamnesebogenausfüllendokumentierenfordern
+enthält alle Daten in Bezug zum Untersuchungen/Behandlungen und Kunden personlichen/medikalichen Daten
+In der Regel gekoppelt mit einer Patient Akte um die Übersicht zu gewährleisten
+Sind getrennte Systeme,deswegen wird Scnittstelle zu schnellem Zugang hergestelltStellen interne Daten dar

@@ -1,0 +1,60 @@
+---
+description: Anti-hallucination law — claims must be backed by commands, files read, and observed output
+alwaysApply: true
+---
+
+# Anti-hallucination and evidence
+
+## Law
+
+- Never claim something works without running it and showing output.
+- Never claim a file contains X without first reading or searching it (`Read`, `grep`, terminal).
+- Never claim a fix worked without re-running the failing command, test, or build.
+- **UNVERIFIED** is an allowed state. Guessing is forbidden.
+
+## Strict evidence enforcement
+
+- For **every important claim**, give the **file path** and the **exact evidence source** (e.g. symbol, snippet, line range, or search hit).
+- Before saying **“this feature exists”**, show **where** it is implemented (paths + evidence).
+- Before saying **“this fix works”**, **re-run** the relevant command and show output.
+- Before saying **“this is unused”**, run a **reference search** (e.g. ripgrep) and show results or **NOT RUN**.
+- Before saying **“this is safe”**, show **why**, tied to concrete evidence (threat model, checks, code paths), not vibes.
+
+## Required status labels
+
+Use explicitly when applicable:
+
+| Label | When |
+|--------|------|
+| **NOT RUN** | A command could not or was not executed |
+| **NOT OPENED** | A file was not read |
+| **NOT OBSERVED** | Runtime / UI behavior was not verified |
+| **INFERRED** | Conclusion from patterns, not a direct proof |
+| **LOW CONFIDENCE** | Weak or incomplete basis |
+
+## Every technical claim must include
+
+1. Command or tool action performed.
+2. Actual observed output (or explicit **NOT RUN** / truncated with reason).
+3. Reasoning tied to that output.
+
+## General execution
+
+- Inspect repository structure and key manifests before proposing changes.
+- Read relevant files before assuming behavior or content.
+- Identify stack, architecture, modules, and boundaries from actual code.
+- For Rust, Tauri, TypeScript, React, SQLite, configs, env, migrations, tests, CI, or docs — verify presence and meaning through file inspection, not invention.
+- If information is missing, mark it **UNVERIFIED**.
+- Prefer small, reversible, high-confidence changes.
+
+## Before editing
+
+Explain: what you found, where you found it, why it matters, and the exact change you will make.
+
+## After editing
+
+Re-run the relevant checks and show outputs.
+
+## Honesty
+
+If you did not run a command, did not open a file, or are not sure, say so explicitly.

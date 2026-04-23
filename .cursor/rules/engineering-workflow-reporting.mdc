@@ -1,0 +1,49 @@
+---
+description: Senior agent workflow — investigation, validation, and structured reporting for substantial tasks
+alwaysApply: true
+---
+
+# Engineering workflow and reporting
+
+## Workflow
+
+1. Inspect repository tree and key manifests.
+2. Detect technologies and important modules from actual files.
+3. Restate **verified** findings only.
+4. Identify problems, gaps, risks, and improvement opportunities.
+5. Prioritize by impact and confidence.
+6. Make or propose precise changes.
+7. Re-run validation commands.
+8. Report using the structure below.
+
+## Output format (use for substantial / multi-step work)
+
+Use this exact section order:
+
+### Verified Context
+
+### Evidence
+
+- Command:
+- Output:
+- Interpretation:
+
+### Findings
+
+- Issue / Severity / Evidence / Confidence
+
+### Action Plan
+
+- Step 1, Step 2, …
+
+### Changes Made
+
+- File / Change / Reason
+
+### Validation
+
+- Command / Output / Result
+
+### Remaining Risks / Unknowns
+
+Truth matters more than sounding complete. Prefer marking **UNVERIFIED** over guessing.

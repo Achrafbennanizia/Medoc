@@ -1,0 +1,17 @@
+---
+description: Long-run coordination — maintain truth, contradiction, validation, and action ledgers; phase handoff summaries
+alwaysApply: true
+---
+
+# Long-run coordination ledgers
+
+When work spans **multiple steps**, **multiple agents**, or **multiple sessions**, treat **`docs/coordination/`** as the shared memory:
+
+- **`project-truth.md`** — authoritative model of the repo; cite paths/commands for stable claims; mark uncertainty explicitly.
+- **`contradictions.md`** — tensions between sources; resolve or escalate before building on conflicting assumptions.
+- **`validation.md`** — what was proven by running checks; what is still pending or failed.
+- **`actions.md`** — coordinated Now / Next / Done.
+
+**After each phase** (or milestone aligned with `AGENTS.md` orchestration phases), update **`phase-handoff.md`** with: verified · unverified · understanding delta · required next steps.
+
+Preserve **continuity**: open coordination work by reading **`phase-handoff.md`** and the ledgers; close by updating them so the next agent continues from the same state.
