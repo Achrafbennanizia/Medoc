@@ -16,7 +16,17 @@ export async function createProdukt(data: {
     return tauriInvoke<Produkt>("create_produkt", { data });
 }
 
-export async function updateProdukt(id: string, data: Record<string, unknown>): Promise<Produkt> {
+export type UpdateProduktPayload = {
+    name?: string;
+    beschreibung?: string | null;
+    kategorie?: string;
+    preis?: number;
+    bestand?: number;
+    mindestbestand?: number;
+    aktiv?: boolean;
+};
+
+export async function updateProdukt(id: string, data: UpdateProduktPayload): Promise<Produkt> {
     return tauriInvoke<Produkt>("update_produkt", { id, data });
 }
 

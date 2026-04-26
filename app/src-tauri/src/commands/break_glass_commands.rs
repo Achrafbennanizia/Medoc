@@ -23,6 +23,7 @@ pub struct BreakGlassEntry {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "warn", skip(pool, session_state, bg, reason))]
 pub async fn break_glass_activate(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -62,6 +63,7 @@ pub async fn break_glass_activate(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, bg))]
 pub fn break_glass_active(
     session_state: State<'_, SessionState>,
     bg: State<'_, BreakGlassStateExt>,

@@ -83,26 +83,26 @@ export function LoggingPage() {
 
     if (initLoading) {
         return (
-            <div className="animate-fade-in space-y-6">
-                <h2 className="text-headline text-on-primary">Logs &amp; Observability</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+                <h2 className="page-title">Logs &amp; Observability</h2>
                 <PageLoading label="Log-Einstellungen werden geladen…" />
             </div>
         );
     }
     if (initError) {
         return (
-            <div className="animate-fade-in space-y-6">
-                <h2 className="text-headline text-on-primary">Logs &amp; Observability</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+                <h2 className="page-title">Logs &amp; Observability</h2>
                 <PageLoadError message={initError} onRetry={() => void loadMeta()} />
             </div>
         );
     }
 
     return (
-        <div className="animate-fade-in space-y-6">
-            <h2 className="text-headline text-on-primary">Logs &amp; Observability</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+            <h2 className="page-title">Logs &amp; Observability</h2>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Log-Level</h3>
                 <p className="text-body text-on-surface-variant">
                     Bestimmt die Detailtiefe der Anwendungs-Logs. Änderung wirkt sofort
@@ -113,10 +113,8 @@ export function LoggingPage() {
                         <button
                             key={l}
                             onClick={() => changeLevel(l)}
-                            className={`px-4 py-2 rounded-md text-label ${level === l
-                                    ? "bg-primary text-on-primary"
-                                    : "bg-surface-container text-on-surface"
-                                }`}
+                            className={`btn ${level === l ? "btn-accent" : "btn-subtle"}`}
+                            style={{ padding: "6px 10px", fontSize: 12 }}
                         >
                             {l}
                         </button>
@@ -124,12 +122,12 @@ export function LoggingPage() {
                 </div>
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Logverzeichnis</h3>
                 <p className="text-body font-mono text-on-surface-variant">{logDir}</p>
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Logs exportieren</h3>
                 <p className="text-body text-on-surface-variant">
                     Erstellt ein ZIP-Archiv der letzten 7 Tage aller Logdateien für
@@ -141,7 +139,7 @@ export function LoggingPage() {
                 </Button>
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Audit-Log-Integrität</h3>
                 <p className="text-body text-on-surface-variant">
                     Prüft die HMAC-Hash-Kette des Audit-Logs auf Manipulationen
@@ -153,7 +151,7 @@ export function LoggingPage() {
             </div>
 
             {message && (
-                <div className="card p-4 text-body">{message}</div>
+                <div className="card card-pad">{message}</div>
             )}
         </div>
     );

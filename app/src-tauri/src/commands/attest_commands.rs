@@ -9,6 +9,7 @@ use crate::error::AppError;
 use crate::infrastructure::database::{attest_repo, audit_repo};
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn list_atteste(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -30,6 +31,7 @@ pub async fn list_atteste(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_attest(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -56,6 +58,7 @@ pub async fn create_attest(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id))]
 pub async fn delete_attest(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

@@ -50,10 +50,15 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
         .await
         .expect("erase");
 
-    let n_beh_after: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM behandlung")
-        .fetch_one(&pool)
-        .await
-        .expect("count behandlung after");
+    // Scope the assertion to the test akte: `seed_demo_data` populates other
+    // behandlung rows tied to seed-Akten that intentionally survive erasure of
+    // `p-dsgvo-1`. The DSGVO contract requires all behandlung of the deleted
+    // patient to disappear, not the entire table.
+    let n_beh_after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM behandlung WHERE akte_id = 'akte-dsgvo-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("count behandlung after");
     assert_eq!(
         n_beh_after.0, 0,
         "behandlung must be cascade-deleted with patientenakte"

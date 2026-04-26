@@ -35,6 +35,7 @@ pub struct SubscriptionStatus {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn open_subscription_portal(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -74,6 +75,7 @@ pub fn is_valid_provider_token(token: &str) -> bool {
 /// Accepts a provider-issued opaque token (e.g. Stripe payment method id).
 /// We never see the underlying card number.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, request))]
 pub async fn attach_payment_method(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

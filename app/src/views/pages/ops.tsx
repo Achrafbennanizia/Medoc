@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     createBackup,
     listBackups,
@@ -16,6 +17,7 @@ import { errorMessage } from "../../lib/utils";
 import { Button } from "../components/ui/button";
 
 export function OpsPage() {
+    const navigate = useNavigate();
     const [backups, setBackups] = useState<BackupInfo[]>([]);
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
@@ -59,10 +61,21 @@ export function OpsPage() {
     }
 
     return (
-        <div className="animate-fade-in space-y-6">
-            <h2 className="text-headline text-on-primary">Betrieb &amp; Datenmanagement</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+            <h2 className="page-title">Betrieb &amp; Datenmanagement</h2>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <h3 className="text-title">Datenmigration</h3>
+                <p className="text-body text-on-surface-variant">
+                    Geführter Assistent mit Checklisten für Umstieg oder Mandantenwechsel. Es werden keine Daten automatisch
+                    importiert — nutzen Sie weiterhin Backup und CSV-Import nach Prüfung.
+                </p>
+                <Button type="button" variant="secondary" onClick={() => navigate("/migration")}>
+                    Migrations-Assistent öffnen
+                </Button>
+            </div>
+
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">System-Selbsttest</h3>
                 <p className="text-body text-on-surface-variant">
                     Prüft Datenbank, Audit-Kette und Protokollverzeichnis (ISO 13485 §7.5.1).
@@ -87,7 +100,7 @@ export function OpsPage() {
                 )}
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Performance (NFA-LOG-06)</h3>
                 <p className="text-body text-on-surface-variant">
                     Schwellwert in Millisekunden: Aufrufe länger als dieser Wert erscheinen in{" "}
@@ -131,7 +144,7 @@ export function OpsPage() {
                 {perfSaved && <p className="text-body text-accent-green">{perfSaved}</p>}
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Backup</h3>
                 <p className="text-body text-on-surface-variant">
                     Erzeugt einen konsistenten Snapshot der Datenbank in
@@ -151,7 +164,7 @@ export function OpsPage() {
                 )}
             </div>
 
-            <div className="card p-6 space-y-4">
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Patientenimport (CSV)</h3>
                 <p className="text-body text-on-surface-variant">
                     Header: <code>name;geburtsdatum;geschlecht;versicherungsnummer;telefon;email;adresse</code>
@@ -189,7 +202,7 @@ export function OpsPage() {
                 )}
             </div>
 
-            {message && <div className="card p-4 text-body">{message}</div>}
+            {message && <div className="card card-pad">{message}</div>}
         </div>
     );
 }

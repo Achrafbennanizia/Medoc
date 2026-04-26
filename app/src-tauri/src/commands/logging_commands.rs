@@ -12,12 +12,14 @@ use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
 pub fn get_log_level(session_state: State<'_, SessionState>) -> Result<LogLevel, AppError> {
     rbac::require(&session_state, "ops.logs")?;
     Ok(LOGGING_CONFIG.level())
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, level))]
 pub fn set_log_level(
     session_state: State<'_, SessionState>,
     level: LogLevel,
@@ -30,6 +32,7 @@ pub fn set_log_level(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, output_path))]
 pub fn export_logs(
     session_state: State<'_, SessionState>,
     output_path: String,
@@ -42,6 +45,7 @@ pub fn export_logs(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn verify_audit_chain(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -51,6 +55,7 @@ pub async fn verify_audit_chain(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppError> {
     rbac::require(&session_state, "ops.logs")?;
     Ok(logging::log_dir()?.display().to_string())

@@ -92,6 +92,29 @@ pub fn run() {
             commands::personal_commands::update_personal,
             commands::personal_commands::delete_personal,
             commands::personal_commands::change_password,
+            commands::personal_commands::set_personal_password_by_admin,
+            // Praxis: Abwesenheit & Dokument-Vorlagen
+            commands::praxis_commands::list_abwesenheiten,
+            commands::praxis_commands::create_abwesenheit,
+            commands::praxis_commands::update_abwesenheit,
+            commands::praxis_commands::delete_abwesenheit,
+            commands::praxis_commands::list_dokument_vorlagen,
+            commands::praxis_commands::create_dokument_vorlage,
+            commands::praxis_commands::update_dokument_vorlage,
+            commands::praxis_commands::delete_dokument_vorlage,
+            commands::praxis_commands::list_behandlungs_katalog,
+            commands::praxis_commands::create_behandlungs_katalog_item,
+            commands::praxis_commands::update_behandlungs_katalog_item,
+            commands::praxis_commands::delete_behandlungs_katalog_item,
+            commands::praxis_commands::list_lieferant_stamm,
+            commands::praxis_commands::create_lieferant_stamm,
+            commands::praxis_commands::delete_lieferant_stamm,
+            commands::praxis_commands::list_pharmaberater_stamm,
+            commands::praxis_commands::create_pharmaberater_stamm,
+            commands::praxis_commands::delete_pharmaberater_stamm,
+            commands::praxis_commands::list_lieferant_pharma_vorlagen,
+            commands::praxis_commands::create_lieferant_pharma_vorlage,
+            commands::praxis_commands::delete_lieferant_pharma_vorlage,
             // Patienten
             commands::patient_commands::list_patienten,
             commands::patient_commands::get_patient,
@@ -116,12 +139,19 @@ pub fn run() {
             commands::akte_commands::get_anamnesebogen,
             commands::akte_commands::create_untersuchung,
             commands::akte_commands::create_behandlung,
+            commands::akte_commands::update_behandlung,
+            commands::akte_commands::delete_behandlung,
+            commands::akte_commands::update_untersuchung,
+            commands::akte_commands::delete_untersuchung,
             commands::akte_commands::export_akte_pdf,
             // Zahlungen
             commands::zahlung_commands::list_zahlungen,
             commands::zahlung_commands::create_zahlung,
+            commands::zahlung_commands::update_zahlung,
+            commands::zahlung_commands::delete_zahlung,
             commands::zahlung_commands::update_zahlung_status,
             commands::zahlung_commands::get_bilanz,
+            commands::zahlung_commands::set_zahlungen_kasse_geprueft,
             // Leistungen
             commands::leistung_commands::list_leistungen,
             commands::leistung_commands::create_leistung,
@@ -134,8 +164,10 @@ pub fn run() {
             commands::produkt_commands::delete_produkt,
             // Statistik
             commands::statistik_commands::get_dashboard_stats,
+            commands::statistik_commands::get_statistik_overview,
             // Audit
             commands::audit_commands::list_audit_logs,
+            commands::audit_commands::list_audit_logs_paged,
             commands::audit_commands::export_audit_csv,
             // Logging
             commands::logging_commands::get_log_level,
@@ -183,6 +215,7 @@ pub fn run() {
             // Rezept (FA-REZ)
             commands::rezept_commands::list_rezepte,
             commands::rezept_commands::create_rezept,
+            commands::rezept_commands::update_rezept,
             commands::rezept_commands::delete_rezept,
             // Attest (FA-ATT)
             commands::attest_commands::list_atteste,
@@ -191,7 +224,36 @@ pub fn run() {
             // Subscription / billing (FA-PAY)
             commands::subscription_commands::open_subscription_portal,
             commands::subscription_commands::attach_payment_method,
+            // Bestellungen (FA-INV-ORD)
+            commands::bestellung_commands::list_bestellungen,
+            commands::bestellung_commands::create_bestellung,
+            commands::bestellung_commands::update_bestellung_status,
+            commands::bestellung_commands::update_bestellung,
+            commands::bestellung_commands::delete_bestellung,
+            // App KV store (replaces localStorage for praxis settings)
+            commands::app_kv_commands::get_app_kv,
+            commands::app_kv_commands::set_app_kv,
+            commands::app_kv_commands::delete_app_kv,
+            // Bilanz-Snapshots (FA-FIN-09/10)
+            commands::bilanz_snapshot_commands::list_bilanz_snapshots,
+            commands::bilanz_snapshot_commands::get_bilanz_snapshot,
+            commands::bilanz_snapshot_commands::create_bilanz_snapshot,
+            commands::bilanz_snapshot_commands::delete_bilanz_snapshot,
+            // Tagesabschluss (Kasse)
+            commands::tagesabschluss_protokoll_commands::list_tagesabschluss_protokolle,
+            commands::tagesabschluss_protokoll_commands::get_tagesabschluss_protokoll,
+            commands::tagesabschluss_protokoll_commands::create_tagesabschluss_protokoll,
+            commands::tagesabschluss_protokoll_commands::delete_tagesabschluss_protokoll,
+            // Feedback / vigilance reports
+            commands::feedback_commands::submit_feedback,
+            commands::feedback_commands::list_feedback,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            // Last-resort log; tracing may not be initialised if `setup` failed,
+            // so we always echo to stderr too.
+            tracing::error!(target: "medoc::system", event = "APP_FATAL", error = %e);
+            eprintln!("medoc fatal: {e}");
+            std::process::exit(1);
+        });
 }

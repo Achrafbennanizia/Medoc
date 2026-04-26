@@ -1,5 +1,4 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
@@ -11,20 +10,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-    primary:
-        "bg-primary text-on-accent hover:bg-primary-bright active:bg-primary-dim",
-    secondary:
-        "bg-primary-container text-primary hover:bg-surface-overlay active:bg-surface-container",
-    ghost:
-        "bg-transparent text-on-surface hover:bg-surface-bright active:bg-surface-container",
-    danger:
-        "bg-error-container text-error hover:bg-error/20 active:bg-error/30",
-};
-
-const sizeStyles: Record<Size, string> = {
-    sm: "h-8 px-3 text-label gap-1.5 rounded-md",
-    md: "h-9 px-4 text-body-medium gap-2 rounded-lg",
-    lg: "h-10 px-5 text-body-medium gap-2 rounded-lg",
+    primary: "btn btn-accent",
+    secondary: "btn btn-subtle",
+    ghost: "btn btn-ghost",
+    danger: "btn btn-danger",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -32,13 +21,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         <button
             ref={ref}
             disabled={disabled || loading}
-            className={cn(
-                "inline-flex items-center justify-center font-medium transition-colors duration-150 focus-ring select-none",
-                "disabled:opacity-40 disabled:pointer-events-none",
-                variantStyles[variant],
-                sizeStyles[size],
-                className,
-            )}
+            className={[variantStyles[variant], className].filter(Boolean).join(" ")}
+            style={size === "sm" ? { padding: "5px 10px", fontSize: 12 } : undefined}
             {...props}
         >
             {loading && (

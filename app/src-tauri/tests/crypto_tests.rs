@@ -24,9 +24,9 @@ fn bcrypt_legacy_accepted_and_marked_for_rehash() {
 #[test]
 fn hmac_is_deterministic_and_keyed() {
     let key = b"shared-secret";
-    let a = audit_hmac(key, "row-1");
-    let b = audit_hmac(key, "row-1");
-    let c = audit_hmac(b"different", "row-1");
+    let a = audit_hmac(key, "row-1").unwrap();
+    let b = audit_hmac(key, "row-1").unwrap();
+    let c = audit_hmac(b"different", "row-1").unwrap();
     assert_eq!(a, b);
     assert_ne!(a, c);
     assert_eq!(a.len(), 64); // hex-encoded SHA-256

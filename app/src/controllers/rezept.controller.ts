@@ -32,3 +32,15 @@ export const createRezept = (data: CreateRezept) =>
 
 export const deleteRezept = (id: string) =>
     tauriInvoke<void>("delete_rezept", { id });
+
+export interface UpdateRezept {
+    id: string;
+    medikament: string;
+    wirkstoff?: string | null;
+    dosierung: string;
+    dauer: string;
+    hinweise?: string | null;
+}
+
+export const updateRezept = (data: UpdateRezept) =>
+    tauriInvoke<Rezept>("update_rezept", { data });

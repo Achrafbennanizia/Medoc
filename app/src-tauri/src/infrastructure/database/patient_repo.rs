@@ -32,7 +32,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Patient>, AppE
 pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let geschlecht = serde_json::to_string(&data.geschlecht)
-        .unwrap()
+        .map_err(|e| AppError::Internal(format!("Geschlecht serialisieren: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -59,6 +59,17 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
         .execute(pool)
         .await?;
 
+    let anam_id = uuid::Uuid::new_v4().to_string();
+    let empty_anam = r#"{"version":1,"vorerkrankungen":{},"medikation":{},"allergien":{}}"#;
+    sqlx::query(
+        "INSERT INTO anamnesebogen (id, patient_id, antworten, unterschrieben) VALUES (?1, ?2, ?3, 0)",
+    )
+    .bind(&anam_id)
+    .bind(&id)
+    .bind(empty_anam)
+    .execute(pool)
+    .await?;
+
     find_by_id(pool, &id)
         .await?
         .ok_or(AppError::Internal("Insert failed".into()))
@@ -74,16 +85,13 @@ pub async fn update(
         .ok_or(AppError::NotFound("Patient".into()))?;
 
     let name = data.name.as_deref().unwrap_or(&existing.name);
-    let status = data
-        .status
-        .as_ref()
-        .map(|s| {
-            serde_json::to_string(s)
-                .unwrap()
-                .trim_matches('"')
-                .to_uppercase()
-        })
-        .unwrap_or(existing.status.clone());
+    let status = match data.status.as_ref() {
+        Some(s) => serde_json::to_string(s)
+            .map_err(|e| AppError::Internal(format!("Status serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_uppercase(),
+        None => existing.status.clone(),
+    };
 
     sqlx::query(
         "UPDATE patient SET name = ?1, telefon = ?2, email = ?3, adresse = ?4,

@@ -1,12 +1,10 @@
-import { Button } from "./button";
+import { Spinner } from "./spinner";
 
 export function PageLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
     return (
-        <div className="card p-8 text-center max-w-md mx-auto" role="alert">
-            <p className="text-body text-error mb-4">{message}</p>
-            <Button type="button" onClick={onRetry}>
-                Erneut versuchen
-            </Button>
+        <div className="card card-pad" style={{ maxWidth: 420, margin: "0 auto", textAlign: "center" }} role="alert">
+            <p style={{ color: "var(--red)", marginBottom: 12, fontSize: 13.5 }}>{message}</p>
+            <button className="btn btn-subtle" onClick={onRetry}>Erneut versuchen</button>
         </div>
     );
 }
@@ -14,16 +12,13 @@ export function PageLoadError({ message, onRetry }: { message: string; onRetry: 
 export function PageLoading({ label = "Laden…" }: { label?: string }) {
     return (
         <div
-            className="flex flex-col items-center justify-center py-16 gap-3 text-on-surface-variant animate-fade-in"
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 20px", gap: 12, color: "var(--fg-3)" }}
             role="status"
             aria-live="polite"
             aria-busy="true"
         >
-            <div
-                className="h-8 w-8 animate-spin rounded-full border-2 border-surface-container border-t-primary"
-                aria-hidden
-            />
-            <span className="text-body">{label}</span>
+            <Spinner size="md" />
+            <span style={{ fontSize: 13 }}>{label}</span>
         </div>
     );
 }

@@ -17,6 +17,9 @@ mit **monatlichem Abonnement** vertrieben. Die Praxisdaten verbleiben lokal
 zentrale Hersteller-Server.
 
 ### 1.3 Referenzen
+- **WAAD-Anforderungs-Quelle**: `docs/requirements-engineering/source/anforderungen-ableitung-waad.pdf`
+  („Anforderungen – Ableitung der Anforderungen"). Verbatim-Transkript: `docs/requirements-engineering/01a-waad-anforderungen.md`.
+  Traceability WAAD-ID → FA-/NFA-ID: `docs/requirements-engineering/01b-traceability-waad.md`.
 - ISO 9241-210:2019 (Nutzerzentrierte Gestaltung)
 - ISO 9241-110:2020 (Interaktionsprinzipien)
 - ISO 9241-11:2018 (Usability)
@@ -101,6 +104,9 @@ zentrale Hersteller-Server.
 | FA-AKTE-11 | Medikamentenerfassung: Aktuelle Medikamente mit Wirkstoff, Dosierung, Einnahmedauer | MUST | Liste aller Medikamente editier-/löschbar |
 | FA-AKTE-12 | Versicherungsdaten-Block: Kassenart (Gesetzlich/Privat-Toggle), Versicherungsname, Versicherungsnummer | MUST | Toggle-Auswahl für Kassenart; Pflichtfelder validiert |
 | FA-AKTE-13 | Buttons „Akte validieren" und „Neue erstellen" direkt in Aktenansicht (nur Arzt-Rolle) | MUST | Nur für Rolle ARZT sichtbar; Aktion mit Bestätigung |
+| FA-AKTE-14 | „Akte an Arzt weiterleiten"-Aktion (Liste/Dropdown, Mehrfachauswahl möglich); erzeugt einen Eintrag in der Validierungs-Queue (FA-AKTE-15) und im Audit-Log | SHOULD | Aktionsmenü oder Button in der Aktenansicht der Rezeption; Empfängerliste enthält alle Personal-Datensätze mit Rolle ARZT (WAAD 1.3.1) |
+| FA-AKTE-15 | Validierungs-Queue-Seite („Zu validieren") für Arzt-Rolle: Liste aller Akten / Einträge mit Status `IN_BEARBEITUNG`, sortiert nach Wartezeit; Klick öffnet die Akte | MUST | Eigene Route + Sidebar-Eintrag; sichtbar nur für ARZT; Anzahl der wartenden Einträge als Badge im Sidebar (WAAD 2.2.1) |
+| FA-AKTE-16 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (z. B. Anamnesebogen, Versicherungsblock, Zahnschema-Initialbefund) mit „Springen zu …"-Link | NICE TO HAVE | Heuristik definiert in `app/src/lib/akte-completeness.ts`; Anzeige in Aktenkopf; Vorab-Durchführbarkeitsanalyse dokumentiert (WAAD 7.3.3) |
 
 ### 3.4 Zahnschema (FA-ZAHN)
 
@@ -125,6 +131,7 @@ zentrale Hersteller-Server.
 | FA-DOK-05 | Nachträgliche Ergänzung/Aktualisierung von Einträgen | MUST | Änderung mit Versionierung gespeichert |
 | FA-DOK-06 | Bild-/Dokumentenupload mit Drag-and-Drop, Bildvorschau und Kategorisierung (Typ, Referenznummer, Tags) | MUST | Drag-and-Drop-Upload funktioniert; Vorschau für Bilder sichtbar |
 | FA-DOK-07 | Scanner-Integration: Anamnesebogen und Papierdokumente scannen und der Akte zuordnen | MUST | Scan-Button startet Scanner; gescanntes Dokument erscheint in Akte |
+| FA-DOK-08 | Patienten-Nachsorge-Merkblatt („Discharge Summary") am Behandlungsende: druckbares PDF mit Medikation, Kontrolltermin, Facharztüberweisung, allgemeinen Verhaltenshinweisen | NICE TO HAVE | Generierung aus letzter Behandlung + offenen Rezepten/Atteste; Druck-/PDF-Button in der Akte sowie am Termin-Status `DURCHGEFUEHRT` (WAAD 5.1.1) |
 
 ### 3.6 Finanzverwaltung (FA-FIN)
 
@@ -161,6 +168,7 @@ zentrale Hersteller-Server.
 | FA-LEIST-02 | Leistungen mit Behandlungen in Akte verknüpfen | MUST | Zuordnung bei Dokumentation |
 | FA-LEIST-03 | Preisliste für Rezeption einsehbar | SHOULD | Read-only Ansicht für Rolle REZ |
 | FA-LEIST-04 | Leistungsliste mit Suche, Filter und Schnellaktionen (Bearbeiten, Löschen via Aktionsmenü) | MUST | Suche + Filter auf Liste vorhanden; Aktionsmenü pro Zeile |
+| FA-LEIST-05 | „Arzt-Freigabe" pro abrechenbarer Leistung: bevor eine Leistung in eine Zahlung/Rechnung überführt werden darf, muss sie vom Arzt digital bestätigt werden (Flag `freigegeben_von_arzt_id` + `freigegeben_am`); Beträge dürfen vorab im Katalog definiert sein, um den Freigabeprozess zu automatisieren | MUST | Backend: `Leistung.freigegeben_von_arzt_id` + `freigegeben_am` (nullable); Rechnungs-Erstellung schlägt fehl, wenn Freigabe fehlt; UI-Bestätigungs-Toggle für ARZT in `leistung-create.tsx` und in der Behandlungs-Erfassung (WAAD 6.1.2, 6.2.4) |
 
 ### 3.9 Personalverwaltung (FA-PERS)
 
@@ -172,6 +180,8 @@ zentrale Hersteller-Server.
 | FA-PERS-04 | Personalliste mit Kachel-/Listenansicht, Suchfeld und Statusfilter | MUST | Ansicht umschaltbar; Suche + Filter vorhanden |
 | FA-PERS-05 | Drei-Punkte-Aktionsmenü pro Mitarbeiter (Bearbeiten, Löschen, Details) | MUST | Menü öffnet sich bei Klick; alle Aktionen erreichbar |
 | FA-PERS-06 | Selbstlöschung des eigenen Kontos verhindern | MUST | Löschoption für eigenes Konto deaktiviert |
+| FA-PERS-07 | Granulare, pro-Personal-Datensatz konfigurierbare Berechtigungs-Overrides (z. B. „darf Patientenakten lesen", „darf Finanzberichte exportieren") zusätzlich zu den vier Basisrollen | SHOULD | Neue Tabelle `personal_permission_override (personal_id, action, allowed)`; UI in `personal-create.tsx` / Personalakte-Detail; Backend-`rbac::allowed_for_user` zieht Override vor Rollen-Default; Default-Rollen-Matrix bleibt unverändert (WAAD 1.2.2) |
+| FA-PERS-08 | Internes Ticket-/Notiz-System „Rezeption → Arzt": kurze Notizen oder Rückfragen werden direkt an einen Arzt adressiert; Empfänger sieht ungelesene Notizen als Badge auf dem Dashboard und in der Sidebar | SHOULD | Neue Domain-Entität `personal_ticket (id, von_id, an_id, akte_id?, betreff, body, status, erstellt_am, gelesen_am)`; Sichtbarkeit nur für Sender + Empfänger; lesen/quittieren wird im Audit-Log erfasst (WAAD 1.4) |
 
 ### 3.10 Statistik & Reporting (FA-STAT)
 
@@ -391,6 +401,8 @@ MeDoc muss die **10 Nielsen-Heuristiken** als formale Qualitätskriterien erfül
 | NFA-USE-06 | Farbkodierungen müssen zusätzlich Textlabels besitzen (Barrierefreiheit) | SHOULD | Jeder farbkodierte Zustand hat ein sichtbares Textlabel oder Tooltip |
 | NFA-USE-07 | Bestätigungsdialoge auch für Änderungen/Updates („Änderung bestätigen") — nicht nur für destruktive Aktionen | MUST | Jede Bearbeitungsaktion zeigt Bestätigungsdialog vor Speichern |
 | NFA-USE-08 | Toast-/Banner-Nachrichten nach jeder CRUD-Operation (Erfolg/Fehler) | MUST | z. B. „Termin wurde gespeichert", „Akte wurde gelöscht" als visuelles Feedback |
+| NFA-USE-09 | Kontextsensitive Tooltip-/Onboarding-Layer auf jeder Hauptseite: Erstbenutzer können einen kurzen, abdismissbaren Walkthrough starten, der die wichtigsten Aktionen jeder Seite erklärt | SHOULD | Walkthrough in `app/src/views/components/app-help-dialogs.tsx`; pro-Rolle/pro-Seite-Schlüssel im `app_kv`-Store gespeichert (`onboarding.<route>.dismissed`); jederzeit über `?`-Icon erneut startbar (WAAD 1.5, NFA-USE-H10) |
+| NFA-USE-10 | Konfigurierbares Autocomplete-/Vorschlags-Verhalten: Pflichtfelder mit kontrollierten Vokabularen (Stadt, Versicherung, Diagnose-Kürzel, Behandlungs-Kategorie) bieten Inline-Vorschläge; Vokabular kann pro Praxis erweitert werden | SHOULD | Vokabular-Quellen in `app/src/lib/string-suggest.ts`; praxis-spezifische Erweiterungen in `app_kv`; Vorschlagsliste case-insensitive, beste-Treffer zuerst (WAAD 7.4) |
 
 ### 4.3 Performance (NFA-PERF)
 

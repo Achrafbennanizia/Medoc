@@ -38,6 +38,10 @@ pub fn allowed(action: &str, role: Role) -> bool {
     match action {
         // Patient medical records — clinicians only
         "patient.read_medical" | "patient.write_medical" => role == Role::Arzt,
+        // Behandlung/Untersuchung-Zeilen für Zahlungszuordnung (Kundenleistungen, Finanzen → Neue Zahlung)
+        "patient.behandlungen_list_for_zahlung" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
+        },
         // Patient demographics — clinicians + reception (not full medical record)
         "patient.read" | "patient.write" => matches!(role, Role::Arzt | Role::Rezeption),
         // Schedule: list doctors for appointment assignment (same audience as termin)
@@ -53,6 +57,9 @@ pub fn allowed(action: &str, role: Role) -> bool {
         // Inventory / products — clinicians + reception + pharma rep
         "produkt.read" => true,
         "produkt.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
+        // Purchase orders (Bestellungen) — same audience as products
+        "bestellung.read" => true,
+        "bestellung.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
         // Personnel administration — clinicians only
         "personal.read" | "personal.write" => role == Role::Arzt,
         // Audit log read — clinicians only

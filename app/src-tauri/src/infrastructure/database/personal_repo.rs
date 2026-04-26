@@ -43,7 +43,7 @@ pub async fn create(
 ) -> Result<Personal, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let rolle = serde_json::to_string(&data.rolle)
-        .unwrap()
+        .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -78,16 +78,13 @@ pub async fn update(
 
     let name = data.name.as_deref().unwrap_or(&existing.name);
     let email = data.email.as_deref().unwrap_or(&existing.email);
-    let rolle = data
-        .rolle
-        .as_ref()
-        .map(|r| {
-            serde_json::to_string(r)
-                .unwrap()
-                .trim_matches('"')
-                .to_uppercase()
-        })
-        .unwrap_or(existing.rolle.clone());
+    let rolle = match data.rolle.as_ref() {
+        Some(r) => serde_json::to_string(r)
+            .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_uppercase(),
+        None => existing.rolle.clone(),
+    };
     let verfuegbar = data.verfuegbar.unwrap_or(existing.verfuegbar);
 
     sqlx::query(

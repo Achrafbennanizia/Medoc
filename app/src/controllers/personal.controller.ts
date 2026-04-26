@@ -15,6 +15,10 @@ export async function listPersonal(): Promise<Personal[]> {
     return tauriInvoke<Personal[]>("list_personal");
 }
 
+export async function getPersonal(id: string): Promise<Personal> {
+    return tauriInvoke<Personal>("get_personal", { id });
+}
+
 export async function createPersonal(data: {
     name: string;
     email: string;
@@ -30,4 +34,12 @@ export async function updatePersonal(id: string, data: Record<string, unknown>):
 
 export async function deletePersonal(id: string): Promise<void> {
     return tauriInvoke("delete_personal", { id });
+}
+
+/** Setzt das Passwort für ein Team-Mitglied (Personalverwaltung, ohne altes Passwort). */
+export async function setPersonalPasswordByAdmin(
+    id: string,
+    newPassword: string,
+): Promise<void> {
+    return tauriInvoke("set_personal_password_by_admin", { id, newPassword });
 }

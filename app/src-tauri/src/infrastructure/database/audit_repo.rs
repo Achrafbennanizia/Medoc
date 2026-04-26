@@ -63,18 +63,20 @@ fn resolve_audit_key_material(app_data_dir: &Path) -> Result<Vec<u8>, std::io::E
 }
 
 #[cfg(test)]
-fn audit_key_fallback() -> Vec<u8> {
-    (*b"k9-medoc-test-audit-key-32bytes!").into()
+fn audit_key_fallback() -> Result<Vec<u8>, AppError> {
+    Ok((*b"k9-medoc-test-audit-key-32bytes!").into())
 }
 
 #[cfg(not(test))]
-fn audit_key_fallback() -> Vec<u8> {
-    panic!("init_audit_hmac_key must run before audit repository use");
+fn audit_key_fallback() -> Result<Vec<u8>, AppError> {
+    Err(AppError::Internal(
+        "Audit-Key wurde nicht initialisiert (init_audit_hmac_key)".into(),
+    ))
 }
 
-fn audit_key() -> Vec<u8> {
+fn audit_key() -> Result<Vec<u8>, AppError> {
     if let Some(k) = AUDIT_KEY_MATERIAL.get() {
-        k.clone()
+        Ok(k.clone())
     } else {
         audit_key_fallback()
     }
@@ -87,6 +89,29 @@ pub async fn find_all(pool: &SqlitePool, limit: i64) -> Result<Vec<AuditLog>, Ap
             .fetch_all(pool)
             .await?;
     Ok(rows)
+}
+
+/// Paginated audit-log query. The audit table grows monotonically and the
+/// current page only requests `limit` rows.
+pub async fn find_paginated(
+    pool: &SqlitePool,
+    limit: u32,
+    offset: u32,
+    sort_dir_sql: &'static str,
+) -> Result<(Vec<AuditLog>, i64), AppError> {
+    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
+        .fetch_one(pool)
+        .await?;
+    let sql = format!(
+        "SELECT * FROM audit_log ORDER BY created_at {} LIMIT ?1 OFFSET ?2",
+        sort_dir_sql
+    );
+    let rows = sqlx::query_as::<_, AuditLog>(&sql)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
+    Ok((rows, total.0))
 }
 
 pub async fn create(
@@ -117,7 +142,7 @@ pub async fn create(
         details.unwrap_or(""),
         prev
     );
-    let hmac = crypto::audit_hmac(&audit_key(), &payload);
+    let hmac = crypto::audit_hmac(&audit_key()?, &payload).map_err(AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac)
@@ -159,7 +184,7 @@ pub async fn verify_chain(pool: &SqlitePool) -> Result<Option<String>, AppError>
     .fetch_all(pool)
     .await?;
 
-    let key = audit_key();
+    let key = audit_key()?;
     let mut last_hmac = String::new();
     for (id, user_id, action, entity, entity_id, details, prev_hash, stored_hmac) in rows {
         let prev = prev_hash.unwrap_or_default();
@@ -176,7 +201,7 @@ pub async fn verify_chain(pool: &SqlitePool) -> Result<Option<String>, AppError>
             details.unwrap_or_default(),
             prev
         );
-        let expected = crypto::audit_hmac(&key, &payload);
+        let expected = crypto::audit_hmac(&key, &payload).map_err(AppError::Internal)?;
         if expected != stored_hmac {
             return Ok(Some(id));
         }

@@ -78,6 +78,37 @@ Nach Abschluss der Validierung sind alle Anforderungen:
 
 **Freigabe:** Die Anforderungsspezifikation ist validiert und freigegeben für die Entwurfsphase.
 
+## 6.3a WAAD-Erfüllungs-Matrix (Code-Evidenz)
+
+Die folgende Matrix zeigt den Erfüllungsgrad jeder im WAAD-PDF erhobenen Roh-Anforderung
+(`docs/requirements-engineering/source/anforderungen-ableitung-waad.pdf`) gegen den **aktuellen
+Code-Stand**. Die vollständige Trace-Matrix mit Datei-/Zeilennachweisen liegt in
+[`01b-traceability-waad.md`](./01b-traceability-waad.md).
+
+**Status-Legende:**
+- ✅ **VERIFIED** — Code, Akzeptanzkriterium und manueller Smoke-Test belegen die Umsetzung.
+- 🟡 **PARTIAL** — Kerncode existiert, aber nicht alle Akzeptanzkriterien sind erfüllt oder
+  end-to-end-getestet.
+- 🔴 **PENDING** — Kein bzw. unzureichender Code, Aufnahme in Pflichtenheft als neue `FA-*`/`NFA-*` ID erfolgt.
+- ⚪ **ORG** — Organisatorisch / nicht im Tool umzusetzen (z. B. Schulungen, vertragliche Pflichten).
+
+| Kategorie (WAAD) | WAAD-IDs | Mapped FA/NFA | Status | Bemerkung / Nachweis |
+|---|---|---|---|---|
+| 1 Patientenaufnahme | 1.1.1, 1.1.2, 1.2.1, 1.5 | FA-PAT-01 … 10, FA-AUTH-01..04, NFA-USE-09 | ✅ / 🟡 (1.5 Walkthrough) | Stammdaten, RBAC-Login bestehen; Onboarding-Layer als `NFA-USE-09` neu spezifiziert |
+| 1 Patientenaufnahme (Zugriff/Notiz) | 1.2.2, 1.3.1, 1.4 | FA-PERS-07, FA-AKTE-14, FA-PERS-08 | 🔴 PENDING | Berechtigungs-Override, „Akte an Arzt"-Aktion, Ticket-System neu in Pflichtenheft aufgenommen |
+| 2 Akten-Validierung | 2.1.1, 2.1.2, 2.2.1 | FA-AKTE-12/13/15, FA-AUDIT-01 | 🟡 PARTIAL | Status `VALIDIERT` und Audit-Read-Logging existieren (`audit_repo.rs`, `akte_commands.rs`); explizite Queue-Seite (`FA-AKTE-15`) fehlt noch |
+| 3 Medizinische Dokumentation | 3.1, 3.2, 3.3, 3.4 | FA-AKTE-01..09, FA-ZAHN-01..07, FA-DOK-01..06 | ✅ VERIFIED | Anamnese, Zahnschema, Behandlungs-Erfassung implementiert (`patient-detail.tsx`, `DentalChart.tsx`, `UntersuchungComposer.tsx`) |
+| 4 Termine | 4.1, 4.2, 4.3 | FA-TERM-01..16 | ✅ VERIFIED | Konfliktprüfung, Notfall, Erinnerung (Pipeline `notifications.rs`) |
+| 5 Discharge / Nachsorge | 5.1.1 | FA-DOK-08 | 🔴 PENDING | Patienten-Merkblatt-Generator als neue Pflichtenheft-ID |
+| 6 Kostenverwaltung | 6.1.1, 6.1.2, 6.2.1..4 | FA-FIN-01..08, FA-LEIST-01..05 | 🟡 PARTIAL | Zahlungserfassung & Bilanz vorhanden; Arzt-Freigabe-Flag (`FA-LEIST-05`) noch nicht im Datenmodell |
+| 7 UI/UX | 7.1, 7.2, 7.3.1..3, 7.4 | NFA-USE-01..10, FA-AKTE-16 | 🟡 PARTIAL | Palenight-Design + Toast-System + i18n vorhanden; Onboarding & Vollständigkeits-Indikator als neue IDs ergänzt |
+| 8 IT-Sicherheit | 8.1, 8.2, 8.3, 8.4 | NFA-SEC-01..09, NFA-DATA-01 | 🟡 PARTIAL | RBAC + Audit-Trail + Backup vorhanden; SQLCipher-Verschlüsselung weiterhin offen (siehe `contradictions.md` C1b) |
+| 9 Performance / Plattform | 9.1, 9.2, 9.3, 9.4, 9.5 | NFA-PERF-01..06, SA-01..08 | ✅ VERIFIED (Spezifikation), 🟡 (Last-Test) | Tauri+SQLite-WAL erfüllt Architektur-Vorgaben; Last-Test mit 5 Clients steht aus |
+
+> **Cross-Reference:** Jeder Eintrag verweist auf die ausführliche Trace-Zeile in
+> [`01b-traceability-waad.md`](./01b-traceability-waad.md). Pflichtenheft-Quelle ist
+> [`../v-model/01-anforderungen/pflichtenheft.md`](../v-model/01-anforderungen/pflichtenheft.md).
+
 ## 6.4 ISO-Normen-Validierung
 
 ### Verifikation der Normenreferenzen

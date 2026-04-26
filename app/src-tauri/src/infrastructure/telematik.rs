@@ -47,7 +47,10 @@ pub fn pzn_is_valid(pzn: &str) -> bool {
     if pzn.len() != 8 || !pzn.chars().all(|c| c.is_ascii_digit()) {
         return false;
     }
-    let digits: Vec<u32> = pzn.chars().map(|c| c.to_digit(10).unwrap()).collect();
+    // ASCII-digit guard above guarantees `to_digit(10)` succeeds, but we
+    // still avoid `unwrap` in production code by defaulting to 0 — it would
+    // simply break the checksum, never panic.
+    let digits: Vec<u32> = pzn.chars().map(|c| c.to_digit(10).unwrap_or(0)).collect();
     let sum: u32 = (0..7).map(|i| digits[i] * (i as u32 + 1)).sum();
     let check = sum % 11;
     check < 10 && check == digits[7]

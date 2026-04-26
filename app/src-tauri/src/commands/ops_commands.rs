@@ -18,6 +18,7 @@ pub struct BackupInfo {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn create_backup(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -32,6 +33,7 @@ pub async fn create_backup(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<BackupInfo>, AppError> {
     rbac::require(&session_state, "ops.backup")?;
     backup::list().map(|v| {
@@ -45,6 +47,7 @@ pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<Backup
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, path))]
 pub fn validate_backup(
     session_state: State<'_, SessionState>,
     path: String,
@@ -54,6 +57,7 @@ pub fn validate_backup(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn dsgvo_export_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -64,6 +68,7 @@ pub async fn dsgvo_export_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn dsgvo_erase_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -74,6 +79,7 @@ pub async fn dsgvo_erase_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, csv_path))]
 pub async fn import_patients_csv(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -85,6 +91,7 @@ pub async fn import_patients_csv(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn enforce_log_retention(
     session_state: State<'_, SessionState>,
 ) -> Result<retention::RetentionReport, AppError> {

@@ -6,24 +6,33 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
-fn token_re() -> &'static Regex {
-    static R: OnceLock<Regex> = OnceLock::new();
+fn token_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
         Regex::new(r"(?i)(password|passwort|token|secret|api[_-]?key|license|lizenz)\s*[:=]\s*\S+")
-            .unwrap()
+            .ok()
     })
+    .as_ref()
 }
 
-fn jwt_re() -> &'static Regex {
-    static R: OnceLock<Regex> = OnceLock::new();
-    R.get_or_init(|| Regex::new(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").unwrap())
+fn jwt_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").ok())
+        .as_ref()
 }
 
-/// Mask any obvious secret patterns inside a free-form string.
+/// Mask any obvious secret patterns inside a free-form string. If the static
+/// regexes fail to compile (impossible at runtime for hard-coded literals,
+/// but never panic) the input is returned unchanged.
 pub fn sanitize(input: &str) -> String {
-    let masked = token_re().replace_all(input, "$1=***");
-    let masked = jwt_re().replace_all(&masked, "eyJ***");
-    masked.into_owned()
+    let masked = match token_re() {
+        Some(re) => re.replace_all(input, "$1=***").into_owned(),
+        None => input.to_string(),
+    };
+    match jwt_re() {
+        Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
+        None => masked,
+    }
 }
 
 /// Mask a token-like value so only the prefix remains.

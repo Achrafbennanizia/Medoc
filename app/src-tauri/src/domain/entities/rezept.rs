@@ -17,6 +17,16 @@ pub struct Rezept {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UpdateRezept {
+    pub id: String,
+    pub medikament: String,
+    pub wirkstoff: Option<String>,
+    pub dosierung: String,
+    pub dauer: String,
+    pub hinweise: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateRezept {
     pub patient_id: String,
     pub arzt_id: String,

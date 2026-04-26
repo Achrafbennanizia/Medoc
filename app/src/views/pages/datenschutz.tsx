@@ -91,16 +91,16 @@ export function DatenschutzPage() {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <h2 className="text-headline text-on-primary">Datenschutz (DSGVO)</h2>
-            <p className="text-body text-on-surface-variant">
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+            <h2 className="page-title">Datenschutz (DSGVO)</h2>
+            <p style={{ color: "var(--fg-3)", fontSize: 14 }}>
                 Bearbeitung von Betroffenenrechten nach DSGVO Art. 15 (Auskunft), Art. 17 (Löschung)
                 und Art. 20 (Datenübertragbarkeit). Klinische Daten bleiben aufgrund §630f BGB
                 bis zum Ablauf der Aufbewahrungsfrist erhalten und werden bei einer Löschanfrage
                 <em> pseudonymisiert</em>.
             </p>
 
-            <Card>
+            <Card className="card-pad">
                 <CardHeader title="Patient suchen" />
                 <Input
                     id="dsgvo-filter"
@@ -118,21 +118,19 @@ export function DatenschutzPage() {
             ) : filtered.length === 0 ? (
                 <EmptyState icon="👥" title="Keine Patienten" description="Legen Sie Patienten an oder passen Sie die Suche an." />
             ) : (
-                <div className="card overflow-hidden">
-                    <table className="w-full text-body">
+                <div className="card">
+                    <table className="tbl">
                         <thead>
-                            <tr className="border-b border-surface-container">
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Name</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Status</th>
-                                <th className="text-right px-4 py-3 text-label text-on-surface-variant">Aktion</th>
+                            <tr>
+                                <th>Name</th><th>Status</th><th>Aktion</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.slice(0, 50).map((p) => (
-                                <tr key={p.id} className="border-b border-surface-container/50 hover:bg-surface-container/50">
-                                    <td className="px-4 py-3 text-on-primary">{p.name}</td>
-                                    <td className="px-4 py-3">{p.status}</td>
-                                    <td className="px-4 py-3 text-right space-x-2">
+                                <tr key={p.id}>
+                                    <td>{p.name}</td>
+                                    <td>{p.status}</td>
+                                    <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                                         <Button size="sm" onClick={() => handleExport(p)} disabled={busyId === p.id}>
                                             Export (JSON)
                                         </Button>
@@ -148,7 +146,7 @@ export function DatenschutzPage() {
             )}
 
             <Dialog open={!!exportPreview} onClose={() => setExportPreview(null)} title="Export-Vorschau">
-                <pre className="font-mono text-caption max-h-96 overflow-auto bg-surface-container p-3 rounded">
+                <pre className="card card-pad" style={{ maxHeight: 360, overflow: "auto", fontSize: 12 }}>
                     {exportPreview}
                 </pre>
             </Dialog>
@@ -165,7 +163,7 @@ export function DatenschutzPage() {
             />
 
             {eraseReport && (
-                <Card>
+                <Card className="card-pad">
                     <CardHeader title="Letzter Löschbericht" />
                     <ul className="text-body space-y-1">
                         <li>Patient-ID: <span className="font-mono">{eraseReport.patient_id}</span></li>

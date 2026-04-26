@@ -14,7 +14,16 @@ export async function createLeistung(data: {
     return tauriInvoke<Leistung>("create_leistung", { data });
 }
 
-export async function updateLeistung(id: string, data: Record<string, unknown>): Promise<Leistung> {
+/** Fields mirror Tauri `UpdateLeistung` — all optional, merged with existing row. */
+export type UpdateLeistungPayload = {
+    name?: string;
+    beschreibung?: string | null;
+    kategorie?: string;
+    preis?: number;
+    aktiv?: boolean;
+};
+
+export async function updateLeistung(id: string, data: UpdateLeistungPayload): Promise<Leistung> {
     return tauriInvoke<Leistung>("update_leistung", { id, data });
 }
 

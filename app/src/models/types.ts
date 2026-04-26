@@ -1,7 +1,7 @@
 // ===== Domain Types (mirrored from Rust backend) =====
 
 export type Rolle = "ARZT" | "REZEPTION" | "STEUERBERATER" | "PHARMABERATER";
-export type TerminArt = "ERSTBESUCH" | "UNTERSUCHUNG" | "BEHANDLUNG" | "KONTROLLE" | "BERATUNG";
+export type TerminArt = "ERSTBESUCH" | "UNTERSUCHUNG" | "BEHANDLUNG" | "KONTROLLE" | "BERATUNG" | "NOTFALL";
 export type TerminStatus = "GEPLANT" | "BESTAETIGT" | "DURCHGEFUEHRT" | "NICHT_ERSCHIENEN" | "ABGESAGT";
 export type Geschlecht = "MAENNLICH" | "WEIBLICH" | "DIVERS";
 export type PatientStatus = "NEU" | "AKTIV" | "VALIDIERT" | "READONLY";
@@ -93,6 +93,7 @@ export interface Untersuchung {
     beschwerden: string | null;
     ergebnisse: string | null;
     diagnose: string | null;
+    untersuchungsnummer?: string | null;
     created_at: string;
 }
 
@@ -105,6 +106,60 @@ export interface Behandlung {
     material: string | null;
     notizen: string | null;
     created_at: string;
+    kategorie?: string | null;
+    leistungsname?: string | null;
+    behandlungsnummer?: string | null;
+    sitzung?: number | null;
+    behandlung_status?: string | null;
+    gesamtkosten?: number | null;
+    termin_erforderlich?: number | null;
+    behandlung_datum?: string | null;
+}
+
+/** Verwaltung: vordefinierte Behandlungsleistungen für Akten-Formulare (`behandlungs_katalog`). */
+export interface BehandlungsKatalogItem {
+    id: string;
+    kategorie: string;
+    name: string;
+    default_kosten: number | null;
+    sort_order: number;
+    aktiv: number;
+    created_at: string;
+}
+
+/** Verwaltung: Stammdaten für Bestellungen (`lieferant_stamm` / `pharmaberater_stamm`). */
+export interface LieferantStamm {
+    id: string;
+    name: string;
+    sort_order: number;
+    aktiv: number;
+    created_at: string;
+}
+
+export interface PharmaberaterStamm {
+    id: string;
+    name: string;
+    sort_order: number;
+    aktiv: number;
+    created_at: string;
+}
+
+/** Vordefinierte Kombination Lieferant + Pharmaberater + Produkt (Lager) für „Neue Bestellung“. */
+export interface LieferantPharmaVorlage {
+    id: string;
+    lieferant_id: string;
+    pharmaberater_id: string;
+    produkt_id: string;
+    lieferant_name: string;
+    pharmaberater_name: string;
+    produkt_name: string;
+    produkt_kategorie: string;
+    produkt_preis: number;
+    /** 0/1 — Produkt im Lager deaktiviert, Schnellwahl-Hinweis in der UI. */
+    produkt_aktiv: number;
+    sort_order: number;
+    aktiv: number;
+    created_at: string;
 }
 
 export interface Zahlung {
@@ -115,6 +170,11 @@ export interface Zahlung {
     status: ZahlungsStatus;
     leistung_id: string | null;
     beschreibung: string | null;
+    behandlung_id?: string | null;
+    untersuchung_id?: string | null;
+    betrag_erwartet?: number | null;
+    /** 0/1 — Tagesabschluss: Zahlung kassenseitig geprüft. */
+    kasse_geprueft?: number;
     created_at: string;
 }
 
@@ -165,4 +225,67 @@ export interface DashboardStats {
     termine_heute: number | null;
     einnahmen_monat: number | null;
     produkte_niedrig: number | null;
+}
+
+/** A single bucket in a per-month time series ({@link StatistikOverview}). */
+export interface MonthBucket {
+    /** `YYYY-MM` (e.g. `"2026-04"`). */
+    month: string;
+    value: number;
+}
+
+/** Generic `(label, value)` pair used by pie & ranking charts. */
+export interface LabelValue {
+    label: string;
+    value: number;
+}
+
+/** Aggregated breakdowns powering the rich Statistik page. */
+export interface StatistikOverview {
+    // Patienten
+    patienten_gesamt: number;
+    patienten_neu_pro_monat: MonthBucket[];
+    patienten_kumuliert_pro_monat: MonthBucket[];
+    altersgruppen: LabelValue[];
+    geschlechter: LabelValue[];
+    patient_status: LabelValue[];
+    // Behandlungen
+    behandlungen_nach_kategorie: LabelValue[];
+    behandlungen_pro_monat: MonthBucket[];
+    medikamente_top: LabelValue[];
+    // Termine & Organisation
+    termine_pro_monat: MonthBucket[];
+    termin_status: LabelValue[];
+    termin_art: LabelValue[];
+    // Finanzen
+    einnahmen_pro_monat: MonthBucket[];
+    umsatz_nach_zahlungsart: LabelValue[];
+    einnahmen_aktueller_monat: number;
+    // Bestellungen
+    bestellungen_nach_status: LabelValue[];
+    bestellungen_pro_monat: MonthBucket[];
+    produkte_niedrig: number;
+}
+
+/** Practice absences / vacation blocks (`abwesenheit` table). */
+export interface Abwesenheit {
+    id: string;
+    typ: string;
+    kommentar: string | null;
+    von_tag: string;
+    bis_tag: string;
+    von_uhrzeit: string | null;
+    bis_uhrzeit: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/** Admin template for prescriptions or certificates (`dokument_vorlage`). */
+export interface DokumentVorlage {
+    id: string;
+    kind: "REZEPT" | "ATTEST";
+    titel: string;
+    payload: string;
+    created_at: string;
+    updated_at: string;
 }

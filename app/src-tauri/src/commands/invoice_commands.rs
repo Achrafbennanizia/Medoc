@@ -28,6 +28,7 @@ pub struct InvoiceDto {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, invoice))]
 pub fn render_invoice_pdf(
     session_state: State<'_, SessionState>,
     invoice: InvoiceDto,

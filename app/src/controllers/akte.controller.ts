@@ -56,6 +56,14 @@ export async function createBehandlung(data: {
     zaehne?: string | null;
     material?: string | null;
     notizen?: string | null;
+    kategorie?: string | null;
+    leistungsname?: string | null;
+    behandlungsnummer?: string | null;
+    sitzung?: number | null;
+    behandlung_status?: string | null;
+    gesamtkosten?: number | null;
+    termin_erforderlich?: boolean | null;
+    behandlung_datum?: string | null;
 }): Promise<Behandlung> {
     return tauriInvoke<Behandlung>("create_behandlung", { data });
 }
@@ -65,6 +73,43 @@ export async function createUntersuchung(data: {
     beschwerden?: string | null;
     ergebnisse?: string | null;
     diagnose?: string | null;
+    untersuchungsnummer?: string | null;
 }): Promise<Untersuchung> {
     return tauriInvoke<Untersuchung>("create_untersuchung", { data });
+}
+
+export async function updateUntersuchung(data: {
+    id: string;
+    beschwerden?: string | null;
+    ergebnisse?: string | null;
+    diagnose?: string | null;
+}): Promise<Untersuchung> {
+    return tauriInvoke<Untersuchung>("update_untersuchung", { data });
+}
+
+export async function deleteUntersuchung(id: string): Promise<void> {
+    return tauriInvoke<void>("delete_untersuchung", { id });
+}
+
+export async function updateBehandlung(data: {
+    id: string;
+    art: string;
+    beschreibung?: string | null;
+    zaehne?: string | null;
+    material?: string | null;
+    notizen?: string | null;
+    kategorie?: string | null;
+    leistungsname?: string | null;
+    behandlungsnummer?: string | null;
+    sitzung?: number | null;
+    behandlung_status?: string | null;
+    gesamtkosten?: number | null;
+    termin_erforderlich?: boolean | null;
+    behandlung_datum?: string | null;
+}): Promise<Behandlung> {
+    return tauriInvoke<Behandlung>("update_behandlung", { data });
+}
+
+export async function deleteBehandlung(id: string): Promise<void> {
+    return tauriInvoke<void>("delete_behandlung", { id });
 }

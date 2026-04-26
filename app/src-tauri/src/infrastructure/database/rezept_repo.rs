@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::domain::entities::rezept::{CreateRezept, Rezept};
+use crate::domain::entities::rezept::{CreateRezept, Rezept, UpdateRezept};
 use crate::error::AppError;
 
 pub async fn find_for_patient(
@@ -52,4 +52,25 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub async fn update(pool: &SqlitePool, data: &UpdateRezept) -> Result<Rezept, AppError> {
+    let ex = find_by_id(pool, &data.id)
+        .await?
+        .ok_or(AppError::NotFound("Rezept".into()))?;
+    sqlx::query(
+        "UPDATE rezept SET medikament = ?1, wirkstoff = ?2, dosierung = ?3, dauer = ?4, hinweise = ?5
+         WHERE id = ?6",
+    )
+    .bind(&data.medikament)
+    .bind(&data.wirkstoff)
+    .bind(&data.dosierung)
+    .bind(&data.dauer)
+    .bind(&data.hinweise)
+    .bind(&data.id)
+    .execute(pool)
+    .await?;
+    find_by_id(pool, &ex.id)
+        .await?
+        .ok_or(AppError::Internal("Rezept update failed".into()))
 }

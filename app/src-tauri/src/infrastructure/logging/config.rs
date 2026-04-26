@@ -39,11 +39,22 @@ impl LoggingConfig {
     }
 
     pub fn set_level(&self, level: LogLevel) {
-        *self.level.write().unwrap() = level;
+        // RwLock poisoning is recoverable here: we still want the new level to
+        // win even if a previous holder panicked while updating it.
+        match self.level.write() {
+            Ok(mut guard) => *guard = level,
+            Err(poisoned) => *poisoned.into_inner() = level,
+        }
     }
 
     pub fn level(&self) -> LogLevel {
-        *self.level.read().unwrap()
+        match self.level.read() {
+            Ok(guard) => *guard,
+            // If the lock was poisoned by a panic during a previous write we
+            // fall back to the most-recently visible value rather than crash
+            // the logging pipeline.
+            Err(poisoned) => *poisoned.into_inner(),
+        }
     }
 
     /// Whether a log event should be written to the JSON `app.log` channel.

@@ -18,6 +18,9 @@ export function allowed(action: string, role: Role): boolean {
         case "patient.read_medical":
         case "patient.write_medical":
             return role === "ARZT";
+        /** List Behandlung/Untersuchung rows for payment booking — mirrors Rust `patient.behandlungen_list_for_zahlung`. */
+        case "patient.behandlungen_list_for_zahlung":
+            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
         case "patient.read":
         case "patient.write":
             return role === "ARZT" || role === "REZEPTION";
@@ -29,6 +32,12 @@ export function allowed(action: string, role: Role): boolean {
             return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
         case "finanzen.write":
             return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
+        /** Mirrors Rust `bestellung.read` (any authenticated role). */
+        case "bestellung.read":
+            return true;
+        /** Mirrors Rust `bestellung.write` — not Steuerberater. */
+        case "bestellung.write":
+            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
         case "dashboard.read":
             return true;
         case "produkt.read":
@@ -85,33 +94,16 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         icon: "📊",
         visibility: { kind: "action", action: "dashboard.read" },
     },
+    { to: "/hilfe", labelKey: "nav.hilfe", icon: "❓", visibility: { kind: "action", action: "dashboard.read" } },
     { to: "/termine", labelKey: "nav.termine", icon: "📅", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", icon: "👥", visibility: { kind: "action", action: "patient.read" } },
     { to: "/finanzen", labelKey: "nav.finanzen", icon: "💰", visibility: { kind: "action", action: "finanzen.read" } },
-    /* Bilanz: narrower than `finanzen.read` — reporting view for ARZT/STEUERBERATER only */
-    { to: "/bilanz", labelKey: "nav.bilanz", icon: "📊", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
-    { to: "/rezepte", labelKey: "nav.rezepte", icon: "💊", visibility: { kind: "action", action: "patient.read_medical" } },
-    { to: "/atteste", labelKey: "nav.atteste", icon: "📄", visibility: { kind: "action", action: "patient.read_medical" } },
+    { to: "/bestellungen", labelKey: "nav.bestellungen", icon: "🚚", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/leistungen", labelKey: "nav.leistungen", icon: "🦷", visibility: { kind: "action", action: "finanzen.read" } },
     /* `produkt.read` allows every role in Rust; sidebar matches product scope (exclude Steuerberater). */
     { to: "/produkte", labelKey: "nav.produkte", icon: "📦", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] } },
-    { to: "/personal", labelKey: "nav.personal", icon: "👤", visibility: { kind: "action", action: "personal.read" } },
+    { to: "/verwaltung", labelKey: "nav.verwaltung", icon: "🏢", visibility: { kind: "action", action: "personal.read" } },
     { to: "/statistik", labelKey: "nav.statistik", icon: "📈", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
-    { to: "/audit", labelKey: "nav.audit", icon: "📋", visibility: { kind: "action", action: "audit.read" } },
-    { to: "/logs", labelKey: "nav.logs", icon: "📜", visibility: { kind: "action", action: "ops.logs" } },
-    { to: "/ops", labelKey: "nav.ops", icon: "⚙️", visibility: { kind: "action", action: "ops.backup" } },
-    {
-        to: "/compliance",
-        labelKey: "nav.compliance",
-        icon: "🛡️",
-        visibility: { kind: "anyOf", actions: ["ops.dsgvo", "ops.system"] },
-    },
-    {
-        to: "/datenschutz",
-        labelKey: "nav.datenschutz",
-        icon: "🔒",
-        visibility: { kind: "allOf", actions: ["patient.read", "ops.dsgvo"] },
-    },
     {
         to: "/einstellungen",
         labelKey: "nav.einstellungen",
@@ -124,31 +116,71 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
  * Maps React Router child `path` (the `path` prop under the layout route) to a sidebar `to`
  * used in {@link NAV_ITEM_DEFINITIONS}. Patient detail shares visibility with `/patienten`.
  */
-export const ROUTE_PATH_TO_NAV_TO: Record<string, string> = {
-    "": "/",
-    termine: "/termine",
-    patienten: "/patienten",
-    "patienten/:id": "/patienten",
-    finanzen: "/finanzen",
-    bilanz: "/bilanz",
-    rezepte: "/rezepte",
-    atteste: "/atteste",
-    leistungen: "/leistungen",
-    produkte: "/produkte",
-    personal: "/personal",
-    statistik: "/statistik",
-    audit: "/audit",
-    datenschutz: "/datenschutz",
-    einstellungen: "/einstellungen",
-    logs: "/logs",
-    ops: "/ops",
-    compliance: "/compliance",
+export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
+    "": { kind: "action", action: "dashboard.read" },
+    termine: { kind: "action", action: "termin.read" },
+    "termine/neu": { kind: "action", action: "termin.write" },
+    patienten: { kind: "action", action: "patient.read" },
+    "patienten/neu": { kind: "action", action: "patient.write" },
+    "patienten/:id": { kind: "action", action: "patient.read" },
+    "patienten/:id/rezept/neu": { kind: "action", action: "patient.write_medical" },
+    "patienten/:id/rezept/:rezeptId": { kind: "action", action: "patient.write_medical" },
+    finanzen: { kind: "action", action: "finanzen.read" },
+    "finanzen/neu": { kind: "action", action: "finanzen.write" },
+    bestellungen: { kind: "action", action: "finanzen.read" },
+    "bestellungen/neu": { kind: "action", action: "finanzen.write" },
+    "bestellungen/:id": { kind: "action", action: "finanzen.read" },
+    bilanz: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
+    "bilanz/neu": { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
+    rezepte: { kind: "action", action: "patient.read_medical" },
+    atteste: { kind: "action", action: "patient.read_medical" },
+    leistungen: { kind: "action", action: "finanzen.read" },
+    "leistungen/neu": { kind: "action", action: "finanzen.write" },
+    produkte: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] },
+    personal: { kind: "action", action: "personal.read" },
+    "personal/neu": { kind: "action", action: "personal.write" },
+    statistik: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
+    audit: { kind: "action", action: "audit.read" },
+    datenschutz: { kind: "allOf", actions: ["patient.read", "ops.dsgvo"] },
+    einstellungen: { kind: "roles", roles: ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] },
+    logs: { kind: "action", action: "ops.logs" },
+    ops: { kind: "action", action: "ops.backup" },
+    compliance: { kind: "anyOf", actions: ["ops.dsgvo", "ops.system"] },
+    hilfe: { kind: "action", action: "dashboard.read" },
+    feedback: { kind: "action", action: "dashboard.read" },
+    migration: { kind: "action", action: "ops.migration" },
+    verwaltung: { kind: "action", action: "personal.read" },
+    "verwaltung/arbeitstage": { kind: "action", action: "personal.read" },
+    "verwaltung/praxisplanung": { kind: "action", action: "personal.read" },
+    "verwaltung/arbeitszeiten": { kind: "action", action: "personal.read" },
+    "verwaltung/sonder-sperrzeiten": { kind: "action", action: "personal.read" },
+    "verwaltung/praxis-praeferenzen": { kind: "action", action: "personal.read" },
+    "verwaltung/vorlagen": { kind: "action", action: "personal.read" },
+    "verwaltung/vorlagen/editor": { kind: "action", action: "personal.read" },
+    "verwaltung/behandlungs-katalog": { kind: "action", action: "personal.read" },
+    /** Bestellwesen (nicht `finanzen.*`) — spiegelt Tauri `bestellung.read` / `bestellung.write` für Praxis-Stammdaten. */
+    "verwaltung/bestellstamm": { kind: "action", action: "bestellung.read" },
+    "verwaltung/finanzen-werkzeuge": { kind: "action", action: "personal.read" },
+    "verwaltung/tagesabschluss": { kind: "action", action: "personal.read" },
+    "verwaltung/finanzen-berichte": { kind: "action", action: "personal.read" },
+    "verwaltung/finanzen-berichte/tagesabschluss": { kind: "action", action: "personal.read" },
+    "verwaltung/finanzen-berichte/rechnung": { kind: "action", action: "personal.read" },
+    "verwaltung/lager-und-bestellwesen": { kind: "action", action: "personal.read" },
+    "verwaltung/vertraege": { kind: "action", action: "personal.read" },
+    "verwaltung/leistungen-kataloge-vorlagen": { kind: "action", action: "personal.read" },
 };
 
+function visibilityAllowed(visibility: NavVisibility, role: Role): boolean {
+    if (visibility.kind === "action") return allowed(visibility.action, role);
+    if (visibility.kind === "allOf") return visibility.actions.every((a) => allowed(a, role));
+    if (visibility.kind === "anyOf") return visibility.actions.some((a) => allowed(a, role));
+    return visibility.roles.includes(role);
+}
+
 export function routeChildPathAllowed(routePath: string, rolle: string | undefined): boolean {
-    const navTo = ROUTE_PATH_TO_NAV_TO[routePath];
-    if (!navTo) return false;
-    const def = NAV_ITEM_DEFINITIONS.find((d) => d.to === navTo);
-    if (!def) return false;
-    return navItemVisible(rolle, def);
+    const role = parseRole(rolle);
+    if (!role) return false;
+    const visibility = ROUTE_VISIBILITY[routePath];
+    if (!visibility) return false;
+    return visibilityAllowed(visibility, role);
 }

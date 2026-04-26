@@ -8,15 +8,30 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_patienten(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<Patient>, AppError> {
-    rbac::require(&session_state, "patient.read")?;
-    patient_repo::find_all(&pool).await
+    let session = rbac::require(&session_state, "patient.read")?;
+    let rows = patient_repo::find_all(&pool).await?;
+    // NFA-SEC-04 ext.: every bulk patient read is auditable. We log only the
+    // count to avoid leaking ids/PII into the audit-detail field.
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ_LIST",
+        "Patient",
+        None,
+        Some(&format!("count={}", rows.len())),
+    )
+    .await
+    .ok();
+    Ok(rows)
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -33,6 +48,7 @@ pub async fn get_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -54,6 +70,7 @@ pub async fn create_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn update_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -99,6 +116,7 @@ pub async fn update_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn delete_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -120,11 +138,25 @@ pub async fn delete_patient(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, query))]
 pub async fn search_patienten(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     query: String,
 ) -> Result<Vec<Patient>, AppError> {
-    rbac::require(&session_state, "patient.read")?;
-    patient_repo::search(&pool, &query).await
+    let session = rbac::require(&session_state, "patient.read")?;
+    let rows = patient_repo::search(&pool, &query).await?;
+    // NFA-SEC-04 ext.: searches against patient PII are auditable. The query
+    // string itself is omitted so we don't echo possibly-private input back.
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "SEARCH",
+        "Patient",
+        None,
+        Some(&format!("hits={}", rows.len())),
+    )
+    .await
+    .ok();
+    Ok(rows)
 }

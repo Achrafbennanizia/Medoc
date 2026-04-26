@@ -61,7 +61,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateTermin) -> Result<Termin, Ap
 
     let id = uuid::Uuid::new_v4().to_string();
     let art = serde_json::to_string(&data.art)
-        .unwrap()
+        .map_err(|e| AppError::Internal(format!("Termin-Art serialisieren: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -101,26 +101,20 @@ pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateTermin) -> Result<
         return Err(AppError::Conflict("Terminkonflikt".into()));
     }
 
-    let art = data
-        .art
-        .as_ref()
-        .map(|a| {
-            serde_json::to_string(a)
-                .unwrap()
-                .trim_matches('"')
-                .to_uppercase()
-        })
-        .unwrap_or(existing.art.clone());
-    let status = data
-        .status
-        .as_ref()
-        .map(|s| {
-            serde_json::to_string(s)
-                .unwrap()
-                .trim_matches('"')
-                .to_uppercase()
-        })
-        .unwrap_or(existing.status.clone());
+    let art = match data.art.as_ref() {
+        Some(a) => serde_json::to_string(a)
+            .map_err(|e| AppError::Internal(format!("Termin-Art serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_uppercase(),
+        None => existing.art.clone(),
+    };
+    let status = match data.status.as_ref() {
+        Some(s) => serde_json::to_string(s)
+            .map_err(|e| AppError::Internal(format!("Termin-Status serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_uppercase(),
+        None => existing.status.clone(),
+    };
 
     sqlx::query(
         "UPDATE termin SET datum = ?1, uhrzeit = ?2, art = ?3, status = ?4,

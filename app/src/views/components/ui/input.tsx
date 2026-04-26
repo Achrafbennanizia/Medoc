@@ -1,5 +1,5 @@
-import { type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, forwardRef, useId } from "react";
-import { cn } from "@/lib/utils";
+import { type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, forwardRef, useId, useMemo, useRef, useState } from "react";
+import { useDismissibleLayer } from "./use-dismissible-layer";
 
 /* ── Text Input ── */
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -16,26 +16,22 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
 
         return (
-            <div className="space-y-1">
+            <div style={{ marginBottom: 8 }} className={error ? "input-wrap--error" : undefined}>
                 {label && (
-                    <label htmlFor={inputId} className="block text-label text-on-surface-variant">
+                    <label htmlFor={inputId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
                         {label}
                     </label>
                 )}
                 <input
                     ref={ref}
                     id={inputId}
-                    className={cn(
-                        "w-full h-9 px-3 rounded-lg bg-surface-bright border text-body text-on-surface placeholder:text-on-surface-variant/50 transition-colors duration-150 focus-ring",
-                        error ? "border-error" : "border-surface-container hover:border-surface-overlay",
-                        className,
-                    )}
+                    className={["input-edit", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
                     {...props}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={describedBy || undefined}
                 />
                 {error && (
-                    <p id={errorId} className="text-caption text-error">
+                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
                         {error}
                     </p>
                 )}
@@ -60,33 +56,93 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         const describedBy =
             error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
 
+        const [open, setOpen] = useState(false);
+        const rootRef = useRef<HTMLDivElement>(null);
+        useDismissibleLayer({
+            open,
+            rootRef,
+            onDismiss: () => setOpen(false),
+        });
+
+        const selectedValue = useMemo(() => {
+            const current = props.value as string | undefined;
+            if (current != null) return String(current);
+            const fallback = props.defaultValue as string | undefined;
+            if (fallback != null) return String(fallback);
+            return options[0]?.value ?? "";
+        }, [options, props.defaultValue, props.value]);
+
+        const selectedLabel =
+            options.find((o) => o.value === selectedValue)?.label ?? options[0]?.label ?? "";
+
+        const chooseValue = (nextValue: string) => {
+            if (props.disabled) return;
+            props.onChange?.({
+                target: { value: nextValue, name: props.name },
+                currentTarget: { value: nextValue, name: props.name },
+            } as unknown as Parameters<NonNullable<SelectProps["onChange"]>>[0]);
+            setOpen(false);
+        };
+
         return (
-            <div className="space-y-1">
+            <div style={{ marginBottom: 8 }} ref={rootRef} className={error ? "input-wrap--error" : undefined}>
                 {label && (
-                    <label htmlFor={selectId} className="block text-label text-on-surface-variant">
+                    <label htmlFor={selectId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
                         {label}
                     </label>
                 )}
-                <select
-                    ref={ref}
-                    id={selectId}
-                    className={cn(
-                        "w-full h-9 px-3 rounded-lg bg-surface-bright border text-body text-on-surface transition-colors duration-150 focus-ring appearance-none",
-                        error ? "border-error" : "border-surface-container hover:border-surface-overlay",
-                        className,
+                <div className="select-wrap">
+                    <button
+                        id={selectId}
+                        type="button"
+                        className={["input-edit", "select-edit", "select-trigger", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
+                        onClick={() => setOpen((v) => !v)}
+                        disabled={props.disabled}
+                        aria-invalid={error ? true : undefined}
+                        aria-describedby={describedBy || undefined}
+                        aria-haspopup="listbox"
+                        aria-expanded={open}
+                    >
+                        <span className="select-trigger-label">{selectedLabel}</span>
+                    </button>
+                    <select
+                        ref={ref}
+                        value={selectedValue}
+                        onChange={() => { }}
+                        name={props.name}
+                        required={props.required}
+                        tabIndex={-1}
+                        aria-hidden
+                        style={{ display: "none" }}
+                    >
+                        {options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                                {o.label}
+                            </option>
+                        ))}
+                    </select>
+                    {open && (
+                        <div className="select-menu" role="listbox" aria-labelledby={selectId}>
+                            {options.map((o) => {
+                                const active = o.value === selectedValue;
+                                return (
+                                    <button
+                                        key={o.value}
+                                        type="button"
+                                        className={`select-option ${active ? "active" : ""}`}
+                                        role="option"
+                                        aria-selected={active}
+                                        onClick={() => chooseValue(o.value)}
+                                    >
+                                        {o.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     )}
-                    {...props}
-                    aria-invalid={error ? true : undefined}
-                    aria-describedby={describedBy || undefined}
-                >
-                    {options.map((o) => (
-                        <option key={o.value} value={o.value}>
-                            {o.label}
-                        </option>
-                    ))}
-                </select>
+                </div>
                 {error && (
-                    <p id={errorId} className="text-caption text-error">
+                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
                         {error}
                     </p>
                 )}
@@ -111,26 +167,22 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
 
         return (
-            <div className="space-y-1">
+            <div style={{ marginBottom: 8 }} className={error ? "input-wrap--error" : undefined}>
                 {label && (
-                    <label htmlFor={taId} className="block text-label text-on-surface-variant">
+                    <label htmlFor={taId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
                         {label}
                     </label>
                 )}
                 <textarea
                     ref={ref}
                     id={taId}
-                    className={cn(
-                        "w-full px-3 py-2 rounded-lg bg-surface-bright border text-body text-on-surface placeholder:text-on-surface-variant/50 transition-colors duration-150 focus-ring resize-y min-h-[80px]",
-                        error ? "border-error" : "border-surface-container hover:border-surface-overlay",
-                        className,
-                    )}
+                    className={["input-edit", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
                     {...props}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={describedBy || undefined}
                 />
                 {error && (
-                    <p id={errorId} className="text-caption text-error">
+                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
                         {error}
                     </p>
                 )}

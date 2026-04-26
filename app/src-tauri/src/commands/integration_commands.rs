@@ -9,6 +9,7 @@ use crate::error::AppError;
 use crate::infrastructure::{notifications, telematik};
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, lead_minutes))]
 pub async fn list_upcoming_appointments(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -19,6 +20,7 @@ pub async fn list_upcoming_appointments(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, rx))]
 pub fn validate_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
@@ -28,6 +30,7 @@ pub fn validate_eprescription(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, rx))]
 pub fn submit_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
@@ -37,6 +40,7 @@ pub fn submit_eprescription(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, msg))]
 pub fn send_kim_message(
     session_state: State<'_, SessionState>,
     msg: telematik::KimMessage,

@@ -1,12 +1,50 @@
 import { useT } from "@/lib/i18n";
-import type { Toast } from "./toast-store";
-import { useToastStore } from "./toast-store";
+import { useToastStore, type Toast as ToastItem } from "./toast-store";
+import { CheckIcon, XIcon } from "@/lib/icons";
 
-const typeStyles: Record<Toast["type"], string> = {
-    success: "bg-success-container text-success border-success/20",
-    error: "bg-error-container text-error border-error/20",
-    info: "bg-info-container text-primary border-primary/20",
-};
+function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
+    const t = useT();
+    const isError = toast.type === "error";
+    const live = isError ? "assertive" : "polite";
+    const role = isError ? "alert" : "status";
+
+    const handleUndo = () => {
+        toast.onUndo?.();
+        onDismiss();
+    };
+
+    return (
+        <div
+            className={`toast-item ${toast.type} animate-slide-up`}
+            role={role}
+            aria-live={live}
+            style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
+        >
+            <div className="toast-item-inner">
+                {toast.type === "success" && <CheckIcon aria-hidden />}
+                {toast.type === "error" && <XIcon aria-hidden />}
+                {toast.type === "info" && <span className="toast-info-dot" aria-hidden />}
+                <span className="toast-message">{toast.message}</span>
+                {toast.onUndo ? (
+                    <button type="button" className="toast-undo" onClick={handleUndo}>
+                        {toast.undoLabel}
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={onDismiss}
+                    aria-label={t("a11y.dismiss_notification")}
+                    className="toast-dismiss"
+                >
+                    ×
+                </button>
+            </div>
+            <div className="toast-progress-track" aria-hidden>
+                <div className="toast-progress-bar" />
+            </div>
+        </div>
+    );
+}
 
 export function ToastContainer() {
     const toasts = useToastStore((s) => s.toasts);
@@ -17,27 +55,13 @@ export function ToastContainer() {
 
     return (
         <div
-            className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 max-w-sm"
+            className="toast-stack"
             role="region"
             aria-label={t("a11y.notifications_region")}
             aria-live="polite"
-            aria-relevant="additions text"
         >
-            {toasts.map((tToast) => (
-                <div
-                    key={tToast.id}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-body-medium animate-slide-up ${typeStyles[tToast.type]}`}
-                >
-                    <span className="flex-1">{tToast.message}</span>
-                    <button
-                        type="button"
-                        onClick={() => remove(tToast.id)}
-                        aria-label={t("a11y.dismiss_notification")}
-                        className="opacity-60 hover:opacity-100 transition-opacity focus-ring rounded px-1"
-                    >
-                        ×
-                    </button>
-                </div>
+            {toasts.map((toast) => (
+                <ToastRow key={toast.id} toast={toast} onDismiss={() => remove(toast.id)} />
             ))}
         </div>
     );

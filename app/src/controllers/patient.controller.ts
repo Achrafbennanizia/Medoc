@@ -1,5 +1,10 @@
 import { tauriInvoke } from "../services/tauri.service";
 import type { Patient } from "../models/types";
+import {
+    CreatePatientSchema,
+    UpdatePatientSchema,
+    parseOrThrow,
+} from "../lib/schemas";
 
 export async function listPatienten(): Promise<Patient[]> {
     return tauriInvoke<Patient[]>("list_patienten");
@@ -22,11 +27,13 @@ export async function createPatient(data: {
     email?: string;
     adresse?: string;
 }): Promise<Patient> {
-    return tauriInvoke<Patient>("create_patient", { data });
+    const safe = parseOrThrow(CreatePatientSchema, data);
+    return tauriInvoke<Patient>("create_patient", { data: safe });
 }
 
 export async function updatePatient(id: string, data: Record<string, unknown>): Promise<Patient> {
-    return tauriInvoke<Patient>("update_patient", { id, data });
+    const safe = parseOrThrow(UpdatePatientSchema, data);
+    return tauriInvoke<Patient>("update_patient", { id, data: safe });
 }
 
 export async function deletePatient(id: string): Promise<void> {

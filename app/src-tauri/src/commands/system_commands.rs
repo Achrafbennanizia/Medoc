@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, token))]
 pub fn verify_license(
     session_state: State<'_, SessionState>,
     token: String,
@@ -28,12 +29,14 @@ pub fn verify_license(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
 pub fn get_perf_threshold_ms(session_state: State<'_, SessionState>) -> Result<u64, AppError> {
     rbac::require(&session_state, "ops.system")?;
     Ok(perf::threshold_ms())
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn set_perf_threshold_ms(
     session_state: State<'_, SessionState>,
     ms: u64,
@@ -57,6 +60,7 @@ pub struct UpdateInfo {
 /// manifest. For now returns "no update available" but exercises the logging
 /// path so the contract is in place.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn check_for_updates(session_state: State<'_, SessionState>) -> Result<UpdateInfo, AppError> {
     rbac::require_authenticated(&session_state)?;
     let current = env!("CARGO_PKG_VERSION").to_string();
@@ -83,6 +87,7 @@ pub struct HealthCheck {
 /// audit-chain integrity, log directory writability. Used by the Ops UI
 /// and — per ISO 13485 §7.5.1 — service engineers.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn system_health_check(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

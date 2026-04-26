@@ -42,6 +42,7 @@ fn redact_login_identifier(raw: &str) -> String {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, brute_force, passwort), fields(subject = %redact_login_identifier(&email)))]
 pub async fn login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -115,6 +116,7 @@ pub async fn login(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub async fn logout(session_state: State<'_, SessionState>) -> Result<(), AppError> {
     let mut guard = session_state.lock_session();
     if let Some((s, _)) = guard.as_ref() {
@@ -125,6 +127,7 @@ pub async fn logout(session_state: State<'_, SessionState>) -> Result<(), AppErr
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
 pub async fn get_session(
     session_state: State<'_, SessionState>,
 ) -> Result<Option<Session>, AppError> {
@@ -140,6 +143,7 @@ pub async fn get_session(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
 pub async fn touch_session(session_state: State<'_, SessionState>) -> Result<bool, AppError> {
     let mut guard = session_state.lock_session();
     if let Some((_, last)) = guard.as_mut() {

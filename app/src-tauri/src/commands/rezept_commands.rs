@@ -3,12 +3,13 @@ use tauri::State;
 
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::rezept::CreateRezept;
+use crate::domain::entities::rezept::{CreateRezept, UpdateRezept};
 use crate::domain::entities::Rezept;
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, rezept_repo};
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn list_rezepte(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -30,6 +31,7 @@ pub async fn list_rezepte(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_rezept(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -51,6 +53,29 @@ pub async fn create_rezept(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn update_rezept(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: UpdateRezept,
+) -> Result<Rezept, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let r = rezept_repo::update(&pool, &data).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "Rezept",
+        Some(&r.id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(r)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id))]
 pub async fn delete_rezept(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

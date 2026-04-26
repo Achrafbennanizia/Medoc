@@ -136,13 +136,13 @@ export function AttestePage() {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
-                <h2 className="text-headline text-on-primary">Atteste</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+            <div className="page-head">
+                <h2 className="page-title">Atteste</h2>
                 <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>+ Neues Attest</Button>
             </div>
 
-            <Card>
+            <Card className="card-pad">
                 <CardHeader title="Patient auswählen" />
                 {patientsLoading ? (
                     <p className="text-body text-on-surface-variant" role="status">Patienten werden geladen…</p>
@@ -173,25 +173,21 @@ export function AttestePage() {
             ) : atteste.length === 0 ? (
                 <EmptyState icon="📄" title="Keine Atteste vorhanden" />
             ) : (
-                <div className="card overflow-hidden">
-                    <table className="w-full text-body">
+                <div className="card">
+                    <table className="tbl">
                         <thead>
-                            <tr className="border-b border-surface-container">
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Typ</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Gültig von</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Gültig bis</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Ausgestellt</th>
-                                <th className="text-right px-4 py-3 text-label text-on-surface-variant">Aktionen</th>
+                            <tr>
+                                <th>Typ</th><th>Gültig von</th><th>Gültig bis</th><th>Ausgestellt</th><th>Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
                             {atteste.map((a) => (
-                                <tr key={a.id} className="border-b border-surface-container/50 hover:bg-surface-container/50">
-                                    <td className="px-4 py-3 text-on-primary font-medium">{a.typ}</td>
-                                    <td className="px-4 py-3">{formatDate(a.gueltig_von)}</td>
-                                    <td className="px-4 py-3">{formatDate(a.gueltig_bis)}</td>
-                                    <td className="px-4 py-3">{formatDate(a.ausgestellt_am)}</td>
-                                    <td className="px-4 py-3 text-right space-x-2">
+                                <tr key={a.id}>
+                                    <td>{a.typ}</td>
+                                    <td>{formatDate(a.gueltig_von)}</td>
+                                    <td>{formatDate(a.gueltig_bis)}</td>
+                                    <td>{formatDate(a.ausgestellt_am)}</td>
+                                    <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                                         <Button size="sm" onClick={() => handlePrint(a)}>Drucken</Button>
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(a.id)}>Löschen</Button>
                                     </td>

@@ -2,7 +2,8 @@ use crate::application::rbac::{self, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::anamnesebogen::SaveAnamnesebogen;
 use crate::domain::entities::behandlung::{
-    Behandlung, CreateBehandlung, CreateUntersuchung, Untersuchung,
+    Behandlung, CreateBehandlung, CreateUntersuchung, Untersuchung, UpdateBehandlung,
+    UpdateUntersuchung,
 };
 use crate::domain::entities::zahnbefund::CreateZahnbefund;
 use crate::domain::entities::{Anamnesebogen, Patientenakte, Zahnbefund};
@@ -13,6 +14,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_akte(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -42,6 +44,7 @@ pub async fn get_akte(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn update_zahnbefund(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -63,36 +66,79 @@ pub async fn update_zahnbefund(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_zahnbefunde(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     akte_id: String,
 ) -> Result<Vec<Zahnbefund>, AppError> {
-    rbac::require(&session_state, "patient.read_medical")?;
-    akte_repo::find_zahnbefunde(&pool, &akte_id).await
+    let session = rbac::require(&session_state, "patient.read_medical")?;
+    let rows = akte_repo::find_zahnbefunde(&pool, &akte_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ",
+        "Zahnbefund",
+        Some(&akte_id),
+        Some(&format!("count={}", rows.len())),
+    )
+    .await
+    .ok();
+    Ok(rows)
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_behandlungen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     akte_id: String,
 ) -> Result<Vec<Behandlung>, AppError> {
-    rbac::require(&session_state, "patient.read_medical")?;
-    akte_repo::list_behandlungen(&pool, &akte_id).await
+    let session = rbac::require(
+        &session_state,
+        "patient.behandlungen_list_for_zahlung",
+    )?;
+    let rows = akte_repo::list_behandlungen(&pool, &akte_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ",
+        "Behandlung",
+        Some(&akte_id),
+        Some(&format!("count={}", rows.len())),
+    )
+    .await
+    .ok();
+    Ok(rows)
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_untersuchungen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     akte_id: String,
 ) -> Result<Vec<Untersuchung>, AppError> {
-    rbac::require(&session_state, "patient.read_medical")?;
-    akte_repo::list_untersuchungen(&pool, &akte_id).await
+    let session = rbac::require(
+        &session_state,
+        "patient.behandlungen_list_for_zahlung",
+    )?;
+    let rows = akte_repo::list_untersuchungen(&pool, &akte_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ",
+        "Untersuchung",
+        Some(&akte_id),
+        Some(&format!("count={}", rows.len())),
+    )
+    .await
+    .ok();
+    Ok(rows)
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn save_anamnesebogen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -114,16 +160,29 @@ pub async fn save_anamnesebogen(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_anamnesebogen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Option<Anamnesebogen>, AppError> {
-    rbac::require(&session_state, "patient.read_medical")?;
-    akte_repo::find_anamnesebogen(&pool, &patient_id).await
+    let session = rbac::require(&session_state, "patient.read_medical")?;
+    let bogen = akte_repo::find_anamnesebogen(&pool, &patient_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ",
+        "Anamnesebogen",
+        Some(&patient_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(bogen)
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_untersuchung(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -145,6 +204,7 @@ pub async fn create_untersuchung(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_behandlung(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -165,9 +225,84 @@ pub async fn create_behandlung(
     Ok(b)
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn update_behandlung(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: UpdateBehandlung,
+) -> Result<Behandlung, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let b = akte_repo::update_behandlung(&pool, &data).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "Behandlung",
+        Some(&b.id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(b)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id))]
+pub async fn delete_behandlung(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    id: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    akte_repo::delete_behandlung(&pool, &id).await?;
+    audit_repo::create(&pool, &session.user_id, "DELETE", "Behandlung", Some(&id), None)
+        .await
+        .ok();
+    Ok(())
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn update_untersuchung(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: UpdateUntersuchung,
+) -> Result<Untersuchung, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let u = akte_repo::update_untersuchung(&pool, &data).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "Untersuchung",
+        Some(&u.id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(u)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id))]
+pub async fn delete_untersuchung(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    id: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    akte_repo::delete_untersuchung(&pool, &id).await?;
+    audit_repo::create(&pool, &session.user_id, "DELETE", "Untersuchung", Some(&id), None)
+        .await
+        .ok();
+    Ok(())
+}
+
 /// FA-AKTE-04: Patientenakte als PDF exportieren.
 /// Returns base64-encoded PDF bytes for safe transport across the Tauri bridge.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn export_akte_pdf(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

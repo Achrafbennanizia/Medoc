@@ -12,6 +12,7 @@ use crate::infrastructure::{dsfa, payment, update, vvt};
 use crate::log_system;
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn generate_vvt(session_state: State<'_, SessionState>) -> Result<Value, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
     log_system!(info, event = "VVT_GENERATED");
@@ -20,6 +21,7 @@ pub fn generate_vvt(session_state: State<'_, SessionState>) -> Result<Value, App
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
 pub fn generate_dsfa(session_state: State<'_, SessionState>) -> Result<Value, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
     log_system!(info, event = "DSFA_GENERATED");
@@ -28,6 +30,7 @@ pub fn generate_dsfa(session_state: State<'_, SessionState>) -> Result<Value, Ap
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, path))]
 pub fn parse_gdt_file(
     session_state: State<'_, SessionState>,
     path: String,
@@ -37,6 +40,7 @@ pub fn parse_gdt_file(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, path))]
 pub fn inspect_dicom_file(
     session_state: State<'_, SessionState>,
     path: String,
@@ -46,6 +50,7 @@ pub fn inspect_dicom_file(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, folder, limit))]
 pub fn scanner_list_recent(
     session_state: State<'_, SessionState>,
     folder: String,
@@ -56,6 +61,7 @@ pub fn scanner_list_recent(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, src, archive_root, patient_id))]
 pub fn scanner_attach(
     session_state: State<'_, SessionState>,
     src: String,
@@ -72,6 +78,7 @@ pub fn scanner_attach(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, request))]
 pub fn process_payment(
     session_state: State<'_, SessionState>,
     request: payment::PaymentRequest,
@@ -81,6 +88,7 @@ pub fn process_payment(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, payload))]
 pub fn evaluate_update_payload(
     session_state: State<'_, SessionState>,
     payload: update::UpdateInfo,
@@ -90,6 +98,7 @@ pub fn evaluate_update_payload(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
 pub fn current_app_version(session_state: State<'_, SessionState>) -> Result<&'static str, AppError> {
     rbac::require_authenticated(&session_state)?;
     Ok(update::current_version())

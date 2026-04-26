@@ -1,5 +1,6 @@
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
+use crate::commands::list_params::{ListParams, ListResponse, SortDir};
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
@@ -14,6 +15,29 @@ pub async fn list_audit_logs(
 ) -> Result<Vec<AuditLog>, AppError> {
     rbac::require(&session_state, "audit.read")?;
     audit_repo::find_all(&pool, limit.unwrap_or(100)).await
+}
+
+/// Paginated audit-log query (NFA-PERF-04). Audit tables grow indefinitely
+/// so a paginated entry-point keeps the UI usable without `LIMIT 100` magic.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, params))]
+pub async fn list_audit_logs_paged(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    params: Option<ListParams>,
+) -> Result<ListResponse<AuditLog>, AppError> {
+    rbac::require(&session_state, "audit.read")?;
+    let p = params.unwrap_or_default();
+    let limit = p.limit();
+    let offset = p.offset();
+    let sort_dir = p.sort_dir_or(SortDir::Desc).sql();
+    let (items, total) = audit_repo::find_paginated(&pool, limit, offset, sort_dir).await?;
+    Ok(ListResponse {
+        items,
+        total,
+        page: p.page_one_based(),
+        page_size: limit,
+    })
 }
 
 /// Export all audit log entries as a CSV byte stream. CSV fields are RFC-4180

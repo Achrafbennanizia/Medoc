@@ -1,11 +1,16 @@
 pub mod akte_repo;
+pub mod app_kv_repo;
 pub mod attest_repo;
 pub mod audit_repo;
+pub mod bestellung_repo;
+pub mod bilanz_snapshot_repo;
 pub mod connection;
 pub mod leistung_repo;
 pub mod patient_repo;
 pub mod personal_repo;
+pub mod praxis_repo;
 pub mod produkt_repo;
 pub mod rezept_repo;
+pub mod tagesabschluss_protokoll_repo;
 pub mod termin_repo;
 pub mod zahlung_repo;

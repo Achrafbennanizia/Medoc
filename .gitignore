@@ -37,6 +37,7 @@ Thumbs.db
 # Build outputs
 app/src-tauri/target/
 app/src-tauri/target-ci/
+app/src-tauri/target-agent-check/
 src/node_modules/
 src/.next/
 src/out/

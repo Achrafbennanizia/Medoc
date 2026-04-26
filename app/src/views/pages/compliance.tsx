@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useT } from "../../lib/i18n";
 import { errorMessage } from "../../lib/utils";
 import { enforceLogRetention, generateDsfa, generateVvt } from "../../controllers/compliance.controller";
@@ -8,6 +9,7 @@ type ReportKind = "vvt" | "dsfa" | "retention";
 
 export function CompliancePage() {
     const t = useT();
+    const navigate = useNavigate();
     const [report, setReport] = useState<{ kind: ReportKind; data: unknown } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -40,15 +42,21 @@ export function CompliancePage() {
     }
 
     return (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <header>
-                <h1 className="text-headline text-on-surface">{t("nav.compliance") || "Compliance"}</h1>
-                <p className="text-body text-on-surface-variant">
+                <h1 className="page-title">{t("nav.compliance") || "Compliance"}</h1>
+                <p style={{ color: "var(--fg-3)", fontSize: 14 }}>
                     DSGVO Art. 30 (VVT), Art. 35 (DSFA), Log-Retention
                 </p>
             </header>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
+                    {t("compliance.cta_feedback")}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => navigate("/hilfe")}>
+                    {t("compliance.cta_hilfe")}
+                </Button>
                 <Button type="button" onClick={() => run("vvt")} disabled={loading}>
                     VVT generieren
                 </Button>
@@ -66,18 +74,15 @@ export function CompliancePage() {
             </div>
 
             {error && (
-                <div role="alert" className="p-3 rounded-lg bg-error/10 text-error text-body-medium">
+                <div role="alert" className="card card-pad" style={{ color: "var(--red)" }}>
                     {error}
                 </div>
             )}
 
             {report && (
-                <pre
-                    aria-label={`Bericht ${report.kind}`}
-                    className="bg-surface-container p-4 rounded-lg text-caption text-on-surface-variant overflow-auto max-h-[60vh]"
-                >
-                    {JSON.stringify(report.data, null, 2)}
-                </pre>
+                <div className="card card-pad">
+                    <pre aria-label={`Bericht ${report.kind}`} style={{ margin: 0, overflow: "auto", maxHeight: "60vh", fontSize: 12, color: "var(--fg-3)" }}>{JSON.stringify(report.data, null, 2)}</pre>
+                </div>
             )}
         </div>
     );

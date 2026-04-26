@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
 import { Button } from "./button";
 
@@ -9,7 +9,13 @@ interface DialogProps {
     title: string;
     children: ReactNode;
     footer?: ReactNode;
+    /** Zusätzliche Steuerung neben dem Schließen-Button (z.B. "Bearbeiten"). */
+    headerExtra?: ReactNode;
     className?: string;
+    /** Card-style dialog: no top title bar; close control in corner (use with `modal-body` + `modal-actions` in children/footer). */
+    presentation?: "default" | "centered";
+    /** Visible title element id for `aria-labelledby` when `presentation="centered"`. */
+    labelledBy?: string;
 }
 
 function collectFocusable(root: HTMLElement): HTMLElement[] {
@@ -20,8 +26,9 @@ function collectFocusable(root: HTMLElement): HTMLElement[] {
     );
 }
 
-export function Dialog({ open, onClose, title, children, footer, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, headerExtra, className, presentation = "default", labelledBy }: DialogProps) {
     const titleId = useId();
+    const isCentered = presentation === "centered";
     const panelRef = useRef<HTMLDivElement>(null);
     const t = useT();
 
@@ -100,48 +107,61 @@ export function Dialog({ open, onClose, title, children, footer, className }: Di
 
     const closeLabel = t("a11y.close_dialog");
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-                className="absolute inset-0 bg-surface-dim/80 backdrop-blur-sm animate-fade-in"
-                aria-hidden="true"
-                onClick={onClose}
-            />
+    const layer = (
+        <div className="modal-backdrop" onClick={onClose} role="presentation">
             <div
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby={titleId}
+                aria-labelledby={isCentered ? labelledBy ?? undefined : titleId}
+                aria-label={isCentered && !labelledBy ? (title || undefined) : undefined}
                 tabIndex={-1}
-                className={cn(
-                    "relative glass-bright rounded-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in outline-none focus-ring",
-                    className,
-                )}
+                className={`modal ${isCentered ? "modal--centered" : ""} ${className ?? ""}`}
+                onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between mb-4">
-                    <h3 id={titleId} className="text-title text-on-primary">
-                        {title}
-                    </h3>
+                {isCentered ? (
                     <button
                         type="button"
                         onClick={onClose}
                         aria-label={closeLabel}
-                        className="text-on-surface-variant hover:text-on-surface transition-colors p-1 rounded-md hover:bg-surface-container focus-ring"
+                        className="icon-btn modal-close-corner"
                     >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                     </button>
-                </div>
-                <div className="space-y-4">{children}</div>
-                {footer && (
-                    <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-surface-container">
-                        {footer}
+                ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid var(--line)", gap: 12 }}>
+                        <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                            {title}
+                        </h3>
+                        <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            {headerExtra}
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                aria-label={closeLabel}
+                                className="icon-btn"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
+                )}
+                <div style={isCentered ? { padding: 0 } : { padding: "16px 20px" }}>{children}</div>
+                {footer && (
+                    <div className="modal-actions">{footer}</div>
                 )}
             </div>
         </div>
     );
+
+    if (typeof document !== "undefined") {
+        return createPortal(layer, document.body);
+    }
+    return layer;
 }
 
 /* ── Confirm Dialog shorthand ── */
@@ -161,19 +181,30 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
         <Dialog
             open={open}
             onClose={onClose}
-            title={title}
+            title=""
             footer={
                 <>
                     <Button variant="ghost" onClick={onClose}>
                         Abbrechen
                     </Button>
-                    <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading}>
+                    <button className={danger ? "destructive" : "primary"} onClick={onConfirm} disabled={loading}>
                         {confirmLabel}
-                    </Button>
+                    </button>
                 </>
             }
         >
-            <p className="text-body text-on-surface">{message}</p>
+            <div className="confirm-body">
+                {danger ? (
+                    <div className="confirm-icon" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            <path d="M7.5 5.8a9 9 0 1 0 9 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                    </div>
+                ) : null}
+                <h3 className="confirm-title">{title}</h3>
+                <p className="confirm-text">{message}</p>
+            </div>
         </Dialog>
     );
 }

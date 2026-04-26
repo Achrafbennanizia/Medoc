@@ -45,11 +45,17 @@ pub fn needs_rehash(stored_hash: &str) -> bool {
 }
 
 /// Compute a hex-encoded HMAC-SHA256 of `data` using the configured audit key.
-pub fn audit_hmac(key: &[u8], data: &str) -> String {
-    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC key");
+///
+/// Returns `Err` only if the key is unusable; HMAC-SHA256 itself accepts
+/// arbitrary-length keys so this is effectively infallible for the keys
+/// produced by `init_audit_hmac_key`, but we expose the error rather than
+/// panic to keep the audit pipeline tamper-evident under all conditions.
+pub fn audit_hmac(key: &[u8], data: &str) -> Result<String, String> {
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|e| format!("HMAC-Schlüssel ungültig: {e}"))?;
     mac.update(data.as_bytes());
     let bytes = mac.finalize().into_bytes();
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    Ok(bytes.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 /// Wrapper for sensitive in-memory strings; zeroes itself on drop.

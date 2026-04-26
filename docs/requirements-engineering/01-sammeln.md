@@ -15,10 +15,24 @@
 
 ### 1.2 Erhebungstechniken
 
-1. **Dokumentenanalyse**: Bachelorarbeit (Bennani-Ziatni, SS 2025), Figma-Prototyp, Praxisdokumentation
+1. **Dokumentenanalyse**: Bachelorarbeit (Bennani-Ziatni, SS 2025), Figma-Prototyp, Praxisdokumentation,
+   **WAAD-Anforderungs-PDF** (`docs/requirements-engineering/source/anforderungen-ableitung-waad.pdf` —
+   „Anforderungen – Ableitung der Anforderungen"; 39 Roh-Anforderungen mit MUST/SHOULD/NICE-TO-HAVE-Klassifikation)
 2. **Persona-Analyse**: Dr. Markus Lehner (Zahnarzt), Anna Scholz (Rezeption)
 3. **Szenario-Analyse**: Typische Tagesabläufe in einer Zahnarztpraxis
 4. **Prototyp-Evaluation**: Heuristische Evaluation nach Nielsen (10 Heuristiken)
+
+### 1.2.1 WAAD-Quellenanforderungen
+
+Die direkt aus der WAAD-Anforderungserhebung („Anforderungen – Ableitung der Anforderungen") abgeleiteten
+Roh-Anforderungen sind verbatim in [`01a-waad-anforderungen.md`](./01a-waad-anforderungen.md) hinterlegt
+(IDs `1.1.1` … `9.5`, gegliedert in 9 Kategorien: Patientenaufnahme, Zugriffskontrolle, medizinische
+Dokumentation, Kostenverwaltung, Schnittstellen, Datenschutz, UI/UX, IT-Sicherheit, Performance/Plattform).
+
+Die Zuordnung jeder WAAD-ID zu einer oder mehreren formalen Anforderungs-IDs des Pflichtenhefts
+(`FA-*` / `NFA-*`), inklusive Status (COVERED / PARTIAL / NEW-PH / ORG) und Code-Evidenz, ist in
+[`01b-traceability-waad.md`](./01b-traceability-waad.md) dokumentiert. Diese Trace-Matrix ist die
+verbindliche Grundlage für die Validierung in `06-validierung.md`.
 
 ### 1.3 Gesammelte Rohforderungen
 

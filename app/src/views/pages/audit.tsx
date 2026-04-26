@@ -49,14 +49,14 @@ export function AuditPage() {
     };
 
     return (
-        <div className="animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-headline text-on-primary">Audit-Log</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+            <div className="page-head">
+                <h2 className="page-title">Audit-Log</h2>
                 <button
                     type="button"
                     onClick={exportCsv}
                     disabled={busy || logs.length === 0 || !!loadError}
-                    className="px-3 py-2 rounded-lg bg-primary-container text-primary text-body-medium hover:opacity-90 disabled:opacity-50"
+                    className="btn btn-subtle"
                 >
                     {busy ? "Export…" : "CSV exportieren"}
                 </button>
@@ -69,25 +69,21 @@ export function AuditPage() {
             ) : logs.length === 0 ? (
                 <EmptyState icon="📋" title="Keine Audit-Einträge" />
             ) : (
-                <div className="card overflow-hidden">
-                    <table className="w-full text-body">
+                <div className="card">
+                    <table className="tbl">
                         <thead>
-                            <tr className="border-b border-surface-container">
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Zeitpunkt</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Aktion</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Entität</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Details</th>
-                                <th className="text-left px-4 py-3 text-label text-on-surface-variant">Benutzer</th>
+                            <tr>
+                                <th>Zeitpunkt</th><th>Aktion</th><th>Entität</th><th>Details</th><th>Benutzer</th>
                             </tr>
                         </thead>
                         <tbody>
                             {logs.map((l) => (
-                                <tr key={l.id} className="border-b border-surface-container/50 hover:bg-surface-container/50 transition-colors">
-                                    <td className="px-4 py-3 text-caption text-on-surface-variant">{formatDateTime(l.created_at)}</td>
-                                    <td className="px-4 py-3"><Badge>{l.action}</Badge></td>
-                                    <td className="px-4 py-3 text-on-surface">{l.entity}</td>
-                                    <td className="px-4 py-3 text-on-surface-variant truncate max-w-xs">{l.details || "–"}</td>
-                                    <td className="px-4 py-3 font-mono text-caption text-on-surface-variant">{l.user_id}</td>
+                                <tr key={l.id}>
+                                    <td>{formatDateTime(l.created_at)}</td>
+                                    <td><Badge>{l.action}</Badge></td>
+                                    <td>{l.entity}</td>
+                                    <td>{l.details || "–"}</td>
+                                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{l.user_id}</td>
                                 </tr>
                             ))}
                         </tbody>

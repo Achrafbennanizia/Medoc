@@ -8,6 +8,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_produkte(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -17,6 +18,7 @@ pub async fn list_produkte(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_produkt(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -38,6 +40,7 @@ pub async fn create_produkt(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id, data))]
 pub async fn update_produkt(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -60,6 +63,7 @@ pub async fn update_produkt(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, id))]
 pub async fn delete_produkt(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

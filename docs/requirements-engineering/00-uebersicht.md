@@ -44,6 +44,8 @@ Durchführbarkeitsstudie ──► Anforderungserhebung und -analyse
 | Dokument | Beschreibung | Status |
 |----------|-------------|--------|
 | [01-sammeln.md](./01-sammeln.md) | Sammeln der Anforderungen | ✅ Abgeschlossen |
+| [01a-waad-anforderungen.md](./01a-waad-anforderungen.md) | WAAD-Quellenanforderungen (verbatim aus PDF) | ✅ Abgeschlossen |
+| [01b-traceability-waad.md](./01b-traceability-waad.md) | Traceability: WAAD-ID → FA-/NFA-ID + Code-Evidenz | ✅ Abgeschlossen |
 | [02-klassifizierung.md](./02-klassifizierung.md) | Klassifizierung und Organisation | ✅ Abgeschlossen |
 | [03-priorisierung.md](./03-priorisierung.md) | Priorisierung und Konfliktauflösung | ✅ Abgeschlossen |
 | [04-spezifikation.md](./04-spezifikation.md) | Spezifikation der Anforderungen | ✅ Abgeschlossen |

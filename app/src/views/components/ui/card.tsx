@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 interface CardProps {
@@ -8,22 +7,26 @@ interface CardProps {
 }
 
 export function Card({ children, className, elevated }: CardProps) {
-    return (
-        <div className={cn(elevated ? "card-elevated" : "card", "p-5", className)}>
-            {children}
-        </div>
-    );
+    return <div className={`card ${elevated ? "card-elevated" : ""} ${className ?? ""}`}>{children}</div>;
 }
 
 interface CardHeaderProps {
     title: string;
+    subtitle?: ReactNode;
     action?: ReactNode;
 }
 
-export function CardHeader({ title, action }: CardHeaderProps) {
+export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
     return (
-        <div className="flex items-center justify-between mb-4">
-            <h3 className="text-title text-on-primary">{title}</h3>
+        <div className="card-head">
+            <div>
+                <div className="card-title">{title}</div>
+                {subtitle ? (
+                    <div className="card-subtitle" style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2 }}>
+                        {subtitle}
+                    </div>
+                ) : null}
+            </div>
             {action}
         </div>
     );

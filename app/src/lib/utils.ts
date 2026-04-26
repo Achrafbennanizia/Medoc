@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import type { Produkt } from "@/models/types";
+
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
@@ -24,6 +26,20 @@ export function formatCurrency(amount: number): string {
         style: "currency",
         currency: "EUR",
     }).format(amount);
+}
+
+/** Wie oft der Name vorkommt — für Mehrdeutigkeit (gleicher Name, versch. Kategorie/Preis/ID). */
+export function countProdukteWithName(produkte: Produkt[], name: string): number {
+    return produkte.filter((p) => p.name === name).length;
+}
+
+/** Zeile in Produkt-Dropdowns: Name · Kategorie · Preis; bei Namens-Duplikaten Kurz-ID anhängen. */
+export function produktSelectLabel(p: Produkt, nameDupCount: number): string {
+    const base = `${p.name} · ${p.kategorie} · ${formatCurrency(p.preis)}`;
+    if (nameDupCount > 1) {
+        return `${base} · #${p.id.slice(0, 8)}`;
+    }
+    return base;
 }
 
 export function formatDateTime(dateStr: string): string {
