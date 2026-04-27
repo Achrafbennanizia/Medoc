@@ -3024,3 +3024,1047 @@ button.linkish:hover {
     border: none !important;
   }
 }
+
+/* Personal — Arbeitsplan (Tag / Woche / Monat) */
+.personal-arbeitsplan,
+.personal-arbeitsplan-page {
+  min-height: 0;
+}
+
+.arbeitsplan-pref-line {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: var(--card);
+  border-bottom: 1px solid var(--line-1);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--fg-1);
+}
+.arbeitsplan-pref-line--on,
+.arbeitsplan-pref-line:hover {
+  background: var(--bg-0);
+}
+.arbeitsplan-pref-meta {
+  display: block;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.arbeitsplan-filter-bar {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: 4px;
+}
+.arbeitsplan-filter-bar--compact {
+  padding-bottom: 2px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line-1);
+}
+.arbeitsplan-chips--compact button {
+  padding: 2px 8px;
+  font-size: 11.5px;
+}
+.arbeitsplan-toolbar--slim {
+  padding: 6px 8px !important;
+  gap: 6px 10px !important;
+  flex-wrap: wrap;
+}
+.arbeitsplan-view-filter {
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  line-height: 1.2;
+}
+
+/* Kalender: kompakt, flexibel, ohne interne Scroll-Container */
+.arbeitsplan-cal-card {
+  max-width: 100%;
+}
+.arbeitsplan-cal-preface {
+  max-width: 42rem;
+}
+.arbeitsplan-cal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.arbeitsplan-cal-embed {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-elev);
+  box-sizing: border-box;
+}
+.arbeitsplan-cal-embed .arbeitsplan-grid {
+  min-width: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  grid-template-rows: auto minmax(0, auto) !important;
+  align-content: start;
+}
+.arbeitsplan-grid--week.arbeitsplan-grid--fit {
+  grid-template-columns: 40px repeat(7, minmax(0, 1fr)) !important;
+}
+
+/* Woche: Matrix Person × Tag, horizontaler Tagesstrahl pro Zelle */
+.arbeitsplan-week-matrix {
+  display: grid;
+  grid-template-columns: minmax(5.75rem, 8.5rem) repeat(7, minmax(0, 1fr));
+  gap: 3px 3px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+}
+.arbeitsplan-week-matrix__corner {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  padding: 4px 6px 6px;
+  align-self: end;
+  line-height: 1.2;
+}
+.arbeitsplan-week-matrix__dhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: center;
+  padding: 2px 1px 5px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line-1);
+}
+.arbeitsplan-week-matrix__dow {
+  font-size: 9.5px;
+  color: var(--fg-3);
+}
+.arbeitsplan-week-matrix__dnum {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-1);
+  margin-top: 1px;
+  line-height: 1.15;
+}
+.arbeitsplan-week-matrix__rhead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 6px 4px 4px;
+  min-width: 0;
+  border-right: 1px solid var(--line-1);
+  background: var(--bg-0);
+}
+.arbeitsplan-week-matrix__rinit {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.arbeitsplan-week-matrix__rname {
+  font-size: 10.5px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+.arbeitsplan-week-hbar {
+  min-width: 0;
+  min-height: 40px;
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid var(--line-1);
+  background: var(--card);
+  box-sizing: border-box;
+}
+.arbeitsplan-week-hbar__track {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  min-height: 34px;
+}
+.arbeitsplan-week-hbar__prefs {
+  position: relative;
+  flex: 1 1 18px;
+  min-height: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.03) 0%,
+    rgba(0, 0, 0, 0.02) 50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  border-radius: 3px;
+}
+.arbeitsplan-hor-seg {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 2px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.arbeitsplan-week-hbar__eins {
+  position: relative;
+  flex: 0 0 14px;
+  min-height: 12px;
+}
+.arbeitsplan-block-h {
+  position: absolute;
+  left: 0;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px solid;
+  border-radius: 2px;
+  cursor: grab;
+  font-size: 7.5px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-align: left;
+  color: var(--fg-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  box-sizing: border-box;
+}
+.arbeitsplan-block-h__lbl {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arbeitsplan-block-h__x {
+  flex: 0 0 auto;
+  cursor: pointer;
+  opacity: 0.75;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 1px;
+}
+.arbeitsplan-week-hint {
+  padding: 0 2px;
+}
+
+.arbeitsplan-month__stackbar {
+  display: flex;
+  width: 100%;
+  min-height: 5px;
+  height: 5px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0 1px;
+}
+.arbeitsplan-month__stackbar--empty {
+  background: var(--line-1);
+  opacity: 0.35;
+}
+.arbeitsplan-month__stackseg {
+  min-width: 2px;
+}
+.arbeitsplan-month__inirow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  font-size: 8.5px;
+  line-height: 1.15;
+  margin-bottom: 2px;
+  max-height: 2.4em;
+  overflow: hidden;
+}
+.arbeitsplan-month__ini {
+  font-weight: 700;
+}
+.arbeitsplan-month__moreini {
+  color: var(--fg-3);
+  font-size: 8px;
+  font-weight: 600;
+}
+.arbeitsplan-cal-embed .arbeitsplan-day-head,
+.arbeitsplan-cal-embed .arbeitsplan-week-head {
+  padding: 3px 4px 5px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  min-width: 0;
+}
+.arbeitsplan-cal-embed .arbeitsplan-week-head__dow {
+  font-size: 9.5px;
+}
+.arbeitsplan-cal-embed .arbeitsplan-week-head__date {
+  font-size: 10.5px;
+  margin-top: 1px;
+}
+.arbeitsplan-month--embed {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.arbeitsplan-month--embed .arbeitsplan-month__cell {
+  min-height: 56px;
+  padding: 3px 3px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+}
+.arbeitsplan-month--embed .arbeitsplan-month__num {
+  font-size: 11.5px;
+}
+.arbeitsplan-month--embed .arbeitsplan-month__grid {
+  min-width: 0;
+}
+.arbeitsplan-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.arbeitsplan-tbl th,
+.arbeitsplan-tbl td {
+  word-break: break-word;
+}
+
+.arbeitsplan-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-1);
+  background: var(--card);
+}
+.arbeitsplan-seg {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  overflow: hidden;
+  background: var(--bg-1);
+}
+.arbeitsplan-seg button {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.arbeitsplan-seg button:hover {
+  color: var(--fg-1);
+  background: rgba(0, 0, 0, 0.04);
+}
+.arbeitsplan-seg button.is-active {
+  color: var(--fg-1);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+.arbeitsplan-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.arbeitsplan-nav__label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg-1);
+  min-width: 0;
+  max-width: 52ch;
+}
+.arbeitsplan-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.arbeitsplan-filters__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+.arbeitsplan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.arbeitsplan-chips button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  border: 1px solid var(--line-1);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--fg-2);
+  transition: background 0.1s, border-color 0.1s;
+}
+.arbeitsplan-chips button.is-on,
+.arbeitsplan-chips button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft, rgba(59, 130, 246, 0.12));
+  color: var(--fg-1);
+}
+.arbeitsplan-chips button.is-off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.arbeitsplan-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+  border: 1px solid var(--line-1);
+  max-height: min(72vh, 1100px);
+  background: var(--card);
+}
+.arbeitsplan-grid {
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr);
+  align-items: stretch;
+  width: 100%;
+  min-width: min(100%, 1400px);
+}
+.arbeitsplan-grid--week {
+  grid-template-columns: 52px repeat(7, minmax(92px, 1fr));
+}
+.arbeitsplan-grid__corner {
+  border-bottom: 1px solid var(--line-1);
+  border-right: 1px solid var(--line-1);
+  min-width: 48px;
+  min-height: 36px;
+}
+.arbeitsplan-day-head {
+  padding: 6px 8px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--fg-1);
+  border-bottom: 1px solid var(--line-1);
+  border-right: 1px solid var(--line-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arbeitsplan-week-head {
+  padding: 6px 4px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--line-1);
+  border-right: 1px solid var(--line-1);
+  min-width: 0;
+}
+.arbeitsplan-week-head__dow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-4);
+  font-weight: 700;
+}
+.arbeitsplan-week-head__date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-1);
+  margin-top: 2px;
+}
+.arbeitsplan-ruler {
+  position: relative;
+  border-right: 1px solid var(--line-1);
+  background: var(--bg-0);
+  min-height: 0;
+}
+.arbeitsplan-ruler__tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  padding-left: 6px;
+  font-size: 10.5px;
+  color: var(--fg-4);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  border-top: 1px solid var(--line-1);
+  height: 0;
+}
+.arbeitsplan-ruler__tick:first-of-type {
+  border-top: none;
+}
+.arbeitsplan-col__inner {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.arbeitsplan-soll {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 0;
+  border-radius: 4px;
+  pointer-events: none;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px dashed rgba(34, 197, 94, 0.35);
+  box-sizing: border-box;
+}
+
+.arbeitsplan-settings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+}
+
+.arbeitsplan-settings-group__l {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.arbeitsplan-settings-sep {
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.arbeitsplan-time-pair {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.arbeitsplan-time-pair__n {
+  width: 3.35rem;
+  min-width: 0;
+  text-align: center;
+}
+.arbeitsplan-time-pair__unit {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.arbeitsplan-pref-editing__new {
+  font: inherit;
+  font-size: inherit;
+  color: var(--accent, #0ea07e);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+.arbeitsplan-pref-editing__new:hover {
+  color: var(--fg-1);
+}
+
+/* Arbeitsplan: linkes Panel — wofür die Regeln gut sind (nicht nur „Präferenz“-Jargon) */
+.arbeitsplan-rules-callout {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  padding: 10px 12px 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  border-left: 3px solid var(--accent, #3b82f6);
+  background: var(--bg-0);
+  margin: 0 0 4px;
+}
+.arbeitsplan-rules-callout strong {
+  color: var(--fg-1);
+  font-weight: 700;
+}
+
+/* Kaskade: sichtbar auch wenn noch keine Basis-Regel wählbar */
+.arbeitsplan-pref-cascade-empty {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--line-1);
+  background: var(--card);
+  margin: 0;
+}
+.arbeitsplan-pref-cascade-empty strong {
+  color: var(--fg-1);
+}
+
+.arbeitsplan-pref-card {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.arbeitsplan-pref-card .card-pad {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@media (max-width: 520px) {
+  .arbeitsplan-pref-card .card-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.arbeitsplan-pref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(220px, 34vh);
+  overflow-y: auto;
+  border: 1px solid var(--line-1);
+  border-radius: 8px;
+  background: var(--bg-0);
+}
+.arbeitsplan-pref-list__empty {
+  padding: 12px 10px;
+  color: var(--fg-3);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  list-style: none;
+}
+
+.arbeitsplan-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.arbeitsplan-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-0);
+  font-size: 12.5px;
+}
+
+.arbeitsplan-preset-chip strong {
+  font-weight: 700;
+  color: var(--fg-1);
+}
+
+.arbeitsplan-preset-new {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-1);
+}
+
+.arbeitsplan-weekly-details {
+  border: 1px solid var(--line-1);
+  border-radius: 8px;
+  padding: 0 10px 8px;
+  background: var(--bg-0);
+}
+
+.arbeitsplan-weekly-summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 4px;
+  list-style: none;
+  color: var(--fg-1);
+}
+
+.arbeitsplan-weekly-summary::-webkit-details-marker {
+  display: none;
+}
+
+.arbeitsplan-weekly-table-wrap {
+  overflow-x: auto;
+}
+
+.arbeitsplan-weekly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.arbeitsplan-weekly-table th,
+.arbeitsplan-weekly-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-1);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.arbeitsplan-weekly-table th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-4);
+}
+
+.arbeitsplan-col {
+  position: relative;
+  border-right: 1px solid var(--line-1);
+  min-width: 0;
+  min-height: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--line-1) 0,
+    var(--line-1) 1px,
+    transparent 1px,
+    transparent calc(30 * 1.25px * 2)
+  );
+}
+.arbeitsplan-col__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  min-height: inherit;
+  border-radius: 0 0 4px 0;
+  cursor: crosshair;
+}
+.arbeitsplan-block {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  left: 0;
+  right: 0;
+  width: 100%;
+  margin: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: var(--fg-1);
+  border-radius: 4px;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 18px;
+  line-height: 1.2;
+  font-size: 10.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  touch-action: none;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  transition: filter 0.1s, box-shadow 0.1s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .arbeitsplan-block:hover {
+    filter: brightness(0.98);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+}
+.arbeitsplan-block[draggable="true"] {
+  cursor: grab;
+}
+.arbeitsplan-block[draggable="true"]:active {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+.arbeitsplan-block__time {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+.arbeitsplan-block__title {
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+.arbeitsplan-block__del {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--fg-3);
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 2;
+  pointer-events: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .arbeitsplan-block__del:hover {
+    color: var(--red);
+    background: var(--red-soft);
+  }
+}
+.arbeitsplan-hint,
+.arbeitsplan-foot {
+  font-size: 12px;
+  color: var(--fg-4);
+  line-height: 1.4;
+  margin: 0;
+}
+.arbeitsplan-month {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.arbeitsplan-month__weekday {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  margin-bottom: 2px;
+}
+.arbeitsplan-month__wd {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-4);
+  text-align: center;
+  padding: 2px 0;
+}
+.arbeitsplan-month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--line-1);
+  border: 1px solid var(--line-1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.arbeitsplan-month__cell {
+  min-height: 88px;
+  background: var(--card);
+  border: none;
+  text-align: left;
+  padding: 6px 5px 5px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  font: inherit;
+  color: var(--fg-1);
+  transition: background 0.12s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .arbeitsplan-month__cell:hover {
+    background: var(--surface-1);
+  }
+}
+.arbeitsplan-month__cell--faded {
+  color: var(--fg-4);
+  background: var(--bg-0);
+  opacity: 0.7;
+}
+.arbeitsplan-month__cell--today {
+  box-shadow: inset 0 0 0 2px var(--accent, #3b82f6);
+  border-radius: 2px;
+}
+.arbeitsplan-month__num {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.arbeitsplan-month__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.arbeitsplan-month__chip {
+  font-size: 9.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--fg-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arbeitsplan-month__more {
+  font-size: 9.5px;
+  color: var(--fg-4);
+  font-weight: 600;
+}
+
+/* Arbeitstage verwalten: 2×2 (Datumsoberteil / Uhrzeitunterraum), Labels oben, starke Rundung */
+.arbeitstage-range-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin-top: 4px;
+  max-width: 28rem;
+}
+@media (max-width: 480px) {
+  .arbeitstage-range-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.arbeitstage-range-grid__field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.arbeitstage-range-grid__l {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  margin-bottom: 6px;
+  line-height: 1.25;
+}
+.arbeitstage-range-grid__in {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-1);
+  background: var(--bg-0);
+  border: 1px solid var(--line-1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 44px;
+  color-scheme: light dark;
+  transition: border var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+}
+.arbeitstage-range-grid__in:focus {
+  outline: 0;
+  border-color: var(--accent, #0ea07e);
+  box-shadow: 0 0 0 3px rgba(14, 160, 126, 0.12);
+}
+.arbeitstage-range-grid__in:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.arbeitstage-range-grid__in::placeholder {
+  color: var(--fg-4);
+}
+
+/* Arbeitsplan Regel: Uhrzeit = gleiche 2-Spalten-Rundung wie Arbeitstage; Kaskade = Karte mit Select */
+.arbeitsplan-pref-zeitblock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.arbeitsplan-uhrzeit-grid {
+  margin-top: 0;
+  max-width: 100%;
+}
+.arbeitsplan-uhrzeit-grid__bis .arbeitstage-range-grid__in {
+  margin-bottom: 6px;
+}
+.arbeitsplan-uhrzeit-midnight {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-2);
+  background: none;
+  border: 0;
+  padding: 4px 0 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+.arbeitsplan-uhrzeit-midnight:hover {
+  color: var(--fg-1);
+}
+.arbeitsplan-uhrzeit-bis-2400 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.arbeitsplan-uhrzeit-bis-2400__chip {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+  padding: 10px 12px;
+  min-height: 44px;
+  line-height: 1.35;
+  border: 1px solid var(--line-1);
+  border-radius: 12px;
+  background: var(--bg-0);
+}
+.arbeitsplan-uhrzeit-bis-2400__edit {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent, #0ea07e);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+.arbeitsplan-uhrzeit-legacy {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.arbeitsplan-uhrzeit-legacy-n {
+  width: 3rem;
+  min-width: 0;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  border: 1px solid var(--line-1);
+  border-radius: 10px;
+  color: var(--fg-1);
+  background: var(--bg-0);
+  -moz-appearance: textfield;
+}
+.arbeitsplan-uhrzeit-legacy-n::-webkit-outer-spin-button,
+.arbeitsplan-uhrzeit-legacy-n::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.arbeitsplan-uhrzeit-legacy-sep {
+  color: var(--fg-3);
+  font-weight: 600;
+}
+/* Kompakte Regel-Auswahl im CardHeader (kein zweites großes Dropdown im Formular) */
+.arbeitsplan-header-ruleselect {
+  min-width: 10rem;
+  max-width: min(18rem, 100%);
+  font-size: 13px;
+  padding: 8px 10px;
+  cursor: pointer;
+}

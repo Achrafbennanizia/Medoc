@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { listDokumentVorlagen, deleteDokumentVorlage } from "../../controllers/praxis.controller";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -12,6 +12,8 @@ import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungReadField } from "../components/verwaltung-read-field";
+import { VorlageEditorPanel } from "./vorlage-editor";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
 function previewPayload(v: DokumentVorlage): string {
@@ -32,7 +34,7 @@ function previewPayload(v: DokumentVorlage): string {
 }
 
 export function VorlagenRezepteAttestePage() {
-    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -43,6 +45,20 @@ export function VorlagenRezepteAttestePage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [selected, setSelected] = useState<DokumentVorlage | null>(null);
+
+    const neu = searchParams.get("neu");
+    const bearbeiten = searchParams.get("bearbeiten");
+
+    const editorSpec = useMemo(() => {
+        if (bearbeiten) return { type: "edit" as const, id: bearbeiten };
+        if (neu === "rezept") return { type: "new" as const, kind: "REZEPT" as const };
+        if (neu === "attest") return { type: "new" as const, kind: "ATTEST" as const };
+        return null;
+    }, [neu, bearbeiten]);
+
+    const closeEditor = useCallback(() => {
+        setSearchParams({}, { replace: true });
+    }, [setSearchParams]);
 
     const reload = useCallback(async () => {
         setLoadError(null);
@@ -61,6 +77,17 @@ export function VorlagenRezepteAttestePage() {
     useEffect(() => {
         void reload();
     }, [reload]);
+
+    useEffect(() => {
+        if (!bearbeiten || rows.length === 0) return;
+        const r = rows.find((x) => x.id === bearbeiten);
+        if (r) setSelected(r);
+    }, [bearbeiten, rows]);
+
+    const onEditorSaved = useCallback(async () => {
+        closeEditor();
+        await reload();
+    }, [closeEditor, reload]);
 
     const doDelete = async () => {
         if (!deleteId) return;
@@ -90,24 +117,62 @@ export function VorlagenRezepteAttestePage() {
         );
     }
 
-    const readField = (label: string, value: string) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
-            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.45 }}>{value || "—"}</span>
-        </div>
-    );
+    const openNewRezept = () => {
+        if (!canWrite) return;
+        setSearchParams({ neu: "rezept" }, { replace: true });
+    };
+    const openNewAttest = () => {
+        if (!canWrite) return;
+        setSearchParams({ neu: "attest" }, { replace: true });
+    };
+    const openEdit = (r: DokumentVorlage) => {
+        if (!canWrite) return;
+        setSelected(r);
+        setSearchParams({ bearbeiten: r.id }, { replace: true });
+    };
+
+    const editorTitle =
+        editorSpec?.type === "new"
+            ? (editorSpec.kind === "REZEPT" ? "Neues Rezept" : "Neues Attest")
+            : editorSpec
+              ? (() => {
+                    const r = rows.find((x) => x.id === editorSpec.id);
+                    if (!r) return "Vorlage bearbeiten";
+                    return r.kind === "REZEPT" ? "Rezept-Vorlage bearbeiten" : "Attest-Vorlage bearbeiten";
+                })()
+              : "";
 
     const sidePanel = (() => {
+        if (editorSpec && canWrite) {
+            return (
+                <Card className="produkte-detail-card">
+                    <CardHeader
+                        title={editorTitle}
+                        subtitle="Eingebettet auf dieser Seite (gleiches Prinzip wie „Neues Rezept“ hier — kein separater Editor-Pfad nötig)"
+                    />
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                        {editorSpec.type === "new" ? (
+                            <VorlageEditorPanel
+                                editingId={null}
+                                createKind={editorSpec.kind}
+                                canWrite
+                                onClose={closeEditor}
+                                onSaved={onEditorSaved}
+                            />
+                        ) : (
+                            <VorlageEditorPanel
+                                key={editorSpec.id}
+                                editingId={editorSpec.id}
+                                createKind="REZEPT"
+                                canWrite
+                                onClose={closeEditor}
+                                onSaved={onEditorSaved}
+                            />
+                        )}
+                    </div>
+                </Card>
+            );
+        }
         if (selected) {
             const r = selected;
             return (
@@ -122,7 +187,7 @@ export function VorlagenRezepteAttestePage() {
                                         type="button"
                                         size="sm"
                                         variant="secondary"
-                                        onClick={() => navigate(`/verwaltung/vorlagen/editor/${r.id}`)}
+                                        onClick={() => openEdit(r)}
                                     >
                                         <EditIcon size={14} /> Bearbeiten
                                     </Button>
@@ -134,7 +199,7 @@ export function VorlagenRezepteAttestePage() {
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        {readField("Vorschau / Inhalt", previewPayload(r))}
+                        <VerwaltungReadField label="Vorschau / Inhalt" value={previewPayload(r)} />
                     </div>
                 </Card>
             );
@@ -142,8 +207,8 @@ export function VorlagenRezepteAttestePage() {
         return (
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    Wählen Sie eine Vorlage in der Tabelle. Neu legen Sie über „Rezept einstellen“ oder „Atteste einstellen“ an
-                    (Editor öffnet sich separat).
+                    Wählen Sie eine Vorlage in der Tabelle, oder legen Sie mit <strong>Rezept einstellen</strong> bzw.{" "}
+                    <strong>Atteste einstellen</strong> eine neue Vorlage in diesem Bereich an.
                 </p>
             </Card>
         );
@@ -168,15 +233,15 @@ export function VorlagenRezepteAttestePage() {
                 <div>
                     <h2 className="page-title">Rezepte und Atteste vordefinieren</h2>
                     <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Vorlagen für die Patientenakte — Liste links, Details und Bearbeiten rechts (wie Produkte).
+                        Vorlagen für die Patientenakte — Liste links, Rechts: Details oder <strong>Neues Rezept / Attest</strong> in dieser Ansicht (wie Produkte, ohne Extra-Route).
                     </p>
                 </div>
                 {canWrite ? (
                     <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                        <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/vorlagen/editor?kind=attest")}>
+                        <Button type="button" variant="secondary" onClick={openNewAttest}>
                             Atteste einstellen
                         </Button>
-                        <Button type="button" onClick={() => navigate("/verwaltung/vorlagen/editor?kind=rezept")}>
+                        <Button type="button" onClick={openNewRezept}>
                             Rezept einstellen
                         </Button>
                     </div>
@@ -190,7 +255,7 @@ export function VorlagenRezepteAttestePage() {
                             <EmptyState
                                 icon="📋"
                                 title="Keine Vorlagen"
-                                description="Legen Sie eine über die Buttons oben an (öffnet den Editor)."
+                                description="Legen Sie eine über die Buttons oben an (öffnet den Editor rechts auf dieser Seite)."
                             />
                         </Card>
                     ) : (
@@ -210,7 +275,7 @@ export function VorlagenRezepteAttestePage() {
                                             <tr
                                                 key={r.id}
                                                 className={isSel ? "produkte-row--selected" : undefined}
-                                                onClick={() => setSelected(r)}
+                                                onClick={() => { setSelected(r); closeEditor(); }}
                                                 style={{ cursor: "pointer" }}
                                             >
                                                 <td>

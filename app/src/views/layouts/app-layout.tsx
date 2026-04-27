@@ -40,6 +40,7 @@ const NAV_HELP_I18N: Record<string, string> = {
     "/verwaltung/vorlagen": "nav.help.verwaltung",
     "/verwaltung/behandlungs-katalog": "nav.help.verwaltung",
     "/verwaltung/finanzen-berichte": "nav.help.verwaltung",
+    "/verwaltung/team": "nav.help.verwaltung",
     "/verwaltung/finanzen-berichte/tagesabschluss": "nav.help.verwaltung",
     "/verwaltung/finanzen-berichte/rechnung": "nav.help.verwaltung",
     "/verwaltung/tagesabschluss": "nav.help.verwaltung",
@@ -70,6 +71,7 @@ function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/verwaltung/behandlungs-katalog") return ["MeDoc", "Verwaltung", "Behandlungskatalog"];
     if (pathname === "/verwaltung/bestellstamm") return ["MeDoc", "Verwaltung", "Bestell-Stammdaten"];
     if (pathname === "/verwaltung/finanzen-berichte") return ["MeDoc", "Verwaltung", "Finanzen & Berichte"];
+    if (pathname === "/verwaltung/team") return ["MeDoc", "Verwaltung", "Team"];
     if (pathname === "/verwaltung/finanzen-berichte/tagesabschluss") {
         return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"];
     }
@@ -85,6 +87,7 @@ function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/verwaltung/tagesabschluss") return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"];
     if (pathname.startsWith("/verwaltung/vorlagen/editor")) return ["MeDoc", "Verwaltung", "Vorlagen", "Editor"];
     if (pathname === "/personal/neu") return ["MeDoc", "Verwaltung", "Neues Personal"];
+    if (pathname === "/personal/arbeitsplan") return ["MeDoc", "Verwaltung", "Personal", "Arbeitsplan & Einsätze"];
     if (pathname.startsWith("/patienten/") && pathname !== "/patienten/neu") {
         if (/\/rezept\/neu$/.test(pathname)) {
             return ["MeDoc", "Patienten", "Akte", "Neues Rezept"];
@@ -128,7 +131,9 @@ const CRUMBS: Record<string, string[]> = {
     "/atteste": ["MeDoc", "Atteste"],
     "/leistungen": ["MeDoc", "Leistungen"],
     "/produkte": ["MeDoc", "Produkte"],
-    "/personal": ["MeDoc", "Verwaltung", "Personal"],
+    "/personal": ["MeDoc", "Verwaltung", "Team", "Personal"],
+    "/verwaltung/team": ["MeDoc", "Verwaltung", "Team"],
+    "/personal/arbeitsplan": ["MeDoc", "Verwaltung", "Team", "Arbeitsplan & Einsätze"],
     "/statistik": ["MeDoc", "Statistiken"],
     "/audit": ["MeDoc", "Audit-Log"],
     "/datenschutz": ["MeDoc", "Datenschutz"],

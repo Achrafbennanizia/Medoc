@@ -17,6 +17,9 @@ const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pa
 const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
 const ProduktePage = lazy(async () => ({ default: (await import("./views/pages/produkte")).ProduktePage }));
 const PersonalPage = lazy(async () => ({ default: (await import("./views/pages/personal")).PersonalPage }));
+const PersonalArbeitsplanPage = lazy(async () => ({
+    default: (await import("./views/pages/personal-arbeitsplan")).PersonalArbeitsplanPage,
+}));
 const StatistikPage = lazy(async () => ({ default: (await import("./views/pages/statistik")).StatistikPage }));
 const AuditPage = lazy(async () => ({ default: (await import("./views/pages/audit")).AuditPage }));
 const LoggingPage = lazy(async () => ({ default: (await import("./views/pages/logging")).LoggingPage }));
@@ -34,6 +37,9 @@ const VerwaltungFinanzWerkzeugePage = lazy(async () => ({
 }));
 const VerwaltungFinanzenBerichtePage = lazy(async () => ({
     default: (await import("./views/pages/verwaltung-finanzen-berichte")).VerwaltungFinanzenBerichtePage,
+}));
+const VerwaltungTeamPage = lazy(async () => ({
+    default: (await import("./views/pages/verwaltung-team")).VerwaltungTeamPage,
 }));
 const TagesabschlussPage = lazy(async () => ({
     default: (await import("./views/pages/tagesabschluss")).TagesabschlussPage,
@@ -117,6 +123,14 @@ export default function App() {
                     <Route path="bilanz" element={<RoleRoute routePath="bilanz"><BilanzPage /></RoleRoute>} />
                     <Route path="bilanz/neu" element={<RoleRoute routePath="bilanz/neu"><BilanzNeuPage /></RoleRoute>} />
                     <Route path="verwaltung" element={<RoleRoute routePath="verwaltung"><VerwaltungPage /></RoleRoute>} />
+                    <Route
+                        path="verwaltung/team"
+                        element={(
+                            <RoleRoute routePath="verwaltung/team">
+                                <VerwaltungTeamPage />
+                            </RoleRoute>
+                        )}
+                    />
                     <Route path="verwaltung/arbeitstage" element={<RoleRoute routePath="verwaltung/arbeitstage"><ArbeitstagePage /></RoleRoute>} />
                     <Route path="verwaltung/praxisplanung" element={<RoleRoute routePath="verwaltung/praxisplanung"><PraxisplanungPage /></RoleRoute>} />
                     <Route path="verwaltung/arbeitszeiten" element={<RoleRoute routePath="verwaltung/arbeitszeiten"><ArbeitszeitenPage /></RoleRoute>} />
@@ -190,6 +204,14 @@ export default function App() {
                     />
                     <Route path="produkte" element={<RoleRoute routePath="produkte"><ProduktePage /></RoleRoute>} />
                     <Route path="personal" element={<RoleRoute routePath="personal"><PersonalPage /></RoleRoute>} />
+                    <Route
+                        path="personal/arbeitsplan"
+                        element={(
+                            <RoleRoute routePath="personal/arbeitsplan">
+                                <PersonalArbeitsplanPage />
+                            </RoleRoute>
+                        )}
+                    />
                     <Route path="personal/neu" element={<RoleRoute routePath="personal/neu"><Navigate to="/personal?neu=1" replace /></RoleRoute>} />
                     <Route path="statistik" element={<RoleRoute routePath="statistik"><StatistikPage /></RoleRoute>} />
                     <Route path="audit" element={<RoleRoute routePath="audit"><AuditPage /></RoleRoute>} />

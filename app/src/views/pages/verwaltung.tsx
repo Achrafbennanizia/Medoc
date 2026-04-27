@@ -15,8 +15,8 @@ const VERWALTUNG_CARDS: VerwaltungCardDef[] = [
     {
         id: "team",
         label: "Team",
-        desc: "Team und Rollen verwalten, Zugänge im Blick behalten.",
-        href: "/personal",
+        desc: "Personalverwaltung und Arbeitsplan & Einsätze — Untermenü wie bei Finanzen & Berichte.",
+        href: "/verwaltung/team",
         iconKey: "/personal",
     },
     {

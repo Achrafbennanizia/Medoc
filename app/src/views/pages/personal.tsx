@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { createPersonal, deletePersonal, listPersonal, setPersonalPasswordByAdmin, updatePersonal } from "../../controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -531,11 +531,16 @@ export function PersonalPage() {
                         Team, Rollen und Zugang — Liste links, anlegen und Details rechts (wie Produkte).
                     </p>
                 </div>
-                {canWrite ? (
-                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                        {creating ? "Abbrechen" : "+ Neuer Mitarbeiter"}
-                    </Button>
-                ) : null}
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <Link to="/personal/arbeitsplan" className="btn btn-subtle">
+                        Arbeitsplan & Einsätze
+                    </Link>
+                    {canWrite ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                            {creating ? "Abbrechen" : "+ Neuer Mitarbeiter"}
+                        </Button>
+                    ) : null}
+                </div>
             </div>
 
             {loading ? (

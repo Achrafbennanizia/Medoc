@@ -278,13 +278,51 @@ export function ArbeitstagePage() {
                     <h2 className="form-section-title" style={{ marginTop: 0 }}>Urlaub hinzufügen</h2>
                     <Input label="Typ" value={typ} onChange={(e) => setTyp(e.target.value)} disabled={!canWrite} />
                     <Input label="Kommentar" value={kommentar} onChange={(e) => setKommentar(e.target.value)} disabled={!canWrite} />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Input type="date" label="Von dem Tag" value={vonTag} onChange={(e) => setVonTag(e.target.value)} disabled={!canWrite} />
-                        <Input type="date" label="Bis dem Tag" value={bisTag} onChange={(e) => setBisTag(e.target.value)} disabled={!canWrite} />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Input type="time" label="Von der Uhrzeit" value={vonUhr} onChange={(e) => setVonUhr(e.target.value)} disabled={!canWrite} />
-                        <Input type="time" label="Bis der Uhrzeit" value={bisUhr} onChange={(e) => setBisUhr(e.target.value)} disabled={!canWrite} />
+                    <div className="arbeitstage-range-grid" role="group" aria-label="Datums- und Uhrzeitraum">
+                        <div className="arbeitstage-range-grid__field">
+                            <label htmlFor="arbeitstage-von-tag" className="arbeitstage-range-grid__l">Von dem Tag</label>
+                            <input
+                                id="arbeitstage-von-tag"
+                                type="date"
+                                className="arbeitstage-range-grid__in"
+                                value={vonTag}
+                                onChange={(e) => setVonTag(e.target.value)}
+                                disabled={!canWrite}
+                            />
+                        </div>
+                        <div className="arbeitstage-range-grid__field">
+                            <label htmlFor="arbeitstage-bis-tag" className="arbeitstage-range-grid__l">Bis dem Tag</label>
+                            <input
+                                id="arbeitstage-bis-tag"
+                                type="date"
+                                className="arbeitstage-range-grid__in"
+                                value={bisTag}
+                                onChange={(e) => setBisTag(e.target.value)}
+                                disabled={!canWrite}
+                            />
+                        </div>
+                        <div className="arbeitstage-range-grid__field">
+                            <label htmlFor="arbeitstage-von-uhr" className="arbeitstage-range-grid__l">Von der Uhrzeit</label>
+                            <input
+                                id="arbeitstage-von-uhr"
+                                type="time"
+                                className="arbeitstage-range-grid__in"
+                                value={vonUhr}
+                                onChange={(e) => setVonUhr(e.target.value)}
+                                disabled={!canWrite}
+                            />
+                        </div>
+                        <div className="arbeitstage-range-grid__field">
+                            <label htmlFor="arbeitstage-bis-uhr" className="arbeitstage-range-grid__l">Bis der Uhrzeit</label>
+                            <input
+                                id="arbeitstage-bis-uhr"
+                                type="time"
+                                className="arbeitstage-range-grid__in"
+                                value={bisUhr}
+                                onChange={(e) => setBisUhr(e.target.value)}
+                                disabled={!canWrite}
+                            />
+                        </div>
                     </div>
                     <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                         {canWrite ? (

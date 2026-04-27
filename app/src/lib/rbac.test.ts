@@ -86,6 +86,7 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/finanzen-berichte/rechnung", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/finanzen-berichte", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/team", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/lager-und-bestellwesen", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/vertraege", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/leistungen-kataloge-vorlagen", "ARZT")).toBe(true);

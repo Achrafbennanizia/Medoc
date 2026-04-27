@@ -24,6 +24,11 @@ const PRAXIS_HUB: VerwaltungBackTarget = {
     label: "Praxisplanung",
 };
 
+const TEAM_HUB: VerwaltungBackTarget = {
+    path: "/verwaltung/team",
+    label: "Team",
+};
+
 const VORLAGEN_LIST: VerwaltungBackTarget = { path: "/verwaltung/vorlagen", label: "Vorlagen" };
 
 /**
@@ -57,13 +62,17 @@ export function getVerwaltungBackTarget(pathnameWithOptionalQuery: string): Verw
         "/verwaltung/praxis-praeferenzen": PRAXIS_HUB,
         "/leistungen": LEISTUNGEN_HUB,
         "/produkte": LAGER_HUB,
-        "/personal": VERWALTUNG,
+        "/personal": TEAM_HUB,
         "/bilanz": FINANZEN_BERICHTE,
         "/bilanz/neu": FINANZEN_BERICHTE,
     };
 
     if (exact[raw]) {
         return exact[raw]!;
+    }
+
+    if (raw.startsWith("/personal/") && raw !== "/personal") {
+        return TEAM_HUB;
     }
 
     if (raw.startsWith("/leistungen/")) {

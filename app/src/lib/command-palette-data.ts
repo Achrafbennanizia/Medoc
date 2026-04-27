@@ -57,6 +57,13 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
         keywords: ["bilanz", "rechnung", "tagesabschluss", "berichte"],
     },
     {
+        id: "verwaltung-team",
+        routePath: "verwaltung/team",
+        href: "/verwaltung/team",
+        titleDe: "Team (Verwaltung)",
+        keywords: ["personal", "mitarbeiter", "arbeitsplan", "einsätze", "schicht", "plan"],
+    },
+    {
         id: "verwaltung-lager-bestellwesen",
         routePath: "verwaltung/lager-und-bestellwesen",
         href: "/verwaltung/lager-und-bestellwesen",
@@ -97,6 +104,13 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "leistungen-neu", routePath: "leistungen", href: "/leistungen?neu=1", titleDe: "Neue Leistung", keywords: ["anlegen"] },
     { id: "produkte", routePath: "produkte", href: "/produkte", titleDe: "Produkte & Lager", keywords: ["material", "lager"] },
     { id: "personal", routePath: "personal", href: "/personal", titleDe: "Personal (über Verwaltung)", keywords: ["team", "mitarbeiter", "personal"] },
+    {
+        id: "personal-arbeitsplan",
+        routePath: "personal/arbeitsplan",
+        href: "/personal/arbeitsplan",
+        titleDe: "Arbeitsplan & Einsätze (Personal)",
+        keywords: ["schicht", "einsatz", "dienst", "woche", "plan"],
+    },
     { id: "personal-neu", routePath: "personal/neu", href: "/personal/neu", titleDe: "Neues Personal", keywords: ["anlegen"] },
     { id: "statistik", routePath: "statistik", href: "/statistik", titleDe: "Statistiken", keywords: ["kennzahlen", "report"] },
     { id: "audit", routePath: "audit", href: "/audit", titleDe: "Audit-Log", keywords: ["protokoll", "nachvollziehbarkeit"] },
