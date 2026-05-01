@@ -43,8 +43,8 @@ export async function saveOrDownloadBytes(
         return true;
     }
     const path = await invoke<string | null>("save_export_file", {
-        defaultFileName: filename,
-        contentsBase64: uint8ToBase64(bytes),
+        default_file_name: filename,
+        contents_base64: uint8ToBase64(bytes),
     });
     return path != null;
 }

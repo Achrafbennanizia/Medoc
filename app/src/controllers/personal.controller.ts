@@ -41,5 +41,5 @@ export async function setPersonalPasswordByAdmin(
     id: string,
     newPassword: string,
 ): Promise<void> {
-    return tauriInvoke("set_personal_password_by_admin", { id, newPassword });
+    return tauriInvoke("set_personal_password_by_admin", { id, new_password: newPassword });
 }

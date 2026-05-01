@@ -39,6 +39,12 @@ import {
     type ConfirmationAreaKey,
     type ConfirmationPresentMode,
 } from "../../lib/confirmation-preferences";
+import {
+    loadDetectedPhotoViewerApps,
+    photoViewerAppOptionsForSelect,
+    OPEN_IMAGE_SYSTEM_ONLY,
+    type DetectedPhotoViewerApp,
+} from "@/lib/photo-viewer-apps";
 import { getInvoicePraxisFromStorage, saveInvoicePraxisToStorage, type InvoicePraxis } from "../../lib/invoice-leistung";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
@@ -207,6 +213,7 @@ export function EinstellungenPage() {
     const [ablaufPanel, setAblaufPanel] = useState<AblaufPanelId>(null);
     const [termineWorkbench, setTermineWorkbench] = useState<TermineWorkbenchId>(null);
     const [securityWorkbench, setSecurityWorkbench] = useState<SecurityWorkbenchId>(null);
+    const [photoViewerApps, setPhotoViewerApps] = useState<DetectedPhotoViewerApp[]>([]);
 
     useEffect(() => {
         let cancelled = false;
@@ -220,6 +227,17 @@ export function EinstellungenPage() {
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (activeSection !== "darstellung") return;
+        let cancelled = false;
+        void loadDetectedPhotoViewerApps(true).then((apps) => {
+            if (!cancelled) setPhotoViewerApps(apps);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeSection]);
 
     const persistClientSilent = (updater: (c: ClientSettingsV1) => ClientSettingsV1) => {
         setClient((c) => {
@@ -394,6 +412,15 @@ export function EinstellungenPage() {
     const appearance = client.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
     const wf = client.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
     const akteClient = client.akte ?? DEFAULT_CLIENT_SETTINGS.akte!;
+
+    const photoAppSelectOptions = useMemo(() => {
+        const opts = photoViewerAppOptionsForSelect(photoViewerApps);
+        const cur = (akteClient.openImagesWithApp ?? "").trim();
+        if (cur && cur !== OPEN_IMAGE_SYSTEM_ONLY && !opts.some((o) => o.value === cur)) {
+            return [...opts, { value: cur, label: `Gespeichert: ${cur}` }];
+        }
+        return opts;
+    }, [photoViewerApps, akteClient.openImagesWithApp]);
 
     function renderAblaufEmbed(id: Exclude<AblaufPanelId, null>) {
         switch (id) {
@@ -875,11 +902,30 @@ export function EinstellungenPage() {
                                 </div>
                             </div>
                             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0 }}>
-                                <Input
+                                <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                                    <p className="card-sub" style={{ margin: 0, flex: "1 1 220px" }}>
+                                        Es werden nur auf diesem Rechner installierte Programme angezeigt (Reihenfolge = typische
+                                        Beliebtheit). Leer = erste gefundene App; „Nur Systemstandard“ = wie Doppelklick im Finder.
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() =>
+                                            void loadDetectedPhotoViewerApps(true).then((a) => {
+                                                setPhotoViewerApps(a);
+                                                toast(`${a.length} Viewer gefunden`, "info");
+                                            })
+                                        }
+                                    >
+                                        Neu scannen
+                                    </Button>
+                                </div>
+                                <Select
                                     id="set-akte-open-app"
-                                    label="App / Programm (optional)"
-                                    placeholder="Leer lassen für Systemstandard · z. B. /System/Applications/Preview.app"
+                                    label="App zum externen Öffnen"
                                     value={akteClient.openImagesWithApp ?? ""}
+                                    options={photoAppSelectOptions}
                                     onChange={(e) =>
                                         persistClientSilent((c) => {
                                             const ak = c.akte ?? DEFAULT_CLIENT_SETTINGS.akte!;
@@ -889,10 +935,6 @@ export function EinstellungenPage() {
                                         })
                                     }
                                 />
-                                <p className="card-sub" style={{ margin: 0 }}>
-                                    macOS: vollständiger Pfad zur .app. Windows: Pfad zur .exe. Linux: Programm mit Dateipfad als
-                                    Argument oder leer lassen für den Systemstandard (xdg-open).
-                                </p>
                             </div>
 
                             <div className="card-head" style={{ marginTop: 20 }}><div><div className="card-title">Sicherheitsabfragen (Akte)</div><div className="card-sub">Löschen und kritische Änderungen in der Patientenakte</div></div></div>

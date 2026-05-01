@@ -13,7 +13,7 @@ export interface UpcomingAppointment {
 
 export function listUpcomingAppointments(leadMinutes: number) {
     return tauriInvoke<UpcomingAppointment[]>("list_upcoming_appointments", {
-        leadMinutes,
+        lead_minutes: leadMinutes,
     });
 }
 

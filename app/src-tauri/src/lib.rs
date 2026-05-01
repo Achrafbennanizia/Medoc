@@ -204,6 +204,7 @@ pub fn run() {
             // System: license / updates / perf
             commands::system_commands::verify_license,
             commands::system_commands::check_for_updates,
+            commands::system_commands::list_detected_photo_viewer_apps,
             commands::system_commands::system_health_check,
             commands::system_commands::get_perf_threshold_ms,
             commands::system_commands::set_perf_threshold_ms,

@@ -10,6 +10,7 @@ pub mod logging;
 pub mod migration;
 pub mod notifications;
 pub mod payment;
+pub mod photo_viewer_scan;
 pub mod pdf;
 pub mod perf;
 pub mod retention;

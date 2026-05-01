@@ -1,4 +1,5 @@
 import { tauriInvoke } from "../services/tauri.service";
+import type { AkteExportSectionsState } from "../lib/akte-export";
 import type { AkteAnlageRowDto } from "../lib/akte-anlagen";
 import type {
     Patientenakte,
@@ -38,8 +39,10 @@ export async function saveAnamnesebogen(data: {
     return tauriInvoke<Anamnesebogen>("save_anamnesebogen", { data });
 }
 
-export async function exportAktePdf(patientId: string): Promise<string> {
-    return tauriInvoke<string>("export_akte_pdf", { patient_id: patientId });
+export async function exportAktePdf(patientId: string, sections?: AkteExportSectionsState): Promise<string> {
+    return tauriInvoke<string>("export_akte_pdf", {
+        args: sections !== undefined ? { patientId, sections } : { patientId },
+    });
 }
 
 export async function listBehandlungen(akteId: string): Promise<Behandlung[]> {

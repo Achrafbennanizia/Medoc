@@ -4,13 +4,15 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 export const ANLAGE_MAX_BYTES = 50 * 1024 * 1024;
 
-const ALLOWED_EXT = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".dcm", ".tif", ".tiff"];
+const ALLOWED_EXT = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".dcm", ".tif", ".tiff", ".heic", ".heif"];
 
 const ALLOWED_MIME = new Set([
     "application/pdf",
     "image/jpeg",
     "image/png",
     "image/webp",
+    "image/heic",
+    "image/heif",
     "image/gif",
     "image/bmp",
     "image/tiff",
@@ -31,7 +33,7 @@ export type AkteAnlage = {
 };
 
 export function anlageInputAccept(): string {
-    return ".pdf,.jpg,.jpeg,.png,.webp,.dcm,.tif,.tiff,application/pdf,image/*";
+    return ".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.dcm,.tif,.tiff,application/pdf,image/*";
 }
 
 export function validateAnlageFile(file: File): string | null {
@@ -52,7 +54,8 @@ export function anlageBadgeExt(name: string, mime: string): string {
     if (lower.endsWith(".pdf")) return "PDF";
     if (lower.endsWith(".png")) return "PNG";
     if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "JPG";
-    if (lower.endsWith(".webp")) return "WEBP";
+    if (lower.endsWith(".heic")) return "HEIC";
+    if (lower.endsWith(".heif")) return "HEIF";
     if (lower.endsWith(".dcm")) return "DCM";
     if (lower.endsWith(".tif") || lower.endsWith(".tiff")) return "TIF";
     if (mime.includes("pdf")) return "PDF";
@@ -71,7 +74,22 @@ export function formatAnlageBytes(bytes: number): string {
 export function isAnlageImagePreview(mime: string, name: string): boolean {
     if (mime.startsWith("image/")) return true;
     const l = name.toLowerCase();
-    return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"].some((e) => l.endsWith(e));
+    return [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".gif", ".bmp", ".tif", ".tiff"].some((e) => l.endsWith(e));
+}
+
+export function deriveAnlageDisplayName(file: File): string {
+    const raw = file.name?.trim() ?? "";
+    if (raw.length > 0) return raw;
+    const t = (file.type || "").toLowerCase();
+    const ext =
+        t.includes("png") ? "png"
+        : t.includes("heic") ? "heic"
+        : t.includes("heif") ? "heif"
+        : t.includes("webp") ? "webp"
+        : t.includes("tiff") ? "tif"
+        : "jpg";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    return `Foto-${stamp}.${ext}`;
 }
 
 export function buildAnlageRowFromFile(file: File): AkteAnlage {
@@ -88,16 +106,22 @@ export function buildAnlageRowFromFile(file: File): AkteAnlage {
     };
 }
 
-/** Base64 (Standard) für Tauri `create_akte_anlage`. */
-export async function fileToBase64ForAnlage(file: File): Promise<string> {
-    const buf = await file.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    const chunk = 0x8000;
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += chunk) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-    }
-    return btoa(binary);
+/** Base64 (Standard) für Tauri `create_akte_anlage`. FileReader für große Dateien ohne Call-Stack-Grenzen. */
+export function fileToBase64ForAnlage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+            const s = fr.result;
+            if (typeof s !== "string") {
+                reject(new Error("FileReader"));
+                return;
+            }
+            const comma = s.indexOf(",");
+            resolve(comma >= 0 ? s.slice(comma + 1) : s);
+        };
+        fr.onerror = () => reject(fr.error ?? new Error("FileReader"));
+        fr.readAsDataURL(file);
+    });
 }
 
 /** Antwort von `list_akte_anlagen` / `create_akte_anlage` (serde snake_case). */
