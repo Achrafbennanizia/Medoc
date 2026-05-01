@@ -40,7 +40,7 @@ export function FeedbackPage() {
             setBody("");
             setRef("");
         } catch (err) {
-            toast(`${t("page.feedback.toast_sent")}: ${errorMessage(err)}`, "error");
+            toast(`${t("page.feedback.toast_error")} ${errorMessage(err)}`, "error");
         } finally {
             setSubmitting(false);
         }
@@ -88,7 +88,7 @@ export function FeedbackPage() {
                     />
                     <div className="row" style={{ gap: 10, marginTop: 12 }}>
                         <Button type="submit" disabled={submitting} loading={submitting}>{t("page.feedback.submit")}</Button>
-                        <Button type="button" variant="ghost" onClick={() => navigate("/hilfe")}>
+                        <Button type="button" variant="ghost" onClick={() => navigate("/einstellungen?tab=hilfe")}>
                             {t("page.feedback.back_help")}
                         </Button>
                     </div>

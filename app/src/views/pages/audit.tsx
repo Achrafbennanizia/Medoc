@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportAuditCsv, listAuditLogs } from "../../controllers/audit.controller";
 import { errorMessage, formatDateTime } from "../../lib/utils";
+import { openExportPreview } from "../../models/store/export-preview-store";
 import type { AuditLog } from "../../models/types";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { useToastStore } from "../components/ui/toast-store";
 
 export function AuditPage() {
+    const toast = useToastStore((s) => s.add);
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -34,15 +37,16 @@ export function AuditPage() {
         setBusy(true);
         try {
             const bytes = await exportAuditCsv();
-            const blob = new Blob([new Uint8Array(bytes)], { type: "text/csv;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
+            const text = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+            openExportPreview({
+                format: "csv",
+                title: "Audit-Log exportieren",
+                hint: "Komma-getrennt (RFC-4180). Spaltenköpfe sortieren, dann speichern oder drucken.",
+                suggestedFilename: `audit-${new Date().toISOString().slice(0, 10)}.csv`,
+                textBody: text,
+            });
+        } catch (e) {
+            toast(`CSV-Export fehlgeschlagen: ${errorMessage(e)}`, "error");
         } finally {
             setBusy(false);
         }
@@ -54,7 +58,7 @@ export function AuditPage() {
                 <h2 className="page-title">Audit-Log</h2>
                 <button
                     type="button"
-                    onClick={exportCsv}
+                    onClick={() => void exportCsv()}
                     disabled={busy || logs.length === 0 || !!loadError}
                     className="btn btn-subtle"
                 >
@@ -83,7 +87,19 @@ export function AuditPage() {
                                     <td><Badge>{l.action}</Badge></td>
                                     <td>{l.entity}</td>
                                     <td>{l.details || "–"}</td>
-                                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{l.user_id}</td>
+                                    <td
+                                        style={{
+                                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                            fontSize: 12,
+                                            maxWidth: 140,
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                        title={l.user_id}
+                                    >
+                                        {l.user_id}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

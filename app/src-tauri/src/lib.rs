@@ -39,6 +39,10 @@ pub fn run() {
                 Err(e) => eprintln!("logging init failed: {e}"),
             }
 
+            if let Err(e) = infrastructure::app_menu::install_native_menu(app) {
+                tracing::warn!(target: "medoc::system", event = "NATIVE_MENU_SKIP", error = %e);
+            }
+
             // Enforce log retention windows at startup (NFA-LOG-05).
             let _ = infrastructure::retention::enforce(&data_dir.join("logs"));
 
@@ -78,12 +82,16 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_menu_event(|app, event| {
+            infrastructure::app_menu::handle_menu_event(app, &event);
+        })
         .invoke_handler(tauri::generate_handler![
             // Auth
             commands::auth_commands::login,
             commands::auth_commands::logout,
             commands::auth_commands::get_session,
             commands::auth_commands::touch_session,
+            commands::export_commands::save_export_file,
             // Personal
             commands::personal_commands::list_personal,
             commands::personal_commands::list_aerzte,
@@ -144,8 +152,16 @@ pub fn run() {
             commands::akte_commands::update_untersuchung,
             commands::akte_commands::delete_untersuchung,
             commands::akte_commands::export_akte_pdf,
+            commands::akte_anlage_commands::list_akte_anlagen,
+            commands::akte_anlage_commands::create_akte_anlage,
+            commands::akte_anlage_commands::delete_akte_anlage,
+            commands::akte_anlage_commands::rename_akte_anlage,
+            commands::akte_anlage_commands::open_akte_anlage_externally,
+            commands::akte_anlage_commands::duplicate_akte_anlage,
             // Zahlungen
             commands::zahlung_commands::list_zahlungen,
+            commands::zahlung_commands::list_zahlungen_for_patient,
+            commands::zahlung_commands::list_patient_ids_open_invoice,
             commands::zahlung_commands::create_zahlung,
             commands::zahlung_commands::update_zahlung,
             commands::zahlung_commands::delete_zahlung,
@@ -175,6 +191,7 @@ pub fn run() {
             commands::logging_commands::export_logs,
             commands::logging_commands::verify_audit_chain,
             commands::logging_commands::log_dir,
+            commands::menu_commands::sync_native_menu,
             // Operations: Backup / DSGVO / Migration
             commands::ops_commands::create_backup,
             commands::ops_commands::list_backups,
@@ -182,6 +199,7 @@ pub fn run() {
             commands::ops_commands::dsgvo_export_patient,
             commands::ops_commands::dsgvo_erase_patient,
             commands::ops_commands::import_patients_csv,
+            commands::ops_commands::pick_patients_csv_file,
             commands::ops_commands::enforce_log_retention,
             // System: license / updates / perf
             commands::system_commands::verify_license,
@@ -207,6 +225,7 @@ pub fn run() {
             commands::break_glass_commands::break_glass_active,
             // Invoice
             commands::invoice_commands::render_invoice_pdf,
+            commands::invoice_sequence_commands::allocate_invoice_document_number,
             // Integrations & notifications
             commands::integration_commands::list_upcoming_appointments,
             commands::integration_commands::validate_eprescription,

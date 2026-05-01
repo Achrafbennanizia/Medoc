@@ -4,24 +4,27 @@ import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
-import type { PraxisDayPlan } from "../../lib/praxis-planning";
+import type { PraxisDayKey, PraxisDayPlan } from "../../lib/praxis-planning";
 import { loadPraxisArbeitszeitenConfig, savePraxisArbeitszeitenConfig } from "../../lib/praxis-planning";
-import { errorMessage } from "@/lib/utils";
+import type { PlanValidationIssue } from "../../lib/praxis-arbeitszeiten-validation";
+import {
+    isValidPauseRange,
+    isValidSlotMinutes,
+    validatePraxisArbeitsplan,
+} from "../../lib/praxis-arbeitszeiten-validation";
+import { errorMessage, formatTpl } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
-const DAYS = [
-    { key: "mo", label: "Montag" },
-    { key: "di", label: "Dienstag" },
-    { key: "mi", label: "Mittwoch" },
-    { key: "do", label: "Donnerstag" },
-    { key: "fr", label: "Freitag" },
-    { key: "sa", label: "Samstag" },
-    { key: "so", label: "Sonntag" },
-] as const;
+const DAY_ORDER: readonly PraxisDayKey[] = ["mo", "di", "mi", "do", "fr", "sa", "so"];
 
-type DayKey = (typeof DAYS)[number]["key"];
-type Arbeitszeiten = Record<DayKey, PraxisDayPlan>;
+function formatPlanIssue(tr: (key: string) => string, issue: PlanValidationIssue): string {
+    const day = tr(`page.arbeitszeiten.day.${issue.day}`);
+    return tr(`page.arbeitszeiten.err.${issue.code}`).replace("{day}", day);
+}
 
-const defaultPlan: Arbeitszeiten = {
+type ArbeitszeitenPlan = Record<PraxisDayKey, PraxisDayPlan>;
+
+const defaultPlan: ArbeitszeitenPlan = {
     mo: { aktiv: true, segments: [{ from: "08:00", to: "17:00" }] },
     di: { aktiv: true, segments: [{ from: "08:00", to: "17:00" }] },
     mi: { aktiv: true, segments: [{ from: "08:00", to: "17:00" }] },
@@ -34,7 +37,8 @@ const defaultPlan: Arbeitszeiten = {
 export function ArbeitszeitenPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
-    const [plan, setPlan] = useState<Arbeitszeiten>(defaultPlan);
+    const tr = useT();
+    const [plan, setPlan] = useState<ArbeitszeitenPlan>(defaultPlan);
     const [pauseVon, setPauseVon] = useState("12:30");
     const [pauseBis, setPauseBis] = useState("13:30");
     const [slotMin, setSlotMin] = useState("30");
@@ -51,22 +55,40 @@ export function ArbeitszeitenPage() {
         return () => { cancelled = true; };
     }, []);
 
-    const activeDays = useMemo(() => DAYS.filter((d) => plan[d.key].aktiv).length, [plan]);
+    const activeDays = useMemo(() => DAY_ORDER.filter((k) => plan[k].aktiv).length, [plan]);
+
+    const weekdays = useMemo(
+        () => DAY_ORDER.map((key) => ({ key, label: tr(`page.arbeitszeiten.day.${key}`) })),
+        [tr],
+    );
 
     const save = async () => {
+        const issue = validatePraxisArbeitsplan(plan);
+        if (issue) {
+            toast(formatPlanIssue(tr, issue), "error");
+            return;
+        }
+        if (!isValidPauseRange(pauseVon, pauseBis)) {
+            toast(tr("page.arbeitszeiten.err.pause_order"), "error");
+            return;
+        }
+        if (!isValidSlotMinutes(slotMin)) {
+            toast(tr("page.arbeitszeiten.err.slot_min"), "error");
+            return;
+        }
         setSaving(true);
         try {
             const prev = await loadPraxisArbeitszeitenConfig();
             await savePraxisArbeitszeitenConfig({ ...prev, plan, pauseVon, pauseBis, slotMin });
-            toast("Arbeitszeiten gespeichert");
+            toast(tr("page.arbeitszeiten.toast_saved"));
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(`${tr("page.arbeitszeiten.toast_save_failed")} ${errorMessage(e)}`, "error");
         } finally {
             setSaving(false);
         }
     };
 
-    const addSegment = (dayKey: DayKey) => {
+    const addSegment = (dayKey: PraxisDayKey) => {
         setPlan((prev) => ({
             ...prev,
             [dayKey]: {
@@ -76,7 +98,7 @@ export function ArbeitszeitenPage() {
         }));
     };
 
-    const removeSegment = (dayKey: DayKey, idx: number) => {
+    const removeSegment = (dayKey: PraxisDayKey, idx: number) => {
         setPlan((prev) => ({
             ...prev,
             [dayKey]: {
@@ -86,7 +108,7 @@ export function ArbeitszeitenPage() {
         }));
     };
 
-    const updateSegment = (dayKey: DayKey, idx: number, key: "from" | "to", value: string) => {
+    const updateSegment = (dayKey: PraxisDayKey, idx: number, key: "from" | "to", value: string) => {
         setPlan((prev) => ({
             ...prev,
             [dayKey]: {
@@ -100,23 +122,26 @@ export function ArbeitszeitenPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <VerwaltungBackButton />
-                <h1 className="page-title" style={{ margin: 0 }}>Arbeitszeiten</h1>
+                <h1 className="page-title" style={{ margin: 0 }}>{tr("page.arbeitszeiten.title")}</h1>
             </div>
             <p className="page-sub" style={{ margin: 0 }}>
-                Aktive Arbeitstage: {activeDays} / 7
+                {formatTpl(tr("page.arbeitszeiten.active_days"), { count: activeDays })}
             </p>
 
             <div className="card card-pad">
-                <h2 className="text-title" style={{ marginTop: 0 }}>Sprechzeiten pro Tag</h2>
+                <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.arbeitszeiten.section_hours")}</h2>
                 <div className="col" style={{ gap: 10 }}>
-                    {DAYS.map((d) => {
+                    {weekdays.map((d) => {
                         const row = plan[d.key];
                         return (
                             <div key={d.key} className="col" style={{ gap: 8, border: "1px solid var(--line)", borderRadius: 10, padding: 10 }}>
                                 <Select
                                     label={d.label}
                                     value={row.aktiv ? "1" : "0"}
-                                    options={[{ value: "1", label: "Aktiv" }, { value: "0", label: "Frei" }]}
+                                    options={[
+                                        { value: "1", label: tr("page.arbeitszeiten.status_active") },
+                                        { value: "0", label: tr("page.arbeitszeiten.status_free") },
+                                    ]}
                                     onChange={(e) => setPlan((prev) => ({ ...prev, [d.key]: { ...prev[d.key], aktiv: e.target.value === "1" } }))}
                                 />
                                 {(row.segments ?? []).map((seg, idx) => (
@@ -124,7 +149,7 @@ export function ArbeitszeitenPage() {
                                         <Input
                                             id={`${d.key}-from-${idx}`}
                                             type="time"
-                                            label={`Von (${idx + 1})`}
+                                            label={formatTpl(tr("page.arbeitszeiten.label_from"), { n: idx + 1 })}
                                             value={seg.from}
                                             onChange={(e) => updateSegment(d.key, idx, "from", e.target.value)}
                                             disabled={!row.aktiv}
@@ -132,21 +157,21 @@ export function ArbeitszeitenPage() {
                                         <Input
                                             id={`${d.key}-to-${idx}`}
                                             type="time"
-                                            label={`Bis (${idx + 1})`}
+                                            label={formatTpl(tr("page.arbeitszeiten.label_to"), { n: idx + 1 })}
                                             value={seg.to}
                                             onChange={(e) => updateSegment(d.key, idx, "to", e.target.value)}
                                             disabled={!row.aktiv}
                                         />
                                         {row.segments.length > 1 ? (
                                             <Button type="button" size="sm" variant="ghost" onClick={() => removeSegment(d.key, idx)} disabled={!row.aktiv}>
-                                                Entfernen
+                                                {tr("page.arbeitszeiten.remove_segment")}
                                             </Button>
                                         ) : null}
                                     </div>
                                 ))}
                                 <div>
                                     <Button type="button" size="sm" variant="secondary" onClick={() => addSegment(d.key)} disabled={!row.aktiv}>
-                                        + Zeitraum
+                                        {tr("page.arbeitszeiten.add_segment")}
                                     </Button>
                                 </div>
                             </div>
@@ -156,27 +181,27 @@ export function ArbeitszeitenPage() {
             </div>
 
             <div className="card card-pad">
-                <h2 className="text-title" style={{ marginTop: 0 }}>Standard für Termine</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Input id="pause-von" type="time" label="Pause von" value={pauseVon} onChange={(e) => setPauseVon(e.target.value)} />
-                    <Input id="pause-bis" type="time" label="Pause bis" value={pauseBis} onChange={(e) => setPauseBis(e.target.value)} />
-                    <Input id="slot-min" type="number" min={10} step={5} label="Slotdauer (Min)" value={slotMin} onChange={(e) => setSlotMin(e.target.value)} />
+                <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.arbeitszeiten.section_defaults")}</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+                    <Input id="pause-von" type="time" label={tr("page.arbeitszeiten.pause_from")} value={pauseVon} onChange={(e) => setPauseVon(e.target.value)} />
+                    <Input id="pause-bis" type="time" label={tr("page.arbeitszeiten.pause_to")} value={pauseBis} onChange={(e) => setPauseBis(e.target.value)} />
+                    <Input id="slot-min" type="number" min={10} step={5} label={tr("page.arbeitszeiten.slot_label")} value={slotMin} onChange={(e) => setSlotMin(e.target.value)} />
                 </div>
             </div>
 
             <div className="card card-pad">
-                <h2 className="text-title" style={{ marginTop: 0 }}>Sonder-Sperrzeiten</h2>
+                <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.arbeitszeiten.section_closures")}</h2>
                 <p style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 8 }}>
-                    Tages-/Halbtags-Schließungen und Notfall-Sperren werden separat verwaltet.
+                    {tr("page.arbeitszeiten.closures_hint")}
                 </p>
                 <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/sonder-sperrzeiten")}>
-                    Sonder-Sperrzeiten öffnen
+                    {tr("page.arbeitszeiten.open_closures")}
                 </Button>
             </div>
 
             <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/praxisplanung")}>Zurück</Button>
-                <Button type="button" onClick={() => void save()} disabled={saving} loading={saving}>Speichern</Button>
+                <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/praxisplanung")}>{tr("page.arbeitszeiten.back")}</Button>
+                <Button type="button" onClick={() => void save()} disabled={saving} loading={saving}>{tr("page.arbeitszeiten.save")}</Button>
             </div>
         </div>
     );

@@ -91,7 +91,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                         type="search"
                         autoComplete="off"
                         spellCheck={false}
-                        placeholder="Seite oder Aktion suchen…"
+                        placeholder={t("palette.placeholder")}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={onInputKeyDown}

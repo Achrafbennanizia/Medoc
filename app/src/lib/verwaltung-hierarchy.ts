@@ -37,6 +37,10 @@ const VORLAGEN_LIST: VerwaltungBackTarget = { path: "/verwaltung/vorlagen", labe
 export function getVerwaltungBackTarget(pathnameWithOptionalQuery: string): VerwaltungBackTarget {
     const raw = (pathnameWithOptionalQuery.split("?")[0] ?? "/").replace(/\/$/, "") || "/";
 
+    if (raw === "/verwaltung") {
+        return { path: "/", label: "Übersicht" };
+    }
+
     if (raw.startsWith("/verwaltung/vorlagen/editor")) {
         return VORLAGEN_LIST;
     }

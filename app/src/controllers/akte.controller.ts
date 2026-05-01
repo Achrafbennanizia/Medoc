@@ -1,4 +1,5 @@
 import { tauriInvoke } from "../services/tauri.service";
+import type { AkteAnlageRowDto } from "../lib/akte-anlagen";
 import type {
     Patientenakte,
     Zahnbefund,
@@ -8,11 +9,11 @@ import type {
 } from "../models/types";
 
 export async function getAkte(patientId: string): Promise<Patientenakte> {
-    return tauriInvoke<Patientenakte>("get_akte", { patientId });
+    return tauriInvoke<Patientenakte>("get_akte", { patient_id: patientId });
 }
 
 export async function listZahnbefunde(akteId: string): Promise<Zahnbefund[]> {
-    return tauriInvoke<Zahnbefund[]>("list_zahnbefunde", { akteId });
+    return tauriInvoke<Zahnbefund[]>("list_zahnbefunde", { akte_id: akteId });
 }
 
 export async function createZahnbefund(data: {
@@ -26,7 +27,7 @@ export async function createZahnbefund(data: {
 }
 
 export async function getAnamnesebogen(patientId: string): Promise<Anamnesebogen | null> {
-    return tauriInvoke<Anamnesebogen | null>("get_anamnesebogen", { patientId });
+    return tauriInvoke<Anamnesebogen | null>("get_anamnesebogen", { patient_id: patientId });
 }
 
 export async function saveAnamnesebogen(data: {
@@ -38,15 +39,15 @@ export async function saveAnamnesebogen(data: {
 }
 
 export async function exportAktePdf(patientId: string): Promise<string> {
-    return tauriInvoke<string>("export_akte_pdf", { patientId });
+    return tauriInvoke<string>("export_akte_pdf", { patient_id: patientId });
 }
 
 export async function listBehandlungen(akteId: string): Promise<Behandlung[]> {
-    return tauriInvoke<Behandlung[]>("list_behandlungen", { akteId });
+    return tauriInvoke<Behandlung[]>("list_behandlungen", { akte_id: akteId });
 }
 
 export async function listUntersuchungen(akteId: string): Promise<Untersuchung[]> {
-    return tauriInvoke<Untersuchung[]>("list_untersuchungen", { akteId });
+    return tauriInvoke<Untersuchung[]>("list_untersuchungen", { akte_id: akteId });
 }
 
 export async function createBehandlung(data: {
@@ -112,4 +113,36 @@ export async function updateBehandlung(data: {
 
 export async function deleteBehandlung(id: string): Promise<void> {
     return tauriInvoke<void>("delete_behandlung", { id });
+}
+
+export async function listAkteAnlagen(akteId: string): Promise<AkteAnlageRowDto[]> {
+    return tauriInvoke<AkteAnlageRowDto[]>("list_akte_anlagen", { akte_id: akteId });
+}
+
+export async function createAkteAnlage(data: {
+    akte_id: string;
+    display_name: string;
+    mime_type: string;
+    bytes_base64: string;
+}): Promise<AkteAnlageRowDto> {
+    return tauriInvoke<AkteAnlageRowDto>("create_akte_anlage", { data });
+}
+
+export async function deleteAkteAnlage(id: string): Promise<void> {
+    return tauriInvoke<void>("delete_akte_anlage", { id });
+}
+
+export async function renameAkteAnlage(id: string, displayName: string): Promise<void> {
+    return tauriInvoke<void>("rename_akte_anlage", { id, display_name: displayName });
+}
+
+export async function openAkteAnlageExternally(id: string, withApp?: string | null): Promise<void> {
+    return tauriInvoke<void>("open_akte_anlage_externally", {
+        id,
+        with_app: withApp !== undefined && withApp !== null && withApp.trim() !== "" ? withApp : null,
+    });
+}
+
+export async function duplicateAkteAnlage(id: string): Promise<AkteAnlageRowDto> {
+    return tauriInvoke<AkteAnlageRowDto>("duplicate_akte_anlage", { id });
 }

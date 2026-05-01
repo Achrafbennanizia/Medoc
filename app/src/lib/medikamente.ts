@@ -6,6 +6,9 @@
  * curated list of frequently used dental medications drives the dropdown /
  * datalist suggestions so users can compose a "Kombinationsrezept" quickly
  * without typos.
+ *
+ * Hinweis für Produktivbetrieb: diese Liste ist als kleiner Demonstrator gedacht,
+ * nicht als vollständige Arzneimittel-Datenbank — Dosierungen sind Freitext ohne Prüfung.
  */
 export interface MedikamentSuggestion {
     label: string;

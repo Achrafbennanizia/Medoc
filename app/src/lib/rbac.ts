@@ -47,6 +47,10 @@ export function allowed(action: string, role: Role): boolean {
         case "personal.read":
         case "personal.write":
             return role === "ARZT";
+        /** Rezept-/Attest-Stammdaten-Vorlagen (Dokumentvorlagen) — wie Personal nur Praxisinhaber:in. */
+        case "vorlagen.read":
+        case "vorlagen.write":
+            return role === "ARZT";
         case "audit.read":
             return role === "ARZT";
         case "ops.backup":
@@ -74,13 +78,7 @@ export type NavItemDefinition = {
 };
 
 export function navItemVisible(rolle: string | undefined, item: NavItemDefinition): boolean {
-    const role = parseRole(rolle);
-    if (!role) return false;
-    const v = item.visibility;
-    if (v.kind === "action") return allowed(v.action, role);
-    if (v.kind === "allOf") return v.actions.every((a) => allowed(a, role));
-    if (v.kind === "anyOf") return v.actions.some((a) => allowed(a, role));
-    return v.roles.includes(role);
+    return navVisibilitySatisfied(item.visibility, rolle);
 }
 
 /**
@@ -94,7 +92,6 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         icon: "📊",
         visibility: { kind: "action", action: "dashboard.read" },
     },
-    { to: "/hilfe", labelKey: "nav.hilfe", icon: "❓", visibility: { kind: "action", action: "dashboard.read" } },
     { to: "/termine", labelKey: "nav.termine", icon: "📅", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", icon: "👥", visibility: { kind: "action", action: "patient.read" } },
     { to: "/finanzen", labelKey: "nav.finanzen", icon: "💰", visibility: { kind: "action", action: "finanzen.read" } },
@@ -157,8 +154,8 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "verwaltung/arbeitszeiten": { kind: "action", action: "personal.read" },
     "verwaltung/sonder-sperrzeiten": { kind: "action", action: "personal.read" },
     "verwaltung/praxis-praeferenzen": { kind: "action", action: "personal.read" },
-    "verwaltung/vorlagen": { kind: "action", action: "personal.read" },
-    "verwaltung/vorlagen/editor": { kind: "action", action: "personal.read" },
+    "verwaltung/vorlagen": { kind: "action", action: "vorlagen.read" },
+    "verwaltung/vorlagen/editor": { kind: "action", action: "vorlagen.read" },
     "verwaltung/behandlungs-katalog": { kind: "action", action: "personal.read" },
     /** Bestellwesen (nicht `finanzen.*`) — spiegelt Tauri `bestellung.read` / `bestellung.write` für Praxis-Stammdaten. */
     "verwaltung/bestellstamm": { kind: "action", action: "bestellung.read" },
@@ -172,7 +169,9 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "verwaltung/leistungen-kataloge-vorlagen": { kind: "action", action: "personal.read" },
 };
 
-function visibilityAllowed(visibility: NavVisibility, role: Role): boolean {
+export function navVisibilitySatisfied(visibility: NavVisibility, rolle: string | undefined): boolean {
+    const role = parseRole(rolle);
+    if (!role) return false;
     if (visibility.kind === "action") return allowed(visibility.action, role);
     if (visibility.kind === "allOf") return visibility.actions.every((a) => allowed(a, role));
     if (visibility.kind === "anyOf") return visibility.actions.some((a) => allowed(a, role));
@@ -180,9 +179,7 @@ function visibilityAllowed(visibility: NavVisibility, role: Role): boolean {
 }
 
 export function routeChildPathAllowed(routePath: string, rolle: string | undefined): boolean {
-    const role = parseRole(rolle);
-    if (!role) return false;
     const visibility = ROUTE_VISIBILITY[routePath];
     if (!visibility) return false;
-    return visibilityAllowed(visibility, role);
+    return navVisibilitySatisfied(visibility, rolle);
 }

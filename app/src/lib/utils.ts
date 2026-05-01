@@ -7,6 +7,21 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+/** Escape text for safe interpolation into HTML (e.g. print templates). */
+export function escapeHtml(raw: string): string {
+    return raw
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+/** Replace `{key}` placeholders in i18n-style templates (missing keys become empty string). */
+export function formatTpl(template: string, vars: Record<string, string | number>): string {
+    return template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? ""));
+}
+
 /** Safe string for catch blocks / invoke failures */
 export function errorMessage(e: unknown): string {
     if (e instanceof Error) return e.message;

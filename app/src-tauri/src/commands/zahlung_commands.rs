@@ -18,6 +18,28 @@ pub async fn list_zahlungen(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
+pub async fn list_zahlungen_for_patient(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    patient_id: String,
+) -> Result<Vec<Zahlung>, AppError> {
+    rbac::require(&session_state, "finanzen.read")?;
+    zahlung_repo::find_by_patient_id(&pool, &patient_id).await
+}
+
+/// Für Patientenliste: `patient_id` mit mindestens einer offenen/teilbezahlten Buchung.
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn list_patient_ids_open_invoice(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<String>, AppError> {
+    rbac::require(&session_state, "finanzen.read")?;
+    zahlung_repo::patient_ids_open_invoice(&pool).await
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn create_zahlung(
     pool: State<'_, SqlitePool>,

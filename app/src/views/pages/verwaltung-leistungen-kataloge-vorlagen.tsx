@@ -1,72 +1,42 @@
-import { useNavigate } from "react-router-dom";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "@/lib/rbac";
+import { useAuthStore } from "@/models/store/auth-store";
+import { VerwaltungTocPage, type VerwaltungTocTextRow } from "../components/verwaltung-toc-page";
 
-const LINKS: { title: string; desc: string; href: string }[] = [
+const LINKS_ALL: (VerwaltungTocTextRow & { visibility: NavVisibility })[] = [
     {
         title: "Leistungsvorlagen",
         desc: "Katalog und GOZ-orientierte Leistungen, Honorarlogik und Textbausteine.",
         href: "/leistungen",
+        visibility: ROUTE_VISIBILITY.leistungen,
     },
     {
         title: "Behandlungskatalog",
         desc: "Kategorien und Leistungen für die Patientenakte (Auswahl bei Behandlungen).",
         href: "/verwaltung/behandlungs-katalog",
+        visibility: ROUTE_VISIBILITY["verwaltung/behandlungs-katalog"],
     },
     {
         title: "Vorlagen Rezepte / Atteste",
         desc: "Vordefinierte Rezepte, Attest-Texte und Formulare.",
         href: "/verwaltung/vorlagen",
+        visibility: ROUTE_VISIBILITY["verwaltung/vorlagen"],
     },
 ];
 
 /** Leistungen, Kataloge, Vorlagen — Tabelle in Karte. */
 export function VerwaltungLeistungenKatalogeVorlagenPage() {
-    const navigate = useNavigate();
+    const rolle = useAuthStore((s) => s.session?.rolle);
+    const rows = LINKS_ALL.filter((l) => navVisibilitySatisfied(l.visibility, rolle)).map((l) => ({
+        title: l.title,
+        desc: l.desc,
+        href: l.href,
+    }));
     return (
-        <div className="verwaltung-menu-page animate-fade-in">
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Leistungen, Kataloge &amp; Vorlagen</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Leistungstexte, Kataloge für die Akte sowie Vorlagen für Rezepte und Atteste.
-                    </p>
-                </div>
-            </div>
-
-            <div className="card verwaltung-toc-table-card">
-                <table className="tbl" style={{ minWidth: 480 }}>
-                    <thead>
-                        <tr>
-                            <th scope="col">Bereich</th>
-                            <th scope="col">Beschreibung</th>
-                            <th scope="col" style={{ width: 40 }} aria-hidden />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {LINKS.map((item) => (
-                            <tr
-                                key={item.title}
-                                className="verwaltung-toc-row"
-                                onClick={() => navigate(item.href)}
-                                title="Öffnen"
-                            >
-                                <td>
-                                    <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{item.title}</span>
-                                </td>
-                                <td>
-                                    <span className="page-sub" style={{ fontSize: 13, display: "block", lineHeight: 1.4 }}>
-                                        {item.desc}
-                                    </span>
-                                </td>
-                                <td style={{ textAlign: "right", color: "var(--fg-4)" }}>›</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <VerwaltungTocPage
+            variant="subhub"
+            title="Leistungen, Kataloge & Vorlagen"
+            subtitle="Leistungstexte, Kataloge für die Akte sowie Vorlagen für Rezepte und Atteste."
+            rows={rows}
+        />
     );
 }

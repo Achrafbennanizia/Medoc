@@ -222,11 +222,14 @@ export function loadArbeitsplanStore(): ArbeitsplanStore {
         if (v2) {
             const p = parseStoreV2(v2);
             if (p) {
-                const m = migrateWeeklyToPlan(p);
-                if (m.planPreferences.length !== p.planPreferences.length || m.weeklyRules.length !== p.weeklyRules.length) {
-                    saveArbeitsplanStore(m);
+                const migratedWeekly = migrateWeeklyToPlan(p);
+                const weeklyDirty =
+                    migratedWeekly.planPreferences.length !== p.planPreferences.length
+                    || migratedWeekly.weeklyRules.length !== p.weeklyRules.length;
+                if (weeklyDirty) {
+                    saveArbeitsplanStore(migratedWeekly);
                 }
-                return m;
+                return migratedWeekly;
             }
         }
         const v1 = localStorage.getItem(LS_KEY_V1);
@@ -331,9 +334,12 @@ export function rulesForDay(
     return rules.filter((r) => r.personalId === personalId && r.weekday === wd);
 }
 
-/** Einfache Farbe pro personalId (UI) */
+/** Einfache Farbe pro personalId (UI) — FNV-1a-artige Streuung über HSL-Hue. */
 export function hueForPersonal(id: string): number {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
-    return h;
+    let h = 2166136261;
+    for (let i = 0; i < id.length; i++) {
+        h ^= id.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return Math.abs(h) % 360;
 }

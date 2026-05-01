@@ -27,8 +27,11 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
         expect(allowed("bestellung.write", "ARZT")).toBe(true);
         expect(allowed("bestellung.write", "PHARMABERATER")).toBe(true);
     });
-    it("unknown action denied", () => {
-        expect(allowed("evil.shell", "ARZT")).toBe(false);
+    it("vorlagen.read/write mirror personal scope (Arzt only)", () => {
+        expect(allowed("vorlagen.read", "ARZT")).toBe(true);
+        expect(allowed("vorlagen.write", "ARZT")).toBe(true);
+        expect(allowed("vorlagen.read", "REZEPTION")).toBe(false);
+        expect(allowed("vorlagen.write", "REZEPTION")).toBe(false);
     });
     it("patient.behandlungen_list_for_zahlung matches billing roles (mirrors Rust)", () => {
         expect(allowed("patient.behandlungen_list_for_zahlung", "ARZT")).toBe(true);

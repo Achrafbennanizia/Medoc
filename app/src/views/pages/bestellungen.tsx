@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
@@ -195,12 +195,22 @@ export function BestellungenPage() {
                         <tbody>
                             {filtered.map((r) => {
                                 const overdue = isOverdue(r);
+                                const go = () => navigate(`/bestellungen/${r.id}`);
+                                const onRowKeyDown = (e: KeyboardEvent) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        go();
+                                    }
+                                };
                                 return (
                                     <tr
                                         key={r.id}
                                         className="bestellungen-row bestellungen-row--clickable"
-                                        onClick={() => navigate(`/bestellungen/${r.id}`)}
+                                        tabIndex={0}
+                                        onClick={go}
+                                        onKeyDown={onRowKeyDown}
                                         title="Details öffnen"
+                                        aria-label={`Bestellung ${r.bestellnummer ?? r.id} öffnen`}
                                     >
                                         <td>
                                             <span
@@ -234,7 +244,11 @@ export function BestellungenPage() {
                                                 <span className="page-sub">—</span>
                                             )}
                                         </td>
-                                        <td onClick={(e) => e.stopPropagation()}>
+                                        <td
+                                            onClick={(e) => e.stopPropagation()}
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
                                             <div className="bestellungen-status-cell">
                                                 {canWrite ? (
                                                     <Select

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Dialog, ConfirmDialog } from "../components/ui/dialog";
+import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { listPatienten } from "../../controllers/patient.controller";
 import {
@@ -11,7 +11,10 @@ import {
     type ErasureReport,
 } from "../../controllers/ops.controller";
 import type { Patient } from "../../models/types";
-import { errorMessage } from "../../lib/utils";
+import { clearPatientScopedBrowserStorage } from "../../lib/patient-browser-storage";
+import { errorMessage, formatTpl } from "../../lib/utils";
+import { openExportPreview } from "../../models/store/export-preview-store";
+import { useT } from "../../lib/i18n";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 
@@ -20,15 +23,18 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
  * Bündelt Patientenexport (JSON) und Löschanfrage (Pseudonymisierung mit Aufbewahrung
  * klinischer Daten bis Ablauf §630f BGB / 30 Jahre).
  */
+const PAGE_SIZE = 50;
+
 export function DatenschutzPage() {
+    const t = useT();
     const [patients, setPatients] = useState<Patient[]>([]);
     const [filter, setFilter] = useState("");
     const [busyId, setBusyId] = useState<string | null>(null);
-    const [exportPreview, setExportPreview] = useState<string | null>(null);
     const [confirmErase, setConfirmErase] = useState<Patient | null>(null);
     const [eraseReport, setEraseReport] = useState<ErasureReport | null>(null);
     const [patientsLoading, setPatientsLoading] = useState(true);
     const [patientsError, setPatientsError] = useState<string | null>(null);
+    const [tablePage, setTablePage] = useState(0);
     const toast = useToastStore((s) => s.add);
 
     const loadPatients = useCallback(async () => {
@@ -52,23 +58,29 @@ export function DatenschutzPage() {
         p.name.toLowerCase().includes(filter.toLowerCase()),
     );
 
+    useEffect(() => {
+        setTablePage(0);
+    }, [filter, patients.length]);
+
+    const totalFiltered = filtered.length;
+    const pageCount = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+    const safePage = Math.min(tablePage, pageCount - 1);
+    const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
     async function handleExport(p: Patient) {
         setBusyId(p.id);
         try {
             const data = await dsgvoExportPatient(p.id);
             const json = JSON.stringify(data, null, 2);
-            setExportPreview(json);
-            // Browser-Download anbieten
-            const blob = new Blob([json], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `dsgvo-export-${p.id}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast(`Export für ${p.name} erstellt`);
+            openExportPreview({
+                format: "json",
+                title: t("page.datenschutz.dialog_preview_title"),
+                hint: `DSGVO-Datenpaket für ${p.name} · JSON strukturiert drucken oder speichern.`,
+                suggestedFilename: `dsgvo-export-${p.id}.json`,
+                textBody: json,
+            });
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`);
+            toast(`${t("page.datenschutz.toast_error_prefix")} ${errorMessage(e)}`);
         } finally {
             setBusyId(null);
         }
@@ -79,12 +91,13 @@ export function DatenschutzPage() {
         setBusyId(confirmErase.id);
         try {
             const report = await dsgvoErasePatient(confirmErase.id);
+            clearPatientScopedBrowserStorage(confirmErase.id);
             setEraseReport(report);
-            toast("Pseudonymisierung abgeschlossen");
+            toast(t("page.datenschutz.toast_erase_done"));
             setConfirmErase(null);
             await loadPatients();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`);
+            toast(`${t("page.datenschutz.toast_error_prefix")} ${errorMessage(e)}`);
         } finally {
             setBusyId(null);
         }
@@ -92,83 +105,109 @@ export function DatenschutzPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <h2 className="page-title">Datenschutz (DSGVO)</h2>
+            <h2 className="page-title">{t("page.datenschutz.title")}</h2>
             <p style={{ color: "var(--fg-3)", fontSize: 14 }}>
-                Bearbeitung von Betroffenenrechten nach DSGVO Art. 15 (Auskunft), Art. 17 (Löschung)
-                und Art. 20 (Datenübertragbarkeit). Klinische Daten bleiben aufgrund §630f BGB
-                bis zum Ablauf der Aufbewahrungsfrist erhalten und werden bei einer Löschanfrage
-                <em> pseudonymisiert</em>.
+                {t("page.datenschutz.intro_prefix")}
+                <em>{t("page.datenschutz.intro_em")}</em>
+                {t("page.datenschutz.intro_suffix")}
             </p>
 
             <Card className="card-pad">
-                <CardHeader title="Patient suchen" />
+                <CardHeader title={t("page.datenschutz.card_search")} />
                 <Input
                     id="dsgvo-filter"
-                    label="Nach Namen filtern"
-                    placeholder="Name eingeben…"
+                    label={t("page.datenschutz.filter_label")}
+                    placeholder={t("page.datenschutz.filter_ph")}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                 />
             </Card>
 
             {patientsLoading ? (
-                <PageLoading label="Patienten werden geladen…" />
+                <PageLoading label={t("page.datenschutz.loading")} />
             ) : patientsError ? (
                 <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
             ) : filtered.length === 0 ? (
-                <EmptyState icon="👥" title="Keine Patienten" description="Legen Sie Patienten an oder passen Sie die Suche an." />
+                <EmptyState icon="👥" title={t("page.datenschutz.empty_title")} description={t("page.datenschutz.empty_desc")} />
             ) : (
                 <div className="card">
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Name</th><th>Status</th><th>Aktion</th>
+                                <th>{t("page.datenschutz.col.name")}</th>
+                                <th>{t("page.datenschutz.col.status")}</th>
+                                <th>{t("page.datenschutz.col.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.slice(0, 50).map((p) => (
+                            {pageRows.map((p) => (
                                 <tr key={p.id}>
                                     <td>{p.name}</td>
                                     <td>{p.status}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                                         <Button size="sm" onClick={() => handleExport(p)} disabled={busyId === p.id}>
-                                            Export (JSON)
+                                            {t("page.datenschutz.export_json")}
                                         </Button>
                                         <Button size="sm" variant="danger" onClick={() => setConfirmErase(p)} disabled={busyId === p.id}>
-                                            Löschanfrage
+                                            {t("page.datenschutz.erase_request")}
                                         </Button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    {totalFiltered > 0 ? (
+                        <div className="card-pad" style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+                            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                                <span style={{ color: "var(--fg-3)", fontSize: 13 }}>
+                                    {totalFiltered <= PAGE_SIZE
+                                        ? formatTpl(t("page.datenschutz.page_all"), { count: totalFiltered })
+                                        : formatTpl(t("page.datenschutz.page_range"), {
+                                            from: safePage * PAGE_SIZE + 1,
+                                            to: Math.min((safePage + 1) * PAGE_SIZE, totalFiltered),
+                                            total: totalFiltered,
+                                        })}
+                                </span>
+                                {totalFiltered > PAGE_SIZE ? (
+                                    <div className="row" style={{ gap: 8 }}>
+                                        <Button size="sm" variant="ghost" disabled={safePage <= 0} onClick={() => setTablePage((p) => {
+                                            const cur = Math.min(p, pageCount - 1);
+                                            return Math.max(0, cur - 1);
+                                        })}>
+                                            {t("page.datenschutz.nav_back")}
+                                        </Button>
+                                        <Button size="sm" variant="ghost" disabled={safePage >= pageCount - 1} onClick={() => setTablePage((p) => {
+                                            const cur = Math.min(p, pageCount - 1);
+                                            return Math.min(pageCount - 1, cur + 1);
+                                        })}>
+                                            {t("page.datenschutz.nav_next")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             )}
-
-            <Dialog open={!!exportPreview} onClose={() => setExportPreview(null)} title="Export-Vorschau">
-                <pre className="card card-pad" style={{ maxHeight: 360, overflow: "auto", fontSize: 12 }}>
-                    {exportPreview}
-                </pre>
-            </Dialog>
 
             <ConfirmDialog
                 open={!!confirmErase}
                 onClose={() => setConfirmErase(null)}
                 onConfirm={handleErase}
-                title="DSGVO-Löschanfrage"
-                message={`Patient "${confirmErase?.name}" pseudonymisieren? Klinische Daten bleiben gemäß §630f BGB bis zum Ablauf der Aufbewahrungsfrist erhalten.`}
-                confirmLabel="Pseudonymisieren"
+                title={t("page.datenschutz.erase_title")}
+                message={confirmErase ? formatTpl(t("page.datenschutz.erase_confirm"), { name: confirmErase.name }) : ""}
+                confirmLabel={t("page.datenschutz.erase_confirm_btn")}
                 danger
                 loading={busyId === confirmErase?.id}
             />
 
             {eraseReport && (
                 <Card className="card-pad">
-                    <CardHeader title="Letzter Löschbericht" />
-                    <ul className="text-body space-y-1">
-                        <li>Patient-ID: <span className="font-mono">{eraseReport.patient_id}</span></li>
-                        <li>Pseudonymisiert am: {eraseReport.anonymised_at}</li>
-                        <li>Betroffene Datensätze: {eraseReport.deleted_records}</li>
+                    <CardHeader title={t("page.datenschutz.report_title")} />
+                    <ul className="text-body" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <li>{t("page.datenschutz.report_patient_id")} <span style={{ fontFamily: "ui-monospace, monospace" }}>{eraseReport.patient_id}</span></li>
+                        <li>{t("page.datenschutz.report_anonymised")} {eraseReport.anonymised_at}</li>
+                        <li>{t("page.datenschutz.report_records")} {eraseReport.deleted_records}</li>
                     </ul>
                 </Card>
             )}

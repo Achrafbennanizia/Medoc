@@ -5,55 +5,27 @@ import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "../../controllers/auth.controller";
 import { listPatienten } from "../../controllers/patient.controller";
 import { breakGlassActivate } from "../../controllers/break-glass.controller";
-import { NAV_ITEM_DEFINITIONS, navItemVisible, type NavItemDefinition } from "../../lib/rbac";
-import { useT, useLocale } from "../../lib/i18n";
+import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "../../lib/rbac";
+import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
-import { ToastContainer } from "../components/ui/toast";
+import { ExportPreviewHost } from "../components/export-preview-host";
 import { useToastStore } from "../components/ui/toast-store";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Select, Textarea } from "../components/ui/input";
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, MoreIcon, NAV_ICONS, PinIcon, SearchIcon, WifiIcon } from "@/lib/icons";
+import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, MoreIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
+import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates } from "@/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { PageLoading } from "../components/ui/page-status";
-
-/** Sidebar tooltips (§2.4) — keys in {@link useT} / `lib/i18n.ts`. */
-const NAV_HELP_I18N: Record<string, string> = {
-    "/": "nav.help.dashboard",
-    "/hilfe": "nav.help.hilfe",
-    "/termine": "nav.help.termine",
-    "/patienten": "nav.help.patienten",
-    "/finanzen": "nav.help.finanzen",
-    "/finanzen/neu": "nav.help.finanzen",
-    "/bestellungen": "nav.help.bestellungen",
-    "/verwaltung": "nav.help.verwaltung",
-    "/verwaltung/arbeitstage": "nav.help.verwaltung",
-    "/verwaltung/praxisplanung": "nav.help.verwaltung",
-    "/verwaltung/arbeitszeiten": "nav.help.verwaltung",
-    "/verwaltung/sonder-sperrzeiten": "nav.help.verwaltung",
-    "/verwaltung/praxis-praeferenzen": "nav.help.verwaltung",
-    "/verwaltung/vorlagen": "nav.help.verwaltung",
-    "/verwaltung/behandlungs-katalog": "nav.help.verwaltung",
-    "/verwaltung/finanzen-berichte": "nav.help.verwaltung",
-    "/verwaltung/team": "nav.help.verwaltung",
-    "/verwaltung/finanzen-berichte/tagesabschluss": "nav.help.verwaltung",
-    "/verwaltung/finanzen-berichte/rechnung": "nav.help.verwaltung",
-    "/verwaltung/tagesabschluss": "nav.help.verwaltung",
-    "/verwaltung/lager-und-bestellwesen": "nav.help.verwaltung",
-    "/verwaltung/vertraege": "nav.help.verwaltung",
-    "/verwaltung/leistungen-kataloge-vorlagen": "nav.help.verwaltung",
-    "/verwaltung/finanzen-werkzeuge": "nav.help.verwaltung",
-    "/verwaltung/bestellstamm": "nav.help.verwaltung",
-    "/leistungen": "nav.help.leistungen",
-    "/produkte": "nav.help.produkte",
-    "/statistik": "nav.help.statistik",
-    "/einstellungen": "nav.help.einstellungen",
-};
+import { ToastContainer } from "../components/ui/toast";
+import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
+import { syncNativeMenu } from "@/controllers/native-menu.controller";
+import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 
 function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/termine/neu") return ["MeDoc", "Terminübersicht", "Neuer Termin"];
@@ -147,10 +119,27 @@ const CRUMBS: Record<string, string[]> = {
 };
 
 const NAV_SECTIONS: Array<{ label: string; items: string[] }> = [
-    { label: "Übersicht", items: ["/", "/termine", "/hilfe"] },
+    { label: "Übersicht", items: ["/", "/termine"] },
     { label: "Behandlung", items: ["/patienten", "/rezepte", "/statistik"] },
     { label: "Praxis", items: ["/finanzen", "/bestellungen", "/verwaltung", "/einstellungen"] },
 ];
+
+const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
+
+function readStoredUiZoom(): number {
+    try {
+        const s = sessionStorage.getItem(MEDOC_UI_ZOOM_KEY);
+        const n = s ? parseFloat(s) : 1;
+        return Number.isFinite(n) && n >= 0.5 && n <= 2 ? Math.round(n * 100) / 100 : 1;
+    } catch {
+        return 1;
+    }
+}
+
+function clampUiZoom(z: number): number {
+    const r = Math.round(z * 100) / 100;
+    return Math.min(2, Math.max(0.5, r));
+}
 
 export function AppLayout() {
     const session = useAuthStore((s) => s.session);
@@ -172,17 +161,24 @@ export function AppLayout() {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
     const [commandOpen, setCommandOpen] = useState(false);
-    const [aboutOpen, setAboutOpen] = useState(false);
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
+    const [notifOpen, setNotifOpen] = useState(false);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    /** Hilfe-Texte aus dem nativen Menü (Windows/Linux-Menüleiste bzw. macOS-Menü). */
+    const [nativeHelpTopic, setNativeHelpTopic] = useState<null | "calendar" | "shortcuts">(null);
+    const [aboutOpen, setAboutOpen] = useState(false);
+    const [aboutVersion, setAboutVersion] = useState("");
+    const [uiZoom, setUiZoom] = useState(readStoredUiZoom);
     const [userMenuAnchor, setUserMenuAnchor] = useState<"sidebar" | "topbar">("sidebar");
     const userMenuAnchorRef = useRef(userMenuAnchor);
     const userMenuRef = useRef<HTMLDivElement>(null);
     const topbarMenuRef = useRef<HTMLDivElement>(null);
+    const notifWrapRef = useRef<HTMLDivElement>(null);
 
     const paletteCommands = useMemo(() => filterCommandsForRole(session?.rolle), [session?.rolle]);
     const breadcrumbs = useMemo(() => breadcrumbsForPath(location.pathname), [location.pathname]);
     const isDashboardRoute = location.pathname === "/";
+    const isTermineCalendarRoute = location.pathname === "/termine";
     const visibleNavItems = useMemo(
         () => NAV_ITEM_DEFINITIONS.filter((item) => navItemVisible(session?.rolle, item)),
         [session?.rolle],
@@ -202,6 +198,14 @@ export function AppLayout() {
         return acc;
     }, [visibleByTo]);
     const initials = (session?.name ?? "MD").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    const profileRoleLine = useMemo(() => {
+        const r = session?.rolle;
+        if (r === "ARZT") return t("app.role_label.ARZT");
+        if (r === "REZEPTION") return t("app.role_label.REZEPTION");
+        if (r === "STEUERBERATER") return t("app.role_label.STEUERBERATER");
+        if (r === "PHARMABERATER") return t("app.role_label.PHARMABERATER");
+        return "";
+    }, [session?.rolle, t]);
 
     // Inactivity guard (FA-AUTH-03 / NFA-SEC-09): the backend expires sessions after 30 min.
     // Throttle activity pings to once every 30 s and poll the session status
@@ -209,6 +213,15 @@ export function AppLayout() {
     useEffect(() => {
         document.documentElement.lang = locale;
     }, [locale]);
+
+    useEffect(() => {
+        document.documentElement.style.zoom = String(uiZoom);
+        try {
+            sessionStorage.setItem(MEDOC_UI_ZOOM_KEY, String(uiZoom));
+        } catch {
+            /* ignore */
+        }
+    }, [uiZoom]);
 
     useEffect(() => {
         if (!session) return;
@@ -223,16 +236,91 @@ export function AppLayout() {
         setMobileNavOpen(false);
     }, [location.pathname]);
 
+    /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {
+        if (!session?.rolle) return;
+        const payload = buildSyncNativeMenuPayload(session.rolle, (key) => translateLocale(locale, key));
+        void syncNativeMenu(payload).catch((err) => {
+            console.error("sync_native_menu failed", err);
+        });
+    }, [session?.rolle, locale]);
+
+    /** Matches native menu actions (⌘K/⌘⇧P Befehlspalette, ⌘N Termin, Zoom, Neu laden). */
+    useEffect(() => {
+        const typing = (el: EventTarget | null) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const tag = el.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+            if (el.isContentEditable) return true;
+            return Boolean(el.closest('[role="dialog"]'));
+        };
         const onKey = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+            if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+            if (typing(e.target)) return;
+
+            const key = e.key.toLowerCase();
+
+            if (key === "k" || (key === "p" && e.shiftKey)) {
                 e.preventDefault();
+                setNotifOpen(false);
                 setCommandOpen(true);
+                setMobileNavOpen(false);
+                return;
+            }
+
+            if (key === "r" && !e.shiftKey) {
+                e.preventDefault();
+                window.location.reload();
+                return;
+            }
+
+            const step = 0.1;
+            if (e.code === "Equal" || e.code === "NumpadAdd") {
+                e.preventDefault();
+                setUiZoom((z) => clampUiZoom(z + step));
+                return;
+            }
+            if (e.code === "Minus" || e.code === "NumpadSubtract") {
+                e.preventDefault();
+                setUiZoom((z) => clampUiZoom(z - step));
+                return;
+            }
+            if (e.code === "Digit0" || e.code === "Numpad0") {
+                e.preventDefault();
+                setUiZoom(1);
+                return;
+            }
+
+            if (key === "n" && !e.shiftKey) {
+                if (location.pathname.startsWith("/termine")) return;
+                const rolle = useAuthStore.getState().session?.rolle;
+                if (!routeChildPathAllowed("termine/neu", rolle)) return;
+                e.preventDefault();
+                navigate("/termine/neu");
+                setMobileNavOpen(false);
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, []);
+    }, [navigate, location.pathname]);
+
+    useEffect(() => {
+        const typing = (el: EventTarget | null) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const tag = el.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+            if (el.isContentEditable) return true;
+            return false;
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (typing(e.target)) return;
+            e.preventDefault();
+            navigate("/einstellungen?tab=hilfe");
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [navigate]);
 
     useEffect(() => {
         const typing = (el: EventTarget | null) => {
@@ -310,13 +398,22 @@ export function AppLayout() {
         onDismiss: () => setUserMenuOpen(false),
     });
 
+    useDismissibleLayer({
+        open: notifOpen,
+        rootRef: notifWrapRef,
+        onDismiss: () => setNotifOpen(false),
+    });
+
     const handleLogout = async () => {
         await logout();
         navigate("/login");
     };
     const requestLogout = () => setLogoutConfirmOpen(true);
 
-    const openCommandPalette = () => setCommandOpen(true);
+    const openCommandPalette = () => {
+        setNotifOpen(false);
+        setCommandOpen(true);
+    };
 
     const confirmRoleSwitchLogout = async () => {
         setRoleSwitchOpen(false);
@@ -342,6 +439,89 @@ export function AppLayout() {
             setBgBusy(false);
         }
     };
+
+    useEffect(() => {
+        let unlisten: (() => void) | undefined;
+        let disposed = false;
+        void subscribeAppMenu((p) => {
+                        if (p.kind === "navigate" && typeof p.path === "string" && p.path.length > 0) {
+                            const pathOnly = p.path.split("?")[0];
+                            const routeKey =
+                                pathOnly === "/" || pathOnly === "" ? "" : pathOnly.replace(/^\//, "");
+                            const rolle = useAuthStore.getState().session?.rolle;
+                            if (!routeChildPathAllowed(routeKey, rolle)) {
+                                useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
+                                return;
+                            }
+                            navigate(p.path);
+                            setMobileNavOpen(false);
+                            return;
+                        }
+                        if (p.kind === "termin" && typeof p.action === "string") {
+                            const rolle = useAuthStore.getState().session?.rolle;
+                            if (!routeChildPathAllowed("termine", rolle)) {
+                                useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
+                                return;
+                            }
+                            if (location.pathname !== "/termine") {
+                                try {
+                                    sessionStorage.setItem(MEDOC_PENDING_TERMIN_MENU_KEY, p.action);
+                                } catch {
+                                    /* ignore */
+                                }
+                                navigate("/termine");
+                                setMobileNavOpen(false);
+                                return;
+                            }
+                            window.dispatchEvent(new CustomEvent("medoc-native-menu-termin", { detail: p.action }));
+                            return;
+                        }
+                        if (p.kind === "app" && typeof p.action === "string") {
+                            const step = 0.1;
+                            if (p.action === "reload") {
+                                window.location.reload();
+                                return;
+                            }
+                            if (p.action === "command_palette") {
+                                setNotifOpen(false);
+                                setCommandOpen(true);
+                                setMobileNavOpen(false);
+                                return;
+                            }
+                            if (p.action === "zoom_in") {
+                                setUiZoom((z) => clampUiZoom(z + step));
+                                return;
+                            }
+                            if (p.action === "zoom_out") {
+                                setUiZoom((z) => clampUiZoom(z - step));
+                                return;
+                            }
+                            if (p.action === "zoom_reset") {
+                                setUiZoom(1);
+                                return;
+                            }
+                        }
+                        if (p.kind === "help") {
+                            if (p.topic === "calendar") setNativeHelpTopic("calendar");
+                            else if (p.topic === "shortcuts") setNativeHelpTopic("shortcuts");
+                            else if (p.topic === "about") {
+                                setAboutVersion(
+                                    typeof p.version === "string" && p.version.length > 0
+                                        ? p.version
+                                        : import.meta.env.VITE_APP_VERSION,
+                                );
+                                setAboutOpen(true);
+                            }
+                        }
+        }).then((fn) => {
+            if (disposed) fn?.();
+            else unlisten = fn;
+        });
+        return () => {
+            disposed = true;
+            unlisten?.();
+        };
+    }, [navigate, location.pathname, locale]);
 
     return (
         <div className="app">
@@ -369,34 +549,9 @@ export function AppLayout() {
                     </div>
                     <div>
                         <div style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>MeDoc</div>
-                        <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 400 }}>{session?.rolle ?? "Praxis"}</div>
+                        <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 400 }}>{t("app.sidebar_tagline")}</div>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    className="focus-ring"
-                    onClick={() => {
-                        openCommandPalette();
-                        setMobileNavOpen(false);
-                    }}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        background: "rgba(0,0,0,0.04)",
-                        borderRadius: 10,
-                        padding: "8px 10px",
-                        color: "var(--fg-3)",
-                        margin: "2px 4px 12px",
-                        width: "100%",
-                        textAlign: "left",
-                        cursor: "pointer",
-                    }}
-                >
-                    <SearchIcon size={14} aria-hidden />
-                    <span style={{ flex: 1, fontSize: 13, color: "var(--fg-3)" }}>Suchen &amp; springen…</span>
-                    <kbd style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 6px", borderRadius: 5, color: "var(--fg-3)" }}>⌘K</kbd>
-                </button>
                 <nav style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
                     {NAV_SECTIONS.map((section) => {
                         const sectionItems = section.items
@@ -411,7 +566,6 @@ export function AppLayout() {
                                 key={item.to}
                                 to={item.to}
                                 end={item.to !== "/patienten"}
-                                title={t(NAV_HELP_I18N[item.to] ?? "nav.help.einstellungen")}
                                 className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
                             >
                                 {(() => {
@@ -442,7 +596,7 @@ export function AppLayout() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 12.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session?.name ?? "Benutzer"}</div>
-                            <div style={{ color: "var(--fg-3)", fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Leitende Zahnärztin</div>
+                            <div style={{ color: "var(--fg-3)", fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profileRoleLine}</div>
                         </div>
                         <button
                             type="button"
@@ -549,21 +703,30 @@ export function AppLayout() {
                             }}
                         >
                             <SearchIcon size={14} aria-hidden />
-                            <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>Suchen…</span>
+                            <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
                             <span style={{ fontSize: 11, color: "var(--fg-4)" }}>⌘K</span>
                         </button>
                         {updateAvailable && <button className="tb-chip update" onClick={() => navigate("/einstellungen")}><DownloadIcon size={12} />Update 2026.4.3</button>}
                         <span className={`tb-chip ${isOnline ? "live" : ""}`}><WifiIcon size={12} />{isOnline ? "Online" : "Offline"}</span>
-                        <button type="button" className="icon-btn" aria-label="Schnellzugriff" onClick={openCommandPalette}>
-                            ＋
+                        <button type="button" className="icon-btn" aria-label={t("nav.quick_add")} title={t("nav.quick_add")} onClick={openCommandPalette}>
+                            <PlusIcon size={18} />
                         </button>
-                        <button type="button" className="icon-btn" aria-label="Benachrichtigungen" onClick={() => navigate("/")}>
-                            <BellIcon size={18} />
-                            <span className="dot" aria-hidden />
-                        </button>
-                        <button type="button" className="icon-btn" aria-label="Über MeDoc" onClick={() => setAboutOpen(true)}>
-                            i
-                        </button>
+                        <div ref={notifWrapRef} style={{ position: "relative" }}>
+                            <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={t("a11y.notifications_region")}
+                                aria-expanded={notifOpen}
+                                onClick={() => {
+                                    setNotifOpen((o) => !o);
+                                    setUserMenuOpen(false);
+                                }}
+                            >
+                                <BellIcon size={18} />
+                                <span className="dot" aria-hidden />
+                            </button>
+                            {notifOpen ? <NotificationsPopover onClose={() => setNotifOpen(false)} /> : null}
+                        </div>
                         <div ref={topbarMenuRef} style={{ position: "relative" }}>
                             <button
                                 type="button"
@@ -611,7 +774,7 @@ export function AppLayout() {
                                     }}
                                     onShortcuts={() => {
                                         setUserMenuOpen(false);
-                                        navigate("/hilfe");
+                                        navigate("/einstellungen?tab=hilfe");
                                     }}
                                     helpNavLabel={t("account.menu_help")}
                                     onLogoutRequest={() => {
@@ -623,7 +786,7 @@ export function AppLayout() {
                         </div>
                     </div>
                 </div>
-                <main id="main-content" tabIndex={-1} style={{ padding: "clamp(10px, 1.8vw, 24px)", display: "flex", flexDirection: "column", gap: 20, overflowY: isDashboardRoute ? "hidden" : "auto", overflowX: "hidden", flex: 1, minHeight: 0 }} aria-label={t("app.title")}>
+                <main id="main-content" tabIndex={-1} style={{ padding: "clamp(10px, 1.8vw, 24px)", display: "flex", flexDirection: "column", gap: 20, overflowY: isDashboardRoute || isTermineCalendarRoute ? "hidden" : "auto", overflowX: "hidden", flex: 1, minHeight: 0 }} aria-label={t("app.title")}>
                     <Suspense fallback={<PageLoading label="Seite wird geladen…" />}>
                         <Outlet />
                     </Suspense>
@@ -632,6 +795,51 @@ export function AppLayout() {
             </div>
 
             <ToastContainer />
+            <ExportPreviewHost />
+
+            <Dialog
+                open={nativeHelpTopic === "calendar"}
+                onClose={() => setNativeHelpTopic(null)}
+                title="Kalender: Bedienung"
+                footer={<Button onClick={() => setNativeHelpTopic(null)}>Schließen</Button>}
+            >
+                <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.55 }}>
+                    Doppelklick: Slot · Rechtsklick: Aktionen · Ziehen: Zeit (Leiste) / Tag (Spalte); Tagesansicht:
+                    Rand wechselt den Tag · Wochenansicht: links/rechts außerhalb des Rasters wechselt die Woche (max.
+                    alle 0,5&nbsp;s) · Überschneidungen gleichen Behandlers: nachrücken.
+                </p>
+            </Dialog>
+            <Dialog
+                open={nativeHelpTopic === "shortcuts"}
+                onClose={() => setNativeHelpTopic(null)}
+                title="Hilfe & Kurzbefehle"
+                footer={<Button onClick={() => setNativeHelpTopic(null)}>Schließen</Button>}
+            >
+                <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.55 }}>
+                    Viele Aktionen erreichen Sie über die <strong>Menüleiste des Fensters</strong> (Datei mit Einträgen je nach
+                    Rolle, Bearbeiten,
+                    Gehe zu, Ansicht, Fenster, Hilfe) sowie die <strong>Befehlspalette</strong> (⌘K / Strg+K oder ⌘⇧P /
+                    Strg+⇧P). Global (ohne Fokus in Eingabefeldern): ⌘N / Strg+N öffnet „Neuer Termin“, wo die Rolle es
+                    erlaubt (nicht auf der Terminübersicht — dort siehe unten); ⌘R neu laden; ⌘+/⌘−/⌘0 Zoom. In der
+                    Terminübersicht
+                    gelten zusätzlich Tastenkürzel (auch mit ⌘ oder Strg gedrückt):{" "}
+                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>D</kbd> Tag,{" "}
+                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>W</kbd>{" "}
+                    Woche,{" "}
+                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>M</kbd>{" "}
+                    Monat,{" "}
+                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>N</kbd>{" "}
+                    Neuer Termin,{" "}
+                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>T</kbd>{" "}
+                    Heute, Pfeiltasten für den Zeitraum.
+                </p>
+            </Dialog>
+
+            <AboutAppDialog
+                open={aboutOpen}
+                onClose={() => setAboutOpen(false)}
+                appVersion={aboutVersion || import.meta.env.VITE_APP_VERSION}
+            />
 
             <Dialog
                 open={breakOpen}
@@ -681,7 +889,6 @@ export function AppLayout() {
                 commands={paletteCommands}
                 onNavigate={(href) => navigate(href)}
             />
-            <AboutAppDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
             <RoleSwitchDialog
                 open={roleSwitchOpen}
                 onClose={() => setRoleSwitchOpen(false)}

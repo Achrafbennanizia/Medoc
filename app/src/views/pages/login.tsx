@@ -4,6 +4,32 @@ import { login } from "../../controllers/auth.controller";
 import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
 
+const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
+const LS_REMEMBER_FLAG = "medoc-login-remember-me";
+
+function readRememberedEmail(): string {
+    try {
+        if (localStorage.getItem(LS_REMEMBER_FLAG) !== "1") return "";
+        return localStorage.getItem(LS_REMEMBER_EMAIL) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+function persistRememberMe(remember: boolean, email: string) {
+    try {
+        if (remember && email.trim()) {
+            localStorage.setItem(LS_REMEMBER_FLAG, "1");
+            localStorage.setItem(LS_REMEMBER_EMAIL, email.trim());
+        } else {
+            localStorage.removeItem(LS_REMEMBER_FLAG);
+            localStorage.removeItem(LS_REMEMBER_EMAIL);
+        }
+    } catch {
+        /* ignore quota / private mode */
+    }
+}
+
 function formatLoginError(err: unknown, rateLimitedMsg: string): string {
     const raw =
         typeof err === "string" ? err : err instanceof Error ? err.message : (() => {
@@ -34,12 +60,17 @@ function formatLoginError(err: unknown, rateLimitedMsg: string): string {
 
 export function LoginPage() {
     const t = useT();
-    const [role, setRole] = useState<"arzt" | "assistenz" | "verwaltung">("arzt");
-    const [email, setEmail] = useState("marina.reuss@medoc.de");
-    const [passwort, setPasswort] = useState("passwort123");
+    const [email, setEmail] = useState(readRememberedEmail);
+    const [passwort, setPasswort] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
-    const [rememberMe, setRememberMe] = useState(true);
+    const [rememberMe, setRememberMe] = useState(() => {
+        try {
+            return localStorage.getItem(LS_REMEMBER_FLAG) === "1";
+        } catch {
+            return false;
+        }
+    });
     const [helperMsg, setHelperMsg] = useState("");
     const [capsOn, setCapsOn] = useState(false);
     const navigate = useNavigate();
@@ -52,6 +83,7 @@ export function LoginPage() {
         setLoading(true);
         try {
             await login(email, passwort);
+            persistRememberMe(rememberMe, email);
             navigate("/");
         } catch (err) {
             setError(formatLoginError(err, t("login.rate_limited")));
@@ -81,14 +113,15 @@ export function LoginPage() {
                             Behandeln Sie Patienten — nicht Software.
                         </h1>
                         <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", maxWidth: 460, lineHeight: 1.55 }}>
-                            Termine, Akten, Abrechnung und Rezepte in einer ruhigen, fokussierten Oberfläche. DSGVO- und KBV-konform. Fuer zahnärztliche Praxen jeder Größe.
+                            Termine, Akten, Abrechnung und Rezepte in einer ruhigen, fokussierten Oberfläche. Hinweis: Dieser Stand ist ein Entwicklungs-
+                            / Hochschul-Demonstrator — keine Produktzertifizierung und keine fest verdrahtete Hosting-Region.
                         </p>
                     </div>
                 </div>
-                <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18 }}>
-                    <span>🔒 BSI-zertifiziert</span>
-                    <span>☁ Serverstandort Frankfurt</span>
-                    <span>Version 2026.4.2</span>
+                <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18, flexWrap: "wrap" }}>
+                    <span>Demonstrator · nicht für den klinischen Routinebetrieb freigegeben</span>
+                    <span aria-hidden>·</span>
+                    <span>Build {import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE}</span>
                 </div>
             </div>
 
@@ -96,44 +129,24 @@ export function LoginPage() {
                 <form className="login-form" onSubmit={handleSubmit}>
                     <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Anmelden</h2>
                     <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 28 }}>
-                        Wählen Sie Ihre Rolle und melden Sie sich mit Ihren Zugangsdaten an.
+                        Die Berechtigung ergibt sich ausschließlich aus Ihrem Benutzerkonto — nicht aus dieser Maske.
                     </p>
-                    <div style={{ marginBottom: 16 }}>
-                        {[
-                            { id: "arzt", label: "Zahnarzt / Zahnärztin", sub: "Voller Zugriff" },
-                            { id: "assistenz", label: "ZFA / Assistenz", sub: "Behandlung & Termine" },
-                            { id: "verwaltung", label: "Verwaltung", sub: "Abrechnung & Stammdaten" },
-                        ].map((r) => (
-                            <button
-                                key={r.id}
-                                type="button"
-                                className="login-role-chip"
-                                aria-pressed={role === r.id}
-                                onClick={() => setRole(r.id as typeof role)}
-                            >
-                                <div style={{ flex: 1, textAlign: "left" }}>
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</div>
-                                    <div style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{r.sub}</div>
-                                </div>
-                                {role === r.id ? "✓" : null}
-                            </button>
-                        ))}
-                    </div>
                     {error && (
                         <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
                             {error}
                         </div>
                     )}
                     <label htmlFor="email" style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>E-Mail</label>
-                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ahmed@praxis.de" required style={{ marginBottom: 12 }} />
+                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
                         <label htmlFor="passwort" style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", display: "block" }}>Passwort</label>
                         <button
                             type="button"
-                            onClick={() => setHelperMsg("Passwort zurücksetzen: Bitte die Praxis-IT oder den Support kontaktieren. Selbstservice folgt mit der nächsten Lizenz-Stufe.")}
+                            aria-describedby="login-teaser-hint"
+                            onClick={() => setHelperMsg("Passwort zurücksetzen ist für diese Demonstrator-Version nicht angebunden. In einer Ausbaustufe: Anbindung an Praxis-IT oder Selbstservice.")}
                             style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}
                         >
-                            Vergessen?
+                            Vergessen? <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>(demnächst)</span>
                         </button>
                     </div>
                     <div className="input" style={{ background: "#fff", marginBottom: 8 }}>
@@ -147,6 +160,7 @@ export function LoginPage() {
                             onKeyDown={onPasswordKey}
                             placeholder="••••••••"
                             required
+                            autoComplete="current-password"
                         />
                         <button
                             type="button"
@@ -163,12 +177,12 @@ export function LoginPage() {
                             {t("login.caps_warning")}
                         </p>
                     ) : null}
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5 }}>
+                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5, flexWrap: "wrap", gap: 8 }}>
                         <label className="row" style={{ gap: 8 }}>
                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-                            Angemeldet bleiben (30 Tage)
+                            E-Mail auf diesem Gerät merken
                         </label>
-                        <span>2FA aktiv</span>
+                        <span style={{ color: "var(--fg-4)" }} title="Für den Demonstrator nicht implementiert">Zusätzliche Anmeldung (2FA): nicht aktiv</span>
                     </div>
                     <button type="submit" className="login-submit" disabled={loading}>
                         {loading ? <span className="animate-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.5)", borderTopColor: "#fff", borderRadius: "50%" }} /> : null}
@@ -179,12 +193,16 @@ export function LoginPage() {
                         type="button"
                         className="btn btn-subtle"
                         style={{ width: "100%", justifyContent: "center", padding: 11 }}
-                        onClick={() => setHelperMsg("Anmeldung mit HBA/eHB Karte: Stecken Sie die Karte ein und nutzen Sie bis dahin die Passwort-Anmeldung. Kartentreiber werden in einer späteren Ausbaustufe gebündelt.")}
+                        aria-describedby="login-teaser-hint"
+                        onClick={() => setHelperMsg("Anmeldung mit HBA/eHC Karte ist für diese Version nicht implementiert — zunächst Passwort-Anmeldung verwenden.")}
                     >
-                        Mit HBA-Karte anmelden
+                        Mit HBA-Karte anmelden <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>(demnächst)</span>
                     </button>
+                    <p id="login-teaser-hint" className="sr-only">
+                        Die mit „demnächst“ gekennzeichneten Aktionen sind Platzhalter ohne Produktfunktion.
+                    </p>
                     {helperMsg ? (
-                        <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }}>{helperMsg}</div>
+                        <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
                     ) : null}
                     <div id="login-notfall-hinweis" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>{t("login.notfall.title")}</div>
@@ -193,7 +211,7 @@ export function LoginPage() {
                 </form>
                 {import.meta.env.DEV && (
                     <p style={{ textAlign: "center", color: "var(--fg-4)", fontSize: 12, marginTop: 16 }}>
-                        Demo: ahmed@praxis.de / passwort123
+                        Entwicklung: Zugangsdaten aus Seed-/Fixture-SQL oder lokaler Admin-Anlage — keine fest eingetragenen Demo-Passwörter.
                     </p>
                 )}
             </div>

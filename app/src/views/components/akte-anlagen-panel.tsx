@@ -33,13 +33,17 @@ function AnlageCardMenu({
     canValidate,
     onValidate,
     onRevokeValidate,
+    onOpenExternal,
+    onDuplicate,
     onRemove,
 }: {
     validated: boolean;
     canValidate: boolean;
     onValidate: () => void;
     onRevokeValidate: () => void;
-    onRemove: () => void;
+    onOpenExternal?: () => void;
+    onDuplicate?: () => void;
+    onRemove?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
@@ -59,6 +63,16 @@ function AnlageCardMenu({
             </button>
             {open ? (
                 <div className="anlage-card__menu" role="menu">
+                    {onOpenExternal ? (
+                        <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onOpenExternal(); setOpen(false); }}>
+                            Extern öffnen…
+                        </button>
+                    ) : null}
+                    {onDuplicate ? (
+                        <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onDuplicate(); setOpen(false); }}>
+                            Kopie anlegen
+                        </button>
+                    ) : null}
                     {canValidate ? (
                         validated ? (
                             <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onRevokeValidate(); setOpen(false); }}>
@@ -70,9 +84,19 @@ function AnlageCardMenu({
                             </button>
                         )
                     ) : null}
-                    <button type="button" role="menuitem" className="anlage-card__menu-item anlage-card__menu-item--danger" onClick={() => { onRemove(); setOpen(false); }}>
-                        Entfernen
-                    </button>
+                    {onRemove ? (
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className="anlage-card__menu-item anlage-card__menu-item--danger"
+                            onClick={() => {
+                                onRemove();
+                                setOpen(false);
+                            }}
+                        >
+                            Entfernen
+                        </button>
+                    ) : null}
                 </div>
             ) : null}
         </div>
@@ -84,9 +108,15 @@ export type AkteAnlagenPanelProps = {
     subtitle: string;
     anlagen: AkteAnlage[];
     fileInputId: string;
+    cameraInputId: string;
+    /** Hochladen, Umbenennen, Löschen, Duplizieren (z. B. `patient.write_medical`) */
+    canManageAnlagen: boolean;
     onPickFile: (file: File) => void;
+    /** Wird nach Bearbeitung des Namens aufgerufen (Blur), wenn sich die Bezeichnung geändert hat. */
     onRename: (idx: number, name: string) => void;
     onRequestRemove: (idx: number, name: string) => void;
+    onOpenExternal?: (idx: number) => void;
+    onDuplicate?: (idx: number) => void;
     canValidate: boolean;
     isValidated: (anlageId: string) => boolean;
     onRequestValidate: (anlageId: string, label: string) => void;
@@ -100,9 +130,13 @@ export function AkteAnlagenPanel({
     subtitle,
     anlagen,
     fileInputId,
+    cameraInputId,
+    canManageAnlagen,
     onPickFile,
     onRename,
     onRequestRemove,
+    onOpenExternal,
+    onDuplicate,
     canValidate,
     isValidated,
     onRequestValidate,
@@ -113,6 +147,7 @@ export function AkteAnlagenPanel({
     const [dragOver, setDragOver] = useState(false);
 
     const processFiles = (list: FileList | null) => {
+        if (!canManageAnlagen) return;
         const f = list?.[0];
         if (f) onPickFile(f);
     };
@@ -136,11 +171,26 @@ export function AkteAnlagenPanel({
                     e.currentTarget.value = "";
                 }}
             />
+            <input
+                id={cameraInputId}
+                type="file"
+                className="sr-only"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => {
+                    processFiles(e.target.files);
+                    e.currentTarget.value = "";
+                }}
+            />
             <div
-                className={`akte-anlagen-dropzone${dragOver ? " akte-anlagen-dropzone--active" : ""}`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                className={`akte-anlagen-dropzone${dragOver ? " akte-anlagen-dropzone--active" : ""}${!canManageAnlagen ? " akte-anlagen-dropzone--disabled" : ""}`}
+                onDragOver={(e) => {
+                    if (!canManageAnlagen) return;
+                    e.preventDefault();
+                    setDragOver(true);
+                }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={onDrop}
+                onDrop={canManageAnlagen ? onDrop : (e) => { e.preventDefault(); setDragOver(false); }}
             >
                 <div className="akte-anlagen-dropzone__inner col" style={{ alignItems: "center", gap: 12 }}>
                     <UploadCircleIcon size={44} />
@@ -151,10 +201,25 @@ export function AkteAnlagenPanel({
                         </span>
                     </div>
                     <div className="row" style={{ gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                        <Button type="button" size="sm" variant="primary" onClick={() => document.getElementById(fileInputId)?.click()}>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="primary"
+                            disabled={!canManageAnlagen}
+                            onClick={() => canManageAnlagen && document.getElementById(fileInputId)?.click()}
+                        >
                             <PlusIcon size={14} /> Datei wählen
                         </Button>
-                        <Button type="button" size="sm" variant="secondary" onClick={onScannerClick}>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={!canManageAnlagen}
+                            onClick={() => canManageAnlagen && document.getElementById(cameraInputId)?.click()}
+                        >
+                            <PlusIcon size={14} /> Foto / Kamera
+                        </Button>
+                        <Button type="button" size="sm" variant="secondary" disabled={!canManageAnlagen} onClick={onScannerClick}>
                             <BoltIcon size={14} /> Scanner
                         </Button>
                     </div>
@@ -186,13 +251,24 @@ export function AkteAnlagenPanel({
                                 </div>
                                 <div className="anlage-card__footer">
                                     <div className="anlage-card__meta col" style={{ minWidth: 0, gap: 2 }}>
-                                        <input
-                                            id={`anlage-name-${a.id}`}
-                                            className="input-edit anlage-card__title-input"
-                                            value={a.name}
-                                            onChange={(e) => onRename(idx, e.target.value)}
-                                            aria-label="Bezeichnung der Datei"
-                                        />
+                                        canManageAnlagen ? (
+                                            <input
+                                                id={`anlage-name-${a.id}`}
+                                                key={`${a.id}:${a.name}`}
+                                                className="input-edit anlage-card__title-input"
+                                                defaultValue={a.name}
+                                                onBlur={(e) => {
+                                                    const v = e.target.value.trim();
+                                                    if (!v || v === a.name) return;
+                                                    onRename(idx, v);
+                                                }}
+                                                aria-label="Bezeichnung der Datei"
+                                            />
+                                        ) : (
+                                            <span className="anlage-card__title-input" style={{ fontWeight: 600 }}>
+                                                {a.name}
+                                            </span>
+                                        )
                                         <span className="anlage-card__sub">
                                             {formatAddedAt(a.addedAt)} · {formatAnlageBytes(a.sizeBytes)}
                                         </span>
@@ -202,7 +278,17 @@ export function AkteAnlagenPanel({
                                         canValidate={canValidate}
                                         onValidate={() => onRequestValidate(a.id, `Anlage ${a.name}`)}
                                         onRevokeValidate={() => onRevokeValidation(a.id, a.name)}
-                                        onRemove={() => onRequestRemove(idx, a.name)}
+                                        onOpenExternal={
+                                            onOpenExternal && a.absPath ? () => onOpenExternal(idx) : undefined
+                                        }
+                                        onDuplicate={
+                                            canManageAnlagen && onDuplicate && a.absPath
+                                                ? () => onDuplicate(idx)
+                                                : undefined
+                                        }
+                                        onRemove={
+                                            canManageAnlagen ? () => onRequestRemove(idx, a.name) : undefined
+                                        }
                                     />
                                 </div>
                             </article>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { getDashboardStats, type DashboardStats } from "../../controllers/statistik.controller";
@@ -30,6 +30,8 @@ export function DashboardPage() {
     const [statsError, setStatsError] = useState<string | null>(null);
     const [termine, setTermine] = useState<Termin[]>([]);
     const [patienten, setPatienten] = useState<Patient[]>([]);
+    const [listsError, setListsError] = useState<string | null>(null);
+    const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
     const session = useAuthStore((s) => s.session);
@@ -54,23 +56,33 @@ export function DashboardPage() {
 
     useEffect(() => {
         let cancelled = false;
+        listsErrorToastSent.current = false;
+        setListsError(null);
         Promise.all([listTermine(), listPatienten()])
-            .then(([t, p]) => {
+            .then(([termineList, patientList]) => {
                 if (!cancelled) {
-                    setTermine(t);
-                    setPatienten(p);
+                    setTermine(termineList);
+                    setPatienten(patientList);
+                    setListsError(null);
                 }
             })
-            .catch(() => {
+            .catch((e) => {
                 if (!cancelled) {
+                    const msg = errorMessage(e);
+                    console.error("[Dashboard] listTermine/listPatienten failed:", e);
                     setTermine([]);
                     setPatienten([]);
+                    setListsError(msg);
+                    if (!listsErrorToastSent.current) {
+                        listsErrorToastSent.current = true;
+                        toast(`${t("dashboard.lists_load_error")}: ${msg}`, "error");
+                    }
                 }
             });
         return () => {
             cancelled = true;
         };
-    }, [reloadToken]);
+    }, [reloadToken, t, toast]);
 
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const patientNameById = useMemo(() => new Map(patienten.map((p) => [p.id, p.name])), [patienten]);
@@ -104,6 +116,23 @@ export function DashboardPage() {
                     <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />{t("dashboard.new_action")}</button>
                 </div>
             </div>
+            {listsError ? (
+                <div
+                    role="alert"
+                    className="card card-pad"
+                    style={{
+                        borderColor: "color-mix(in srgb, var(--red) 35%, var(--line))",
+                        background: "color-mix(in srgb, var(--red) 8%, var(--panel))",
+                    }}
+                >
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("dashboard.lists_load_error")}</div>
+                    <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--fg-2)", lineHeight: 1.45 }}>{listsError}</p>
+                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>{t("dashboard.lists_error_hint")}</p>
+                    <button type="button" className="btn btn-subtle" onClick={reload}>
+                        {t("dashboard.lists_error_retry")}
+                    </button>
+                </div>
+            ) : null}
             <div className="dashboard-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                 {stats.patienten_gesamt != null && (
                     <StatCard
@@ -180,7 +209,7 @@ export function DashboardPage() {
                     <div className="card dashboard-card-fill">
                         <div className="card-head">
                             <div className="card-title">{t("dashboard.heute.title")} · {new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</div>
-                            <span className="pill blue">Live</span>
+                            <span className="pill accent"><span className="dot" aria-hidden />Live</span>
                         </div>
                         <div className="dashboard-card-list">
                             {heuteTermine.length === 0 ? (

@@ -62,6 +62,8 @@ pub fn allowed(action: &str, role: Role) -> bool {
         "bestellung.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
         // Personnel administration — clinicians only
         "personal.read" | "personal.write" => role == Role::Arzt,
+        // Prescription / certificate template catalog (Dokumentvorlagen) — clinicians only
+        "vorlagen.read" | "vorlagen.write" => role == Role::Arzt,
         // Audit log read — clinicians only
         "audit.read" => role == Role::Arzt,
         // Operations / system / DSGVO actions — clinicians only

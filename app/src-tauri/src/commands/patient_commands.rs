@@ -3,9 +3,9 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, patient_repo};
+use crate::infrastructure::database::{akte_anlage_repo, audit_repo, patient_repo};
 use sqlx::SqlitePool;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -116,14 +116,28 @@ pub async fn update_patient(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
+#[tracing::instrument(level = "info", skip(pool, session_state, app))]
 pub async fn delete_patient(
+    app: AppHandle,
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+    let akte_ids: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM patientenakte WHERE patient_id = ?1",
+    )
+    .bind(&id)
+    .fetch_all(&*pool)
+    .await?;
     patient_repo::delete(&pool, &id).await?;
+    for (aid,) in akte_ids {
+        akte_anlage_repo::remove_storage_dir_best_effort(&app_dir, &aid);
+    }
     audit_repo::create(
         &pool,
         &session.user_id,

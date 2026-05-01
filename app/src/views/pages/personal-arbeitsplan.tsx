@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
     addDays,
@@ -21,7 +21,6 @@ import { listPersonal } from "../../controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type {
-    ArbeitsplanSettings,
     ArbeitsplanStore,
     ArbeitsplanView,
     PersonalArbeitsBlock,
@@ -31,7 +30,6 @@ import {
     minToLabel,
     newBlockId,
     saveArbeitsplanStore,
-    timeToMin,
     weekDaysMonFirst,
     weekStartMonday,
     ymd,
@@ -43,21 +41,16 @@ import {
     composeWorkMinutesForDay,
 } from "@/lib/arbeitsplan-compose";
 import {
-    type PlanPeriodUnit,
     type PlanPreference,
-    type PlanScopeType,
     buildNetWorkForDay,
-    defaultLayerForScope,
-    inferAutoParentId,
-    newPlanPreferenceId,
     resolveSegmentsForPersonDay,
 } from "@/lib/arbeitsplan-preferences";
 import type { Personal } from "@/models/types";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "../components/ui/button";
-import { Card, CardHeader } from "../components/ui/card";
+import { CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
-import { Input, Select } from "../components/ui/input";
+import { Select } from "../components/ui/input";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
@@ -66,58 +59,17 @@ const DND_MIME = "application/x-medoc-arbeitsblock";
 /** Maximale sichtbare Timeline-Höhe (px) — Tagesansicht; Woche nutzt horizontale Minizeilen. */
 const MAX_TIMELINE_PX = 256;
 
-/** Optionen für Zoom (muss zu `clampSettings` passen: 0.65–2.5) */
-const ZOOM_PRESETS: { value: string; label: string }[] = [
-    { value: "0.65", label: "Minimal" },
-    { value: "0.75", label: "Kompakt" },
-    { value: "1", label: "Normal" },
-    { value: "1.25", label: "Standard" },
-    { value: "1.5", label: "Groß" },
-    { value: "2", label: "Sehr groß" },
-    { value: "2.5", label: "Maximal" },
-];
-
-function nearestZoomPresetValue(px: number): string {
-    const c = Math.max(0.65, Math.min(2.5, px));
-    let best = ZOOM_PRESETS[0]!.value;
-    let bestD = Number.POSITIVE_INFINITY;
-    for (const o of ZOOM_PRESETS) {
-        const v = Number(o.value);
-        const d = Math.abs(v - c);
-        if (d < bestD) {
-            bestD = d;
-            best = o.value;
-        }
-    }
-    return best;
-}
 const ALL_DAYS: Array<1 | 2 | 3 | 4 | 5 | 6 | 7> = [1, 2, 3, 4, 5, 6, 7];
 const DAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
-/** Vorschlagsname, wenn die Regel noch keinen gespeicherten Namen hat. */
-function defaultRuleNameForScope(
-    kind: "work" | "break",
-    scopeType: PlanScopeType,
-    allPrefs: PlanPreference[],
-    editingId: string | undefined,
-): string {
-    const art = kind === "work" ? "Arbeit" : "Pause";
-    const scopeL: Record<PlanScopeType, string> = {
-        general: "Allgemein",
-        day: "ein Tag",
-        week: "KW",
-        month: "Monat",
-        period: "Zeitraum",
-    };
-    const base = `${art} · ${scopeL[scopeType]}`;
-    const taken = (n: string) => allPrefs.some((p) => p.name === n && p.id !== editingId);
-    if (!taken(base)) return base;
-    let i = 2;
-    for (;;) {
-        const c = `${base} (${i})`;
-        if (!taken(c)) return c;
-        i += 1;
-    }
+function fromTimeValue(s: string): { h: number; m: number } | null {
+    if (!s) return null;
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return { h, m: min };
 }
 
 function prefsForPerson(prefs: PlanPreference[], pid: string): PlanPreference[] {
@@ -148,15 +100,6 @@ function layoutOverlapBlock(blocks: PersonalArbeitsBlock[]): Map<string, { lane:
         result.set(id, { lane: v.lane, lanes: maxL });
     }
     return result;
-}
-
-function clampSettings(s: ArbeitsplanSettings): ArbeitsplanSettings {
-    let { dayStartMin, dayEndMin, snapMin, pxPerMin } = s;
-    dayStartMin = Math.max(0, Math.min(22 * 60, Math.round(dayStartMin / 5) * 5));
-    dayEndMin = Math.max(dayStartMin + 60, Math.min(24 * 60, Math.round(dayEndMin / 5) * 5));
-    if (![5, 10, 15, 30, 60].includes(snapMin)) snapMin = 15;
-    pxPerMin = Math.max(0.65, Math.min(2.5, pxPerMin));
-    return { dayStartMin, dayEndMin, snapMin: snapMin as ArbeitsplanSettings["snapMin"], pxPerMin };
 }
 
 type FilterLayer = "work" | "break" | "both" | "net";
@@ -526,7 +469,6 @@ export function PersonalArbeitsplanPage() {
     const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
     const [filterLayer, setFilterLayer] = useState<FilterLayer>("both");
     const [filterPersonSet, setFilterPersonSet] = useState<Set<string> | null>(null);
-    const [selPref, setSelPref] = useState<PlanPreference | null>(null);
     const [deleteBlockId, setDeleteBlockId] = useState<string | null>(null);
     const [dragKey, setDragKey] = useState(0);
     const [dndActiveId, setDndActiveId] = useState<string | null>(null);
@@ -592,10 +534,6 @@ export function PersonalArbeitsplanPage() {
     }, [sortedP, filterPersonSet]);
 
     const dayYmd = useMemo(() => ymd(anchor), [anchor]);
-    const referenceDayLabel = useMemo(
-        () => format(parseISO(dayYmd), "EEEE, d. MMMM yyyy", { locale: de }),
-        [dayYmd],
-    );
     const weekStart = useMemo(() => weekStartMonday(anchor), [anchor]);
     const weekDays = useMemo(() => weekDaysMonFirst(weekStart), [weekStart]);
     const monthStart = useMemo(() => startOfMonth(anchor), [anchor]);
@@ -652,8 +590,6 @@ export function PersonalArbeitsplanPage() {
             return n;
         });
     };
-
-    const applySettings = (next: ArbeitsplanSettings) => updateStore((st) => ({ ...st, settings: clampSettings(next) }));
 
     const yToMin = (e: React.DragEvent, el: HTMLDivElement) => {
         const r = el.getBoundingClientRect();
@@ -828,18 +764,16 @@ export function PersonalArbeitsplanPage() {
                     ) : null}
 
                     {view === "month" && sortedP.length > 0 ? (
-                        <div className="arbeitsplan-month arbeitsplan-month--embed">
                         <ArbeitsplanMonth
                             monthDays={monthDays}
                             monthStart={monthStart}
                             planPreferences={planPreferences}
                             people={activePeople}
                             filterLayer={filterLayer}
-                            hue={hue}
+                            blocks={blocks}
                             onSelectDay={(d) => { setAnchor(startOfDay(d)); setView("day"); }}
                             composeCal={composeCal}
                         />
-                        </div>
                     ) : null}
                     {view === "day" && activePeople.length > 0 ? (
                         <div className="arbeitsplan-cal-embed" key={`d-${dayYmd}-${dragKey}`}>
@@ -1153,73 +1087,104 @@ function WeekAggregateSegments({ ymdStr, people, prefs, kind, minD, daySpan, com
     );
 }
 
-function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filterLayer, hue, onSelectDay, composeCal }: {
+const MONTH_CAL_EVT: Array<"green" | "blue" | "accent" | "orange" | "purple"> = ["green", "blue", "accent", "orange", "purple"];
+
+function monthCalEvtClass(personalId: string, people: Personal[]): (typeof MONTH_CAL_EVT)[number] {
+    const i = people.findIndex((p) => p.id === personalId);
+    return MONTH_CAL_EVT[(i >= 0 ? i : 0) % MONTH_CAL_EVT.length]!;
+}
+
+function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filterLayer, blocks, onSelectDay, composeCal }: {
     monthDays: Date[];
     monthStart: Date;
     planPreferences: PlanPreference[];
     people: Personal[];
     filterLayer: FilterLayer;
-    hue: (id: string) => number;
+    blocks: PersonalArbeitsBlock[];
     onSelectDay: (d: Date) => void;
     composeCal: ComposeCalOpts | null;
 }) {
-    const label = filterLayer === "net" ? "Net" : filterLayer === "work" ? "Arb" : filterLayer === "break" ? "Pau" : "Σ";
+    const label = filterLayer === "net" ? "Netto" : filterLayer === "work" ? "Arbeit" : filterLayer === "break" ? "Pause" : "Arb.+Pau.";
+    const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+
     return (
-        <>
-            <div className="arbeitsplan-month__weekday">
-                {DAY_SHORT.map((d) => <div key={d} className="arbeitsplan-month__wd">{d}</div>)}
-            </div>
-            <div className="arbeitsplan-month__grid">
-                {monthDays.map((d) => {
-                    const y = ymd(d);
-                    const inM = isSameMonth(d, monthStart);
-                    const per = people.map((p) => ({
-                        id: p.id,
-                        name: p.name,
-                        min: dayMinutesForDisplay(p.id, y, planPreferences, filterLayer, composeCal),
-                        initials: personInitials(p.name),
-                    }));
-                    const sumMin = per.reduce((s, x) => s + x.min, 0);
-                    const withMin = per.filter((x) => x.min > 0);
-                    return (
-                        <button
-                            type="button"
-                            key={y}
-                            className={["arbeitsplan-month__cell", inM ? "" : "arbeitsplan-month__cell--faded", isToday(d) ? "arbeitsplan-month__cell--today" : ""].filter(Boolean).join(" ")}
-                            onClick={() => onSelectDay(d)}
-                            title={withMin.length ? withMin.map((x) => `${x.initials} ${(x.min / 60).toFixed(1)}h`).join(" · ") : undefined}
-                        >
-                            <span className="arbeitsplan-month__num">{format(d, "d")}</span>
-                            {sumMin > 0 && withMin.length > 0 ? (
-                                <div className="arbeitsplan-month__stackbar" aria-hidden>
-                                    {withMin.map((x) => (
-                                        <div
-                                            key={x.id}
-                                            className="arbeitsplan-month__stackseg"
-                                            style={{
-                                                flex: x.min,
-                                                background: `hsla(${hue(x.id)}, 50%, 50%, 0.5)`,
-                                            }}
-                                        />
-                                    ))}
+        <div className="cal arbeitsplan-month-cal animate-fade-in" style={{ animationDuration: "240ms" }}>
+            {DAY_SHORT.map((d) => (
+                <div key={d} className="cal-head">
+                    {d}
+                </div>
+            ))}
+            {monthDays.map((d) => {
+                const y = ymd(d);
+                const inM = isSameMonth(d, monthStart);
+                const sumMin = people.reduce((s, p) => s + dayMinutesForDisplay(p.id, y, planPreferences, filterLayer, composeCal), 0);
+                const dayBlocks = [...blocks]
+                    .filter((b) => b.date === y && personById.has(b.personalId))
+                    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+                const visible = dayBlocks.slice(0, 3);
+                const more = dayBlocks.length - visible.length;
+                const showSollOnly = dayBlocks.length === 0 && sumMin > 0 && inM;
+                const empty = dayBlocks.length === 0 && sumMin <= 0 && inM;
+
+                return (
+                    <div
+                        key={y}
+                        role="button"
+                        tabIndex={0}
+                        className={["cal-cell", !inM ? "dim" : "", isToday(d) ? "today" : ""].filter(Boolean).join(" ")}
+                        onClick={() => onSelectDay(d)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                onSelectDay(d);
+                            }
+                        }}
+                        title={
+                            dayBlocks.length
+                                ? dayBlocks.map((b) => `${minToLabel(b.startMin)} ${b.title}`).join(" · ")
+                                : sumMin > 0
+                                    ? `${label} ${(Math.round((sumMin / 60) * 10) / 10).toString().replace(".", ",")} h`
+                                    : undefined
+                        }
+                    >
+                        <div className="cal-num">{format(d, "d")}</div>
+                        {visible.map((b) => {
+                            const p = personById.get(b.personalId);
+                            const initials = p ? personInitials(p.name) : "?";
+                            const tone = monthCalEvtClass(b.personalId, people);
+                            return (
+                                <div
+                                    key={b.id}
+                                    className={`cal-evt ${tone}`}
+                                    style={{ display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectDay(d);
+                                    }}
+                                >
+                                    <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{minToLabel(b.startMin)}</span>
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+                                        {b.title}
+                                        {p ? ` · ${initials}` : ""}
+                                    </span>
                                 </div>
-                            ) : (
-                                <div className="arbeitsplan-month__stackbar arbeitsplan-month__stackbar--empty" aria-hidden />
-                            )}
-                            <div className="arbeitsplan-month__inirow">
-                                {people.slice(0, 5).map((p) => (
-                                    <span key={p.id} className="arbeitsplan-month__ini" style={{ color: `hsl(${hue(p.id)}, 32%, 40%)` }}>{personInitials(p.name)}</span>
-                                ))}
-                                {people.length > 5 ? <span className="arbeitsplan-month__moreini">+{people.length - 5}</span> : null}
+                            );
+                        })}
+                        {more > 0 ? (
+                            <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, padding: "2px 4px" }}>
+                                +{more} weitere
                             </div>
-                            <span className="arbeitsplan-month__net-hint" style={{ fontSize: 10, color: "var(--fg-3)" }}>
-                                {label} {sumMin > 0 ? `${Math.round((sumMin / 60) * 10) / 10}h` : "—"}
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
-        </>
+                        ) : null}
+                        {showSollOnly ? (
+                            <div className="cal-evt grey" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onSelectDay(d); }}>
+                                {label} {`${Math.round((sumMin / 60) * 10) / 10}`.replace(".", ",")} h
+                            </div>
+                        ) : null}
+                        {empty ? <div style={{ fontSize: 11, color: "var(--fg-4)", padding: "2px 4px" }}>—</div> : null}
+                    </div>
+                );
+            })}
+        </div>
     );
 }
 
@@ -1278,484 +1243,3 @@ function Block({ b, minD, daySpan, lo, dnd, canWrite, onDel, onDragStart, onDrag
     );
 }
 
-/** Werte für <input type="time" /> (nur 00:00–23:59). */
-function toTimeValue(h: number, m: number): string {
-    const hh = Math.max(0, Math.min(23, Math.floor(h)));
-    const mm = Math.max(0, Math.min(59, Math.floor(m)));
-    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-function fromTimeValue(s: string): { h: number; m: number } | null {
-    if (!s) return null;
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    const h = Number(m[1]);
-    const min = Number(m[2]);
-    if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) return null;
-    return { h, m: min };
-}
-
-/** Anzeige für &lt;input type="time"&gt; (max. 23:59) bei gespeichertem Tagesende 24:00. */
-function endMinToFormSplit(endMin: number): { h: number; m: number } {
-    if (endMin >= 24 * 60) return { h: 23, m: 59 };
-    const h = Math.floor(endMin / 60);
-    const m = endMin % 60;
-    if (h >= 24) return { h: 23, m: 59 };
-    return { h, m };
-}
-
-/** Kaskade-UI: optional eine Zeile mit gewählter Basis-Regel, sonst Automatik beim Speichern. */
-type ArbeitsplanCascadeUi = { mode: "auto" } | { mode: "manual"; parentId: string };
-
-function PlanPreferenceForm({ personal, allPrefs, selected, canWrite, onSave, onClearSelection }: {
-    personal: Personal[];
-    allPrefs: PlanPreference[];
-    selected: PlanPreference | null;
-    canWrite: boolean;
-    onSave: (p: PlanPreference) => void;
-    onClearSelection: () => void;
-}) {
-    const [kind, setKind] = useState<"work" | "break">(selected?.kind ?? "work");
-    const [scopeType, setScopeType] = useState<PlanScopeType>(selected?.scopeType ?? "general");
-    const [startH, setStartH] = useState(selected ? Math.floor(selected.startMin / 60) : 8);
-    const [startM, setStartM] = useState(selected ? selected.startMin % 60 : 0);
-    const [endH, setEndH] = useState(() => (selected ? endMinToFormSplit(selected.endMin).h : 18));
-    const [endM, setEndM] = useState(() => (selected ? endMinToFormSplit(selected.endMin).m : 0));
-    const [weekdays, setWeekdays] = useState<Set<1 | 2 | 3 | 4 | 5 | 6 | 7>>(() => {
-        if (selected?.weekdays?.length) return new Set(selected.weekdays);
-        return new Set([1, 2, 3, 4, 5] as const);
-    });
-    const [date, setDate] = useState(selected?.date ?? format(new Date(), "yyyy-MM-dd"));
-    const [weekAnchor, setWeekAnchor] = useState(selected?.weekAnchor ?? format(new Date(), "yyyy-MM-dd"));
-    const [year, setYear] = useState(selected?.year ?? new Date().getFullYear());
-    const [month, setMonth] = useState(selected?.month ?? new Date().getMonth() + 1);
-    const [periodFrom, setPeriodFrom] = useState(selected?.periodFrom ?? format(new Date(), "yyyy-MM-dd"));
-    const [periodTo, setPeriodTo] = useState(selected?.periodTo ?? format(addDays(new Date(), 30), "yyyy-MM-dd"));
-    const [periodUnit, setPeriodUnit] = useState<PlanPeriodUnit | undefined>(selected?.periodUnit ?? "day");
-    const [pids, setPids] = useState<Set<string>>(() => (selected && selected.personalIds.length > 0 ? new Set(selected.personalIds) : new Set()));
-    const [cascade, setCascade] = useState<ArbeitsplanCascadeUi>({ mode: "auto" });
-    const cascadePrevSelectedIdRef = useRef<string | undefined>(selected?.id);
-    const toast = useToastStore((s) => s.add);
-
-    const parentCandidates = useMemo(
-        () => allPrefs.filter((p) => p.id !== selected?.id).sort((a, b) => a.name.localeCompare(b.name, "de")),
-        [allPrefs, selected?.id],
-    );
-
-    const applyGeltungDefaults = (st: PlanScopeType) => {
-        const t = format(new Date(), "yyyy-MM-dd");
-        if (st === "general") setWeekdays(new Set([1, 2, 3, 4, 5] as const));
-        if (st === "day") setDate(t);
-        if (st === "week") setWeekAnchor(t);
-        if (st === "month") {
-            setYear(new Date().getFullYear());
-            setMonth(new Date().getMonth() + 1);
-        }
-        if (st === "period") {
-            setPeriodFrom(t);
-            setPeriodTo(format(addDays(new Date(), 30), "yyyy-MM-dd"));
-            setPeriodUnit("day");
-            setWeekdays(new Set());
-        }
-    };
-
-    const isWeekdayOnInPeriod = (d: 1 | 2 | 3 | 4 | 5 | 6 | 7) => scopeType === "period" && (weekdays.size === 0 || weekdays.has(d));
-
-    const toggleWeekdayInPeriod = (d: 1 | 2 | 3 | 4 | 5 | 6 | 7) => {
-        setWeekdays((prev) => {
-            if (prev.size === 0) {
-                const n = new Set<1 | 2 | 3 | 4 | 5 | 6 | 7>();
-                for (let i = 1; i <= 7; i++) {
-                    if (i !== d) n.add(i as 1 | 2 | 3 | 4 | 5 | 6 | 7);
-                }
-                return n;
-            }
-            const n = new Set(prev);
-            if (n.has(d)) n.delete(d);
-            else n.add(d);
-            if (n.size === 7) return new Set<1 | 2 | 3 | 4 | 5 | 6 | 7>();
-            return n;
-        });
-    };
-
-    const addKaskadeZeile = () => {
-        if (parentCandidates.length === 0) {
-            toast("Dafür brauchen Sie mindestens eine andere gespeicherte Regel.", "error");
-            return;
-        }
-        setCascade({ mode: "manual", parentId: parentCandidates[0]!.id });
-    };
-
-    useEffect(() => {
-        if (!selected) {
-            setKind("work");
-            setScopeType("general");
-            setStartH(8);
-            setStartM(0);
-            setEndH(18);
-            setEndM(0);
-            setWeekdays(new Set([1, 2, 3, 4, 5] as const));
-            setDate(format(new Date(), "yyyy-MM-dd"));
-            setWeekAnchor(format(new Date(), "yyyy-MM-dd"));
-            setYear(new Date().getFullYear());
-            setMonth(new Date().getMonth() + 1);
-            setPeriodFrom(format(new Date(), "yyyy-MM-dd"));
-            setPeriodTo(format(addDays(new Date(), 30), "yyyy-MM-dd"));
-            setPeriodUnit("day");
-            setPids(new Set());
-            return;
-        }
-        setKind(selected.kind);
-        setScopeType(selected.scopeType);
-        setStartH(Math.floor(selected.startMin / 60));
-        setStartM(selected.startMin % 60);
-        const e = endMinToFormSplit(selected.endMin);
-        setEndH(e.h);
-        setEndM(e.m);
-        if (selected.scopeType === "general") {
-            setWeekdays(selected.weekdays?.length ? new Set(selected.weekdays) : new Set([1, 2, 3, 4, 5] as const));
-        } else if (selected.scopeType === "period") {
-            setWeekdays(selected.weekdays?.length ? new Set(selected.weekdays) : new Set());
-        } else {
-            setWeekdays(new Set([1, 2, 3, 4, 5] as const));
-        }
-        if (selected.date) setDate(selected.date);
-        if (selected.weekAnchor) setWeekAnchor(selected.weekAnchor);
-        if (selected.year != null) setYear(selected.year);
-        if (selected.month != null) setMonth(selected.month);
-        if (selected.periodFrom) setPeriodFrom(selected.periodFrom);
-        if (selected.periodTo) setPeriodTo(selected.periodTo);
-        if (selected.periodUnit) setPeriodUnit(selected.periodUnit);
-        setPids(new Set(selected.personalIds));
-    }, [selected]);
-
-    useEffect(() => {
-        if (!selected) {
-            if (cascadePrevSelectedIdRef.current !== undefined) {
-                setCascade({ mode: "auto" });
-            }
-            cascadePrevSelectedIdRef.current = undefined;
-            return;
-        }
-        cascadePrevSelectedIdRef.current = selected.id;
-        if (selected.parentId && allPrefs.some((p) => p.id === selected.parentId)) {
-            setCascade({ mode: "manual", parentId: selected.parentId });
-        } else {
-            setCascade({ mode: "auto" });
-        }
-    }, [selected, allPrefs]);
-
-    const save = () => {
-        if (!canWrite) return;
-        if (scopeType === "general" && weekdays.size === 0) {
-            toast("Mindestens einen Wochentag wählen.", "error");
-            return;
-        }
-        if (scopeType === "day" && !date) {
-            toast("Bitte ein Datum wählen.", "error");
-            return;
-        }
-        if (scopeType === "week" && !weekAnchor) {
-            toast("Bitte einen Tag in der Kalenderwoche wählen.", "error");
-            return;
-        }
-        if (scopeType === "month" && (month < 1 || month > 12)) {
-            toast("Bitte einen gültigen Monat wählen.", "error");
-            return;
-        }
-        if (scopeType === "period") {
-            if (!periodFrom || !periodTo) {
-                toast("Bitte „Von“ und „Bis“ für den Zeitraum setzen.", "error");
-                return;
-            }
-            if (periodFrom > periodTo) {
-                toast("„Von“ darf nicht nach „Bis“ liegen.", "error");
-                return;
-            }
-        }
-        const sMin = timeToMin(startH, startM);
-        const eMin = timeToMin(endH, endM);
-        if (eMin <= sMin) {
-            toast("Ende muss nach Start liegen.", "error");
-            return;
-        }
-        const inferred = inferAutoParentId({ scopeType, kind }, allPrefs, selected?.id);
-        const parentResolved =
-            cascade.mode === "manual" && allPrefs.some((p) => p.id === cascade.parentId)
-                ? cascade.parentId
-                : inferred;
-        const layer = defaultLayerForScope(scopeType) + (parentResolved ? 5 : 0);
-        const id = selected?.id ?? newPlanPreferenceId();
-        const nameFromStore = selected?.name?.trim() ?? "";
-        const name = nameFromStore || defaultRuleNameForScope(kind, scopeType, allPrefs, selected?.id);
-        const p: PlanPreference = {
-            id,
-            name,
-            personalIds: pids.size === 0 || pids.size === personal.length ? [] : [...pids],
-            kind,
-            layer,
-            parentId: parentResolved,
-            startMin: sMin,
-            endMin: eMin,
-            scopeType,
-            weekdays: scopeType === "general" || scopeType === "period" ? [...weekdays].sort((a, b) => a - b) : [],
-            date: scopeType === "day" ? date : undefined,
-            weekAnchor: scopeType === "week" ? weekAnchor : undefined,
-            year: scopeType === "month" ? year : undefined,
-            month: scopeType === "month" ? month : undefined,
-            periodFrom: scopeType === "period" ? periodFrom : undefined,
-            periodTo: scopeType === "period" ? periodTo : undefined,
-            periodUnit: scopeType === "period" ? (periodUnit ?? "day") : undefined,
-        };
-        onSave(p);
-        onClearSelection();
-    };
-
-    return (
-        <div className="arbeitsplan-pref-form arbeitsplan-pref-form--compact" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Select
-                label="Arbeit / Pause"
-                value={kind}
-                onChange={(e) => setKind(e.target.value as "work" | "break")}
-                disabled={!canWrite}
-                options={[{ value: "work", label: "Arbeit" }, { value: "break", label: "Pause" }]}
-            />
-            <Select
-                label="Geltung"
-                value={scopeType}
-                onChange={(e) => {
-                    const st = e.target.value as PlanScopeType;
-                    setScopeType(st);
-                    applyGeltungDefaults(st);
-                }}
-                disabled={!canWrite}
-                options={[
-                    { value: "general", label: "Allgemein — gewählte Wochentage (wiederkehrend)" },
-                    { value: "day", label: "Ein bestimmter Kalendertag" },
-                    { value: "week", label: "Eine Kalenderwoche" },
-                    { value: "month", label: "Ein Kalendermonat" },
-                    { value: "period", label: "Zeitraum (von – bis)" },
-                ]}
-            />
-            {scopeType === "day" ? (
-                <Input type="date" label="Datum" value={date} onChange={(e) => setDate(e.target.value)} disabled={!canWrite} />
-            ) : null}
-            {scopeType === "week" ? (
-                <Input
-                    type="date"
-                    label="Kalenderwoche (beliebiger Tag darin)"
-                    value={weekAnchor}
-                    onChange={(e) => setWeekAnchor(e.target.value)}
-                    disabled={!canWrite}
-                />
-            ) : null}
-            {scopeType === "month" ? (
-                <Input
-                    type="month"
-                    label="Monat"
-                    value={`${year}-${String(month).padStart(2, "0")}`}
-                    onChange={(e) => {
-                        const v = e.target.value;
-                        const [y, m] = v.split("-").map(Number);
-                        if (Number.isFinite(y) && Number.isFinite(m)) {
-                            setYear(y);
-                            setMonth(m);
-                        }
-                    }}
-                    disabled={!canWrite}
-                />
-            ) : null}
-            {scopeType === "period" ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-                        <Input type="date" label="Von" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} disabled={!canWrite} />
-                        <Input type="date" label="Bis" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} disabled={!canWrite} />
-                    </div>
-                    <Select
-                        label="Raster (Hinweis)"
-                        value={periodUnit ?? "day"}
-                        onChange={(e) => setPeriodUnit(e.target.value as PlanPeriodUnit)}
-                        disabled={!canWrite}
-                        options={[
-                            { value: "day", label: "Kalendertage" },
-                            { value: "week", label: "Kalenderwochen" },
-                            { value: "month", label: "Monate" },
-                        ]}
-                    />
-                </div>
-            ) : null}
-            {(scopeType === "general" || scopeType === "period") ? (
-                <div>
-                    <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 6 }}>
-                        {scopeType === "general" ? "Wochentage" : "Wochentage im Zeitraum (optional)"}
-                    </span>
-                    {scopeType === "period" ? (
-                        <p className="arbeitsplan-pref-field-hint" style={{ fontSize: 11, color: "var(--fg-3)", margin: "0 0 6px", lineHeight: 1.35 }}>
-                            Keine Auswahl = jeden Tag zwischen Von und Bis; sonst nur an den gewählten Wochentagen.
-                        </p>
-                    ) : null}
-                    <div className="arbeitsplan-chips">
-                        {ALL_DAYS.map((d) => {
-                            const on =
-                                scopeType === "general"
-                                    ? weekdays.has(d)
-                                    : isWeekdayOnInPeriod(d);
-                            return (
-                                <button
-                                    key={d}
-                                    type="button"
-                                    className={on ? "is-on" : "is-off"}
-                                    disabled={!canWrite}
-                                    onClick={() => {
-                                        if (scopeType === "general") {
-                                            setWeekdays((w) => {
-                                                const n = new Set(w);
-                                                if (n.has(d)) n.delete(d);
-                                                else n.add(d);
-                                                return n;
-                                            });
-                                        } else {
-                                            toggleWeekdayInPeriod(d);
-                                        }
-                                    }}
-                                >
-                                    {DAY_SHORT[d - 1]}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ) : null}
-            <div>
-                <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 6 }}>Gilt für Mitarbeiter</span>
-                <div className="arbeitsplan-chips">
-                    <button type="button" className={pids.size === 0 ? "is-active" : undefined} disabled={!canWrite} onClick={() => setPids(new Set())}>
-                        Alle
-                    </button>
-                    {personal.map((p) => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            className={pids.size === 0 || pids.has(p.id) ? "is-on" : "is-off"}
-                            disabled={!canWrite}
-                            onClick={() => {
-                                setPids((s) => {
-                                    if (s.size === 0) return new Set([p.id]);
-                                    const n = new Set(s);
-                                    if (n.has(p.id)) n.delete(p.id);
-                                    else n.add(p.id);
-                                    return n;
-                                });
-                            }}
-                        >
-                            {p.name}
-                        </button>
-                    ))}
-                </div>
-                <p className="arbeitsplan-pref-field-hint" style={{ fontSize: 11, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.35 }}>
-                    Keine Auswahl = alle Mitarbeiter; sonst nur die Angehakten.
-                </p>
-            </div>
-            <div className="arbeitsplan-pref-zeitblock">
-                <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 8 }}>Uhrzeit</span>
-                <div
-                    className="arbeitstage-range-grid arbeitsplan-uhrzeit-grid arbeitsplan-uhrzeit-grid--only-time"
-                    role="group"
-                    aria-label="Uhrzeit von und bis"
-                >
-                    <div className="arbeitstage-range-grid__field">
-                        <label htmlFor="arbeitsplan-rule-zeit-von" className="arbeitstage-range-grid__l">Von der Uhrzeit</label>
-                        <input
-                            id="arbeitsplan-rule-zeit-von"
-                            type="time"
-                            step={300}
-                            className="arbeitstage-range-grid__in"
-                            value={toTimeValue(startH, startM)}
-                            onChange={(e) => {
-                                const t = fromTimeValue(e.target.value);
-                                if (t) { setStartH(t.h); setStartM(t.m); }
-                            }}
-                            disabled={!canWrite}
-                        />
-                    </div>
-                    <div className="arbeitstage-range-grid__field arbeitsplan-uhrzeit-grid__bis">
-                        <label htmlFor="arbeitsplan-rule-zeit-bis" className="arbeitstage-range-grid__l" id="arbeitsplan-rule-zeit-bis-lbl">Bis der Uhrzeit</label>
-                        <input
-                            id="arbeitsplan-rule-zeit-bis"
-                            type="time"
-                            step={300}
-                            className="arbeitstage-range-grid__in"
-                            value={toTimeValue(endH, endM)}
-                            onChange={(e) => {
-                                const t = fromTimeValue(e.target.value);
-                                if (t) { setEndH(t.h); setEndM(t.m); }
-                            }}
-                            disabled={!canWrite}
-                        />
-                    </div>
-                </div>
-            </div>
-            <div className="arbeitsplan-kaskade-zeilen">
-                <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 4 }}>Kaskade (baut auf)</span>
-                {canWrite && parentCandidates.length > 0 ? (
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        style={{ marginTop: 4 }}
-                        onClick={addKaskadeZeile}
-                        disabled={cascade.mode === "manual"}
-                    >
-                        Hinzufügen
-                    </Button>
-                ) : null}
-                {canWrite && parentCandidates.length === 0 ? (
-                    <p className="arbeitsplan-pref-field-hint" style={{ fontSize: 11, color: "var(--fg-3)", margin: "4px 0 0", lineHeight: 1.4 }}>
-                        Zwei Regeln: dann hier eine Basis-Regel wählbar. Sonst Verknüpfung beim Speichern automatisch.
-                    </p>
-                ) : null}
-                <div
-                    className="arbeitsplan-kaskade-zeilen__box"
-                    style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}
-                >
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Zeilen</div>
-                    {cascade.mode === "auto" ? (
-                        <p style={{ color: "var(--fg-3)", fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                            Noch keine Basis-Regel. Beim Speichern wird ggf. automatisch eine passend breitere Regel verknüpft.
-                        </p>
-                    ) : (
-                        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                            <li
-                                className="row arbeitsplan-kaskade-zeilen__row"
-                                style={{ justifyContent: "space-between", alignItems: "center", gap: 8, padding: "4px 0" }}
-                            >
-                                <select
-                                    className="input-edit arbeitsplan-kaskade-zeilen__sel"
-                                    value={cascade.parentId}
-                                    onChange={(e) => setCascade({ mode: "manual", parentId: e.target.value })}
-                                    disabled={!canWrite}
-                                    aria-label="Basis-Regel"
-                                >
-                                    {parentCandidates.map((pr) => (
-                                        <option key={pr.id} value={pr.id}>
-                                            {pr.name} — {pr.kind === "work" ? "Arbeit" : "Pause"}
-                                        </option>
-                                    ))}
-                                </select>
-                                {canWrite ? (
-                                    <button type="button" className="btn btn-ghost" onClick={() => setCascade({ mode: "auto" })}>
-                                        Entfernen
-                                    </button>
-                                ) : null}
-                            </li>
-                        </ul>
-                    )}
-                </div>
-            </div>
-            {canWrite ? (
-                <Button type="button" onClick={save}>
-                    {selected ? "Änderungen speichern" : "Regel speichern"}
-                </Button>
-            ) : null}
-        </div>
-    );
-}

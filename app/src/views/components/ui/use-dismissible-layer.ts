@@ -8,13 +8,13 @@ interface UseDismissibleLayerOptions {
 
 /**
  * Shared overlay behavior standard:
- * close on outside pointer and Escape.
+ * close on outside pointer (capture) and Escape.
  */
 export function useDismissibleLayer({ open, rootRef, onDismiss }: UseDismissibleLayerOptions) {
     useEffect(() => {
         if (!open) return;
 
-        const onPointerDown = (event: MouseEvent) => {
+        const onPointerDown = (event: PointerEvent) => {
             const root = rootRef.current;
             if (!root) return;
             if (!root.contains(event.target as Node)) onDismiss();
@@ -23,10 +23,10 @@ export function useDismissibleLayer({ open, rootRef, onDismiss }: UseDismissible
             if (event.key === "Escape") onDismiss();
         };
 
-        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("pointerdown", onPointerDown, true);
         document.addEventListener("keydown", onKeyDown);
         return () => {
-            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("pointerdown", onPointerDown, true);
             document.removeEventListener("keydown", onKeyDown);
         };
     }, [open, rootRef, onDismiss]);

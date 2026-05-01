@@ -20,17 +20,19 @@ const DURATION: Record<ToastType, number> = {
 
 interface ToastState {
     toasts: Toast[];
-    add: (message: string, type?: ToastType, options?: { onUndo?: () => void; undoLabel?: string }) => void;
+    add: (
+        message: string,
+        type?: ToastType,
+        options?: { onUndo?: () => void | Promise<void>; undoLabel?: string; durationMs?: number },
+    ) => void;
     remove: (id: string) => void;
 }
-
-const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const useToastStore = create<ToastState>((set) => ({
     toasts: [],
     add: (message, type = "success", options) => {
         const id = crypto.randomUUID();
-        const durationMs = DURATION[type];
+        const durationMs = options?.durationMs ?? DURATION[type];
         const toast: Toast = {
             id,
             message,
@@ -40,16 +42,8 @@ export const useToastStore = create<ToastState>((set) => ({
             undoLabel: options?.undoLabel ?? "Rückgängig",
         };
         set((s) => ({ toasts: [...s.toasts, toast] }));
-        const t = setTimeout(() => {
-            timers.delete(id);
-            set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));
-        }, durationMs + 400);
-        timers.set(id, t);
     },
     remove: (id) => {
-        const t = timers.get(id);
-        if (t) clearTimeout(t);
-        timers.delete(id);
         set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));
     },
 }));

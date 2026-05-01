@@ -14,7 +14,7 @@ interface DialogProps {
     className?: string;
     /** Card-style dialog: no top title bar; close control in corner (use with `modal-body` + `modal-actions` in children/footer). */
     presentation?: "default" | "centered";
-    /** Visible title element id for `aria-labelledby` when `presentation="centered"`. */
+    /** Optional visible title id for `aria-labelledby` (centered mode, or default mode when the top bar is hidden). */
     labelledBy?: string;
 }
 
@@ -106,6 +106,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     if (!open) return null;
 
     const closeLabel = t("a11y.close_dialog");
+    const showDefaultHeader = !isCentered && (title.trim().length > 0 || headerExtra != null);
 
     const layer = (
         <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -113,7 +114,13 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby={isCentered ? labelledBy ?? undefined : titleId}
+                aria-labelledby={
+                    isCentered
+                        ? (labelledBy ?? undefined)
+                        : showDefaultHeader
+                          ? titleId
+                          : (labelledBy ?? undefined)
+                }
                 aria-label={isCentered && !labelledBy ? (title || undefined) : undefined}
                 tabIndex={-1}
                 className={`modal ${isCentered ? "modal--centered" : ""} ${className ?? ""}`}
@@ -130,12 +137,12 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                     </button>
-                ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid var(--line)", gap: 12 }}>
-                        <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                ) : showDefaultHeader ? (
+                    <div className="modal-header-row">
+                        <h3 id={titleId} className="modal-title">
                             {title}
                         </h3>
-                        <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <div className="modal-header-actions row">
                             {headerExtra}
                             <button
                                 type="button"
@@ -149,8 +156,8 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             </button>
                         </div>
                     </div>
-                )}
-                <div style={isCentered ? { padding: 0 } : { padding: "16px 20px" }}>{children}</div>
+                ) : null}
+                <div className={isCentered ? "modal-body-pad modal-body-pad--flush" : "modal-body-pad"}>{children}</div>
                 {footer && (
                     <div className="modal-actions">{footer}</div>
                 )}
@@ -177,19 +184,21 @@ interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = "Bestätigen", danger, loading }: ConfirmDialogProps) {
+    const confirmTitleId = useId();
     return (
         <Dialog
             open={open}
             onClose={onClose}
             title=""
+            labelledBy={confirmTitleId}
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose}>
+                    <Button variant="ghost" onClick={onClose} disabled={loading}>
                         Abbrechen
                     </Button>
-                    <button className={danger ? "destructive" : "primary"} onClick={onConfirm} disabled={loading}>
+                    <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading}>
                         {confirmLabel}
-                    </button>
+                    </Button>
                 </>
             }
         >
@@ -202,7 +211,9 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
                         </svg>
                     </div>
                 ) : null}
-                <h3 className="confirm-title">{title}</h3>
+                <h3 id={confirmTitleId} className="confirm-title">
+                    {title}
+                </h3>
                 <p className="confirm-text">{message}</p>
             </div>
         </Dialog>

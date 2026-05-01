@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { listLeistungen, createLeistung, deleteLeistung, updateLeistung } from "../../controllers/leistung.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "../../lib/utils";
@@ -361,7 +361,7 @@ export function LeistungenPage() {
                             </Card>
                         ) : (
                             <div className="card leistungen-table-card" style={{ overflow: "auto" }}>
-                                <table className="tbl" style={{ minWidth: 480 }}>
+                                <table className="tbl leistungen-tbl" style={{ minWidth: 480 }}>
                                     <thead>
                                         <tr>
                                             <th scope="col">Name</th>
@@ -372,12 +372,22 @@ export function LeistungenPage() {
                                     <tbody>
                                         {leistungenSorted.map((l) => {
                                             const isSel = !creating && selected?.id === l.id;
+                                            const pick = () => selectRow(l);
+                                            const onRowKeyDown = (e: KeyboardEvent) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    pick();
+                                                }
+                                            };
                                             return (
                                                 <tr
                                                     key={l.id}
                                                     className={isSel ? "leistungen-row--selected" : undefined}
-                                                    onClick={() => selectRow(l)}
+                                                    tabIndex={0}
+                                                    onClick={() => pick()}
+                                                    onKeyDown={onRowKeyDown}
                                                     style={{ cursor: "pointer" }}
+                                                    aria-label={`Leistung ${l.name} anzeigen`}
                                                 >
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{l.name}</span>

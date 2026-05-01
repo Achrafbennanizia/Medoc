@@ -8,7 +8,6 @@ export interface BreakGlassEntry {
 }
 
 export async function breakGlassActivate(reason: string, patientId?: string | null): Promise<void> {
-    // Tauri v2 transforms Rust `snake_case` arg names to JS `camelCase` at the IPC boundary.
     await tauriInvoke<void>("break_glass_activate", { reason, patientId: patientId ?? null });
 }
 

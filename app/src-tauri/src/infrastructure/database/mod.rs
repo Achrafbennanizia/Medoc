@@ -1,3 +1,4 @@
+pub mod akte_anlage_repo;
 pub mod akte_repo;
 pub mod app_kv_repo;
 pub mod attest_repo;

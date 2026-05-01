@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
@@ -70,12 +70,17 @@ pub async fn dsgvo_export_patient(
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn dsgvo_erase_patient(
+    app: AppHandle,
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<dsgvo::ErasureReport, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
-    dsgvo::erase_patient(&pool, &patient_id).await
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+    dsgvo::erase_patient(&pool, &patient_id, &app_dir).await
 }
 
 #[tauri::command]
@@ -88,6 +93,17 @@ pub async fn import_patients_csv(
 ) -> Result<migration::ImportReport, AppError> {
     rbac::require(&session_state, "ops.migration")?;
     migration::import_patients(&pool, &PathBuf::from(csv_path), dry_run).await
+}
+
+/// Native file picker for CSV import (ops UI); avoids manual path typing.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
+pub fn pick_patients_csv_file(session_state: State<'_, SessionState>) -> Result<Option<String>, AppError> {
+    rbac::require(&session_state, "ops.migration")?;
+    let path = rfd::FileDialog::new()
+        .add_filter("CSV", &["csv"])
+        .pick_file();
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
