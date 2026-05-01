@@ -12,7 +12,9 @@ export interface UpcomingAppointment {
 }
 
 export function listUpcomingAppointments(leadMinutes: number) {
-    return tauriInvoke<UpcomingAppointment[]>("list_upcoming_appointments", { leadMinutes });
+    return tauriInvoke<UpcomingAppointment[]>("list_upcoming_appointments", {
+        leadMinutes,
+    });
 }
 
 /* ──────────────── E-Rezept (FA-INT, FA-REZ) ─────────────────────────────── */

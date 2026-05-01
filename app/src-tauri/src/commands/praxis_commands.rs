@@ -89,7 +89,7 @@ pub async fn list_dokument_vorlagen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<praxis_repo::DokumentVorlage>, AppError> {
-    rbac::require(&session_state, "personal.read")?;
+    rbac::require(&session_state, "vorlagen.read")?;
     praxis_repo::list_dokument_vorlagen(&pool).await
 }
 
@@ -100,7 +100,7 @@ pub async fn create_dokument_vorlage(
     session_state: State<'_, SessionState>,
     data: praxis_repo::CreateDokumentVorlage,
 ) -> Result<praxis_repo::DokumentVorlage, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "vorlagen.write")?;
     let row = praxis_repo::create_dokument_vorlage(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -123,7 +123,7 @@ pub async fn update_dokument_vorlage(
     id: String,
     data: praxis_repo::UpdateDokumentVorlage,
 ) -> Result<praxis_repo::DokumentVorlage, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "vorlagen.write")?;
     let row = praxis_repo::update_dokument_vorlage(&pool, &id, &data).await?;
     audit_repo::create(
         &pool,
@@ -145,7 +145,7 @@ pub async fn delete_dokument_vorlage(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<(), AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "vorlagen.write")?;
     praxis_repo::delete_dokument_vorlage(&pool, &id).await?;
     audit_repo::create(
         &pool,

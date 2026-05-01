@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { listDokumentVorlagen, deleteDokumentVorlage } from "../../controllers/praxis.controller";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -35,10 +35,11 @@ function previewPayload(v: DokumentVorlage): string {
 
 export function VorlagenRezepteAttestePage() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
-    const canWrite = role ? allowed("personal.write", role) : false;
+    const canWrite = role ? allowed("vorlagen.write", role) : false;
 
     const [rows, setRows] = useState<DokumentVorlage[]>([]);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -85,9 +86,9 @@ export function VorlagenRezepteAttestePage() {
     }, [bearbeiten, rows]);
 
     const onEditorSaved = useCallback(async () => {
-        closeEditor();
         await reload();
-    }, [closeEditor, reload]);
+        navigate("/verwaltung/vorlagen", { replace: true });
+    }, [reload, navigate]);
 
     const doDelete = async () => {
         if (!deleteId) return;
@@ -119,16 +120,16 @@ export function VorlagenRezepteAttestePage() {
 
     const openNewRezept = () => {
         if (!canWrite) return;
-        setSearchParams({ neu: "rezept" }, { replace: true });
+        setSearchParams({ neu: "rezept" }, { replace: false });
     };
     const openNewAttest = () => {
         if (!canWrite) return;
-        setSearchParams({ neu: "attest" }, { replace: true });
+        setSearchParams({ neu: "attest" }, { replace: false });
     };
     const openEdit = (r: DokumentVorlage) => {
         if (!canWrite) return;
         setSelected(r);
-        setSearchParams({ bearbeiten: r.id }, { replace: true });
+        setSearchParams({ bearbeiten: r.id }, { replace: false });
     };
 
     const editorTitle =
@@ -154,7 +155,7 @@ export function VorlagenRezepteAttestePage() {
                         {editorSpec.type === "new" ? (
                             <VorlageEditorPanel
                                 editingId={null}
-                                createKind={editorSpec.kind}
+                                newTemplateKind={editorSpec.kind}
                                 canWrite
                                 onClose={closeEditor}
                                 onSaved={onEditorSaved}
@@ -163,7 +164,6 @@ export function VorlagenRezepteAttestePage() {
                             <VorlageEditorPanel
                                 key={editorSpec.id}
                                 editingId={editorSpec.id}
-                                createKind="REZEPT"
                                 canWrite
                                 onClose={closeEditor}
                                 onSaved={onEditorSaved}
@@ -271,12 +271,25 @@ export function VorlagenRezepteAttestePage() {
                                 <tbody>
                                     {sorted.map((r) => {
                                         const isSel = selected?.id === r.id;
+                                        const pickRow = () => {
+                                            setSelected(r);
+                                            closeEditor();
+                                        };
+                                        const rowKeyDown = (e: KeyboardEvent) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                pickRow();
+                                            }
+                                        };
                                         return (
                                             <tr
                                                 key={r.id}
                                                 className={isSel ? "produkte-row--selected" : undefined}
-                                                onClick={() => { setSelected(r); closeEditor(); }}
+                                                tabIndex={0}
+                                                onClick={() => pickRow()}
+                                                onKeyDown={rowKeyDown}
                                                 style={{ cursor: "pointer" }}
+                                                aria-label={`Vorlage ${r.titel} anzeigen`}
                                             >
                                                 <td>
                                                     <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.titel}</span>

@@ -10,8 +10,9 @@ export async function setLogLevel(level: LogLevel): Promise<void> {
     return tauriInvoke<void>("set_log_level", { level });
 }
 
-export async function exportLogs(outputPath: string): Promise<number> {
-    return tauriInvoke<number>("export_logs", { outputPath });
+/** Returns raw ZIP bytes (last 7 days of `*.log` files, sanitised). */
+export async function exportLogs(): Promise<number[]> {
+    return tauriInvoke<number[]>("export_logs");
 }
 
 export async function verifyAuditChain(): Promise<string | null> {

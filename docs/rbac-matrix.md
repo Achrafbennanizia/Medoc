@@ -20,6 +20,7 @@ Diese Matrix beschreibt die **Tauri-Backend-Autorisierung** (Aktionen `action` i
 | `produkt.read` | ✓ | ✓ | ✓ | ✓ |
 | `produkt.write` | ✓ | ✓ | — | ✓ |
 | `personal.read`, `personal.write` | ✓ | — | — | — |
+| `vorlagen.read`, `vorlagen.write` | ✓ | — | — | — |
 | `audit.read` | ✓ | — | — | — |
 | `ops.backup`, `ops.dsgvo`, `ops.migration`, `ops.system`, `ops.logs` | ✓ | — | — | — |
 

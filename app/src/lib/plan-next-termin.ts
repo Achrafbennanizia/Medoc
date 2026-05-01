@@ -38,6 +38,17 @@ function keyV2(patientId: string): string {
     return `${V2_PREFIX}${patientId}`;
 }
 
+/** Art. 17 UI-cache: remove alongside backend erasure / patient delete. */
+export function clearPlanNextTerminStorageForPatient(patientId: string): void {
+    if (!patientId) return;
+    try {
+        window.localStorage.removeItem(keyV2(patientId));
+        window.localStorage.removeItem(`${V1_PREFIX}${patientId}`);
+    } catch {
+        /* ignore */
+    }
+}
+
 export function loadPlanNextTermin(patientId: string): PlanNextTerminV2 {
     if (!patientId) return emptyPlanNextTermin();
     try {

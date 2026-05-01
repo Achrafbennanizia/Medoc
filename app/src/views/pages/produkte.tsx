@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "../../controllers/produkt.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "../../lib/utils";
@@ -394,12 +394,22 @@ export function ProduktePage() {
                                         {produkteSorted.map((p) => {
                                             const low = p.bestand <= p.mindestbestand;
                                             const isSel = !creating && selected?.id === p.id;
+                                            const pick = () => selectRow(p);
+                                            const onRowKeyDown = (e: KeyboardEvent) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    pick();
+                                                }
+                                            };
                                             return (
                                                 <tr
                                                     key={p.id}
                                                     className={isSel ? "produkte-row--selected" : undefined}
-                                                    onClick={() => selectRow(p)}
+                                                    tabIndex={0}
+                                                    onClick={() => pick()}
+                                                    onKeyDown={onRowKeyDown}
                                                     style={{ cursor: "pointer" }}
+                                                    aria-label={`Produkt ${p.name} anzeigen`}
                                                 >
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{p.name}</span>

@@ -21,11 +21,7 @@ export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
         <div className="card-head">
             <div>
                 <div className="card-title">{title}</div>
-                {subtitle ? (
-                    <div className="card-subtitle" style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2 }}>
-                        {subtitle}
-                    </div>
-                ) : null}
+                {subtitle ? <div className="card-subtitle">{subtitle}</div> : null}
             </div>
             {action}
         </div>

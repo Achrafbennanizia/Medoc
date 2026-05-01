@@ -11,10 +11,21 @@ interface EmptyStateProps {
     description?: string;
     /** Optional primary call-to-action rendered below the description. */
     action?: { label: string; onClick: () => void };
+    /** Optional secondary action (e.g. dismiss / learn more). */
+    secondaryAction?: { label: string; onClick: () => void };
     className?: string;
 }
 
-export function EmptyState({ icon = "📋", graphic, floatIllustration, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+    icon = "📋",
+    graphic,
+    floatIllustration,
+    title,
+    description,
+    action,
+    secondaryAction,
+    className,
+}: EmptyStateProps) {
     return (
         <div className={`empty-state-root ${className ?? ""}`}>
             {graphic ? (
@@ -30,11 +41,18 @@ export function EmptyState({ icon = "📋", graphic, floatIllustration, title, d
             )}
             <div className="empty-state-title">{title}</div>
             {description ? <div className="empty-state-desc">{description}</div> : null}
-            {action ? (
-                <div style={{ marginTop: 12 }}>
-                    <button type="button" className="btn btn-accent" onClick={action.onClick}>
-                        {action.label}
-                    </button>
+            {action || secondaryAction ? (
+                <div className="empty-state-actions">
+                    {action ? (
+                        <button type="button" className="btn btn-accent" onClick={action.onClick}>
+                            {action.label}
+                        </button>
+                    ) : null}
+                    {secondaryAction ? (
+                        <button type="button" className="btn btn-subtle" onClick={secondaryAction.onClick}>
+                            {secondaryAction.label}
+                        </button>
+                    ) : null}
                 </div>
             ) : null}
         </div>

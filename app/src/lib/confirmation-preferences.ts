@@ -8,6 +8,7 @@ export const CONFIRMATION_AREA_KEYS = [
     "patient_akte_patient_edit",
     "patient_akte_rezept_delete",
     "patient_akte_rezept_edit",
+    "patient_akte_attest_delete",
     "patient_akte_behandlung_delete",
     "patient_akte_untersuchung_delete",
     "patient_akte_untersuchung_edit",
@@ -32,6 +33,7 @@ export const CONFIRMATION_AREA_LABELS: Record<ConfirmationAreaKey, string> = {
     patient_akte_patient_edit: "Patient bearbeiten (Akte)",
     patient_akte_rezept_delete: "Rezept löschen (Akte)",
     patient_akte_rezept_edit: "Rezept bearbeiten (Akte)",
+    patient_akte_attest_delete: "Attest löschen (Akte)",
     patient_akte_behandlung_delete: "Behandlung löschen (Akte)",
     patient_akte_untersuchung_delete: "Untersuchung löschen (Akte)",
     patient_akte_untersuchung_edit: "Untersuchung bearbeiten (Akte)",
@@ -45,8 +47,16 @@ export const DEFAULT_CONFIRMATION_PREFS: ConfirmationPrefs = {
     areas: {},
 };
 
-type PraxisPreferencesV1 = {
+/** SQLite `app_kv` blob for key {@link PRAXIS_PREFERENCES_KV_KEY} — extended fields stay backward-compatible. */
+export type PraxisPreferencesV1 = {
     version: 1;
+    /** Termin-Puffer / Reminder / No-Show — siehe `praxis-praeferenzen-storage.ts`. */
+    terminPlanning?: {
+        pufferMin?: string;
+        notfallPuffer?: string;
+        reminder?: string;
+        noShow?: string;
+    };
     ui?: {
         confirmations?: {
             defaultMode?: ConfirmationPresentMode;

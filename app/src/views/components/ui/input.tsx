@@ -1,4 +1,16 @@
-import { type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, forwardRef, useId, useMemo, useRef, useState } from "react";
+import {
+    type ChangeEvent,
+    type InputHTMLAttributes,
+    type MutableRefObject,
+    type SelectHTMLAttributes,
+    type TextareaHTMLAttributes,
+    forwardRef,
+    useCallback,
+    useId,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useDismissibleLayer } from "./use-dismissible-layer";
 
 /* ── Text Input ── */
@@ -16,9 +28,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
 
         return (
-            <div style={{ marginBottom: 8 }} className={error ? "input-wrap--error" : undefined}>
+            <div className={error ? "ui-field-wrap input-wrap--error" : "ui-field-wrap"}>
                 {label && (
-                    <label htmlFor={inputId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
+                    <label htmlFor={inputId} className="ui-field-label">
                         {label}
                     </label>
                 )}
@@ -31,7 +43,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                     aria-describedby={describedBy || undefined}
                 />
                 {error && (
-                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
+                    <p id={errorId} className="ui-field-error-msg">
                         {error}
                     </p>
                 )}
@@ -58,36 +70,73 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
         const [open, setOpen] = useState(false);
         const rootRef = useRef<HTMLDivElement>(null);
+        const innerSelectRef = useRef<HTMLSelectElement | null>(null);
+
+        const setSelectRef = useCallback(
+            (el: HTMLSelectElement | null) => {
+                innerSelectRef.current = el;
+                if (typeof ref === "function") ref(el);
+                else if (ref) (ref as MutableRefObject<HTMLSelectElement | null>).current = el;
+            },
+            [ref],
+        );
+
         useDismissibleLayer({
             open,
             rootRef,
             onDismiss: () => setOpen(false),
         });
 
+        const isControlled = props.value !== undefined;
+        const [uncontrolledValue, setUncontrolledValue] = useState(() =>
+            String(props.defaultValue ?? options[0]?.value ?? ""),
+        );
+
         const selectedValue = useMemo(() => {
-            const current = props.value as string | undefined;
-            if (current != null) return String(current);
-            const fallback = props.defaultValue as string | undefined;
-            if (fallback != null) return String(fallback);
+            if (isControlled) return String(props.value ?? "");
+            const current = uncontrolledValue;
+            if (current !== "") return current;
             return options[0]?.value ?? "";
-        }, [options, props.defaultValue, props.value]);
+        }, [isControlled, options, props.value, uncontrolledValue]);
 
         const selectedLabel =
             options.find((o) => o.value === selectedValue)?.label ?? options[0]?.label ?? "";
 
+        const dispatchSyntheticChange = (nextValue: string) => {
+            const sel = innerSelectRef.current;
+            if (!sel) return;
+            if (sel.value !== nextValue) {
+                sel.value = nextValue;
+            }
+            sel.dispatchEvent(new Event("input", { bubbles: true }));
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
         const chooseValue = (nextValue: string) => {
             if (props.disabled) return;
+            if (!isControlled) {
+                setUncontrolledValue(nextValue);
+            }
             props.onChange?.({
-                target: { value: nextValue, name: props.name },
-                currentTarget: { value: nextValue, name: props.name },
-            } as unknown as Parameters<NonNullable<SelectProps["onChange"]>>[0]);
+                target: { value: nextValue, name: props.name ?? "" },
+                currentTarget: { value: nextValue, name: props.name ?? "" },
+            } as unknown as ChangeEvent<HTMLSelectElement>);
+            dispatchSyntheticChange(nextValue);
             setOpen(false);
         };
 
+        const onNativeChange = (e: ChangeEvent<HTMLSelectElement>) => {
+            const next = e.target.value;
+            if (!isControlled) {
+                setUncontrolledValue(next);
+            }
+            props.onChange?.(e);
+        };
+
         return (
-            <div style={{ marginBottom: 8 }} ref={rootRef} className={error ? "input-wrap--error" : undefined}>
+            <div ref={rootRef} className={error ? "ui-field-wrap input-wrap--error" : "ui-field-wrap"}>
                 {label && (
-                    <label htmlFor={selectId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
+                    <label htmlFor={selectId} className="ui-field-label">
                         {label}
                     </label>
                 )}
@@ -106,14 +155,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         <span className="select-trigger-label">{selectedLabel}</span>
                     </button>
                     <select
-                        ref={ref}
+                        ref={setSelectRef}
                         value={selectedValue}
-                        onChange={() => { }}
+                        onChange={onNativeChange}
                         name={props.name}
                         required={props.required}
+                        disabled={props.disabled}
                         tabIndex={-1}
                         aria-hidden
-                        style={{ display: "none" }}
+                        className="select-native-hidden"
                     >
                         {options.map((o) => (
                             <option key={o.value} value={o.value}>
@@ -142,7 +192,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                     )}
                 </div>
                 {error && (
-                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
+                    <p id={errorId} className="ui-field-error-msg">
                         {error}
                     </p>
                 )}
@@ -167,9 +217,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
 
         return (
-            <div style={{ marginBottom: 8 }} className={error ? "input-wrap--error" : undefined}>
+            <div className={error ? "ui-field-wrap input-wrap--error" : "ui-field-wrap"}>
                 {label && (
-                    <label htmlFor={taId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
+                    <label htmlFor={taId} className="ui-field-label">
                         {label}
                     </label>
                 )}
@@ -182,7 +232,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                     aria-describedby={describedBy || undefined}
                 />
                 {error && (
-                    <p id={errorId} style={{ fontSize: 11.5, color: "var(--red)", marginTop: 4 }}>
+                    <p id={errorId} className="ui-field-error-msg">
                         {error}
                     </p>
                 )}

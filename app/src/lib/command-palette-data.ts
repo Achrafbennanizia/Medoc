@@ -1,6 +1,9 @@
 import { routeChildPathAllowed } from "./rbac";
 
-/** Static routes wired to {@link ROUTE_VISIBILITY} keys (must match `App.tsx`). */
+/**
+ * Static routes wired to {@link ROUTE_VISIBILITY} keys (must match `App.tsx`).
+ * e.g. `verwaltung/vorlagen` is gated by `vorlagen.read`, not `personal.read`.
+ */
 export type PaletteCommand = {
     id: string;
     routePath: string;
@@ -12,9 +15,9 @@ export type PaletteCommand = {
 
 export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "dash", routePath: "", href: "/", titleDe: "Übersicht & Dashboard", keywords: ["home", "start"] },
-    { id: "termine", routePath: "termine", href: "/termine", titleDe: "Terminübersicht", keywords: ["kalender", "termin"] },
-    { id: "termine-neu", routePath: "termine/neu", href: "/termine/neu", titleDe: "Neuer Termin", keywords: ["anlegen", "termin neu"] },
-    { id: "patienten", routePath: "patienten", href: "/patienten", titleDe: "Patientenakten", keywords: ["akte", "patient"] },
+    { id: "termine", routePath: "termine", href: "/termine", titleDe: "Terminübersicht", keywords: ["kalender", "termin", "appointment", "patientenakte", "übersicht"] },
+    { id: "termine-neu", routePath: "termine/neu", href: "/termine/neu", titleDe: "Neuer Termin", keywords: ["anlegen", "termin neu", "buchung"] },
+    { id: "patienten", routePath: "patienten", href: "/patienten", titleDe: "Patientenakten", keywords: ["akte", "patient", "patientenakte", "stammdaten"] },
     { id: "patienten-neu", routePath: "patienten/neu", href: "/patienten/neu", titleDe: "Neuer Patient", keywords: ["anlegen", "neu"] },
     { id: "finanzen", routePath: "finanzen", href: "/finanzen", titleDe: "Finanzen", keywords: ["geld", "kasse"] },
     {
@@ -41,6 +44,13 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "verwaltung-sonder-sperrzeiten", routePath: "verwaltung/sonder-sperrzeiten", href: "/verwaltung/sonder-sperrzeiten", titleDe: "Sonder-Sperrzeiten", keywords: ["schliessung", "halbtag", "notfall", "sperren"] },
     { id: "verwaltung-praeferenzen", routePath: "verwaltung/praxis-praeferenzen", href: "/verwaltung/praxis-praeferenzen", titleDe: "Praxis-Präferenzen", keywords: ["terminregeln", "reminder", "noshow"] },
     { id: "verwaltung-vorlagen", routePath: "verwaltung/vorlagen", href: "/verwaltung/vorlagen", titleDe: "Vorlagen Rezepte & Atteste", keywords: ["vorlage", "medikament", "attest"] },
+    {
+        id: "verwaltung-vorlagen-editor",
+        routePath: "verwaltung/vorlagen/editor",
+        href: "/verwaltung/vorlagen/editor",
+        titleDe: "Vorlagen-Editor (Weiterleitung)",
+        keywords: ["vorlage", "editor", "rezept", "attest", "bearbeiten"],
+    },
     { id: "verwaltung-behandlungs-katalog", routePath: "verwaltung/behandlungs-katalog", href: "/verwaltung/behandlungs-katalog", titleDe: "Behandlungskatalog (Leistungen)", keywords: ["behandlung", "katalog", "leistung", "kategorie"] },
     {
         id: "verwaltung-bestellstamm",
@@ -119,7 +129,7 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "logs", routePath: "logs", href: "/logs", titleDe: "System-Logs", keywords: ["debug", "fehler"] },
     { id: "ops", routePath: "ops", href: "/ops", titleDe: "Betrieb & Backup", keywords: ["backup", "migration"] },
     { id: "compliance", routePath: "compliance", href: "/compliance", titleDe: "Compliance", keywords: ["richtlinien"] },
-    { id: "hilfe", routePath: "hilfe", href: "/hilfe", titleDe: "Hilfe & Kurzbefehle", keywords: ["bedienung", "shortcuts", "tastatur"] },
+    { id: "hilfe", routePath: "einstellungen", href: "/einstellungen?tab=hilfe", titleDe: "Hilfe & Kurzbefehle", keywords: ["bedienung", "shortcuts", "tastatur"] },
     { id: "feedback", routePath: "feedback", href: "/feedback", titleDe: "Feedback & Vigilanz", keywords: ["meldung", "hinweis", "sicherheit"] },
     { id: "migration", routePath: "migration", href: "/migration", titleDe: "Datenmigration (Assistent)", keywords: ["import", "umzug", "wizard"] },
 ];

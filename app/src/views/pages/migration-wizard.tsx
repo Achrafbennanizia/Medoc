@@ -18,7 +18,41 @@ import {
 
 const STEP_COUNT = 6;
 
-export function MigrationWizardPage() {
+/** Kurze Arbeitspunkte je Schritt — ergänzen den Fließtext. */
+const STEP_FOCUS_LINES: string[][] = [
+    [
+        "Backup unter „Betrieb“ anlegen und Speicherort dokumentieren.",
+        "Wiederherstellung auf einer Kopie der Datenbank testen.",
+    ],
+    [
+        "Export aus dem Altsystem auf Vollständigkeit und Aktualität prüfen.",
+        "Datenschutz / Auftragsverarbeitung mit dem bisherigen Anbieter klären.",
+    ],
+    [
+        "Pflichtfelder, Dubletten und Kodierungen gegen Referenzlisten prüfen.",
+        "Demo- und Testdatensätze vor Produktivimport entfernen.",
+    ],
+    [
+        "Spalten der Importdatei den MeDoc-Feldern zuordnen und dokumentieren.",
+        "Abweichungen fürs Qualitätsmanagement festhalten.",
+    ],
+    [
+        "Erst Trockenlauf / Import auf Datenbank-Kopie ausführen.",
+        "Stichproben gegen das Altsystem abgleichen.",
+    ],
+    [
+        "Go-Live-Zeitfenster und Eskalationspfad festlegen.",
+        "Logs und Audit-Einträge in den ersten Tagen verstärkt beobachten.",
+    ],
+];
+
+export type MigrationWizardPageProps = {
+    embedded?: boolean;
+    /** Bei eingebetteter Ansicht statt Navigation nach /ops */
+    onEmbeddedExit?: () => void;
+};
+
+export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: MigrationWizardPageProps = {}) {
     const t = useT();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
@@ -62,6 +96,10 @@ export function MigrationWizardPage() {
     function next() {
         if (step >= STEP_COUNT - 1) {
             toast(t("page.migration.done_toast"), "success");
+            if (embedded) {
+                onEmbeddedExit?.();
+                return;
+            }
             navigate("/ops");
             return;
         }
@@ -100,27 +138,50 @@ export function MigrationWizardPage() {
                 <div style={{ padding: 16, paddingTop: 14 }}>
                     <CardHeader title={titles[step] ?? ""} />
                     <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
-                    <p style={{ margin: 0, color: "var(--fg-2)", fontSize: 14, lineHeight: 1.6 }}>{bodies[step]}</p>
-                    <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
-                        <input type="checkbox" checked={stepComplete} onChange={toggleCheck} />
-                        <span style={{ fontSize: 14 }}>{t("page.migration.check_confirm")}</span>
-                    </label>
-                    <div className="row" style={{ gap: 10, marginTop: 8 }}>
-                        <Button type="button" variant="ghost" onClick={back} disabled={step === 0}>
-                            {t("page.migration.back")}
-                        </Button>
-                        <Button type="button" onClick={next} disabled={!stepComplete}>
-                            {step >= STEP_COUNT - 1 ? t("page.migration.finish") : t("page.migration.next")}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => navigate("/ops")}>
-                            {t("page.migration.exit_ops")}
-                        </Button>
-                    </div>
+                        <p style={{ margin: 0, color: "var(--fg-2)", fontSize: 14, lineHeight: 1.6 }}>{bodies[step]}</p>
+                        <ul
+                            style={{
+                                margin: 0,
+                                paddingLeft: 20,
+                                fontSize: 13,
+                                color: "var(--fg-2)",
+                                lineHeight: 1.55,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                            }}
+                        >
+                            {(STEP_FOCUS_LINES[step] ?? []).map((line) => (
+                                <li key={line}>{line}</li>
+                            ))}
+                        </ul>
+                        <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                            <input type="checkbox" checked={stepComplete} onChange={toggleCheck} />
+                            <span style={{ fontSize: 14 }}>{t("page.migration.check_confirm")}</span>
+                        </label>
+                        <div className="row" style={{ gap: 10, marginTop: 8 }}>
+                            <Button type="button" variant="ghost" onClick={back} disabled={step === 0}>
+                                {t("page.migration.back")}
+                            </Button>
+                            <Button type="button" onClick={next} disabled={!stepComplete}>
+                                {step >= STEP_COUNT - 1 ? t("page.migration.finish") : t("page.migration.next")}
+                            </Button>
+                            <Button type="button" variant="secondary" onClick={() => (embedded ? onEmbeddedExit?.() : navigate("/ops"))}>
+                                {t("page.migration.exit_ops")}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </Card>
 
-            <DeviceFilePanel />
+            {step >= 2 ? (
+                <>
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", maxWidth: 720 }}>
+                        Ab Schritt 3: Schnittstellen-Stubs (GDT / DICOM / Scanner) zur technischen Verifikation — keine automatische Datenübernahme.
+                    </p>
+                    <DeviceFilePanel />
+                </>
+            ) : null}
         </div>
     );
 }

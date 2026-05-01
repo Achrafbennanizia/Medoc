@@ -47,6 +47,13 @@ export function appendInvoiceHistory(entry: SavedInvoice): void {
     saveInvoiceHistory([entry, ...rest]);
 }
 
+/** Drop cached PDF payloads for one patient (local-only history). */
+export function removeInvoiceHistoryForPatient(patientId: string): void {
+    if (!patientId || globalThis.localStorage == null) return;
+    const rest = loadInvoiceHistory().filter((x) => x.patientId !== patientId);
+    saveInvoiceHistory(rest);
+}
+
 export function sumInvoiceEur(inv: InvoiceInput): number {
     const cents = inv.lines.reduce((s, l) => s + l.amount_cents, 0);
     return Math.round(cents) / 100;

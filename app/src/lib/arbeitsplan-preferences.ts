@@ -103,7 +103,10 @@ function preferenceAppliesToPerson(p: PlanPreference, personalId: string): boole
     return p.personalIds.includes(personalId);
 }
 
-function mergeByLayer(segments: Array<{ a: number; b: number; kind: "work" | "break"; layer: number; id: string }>): Array<{ a: number; b: number; kind: "work" | "break"; sourceId: string; layer: number }> {
+function mergeByLayer(
+    segments: Array<{ a: number; b: number; kind: "work" | "break"; layer: number; id: string }>,
+): Array<{ a: number; b: number; kind: "work" | "break"; sourceId: string; layer: number }> {
+    /* ~O(k²) über Grenzpunkte k — bei üblichen Regelanzahlen (<50) vernachlässigbar. */
     if (segments.length === 0) return [];
     const ev = new Set<number>();
     for (const s of segments) {
@@ -249,6 +252,25 @@ export function defaultLayerForScope(scope: PlanScopeType): number {
     }
 }
 
+/** `proposedParentId` ließe einen Zyklus über `parentId`-Ketten zu (oder die Kette ist bereits zyklisch). */
+export function preferenceParentWouldCycle(
+    editingId: string | undefined,
+    proposedParentId: string | null,
+    allPrefs: PlanPreference[],
+): boolean {
+    if (!proposedParentId || !editingId) return false;
+    let cur: string | null = proposedParentId;
+    const seen = new Set<string>();
+    while (cur) {
+        if (cur === editingId) return true;
+        if (seen.has(cur)) return true;
+        seen.add(cur);
+        const row = allPrefs.find((p) => p.id === cur);
+        cur = row?.parentId ?? null;
+    }
+    return false;
+}
+
 /**
  * Automatische Kaskade: wählt eine „Basis“-Regel mit **breiterer** Geltung (niedrigerer `defaultLayerForScope`)
  * und gleicher Art; sonst mit breiterer Geltung beliebiger Art. Kein Vorgänger für reine „Allgemein“-Regeln.
@@ -275,9 +297,11 @@ export function inferAutoParentId(
         return sorted[0]!.id;
     };
     const fromSame = pick(sameKind);
-    if (fromSame) return fromSame;
+    if (fromSame && !preferenceParentWouldCycle(editingId, fromSame, allPrefs)) return fromSame;
     const anyKind = others.filter((p) => defaultLayerForScope(p.scopeType) < dLayer);
-    return pick(anyKind);
+    const fromAny = pick(anyKind);
+    if (fromAny && !preferenceParentWouldCycle(editingId, fromAny, allPrefs)) return fromAny;
+    return null;
 }
 
 export function newPlanPreferenceId(): string {

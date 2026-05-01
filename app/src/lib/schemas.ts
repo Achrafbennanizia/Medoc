@@ -28,7 +28,8 @@ const optionalText = z
     .optional()
     .transform((v) => (v == null || v === "" ? null : v));
 
-export const PatientGeschlechtSchema = z.enum(["M", "W", "D", "X"]);
+/** Matches Rust `Geschlecht` / DB CHECK and `PatientCreatePage` Select values. */
+export const PatientGeschlechtSchema = z.enum(["MAENNLICH", "WEIBLICH", "DIVERS"]);
 
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name ist erforderlich").max(120),

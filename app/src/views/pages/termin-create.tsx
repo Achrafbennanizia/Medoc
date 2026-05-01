@@ -90,9 +90,13 @@ export function TerminCreatePage() {
     const hasDatumParam = searchParams.has("datum");
     const hasPatientParam = searchParams.has("patient_id");
     const hasArtParam = searchParams.has("art");
+    const hasUhrzeitParam = searchParams.has("uhrzeit");
     const datumInit = searchParams.get("datum") ?? format(new Date(), "yyyy-MM-dd");
     const patientInit = searchParams.get("patient_id") ?? "";
     const artInit = searchParams.get("art") ?? "";
+    const uhrzeitInitRaw = searchParams.get("uhrzeit");
+    const uhrzeitInit =
+        uhrzeitInitRaw && /^\d{2}:\d{2}$/.test(uhrzeitInitRaw) ? uhrzeitInitRaw : null;
     const draftFromQuery = searchParams.get("draft");
     const [draftId] = useState(() => draftFromQuery ?? crypto.randomUUID());
     const [editLoaded, setEditLoaded] = useState<boolean>(!isEdit);
@@ -102,7 +106,7 @@ export function TerminCreatePage() {
     const patientPickerRef = useRef<HTMLDivElement>(null);
 
     const [datum, setDatum] = useState(datumInit);
-    const [uhrzeit, setUhrzeit] = useState("09:00");
+    const [uhrzeit, setUhrzeit] = useState(() => uhrzeitInit ?? "09:00");
     const [patientId, setPatientId] = useState(patientInit);
     const [arztId, setArztId] = useState("");
     const [art, setArt] = useState(() => normalizeArt(artInit));
@@ -164,7 +168,11 @@ export function TerminCreatePage() {
                 if (!hasPatientParam && d.patientQuery) {
                     setPatientQuery(d.patientQuery);
                 }
-                if (d.uhrzeit) setUhrzeit(d.uhrzeit);
+                if (hasUhrzeitParam && uhrzeitInit) {
+                    setUhrzeit(uhrzeitInit);
+                } else if (d.uhrzeit) {
+                    setUhrzeit(d.uhrzeit);
+                }
                 if (d.arztId) setArztId(d.arztId);
                 if (hasArtParam) {
                     setArt(normalizeArt(artInit));
@@ -181,7 +189,7 @@ export function TerminCreatePage() {
         } finally {
             setDraftHydrated(true);
         }
-    }, [draftId, hasDatumParam, hasPatientParam, hasArtParam, datumInit, patientInit, artInit, isEdit]);
+    }, [draftId, hasDatumParam, hasPatientParam, hasArtParam, hasUhrzeitParam, datumInit, patientInit, artInit, uhrzeitInit, isEdit]);
 
     useEffect(() => {
         if (!isEdit || !editId) return;

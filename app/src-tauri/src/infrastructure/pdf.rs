@@ -230,13 +230,102 @@ pub struct AkteDocument {
     pub generated_at: String,
 }
 
-/// Render a patient record as a single-page A4 PDF (FA-AKTE-04).
-///
-/// Mirrors `render` for invoices but lays out clinical data: patient header,
-/// diagnose, befunde, and a behandlungs-list. Output validates with qpdf.
-pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
-    let stream = build_akte_content_stream(doc);
-    let stream_bytes = stream.into_bytes();
+/// One titled block in a patient-record PDF (multi-page export).
+#[derive(Debug, Clone)]
+pub struct AktePdfBlock {
+    pub title: String,
+    pub body_lines: Vec<String>,
+}
+
+/// Multi-section patient record: A4, Helvetica, automatic page breaks (FA-AKTE-04 / Erweiterung).
+pub fn render_akte_blocks(
+    doc_title: &str,
+    generated_at: &str,
+    pdf_title_meta: &str,
+    blocks: &[AktePdfBlock],
+) -> Result<Vec<u8>, AppError> {
+    let mut page_streams: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut y: i32 = 800;
+
+    let emit_line =
+        |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
+            let _ = writeln!(
+                s,
+                "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
+                fs = font_size,
+                x = x,
+                y = y,
+                txt = pdf_escape(text),
+            );
+        };
+
+    let break_page = |cur: &mut String, streams: &mut Vec<String>, y: &mut i32| {
+        if !cur.is_empty() {
+            streams.push(std::mem::take(cur));
+        }
+        *y = 800;
+    };
+
+    emit_line(&mut cur, 60, y, 16, doc_title);
+    y -= 20;
+    emit_line(&mut cur, 60, y, 9, &format!("Erstellt: {}", generated_at));
+    y -= 24;
+    let _ = writeln!(cur, "{} {} m {} {} l S", 60, y, 540, y);
+    y -= 20;
+
+    if blocks.is_empty() {
+        emit_line(&mut cur, 60, y, 10, "(Keine Inhalte fuer diesen Export.)");
+        y -= 14;
+    }
+
+    for block in blocks {
+        if y < 100 {
+            break_page(&mut cur, &mut page_streams, &mut y);
+            emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
+            y -= 20;
+        }
+        emit_line(&mut cur, 60, y, 12, &block.title);
+        y -= 16;
+        if block.body_lines.is_empty() {
+            emit_line(&mut cur, 60, y, 10, "(keine Eintraege)");
+            y -= 12;
+        } else {
+            for raw in &block.body_lines {
+                for chunk in wrap_text(raw, 85) {
+                    if y < 55 {
+                        break_page(&mut cur, &mut page_streams, &mut y);
+                        emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
+                        y -= 20;
+                    }
+                    emit_line(&mut cur, 60, y, 10, &chunk);
+                    y -= 12;
+                }
+            }
+        }
+        y -= 6;
+        if y < 55 {
+            break_page(&mut cur, &mut page_streams, &mut y);
+        } else {
+            let _ = writeln!(cur, "{} {} m {} {} l S", 60, y, 540, y);
+            y -= 16;
+        }
+    }
+
+    if !cur.is_empty() {
+        page_streams.push(cur);
+    }
+    if page_streams.is_empty() {
+        page_streams.push(String::new());
+    }
+
+    emit_multipage_pdf(&page_streams, pdf_title_meta)
+}
+
+fn emit_multipage_pdf(page_streams: &[String], pdf_title_meta: &str) -> Result<Vec<u8>, AppError> {
+    let n = page_streams.len();
+    let font_id = 3 + n * 2;
+    let info_id = 4 + n * 2;
 
     let mut out: Vec<u8> = Vec::new();
     let mut offsets: Vec<usize> = Vec::new();
@@ -251,47 +340,72 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
     );
 
     offsets.push(out.len());
+    let kids: String = (0..n)
+        .map(|i| format!("{} 0 R", 3 + i * 2))
+        .collect::<Vec<_>>()
+        .join(" ");
     write_str(
         &mut out,
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    );
-
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        concat!(
-            "3 0 obj\n",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ",
-            "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\n",
-            "endobj\n",
+        &format!(
+            "2 0 obj\n<< /Type /Pages /Kids [{}] /Count {} >>\nendobj\n",
+            kids, n
         ),
     );
 
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!("4 0 obj\n<< /Length {} >>\nstream\n", stream_bytes.len()),
-    );
-    out.extend_from_slice(&stream_bytes);
-    write_str(&mut out, "\nendstream\nendobj\n");
+    for i in 0..n {
+        let page_id = 3 + i * 2;
+        let content_id = 4 + i * 2;
+        let stream_bytes = page_streams[i].as_bytes();
+
+        offsets.push(out.len());
+        write_str(
+            &mut out,
+            &format!(
+                "{p} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+                 /Resources << /Font << /F1 {f} 0 R >> >> /Contents {c} 0 R >>\nendobj\n",
+                p = page_id,
+                f = font_id,
+                c = content_id,
+            ),
+        );
+
+        offsets.push(out.len());
+        write_str(
+            &mut out,
+            &format!(
+                "{c} 0 obj\n<< /Length {} >>\nstream\n",
+                stream_bytes.len(),
+                c = content_id,
+            ),
+        );
+        out.extend_from_slice(stream_bytes);
+        write_str(&mut out, "\nendstream\nendobj\n");
+    }
 
     offsets.push(out.len());
     write_str(
         &mut out,
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+        &format!(
+            "{} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+            font_id
+        ),
     );
 
     offsets.push(out.len());
     write_str(
         &mut out,
         &format!(
-            "6 0 obj\n<< /Title ({}) /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
-            pdf_escape(&format!("Patientenakte {}", doc.patient_name)),
+            "{} 0 obj\n<< /Title ({}) /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
+            info_id,
+            pdf_escape(pdf_title_meta)
         ),
     );
 
     let xref_pos = out.len();
-    write_str(&mut out, &format!("xref\n0 {}\n", offsets.len() + 1));
+    write_str(
+        &mut out,
+        &format!("xref\n0 {}\n", offsets.len() + 1),
+    );
     write_str(&mut out, "0000000000 65535 f \n");
     for off in &offsets {
         write_str(&mut out, &format!("{:010} 00000 n \n", off));
@@ -299,8 +413,9 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
     write_str(
         &mut out,
         &format!(
-            "trailer\n<< /Size {} /Root 1 0 R /Info 6 0 R >>\nstartxref\n{}\n%%EOF\n",
+            "trailer\n<< /Size {} /Root 1 0 R /Info {} 0 R >>\nstartxref\n{}\n%%EOF\n",
             offsets.len() + 1,
+            info_id,
             xref_pos,
         ),
     );
@@ -308,96 +423,55 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
     Ok(out)
 }
 
-fn build_akte_content_stream(doc: &AkteDocument) -> String {
-    let mut s = String::new();
-    let mut y: i32 = 800;
-
-    let line = |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
-        let _ = writeln!(
-            s,
-            "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
-            fs = font_size,
-            x = x,
-            y = y,
-            txt = pdf_escape(text),
-        );
-    };
-
-    line(&mut s, 60, y, 16, "Patientenakte");
-    y -= 18;
-    line(&mut s, 60, y, 9, &format!("Erstellt: {}", doc.generated_at));
-    y -= 24;
-
-    line(&mut s, 60, y, 12, &format!("Patient: {}", doc.patient_name));
-    y -= 14;
-    line(
-        &mut s,
-        60,
-        y,
-        10,
-        &format!("Geburtsdatum: {}", doc.patient_geburtsdatum),
-    );
-    y -= 12;
-    line(
-        &mut s,
-        60,
-        y,
-        10,
-        &format!("Versicherungsnr.: {}", doc.patient_versicherungsnummer),
-    );
-    y -= 12;
-    line(&mut s, 60, y, 10, &format!("Status: {}", doc.akte_status));
-    y -= 24;
-
-    let _ = writeln!(s, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 16;
-    line(&mut s, 60, y, 12, "Diagnose");
-    y -= 14;
-    for chunk in wrap_text(doc.diagnose.as_deref().unwrap_or("(keine Eintragung)"), 90) {
-        line(&mut s, 60, y, 10, &chunk);
-        y -= 12;
-        if y < 80 {
-            break;
-        }
-    }
-
-    y -= 12;
-    let _ = writeln!(s, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 16;
-    line(&mut s, 60, y, 12, "Befunde");
-    y -= 14;
-    for chunk in wrap_text(doc.befunde.as_deref().unwrap_or("(keine Eintragung)"), 90) {
-        line(&mut s, 60, y, 10, &chunk);
-        y -= 12;
-        if y < 80 {
-            break;
-        }
-    }
-
-    y -= 12;
-    let _ = writeln!(s, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 16;
-    line(&mut s, 60, y, 12, "Behandlungen");
-    y -= 14;
-    if doc.behandlungen.is_empty() {
-        line(&mut s, 60, y, 10, "(keine Behandlungen erfasst)");
+/// Legacy single-layout export (subset). Prefer [`render_akte_blocks`] for neue Exporte.
+pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
+    let beh_lines: Vec<String> = if doc.behandlungen.is_empty() {
+        vec!["(keine Behandlungen erfasst)".to_string()]
     } else {
-        for (datum, beschreibung) in &doc.behandlungen {
-            line(
-                &mut s,
-                60,
-                y,
-                10,
-                &format!("{}  -  {}", datum, beschreibung),
-            );
-            y -= 12;
-            if y < 60 {
-                break;
-            }
-        }
-    }
+        doc.behandlungen
+            .iter()
+            .map(|(d, b)| format!("{} — {}", d, b))
+            .collect()
+    };
+    let diag = doc
+        .diagnose
+        .clone()
+        .unwrap_or_else(|| "(keine Eintragung)".to_string());
+    let bef = doc
+        .befunde
+        .clone()
+        .unwrap_or_else(|| "(keine Eintragung)".to_string());
 
-    s
+    let blocks = vec![
+        AktePdfBlock {
+            title: "Stammdaten / Aktenkopf".to_string(),
+            body_lines: vec![
+                format!("Patient: {}", doc.patient_name),
+                format!("Geburtsdatum: {}", doc.patient_geburtsdatum),
+                format!("Versicherungsnr.: {}", doc.patient_versicherungsnummer),
+                format!("Akten-Status: {}", doc.akte_status),
+            ],
+        },
+        AktePdfBlock {
+            title: "Diagnose".to_string(),
+            body_lines: vec![diag],
+        },
+        AktePdfBlock {
+            title: "Befunde (Freitext)".to_string(),
+            body_lines: vec![bef],
+        },
+        AktePdfBlock {
+            title: "Behandlungen".to_string(),
+            body_lines: beh_lines,
+        },
+    ];
+
+    render_akte_blocks(
+        "Patientenakte",
+        &doc.generated_at,
+        &format!("Patientenakte {}", doc.patient_name),
+        &blocks,
+    )
 }
 
 /// Naïve word-wrap to fit a fixed character width.

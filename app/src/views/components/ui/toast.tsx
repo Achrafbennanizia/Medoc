@@ -1,16 +1,51 @@
+import { useCallback, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n";
 import { useToastStore, type Toast as ToastItem } from "./toast-store";
 import { CheckIcon, XIcon } from "@/lib/icons";
 
-function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
+function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) => void }) {
     const t = useT();
     const isError = toast.type === "error";
     const live = isError ? "assertive" : "polite";
     const role = isError ? "alert" : "status";
 
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const remainingRef = useRef(toast.durationMs);
+    const endAtRef = useRef(0);
+    const pausedRef = useRef(false);
+
+    const armTimer = useCallback(() => {
+        clearTimeout(timeoutRef.current);
+        const delay = remainingRef.current;
+        endAtRef.current = Date.now() + delay;
+        timeoutRef.current = setTimeout(() => {
+            remove(toast.id);
+        }, delay + 400);
+    }, [remove, toast.id]);
+
+    useEffect(() => {
+        remainingRef.current = toast.durationMs;
+        pausedRef.current = false;
+        armTimer();
+        return () => clearTimeout(timeoutRef.current);
+    }, [toast.durationMs, armTimer]);
+
     const handleUndo = () => {
         toast.onUndo?.();
-        onDismiss();
+        remove(toast.id);
+    };
+
+    const onPointerEnter = () => {
+        if (pausedRef.current) return;
+        pausedRef.current = true;
+        clearTimeout(timeoutRef.current);
+        remainingRef.current = Math.max(0, endAtRef.current - Date.now());
+    };
+
+    const onPointerLeave = () => {
+        if (!pausedRef.current) return;
+        pausedRef.current = false;
+        armTimer();
     };
 
     return (
@@ -18,7 +53,10 @@ function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => voi
             className={`toast-item ${toast.type} animate-slide-up`}
             role={role}
             aria-live={live}
+            tabIndex={0}
             style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
+            onPointerEnter={onPointerEnter}
+            onPointerLeave={onPointerLeave}
         >
             <div className="toast-item-inner">
                 {toast.type === "success" && <CheckIcon aria-hidden />}
@@ -32,7 +70,7 @@ function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => voi
                 ) : null}
                 <button
                     type="button"
-                    onClick={onDismiss}
+                    onClick={() => remove(toast.id)}
                     aria-label={t("a11y.dismiss_notification")}
                     className="toast-dismiss"
                 >
@@ -61,7 +99,7 @@ export function ToastContainer() {
             aria-live="polite"
         >
             {toasts.map((toast) => (
-                <ToastRow key={toast.id} toast={toast} onDismiss={() => remove(toast.id)} />
+                <ToastRow key={toast.id} toast={toast} remove={remove} />
             ))}
         </div>
     );

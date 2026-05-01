@@ -20,10 +20,10 @@ import {
 } from "../../controllers/statistik.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
 import { errorMessage, formatCurrency } from "../../lib/utils";
+import { openExportPreview } from "../../models/store/export-preview-store";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { useToastStore } from "../components/ui/toast-store";
 import { ExportIcon, NAV_ICONS } from "@/lib/icons";
 
 type Period = "6m" | "12m";
@@ -397,7 +397,6 @@ function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
 }
 
 export function StatistikPage() {
-    const toast = useToastStore((s) => s.add);
     const [period, setPeriod] = useState<Period>("6m");
     const [stats, setStats] = useState<StatistikOverview | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -517,14 +516,14 @@ export function StatistikPage() {
         for (const v of stats.bestellungen_nach_status) rows.push(["Bestellungen", `Status ${v.label}`, v.value]);
 
         const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `medoc-statistik-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast("Statistik wurde heruntergeladen.", "success");
+        const csvBody = `\uFEFF${csv}`;
+        openExportPreview({
+            format: "csv",
+            title: "Statistik exportieren",
+            hint: `Auswertung ${periodLabel} · Semikolon-getrennt. Spaltenköpfe zum Sortieren.`,
+            suggestedFilename: `medoc-statistik-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+            textBody: csvBody,
+        });
     }
 
     const lastEinnMonth = dash.einn6.length > 0 ? dash.einn6[dash.einn6.length - 1]! : null;
@@ -563,7 +562,7 @@ export function StatistikPage() {
                     <Button type="button" variant="ghost" onClick={reload} title="Daten neu laden">
                         Aktualisieren
                     </Button>
-                    <Button type="button" variant="secondary" onClick={exportCsv}>
+                    <Button type="button" variant="secondary" onClick={() => void exportCsv()}>
                         <ExportIcon size={14} /> CSV-Export
                     </Button>
                 </div>

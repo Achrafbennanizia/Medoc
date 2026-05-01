@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
-import { listZahlungen, updateZahlungStatus } from "../../controllers/zahlung.controller";
+import { listZahlungen } from "../../controllers/zahlung.controller";
 import { listPatienten } from "../../controllers/patient.controller";
 import { listBestellungen, updateBestellungStatus } from "../../controllers/bestellung.controller";
 import type { BestellStatus, Bestellung } from "../../controllers/bestellung.controller";
 import { parseRole, allowed } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
-import type { Zahlung, Patient, ZahlungsArt, ZahlungsStatus } from "../../models/types";
+import { openExportPreview } from "../../models/store/export-preview-store";
+import type { Zahlung, Patient, ZahlungsArt } from "../../models/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/input";
@@ -15,13 +16,6 @@ import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ExportIcon, FilterIcon, MoreIcon, NAV_ICONS } from "@/lib/icons";
-
-const ZAHLUNG_STATUS_OPTIONS: readonly { value: ZahlungsStatus; label: string }[] = [
-    { value: "AUSSTEHEND", label: "Ausstehend" },
-    { value: "BEZAHLT", label: "Bezahlt" },
-    { value: "TEILBEZAHLT", label: "Teilbezahlt" },
-    { value: "STORNIERT", label: "Storniert" },
-];
 
 const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
     { value: "OFFEN", label: "Offen" },
@@ -194,7 +188,6 @@ export function FinanzenPage() {
     const [txTab, setTxTab] = useState<FinanzTxTab>("alle");
     const [artFilter, setArtFilter] = useState<"ALLE" | ZahlungsArt>("ALLE");
     const [filterExtrasOpen, setFilterExtrasOpen] = useState(false);
-    const [statusUpdatingZahlId, setStatusUpdatingZahlId] = useState<string | null>(null);
     const [statusUpdatingBestellId, setStatusUpdatingBestellId] = useState<string | null>(null);
     const [listLoading, setListLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -309,14 +302,15 @@ export function FinanzenPage() {
                 lines.push(row.map(escapeCsvCell).join(","));
             }
         }
-        const blob = new Blob([`\uFEFF${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `medoc-finanzen-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        toast("CSV-Export heruntergeladen");
-    }, [sortedRows, patientMap, toast]);
+        const csvBody = `\uFEFF${lines.join("\r\n")}`;
+        openExportPreview({
+            format: "csv",
+            title: "Finanzen exportieren",
+            hint: "Transaktionsliste (Komma, UTF-8 mit BOM für Excel). Spalten sortieren optional.",
+            suggestedFilename: `medoc-finanzen-${new Date().toISOString().slice(0, 10)}.csv`,
+            textBody: csvBody,
+        });
+    }, [sortedRows, patientMap]);
 
     if (listLoading) {
         return (
@@ -334,20 +328,6 @@ export function FinanzenPage() {
             </div>
         );
     }
-
-    const handleZahlStatusChange = async (z: Zahlung, status: ZahlungsStatus) => {
-        if (status === z.status) return;
-        setStatusUpdatingZahlId(z.id);
-        try {
-            const updated = await updateZahlungStatus(z.id, status);
-            setZahlungen((list) => list.map((row) => (row.id === updated.id ? updated : row)));
-            toast("Zahlungsstatus aktualisiert");
-        } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`);
-        } finally {
-            setStatusUpdatingZahlId(null);
-        }
-    };
 
     const handleBestellStatusChange = async (b: Bestellung, status: BestellStatus) => {
         if (status === b.status) return;
@@ -661,30 +641,10 @@ export function FinanzenPage() {
                                             <td>
                                                 <div className="finanzen-amt-col">
                                                     <div className={["finanzen-amt", zahlungAmt.cls].join(" ")}>{zahlungAmt.text}</div>
-                                                    {canWriteZahlung ? (
-                                                        <div className="finanzen-zahl-status-block">
-                                                            <span className="finanzen-zahl-status-hint">Zahlung</span>
-                                                            <Select
-                                                                id={`zahlung-status-${z.id}`}
-                                                                className="finanzen-zahl-status-select w-full min-w-0"
-                                                                aria-label={`Zahlungsstatus: ${formatCurrency(z.betrag)}`}
-                                                                value={z.status}
-                                                                disabled={statusUpdatingZahlId === z.id}
-                                                                onChange={(e) =>
-                                                                    handleZahlStatusChange(z, e.target.value as ZahlungsStatus)
-                                                                }
-                                                                options={ZAHLUNG_STATUS_OPTIONS.map((o) => ({
-                                                                    value: o.value,
-                                                                    label: o.label,
-                                                                }))}
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="finanzen-pill">
-                                                            <span className="finanzen-pill__dot" data-s={statusPillToken(z.status)} />
-                                                            <Badge variant={st.variant}>{st.label}</Badge>
-                                                        </div>
-                                                    )}
+                                                    <div className="finanzen-pill">
+                                                        <span className="finanzen-pill__dot" data-s={statusPillToken(z.status)} />
+                                                        <Badge variant={st.variant}>{st.label}</Badge>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td>

@@ -68,7 +68,6 @@ const RezeptEditPage = lazy(async () => ({ default: (await import("./views/pages
 const BestellungenPage = lazy(async () => ({ default: (await import("./views/pages/bestellungen")).BestellungenPage }));
 const BestellungCreatePage = lazy(async () => ({ default: (await import("./views/pages/bestellung-create")).BestellungCreatePage }));
 const BestellungDetailPage = lazy(async () => ({ default: (await import("./views/pages/bestellung-detail")).BestellungDetailPage }));
-const HilfePage = lazy(async () => ({ default: (await import("./views/pages/hilfe")).HilfePage }));
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
 
@@ -80,7 +79,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function RouteFallback() {
     return (
-        <div style={{ padding: 32, display: "flex", justifyContent: "center" }}>
+        <div className="route-fallback">
             <PageLoading label="Seite wird geladen…" />
         </div>
     );
@@ -220,7 +219,7 @@ export default function App() {
                     <Route path="logs" element={<RoleRoute routePath="logs"><LoggingPage /></RoleRoute>} />
                     <Route path="ops" element={<RoleRoute routePath="ops"><OpsPage /></RoleRoute>} />
                     <Route path="compliance" element={<RoleRoute routePath="compliance"><CompliancePage /></RoleRoute>} />
-                    <Route path="hilfe" element={<RoleRoute routePath="hilfe"><HilfePage /></RoleRoute>} />
+                    <Route path="hilfe" element={<RoleRoute routePath="hilfe"><Navigate to="/einstellungen?tab=hilfe" replace /></RoleRoute>} />
                     <Route path="feedback" element={<RoleRoute routePath="feedback"><FeedbackPage /></RoleRoute>} />
                     <Route path="migration" element={<RoleRoute routePath="migration"><MigrationWizardPage /></RoleRoute>} />
                 </Route>

@@ -1,7 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
 use sqlx::SqlitePool;
-use std::path::PathBuf;
 use tauri::State;
 
 use crate::application::rbac;
@@ -32,16 +31,12 @@ pub fn set_log_level(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, output_path))]
-pub fn export_logs(
-    session_state: State<'_, SessionState>,
-    output_path: String,
-) -> Result<u64, AppError> {
+#[tracing::instrument(level = "info", skip(session_state))]
+pub fn export_logs(session_state: State<'_, SessionState>) -> Result<Vec<u8>, AppError> {
     rbac::require(&session_state, "ops.logs")?;
-    let path = PathBuf::from(&output_path);
-    let bytes = logging::export::export(logging::log_dir()?, &path)?;
-    log_system!(info, event = "LOG_EXPORT", output = %output_path, bytes);
-    Ok(bytes)
+    let zip = logging::export::export_to_vec(logging::log_dir()?)?;
+    log_system!(info, event = "LOG_EXPORT", bytes = zip.len());
+    Ok(zip)
 }
 
 #[tauri::command]

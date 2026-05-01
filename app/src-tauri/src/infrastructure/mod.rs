@@ -1,3 +1,4 @@
+pub mod app_menu;
 pub mod backup;
 pub mod crypto;
 pub mod database;

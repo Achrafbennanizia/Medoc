@@ -43,6 +43,7 @@ base64 = "0.22"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 regex = "1"
 dirs = "5"
+rfd = "0.15"
 
 [dev-dependencies]
 filetime = "0.2.27"

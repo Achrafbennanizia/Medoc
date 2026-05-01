@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, Fragment, type ReactNode } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { deletePatient, getPatient, updatePatient } from "../../controllers/patient.controller";
 import {
@@ -16,9 +16,16 @@ import {
     deleteBehandlung,
     updateUntersuchung,
     deleteUntersuchung,
+    listAkteAnlagen,
+    createAkteAnlage,
+    deleteAkteAnlage,
+    renameAkteAnlage,
+    openAkteAnlageExternally,
+    duplicateAkteAnlage,
 } from "../../controllers/akte.controller";
 import { listBehandlungsKatalog, listDokumentVorlagen, createDokumentVorlage } from "../../controllers/praxis.controller";
-import { formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
+import { escapeHtml, formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
+import { saveOrDownloadBytes } from "../../lib/save-download";
 import { allowed, parseRole } from "../../lib/rbac";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, BehandlungsKatalogItem, DokumentVorlage } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -28,6 +35,7 @@ import { Button } from "../components/ui/button";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading } from "../components/ui/page-status";
+import { Spinner } from "../components/ui/spinner";
 import { DentalChart } from "../components/DentalChart";
 import { DentalMiniBar } from "../components/DentalMiniBar";
 import { AnamneseVisual } from "../components/AnamneseVisual";
@@ -60,7 +68,8 @@ import {
     type ValidationState,
 } from "@/lib/akte-validation";
 import { listRezepte, deleteRezept, createRezept, updateRezept, type Rezept } from "@/controllers/rezept.controller";
-import { listZahlungen, createZahlung, updateZahlung, deleteZahlung } from "@/controllers/zahlung.controller";
+import { listAtteste, createAttest, deleteAttest, type Attest } from "@/controllers/attest.controller";
+import { listZahlungenForPatient, createZahlung, updateZahlung, deleteZahlung } from "@/controllers/zahlung.controller";
 import type { Zahlung, ZahlungsArt } from "@/models/types";
 import {
     emptyPlanNextTermin,
@@ -78,11 +87,30 @@ import {
     rezeptLinesToVorlageItems,
     type RezeptLine,
 } from "@/lib/medikamente";
-import { validateAnlageFile, buildAnlageRowFromFile, type AkteAnlage } from "@/lib/akte-anlagen";
+import {
+    ATTEST_TYP_OPTIONS,
+    KRANKHEITEN_SUGGESTIONS,
+    attestGueltigBisFromVonAndTage,
+    buildAttestInhalt,
+    emptyAttestComposerForm,
+    parseAttestVorlagePayload,
+    validateAttestComposer,
+    type AttestComposerFormFields,
+} from "@/lib/attest-composer";
+import {
+    validateAnlageFile,
+    mapAkteAnlageRowDto,
+    fileToBase64ForAnlage,
+    type AkteAnlage,
+} from "@/lib/akte-anlagen";
+import { loadClientSettings } from "@/lib/client-settings";
+import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
     ZAHLUNG_ART_SELECT,
     ZAHL_EUR_EPS,
-    buildZahlLinkSelectOptions,
+    aggregateZahlungenByZuordnung,
+    buildOpenZahlLinkSelectOptions,
+    formatZahlungBezugLine,
     maxEditZahlungBehandlung,
     maxNeuZahlungBehandlung,
     roundMoney2,
@@ -111,75 +139,35 @@ const TAB_IDS = ["stamm", "anam", "unter", "behand", "rezept", "anlage", "zahl"]
 type AkteTab = (typeof TAB_IDS)[number];
 
 type RezeptWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
+type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 
-/** Bestätigung am Ende einer Speicher-/Validierungsaktion in der Patientenakte. */
+/** Bestätigung nur für sensible Aktionen (Vorlage + Rezepte, Anlagen). Normale Speicherungen: Toast + optional Rückgängig. */
 type AkteSavePending =
-    | { kind: "patient" }
-    | { kind: "anamnese" }
-    | { kind: "untersuchung_create"; payload: { beschwerden: string; diagnose: string; ergebnisseJson: string } }
-    | { kind: "untersuchung_update"; id: string; payload: { beschwerden: string; diagnose: string; ergebnisseJson: string } }
-    | { kind: "behandlung" }
-    | { kind: "rezept_edit" }
-    | { kind: "rezept_persist"; lines: RezeptLine[]; shared: string }
     | { kind: "rezept_finalize_vorlage"; titel: string; lines: RezeptLine[]; shared: string }
-    | { kind: "anlage_add"; row: AkteAnlage }
-    | { kind: "anlage_remove"; idx: number; name: string }
-    | { kind: "zahl_edit" };
+    | { kind: "attest_finalize_vorlage"; titel: string; fields: AttestComposerFormFields }
+    | { kind: "anlage_add"; file: File }
+    | { kind: "anlage_remove"; id: string; name: string };
+
+const TOAST_UNDO_MS = 5200;
 
 function akteSaveConfirmUi(p: AkteSavePending): { title: string; message: string; confirmLabel: string } {
     switch (p.kind) {
-        case "patient":
-            return {
-                title: "Stammdaten speichern",
-                message: "Die geänderten Stammdaten jetzt dauerhaft speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "anamnese":
-            return {
-                title: "Anamnese speichern",
-                message: "Die Anamnese jetzt speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "untersuchung_create":
-            return {
-                title: "Untersuchung speichern",
-                message: "Diese neue Untersuchung in der Akte speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "untersuchung_update":
-            return {
-                title: "Untersuchung speichern",
-                message: "Die Änderungen an dieser Untersuchung speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "behandlung":
-            return {
-                title: "Behandlung speichern",
-                message: "Die Behandlungszeile jetzt in der Akte speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "rezept_edit":
-            return {
-                title: "Rezept speichern",
-                message: "Die Rezeptänderungen speichern?",
-                confirmLabel: "Speichern",
-            };
-        case "rezept_persist":
-            return {
-                title: "Rezepte speichern",
-                message: `${p.lines.length} Rezeptzeile${p.lines.length === 1 ? "" : "n"} für diesen Patienten speichern?`,
-                confirmLabel: "Speichern",
-            };
         case "rezept_finalize_vorlage":
             return {
                 title: "Vorlage und Rezepte speichern",
                 message: `Praxis-Vorlage „${p.titel}“ anlegen und ${p.lines.length} Rezeptzeile${p.lines.length === 1 ? "" : "n"} speichern?`,
                 confirmLabel: "Speichern",
             };
+        case "attest_finalize_vorlage":
+            return {
+                title: "Vorlage und Attest speichern",
+                message: `Praxis-Vorlage „${p.titel}“ anlegen und das Attest für diesen Patienten speichern?`,
+                confirmLabel: "Speichern",
+            };
         case "anlage_add":
             return {
                 title: "Anlage hinzufügen",
-                message: `Die Datei „${p.row.name}“ zur Liste der Anlagen hinzufügen?`,
+                message: `Die Datei „${p.file.name}“ dauerhaft in der Akte speichern?`,
                 confirmLabel: "Hinzufügen",
             };
         case "anlage_remove":
@@ -187,12 +175,6 @@ function akteSaveConfirmUi(p: AkteSavePending): { title: string; message: string
                 title: "Anlage entfernen",
                 message: `„${p.name}“ aus den Anlagen entfernen?`,
                 confirmLabel: "Entfernen",
-            };
-        case "zahl_edit":
-            return {
-                title: "Zahlung speichern",
-                message: "Die Zahlungsänderungen speichern?",
-                confirmLabel: "Speichern",
             };
         default:
             return { title: "Bestätigen", message: "Fortfahren?", confirmLabel: "OK" };
@@ -220,12 +202,42 @@ function resolveKatalogIdForBehandlung(katalog: BehandlungsKatalogItem[], b: Beh
     return sub?.id ?? "";
 }
 
+function behandlungToUpdatePayload(b: Behandlung) {
+    return {
+        id: b.id,
+        art: b.art,
+        beschreibung: b.beschreibung,
+        zaehne: b.zaehne,
+        material: b.material,
+        notizen: b.notizen,
+        kategorie: b.kategorie ?? null,
+        leistungsname: b.leistungsname ?? null,
+        behandlungsnummer: b.behandlungsnummer,
+        sitzung: b.sitzung,
+        behandlung_status: b.behandlung_status,
+        gesamtkosten: b.gesamtkosten,
+        termin_erforderlich: (b.termin_erforderlich ?? 0) === 1,
+        behandlung_datum: b.behandlung_datum,
+    };
+}
+
 function behandlungContinueLabel(b: Behandlung): string {
     const bn = (b.behandlungsnummer ?? "").trim() || "—";
     const sitz = b.sitzung != null ? String(b.sitzung) : "?";
     const titel = b.leistungsname || b.beschreibung || b.art;
     const d = b.behandlung_datum ? formatDate(b.behandlung_datum) : formatDateTime(b.created_at);
     return `${bn} · Sitzung ${sitz} · ${titel} · ${d}`;
+}
+
+function alterAusGeburtsdatum(geburtsdatum: string): number | null {
+    const raw = geburtsdatum.slice(0, 10);
+    const d = new Date(`${raw}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    const t = new Date();
+    let a = t.getFullYear() - d.getFullYear();
+    const m = t.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a -= 1;
+    return Math.max(0, a);
 }
 
 export function PatientDetailPage() {
@@ -285,14 +297,32 @@ export function PatientDetailPage() {
     const [activeTab, setActiveTab] = useState<AkteTab>("stamm");
     const [rezeptDeleteId, setRezeptDeleteId] = useState<string | null>(null);
     const [rezepte, setRezepte] = useState<Rezept[]>([]);
+    /** Unteransicht auf dem Tab „Rezepte & Atteste“. */
+    const [rezeptAttestSub, setRezeptAttestSub] = useState<"rezept" | "attest">("rezept");
+    const [atteste, setAtteste] = useState<Attest[]>([]);
+    const [attestDeleteId, setAttestDeleteId] = useState<string | null>(null);
+    const [attestVorlagen, setAttestVorlagen] = useState<DokumentVorlage[]>([]);
+    const [attestWizardStep, setAttestWizardStep] = useState<AttestWizardStep>(null);
+    const attestWizardPanelRef = useRef<HTMLDivElement>(null);
+    const [attestComposerKind, setAttestComposerKind] = useState<"vorlage" | "neu">("neu");
+    const [attestForm, setAttestForm] = useState<AttestComposerFormFields>(() =>
+        emptyAttestComposerForm(new Date().toISOString().slice(0, 10)));
+    const [attestBaselineJson, setAttestBaselineJson] = useState<string | null>(null);
+    const [attestComposerBusy, setAttestComposerBusy] = useState(false);
+    const [attestDraftErr, setAttestDraftErr] = useState<string | null>(null);
+    const [attestPickQuery, setAttestPickQuery] = useState("");
+    const [attestPickSelectedId, setAttestPickSelectedId] = useState("");
+    const [attestNewVorlageTitel, setAttestNewVorlageTitel] = useState("");
+    const [attestPendingQueue, setAttestPendingQueue] = useState<AttestComposerFormFields | null>(null);
     const [zahlungen, setZahlungen] = useState<Zahlung[]>([]);
     const [anlagen, setAnlagen] = useState<AkteAnlage[]>([]);
+    const anlagenRef = useRef<AkteAnlage[]>([]);
     const anlageFileInputId = useId();
+    const anlageCameraInputId = useId();
     const [showEditPatient, setShowEditPatient] = useState(false);
     const [akteSaveConfirm, setAkteSaveConfirm] = useState<AkteSavePending | null>(null);
     const [akteSaveBusy, setAkteSaveBusy] = useState(false);
     /** Wenn Speichern über ein Popup läuft (z. B. Untersuchung), hier den Composer entblocken. */
-    const akteSaveUnblockRef: MutableRefObject<(() => void) | null> = useRef(null);
     const [patientDeleteOpen, setPatientDeleteOpen] = useState(false);
     const [patientDeleteBusy, setPatientDeleteBusy] = useState(false);
     const [editForm, setEditForm] = useState({ name: "", telefon: "", email: "", adresse: "" });
@@ -326,6 +356,7 @@ export function PatientDetailPage() {
         zahlungsart: "BAR" as ZahlungsArt,
         beschreibung: "",
     });
+    const [zahlListenModus, setZahlListenModus] = useState<"summe" | "historie">("summe");
 
     const [rezeptVorlagen, setRezeptVorlagen] = useState<DokumentVorlage[]>([]);
     const [rezeptPickQuery, setRezeptPickQuery] = useState("");
@@ -366,6 +397,10 @@ export function PatientDetailPage() {
         setItemValidation(loadItemValidationMap(id));
         setPlanNext(loadPlanNextTermin(id));
     }, [id]);
+
+    useEffect(() => {
+        anlagenRef.current = anlagen;
+    }, [anlagen]);
 
     /** Mark a section validated; informs the user via toast. */
     const validateSection = useCallback(
@@ -445,6 +480,15 @@ export function PatientDetailPage() {
         navigate({ pathname: location.pathname, search: location.search, hash: tab }, { replace: true });
     };
 
+    const refreshAnlagen = useCallback(async (akteId: string) => {
+        try {
+            const rows = await listAkteAnlagen(akteId);
+            setAnlagen(rows.map(mapAkteAnlageRowDto));
+        } catch {
+            setAnlagen([]);
+        }
+    }, []);
+
     const load = useCallback(async () => {
         if (!id) return;
         setPatientLoadError(null);
@@ -468,15 +512,22 @@ export function PatientDetailPage() {
         setUntersuchungen([]);
         setKatalog([]);
         setRezepte([]);
+        setAtteste([]);
         setZahlungen([]);
         setAnamneseJson("");
         setAnamneseSign(false);
         try {
             const a = await getAkte(id);
             setAkte(a);
-            const [rez, allZahlungen] = await Promise.all([listRezepte(id), listZahlungen()]);
+            void refreshAnlagen(a.id);
+            const [rez, zPat, att] = await Promise.all([
+                listRezepte(id),
+                listZahlungenForPatient(id),
+                listAtteste(id),
+            ]);
             setRezepte(rez);
-            setZahlungen(allZahlungen.filter((z) => z.patient_id === id));
+            setZahlungen(zPat);
+            setAtteste(att);
             if (canViewClinical) {
                 const [z, bh, u, am, katRows] = await Promise.all([
                     listZahnbefunde(a.id),
@@ -514,15 +565,28 @@ export function PatientDetailPage() {
             setBehandlungen([]);
             setUntersuchungen([]);
             setKatalog([]);
+            setAnlagen([]);
             if (isPatientenakteMissingError(e)) {
                 setAkteLoadError(null);
             } else {
                 setAkteLoadError(e instanceof Error ? e.message : String(e));
             }
         }
-    }, [id, canViewClinical, canListBehandlungenForZahlung]);
+    }, [id, canViewClinical, canListBehandlungenForZahlung, refreshAnlagen]);
 
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => () => {
+        for (const a of anlagenRef.current) {
+            if (a.previewUrl.startsWith("blob:")) {
+                try {
+                    URL.revokeObjectURL(a.previewUrl);
+                } catch {
+                    /* ignore */
+                }
+            }
+        }
+    }, []);
 
     /* Unlock state only when switching to another row id, not on every field mutation. */
     /* eslint-disable react-hooks/exhaustive-deps */
@@ -540,8 +604,29 @@ export function PatientDetailPage() {
     /* eslint-enable react-hooks/exhaustive-deps */
 
     useEffect(() => {
+        if (!id) return;
+        const v =
+            zahlNewForm.linkKind && zahlNewForm.linkId
+                ? `${zahlNewForm.linkKind}:${zahlNewForm.linkId}`
+                : "";
+        if (!v) return;
+        const openOpts = buildOpenZahlLinkSelectOptions(zahlungen, id, behandlungen, untersuchungen);
+        if (!openOpts.some((o) => o.value === v)) {
+            setZahlNewForm((p) => ({ ...p, linkKind: "", linkId: "" }));
+        }
+    }, [id, zahlungen, behandlungen, untersuchungen, zahlNewForm.linkKind, zahlNewForm.linkId]);
+
+    useEffect(() => {
         setAnlagen((prev) => {
-            for (const a of prev) URL.revokeObjectURL(a.previewUrl);
+            for (const a of prev) {
+                if (a.previewUrl.startsWith("blob:")) {
+                    try {
+                        URL.revokeObjectURL(a.previewUrl);
+                    } catch {
+                        /* ignore */
+                    }
+                }
+            }
             return [];
         });
     }, [id]);
@@ -569,18 +654,50 @@ export function PatientDetailPage() {
             const bin = atob(b64);
             const bytes = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            const blob = new Blob([bytes], { type: "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `akte-${id}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast("PDF exportiert");
+            const ok = await saveOrDownloadBytes(`akte-${id}.pdf`, bytes, "application/pdf");
+            if (ok) toast("PDF exportiert");
         } catch (e) {
             toast(`Fehler: ${(e as Error).message ?? e}`);
         } finally {
             setPdfBusy(false);
+        }
+    };
+
+    const runSavePatient = async () => {
+        if (!id || !patient || !editForm.name.trim()) return;
+        const prev = {
+            name: patient.name,
+            telefon: patient.telefon ?? "",
+            email: patient.email ?? "",
+            adresse: patient.adresse ?? "",
+        };
+        try {
+            await updatePatient(id, {
+                name: editForm.name,
+                telefon: editForm.telefon || null,
+                email: editForm.email || null,
+                adresse: editForm.adresse || null,
+            });
+            toast("Patient gespeichert", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await updatePatient(id, {
+                            name: prev.name,
+                            telefon: prev.telefon || null,
+                            email: prev.email || null,
+                            adresse: prev.adresse || null,
+                        });
+                        await load();
+                    } catch (err) {
+                        toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                    }
+                },
+            });
+            setShowEditPatient(false);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
         }
     };
 
@@ -613,13 +730,40 @@ export function PatientDetailPage() {
             termin_erforderlich: behandForm.termin_erforderlich === "1",
             behandlung_datum: behandForm.datum.trim() || null,
         };
-        if (behandEditId) {
-            await updateBehandlung({ id: behandEditId, ...payload });
-            toast("Behandlung aktualisiert");
-            setBehandEditId(null);
-        } else {
-            await createBehandlung({ akte_id: akte.id, ...payload });
-            toast("Behandlung dokumentiert");
+        const prevBh = behandEditId ? behandlungen.find((b) => b.id === behandEditId) ?? null : null;
+        try {
+            if (behandEditId) {
+                await updateBehandlung({ id: behandEditId, ...payload });
+                toast("Behandlung aktualisiert", "success", {
+                    durationMs: TOAST_UNDO_MS,
+                    onUndo: async () => {
+                        if (!prevBh) return;
+                        try {
+                            await updateBehandlung(behandlungToUpdatePayload(prevBh));
+                            await load();
+                        } catch (err) {
+                            toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                        }
+                    },
+                });
+                setBehandEditId(null);
+            } else {
+                const created = await createBehandlung({ akte_id: akte.id, ...payload });
+                toast("Behandlung dokumentiert", "success", {
+                    durationMs: TOAST_UNDO_MS,
+                    onUndo: async () => {
+                        try {
+                            await deleteBehandlung(created.id);
+                            await load();
+                        } catch (err) {
+                            toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                        }
+                    },
+                });
+            }
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            return;
         }
         setBehandForm({
             datum: new Date().toISOString().slice(0, 10),
@@ -641,7 +785,7 @@ export function PatientDetailPage() {
         await load();
     };
 
-    const requestSaveBehandlung = () => {
+    const runSaveBehandlung = () => {
         if (!akte) return;
         if (behandEditId && !behandFormUnlocked) {
             toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
@@ -651,19 +795,29 @@ export function PatientDetailPage() {
             toast("Kategorie und Leistungsname auswählen oder eintragen.", "error");
             return;
         }
-        setAkteSaveConfirm({ kind: "behandlung" });
+        void persistBehandlungAfterConfirm();
     };
 
     const persistUntersuchungCreate = async (data: { beschwerden: string; diagnose: string; ergebnisseJson: string }) => {
         if (!akte) return;
         try {
-            await createUntersuchung({
+            const created = await createUntersuchung({
                 akte_id: akte.id,
                 beschwerden: data.beschwerden.trim() || null,
                 ergebnisse: data.ergebnisseJson.trim() || null,
                 diagnose: data.diagnose.trim() || null,
             });
-            toast("Untersuchung erfasst");
+            toast("Untersuchung erfasst", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await deleteUntersuchung(created.id);
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
             setShowUnterComposer(false);
             setUntersuchungForm({ beschwerden: "", ergebnisse: "", diagnose: "" });
             await load();
@@ -678,10 +832,45 @@ export function PatientDetailPage() {
             diagnose: untersuchungForm.diagnose,
             ergebnisseJson: untersuchungForm.ergebnisse,
         };
-        return new Promise<void>((resolve) => {
-            akteSaveUnblockRef.current = resolve;
-            setAkteSaveConfirm({ kind: "untersuchung_create", payload: data });
-        });
+        await persistUntersuchungCreate(data);
+    };
+
+    const runSaveUntersuchungEdit = async (payload: { beschwerden: string; diagnose: string; ergebnisseJson: string }) => {
+        if (!unterEdit) return;
+        const uid = unterEdit.id;
+        const prevSnap = {
+            beschwerden: unterEdit.beschwerden,
+            diagnose: unterEdit.diagnose,
+            ergebnisse: unterEdit.ergebnisse,
+        };
+        try {
+            await updateUntersuchung({
+                id: uid,
+                beschwerden: payload.beschwerden.trim() || null,
+                ergebnisse: payload.ergebnisseJson.trim() || null,
+                diagnose: payload.diagnose.trim() || null,
+            });
+            toast("Untersuchung gespeichert", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await updateUntersuchung({
+                            id: uid,
+                            beschwerden: prevSnap.beschwerden ?? null,
+                            ergebnisse: prevSnap.ergebnisse ?? null,
+                            diagnose: prevSnap.diagnose ?? null,
+                        });
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            setUnterEdit(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
     };
 
     const cancelAnamneseEdit = useCallback(() => {
@@ -695,7 +884,7 @@ export function PatientDetailPage() {
         setAnamEditing(false);
     }, [anamneseJson]);
 
-    const persistAnamneseAfterConfirm = async () => {
+    const runSaveAnamnese = async () => {
         if (!id) return;
         const merged = mergeQuickIntoAnamneseJson(anamneseJson, anamQuick);
         let antworten: unknown;
@@ -703,29 +892,45 @@ export function PatientDetailPage() {
             antworten = JSON.parse(merged || "{}");
         } catch {
             toast("Anamnese: Ungültiges Datenformat");
-            throw new Error("invalid-json");
+            return;
         }
-        await saveAnamnesebogen({
-            patient_id: id,
-            antworten,
-            unterschrieben: anamneseSign,
-        });
-        toast("Anamnese gespeichert");
-        setAnamneseJson(JSON.stringify(antworten, null, 2));
-        setAnamEditing(false);
-        await load();
-    };
-
-    const requestSaveAnamnese = () => {
-        if (!id) return;
-        const merged = mergeQuickIntoAnamneseJson(anamneseJson, anamQuick);
+        const rollbackJson = anamneseJson;
+        const rollbackQuick = { ...anamQuick };
+        const rollbackSign = anamneseSign;
+        let rollbackParsed: unknown;
         try {
-            JSON.parse(merged || "{}");
+            rollbackParsed = JSON.parse(mergeQuickIntoAnamneseJson(rollbackJson, rollbackQuick) || "{}");
         } catch {
             toast("Anamnese: Ungültiges Datenformat");
             return;
         }
-        setAkteSaveConfirm({ kind: "anamnese" });
+        try {
+            await saveAnamnesebogen({
+                patient_id: id,
+                antworten,
+                unterschrieben: anamneseSign,
+            });
+            toast("Anamnese gespeichert", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await saveAnamnesebogen({
+                            patient_id: id,
+                            antworten: rollbackParsed,
+                            unterschrieben: rollbackSign,
+                        });
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            setAnamneseJson(JSON.stringify(antworten, null, 2));
+            setAnamEditing(false);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
     };
 
     const handleDeleteRezept = async () => {
@@ -735,6 +940,19 @@ export function PatientDetailPage() {
             await deleteRezept(rid);
             toast("Rezept gelöscht");
             setRezeptDeleteId(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
+    };
+
+    const handleDeleteAttest = async () => {
+        if (!attestDeleteId) return;
+        const aid = attestDeleteId;
+        try {
+            await deleteAttest(aid);
+            toast("Attest gelöscht");
+            setAttestDeleteId(null);
             await load();
         } catch (e) {
             toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
@@ -756,6 +974,20 @@ export function PatientDetailPage() {
         setRezeptNewVorlageTitel("");
     }, []);
 
+    const resetAttestWizard = useCallback(() => {
+        const t = new Date().toISOString().slice(0, 10);
+        setAttestWizardStep(null);
+        setAttestForm(emptyAttestComposerForm(t));
+        setAttestBaselineJson(null);
+        setAttestDraftErr(null);
+        setAttestComposerKind("neu");
+        setAttestComposerBusy(false);
+        setAttestPickQuery("");
+        setAttestPickSelectedId("");
+        setAttestPendingQueue(null);
+        setAttestNewVorlageTitel("");
+    }, []);
+
     useEffect(() => {
         setAkteSaveConfirm(null);
         if (activeTab !== "unter") {
@@ -773,8 +1005,11 @@ export function PatientDetailPage() {
         }
         if (activeTab !== "rezept") {
             resetRezeptWizard();
+            resetAttestWizard();
             setRezeptEdit(null);
             setRezeptDeleteId(null);
+            setRezeptAttestSub("rezept");
+            setAttestDeleteId(null);
         }
         if (activeTab !== "zahl") {
             setZahlEdit(null);
@@ -784,25 +1019,82 @@ export function PatientDetailPage() {
             setShowEditPatient(false);
             setPatientDeleteOpen(false);
         }
-    }, [activeTab, resetRezeptWizard]);
+    }, [activeTab, resetRezeptWizard, resetAttestWizard]);
 
     const persistPatientRezepte = async (queue: RezeptLine[], shared: string) => {
         if (!id || !session?.user_id) return;
-        for (const line of queue) {
-            const merged = [line.hinweise, shared].filter((s) => s.trim()).join(" · ");
-            await createRezept({
+        const createdIds: string[] = [];
+        try {
+            for (const line of queue) {
+                const merged = [line.hinweise, shared].filter((s) => s.trim()).join(" · ");
+                const r = await createRezept({
+                    patient_id: id,
+                    arzt_id: session.user_id,
+                    medikament: line.medikament.trim(),
+                    wirkstoff: line.wirkstoff.trim() || null,
+                    dosierung: line.dosierung.trim(),
+                    dauer: line.dauer.trim(),
+                    hinweise: merged.trim() || null,
+                });
+                createdIds.push(r.id);
+            }
+            toast(`${queue.length} Rezept${queue.length === 1 ? "" : "e"} gespeichert`, "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        for (const rid of createdIds) {
+                            await deleteRezept(rid);
+                        }
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            resetRezeptWizard();
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
+    };
+
+    const persistPatientAttest = async (fields: AttestComposerFormFields, options?: { silent?: boolean }) => {
+        if (!id || !session?.user_id) return null;
+        const vErr = validateAttestComposer(fields);
+        if (vErr) {
+            toast(vErr, "error");
+            return null;
+        }
+        const inhalt = buildAttestInhalt(fields);
+        try {
+            const created = await createAttest({
                 patient_id: id,
                 arzt_id: session.user_id,
-                medikament: line.medikament.trim(),
-                wirkstoff: line.wirkstoff.trim() || null,
-                dosierung: line.dosierung.trim(),
-                dauer: line.dauer.trim(),
-                hinweise: merged.trim() || null,
+                typ: fields.typ.trim(),
+                inhalt,
+                gueltig_von: fields.gueltig_von.slice(0, 10),
+                gueltig_bis: fields.gueltig_bis.slice(0, 10),
             });
+            if (!options?.silent) {
+                toast("Attest gespeichert", "success", {
+                    durationMs: TOAST_UNDO_MS,
+                    onUndo: async () => {
+                        try {
+                            await deleteAttest(created.id);
+                            await load();
+                        } catch (e) {
+                            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        }
+                    },
+                });
+            }
+            resetAttestWizard();
+            await load();
+            return created.id;
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            return null;
         }
-        toast(`${queue.length} Rezept${queue.length === 1 ? "" : "e"} gespeichert`, "success");
-        resetRezeptWizard();
-        await load();
     };
 
     const buildRezeptQueueFromComposer = (): RezeptLine[] | null => {
@@ -833,7 +1125,7 @@ export function PatientDetailPage() {
         const queue = buildRezeptQueueFromComposer();
         if (!queue) return;
         if (rezeptComposerKind === "vorlage") {
-            setAkteSaveConfirm({ kind: "rezept_persist", lines: queue, shared: rezeptSharedNotes });
+            void persistPatientRezepte(queue, rezeptSharedNotes);
             return;
         }
         setRezeptPendingQueue({ lines: queue, shared: rezeptSharedNotes });
@@ -850,7 +1142,7 @@ export function PatientDetailPage() {
         const p = rezeptPendingQueue;
         if (!p) return;
         setRezeptPendingQueue(null);
-        setAkteSaveConfirm({ kind: "rezept_persist", lines: p.lines, shared: p.shared });
+        void persistPatientRezepte(p.lines, p.shared);
     };
 
     const onRezeptAskVorlageYes = () => {
@@ -862,7 +1154,7 @@ export function PatientDetailPage() {
         const p = rezeptPendingQueue;
         if (!p) return;
         setRezeptPendingQueue(null);
-        setAkteSaveConfirm({ kind: "rezept_persist", lines: p.lines, shared: p.shared });
+        void persistPatientRezepte(p.lines, p.shared);
     };
 
     const onRezeptNameVorlageSave = () => {
@@ -876,57 +1168,101 @@ export function PatientDetailPage() {
         setAkteSaveConfirm({ kind: "rezept_finalize_vorlage", titel, lines: p.lines, shared: p.shared });
     };
 
-    const persistRezeptEditAfterConfirm = async () => {
-        if (!rezeptEdit) return;
-        await updateRezept({
-            id: rezeptEdit.id,
-            medikament: rezeptEditForm.medikament.trim(),
-            wirkstoff: rezeptEditForm.wirkstoff.trim() || null,
-            dosierung: rezeptEditForm.dosierung.trim(),
-            dauer: rezeptEditForm.dauer.trim(),
-            hinweise: rezeptEditForm.hinweise.trim() || null,
-        });
-        toast("Rezept gespeichert");
-        setRezeptEdit(null);
-        await load();
+    const submitAttestComposer = () => {
+        const err = validateAttestComposer(attestForm);
+        if (err) {
+            setAttestDraftErr(err);
+            return;
+        }
+        setAttestDraftErr(null);
+        if (attestComposerKind === "vorlage") {
+            void persistPatientAttest(attestForm);
+            return;
+        }
+        setAttestPendingQueue({ ...attestForm });
+        setAttestWizardStep("ask_vorlage");
+        setAttestForm(emptyAttestComposerForm(new Date().toISOString().slice(0, 10)));
     };
 
-    const requestSaveRezeptEdit = () => {
+    const onAttestAskVorlageNo = () => {
+        const p = attestPendingQueue;
+        if (!p) return;
+        setAttestPendingQueue(null);
+        void persistPatientAttest(p);
+    };
+
+    const onAttestAskVorlageYes = () => {
+        setAttestNewVorlageTitel("");
+        setAttestWizardStep("name_vorlage");
+    };
+
+    const onAttestNameVorlageSkip = () => {
+        const p = attestPendingQueue;
+        if (!p) return;
+        setAttestPendingQueue(null);
+        void persistPatientAttest(p);
+    };
+
+    const onAttestNameVorlageSave = () => {
+        const titel = attestNewVorlageTitel.trim();
+        if (!titel) {
+            toast("Bitte einen Namen für die Vorlage eingeben.", "error");
+            return;
+        }
+        const p = attestPendingQueue;
+        if (!p) return;
+        setAkteSaveConfirm({ kind: "attest_finalize_vorlage", titel, fields: p });
+    };
+
+    const runSaveRezeptEdit = async () => {
         if (!rezeptEdit) return;
         if (!rezeptEditUnlocked) {
             toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
             return;
         }
-        setAkteSaveConfirm({ kind: "rezept_edit" });
+        const rid = rezeptEdit.id;
+        const prevSnap = {
+            medikament: rezeptEdit.medikament,
+            wirkstoff: rezeptEdit.wirkstoff,
+            dosierung: rezeptEdit.dosierung,
+            dauer: rezeptEdit.dauer,
+            hinweise: rezeptEdit.hinweise,
+        };
+        try {
+            await updateRezept({
+                id: rid,
+                medikament: rezeptEditForm.medikament.trim(),
+                wirkstoff: rezeptEditForm.wirkstoff.trim() || null,
+                dosierung: rezeptEditForm.dosierung.trim(),
+                dauer: rezeptEditForm.dauer.trim(),
+                hinweise: rezeptEditForm.hinweise.trim() || null,
+            });
+            toast("Rezept gespeichert", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await updateRezept({
+                            id: rid,
+                            medikament: prevSnap.medikament,
+                            wirkstoff: prevSnap.wirkstoff,
+                            dosierung: prevSnap.dosierung,
+                            dauer: prevSnap.dauer,
+                            hinweise: prevSnap.hinweise,
+                        });
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            setRezeptEdit(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
     };
 
-    const persistZahlEditAfterConfirm = async () => {
-        if (!zahlEdit) return;
-        const betrag = Number(String(zahlEditForm.betrag).replace(",", "."));
-        if (!Number.isFinite(betrag) || betrag <= 0) {
-            toast("Bitte gültigen Betrag eingeben.", "error");
-            throw new Error("invalid-betrag");
-        }
-        if (zahlEdit.behandlung_id && id && zahlEditMaxBetragEur != null && betrag > zahlEditMaxBetragEur + ZAHL_EUR_EPS) {
-            toast(
-                `Der Betrag darf maximal ${formatCurrency(zahlEditMaxBetragEur)} sein (Summe der anderen Zahlungen + dieser Betrag dürfen die Kosten nicht übersteigen).`,
-                "error",
-            );
-            throw new Error("invalid-betrag");
-        }
-        await updateZahlung({
-            id: zahlEdit.id,
-            betrag,
-            zahlungsart: zahlEditForm.zahlungsart,
-            leistung_id: zahlEdit.leistung_id,
-            beschreibung: zahlEditForm.beschreibung.trim() || null,
-        });
-        toast("Zahlung aktualisiert");
-        setZahlEdit(null);
-        await load();
-    };
-
-    const requestSaveZahlEdit = () => {
+    const runSaveZahlEdit = async () => {
         if (!zahlEdit) return;
         if (!zahlEditUnlocked) {
             toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
@@ -944,7 +1280,41 @@ export function PatientDetailPage() {
             );
             return;
         }
-        setAkteSaveConfirm({ kind: "zahl_edit" });
+        const prevRow = zahlungen.find((z) => z.id === zahlEdit.id);
+        if (!prevRow) {
+            toast("Zahlung nicht mehr geladen.", "error");
+            return;
+        }
+        try {
+            await updateZahlung({
+                id: zahlEdit.id,
+                betrag,
+                zahlungsart: zahlEditForm.zahlungsart,
+                leistung_id: zahlEdit.leistung_id,
+                beschreibung: zahlEditForm.beschreibung.trim() || null,
+            });
+            toast("Zahlung aktualisiert", "success", {
+                durationMs: TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await updateZahlung({
+                            id: prevRow.id,
+                            betrag: prevRow.betrag,
+                            zahlungsart: prevRow.zahlungsart,
+                            leistung_id: prevRow.leistung_id,
+                            beschreibung: prevRow.beschreibung,
+                        });
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            setZahlEdit(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
     };
 
     const submitSaveZahlNew = async () => {
@@ -1042,61 +1412,12 @@ export function PatientDetailPage() {
         }
     };
 
-    const persistPatientAfterConfirm = async () => {
-        if (!id) return;
-        await updatePatient(id, {
-            name: editForm.name,
-            telefon: editForm.telefon || null,
-            email: editForm.email || null,
-            adresse: editForm.adresse || null,
-        });
-        toast("Patient gespeichert");
-        setShowEditPatient(false);
-        await load();
-    };
-
-    const requestSavePatient = () => {
-        if (!id || !editForm.name.trim()) return;
-        setAkteSaveConfirm({ kind: "patient" });
-    };
-
     const flushAkteSave = async () => {
         const p = akteSaveConfirm;
         if (!p) return;
         setAkteSaveBusy(true);
-        const unblock = akteSaveUnblockRef.current;
-        akteSaveUnblockRef.current = null;
         try {
             switch (p.kind) {
-                case "patient":
-                    await persistPatientAfterConfirm();
-                    break;
-                case "anamnese":
-                    await persistAnamneseAfterConfirm();
-                    break;
-                case "untersuchung_create":
-                    await persistUntersuchungCreate(p.payload);
-                    break;
-                case "untersuchung_update":
-                    await updateUntersuchung({
-                        id: p.id,
-                        beschwerden: p.payload.beschwerden.trim() || null,
-                        ergebnisse: p.payload.ergebnisseJson.trim() || null,
-                        diagnose: p.payload.diagnose.trim() || null,
-                    });
-                    toast("Untersuchung gespeichert");
-                    setUnterEdit(null);
-                    await load();
-                    break;
-                case "behandlung":
-                    await persistBehandlungAfterConfirm();
-                    break;
-                case "rezept_edit":
-                    await persistRezeptEditAfterConfirm();
-                    break;
-                case "rezept_persist":
-                    await persistPatientRezepte(p.lines, p.shared);
-                    break;
                 case "rezept_finalize_vorlage":
                     setRezeptComposerBusy(true);
                     try {
@@ -1119,21 +1440,64 @@ export function PatientDetailPage() {
                         setRezeptComposerBusy(false);
                     }
                     break;
-                case "anlage_add":
-                    setAnlagen((prev) => [p.row, ...prev]);
-                    toast("Anlage hinzugefügt");
+                case "attest_finalize_vorlage":
+                    setAttestComposerBusy(true);
+                    try {
+                        const n = Number.parseInt(p.fields.tageAnzahl.trim(), 10);
+                        await createDokumentVorlage({
+                            kind: "ATTEST",
+                            titel: p.titel,
+                            payload: {
+                                krankheiten: p.fields.krankheiten.trim(),
+                                tage_anzahl: Number.isFinite(n) ? n : p.fields.tageAnzahl.trim(),
+                                einschraenkung: p.fields.einschraenkung.trim(),
+                            },
+                        });
+                        try {
+                            const all = await listDokumentVorlagen();
+                            setAttestVorlagen(all.filter((x) => x.kind === "ATTEST"));
+                        } catch {
+                            /* ignore */
+                        }
+                        setAttestPendingQueue(null);
+                        setAttestNewVorlageTitel("");
+                        const attestId = await persistPatientAttest(p.fields, { silent: true });
+                        if (attestId) {
+                            toast("Vorlage angelegt und Attest gespeichert", "success", {
+                                durationMs: TOAST_UNDO_MS,
+                                onUndo: async () => {
+                                    try {
+                                        await deleteAttest(attestId);
+                                        await load();
+                                    } catch (e) {
+                                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                    }
+                                },
+                            });
+                        }
+                    } finally {
+                        setAttestComposerBusy(false);
+                    }
                     break;
-                case "anlage_remove":
-                    setAnlagen((prev) => {
-                        const victim = prev[p.idx];
-                        if (victim) URL.revokeObjectURL(victim.previewUrl);
-                        return prev.filter((_, i) => i !== p.idx);
+                case "anlage_add": {
+                    if (!akte) break;
+                    const b64 = await fileToBase64ForAnlage(p.file);
+                    await createAkteAnlage({
+                        akte_id: akte.id,
+                        display_name: p.file.name,
+                        mime_type: p.file.type || "application/octet-stream",
+                        bytes_base64: b64,
                     });
+                    toast("Anlage gespeichert", "success");
+                    await refreshAnlagen(akte.id);
+                    break;
+                }
+                case "anlage_remove": {
+                    await deleteAkteAnlage(p.id);
+                    if (akte) await refreshAnlagen(akte.id);
                     toast("Anlage entfernt", "info");
                     break;
-                case "zahl_edit":
-                    await persistZahlEditAfterConfirm();
-                    break;
+                }
                 default:
                     break;
             }
@@ -1146,18 +1510,12 @@ export function PatientDetailPage() {
         } finally {
             setAkteSaveBusy(false);
             setAkteSaveConfirm(null);
-            unblock?.();
         }
     };
 
     const cancelAkteSave = () => {
         if (akteSaveBusy) return;
-        const pending = akteSaveConfirm;
-        if (pending?.kind === "anlage_add") URL.revokeObjectURL(pending.row.previewUrl);
-        const unblock = akteSaveUnblockRef.current;
-        akteSaveUnblockRef.current = null;
         setAkteSaveConfirm(null);
-        unblock?.();
     };
 
     const handleDeletePatient = async () => {
@@ -1165,6 +1523,7 @@ export function PatientDetailPage() {
         setPatientDeleteBusy(true);
         try {
             await deletePatient(id);
+            clearPatientScopedBrowserStorage(id);
             toast("Akte wurde gelöscht");
             setPatientDeleteOpen(false);
             navigate("/patienten");
@@ -1283,9 +1642,22 @@ export function PatientDetailPage() {
         [untersuchungen],
     );
 
-    const zahlLinkSelectOptions = useMemo(
-        () => buildZahlLinkSelectOptions(behandlungen, untersuchungen),
-        [behandlungen, untersuchungen],
+    const zahlLinkSelectOptionsOpen = useMemo(() => {
+        if (!id) return [{ value: "", label: "—" }];
+        return buildOpenZahlLinkSelectOptions(zahlungen, id, behandlungen, untersuchungen);
+    }, [id, zahlungen, behandlungen, untersuchungen]);
+
+    const zahlZuordnungSummaries = useMemo(
+        () => (id ? aggregateZahlungenByZuordnung(zahlungen, id, behandlungen, untersuchungen) : []),
+        [id, zahlungen, behandlungen, untersuchungen],
+    );
+
+    const zahlungenHistorisch = useMemo(
+        () =>
+            [...zahlungen].sort((a, b) =>
+                String(b.created_at).localeCompare(String(a.created_at)),
+            ),
+        [zahlungen],
     );
 
     const zahlNeuMaxBetragEur = useMemo(() => {
@@ -1317,31 +1689,35 @@ export function PatientDetailPage() {
         return JSON.stringify(rezeptLines) !== rezeptBaselineJson;
     }, [rezeptComposerKind, rezeptBaselineJson, rezeptLines]);
 
+    const attestPickFiltered = useMemo(() => {
+        const q = attestPickQuery.trim().toLowerCase();
+        if (!q) return attestVorlagen;
+        return attestVorlagen.filter((v) => v.titel.toLowerCase().includes(q));
+    }, [attestVorlagen, attestPickQuery]);
+
+    const attestListeGeaendert = useMemo(() => {
+        if (attestComposerKind !== "vorlage" || !attestBaselineJson) return false;
+        return JSON.stringify(attestForm) !== attestBaselineJson;
+    }, [attestComposerKind, attestBaselineJson, attestForm]);
+
     useEffect(() => {
         if (activeTab !== "rezept" || !canWriteMedical) return;
         let cancelled = false;
         void listDokumentVorlagen()
             .then((all) => {
-                if (!cancelled) setRezeptVorlagen(all.filter((v) => v.kind === "REZEPT"));
+                if (!cancelled) {
+                    setRezeptVorlagen(all.filter((v) => v.kind === "REZEPT"));
+                    setAttestVorlagen(all.filter((v) => v.kind === "ATTEST"));
+                }
             })
             .catch(() => {
-                if (!cancelled) setRezeptVorlagen([]);
+                if (!cancelled) {
+                    setRezeptVorlagen([]);
+                    setAttestVorlagen([]);
+                }
             });
         return () => { cancelled = true; };
     }, [activeTab, canWriteMedical]);
-
-    useEffect(() => {
-        if (activeTab !== "rezept") return;
-        if (rezeptWizardStep) {
-            const el = rezeptWizardPanelRef.current;
-            if (el) queueMicrotask(() => el.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-            return;
-        }
-        if (rezeptEdit) {
-            const el = document.getElementById("ak-rezept-edit-panel");
-            queueMicrotask(() => el?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-        }
-    }, [rezeptWizardStep, rezeptEdit, activeTab]);
 
     if (!id) {
         return (
@@ -1374,6 +1750,12 @@ export function PatientDetailPage() {
         { id: "rezept", label: "Rezepte & Atteste" },
         { id: "anlage", label: "Extra Anlagen" },
         { id: "zahl", label: "Kundenleistungen" },
+    ];
+
+    const akteTabSections: { heading: string; tabIds: AkteTab[] }[] = [
+        { heading: "Verwaltung", tabIds: ["stamm", "anam"] },
+        { heading: "Klinik", tabIds: ["unter", "behand", "rezept"] },
+        { heading: "Dokumente & Finanzen", tabIds: ["anlage", "zahl"] },
     ];
 
     /** Welche Sektionen enthalten Daten? (Nur noch Stammdaten + Anamnese auf Sektionsebene.) */
@@ -1429,6 +1811,79 @@ export function PatientDetailPage() {
         setRezeptWizardStep("compose");
     };
 
+    const openAttestPick = () => {
+        setAttestDeleteId(null);
+        resetAttestWizard();
+        setAttestWizardStep("pick");
+    };
+
+    const proceedAttestPick = () => {
+        const sel =
+            attestPickSelectedId
+            || attestVorlagen.find((v) => v.titel.toLowerCase() === attestPickQuery.trim().toLowerCase())?.id
+            || "";
+        const v = attestVorlagen.find((x) => x.id === sel);
+        if (!v) {
+            toast("Bitte eine Vorlage aus der Liste wählen oder den Namen exakt eingeben.", "error");
+            return;
+        }
+        const parsed = parseAttestVorlagePayload(v.payload);
+        const rawTage = parsed.tageAnzahl.trim() || "1";
+        const n = Number.parseInt(rawTage, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 366) {
+            toast("Diese Vorlage enthält keine gültige Tagesanzahl (1–366).", "error");
+            return;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const krank = parsed.krankheiten.trim() || (KRANKHEITEN_SUGGESTIONS[0] ?? "");
+        const nextForm: AttestComposerFormFields = {
+            typ: ATTEST_TYP_OPTIONS[0]!.value,
+            krankheiten: krank,
+            tageAnzahl: String(n),
+            einschraenkung: parsed.einschraenkung.trim(),
+            gueltig_von: today,
+            gueltig_bis: attestGueltigBisFromVonAndTage(today, String(n)),
+        };
+        setAttestForm(nextForm);
+        setAttestBaselineJson(JSON.stringify(nextForm));
+        setAttestComposerKind("vorlage");
+        setAttestDraftErr(null);
+        setAttestWizardStep("compose");
+    };
+
+    const openAttestNeu = () => {
+        setAttestDeleteId(null);
+        resetAttestWizard();
+        setAttestComposerKind("neu");
+        setAttestWizardStep("compose");
+    };
+
+    const handlePrintAttest = (a: Attest) => {
+        const w = window.open("", "_blank", "width=600,height=800");
+        if (!w) return;
+        const title = escapeHtml(`Attest ${a.id}`);
+        const typ = escapeHtml(a.typ);
+        const patientLine = escapeHtml(patient.name);
+        const geb = escapeHtml(formatDate(patient.geburtsdatum));
+        const span = `${escapeHtml(formatDate(a.gueltig_von))} – ${escapeHtml(formatDate(a.gueltig_bis))}`;
+        const aus = escapeHtml(formatDate(a.ausgestellt_am));
+        const bodyHtml = escapeHtml(a.inhalt);
+        w.document.write(`<!doctype html><html><head><title>${title}</title>
+            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
+            h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
+            .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
+            <h1>${typ}</h1>
+            <div class="row"><span class="label">Patient:</span>${patientLine}</div>
+            <div class="row"><span class="label">Geburtsdatum:</span>${geb}</div>
+            <div class="row"><span class="label">Gültig:</span>${span}</div>
+            <div class="row"><span class="label">Ausgestellt:</span>${aus}</div>
+            <hr/>
+            <div class="body">${bodyHtml}</div>
+            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
+            <script>window.print();</script></body></html>`);
+        w.document.close();
+    };
+
     const patchRezeptLine = (idx: number, part: Partial<RezeptLine>) => {
         setRezeptLines((prev) => prev.map((row, j) => (j === idx ? { ...row, ...part } : row)));
     };
@@ -1479,9 +1934,27 @@ export function PatientDetailPage() {
                         aria-pressed={showPlanTip}
                         style={planNextHasContent(planNext) ? { borderColor: "var(--accent)", color: "var(--accent-ink)", background: "var(--accent-soft)" } : undefined}
                     >
-                        <CalendarIcon />Plan nächsten Termin{planNextHasContent(planNext) ? " ✓" : ""}
+                        <CalendarIcon />
+                        Plan nächsten Termin
+                        {planNextHasContent(planNext) ? (
+                            <span
+                                aria-hidden
+                                title="Inhalt eingetragen"
+                                style={{
+                                    display: "inline-block",
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: "50%",
+                                    background: "var(--accent)",
+                                    marginLeft: 6,
+                                    verticalAlign: "middle",
+                                }}
+                            />
+                        ) : null}
                     </button>
-                    <button type="button" className="btn btn-subtle" onClick={() => void handlePdfExport()} disabled={pdfBusy}><ExportIcon />Export</button>
+                    <button type="button" className="btn btn-subtle" onClick={() => void handlePdfExport()} disabled={pdfBusy}>
+                        {pdfBusy ? <Spinner size="sm" aria-hidden /> : <ExportIcon />}Export
+                    </button>
                     <button type="button" className="btn btn-accent" onClick={() => navigate(terminBackLink)}><CalendarIcon />Termin</button>
                 </div>
             </div>
@@ -1584,77 +2057,124 @@ export function PatientDetailPage() {
                     </div>
                 </div>
             ) : null}
-            <div className="card" style={{ padding: "16px 20px" }}>
-                <div className="patient-hero-row">
-                    <div className="row patient-hero-main" style={{ gap: 16, alignItems: "flex-start" }}>
-                        <div className="av av-lg" style={{ background: "linear-gradient(135deg,#B6E7DA,#0EA07E)" }}>{patient.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</div>
-                        <div className="col" style={{ flex: 1, minWidth: 0 }}>
-                            <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+            <div className="card patient-hero-card">
+                <div className="patient-hero-top">
+                    <div className="patient-hero-identity">
+                        <div className="av av-lg" style={{ background: "linear-gradient(135deg,#B6E7DA,#0EA07E)" }}>
+                            {patient.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                        </div>
+                        <div className="patient-hero-identity-text">
+                            <div className="patient-hero-name-row">
+                                <h2 className="patient-hero-name">{patient.name}</h2>
                                 <Badge variant="primary">{patient.status}</Badge>
-                            </div>
-                            <div className="row" style={{ gap: 18, marginTop: 6, color: "var(--fg-3)", fontSize: 13, flexWrap: "wrap" }}>
-                                <span><CalendarIcon size={12} /> {formatDate(patient.geburtsdatum)}</span>
-                                <span><PhoneIcon size={12} /> {patient.telefon || "—"}</span>
-                                <span><MailIcon size={12} /> {patient.email || "—"}</span>
-                                <span>V: {patient.versicherungsnummer}</span>
+                                {zahlungen.some(
+                                    (z) =>
+                                        z.patient_id === patient.id
+                                        && (z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT"),
+                                ) ? (
+                                    <Badge variant="warning">Rechnung offen</Badge>
+                                ) : null}
                             </div>
                         </div>
                     </div>
                     {canViewClinical && akte ? (
-                        <DentalMiniBar befunde={befunde} behandlungen={behandlungen} visible />
+                        <div className="patient-hero-dental">
+                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} visible />
+                        </div>
                     ) : null}
+                </div>
+                <div className="patient-hero-contacts">
+                    <span title="Geburtstag / Alter">
+                        <CalendarIcon size={12} /> {formatDate(patient.geburtsdatum)}
+                        {(() => {
+                            const alter = alterAusGeburtsdatum(patient.geburtsdatum);
+                            return alter != null ? <> · <strong style={{ color: "var(--fg-2)", fontWeight: 600 }}>{alter} J.</strong></> : null;
+                        })()}
+                    </span>
+                    <span title="Telefon">
+                        <PhoneIcon size={12} /> {patient.telefon || "—"}
+                    </span>
+                    <span title="E-Mail">
+                        <MailIcon size={12} /> {patient.email || "—"}
+                    </span>
+                    <span title="Versicherungsnummer">V: {patient.versicherungsnummer}</span>
                 </div>
             </div>
 
             <div className="akte-workspace" style={{ display: "grid", gridTemplateColumns: "minmax(200px, 220px) 1fr", gap: 20 }}>
                 <nav className="akte-subnav" role="tablist" aria-label="Patientenakte">
-                    {akteTabs.map((tab) => {
-                        const blocked = Boolean(tab.needsClinical && !canViewClinical);
-                        let badge: { tone: "warn" | "ok"; text: string } | null = null;
-                        if (tab.id === "stamm") {
-                            if (!validation.stamm) badge = { tone: "warn", text: "!" };
-                            else badge = { tone: "ok", text: "✓" };
-                        } else if (tab.id === "anam") {
-                            if (!validation.stamm) badge = { tone: "warn", text: "!" };
-                            else badge = { tone: "ok", text: "✓" };
-                        } else if (tab.id === "unter" || tab.id === "behand" || tab.id === "rezept") {
-                            badge = null;
-                        } else if (tab.id === "anlage") {
-                            if (anlagen.length === 0) badge = null;
-                            else if (anlPending === 0) badge = { tone: "ok", text: "✓" };
-                            else badge = { tone: "warn", text: anlPending > 1 ? String(anlPending) : "!" };
-                        } else if (tab.id === "zahl") {
-                            if (zahlungen.length === 0) badge = null;
-                            else if (zahlPending === 0) badge = { tone: "ok", text: "✓" };
-                            else badge = { tone: "warn", text: zahlPending > 1 ? String(zahlPending) : "!" };
-                        }
-                        return (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                role="tab"
-                                id={`tab-${tab.id}`}
-                                aria-selected={activeTab === tab.id}
-                                aria-controls={`panel-${tab.id}`}
-                                disabled={blocked}
-                                className={`${activeTab === tab.id ? "active" : ""}`}
-                                onClick={() => {
-                                    if (blocked) {
-                                        toast("Bereich nur für ärztliche Rolle.", "info");
-                                        return;
-                                    }
-                                    goTab(tab.id);
+                    {akteTabSections.map((section, si) => (
+                        <Fragment key={section.heading}>
+                            <div
+                                className="akte-subnav-group-heading"
+                                style={{
+                                    gridColumn: "1 / -1",
+                                    padding: si === 0 ? "0 0 4px" : "14px 0 4px",
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: "0.08em",
+                                    textTransform: "uppercase",
+                                    color: "var(--fg-4)",
                                 }}
                             >
-                                <span>{tab.label}</span>
-                                {badge ? (
-                                    <span className={`tab-badge ${badge.tone}`} aria-hidden>
-                                        {badge.text}
-                                    </span>
-                                ) : null}
-                            </button>
-                        );
-                    })}
+                                {section.heading}
+                            </div>
+                            {section.tabIds.map((tabId) => {
+                                const tab = akteTabs.find((t) => t.id === tabId);
+                                if (!tab) return null;
+                                const blocked = Boolean(tab.needsClinical && !canViewClinical);
+                                let badge: { tone: "warn" | "ok"; text: string } | null = null;
+                                if (tab.id === "stamm") {
+                                    if (!validation.stamm) badge = { tone: "warn", text: "!" };
+                                    else badge = { tone: "ok", text: "✓" };
+                                } else if (tab.id === "anam") {
+                                    if (!validation.stamm) badge = { tone: "warn", text: "!" };
+                                    else badge = { tone: "ok", text: "✓" };
+                                } else if (tab.id === "unter" || tab.id === "behand" || tab.id === "rezept") {
+                                    badge = null;
+                                } else if (tab.id === "anlage") {
+                                    if (anlagen.length === 0) badge = null;
+                                    else if (anlPending === 0) badge = { tone: "ok", text: "✓" };
+                                    else badge = { tone: "warn", text: anlPending > 1 ? String(anlPending) : "!" };
+                                } else if (tab.id === "zahl") {
+                                    if (zahlungen.length === 0) badge = null;
+                                    else if (zahlPending === 0) badge = { tone: "ok", text: "✓" };
+                                    else badge = { tone: "warn", text: zahlPending > 1 ? String(zahlPending) : "!" };
+                                }
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        role="tab"
+                                        id={`tab-${tab.id}`}
+                                        aria-selected={activeTab === tab.id}
+                                        aria-controls={`panel-${tab.id}`}
+                                        disabled={blocked}
+                                        className={`${activeTab === tab.id ? "active" : ""}`}
+                                        title={
+                                            tab.id === "anam"
+                                                ? "Gilt gemeinsam mit Stammdaten (ein gemeinsamer Validierungsschritt)"
+                                                : undefined
+                                        }
+                                        onClick={() => {
+                                            if (blocked) {
+                                                toast("Bereich nur für ärztliche Rolle.", "info");
+                                                return;
+                                            }
+                                            goTab(tab.id);
+                                        }}
+                                    >
+                                        <span>{tab.label}</span>
+                                        {badge ? (
+                                            <span className={`tab-badge ${badge.tone}`} aria-hidden>
+                                                {badge.text}
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                );
+                            })}
+                        </Fragment>
+                    ))}
                 </nav>
                 <div className="col" style={{ gap: 16, minWidth: 0 }}>
                     {akteLoadError ? <div className="card card-pad" role="alert" style={{ color: "var(--red)" }}>{akteLoadError}</div> : null}
@@ -1753,7 +2273,7 @@ export function PatientDetailPage() {
                                         <Button type="button" variant="ghost" onClick={() => setShowEditPatient(false)}>
                                             Abbrechen
                                         </Button>
-                                        <Button type="button" onClick={() => requestSavePatient()} disabled={!editForm.name.trim()}>
+                                        <Button type="button" onClick={() => void runSavePatient()} disabled={!editForm.name.trim()}>
                                             Speichern
                                         </Button>
                                     </>
@@ -1793,7 +2313,7 @@ export function PatientDetailPage() {
                                                 <Button size="sm" variant="ghost" type="button" onClick={() => cancelAnamneseEdit()}>
                                                     Abbrechen
                                                 </Button>
-                                                <Button size="sm" type="button" onClick={() => requestSaveAnamnese()}>
+                                                <Button size="sm" type="button" onClick={() => void runSaveAnamnese()}>
                                                     Speichern
                                                 </Button>
                                             </>
@@ -2097,19 +2617,7 @@ export function PatientDetailPage() {
                                                 await load();
                                             }}
                                             onCancel={() => setUnterEdit(null)}
-                                            onSave={async (payload) =>
-                                                new Promise<void>((resolve) => {
-                                                    akteSaveUnblockRef.current = resolve;
-                                                    setAkteSaveConfirm({
-                                                        kind: "untersuchung_update",
-                                                        id: unterEdit.id,
-                                                        payload: {
-                                                            beschwerden: payload.beschwerden,
-                                                            diagnose: payload.diagnose,
-                                                            ergebnisseJson: payload.ergebnisseJson,
-                                                        },
-                                                    });
-                                                })}
+                                            onSave={async (payload) => runSaveUntersuchungEdit(payload)}
                                         />
                                     </div>
                                 </div>
@@ -2535,7 +3043,7 @@ export function PatientDetailPage() {
                                 </Button>
                                 <Button
                                     type="button"
-                                    onClick={() => void requestSaveBehandlung()}
+                                    onClick={() => void runSaveBehandlung()}
                                     disabled={!akte || behandFieldsLocked}
                                 >
                                     {behandEditId ? "Änderungen speichern" : "Behandlung speichern"}
@@ -2550,6 +3058,40 @@ export function PatientDetailPage() {
             {activeTab === "rezept" && (
                 <div id="panel-rezept" role="tabpanel" aria-labelledby="tab-rezept">
                 <Card className="card-pad">
+                    <div
+                        className="row"
+                        style={{ gap: 6, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}
+                        role="tablist"
+                        aria-label="Ansicht Rezepte oder Atteste"
+                    >
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={rezeptAttestSub === "rezept" ? "secondary" : "ghost"}
+                            onClick={() => {
+                                setRezeptAttestSub("rezept");
+                                resetAttestWizard();
+                                setAttestDeleteId(null);
+                            }}
+                        >
+                            Rezepte
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={rezeptAttestSub === "attest" ? "secondary" : "ghost"}
+                            onClick={() => {
+                                setRezeptAttestSub("attest");
+                                resetRezeptWizard();
+                                setRezeptEdit(null);
+                                setRezeptDeleteId(null);
+                            }}
+                        >
+                            Atteste
+                        </Button>
+                    </div>
+                    {rezeptAttestSub === "rezept" ? (
+                    <>
                     <CardHeader
                         title="Rezepte"
                         subtitle="Vordefiniertes oder neues Rezept: die Eingabe öffnet sich direkt unter der Liste — ohne separates Fenster."
@@ -3025,7 +3567,7 @@ export function PatientDetailPage() {
                                         </Button>
                                         <Button
                                             type="button"
-                                            onClick={() => requestSaveRezeptEdit()}
+                                            onClick={() => void runSaveRezeptEdit()}
                                             disabled={
                                                 !rezeptEditUnlocked
                                                 || !rezeptEditForm.medikament.trim()
@@ -3079,6 +3621,369 @@ export function PatientDetailPage() {
                             </AkteEditFormOrInline>
                         ) : null}
                     </FormSection>
+                    </>
+                    ) : (
+                    <>
+                    <CardHeader
+                        title="Atteste"
+                        subtitle="Wie bei den Rezepten: vordefinierte Praxis-Vorlage wählen oder neu erfassen — der Assistent erscheint unter der Liste."
+                        action={canWriteMedical ? (
+                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <Button type="button" size="sm" variant="secondary" onClick={openAttestPick} disabled={!id}>
+                                    Vordefiniertes Attest
+                                </Button>
+                                <Button type="button" size="sm" onClick={openAttestNeu} disabled={!id}>
+                                    <PlusIcon /> Neues Attest
+                                </Button>
+                            </div>
+                        ) : null}
+                    />
+                    {!canWriteMedical ? (
+                        <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: 16 }}>
+                            Atteste können nur von Berechtigten mit ärztlicher Freigabe angelegt oder gelöscht werden. Die Liste ist einsehbar, sofern Ihre Rolle Zugriff auf die Akte hat.
+                        </p>
+                    ) : null}
+
+                    <FormSection title="Attestliste dieser Akte">
+                        {atteste.length === 0 ? (
+                            <EmptyState
+                                icon="📄"
+                                title="Keine Atteste in dieser Akte"
+                                description={canWriteMedical
+                                    ? "Nutzen Sie die Buttons oben — der Assistent erscheint unter dieser Liste."
+                                    : "Für diese Akte wurden noch keine Atteste erfasst."}
+                                action={canWriteMedical && id
+                                    ? { label: "Neues Attest", onClick: openAttestNeu }
+                                    : undefined}
+                            />
+                        ) : (
+                            <div style={{ overflowX: "auto" }}>
+                                <table className="tbl">
+                                    <thead>
+                                        <tr>
+                                            <th>Typ</th>
+                                            <th>Gültig von</th>
+                                            <th>Gültig bis</th>
+                                            <th>Ausgestellt</th>
+                                            <th style={{ minWidth: 200 }}>Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {atteste.map((a) => (
+                                            <tr key={a.id}>
+                                                <td style={{ fontWeight: 600 }}>{a.typ}</td>
+                                                <td>{formatDate(a.gueltig_von)}</td>
+                                                <td>{formatDate(a.gueltig_bis)}</td>
+                                                <td>{formatDate(a.ausgestellt_am)}</td>
+                                                <td>
+                                                    <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                                        <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
+                                                            Drucken
+                                                        </Button>
+                                                        {canWriteMedical ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="danger"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    resetAttestWizard();
+                                                                    setAttestDeleteId(a.id);
+                                                                }}
+                                                            >
+                                                                Löschen
+                                                            </Button>
+                                                        ) : (
+                                                            <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {canWriteMedical && attestDeleteId ? (
+                            <ConfirmOrInline
+                                area="patient_akte_attest_delete"
+                                open={canWriteMedical && !!attestDeleteId}
+                                inlineId="ak-attest-delete-panel"
+                                title="Attest löschen"
+                                message={(() => {
+                                    const a = atteste.find((x) => x.id === attestDeleteId);
+                                    return a
+                                        ? `Das Attest „${a.typ}“ (gültig ${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}) wirklich löschen?`
+                                        : "Dieses Attest wirklich löschen?";
+                                })()}
+                                onCancel={() => setAttestDeleteId(null)}
+                                onConfirm={() => void handleDeleteAttest()}
+                                confirmLabel="Ja, löschen"
+                                danger
+                            />
+                        ) : null}
+
+                        {canWriteMedical && attestWizardStep ? (
+                            <div
+                                ref={attestWizardPanelRef}
+                                id="ak-attest-wizard-panel"
+                                className="rezept-akte-panel"
+                                role="region"
+                                aria-label="Attest erfassen"
+                            >
+                                <div className="rezept-akte-panel-head">
+                                    <div>
+                                        <div className="rezept-akte-panel-title">
+                                            {attestWizardStep === "pick" ? "Vordefiniertes Attest wählen" : null}
+                                            {attestWizardStep === "compose"
+                                                ? (attestComposerKind === "vorlage" ? "Attest aus Vorlage" : "Neues Attest")
+                                                : null}
+                                            {attestWizardStep === "ask_vorlage" ? "Als Praxis-Vorlage speichern?" : null}
+                                            {attestWizardStep === "name_vorlage" ? "Name der neuen Vorlage" : null}
+                                        </div>
+                                        {attestWizardStep === "pick" ? (
+                                            <div className="rezept-akte-panel-sub">
+                                                Namen eingeben oder aus der Liste wählen. Anschließend können Sie Text und Zeitraum anpassen — die Praxis-Vorlage selbst bleibt unverändert.
+                                            </div>
+                                        ) : null}
+                                        {attestWizardStep === "compose" ? (
+                                            <div className="rezept-akte-panel-sub">
+                                                Inhalt prüfen, Gültigkeit anpassen, dann für den Patienten speichern.
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (!attestComposerBusy) resetAttestWizard();
+                                        }}
+                                        disabled={attestComposerBusy}
+                                    >
+                                        Schließen
+                                    </Button>
+                                </div>
+
+                                <div className="rezept-akte-panel-body">
+                                    {attestWizardStep === "pick" ? (
+                                        <>
+                                            <datalist id="ak-attest-vorlagen-dl">
+                                                {attestVorlagen.map((v) => (
+                                                    <option key={v.id} value={v.titel} />
+                                                ))}
+                                            </datalist>
+                                            <Input
+                                                id="ak-att-pick-q"
+                                                label="Vorlage suchen"
+                                                list="ak-attest-vorlagen-dl"
+                                                value={attestPickQuery}
+                                                onChange={(e) => {
+                                                    setAttestPickQuery(e.target.value);
+                                                    setAttestPickSelectedId("");
+                                                }}
+                                                placeholder="Titel tippen…"
+                                            />
+                                            <div
+                                                style={{
+                                                    maxHeight: 200,
+                                                    overflowY: "auto",
+                                                    marginTop: 8,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 4,
+                                                }}
+                                            >
+                                                {attestPickFiltered.length === 0 ? (
+                                                    <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
+                                                        Keine Treffer — unter Verwaltung → Vorlagen (Rezepte und Atteste) anlegen.
+                                                    </span>
+                                                ) : (
+                                                    attestPickFiltered.slice(0, 24).map((v) => (
+                                                        <button
+                                                            key={v.id}
+                                                            type="button"
+                                                            className="btn btn-subtle btn-sm"
+                                                            style={{ justifyContent: "flex-start", textAlign: "left" }}
+                                                            onClick={() => {
+                                                                setAttestPickSelectedId(v.id);
+                                                                setAttestPickQuery(v.titel);
+                                                            }}
+                                                        >
+                                                            {v.titel}
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : null}
+
+                                    {attestWizardStep === "compose" ? (
+                                        <>
+                                            {attestComposerKind === "vorlage" && attestListeGeaendert ? (
+                                                <p
+                                                    style={{
+                                                        fontSize: 12.5,
+                                                        marginTop: 0,
+                                                        marginBottom: 12,
+                                                        padding: "8px 10px",
+                                                        borderRadius: 8,
+                                                        background: "var(--accent-soft)",
+                                                        color: "var(--accent-ink)",
+                                                    }}
+                                                >
+                                                    Sie haben die Vorlage angepasst — es handelt sich um ein <strong>neues Attest</strong> für diesen Patienten. Die hinterlegte Praxis-Vorlage wird nicht überschrieben.
+                                                </p>
+                                            ) : null}
+                                            {attestDraftErr ? (
+                                                <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 12px" }}>{attestDraftErr}</p>
+                                            ) : null}
+                                            <Select
+                                                id="ak-att-typ"
+                                                label="Attesttyp *"
+                                                value={attestForm.typ}
+                                                onChange={(e) => setAttestForm({ ...attestForm, typ: e.target.value })}
+                                                options={[...ATTEST_TYP_OPTIONS]}
+                                            />
+                                            <datalist id="ak-attest-krank-dl">
+                                                {KRANKHEITEN_SUGGESTIONS.map((k) => (
+                                                    <option key={k} value={k} />
+                                                ))}
+                                            </datalist>
+                                            <Input
+                                                id="ak-att-krank"
+                                                label="Diagnose / Befund *"
+                                                list="ak-attest-krank-dl"
+                                                value={attestForm.krankheiten}
+                                                onChange={(e) => setAttestForm({ ...attestForm, krankheiten: e.target.value })}
+                                                placeholder="Frei eingeben oder aus Vorschlägen wählen"
+                                            />
+                                            <Input
+                                                id="ak-att-tage"
+                                                label="Anzahl der Tage *"
+                                                type="number"
+                                                min={1}
+                                                max={366}
+                                                inputMode="numeric"
+                                                value={attestForm.tageAnzahl}
+                                                onChange={(e) => {
+                                                    const tage = e.target.value;
+                                                    setAttestForm((p) => ({
+                                                        ...p,
+                                                        tageAnzahl: tage,
+                                                        gueltig_bis: attestGueltigBisFromVonAndTage(p.gueltig_von, tage),
+                                                    }));
+                                                }}
+                                            />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <Input
+                                                    id="ak-att-von"
+                                                    type="date"
+                                                    label="Gültig von *"
+                                                    value={attestForm.gueltig_von}
+                                                    onChange={(e) => {
+                                                        const von = e.target.value;
+                                                        setAttestForm((p) => ({
+                                                            ...p,
+                                                            gueltig_von: von,
+                                                            gueltig_bis: attestGueltigBisFromVonAndTage(von, p.tageAnzahl),
+                                                        }));
+                                                    }}
+                                                />
+                                                <Input
+                                                    id="ak-att-bis"
+                                                    type="date"
+                                                    label="Gültig bis *"
+                                                    value={attestForm.gueltig_bis}
+                                                    onChange={(e) => setAttestForm({ ...attestForm, gueltig_bis: e.target.value })}
+                                                />
+                                            </div>
+                                            <Textarea
+                                                id="ak-att-ein"
+                                                label="Empfohlene Tätigkeitseinschränkung"
+                                                rows={4}
+                                                value={attestForm.einschraenkung}
+                                                onChange={(e) => setAttestForm({ ...attestForm, einschraenkung: e.target.value })}
+                                            />
+                                        </>
+                                    ) : null}
+
+                                    {attestWizardStep === "ask_vorlage" ? (
+                                        <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.5 }}>
+                                            <strong>Ja:</strong> zusätzlich eine wiederverwendbare Praxis-Vorlage anlegen (Name im nächsten Schritt).
+                                            {" "}
+                                            <strong>Nein:</strong> nur das Attest für diesen Patienten speichern.
+                                        </p>
+                                    ) : null}
+
+                                    {attestWizardStep === "name_vorlage" ? (
+                                        <Input
+                                            id="ak-att-vorlage-name"
+                                            label="Bezeichnung der Vorlage"
+                                            value={attestNewVorlageTitel}
+                                            onChange={(e) => setAttestNewVorlageTitel(e.target.value)}
+                                            placeholder="z. B. Standard AU nach Extraktion"
+                                        />
+                                    ) : null}
+                                </div>
+
+                                <div className="rezept-akte-panel-actions">
+                                    {attestWizardStep === "pick" ? (
+                                        <>
+                                            <Button type="button" variant="ghost" onClick={() => resetAttestWizard()}>
+                                                Abbrechen
+                                            </Button>
+                                            <Button type="button" onClick={proceedAttestPick}>
+                                                Weiter
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                    {attestWizardStep === "compose" ? (
+                                        <>
+                                            <Button type="button" variant="ghost" onClick={() => resetAttestWizard()} disabled={attestComposerBusy}>
+                                                Abbrechen
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                onClick={() => void submitAttestComposer()}
+                                                loading={attestComposerBusy}
+                                                disabled={attestComposerBusy}
+                                            >
+                                                Attest für Patient speichern
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                    {attestWizardStep === "ask_vorlage" ? (
+                                        <>
+                                            <Button type="button" variant="ghost" onClick={onAttestAskVorlageNo}>
+                                                Nein
+                                            </Button>
+                                            <Button type="button" onClick={onAttestAskVorlageYes}>
+                                                Ja
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                    {attestWizardStep === "name_vorlage" ? (
+                                        <>
+                                            <Button type="button" variant="ghost" onClick={onAttestNameVorlageSkip} disabled={attestComposerBusy}>
+                                                Abbrechen
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                onClick={() => onAttestNameVorlageSave()}
+                                                loading={attestComposerBusy}
+                                                disabled={attestComposerBusy}
+                                            >
+                                                Vorlage anlegen und Attest speichern
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ) : null}
+                    </FormSection>
+                    </>
+                    )}
                 </Card>
                 </div>
             )}
@@ -3093,20 +3998,69 @@ export function PatientDetailPage() {
                         }
                         anlagen={anlagen}
                         fileInputId={anlageFileInputId}
+                        cameraInputId={anlageCameraInputId}
+                        canManageAnlagen={canWriteMedical}
                         onPickFile={(file) => {
                             const err = validateAnlageFile(file);
                             if (err) {
                                 toast(err, "error");
                                 return;
                             }
-                            setAkteSaveConfirm({ kind: "anlage_add", row: buildAnlageRowFromFile(file) });
+                            setAkteSaveConfirm({ kind: "anlage_add", file });
                         }}
                         onRename={(idx, name) => {
+                            const row = anlagen[idx];
+                            if (!row) return;
                             setAnlagen((prev) => prev.map((x, i) => (i === idx ? { ...x, name } : x)));
+                            void (async () => {
+                                try {
+                                    await renameAkteAnlage(row.id, name);
+                                } catch (e) {
+                                    toast(`Umbenennen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                    if (akte) await refreshAnlagen(akte.id);
+                                }
+                            })();
                         }}
                         onRequestRemove={(idx, name) => {
-                            setAkteSaveConfirm({ kind: "anlage_remove", idx, name });
+                            const row = anlagen[idx];
+                            if (!row) return;
+                            setAkteSaveConfirm({ kind: "anlage_remove", id: row.id, name });
                         }}
+                        onOpenExternal={(idx) => {
+                            const row = anlagen[idx];
+                            if (!row?.absPath) return;
+                            const appPath = loadClientSettings().akte?.openImagesWithApp?.trim() ?? "";
+                            void (async () => {
+                                try {
+                                    await openAkteAnlageExternally(
+                                        row.id,
+                                        appPath.length > 0 ? appPath : undefined,
+                                    );
+                                } catch (e) {
+                                    toast(`Öffnen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                }
+                            })();
+                        }}
+                        onDuplicate={
+                            canWriteMedical
+                                ? (idx) => {
+                                      const row = anlagen[idx];
+                                      if (!row || !akte) return;
+                                      void (async () => {
+                                          try {
+                                              await duplicateAkteAnlage(row.id);
+                                              toast("Kopie der Anlage angelegt", "success");
+                                              await refreshAnlagen(akte.id);
+                                          } catch (e) {
+                                              toast(
+                                                  `Duplizieren fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`,
+                                                  "error",
+                                              );
+                                          }
+                                      })();
+                                  }
+                                : undefined
+                        }
                         canValidate={canViewClinical}
                         isValidated={(anlageId) => Boolean(itemValidation[itemValidationKey("anl", anlageId)])}
                         onRequestValidate={(anlageId, label) => requestValidateItem(itemValidationKey("anl", anlageId), label)}
@@ -3125,12 +4079,32 @@ export function PatientDetailPage() {
                     <CardHeader
                         title="Kundenleistungen & Abrechnung"
                         subtitle={
-                            hasSectionData.zahl
-                                ? "Zahlungen der Rezeption — je Buchung einzeln ärztlich prüfen. Status kommt aus Zahlbetrag vs. erwarteter Kostenbetrag."
-                                : "Noch keine Zahlungen"
+                            !hasSectionData.zahl
+                                ? "Noch keine Zahlungen — bei neuer Behandlung oder Untersuchung wird eine offene Abrechnungszeile angelegt."
+                                : zahlListenModus === "summe"
+                                    ? "„Zahlungen“: eine Zeile pro B-/U-Zuordnung mit aktuellem Stand (Summen). „Historie“: jede Buchung in zeitlicher Reihenfolge."
+                                    : "Chronologische Buchungen wie in der Finanzliste — für Prüfung und Änderungen pro Eintrag nutzen Sie die Aktions-Spalte."
                         }
                         action={(
-                            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                <div className="row" style={{ gap: 4 }} role="tablist" aria-label="Ansicht Abrechnung">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={zahlListenModus === "summe" ? "secondary" : "ghost"}
+                                        onClick={() => setZahlListenModus("summe")}
+                                    >
+                                        Zahlungen
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={zahlListenModus === "historie" ? "secondary" : "ghost"}
+                                        onClick={() => setZahlListenModus("historie")}
+                                    >
+                                        Historie
+                                    </Button>
+                                </div>
                                 {canFinanzenWrite ? (
                                     <Button
                                         size="sm"
@@ -3167,7 +4141,7 @@ export function PatientDetailPage() {
                                 <div>
                                     <div className="akte-inline-panel-title">Neue Zahlung</div>
                                     <div className="akte-inline-panel-sub">
-                                        Zuordnung zu einer Behandlung (B) oder Untersuchung (U) dieser Akte. Erwartete Kosten sind nur bei der Behandlung hinterlegt.
+                                        Zuordnung nur zu noch offenen B-/U-Zeilen (Bei gesetztem Behandlungssoll ohne Rest wird die Zeile ausgeblendet). Erwartete Kosten sind bei der Behandlung hinterlegt.
                                     </div>
                                 </div>
                                 <Button
@@ -3182,21 +4156,25 @@ export function PatientDetailPage() {
                                 </Button>
                             </div>
                             <div className="akte-inline-panel-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                                {zahlLinkSelectOptions.length <= 1 ? (
+                                {behandlungen.length + untersuchungen.length === 0 ? (
                                     <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
                                         Es sind noch keine Behandlungen oder Untersuchungen in dieser Akte — bitte zuerst klinische Einträge anlegen, dann die Zahlung zuordnen.
+                                    </p>
+                                ) : zahlLinkSelectOptionsOpen.length <= 1 ? (
+                                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
+                                        Keine offene Zuordnung: alle Behandlungssollen sind ausgeglichen oder es fehlen klinische Einträge. Über „Historie“ sehen Sie vergangene Buchungen.
                                     </p>
                                 ) : null}
                                 <Select
                                     id="zahl-neu-link"
-                                    label="Zuordnung (B-Nr. / U-Nr.) *"
+                                    label="Zuordnung (nur offene Zeilen)"
                                     value={
                                         zahlNewForm.linkKind && zahlNewForm.linkId
                                             ? `${zahlNewForm.linkKind}:${zahlNewForm.linkId}`
                                             : ""
                                     }
-                                    options={zahlLinkSelectOptions}
-                                    disabled={zahlLinkSelectOptions.length <= 1}
+                                    options={zahlLinkSelectOptionsOpen}
+                                    disabled={zahlLinkSelectOptionsOpen.length <= 1}
                                     onChange={(e) => {
                                         const v = e.target.value;
                                         if (!v) {
@@ -3457,7 +4435,63 @@ export function PatientDetailPage() {
                             </div>
                         </div>
                     ) : null}
-                    {zahlungen.length === 0 ? <p style={{ color: "var(--fg-3)" }}>Keine Zahlungen vorhanden.</p> : (
+                    {zahlungen.length === 0 ? (
+                        <p style={{ color: "var(--fg-3)" }}>Keine Zahlungen vorhanden.</p>
+                    ) : zahlListenModus === "summe" ? (
+                        zahlZuordnungSummaries.length === 0 ? (
+                            <p style={{ color: "var(--fg-3)" }}>
+                                Keine zusammenfassbaren Zuordnungen vorhanden.
+                            </p>
+                        ) : (
+                            <table className="tbl tbl-zahl-akte">
+                                <colgroup>
+                                    <col style={{ width: "13%" }} />
+                                    <col style={{ width: "22%" }} />
+                                    <col style={{ width: "11%" }} />
+                                    <col style={{ width: "11%" }} />
+                                    <col style={{ width: "11%" }} />
+                                    <col style={{ width: "14%" }} />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Letzte Buchung</th>
+                                        <th scope="col">Zuordnung</th>
+                                        <th scope="col" className="zahl-th-num">Soll</th>
+                                        <th scope="col" className="zahl-th-num">Gezahlt</th>
+                                        <th scope="col" className="zahl-th-num">Offen</th>
+                                        <th scope="col">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {zahlZuordnungSummaries.map((row) => {
+                                        const st = zahlStatusDisplay(row.status);
+                                        return (
+                                            <tr key={row.key}>
+                                                <td>
+                                                    <div className="zahl-td-clip" title={formatDate(row.latestAt)}>
+                                                        {formatDate(row.latestAt)}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="zahl-td-clip" title={row.bezugLine}>
+                                                        {row.bezugLine}
+                                                    </div>
+                                                </td>
+                                                <td className="zahl-td-num">{row.soll != null ? formatCurrency(row.soll) : "—"}</td>
+                                                <td className="zahl-td-num">{formatCurrency(row.gezahlt)}</td>
+                                                <td className="zahl-td-num">
+                                                    {row.offen != null ? formatCurrency(row.offen) : "—"}
+                                                </td>
+                                                <td>
+                                                    <Badge variant={st.variant}>{st.label}</Badge>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        )
+                    ) : (
                         <table className="tbl tbl-zahl-akte">
                             <colgroup>
                                 <col style={{ width: "11%" }} />
@@ -3478,8 +4512,9 @@ export function PatientDetailPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {zahlungen.map((z) => {
+                                {zahlungenHistorisch.map((z) => {
                                     const st = zahlStatusDisplay(z.status);
+                                    const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
                                     let bezug = "—";
                                     if (z.behandlung_id) {
                                         const b = behandlungen.find((x) => x.id === z.behandlung_id);
@@ -3498,7 +4533,7 @@ export function PatientDetailPage() {
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className="zahl-td-clip" title={bezug}>
+                                                <div className="zahl-td-clip" title={bezugLine}>
                                                     {bezug}
                                                 </div>
                                             </td>
@@ -3633,7 +4668,7 @@ export function PatientDetailPage() {
                                             !zahlEditUnlocked
                                             || zahlEditMaxBetragEur != null && zahlEditMaxBetragEur <= ZAHL_EUR_EPS
                                         }
-                                        onClick={() => void requestSaveZahlEdit()}
+                                        onClick={() => void runSaveZahlEdit()}
                                     >
                                         Speichern
                                     </Button>

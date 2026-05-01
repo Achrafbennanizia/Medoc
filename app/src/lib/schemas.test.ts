@@ -13,7 +13,7 @@ describe("CreatePatientSchema", () => {
         const out = CreatePatientSchema.parse({
             name: "Max Mustermann",
             geburtsdatum: "1970-01-01",
-            geschlecht: "M",
+            geschlecht: "MAENNLICH",
             versicherungsnummer: "A123456789",
         });
         expect(out.name).toBe("Max Mustermann");
@@ -24,7 +24,7 @@ describe("CreatePatientSchema", () => {
         const r = CreatePatientSchema.safeParse({
             name: "X",
             geburtsdatum: "01.01.1970",
-            geschlecht: "M",
+            geschlecht: "MAENNLICH",
             versicherungsnummer: "A123",
         });
         expect(r.success).toBe(false);
@@ -34,7 +34,7 @@ describe("CreatePatientSchema", () => {
         const out = CreatePatientSchema.parse({
             name: "X",
             geburtsdatum: "1970-01-01",
-            geschlecht: "W",
+            geschlecht: "WEIBLICH",
             versicherungsnummer: "A1",
             email: "",
         });
@@ -103,7 +103,7 @@ describe("parseOrThrow / zodErrorToMessage", () => {
             parseOrThrow(CreatePatientSchema, {
                 name: "",
                 geburtsdatum: "bad",
-                geschlecht: "M",
+                geschlecht: "MAENNLICH",
                 versicherungsnummer: "x",
             });
             expect.fail("should have thrown");

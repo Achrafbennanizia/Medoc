@@ -29,4 +29,8 @@ describe("getVerwaltungBackTarget", () => {
     it("strips query string", () => {
         expect(getVerwaltungBackTarget("/verwaltung/vorlagen/editor/new?kind=rezept").path).toBe("/verwaltung/vorlagen");
     });
+
+    it("resolves Verwaltung root → dashboard overview", () => {
+        expect(getVerwaltungBackTarget("/verwaltung")).toEqual({ path: "/", label: "Übersicht" });
+    });
 });

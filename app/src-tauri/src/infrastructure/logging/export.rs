@@ -1,7 +1,7 @@
 // Log export (NFA-LOG-09): bundles the last N days of file logs into a ZIP.
 
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Seek, Write};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -15,12 +15,10 @@ const RETENTION_DAYS: i64 = 7;
 
 /// Create a ZIP archive of every `*.log` file under `log_dir` modified
 /// within the last `RETENTION_DAYS` days. Each file is sanitised first.
-pub fn export(log_dir: &Path, output: &Path) -> Result<u64, AppError> {
+pub fn export_to_writer<W: Write + Seek>(log_dir: &Path, mut writer: W) -> Result<u64, AppError> {
     let cutoff = Utc::now() - Duration::days(RETENTION_DAYS);
 
-    let file = File::create(output)
-        .map_err(|e| AppError::Internal(format!("Cannot create export file: {e}")))?;
-    let mut zip = zip::ZipWriter::new(file);
+    let mut zip = zip::ZipWriter::new(&mut writer);
     let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     let mut total_bytes: u64 = 0;
@@ -65,4 +63,18 @@ pub fn export(log_dir: &Path, output: &Path) -> Result<u64, AppError> {
     zip.finish()
         .map_err(|e| AppError::Internal(format!("ZIP finalise: {e}")))?;
     Ok(total_bytes)
+}
+
+/// Write log ZIP to a filesystem path (server-side tooling).
+pub fn export(log_dir: &Path, output: &Path) -> Result<u64, AppError> {
+    let file = File::create(output)
+        .map_err(|e| AppError::Internal(format!("Cannot create export file: {e}")))?;
+    export_to_writer(log_dir, file)
+}
+
+/// In-memory ZIP for Tauri → frontend download (avoids guessing writable paths).
+pub fn export_to_vec(log_dir: &Path) -> Result<Vec<u8>, AppError> {
+    let mut cursor = Cursor::new(Vec::new());
+    export_to_writer(log_dir, &mut cursor)?;
+    Ok(cursor.into_inner())
 }

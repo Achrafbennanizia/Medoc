@@ -14,7 +14,7 @@ import {
     type Attest,
 } from "../../controllers/attest.controller";
 import type { Patient } from "../../models/types";
-import { errorMessage, formatDate } from "../../lib/utils";
+import { errorMessage, escapeHtml, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 
 /**
@@ -119,17 +119,24 @@ export function AttestePage() {
         const patient = patients.find((p) => p.id === a.patient_id);
         const w = window.open("", "_blank", "width=600,height=800");
         if (!w) return;
-        w.document.write(`<!doctype html><html><head><title>Attest ${a.id}</title>
+        const title = escapeHtml(`Attest ${a.id}`);
+        const typ = escapeHtml(a.typ);
+        const patientLine = escapeHtml(patient?.name ?? a.patient_id);
+        const geb = patient ? escapeHtml(formatDate(patient.geburtsdatum)) : "";
+        const span = `${escapeHtml(formatDate(a.gueltig_von))} – ${escapeHtml(formatDate(a.gueltig_bis))}`;
+        const aus = escapeHtml(formatDate(a.ausgestellt_am));
+        const bodyHtml = escapeHtml(a.inhalt);
+        w.document.write(`<!doctype html><html><head><title>${title}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
             h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
             .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
-            <h1>${a.typ}</h1>
-            <div class="row"><span class="label">Patient:</span>${patient?.name ?? a.patient_id}</div>
-            <div class="row"><span class="label">Geburtsdatum:</span>${patient ? formatDate(patient.geburtsdatum) : ""}</div>
-            <div class="row"><span class="label">Gültig:</span>${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}</div>
-            <div class="row"><span class="label">Ausgestellt:</span>${formatDate(a.ausgestellt_am)}</div>
+            <h1>${typ}</h1>
+            <div class="row"><span class="label">Patient:</span>${patientLine}</div>
+            <div class="row"><span class="label">Geburtsdatum:</span>${geb}</div>
+            <div class="row"><span class="label">Gültig:</span>${span}</div>
+            <div class="row"><span class="label">Ausgestellt:</span>${aus}</div>
             <hr/>
-            <div class="body">${a.inhalt.replace(/</g, "&lt;")}</div>
+            <div class="body">${bodyHtml}</div>
             <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
             <script>window.print();</script></body></html>`);
         w.document.close();

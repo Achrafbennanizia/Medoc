@@ -1,54 +1,116 @@
 import type { Behandlung, Untersuchung, Zahlung } from "@/models/types";
 import { formatCurrency } from "@/lib/utils";
-import { roundMoney2, sumZahlungenForBehandlung, sumZahlungenForUntersuchung } from "@/lib/zahlung-buchung";
+import {
+    roundMoney2,
+    sumZahlungenForBehandlung,
+    sumZahlungenForUntersuchung,
+    ZAHL_EUR_EPS,
+} from "@/lib/zahlung-buchung";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 
 const LS_INVOICE_PRAXIS = "medoc-invoice-praxis-v1";
 
-export type InvoicePraxis = { name: string; addr: string };
+export type InvoicePraxis = {
+    name: string;
+    addr: string;
+    /** KV-/Betriebsnummer — für Etiketten & Stammdaten */
+    kv_nummer?: string;
+    /** Freitext Öffnungszeiten */
+    oeffnungszeiten?: string;
+};
 
 const DEFAULTS: InvoicePraxis = { name: "Zahnarztpraxis", addr: "Musterstraße 1\n12345 Ort" };
 
-/** Auto-Rechnungsnummer — Lesemodus wie andere erzeugte IDs: RE-YYYYMMDD-RANDOM */
-export function nextRechnungsnummer(ymd: string): string {
-    const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
-    if (d.length < 8) {
-        return `RE-${Date.now().toString(36).toUpperCase()}`;
-    }
+export type InvoiceNumberOpts = {
+    /** Nummern, die bereits im lokalen Verlauf / Session liegen — Kollision vermeiden. */
+    reserved?: ReadonlySet<string>;
+};
+
+function randomUint32(): number {
     const b = new Uint8Array(4);
     if (globalThis.crypto?.getRandomValues) {
         globalThis.crypto.getRandomValues(b);
     } else {
-        b[0] = Math.random() * 256;
-        b[1] = Math.random() * 256;
-        b[2] = Math.random() * 256;
-        b[3] = Math.random() * 256;
+        b[0] = Math.floor(Math.random() * 256);
+        b[1] = Math.floor(Math.random() * 256);
+        b[2] = Math.floor(Math.random() * 256);
+        b[3] = Math.floor(Math.random() * 256);
     }
-    const n = b[0]! * 0x1_00_00_00 + b[1]! * 0x1_00_00 + b[2]! * 0x1_00 + b[3]!;
-    const s = n.toString(36).toUpperCase().padStart(6, "0");
-    return `RE-${d.slice(0, 8)}-${s}`;
+    return b[0]! * 0x1_00_00_00 + b[1]! * 0x1_00_00 + b[2]! * 0x1_00 + b[3]!;
+}
+
+function moneyToInvoiceCents(bruto: number): number {
+    const eur = roundMoney2(bruto);
+    let cents = Math.round(eur * 100);
+    if (cents === 0 && eur > ZAHL_EUR_EPS) cents = 1;
+    return cents;
+}
+
+/** Auto-Rechnungsnummer — RE-YYYYMMDD-RANDOM (bei Kurzdatum Fallback ohne Datums-Präfix). */
+export function nextRechnungsnummer(ymd: string, opts?: InvoiceNumberOpts): string {
+    const reserved = opts?.reserved;
+    const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
+    if (d.length < 8) {
+        for (let i = 0; i < 48; i++) {
+            const num = `RE-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
+            if (!reserved?.has(num)) return num;
+        }
+        return `RE-${Date.now()}-${randomUint32()}`;
+    }
+    const prefix = d.slice(0, 8);
+    for (let i = 0; i < 80; i++) {
+        const s = randomUint32().toString(36).toUpperCase().padStart(6, "0");
+        const num = `RE-${prefix}-${s}`;
+        if (!reserved?.has(num)) return num;
+    }
+    return `RE-${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
 }
 
 export function getInvoicePraxisFromStorage(): InvoicePraxis {
     try {
         const raw = localStorage.getItem(LS_INVOICE_PRAXIS);
         if (!raw) return { ...DEFAULTS };
-        const j = JSON.parse(raw) as { name?: string; addr?: string };
+        const j = JSON.parse(raw) as {
+            name?: string;
+            addr?: string;
+            kv_nummer?: string;
+            oeffnungszeiten?: string;
+        };
         const name = (j.name ?? "").trim() || DEFAULTS.name;
         const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
-        return { name, addr };
+        const kv_nummer = (j.kv_nummer ?? "").trim() || undefined;
+        const oeffnungszeiten = (j.oeffnungszeiten ?? "").trim() || undefined;
+        return { name, addr, kv_nummer, oeffnungszeiten };
     } catch {
         return { ...DEFAULTS };
     }
 }
 
-/** Tagesbericht / PDF-Nr. */
-export function nextBerichtNummer(ymd: string): string {
+/** Persistiert Praxis-Stammdaten (Rechnungen, PDFs, Einstellungen). */
+export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
+    const blob: Record<string, string> = {
+        name: p.name.trim() || DEFAULTS.name,
+        addr: p.addr.trim() || DEFAULTS.addr,
+    };
+    const kv = (p.kv_nummer ?? "").trim();
+    const oe = (p.oeffnungszeiten ?? "").trim();
+    if (kv) blob.kv_nummer = kv;
+    if (oe) blob.oeffnungszeiten = oe;
+    localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(blob));
+}
+
+/** Tagesbericht / PDF-Nr. — längerer Zufallsteil als früher (Kollisionen seltener). */
+export function nextBerichtNummer(ymd: string, opts?: InvoiceNumberOpts): string {
+    const reserved = opts?.reserved;
     const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
-    const b = new Uint8Array(3);
-    globalThis.crypto?.getRandomValues?.(b) ?? b.fill(0);
-    const n = b[0]! * 0x1_00_00 + b[1]! * 0x1_00 + b[2]!;
-    return `BR-${d.slice(0, 8) || "--------"}-${n.toString(36).toUpperCase().padStart(5, "0")}`;
+    const dayPart = d.slice(0, 8) || "--------";
+    for (let i = 0; i < 80; i++) {
+        const hi = randomUint32().toString(36).toUpperCase().padStart(6, "0");
+        const lo = randomUint32().toString(36).toUpperCase().padStart(6, "0");
+        const num = `BR-${dayPart}-${hi}${lo}`;
+        if (!reserved?.has(num)) return num;
+    }
+    return `BR-${dayPart}-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
 }
 
 function parseLeistungLink(
@@ -82,7 +144,7 @@ export function lineFromLeistungWahl(
         const kosten = cost != null ? formatCurrency(cost) : "—";
         const detail = `Kosten (Soll): ${kosten} · Gezahlt (i. S.): ${formatCurrency(paidGes)}`;
         const bruto = cost != null && cost > 0 ? cost : paidGes > 0 ? paidGes : 0.01;
-        const amount_cents = Math.max(1, Math.round(bruto * 100));
+        const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
         return { description: `${desc}\n${detail}`, amount_cents };
     }
     const u = untersuchungen.find((x) => x.id === p.id);
@@ -92,13 +154,14 @@ export function lineFromLeistungWahl(
     const leist = (u.diagnose || u.ergebnisse || u.beschwerden || "Untersuchung").trim().slice(0, 200);
     const desc = `U-Nr. ${un} — ${leist}`;
     const bruto = paidGes > 0 ? paidGes : 0.01;
-    const amount_cents = Math.max(1, Math.round(bruto * 100));
+    const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
     const detail = `Gezahlt (i. S.): ${formatCurrency(paidGes)}`;
     return { description: `${desc}\n${detail}`, amount_cents };
 }
 
 /**
- * Tagesbericht: alle Zahlungen am Stichtag für den Patienten, nach B/U gruppiert – eine Zeile pro Leistung.
+ * Ein Patient / ein Stichtag: gruppierte Zahlungs-Zeilen für den Tagesbericht-PDF.
+ * (Der Gesamt-PDF in `tagesabschluss-invoice-pdf.ts` ruft diese Funktion je Patient auf und fügt die Blöcke zusammen.)
  */
 export function buildTagesberichtLines(
     stichtag: string,

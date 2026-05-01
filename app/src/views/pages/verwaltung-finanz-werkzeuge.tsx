@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAkte, listBehandlungen, listUntersuchungen } from "../../controllers/akte.controller";
 import { listPatienten } from "../../controllers/patient.controller";
-import { renderInvoicePdf } from "../../controllers/invoice.controller";
-import { listZahlungen } from "../../controllers/zahlung.controller";
+import { allocateRechnungsnummer, renderInvoicePdf } from "../../controllers/invoice.controller";
+import { listZahlungenForPatient } from "../../controllers/zahlung.controller";
 import type { InvoiceInput } from "@/controllers/invoice.controller";
 import { appendInvoiceHistory, INVOICE_HISTORY_MAX, loadInvoiceHistory, sumInvoiceEur, type SavedInvoice } from "@/lib/invoice-history";
-import { getInvoicePraxisFromStorage, lineFromLeistungWahl, nextRechnungsnummer } from "@/lib/invoice-leistung";
+import { getInvoicePraxisFromStorage, lineFromLeistungWahl } from "@/lib/invoice-leistung";
 import { buildZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { openExportPreview } from "@/models/store/export-preview-store";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { Behandlung, Patient, Untersuchung, Zahlung } from "@/models/types";
@@ -36,7 +37,7 @@ export function VerwaltungFinanzWerkzeugePage() {
     const canReadFinanzen = role != null && allowed("finanzen.read", role);
 
     const [patienten, setPatienten] = useState<Patient[]>([]);
-    const [zahlungen, setZahlungen] = useState<Zahlung[]>([]);
+    const [patientZahlungen, setPatientZahlungen] = useState<Zahlung[]>([]);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [invBusy, setInvBusy] = useState(false);
@@ -58,9 +59,8 @@ export function VerwaltungFinanzWerkzeugePage() {
         setLoading(true);
         setLoadError(null);
         try {
-            const [pats, z] = await Promise.all([listPatienten(), listZahlungen()]);
+            const pats = await listPatienten();
             setPatienten(pats);
-            setZahlungen(z);
             setPraxis(getInvoicePraxisFromStorage());
         } catch (e) {
             setLoadError(errorMessage(e));
@@ -86,9 +86,17 @@ export function VerwaltungFinanzWerkzeugePage() {
             setRechnungNr("");
             setBehandlungen([]);
             setUntersuchungen([]);
+            setPatientZahlungen([]);
             return;
         }
-        setRechnungNr(nextRechnungsnummer(invoiceDate));
+        let cancelled = false;
+        const reserved = new Set(loadInvoiceHistory().map((x) => x.invoice.number.trim()));
+        void allocateRechnungsnummer(invoiceDate, { reserved }).then((n) => {
+            if (!cancelled) setRechnungNr(n);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [patientId, invoiceDate]);
 
     useEffect(() => {
@@ -99,15 +107,21 @@ export function VerwaltungFinanzWerkzeugePage() {
             try {
                 const akte = await getAkte(patientId);
                 if (cancel) return;
-                const [b, u] = await Promise.all([listBehandlungen(akte.id), listUntersuchungen(akte.id)]);
+                const [b, u, z] = await Promise.all([
+                    listBehandlungen(akte.id),
+                    listUntersuchungen(akte.id),
+                    listZahlungenForPatient(patientId),
+                ]);
                 if (!cancel) {
                     setBehandlungen(b);
                     setUntersuchungen(u);
+                    setPatientZahlungen(z);
                 }
             } catch (e) {
                 if (!cancel) {
                     setBehandlungen([]);
                     setUntersuchungen([]);
+                    setPatientZahlungen([]);
                     toast(`Akte: ${errorMessage(e)}`, "error");
                 }
             } finally {
@@ -122,11 +136,6 @@ export function VerwaltungFinanzWerkzeugePage() {
     const selectedEntry = useMemo(
         () => invoiceHistory.find((x) => x.id === selectedHistoryId) ?? null,
         [invoiceHistory, selectedHistoryId],
-    );
-
-    const patientZahlungen = useMemo(
-        () => (patientId ? zahlungen.filter((z) => z.patient_id === patientId) : []),
-        [zahlungen, patientId],
     );
 
     const linkOptions = useMemo(() => buildZahlLinkSelectOptions(behandlungen, untersuchungen), [behandlungen, untersuchungen]);
@@ -178,7 +187,10 @@ export function VerwaltungFinanzWerkzeugePage() {
             toast("Leistungszeilen konnten nicht aufgebaut werden.");
             return;
         }
-        const num = rechnungNr || nextRechnungsnummer(invoiceDate);
+        const reservedNums = new Set(loadInvoiceHistory().map((x) => x.invoice.number.trim()));
+        const num =
+            rechnungNr.trim()
+            || (await allocateRechnungsnummer(invoiceDate, { reserved: reservedNums }));
         const payload: InvoiceInput = {
             number: num,
             date: invoiceDate,
@@ -194,13 +206,13 @@ export function VerwaltungFinanzWerkzeugePage() {
         setInvBusy(true);
         try {
             const bytes = await renderInvoicePdf(payload);
-            const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `rechnung-${num.replace(/[^\w.-]+/g, "_")}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
+            openExportPreview({
+                format: "pdf",
+                title: "Rechnung (PDF)",
+                hint: `Vorschau · Nummer ${num}, Datum ${invoiceDate}. Der Verlauf wird nach Erzeugung aktualisiert; PDF hier drucken oder speichern.`,
+                suggestedFilename: `rechnung-${num.replace(/[^\w.-]+/g, "_")}.pdf`,
+                binaryBody: new Uint8Array(bytes),
+            });
             const newId =
                 globalThis.crypto?.randomUUID != null
                     ? globalThis.crypto.randomUUID()
@@ -250,14 +262,13 @@ export function VerwaltungFinanzWerkzeugePage() {
         setInvBusy(true);
         try {
             const bytes = await renderInvoicePdf(inv);
-            const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `rechnung-${inv.number.replace(/[^\w.-]+/g, "_")}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast("PDF erneut heruntergeladen.", "success");
+            openExportPreview({
+                format: "pdf",
+                title: "Rechnung erneut exportieren",
+                hint: `PDF · Rechnung ${inv.number}`,
+                suggestedFilename: `rechnung-${inv.number.replace(/[^\w.-]+/g, "_")}.pdf`,
+                binaryBody: new Uint8Array(bytes),
+            });
         } catch (e) {
             toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
         } finally {

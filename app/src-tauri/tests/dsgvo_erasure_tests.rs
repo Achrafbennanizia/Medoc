@@ -46,7 +46,7 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
             .expect("count behandlung");
     assert_eq!(n_beh.0, 1);
 
-    dsgvo::erase_patient(&pool, "p-dsgvo-1")
+    dsgvo::erase_patient(&pool, "p-dsgvo-1", std::path::Path::new("/tmp"))
         .await
         .expect("erase");
 

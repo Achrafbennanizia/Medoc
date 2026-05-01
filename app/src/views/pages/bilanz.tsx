@@ -101,7 +101,13 @@ export function BilanzPage() {
                 <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: 16,
+                }}
+            >
                 <Card className="kpi">
                     <CardHeader title="Einnahmen (bezahlt)" />
                     <p className="kpi-val" style={{ color: "var(--accent-green)" }}>{formatCurrency(bilanz.einnahmen)}</p>
@@ -121,14 +127,14 @@ export function BilanzPage() {
                 {byMonth.length === 0 ? (
                     <p className="text-body text-on-surface-variant">Noch keine Zahlungen erfasst.</p>
                 ) : (
-                    <ul className="space-y-2" role="list" aria-label="Monatsbilanz">
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label="Monatsbilanz">
                         {byMonth.map(([month, v]) => (
-                            <li key={month} className="text-body">
-                                <div className="flex justify-between">
-                                    <span className="font-mono text-on-surface-variant">{month}</span>
-                                    <span className="text-accent-green">{formatCurrency(v.einnahmen)}</span>
+                            <li key={month}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                                    <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--fg-3)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13 }}>{month}</span>
+                                    <span style={{ color: "var(--accent-green)", fontWeight: 600 }}>{formatCurrency(v.einnahmen)}</span>
                                 </div>
-                                <div className="h-2 mt-1" style={{ background: "var(--line)", borderRadius: 6 }}>
+                                <div style={{ marginTop: 6, height: 8, background: "var(--line)", borderRadius: 6 }}>
                                     <div
                                         className="bar"
                                         style={{ width: `${(v.einnahmen / max) * 100}%` }}

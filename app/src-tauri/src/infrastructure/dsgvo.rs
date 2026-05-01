@@ -9,6 +9,7 @@
 use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
+use std::path::Path;
 
 use crate::error::AppError;
 use crate::log_system;
@@ -64,7 +65,18 @@ pub async fn export_patient(pool: &SqlitePool, patient_id: &str) -> Result<Value
 
 /// Pseudonymise + erase a patient's medical data while keeping an anonymised
 /// stub row so foreign-key audit trails remain valid.
-pub async fn erase_patient(pool: &SqlitePool, patient_id: &str) -> Result<ErasureReport, AppError> {
+pub async fn erase_patient(
+    pool: &SqlitePool,
+    patient_id: &str,
+    app_data_dir: &Path,
+) -> Result<ErasureReport, AppError> {
+    let akte_ids: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM patientenakte WHERE patient_id = ?1",
+    )
+    .bind(patient_id)
+    .fetch_all(pool)
+    .await?;
+
     let mut deleted: u64 = 0;
     let mut tx = pool.begin().await?;
 
@@ -145,6 +157,13 @@ pub async fn erase_patient(pool: &SqlitePool, patient_id: &str) -> Result<Erasur
 
     tx.commit().await?;
 
+    for (aid,) in akte_ids {
+        crate::infrastructure::database::akte_anlage_repo::remove_storage_dir_best_effort(
+            app_data_dir,
+            &aid,
+        );
+    }
+
     log_system!(warn, event = "DSGVO_ERASURE", patient_id = %patient_id, deleted_records = deleted);
 
     Ok(ErasureReport {
@@ -215,6 +234,14 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
             .fetch_all(pool)
             .await?;
 
+    let akte_anlage: Vec<(String,)> = sqlx::query_as(
+        "SELECT 'row:' || id FROM akte_anlage WHERE akte_id IN
+         (SELECT id FROM patientenakte WHERE patient_id = ?1)",
+    )
+    .bind(patient_id)
+    .fetch_all(pool)
+    .await?;
+
     let mut out = serde_json::Map::new();
     for (key, rows) in [
         ("termine", termine),
@@ -226,6 +253,7 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
         ("patientenakte", patientenakte),
         ("rezepte", rezepte),
         ("atteste", atteste),
+        ("akte_anlage", akte_anlage),
     ] {
         out.insert(
             key.to_string(),

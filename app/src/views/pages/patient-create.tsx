@@ -258,7 +258,7 @@ export function PatientCreatePage() {
                 ))}
             </div>
 
-            <div id="pc-person" className="card card-pad" style={{ maxWidth: 1040 }}>
+            <div id="pc-person" className="card card-pad card--overflow-visible" style={{ maxWidth: 1040 }}>
                 <FormSection title="Personendaten">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input id="nachname" label="Nachname *" value={form.nachname} error={errors.nachname} onChange={(e) => set("nachname", e.target.value)} />

@@ -130,7 +130,11 @@ export const scannerListRecent = (folder: string, limit?: number) =>
     tauriInvoke<ScannedDocument[]>("scanner_list_recent", { folder, limit });
 
 export const scannerAttach = (src: string, archiveRoot: string, patientId: string) =>
-    tauriInvoke<string>("scanner_attach", { src, archiveRoot, patientId });
+    tauriInvoke<string>("scanner_attach", {
+        src,
+        archiveRoot,
+        patientId,
+    });
 
 /* ─────────────────── Card / SEPA processing (FA-FIN-PAY) ──────────────── */
 

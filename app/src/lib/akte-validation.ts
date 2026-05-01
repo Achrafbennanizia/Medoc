@@ -42,6 +42,16 @@ function key(patientId: string): string {
     return `${STORAGE_PREFIX}${patientId}`;
 }
 
+/** Art. 17 UI-cache: remove alongside backend erasure / patient delete. */
+export function clearValidationStorageForPatient(patientId: string): void {
+    if (!patientId) return;
+    try {
+        window.localStorage.removeItem(key(patientId));
+    } catch {
+        /* ignore */
+    }
+}
+
 function parseStored(raw: string | null): StoredValidationV2 {
     if (!raw) return { version: 2, sections: {}, items: {} };
     try {

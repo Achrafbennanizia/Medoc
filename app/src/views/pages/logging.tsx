@@ -9,6 +9,7 @@ import {
 } from "../../controllers/logging.controller";
 import { Button } from "../components/ui/button";
 import { errorMessage } from "../../lib/utils";
+import { openExportPreview } from "../../models/store/export-preview-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 
 const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
@@ -53,10 +54,14 @@ export function LoggingPage() {
         setBusy(true);
         setMessage(null);
         try {
-            const filename = `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`;
-            const path = `${logDir.replace(/\/logs$/, "")}/${filename}`;
-            const bytes = await exportLogs(path);
-            setMessage(`Export erfolgreich: ${path} (${(bytes / 1024).toFixed(1)} KB)`);
+            const bytes = await exportLogs();
+            openExportPreview({
+                format: "zip",
+                title: "Log-Export",
+                hint: "Letzte 7 Tage, maskierte Protokolldateien. ZIP-Vorschau nicht tabellarisch.",
+                suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
+                binaryBody: new Uint8Array(bytes),
+            });
         } catch (e: unknown) {
             setMessage(`Export fehlgeschlagen: ${errorMessage(e)}`);
         } finally {
@@ -134,7 +139,7 @@ export function LoggingPage() {
                     Support-Anfragen. Sensible Werte werden automatisch maskiert
                     (NFA-LOG-09).
                 </p>
-                <Button onClick={handleExport} disabled={busy}>
+                <Button type="button" variant="secondary" onClick={() => void handleExport()} disabled={busy}>
                     Logs als ZIP exportieren
                 </Button>
             </div>
@@ -145,7 +150,7 @@ export function LoggingPage() {
                     Prüft die HMAC-Hash-Kette des Audit-Logs auf Manipulationen
                     (NFA-SEC-04++).
                 </p>
-                <Button onClick={handleVerify} disabled={busy}>
+                <Button type="button" variant="secondary" onClick={() => void handleVerify()} disabled={busy}>
                     Integrität prüfen
                 </Button>
             </div>

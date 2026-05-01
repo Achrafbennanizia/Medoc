@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { createZahlung, listZahlungen } from "../../controllers/zahlung.controller";
+import { createZahlung, listZahlungenForPatient } from "../../controllers/zahlung.controller";
 import { listPatienten } from "../../controllers/patient.controller";
 import { getAkte, listBehandlungen, listUntersuchungen } from "../../controllers/akte.controller";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
@@ -18,7 +18,7 @@ import { Badge } from "../components/ui/badge";
 import {
     ZAHLUNG_ART_SELECT,
     ZAHL_EUR_EPS,
-    buildZahlLinkSelectOptions,
+    buildOpenZahlLinkSelectOptions,
     formatZahlungBezugLine,
     maxNeuZahlungBehandlung,
     roundMoney2,
@@ -43,7 +43,7 @@ function ZahlFinanzenOrPageWrap({
 }) {
     if (!isFinanzen) return <>{children}</>;
     return (
-        <Card className="produkte-detail-card zahl-finanzen-embed">
+        <Card className="produkte-detail-card zahl-finanzen-embed card--overflow-visible">
             <CardHeader
                 title="Neue Zahlung"
                 subtitle="Erfassung neben der Transaktionsliste — nicht auf einer separaten Route (wie Produkte)."
@@ -53,7 +53,7 @@ function ZahlFinanzenOrPageWrap({
                     </Button>
                 )}
             />
-            <div className="card-pad" style={{ paddingTop: 0, paddingBottom: 0 }}>{children}</div>
+            <div className="card-pad zahl-finanzen-embed__body">{children}</div>
         </Card>
     );
 }
@@ -111,56 +111,64 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         return () => { cancelled = true; };
     }, []);
 
-    const loadAkteZahl = useCallback(async (pid: string) => {
-        if (!pid || !canListLines) {
-            setBehandlungen([]);
-            setUntersuchungen([]);
-            setZahlungenPatient([]);
-            return;
-        }
-        setAkteLoading(true);
-        setFormError(null);
-        try {
-            const a = await getAkte(pid);
-            const [bh, u, allZ] = await Promise.all([
-                listBehandlungen(a.id),
-                listUntersuchungen(a.id),
-                listZahlungen(),
-            ]);
-            setBehandlungen(bh);
-            setUntersuchungen(u);
-            setZahlungenPatient(allZ.filter((z) => z.patient_id === pid));
-        } catch (e) {
-            setFormError(errorMessage(e));
-            setBehandlungen([]);
-            setUntersuchungen([]);
-            setZahlungenPatient([]);
-        } finally {
-            setAkteLoading(false);
-        }
-    }, [canListLines]);
+    /** Monotonic id so stale akte/zahl responses cannot overwrite state after patient switch. */
+    const akteFetchSeq = useRef(0);
 
     useEffect(() => {
-        if (!patientId) {
+        if (!patientId || !canListLines) {
             setBehandlungen([]);
             setUntersuchungen([]);
             setZahlungenPatient([]);
             setLinkKind("");
             setLinkId("");
+            setAkteLoading(false);
             return;
         }
-        void loadAkteZahl(patientId);
-    }, [patientId, loadAkteZahl]);
+        const reqId = ++akteFetchSeq.current;
+        setAkteLoading(true);
+        setFormError(null);
+        void (async () => {
+            try {
+                const a = await getAkte(patientId);
+                const [bh, u, zPat] = await Promise.all([
+                    listBehandlungen(a.id),
+                    listUntersuchungen(a.id),
+                    listZahlungenForPatient(patientId),
+                ]);
+                if (akteFetchSeq.current !== reqId) return;
+                setBehandlungen(bh);
+                setUntersuchungen(u);
+                setZahlungenPatient(zPat);
+            } catch (e) {
+                if (akteFetchSeq.current !== reqId) return;
+                setFormError(errorMessage(e));
+                setBehandlungen([]);
+                setUntersuchungen([]);
+                setZahlungenPatient([]);
+            } finally {
+                if (akteFetchSeq.current === reqId) setAkteLoading(false);
+            }
+        })();
+    }, [patientId, canListLines]);
 
     const zahlungenPatientSorted = useMemo(
         () => [...zahlungenPatient].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         [zahlungenPatient],
     );
 
-    const zahlLinkOptions = useMemo(
-        () => buildZahlLinkSelectOptions(behandlungen, untersuchungen),
-        [behandlungen, untersuchungen],
-    );
+    const zahlLinkOptions = useMemo(() => {
+        if (!patientId) return [{ value: "", label: "—" }];
+        return buildOpenZahlLinkSelectOptions(zahlungenPatient, patientId, behandlungen, untersuchungen);
+    }, [patientId, zahlungenPatient, behandlungen, untersuchungen]);
+
+    useEffect(() => {
+        if (!patientId || !linkKind || !linkId) return;
+        const v = `${linkKind}:${linkId}`;
+        if (!zahlLinkOptions.some((o) => o.value === v)) {
+            setLinkKind("");
+            setLinkId("");
+        }
+    }, [patientId, linkKind, linkId, zahlLinkOptions]);
 
     const zahlLinkValue = linkKind && linkId ? `${linkKind}:${linkId}` : "";
 
@@ -267,6 +275,21 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         }
     };
 
+    const retryLoadPatienten = () => {
+        setLoadError(null);
+        setListLoading(true);
+        void (async () => {
+            try {
+                setPatienten(await listPatienten());
+                setLoadError(null);
+            } catch (e) {
+                setLoadError(errorMessage(e));
+            } finally {
+                setListLoading(false);
+            }
+        })();
+    };
+
     if (listLoading) {
         return isFinanzenEmbed ? (
             <div className="card produkte-detail-card" style={{ padding: 20 }}>
@@ -279,10 +302,10 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
     if (loadError) {
         return isFinanzenEmbed ? (
             <div className="card produkte-detail-card" style={{ padding: 8 }}>
-                <PageLoadError message={loadError} onRetry={() => window.location.reload()} />
+                <PageLoadError message={loadError} onRetry={retryLoadPatienten} />
             </div>
         ) : (
-            <PageLoadError message={loadError} onRetry={() => window.location.reload()} />
+            <PageLoadError message={loadError} onRetry={retryLoadPatienten} />
         );
     }
 
@@ -291,7 +314,8 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         if (isFinanzenEmbed && onFinanzenClose) onFinanzenClose();
         else navigate(backTarget);
     };
-    const noLinks = !canListLines || zahlLinkOptions.length <= 1;
+    const hasClinicalLines = behandlungen.length + untersuchungen.length > 0;
+    const noLinks = !canListLines || !patientId || akteLoading || zahlLinkOptions.length <= 1;
     const disabledBehandNoOpen =
         linkKind === "behand" && zahlNeuMaxBetragEur != null && zahlNeuMaxBetragEur <= ZAHL_EUR_EPS;
 
@@ -363,6 +387,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                         <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                             {formError ? (
                                 <p
+                                    role="alert"
                                     style={{
                                         color: "var(--red)",
                                         fontSize: 12.5,
@@ -442,15 +467,20 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                             {akteLoading ? (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>Behandlungen werden geladen…</p>
                             ) : null}
-                            {noLinks && patientId && !akteLoading ? (
+                            {noLinks && patientId && !akteLoading && !hasClinicalLines ? (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
                                     Es sind noch keine Behandlungen oder Untersuchungen in dieser Akte — bitte zuerst
                                     klinische Einträge anlegen, dann die Zahlung zuordnen.
                                 </p>
                             ) : null}
+                            {noLinks && patientId && !akteLoading && hasClinicalLines ? (
+                                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
+                                    Keine offene Zuordnung: Alle Behandlungssollen dieser Akte sind ausgeglichen.
+                                </p>
+                            ) : null}
                             <Select
                                 id="zc-zahl-link"
-                                label="Zuordnung (B-Nr. / U-Nr.) *"
+                                label="Zuordnung (nur offene Zeilen) *"
                                 value={zahlLinkValue}
                                 options={zahlLinkOptions}
                                 disabled={!patientId || noLinks || akteLoading}
@@ -477,7 +507,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                             gesamt != null && gesamt > 0 ? Math.max(0, gesamt - paidSum - add) : null;
                                         const previewCase =
                                             gesamt != null && gesamt > 0 && openAfter != null
-                                                ? openAfter <= 1e-6
+                                                ? openAfter <= ZAHL_EUR_EPS
                                                     ? "BEZAHLT"
                                                     : "TEILBEZAHLT"
                                                 : "BEZAHLT";
@@ -551,7 +581,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                                     <li key={h.id}>
                                                                         {formatDate(h.created_at)}
                                                                         {" · "}
-                                                                        {h.betrag.toFixed(2)} €
+                                                                        {formatCurrency(h.betrag)}
                                                                         {" · "}
                                                                         <Badge variant={hs.variant}>{hs.label}</Badge>
                                                                     </li>
@@ -648,15 +678,18 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     </div>
                                                     {histU.length > 0 ? (
                                                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
-                                                            {histU.map((h) => (
+                                                            {histU.map((h) => {
+                                                                const hu = zahlStatusDisplay(h.status);
+                                                                return (
                                                                 <li key={h.id}>
                                                                     {formatDate(h.created_at)}
                                                                     {" · "}
-                                                                    {h.betrag.toFixed(2)} €
+                                                                    {formatCurrency(h.betrag)}
                                                                     {" · "}
-                                                                    {zahlStatusDisplay(h.status).label}
+                                                                    <Badge variant={hu.variant}>{hu.label}</Badge>
                                                                 </li>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </ul>
                                                     ) : (
                                                         <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>

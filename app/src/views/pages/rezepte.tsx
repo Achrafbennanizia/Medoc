@@ -19,6 +19,7 @@ import { listDokumentVorlagen } from "../../controllers/praxis.controller";
 import type { Patient, DokumentVorlage } from "../../models/types";
 import { errorMessage, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { PackageIcon, SearchIcon } from "@/lib/icons";
 import {
     MEDIKAMENT_SUGGESTIONS,
     findSuggestion,
@@ -432,9 +433,13 @@ export function RezeptePage() {
             ) : listError ? (
                 <PageLoadError message={listError} onRetry={() => void fetchRezepte()} />
             ) : rezepte.length === 0 ? (
-                <EmptyState icon="💊" title="Keine Rezepte vorhanden" />
+                <EmptyState graphic={<PackageIcon size={40} />} title="Keine Rezepte vorhanden" />
             ) : filteredRezepte.length === 0 ? (
-                <EmptyState icon="🔍" title="Keine Treffer für den Filter" description='Filter löschen oder Suchbegriff anpassen.' />
+                <EmptyState
+                    graphic={<SearchIcon size={40} />}
+                    title="Keine Treffer für den Filter"
+                    description='Filter löschen oder Suchbegriff anpassen.'
+                />
             ) : (
                 <div className="card">
                     <table className="tbl">

@@ -5,6 +5,16 @@ export async function listZahlungen(): Promise<Zahlung[]> {
     return tauriInvoke<Zahlung[]>("list_zahlungen");
 }
 
+/** Nur Buchungen eines Patienten (gleiches Recht wie `list_zahlungen`; weniger Datenübertrag). */
+export async function listZahlungenForPatient(patient_id: string): Promise<Zahlung[]> {
+    return tauriInvoke<Zahlung[]>("list_zahlungen_for_patient", { patientId: patient_id });
+}
+
+/** Für Patientenliste: IDs mit mindestens einer Buchung „ausstehend“ oder „teilbezahlt“. */
+export async function listPatientIdsOpenInvoice(): Promise<string[]> {
+    return tauriInvoke<string[]>("list_patient_ids_open_invoice");
+}
+
 export async function getBilanz(): Promise<Bilanz> {
     return tauriInvoke<Bilanz>("get_bilanz");
 }
@@ -42,5 +52,5 @@ export async function deleteZahlung(id: string): Promise<void> {
 
 /** Tagesabschluss: markiert ausgewählte Zahlungen als kassengeprüft (oder zurück). */
 export async function setZahlungenKasseGeprueft(ids: string[], kasseGeprueft: boolean): Promise<number> {
-    return tauriInvoke<number>("set_zahlungen_kasse_geprueft", { ids, kasse_geprueft: kasseGeprueft });
+    return tauriInvoke<number>("set_zahlungen_kasse_geprueft", { ids, kasseGeprueft });
 }

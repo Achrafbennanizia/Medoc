@@ -91,6 +91,24 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     ).execute(pool).await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS akte_anlage (
+            id TEXT PRIMARY KEY,
+            akte_id TEXT NOT NULL REFERENCES patientenakte(id) ON DELETE CASCADE,
+            display_name TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            rel_storage_path TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_akte_anlage_akte ON akte_anlage(akte_id)")
+        .execute(pool)
+        .await?;
+
+    sqlx::query(
         "CREATE TABLE IF NOT EXISTS termin (
             id TEXT PRIMARY KEY,
             datum TEXT NOT NULL,

@@ -1,12 +1,12 @@
 import { getAkte, listBehandlungen, listUntersuchungen } from "@/controllers/akte.controller";
-import { renderInvoicePdf } from "@/controllers/invoice.controller";
+import { allocateBerichtNummer, renderInvoicePdf } from "@/controllers/invoice.controller";
 import type { TagesabschlussProtokoll } from "@/controllers/tagesabschluss-protokoll.controller";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 import {
     buildTagesberichtLines,
     getInvoicePraxisFromStorage,
-    nextBerichtNummer,
 } from "@/lib/invoice-leistung";
+import { openExportPreview } from "@/models/store/export-preview-store";
 import type { Patient, Zahlung } from "@/models/types";
 
 type PatientName = Pick<Patient, "id" | "name" | "adresse">;
@@ -65,7 +65,7 @@ export async function downloadTagesabschlussBerichtPdf(
     }
 
     const praxis = getInvoicePraxisFromStorage();
-    const num = nextBerichtNummer(stichtag);
+    const num = await allocateBerichtNummer(stichtag);
     const note = [
         `Gesamttagesbericht zu Tagesabschluss ${stichtag} · nicht an eine Einzelperson adressiert`,
         `Bargeld laut System: ${row.bar_laut_system_eur} €`,
@@ -85,11 +85,11 @@ export async function downloadTagesabschlussBerichtPdf(
         lines: aggregated,
         note: note || null,
     });
-    const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tagesbericht-${stichtag.replace(/[^\d-]/g, "")}-gesamt.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    openExportPreview({
+        format: "pdf",
+        title: "Tagesbericht (PDF)",
+        hint: `Stichtag ${stichtag} · Gesamtdokumentation · Drucken oder speichern.`,
+        suggestedFilename: `tagesbericht-${stichtag.replace(/[^\d-]/g, "")}-gesamt.pdf`,
+        binaryBody: new Uint8Array(bytes),
+    });
 }

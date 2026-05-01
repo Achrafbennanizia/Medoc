@@ -1,4 +1,6 @@
-/** Lokale Anlagen in der Akte (Vorschau via Blob-URL, nur Sitzung / bis Patient gewechselt wird). */
+/** Persistierte Akten-Anlagen (Datei auf Disk) + Vorschau über `convertFileSrc` in Tauri. */
+
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 export const ANLAGE_MAX_BYTES = 50 * 1024 * 1024;
 
@@ -22,8 +24,10 @@ export type AkteAnlage = {
     addedAt: string;
     mimeType: string;
     sizeBytes: number;
-    /** `URL.createObjectURL` — bei Entfernen / Abbruch widerrufen */
+    /** Vorschau-URL (`blob:` vor dem Speichern oder `convertFileSrc` nach dem Speichern) */
     previewUrl: string;
+    /** Nur nach Persistenz: absoluter Pfad auf dem Gerät (Tauri) */
+    absPath?: string;
 };
 
 export function anlageInputAccept(): string {
@@ -72,12 +76,48 @@ export function isAnlageImagePreview(mime: string, name: string): boolean {
 
 export function buildAnlageRowFromFile(file: File): AkteAnlage {
     const previewUrl = URL.createObjectURL(file);
+    const id =
+        globalThis.crypto?.randomUUID?.() ?? `anlage-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     return {
-        id: crypto.randomUUID(),
+        id,
         name: file.name,
         addedAt: new Date().toISOString(),
         mimeType: file.type || "application/octet-stream",
         sizeBytes: file.size,
         previewUrl,
+    };
+}
+
+/** Base64 (Standard) für Tauri `create_akte_anlage`. */
+export async function fileToBase64ForAnlage(file: File): Promise<string> {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+/** Antwort von `list_akte_anlagen` / `create_akte_anlage` (serde snake_case). */
+export type AkteAnlageRowDto = {
+    id: string;
+    display_name: string;
+    mime_type: string;
+    size_bytes: number;
+    created_at: string;
+    abs_path: string;
+};
+
+export function mapAkteAnlageRowDto(r: AkteAnlageRowDto): AkteAnlage {
+    return {
+        id: r.id,
+        name: r.display_name,
+        addedAt: r.created_at,
+        mimeType: r.mime_type,
+        sizeBytes: Number(r.size_bytes),
+        absPath: r.abs_path,
+        previewUrl: convertFileSrc(r.abs_path),
     };
 }
