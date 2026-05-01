@@ -35,9 +35,9 @@ export type ClientSettingsV1 = {
         /** Öffnen von `/termine` mit dieser Ansicht */
         termineDefaultView?: TermineKalenderAnsicht;
     };
-    /** Akte → Extra Anlagen (Öffnen mit externer App) */
+    /** Akte → Anlagen extern öffnen: leer = empfohlene erste App; "__SYSTEM__" = nur Betriebssystem-Standard. */
     akte?: {
-        /** Absoluter Pfad zur .app (macOS) oder EXE (Windows); leer = Systemstandard */
+        /** Pfad zur .app / .exe oder "__SYSTEM__" */
         openImagesWithApp?: string;
     };
 };

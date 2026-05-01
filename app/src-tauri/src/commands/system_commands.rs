@@ -134,3 +134,12 @@ pub async fn system_health_check(
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }
+
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state))]
+pub fn list_detected_photo_viewer_apps(
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<crate::infrastructure::photo_viewer_scan::DetectedPhotoViewerApp>, AppError> {
+    rbac::require_authenticated(&session_state)?;
+    Ok(crate::infrastructure::photo_viewer_scan::detect_photo_viewer_apps())
+}

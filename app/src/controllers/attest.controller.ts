@@ -22,7 +22,7 @@ export interface CreateAttest {
 }
 
 export const listAtteste = (patientId: string) =>
-    tauriInvoke<Attest[]>("list_atteste", { patientId });
+    tauriInvoke<Attest[]>("list_atteste", { patient_id: patientId });
 
 export const createAttest = (data: CreateAttest) =>
     tauriInvoke<Attest>("create_attest", { data });

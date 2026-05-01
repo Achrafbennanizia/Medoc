@@ -29,6 +29,8 @@ fn extension_from_name(name: &str) -> &'static str {
         (".jpeg", ".jpg"),
         (".png", ".png"),
         (".webp", ".webp"),
+        (".heic", ".heic"),
+        (".heif", ".heif"),
         (".gif", ".gif"),
         (".bmp", ".bmp"),
         (".tif", ".tif"),
@@ -193,4 +195,13 @@ pub async fn delete_row_and_file(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn akte_anlage_extension_mapping_common_formats() {
+    assert_eq!(extension_from_name("x.webp"), ".webp");
+    assert_eq!(extension_from_name("X.WEBP"), ".webp");
+    assert_eq!(extension_from_name("a.heic"), ".heic");
+    assert_eq!(extension_from_name("b.heif"), ".heif");
 }

@@ -25,7 +25,7 @@ export interface CreateRezept {
 }
 
 export const listRezepte = (patientId: string) =>
-    tauriInvoke<Rezept[]>("list_rezepte", { patientId });
+    tauriInvoke<Rezept[]>("list_rezepte", { patient_id: patientId });
 
 export const createRezept = (data: CreateRezept) =>
     tauriInvoke<Rezept>("create_rezept", { data });

@@ -26,12 +26,12 @@ export const validateBackup = (path: string) =>
     tauriInvoke<boolean>("validate_backup", { path });
 
 export const dsgvoExportPatient = (patientId: string) =>
-    tauriInvoke<unknown>("dsgvo_export_patient", { patientId });
+    tauriInvoke<unknown>("dsgvo_export_patient", { patient_id: patientId });
 export const dsgvoErasePatient = (patientId: string) =>
-    tauriInvoke<ErasureReport>("dsgvo_erase_patient", { patientId });
+    tauriInvoke<ErasureReport>("dsgvo_erase_patient", { patient_id: patientId });
 
 export const importPatientsCsv = (csvPath: string, dryRun: boolean) =>
-    tauriInvoke<ImportReport>("import_patients_csv", { csvPath, dryRun });
+    tauriInvoke<ImportReport>("import_patients_csv", { csv_path: csvPath, dry_run: dryRun });
 
 /** Opens a native file dialog; returns `null` if the user cancels. */
 export const pickPatientsCsvFile = () =>

@@ -8,7 +8,7 @@ export interface BreakGlassEntry {
 }
 
 export async function breakGlassActivate(reason: string, patientId?: string | null): Promise<void> {
-    await tauriInvoke<void>("break_glass_activate", { reason, patientId: patientId ?? null });
+    await tauriInvoke<void>("break_glass_activate", { reason, patient_id: patientId ?? null });
 }
 
 export async function breakGlassActive(): Promise<BreakGlassEntry[]> {

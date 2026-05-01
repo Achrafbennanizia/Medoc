@@ -485,7 +485,7 @@ export function StatistikPage() {
     const periodLabel = period === "6m" ? "Letzte 6 Monate" : "Letzte 12 Monate";
     const dash = dashboardMetrics!;
 
-    function exportCsv() {
+    async function exportCsv() {
         if (!stats) return;
         const rows: (string | number)[][] = [["Sektion", "Kennzahl", "Wert"]];
         rows.push(["Patienten", "Gesamt", stats.patienten_gesamt]);

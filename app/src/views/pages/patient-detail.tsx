@@ -101,9 +101,11 @@ import {
     validateAnlageFile,
     mapAkteAnlageRowDto,
     fileToBase64ForAnlage,
+    deriveAnlageDisplayName,
     type AkteAnlage,
 } from "@/lib/akte-anlagen";
 import { loadClientSettings } from "@/lib/client-settings";
+import { resolveOpenImageWithAppPath } from "@/lib/photo-viewer-apps";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
     ZAHLUNG_ART_SELECT,
@@ -167,7 +169,7 @@ function akteSaveConfirmUi(p: AkteSavePending): { title: string; message: string
         case "anlage_add":
             return {
                 title: "Anlage hinzufügen",
-                message: `Die Datei „${p.file.name}“ dauerhaft in der Akte speichern?`,
+                message: `Die Datei „${deriveAnlageDisplayName(p.file)}“ dauerhaft in der Akte speichern?`,
                 confirmLabel: "Hinzufügen",
             };
         case "anlage_remove":
@@ -520,26 +522,26 @@ export function PatientDetailPage() {
             const a = await getAkte(id);
             setAkte(a);
             void refreshAnlagen(a.id);
-            const [rez, zPat, att] = await Promise.all([
+            const [rez, zPat, att, katRows] = await Promise.all([
                 listRezepte(id),
                 listZahlungenForPatient(id),
                 listAtteste(id),
+                listBehandlungsKatalog().catch(() => [] as BehandlungsKatalogItem[]),
             ]);
             setRezepte(rez);
             setZahlungen(zPat);
             setAtteste(att);
+            setKatalog(katRows);
             if (canViewClinical) {
-                const [z, bh, u, am, katRows] = await Promise.all([
+                const [z, bh, u, am] = await Promise.all([
                     listZahnbefunde(a.id),
                     listBehandlungen(a.id),
                     listUntersuchungen(a.id),
                     getAnamnesebogen(id),
-                    listBehandlungsKatalog(),
                 ]);
                 setBefunde(z);
                 setBehandlungen(bh);
                 setUntersuchungen(u);
-                setKatalog(katRows);
                 if (am) {
                     try {
                         setAnamneseJson(JSON.stringify(JSON.parse(am.antworten), null, 2));
@@ -555,9 +557,6 @@ export function PatientDetailPage() {
                 const [bh, u] = await Promise.all([listBehandlungen(a.id), listUntersuchungen(a.id)]);
                 setBehandlungen(bh);
                 setUntersuchungen(u);
-                setKatalog([]);
-            } else {
-                setKatalog([]);
             }
         } catch (e) {
             setAkte(null);
@@ -1481,10 +1480,11 @@ export function PatientDetailPage() {
                     break;
                 case "anlage_add": {
                     if (!akte) break;
+                    const displayName = deriveAnlageDisplayName(p.file);
                     const b64 = await fileToBase64ForAnlage(p.file);
                     await createAkteAnlage({
                         akte_id: akte.id,
-                        display_name: p.file.name,
+                        display_name: displayName,
                         mime_type: p.file.type || "application/octet-stream",
                         bytes_base64: b64,
                     });
@@ -3989,6 +3989,46 @@ export function PatientDetailPage() {
             )}
             {activeTab === "anlage" && (
                 <div id="panel-anlage" role="tabpanel" aria-labelledby="tab-anlage">
+                <div /* Abstand unter dem Katalog */ style={{ marginBottom: 16 }}>
+                <Card className="card-pad">
+                    <CardHeader
+                        title="Leistungskatalog"
+                        subtitle="Aktive Katalogpositionen der Praxis (Lesen) — gleiche Daten wie unter Behandlungen / Verwaltung."
+                    />
+                    {katalog.length === 0 ? (
+                        <p className="card-sub" style={{ margin: 0 }}>
+                            Keine Katalogeinträge geladen oder Katalog ist leer.
+                        </p>
+                    ) : (
+                        <div style={{ overflow: "auto", maxHeight: 320 }}>
+                            <table className="tbl">
+                                <thead>
+                                    <tr>
+                                        <th>Kategorie</th>
+                                        <th>Leistung</th>
+                                        <th style={{ textAlign: "right" }}>Standard €</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {[...katalog]
+                                        .sort(
+                                            (a, b) =>
+                                                a.kategorie.localeCompare(b.kategorie, "de") ||
+                                                a.name.localeCompare(b.name, "de"),
+                                        )
+                                        .map((row) => (
+                                            <tr key={row.id}>
+                                                <td>{row.kategorie}</td>
+                                                <td>{row.name}</td>
+                                                <td style={{ textAlign: "right" }}>{formatCurrency(row.default_kosten ?? 0)}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Card>
+                </div>
                 <Card className="card-pad">
                     <AkteAnlagenPanel
                         subtitle={
@@ -4029,13 +4069,12 @@ export function PatientDetailPage() {
                         onOpenExternal={(idx) => {
                             const row = anlagen[idx];
                             if (!row?.absPath) return;
-                            const appPath = loadClientSettings().akte?.openImagesWithApp?.trim() ?? "";
                             void (async () => {
                                 try {
-                                    await openAkteAnlageExternally(
-                                        row.id,
-                                        appPath.length > 0 ? appPath : undefined,
+                                    const withApp = await resolveOpenImageWithAppPath(
+                                        loadClientSettings().akte?.openImagesWithApp,
                                     );
+                                    await openAkteAnlageExternally(row.id, withApp);
                                 } catch (e) {
                                     toast(`Öffnen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
                                 }

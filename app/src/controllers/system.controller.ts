@@ -28,7 +28,7 @@ export const checkForUpdates = () =>
     tauriInvoke<UpdateInfo>("check_for_updates");
 
 export const changePassword = (oldPassword: string, newPassword: string) =>
-    tauriInvoke<void>("change_password", { oldPassword, newPassword });
+    tauriInvoke<void>("change_password", { old_password: oldPassword, new_password: newPassword });
 
 export interface SubscriptionPortal {
     url: string;
@@ -132,8 +132,8 @@ export const scannerListRecent = (folder: string, limit?: number) =>
 export const scannerAttach = (src: string, archiveRoot: string, patientId: string) =>
     tauriInvoke<string>("scanner_attach", {
         src,
-        archiveRoot,
-        patientId,
+        archive_root: archiveRoot,
+        patient_id: patientId,
     });
 
 /* ─────────────────── Card / SEPA processing (FA-FIN-PAY) ──────────────── */
@@ -154,3 +154,13 @@ export interface PaymentReceipt {
 
 export const processPayment = (request: PaymentRequest) =>
     tauriInvoke<PaymentReceipt>("process_payment", { request });
+
+/** Installierte Bildbetrachter (Pfade), wie vom Backend gescannt. */
+export interface DetectedPhotoViewerApp {
+    display_name: string;
+    path: string;
+    rank: number;
+}
+
+export const listDetectedPhotoViewerApps = () =>
+    tauriInvoke<DetectedPhotoViewerApp[]>("list_detected_photo_viewer_apps");

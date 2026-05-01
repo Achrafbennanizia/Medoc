@@ -166,7 +166,7 @@ pub async fn list_behandlungs_katalog(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<praxis_repo::BehandlungsKatalogItem>, AppError> {
-    rbac::require(&session_state, "personal.read")?;
+    rbac::require(&session_state, "patient.read")?;
     praxis_repo::list_behandlungs_katalog(&pool).await
 }
 
