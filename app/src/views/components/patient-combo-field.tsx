@@ -10,6 +10,8 @@ type PatientComboFieldProps = {
     patienten: readonly Patient[];
     patientId: string;
     onPatientIdChange: (id: string) => void;
+    /** Optional: mirror typed query (e.g. datenschutz table filter). */
+    onQueryChange?: (query: string) => void;
     disabled?: boolean;
     placeholder?: string;
 };
@@ -23,6 +25,7 @@ export function PatientComboField({
     patienten,
     patientId,
     onPatientIdChange,
+    onQueryChange,
     disabled = false,
     placeholder = "Namen tippen oder aus Liste wählen …",
 }: PatientComboFieldProps) {
@@ -53,6 +56,7 @@ export function PatientComboField({
     function handleInputChange(v: string) {
         if (disabled) return;
         setQuery(v);
+        onQueryChange?.(v);
         if (patientId) {
             const p = patienten.find((x) => x.id === patientId);
             if (p && v !== p.name) {
@@ -65,6 +69,7 @@ export function PatientComboField({
     function pick(p: Patient) {
         onPatientIdChange(p.id);
         setQuery(p.name);
+        onQueryChange?.(p.name);
         setOpen(false);
     }
 
@@ -73,18 +78,7 @@ export function PatientComboField({
 
     return (
         <div ref={rootRef} className="patient-combo-field" style={{ marginBottom: 8 }}>
-            <label
-                htmlFor={id}
-                style={{
-                    fontSize: 11,
-                    color: "var(--fg-3)",
-                    fontWeight: 600,
-                    letterSpacing: "0.02em",
-                    textTransform: "uppercase",
-                    marginBottom: 6,
-                    display: "block",
-                }}
-            >
+            <label htmlFor={id} className="form-label">
                 {label}
             </label>
             <div className="patient-combo-field__input-wrap" style={{ position: "relative" }}>

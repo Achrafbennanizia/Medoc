@@ -1,4 +1,5 @@
 import { tauriInvoke } from "@/services/tauri.service";
+import { CreateAttestSchema, parseOrThrow } from "@/lib/schemas";
 
 export interface Attest {
     id: string;
@@ -24,8 +25,10 @@ export interface CreateAttest {
 export const listAtteste = (patientId: string) =>
     tauriInvoke<Attest[]>("list_atteste", { patient_id: patientId });
 
-export const createAttest = (data: CreateAttest) =>
-    tauriInvoke<Attest>("create_attest", { data });
+export const createAttest = (data: CreateAttest) => {
+    const safe = parseOrThrow(CreateAttestSchema, data);
+    return tauriInvoke<Attest>("create_attest", { data: safe });
+};
 
 export const deleteAttest = (id: string) =>
     tauriInvoke<void>("delete_attest", { id });

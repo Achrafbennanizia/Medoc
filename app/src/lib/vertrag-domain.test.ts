@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { betragAequivalentProMonat, vertragAktivHeute, type VertragItem } from "./vertrag-local";
+import { betragAequivalentProMonat, vertragAktivHeute, type VertragItem } from "./vertrag-domain";
 
-describe("vertrag-local", () => {
+describe("vertrag-domain", () => {
     it("Jahr to month equivalent", () => {
         expect(betragAequivalentProMonat(840, "JAHR")).toBeCloseTo(70, 2);
     });
@@ -18,7 +18,6 @@ describe("vertrag-local", () => {
             periodeBis: "2040-12-31",
             createdAt: "",
         };
-        // depends on "today" — use a mock by checking logic with fixed strings
         expect(v.unbefristet).toBe(false);
         const vPast: VertragItem = { ...v, periodeBis: "2000-01-01" };
         const t = new Date();

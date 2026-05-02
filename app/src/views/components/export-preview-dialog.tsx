@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import type { ExportPreviewPayload } from "@/models/store/export-preview-store";
 import { parseDelimitedGrid, sortGridRows, stringifyDelimitedGrid } from "@/lib/export-delimited";
+import { printHtmlDocument } from "@/lib/print-html";
 import { saveOrDownloadBytes, saveOrDownloadText } from "@/lib/save-download";
 import { useToastStore } from "./ui/toast-store";
 
@@ -19,6 +20,8 @@ function formatLabel(format: ExportPreviewPayload["format"]): string {
     switch (format) {
         case "csv":
             return "CSV (Tabelle)";
+        case "html":
+            return "HTML (Druck / Speichern)";
         case "json":
             return "JSON";
         case "xml":
@@ -208,6 +211,8 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
         switch (payload.format) {
             case "csv":
                 return "text/csv;charset=utf-8";
+            case "html":
+                return "text/html;charset=utf-8";
             case "json":
                 return "application/json";
             case "xml":
@@ -242,6 +247,10 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
         }
         if (payload.format === "xml" && payload.textBody) {
             printHtmlInHiddenIframe(title, `<pre>${escapeHtml(payload.textBody)}</pre>`);
+            return;
+        }
+        if (payload.format === "html" && payload.textBody) {
+            printHtmlDocument(payload.textBody);
             return;
         }
         if (payload.format === "pdf" && pdfUrl) {
@@ -340,6 +349,13 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
         if (payload.format === "xml" && payload.textBody) {
             return (
                 <pre className="export-preview-pre card card-pad">{payload.textBody}</pre>
+            );
+        }
+        if (payload.format === "html" && payload.textBody) {
+            return (
+                <div className="export-preview-pdf-wrap export-preview-html-wrap">
+                    <iframe title="HTML-Vorschau" srcDoc={payload.textBody} className="export-preview-pdf-frame" />
+                </div>
             );
         }
         if (payload.format === "pdf" && pdfUrl) {

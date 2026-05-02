@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountsMatch, filterZahlungenForLocalDay, sumBarTag, zahlungLocalYmd } from "./tagesabschluss";
+import { amountsMatch, filterZahlungenForLocalDay, parseEuroInput, sumBarTag, zahlungLocalYmd } from "./tagesabschluss";
 import type { Zahlung } from "@/models/types";
 
 const base: Omit<Zahlung, "id" | "created_at" | "betrag"> = {
@@ -27,5 +27,31 @@ describe("tagesabschluss", () => {
     it("amountsMatch tolerates cent rounding", () => {
         expect(amountsMatch(10, 10.005)).toBe(true);
         expect(amountsMatch(10, 10.02)).toBe(false);
+    });
+
+    describe("parseEuroInput (de-DE)", () => {
+        it("parses thousands + decimal comma", () => {
+            expect(parseEuroInput("1.234,56")).toBe(1234.56);
+            expect(parseEuroInput("12.345,67")).toBe(12345.67);
+        });
+
+        it("parses decimal comma without thousands", () => {
+            expect(parseEuroInput("1234,56")).toBe(1234.56);
+            expect(parseEuroInput("10,5")).toBe(10.5);
+        });
+
+        it("parses grouped thousands without decimals", () => {
+            expect(parseEuroInput("1.234.567")).toBe(1234567);
+        });
+
+        it("single dot as decimal when no comma", () => {
+            expect(parseEuroInput("12.34")).toBe(12.34);
+        });
+
+        it("returns null for empty or invalid", () => {
+            expect(parseEuroInput("")).toBeNull();
+            expect(parseEuroInput("   ")).toBeNull();
+            expect(parseEuroInput("x")).toBeNull();
+        });
     });
 });

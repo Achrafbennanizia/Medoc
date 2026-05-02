@@ -121,6 +121,65 @@ export function ConfirmOrInline({
     );
 }
 
+export type AkteInlineEditPanelShellProps = {
+    id: string;
+    ariaLabel: string;
+    title: string;
+    subtitle?: ReactNode;
+    headerExtra?: ReactNode;
+    onClose: () => void;
+    footer?: ReactNode;
+    children: ReactNode;
+    panelVariant?: "default" | "rezept";
+    /** Appended to root panel classes (e.g. table-embedded editors). */
+    rootClassName?: string;
+};
+
+/** Shared chrome for inline Akte edit panels (also embeddable inside layouts such as table rows). */
+export function AkteInlineEditPanelShell({
+    id,
+    ariaLabel,
+    title,
+    subtitle,
+    headerExtra,
+    onClose,
+    footer,
+    children,
+    panelVariant = "default",
+    rootClassName,
+}: AkteInlineEditPanelShellProps) {
+    const root = panelVariant === "rezept" ? "rezept-akte-panel" : "akte-inline-panel";
+    const head = panelVariant === "rezept" ? "rezept-akte-panel-head" : "akte-inline-panel-head";
+    const tcls = panelVariant === "rezept" ? "rezept-akte-panel-title" : "akte-inline-panel-title";
+    const scls = panelVariant === "rezept" ? "rezept-akte-panel-sub" : "akte-inline-panel-sub";
+    const body = panelVariant === "rezept" ? "rezept-akte-panel-body" : "akte-inline-panel-body";
+    const act = panelVariant === "rezept" ? "rezept-akte-panel-actions" : "akte-inline-panel-actions";
+
+    return (
+        <div
+            id={id}
+            className={[root, rootClassName].filter(Boolean).join(" ")}
+            role="region"
+            aria-label={ariaLabel}
+        >
+            <div className={head}>
+                <div>
+                    <div className={tcls}>{title}</div>
+                    {subtitle ? <div className={scls}>{subtitle}</div> : null}
+                </div>
+                <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {headerExtra}
+                    <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+                        Schließen
+                    </Button>
+                </div>
+            </div>
+            <div className={body}>{children}</div>
+            {footer != null ? <div className={act}>{footer}</div> : null}
+        </div>
+    );
+}
+
 export type AkteEditFormOrInlineProps = {
     area: ConfirmationAreaKey;
     open: boolean;
@@ -182,29 +241,18 @@ export function AkteEditFormOrInline({
         );
     }
 
-    const root = panelVariant === "rezept" ? "rezept-akte-panel" : "akte-inline-panel";
-    const head = panelVariant === "rezept" ? "rezept-akte-panel-head" : "akte-inline-panel-head";
-    const tcls = panelVariant === "rezept" ? "rezept-akte-panel-title" : "akte-inline-panel-title";
-    const scls = panelVariant === "rezept" ? "rezept-akte-panel-sub" : "akte-inline-panel-sub";
-    const body = panelVariant === "rezept" ? "rezept-akte-panel-body" : "akte-inline-panel-body";
-    const act = panelVariant === "rezept" ? "rezept-akte-panel-actions" : "akte-inline-panel-actions";
-
     return (
-        <div id={inlineId} className={root} role="region" aria-label={ariaLabel}>
-            <div className={head}>
-                <div>
-                    <div className={tcls}>{title}</div>
-                    {subtitle ? <div className={scls}>{subtitle}</div> : null}
-                </div>
-                <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {headerExtra}
-                    <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-                        Schließen
-                    </Button>
-                </div>
-            </div>
-            <div className={body}>{children}</div>
-            {footer != null ? <div className={act}>{footer}</div> : null}
-        </div>
+        <AkteInlineEditPanelShell
+            id={inlineId}
+            ariaLabel={ariaLabel}
+            title={title}
+            subtitle={subtitle}
+            headerExtra={headerExtra}
+            onClose={onClose}
+            footer={footer}
+            panelVariant={panelVariant}
+        >
+            {children}
+        </AkteInlineEditPanelShell>
     );
 }

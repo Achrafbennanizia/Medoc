@@ -1,0 +1,77 @@
+# MeDoc Codebase Agent — Operating Rules
+
+## Identity & scope
+You are working on MeDoc, a Tauri 2 + React 19 + TypeScript desktop app
+for German dental practices. It is a Bachelorarbeit prototype that must
+nevertheless align with: Pflichtenheft, RBAC matrix, IEC 62304, ISO 14971,
+IEC 82304, ISO 27001/27799, ISO 25010, ISO 9241, ISO 22600, DSGVO.
+Reference docs live in /docs (project knowledge — read them before
+designing anything). The Rust backend lives in app/src-tauri.
+
+## Hard rules — never violate
+1. Backend (Rust) is the source of truth for DTOs, validation, RBAC,
+   and audit. Never weaken backend checks. When FE and BE disagree,
+   change FE to match BE — unless the BE itself is wrong, in which
+   case STOP and ask.
+2. No patient-identifying data in localStorage. Audit-relevant state
+   (validation, plan-next-termin, akte attachments metadata, invoice
+   history) must move to SQLite via app_kv or proper tables.
+3. Never silently swallow errors. Every catch needs either a toast,
+   a logged warning via the logging controller, or a deliberate
+   /* ignore */ comment with reason.
+4. Never break RBAC. If a route or capability check is removed or
+   loosened, that is a regression — even if it makes a feature "work".
+5. Preserve existing test files. Add tests with new logic. Do not
+   delete tests to make them pass.
+6. No new dependencies without justifying why an existing one (zod,
+   zustand, react-router-dom, date-fns, clsx, tailwind-merge, lucide
+   via local icons.tsx) cannot do the job.
+
+## Style & idioms
+- Use the design-system primitives in views/components/ui/* (Button,
+  Input, Select, Textarea, Dialog, ConfirmDialog, Card, CardHeader,
+  Badge, EmptyState, FormSection, IconButton, Skeleton, Spinner,
+  Separator). Do not use raw <button>, <input>, or inline styled
+  divs for these roles.
+- Inline `style={{...}}` is permitted only for one-off layout numbers,
+  never for colors, spacing tokens, fonts, or radii. Those come from
+  CSS variables in index.css (--fg, --fg-2, --fg-3, --fg-4, --line,
+  --line-strong, --accent, --accent-soft, --red, --orange, --blue,
+  --green, --surface-1, --surface-2, --shadow-lg, --radius-ctl, etc.).
+- German UI text. Code, comments, commits in English.
+- Currency: formatCurrency() from lib/utils.ts. Dates: formatDate /
+  formatDateTime from the same. Never hand-roll de-DE formatting.
+- Tauri arg keys: match the casing the Rust command actually accepts.
+  If unsure, GREP src-tauri for the command name and read the Rust
+  signature before writing the invoke call.
+
+## Working method
+- For every task: read the relevant SKILL.md / project docs first,
+  make a plan, list files you will touch, then execute. Do not edit
+  files outside the announced list without asking.
+- Diffs over rewrites. Refactors must preserve behavior unless
+  behavior change is the explicit goal.
+- After any change run: `npm run typecheck`, `npm test`,
+  `cargo check --manifest-path app/src-tauri/Cargo.toml`. If any of
+  the three fails, the task is not done.
+- Component naming: <kebab-case>.tsx for files, PascalCase for
+  exports. Co-locate component CSS in index.css under a clearly
+  commented section, not in <style> tags.
+
+## Definition of done (every change)
+[ ] typecheck clean, tests green, cargo check clean
+[ ] No new console.error / console.warn in normal flows
+[ ] No accessibility regression: keyboard navigable, focus visible,
+    aria-label on icon-only controls, role on dialogs/menus, labels
+    associated with inputs
+[ ] No new inline color/spacing literals — uses CSS variables
+[ ] If user-visible, supports the existing density modes
+    (data-density="compact|cozy|spacious") and dark sidebar tone
+[ ] If RBAC-relevant, the change is reflected in both
+    NAV_ITEM_DEFINITIONS and ROUTE_VISIBILITY in lib/rbac.ts and the
+    Rust application/rbac.rs allowed() matrix
+[ ] If a new app_kv key, it is in the Rust permission_for() whitelist
+
+## When you are uncertain
+Stop and ask. Do not invent backend commands, DTO fields, RBAC keys,
+or i18n keys. Do not "improve" semantics by guessing intent.

@@ -42,9 +42,24 @@ export function amountsMatch(a: number, b: number): boolean {
     return Math.abs(a - b) < AMOUNT_TOL;
 }
 
+/**
+ * Parse German / mixed numeric input for Euro amounts.
+ * - `1.234,56` → 1234.56 (`.` thousands, `,` decimal)
+ * - `1234,56` → 1234.56
+ * - `1.234.567` (only dots as thousands) → 1234567
+ * - `12.34` with a single dot and no comma → decimal point (en-US style)
+ */
 export function parseEuroInput(raw: string): number | null {
-    const s = String(raw).trim().replace(/\s/g, "").replace(",", ".");
-    if (s === "") return null;
+    const s0 = String(raw).trim().replace(/\s/g, "");
+    if (s0 === "") return null;
+
+    let s = s0;
+    if (s.includes(",")) {
+        s = s.replace(/\./g, "").replace(",", ".");
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+        s = s.replace(/\./g, "");
+    }
+
     const n = Number(s);
     if (!Number.isFinite(n)) return null;
     return n;

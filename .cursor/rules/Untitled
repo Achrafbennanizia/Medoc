@@ -1,0 +1,78 @@
+# MeDoc — Operating context for this work session
+
+## Project
+MeDoc is a Tauri 2 + React 19 + TS desktop app for German dental
+practices (Bachelorarbeit prototype, regulatory-aligned). Backend
+in app/src-tauri (Rust, sqlx + SQLite/SQLCipher, audit-chained).
+Frontend in app/src.
+
+## Roles in this system (do not invent new ones)
+- ARZT: full clinical + admin access. Source of medical truth.
+- REZEPTION: operational front desk. NO medical content access.
+  Owns patient master data, appointments, payments, intake.
+- STEUERBERATER and PHARMABERATER: EXTERNAL roles. For this work,
+  these roles must be visible in role lists only as "deaktiviert /
+  externer Kontakt — Kommunikation per Beleg/PDF". Do not build
+  in-app interactions for them. Do not delete the Rust RBAC entries
+  — gate at the FE login + sidebar level only. The audit/RBAC
+  matrix in app/src-tauri stays intact.
+
+## Hard rules — never violate
+1. Backend Rust is the source of truth for DTOs, RBAC, validation,
+   audit. When in doubt, change FE to match BE. Never weaken BE
+   checks.
+2. No patient-identifying data in localStorage. Use SQLite via
+   app_kv (whitelisted keys) or proper tables. Audit-relevant
+   writes must produce audit entries.
+3. No silent error swallowing. Every catch toasts, logs via
+   logging.controller, or has an explicit /* ignore: <reason> */.
+4. RBAC: for any FE gating change, mirror in
+   app/src-tauri/src/application/rbac.rs allowed() AND in
+   src/lib/rbac.ts ROUTE_VISIBILITY + NAV_ITEM_DEFINITIONS.
+   Otherwise it's a regression.
+5. No raw printing of HTML to a popup window for medical/financial
+   documents. Use the existing render_invoice_pdf pipeline
+   (FA-FIN-INVOICE) or extend it. Anything user-printable goes
+   through PDF, never window.print() of unescaped HTML.
+6. Use design-system primitives in views/components/ui/* for
+   buttons, inputs, dialogs, cards, toasts, badges, empty states.
+   No raw <button>/<input>/<div role=dialog>.
+7. Inline style only for one-off layout numbers. Never for color,
+   spacing tokens, fonts, radii — those come from CSS variables in
+   index.css (--fg, --fg-2, --fg-3, --line, --accent, --red,
+   --orange, --blue, --green, --surface-1, --surface-2,
+   --shadow-lg, --radius-ctl, etc).
+8. UI text in German (Sie-Form). Code, comments, commit messages,
+   identifiers in English.
+9. Currency formatCurrency() and dates formatDate/formatDateTime
+   from lib/utils.ts. No hand-rolled de-DE.
+10. No new dependencies without justifying why existing ones
+    (zod, zustand, react-router-dom, date-fns, clsx, tailwind-merge,
+    local lib/icons.tsx) cannot do the job.
+
+## Working method
+- Read relevant files BEFORE writing. Reference docs in
+  /docs (rbac-matrix.md, benutzerhandbuch.md, architecture-design.md,
+  07-iso-22600-dsgvo.md, 02-use-case-diagram.md).
+- For each task, list files you will touch first, then execute.
+  Do not edit files outside the announced list without asking.
+- After each phase: run `npm run typecheck`, `npm test`,
+  `cargo check --manifest-path app/src-tauri/Cargo.toml`. All
+  three must pass before declaring the phase done.
+
+## Definition of done (every change)
+[ ] typecheck clean, tests green, cargo check clean
+[ ] No new console.error/warn in normal flows
+[ ] Keyboard navigable, focus visible, aria-label on icon-only
+    controls, role on dialogs/menus, <label htmlFor> on inputs
+[ ] No new inline color/spacing literals — uses CSS variables
+[ ] Supports data-density="compact|cozy|spacious" and dark
+    sidebar tone
+[ ] If RBAC-relevant, mirrored FE + BE
+[ ] If app_kv keys added, whitelisted in permission_for()
+[ ] If a workflow change, the use case in 02-use-case-diagram.md
+    is updated
+
+## When uncertain
+Stop and ask. Do not invent backend commands, DTO fields, RBAC
+keys, i18n keys, or rules. Do not "improve" semantics by guessing.

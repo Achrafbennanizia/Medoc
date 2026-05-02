@@ -39,7 +39,8 @@
 | Frontend type-check | `cd app && ./node_modules/.bin/tsc --noEmit -p tsconfig.json` | **PASS** | 2026-04-26 | After D20: modal→page conversion (`/finanzen/neu`), `patient-detail` header refactor, two-mode Behandlung composer with auto B-Nummer/Sitzung + collapsible "Nächsten Termin planen", per-section Validierung mit `localStorage`, Termin-create Tipp-Card, Rezept-Vorlagen quick-pick chips |
 | Frontend lint | `cd app && ./node_modules/.bin/eslint src --max-warnings 0` | **PASS** | 2026-04-26 | After D20 — fixed missing `activeTab` dep in Rezept-Vorlagen-Loader effect |
 | Frontend unit tests | `cd app && ./node_modules/.bin/vitest run` | **PASS** | 2026-04-26 | 29 tests / 4 files (smoke, string-suggest, rbac, schemas) — unchanged after D20 |
-| Rust dev-build (live) | running `npm run tauri dev` (terminal 1) | **PASS** | 2026-04-26 | `Compiling medoc … Finished dev profile in 13.68s` then `event="DB_READY"` + login traffic — current `audit_repo.rs` (`map_err(AppError::Internal)?`) compiles cleanly. Earlier stale terminal lines (`Result<String,String>: Encode` error) reflect a pre-fix snapshot; the running binary disproves it. Sandboxed `cargo check` cannot rerun because tauri-dev holds the shared `OUT_DIR` for `libsqlite3-sys` bindgen — environment artefact, NOT a code defect. |
+| Frontend production build | `cd app && npm run build` | **PASS** | 2026-05-02 | Einstellungen cull + neue Client-Settings (`idleLogout`, Tagesabschluss-Toast, VN-Suche, …); `search_patienten` optional arg; Hilfe-Route `/hilfe` |
+| Frontend unit tests | `cd app && npm test -- --run` | **PASS** | 2026-05-02 | 90 tests |
 
 ## Pending / not yet run
 

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { tauriInvoke } from "@/services/tauri.service";
 
 /** True when running inside the Tauri desktop shell (not Vite dev in an external browser). */
 export function isTauriApp(): boolean {
@@ -42,9 +42,9 @@ export async function saveOrDownloadBytes(
         triggerBrowserDownload(new Blob([copy], { type: mime }), filename);
         return true;
     }
-    const path = await invoke<string | null>("save_export_file", {
-        default_file_name: filename,
-        contents_base64: uint8ToBase64(bytes),
+    const path = await tauriInvoke<string | null>("save_export_file", {
+        defaultFileName: filename,
+        contentsBase64: uint8ToBase64(bytes),
     });
     return path != null;
 }

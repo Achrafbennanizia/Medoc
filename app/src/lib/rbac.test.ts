@@ -1,5 +1,117 @@
 import { describe, expect, it } from "vitest";
-import { allowed, navItemVisible, parseRole, routeChildPathAllowed } from "./rbac";
+import { allowed, navItemVisible, NAV_ITEM_DEFINITIONS, parseRole, routeChildPathAllowed, ROUTE_VISIBILITY, type Role } from "./rbac";
+
+const ROLES = ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const satisfies readonly Role[];
+
+const VERWALTUNG_ROUTE_KEYS = [
+    "verwaltung",
+    "verwaltung/team",
+    "verwaltung/arbeitstage",
+    "verwaltung/praxisplanung",
+    "verwaltung/arbeitszeiten",
+    "verwaltung/sonder-sperrzeiten",
+    "verwaltung/praxis-praeferenzen",
+    "verwaltung/vorlagen",
+    "verwaltung/vorlagen/editor",
+    "verwaltung/behandlungs-katalog",
+    "verwaltung/bestellstamm",
+    "verwaltung/finanzen-werkzeuge",
+    "verwaltung/tagesabschluss",
+    "verwaltung/finanzen-berichte",
+    "verwaltung/finanzen-berichte/tagesabschluss",
+    "verwaltung/finanzen-berichte/rechnung",
+    "verwaltung/lager-und-bestellwesen",
+    "verwaltung/vertraege",
+    "verwaltung/leistungen-kataloge-vorlagen",
+] as const satisfies ReadonlyArray<keyof typeof ROUTE_VISIBILITY>;
+
+/** Spec matrix: role × Verwaltung subroute → routeChildPathAllowed (mirrors ROUTE_VISIBILITY + allowed()). */
+const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KEYS)[number], boolean>> = {
+    ARZT: {
+        verwaltung: true,
+        "verwaltung/team": true,
+        "verwaltung/arbeitstage": true,
+        "verwaltung/praxisplanung": true,
+        "verwaltung/arbeitszeiten": true,
+        "verwaltung/sonder-sperrzeiten": true,
+        "verwaltung/praxis-praeferenzen": true,
+        "verwaltung/vorlagen": true,
+        "verwaltung/vorlagen/editor": true,
+        "verwaltung/behandlungs-katalog": true,
+        "verwaltung/bestellstamm": true,
+        "verwaltung/finanzen-werkzeuge": true,
+        "verwaltung/tagesabschluss": true,
+        "verwaltung/finanzen-berichte": true,
+        "verwaltung/finanzen-berichte/tagesabschluss": true,
+        "verwaltung/finanzen-berichte/rechnung": true,
+        "verwaltung/lager-und-bestellwesen": true,
+        "verwaltung/vertraege": true,
+        "verwaltung/leistungen-kataloge-vorlagen": true,
+    },
+    REZEPTION: {
+        verwaltung: true,
+        "verwaltung/team": false,
+        "verwaltung/arbeitstage": false,
+        "verwaltung/praxisplanung": false,
+        "verwaltung/arbeitszeiten": false,
+        "verwaltung/sonder-sperrzeiten": false,
+        "verwaltung/praxis-praeferenzen": false,
+        "verwaltung/vorlagen": false,
+        "verwaltung/vorlagen/editor": false,
+        "verwaltung/behandlungs-katalog": true,
+        "verwaltung/bestellstamm": true,
+        "verwaltung/finanzen-werkzeuge": true,
+        "verwaltung/tagesabschluss": true,
+        "verwaltung/finanzen-berichte": true,
+        "verwaltung/finanzen-berichte/tagesabschluss": true,
+        "verwaltung/finanzen-berichte/rechnung": true,
+        "verwaltung/lager-und-bestellwesen": true,
+        "verwaltung/vertraege": true,
+        "verwaltung/leistungen-kataloge-vorlagen": true,
+    },
+    STEUERBERATER: {
+        verwaltung: true,
+        "verwaltung/team": false,
+        "verwaltung/arbeitstage": false,
+        "verwaltung/praxisplanung": false,
+        "verwaltung/arbeitszeiten": false,
+        "verwaltung/sonder-sperrzeiten": false,
+        "verwaltung/praxis-praeferenzen": false,
+        "verwaltung/vorlagen": false,
+        "verwaltung/vorlagen/editor": false,
+        "verwaltung/behandlungs-katalog": true,
+        "verwaltung/bestellstamm": true,
+        "verwaltung/finanzen-werkzeuge": true,
+        "verwaltung/tagesabschluss": true,
+        "verwaltung/finanzen-berichte": true,
+        "verwaltung/finanzen-berichte/tagesabschluss": true,
+        "verwaltung/finanzen-berichte/rechnung": true,
+        "verwaltung/lager-und-bestellwesen": true,
+        "verwaltung/vertraege": true,
+        "verwaltung/leistungen-kataloge-vorlagen": true,
+    },
+    PHARMABERATER: {
+        verwaltung: true,
+        "verwaltung/team": false,
+        "verwaltung/arbeitstage": false,
+        "verwaltung/praxisplanung": false,
+        "verwaltung/arbeitszeiten": false,
+        "verwaltung/sonder-sperrzeiten": false,
+        "verwaltung/praxis-praeferenzen": false,
+        "verwaltung/vorlagen": false,
+        "verwaltung/vorlagen/editor": false,
+        "verwaltung/behandlungs-katalog": false,
+        "verwaltung/bestellstamm": true,
+        "verwaltung/finanzen-werkzeuge": false,
+        "verwaltung/tagesabschluss": false,
+        "verwaltung/finanzen-berichte": false,
+        "verwaltung/finanzen-berichte/tagesabschluss": false,
+        "verwaltung/finanzen-berichte/rechnung": false,
+        "verwaltung/lager-und-bestellwesen": true,
+        "verwaltung/vertraege": true,
+        "verwaltung/leistungen-kataloge-vorlagen": false,
+    },
+};
 
 describe("parseRole", () => {
     it("accepts known roles", () => {
@@ -33,6 +145,22 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
         expect(allowed("vorlagen.read", "REZEPTION")).toBe(false);
         expect(allowed("vorlagen.write", "REZEPTION")).toBe(false);
     });
+    it("verwaltung.vorlagen.* matches vorlagen (Arzt only)", () => {
+        expect(allowed("verwaltung.vorlagen.read", "ARZT")).toBe(true);
+        expect(allowed("verwaltung.vorlagen.read", "REZEPTION")).toBe(false);
+    });
+    it("verwaltung.lager.write excludes Steuerberater", () => {
+        expect(allowed("verwaltung.lager.write", "STEUERBERATER")).toBe(false);
+        expect(allowed("verwaltung.lager.write", "REZEPTION")).toBe(true);
+    });
+    it("verwaltung.vertraege.write excludes Steuerberater", () => {
+        expect(allowed("verwaltung.vertraege.write", "STEUERBERATER")).toBe(false);
+        expect(allowed("verwaltung.vertraege.read", "STEUERBERATER")).toBe(true);
+    });
+    it("finanzen.tagesabschluss.write matches finanzen.write roles", () => {
+        expect(allowed("finanzen.tagesabschluss.write", "STEUERBERATER")).toBe(true);
+        expect(allowed("finanzen.tagesabschluss.write", "PHARMABERATER")).toBe(false);
+    });
     it("patient.behandlungen_list_for_zahlung matches billing roles (mirrors Rust)", () => {
         expect(allowed("patient.behandlungen_list_for_zahlung", "ARZT")).toBe(true);
         expect(allowed("patient.behandlungen_list_for_zahlung", "REZEPTION")).toBe(true);
@@ -42,6 +170,14 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
 });
 
 describe("routeChildPathAllowed", () => {
+    it("Verwaltung subroutes: every role × every route (spec matrix)", () => {
+        for (const role of ROLES) {
+            for (const path of VERWALTUNG_ROUTE_KEYS) {
+                const want = VERWALTUNG_ROUTE_EXPECTED[role][path];
+                expect(routeChildPathAllowed(path, role), `${role} ${path}`).toBe(want);
+            }
+        }
+    });
     it("allows patient detail when patienten list allowed", () => {
         expect(routeChildPathAllowed("patienten/:id", "REZEPTION")).toBe(true);
     });
@@ -71,35 +207,10 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("termine/neu", "REZEPTION")).toBe(true);
         expect(routeChildPathAllowed("termine/neu", "PHARMABERATER")).toBe(false);
     });
-    it("allows verwaltung hub with personal.read", () => {
-        expect(routeChildPathAllowed("verwaltung", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung", "STEUERBERATER")).toBe(false);
-    });
     it("allows bilanz/neu for Arzt and Steuerberater", () => {
         expect(routeChildPathAllowed("bilanz/neu", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("bilanz/neu", "STEUERBERATER")).toBe(true);
         expect(routeChildPathAllowed("bilanz/neu", "REZEPTION")).toBe(false);
-    });
-    it("allows verwaltung sub-routes with personal.read", () => {
-        expect(routeChildPathAllowed("verwaltung/arbeitstage", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/vorlagen", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/vorlagen/editor", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/finanzen-werkzeuge", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/tagesabschluss", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/finanzen-berichte/rechnung", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/finanzen-berichte", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/team", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/lager-und-bestellwesen", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/vertraege", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/leistungen-kataloge-vorlagen", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/vorlagen", "STEUERBERATER")).toBe(false);
-    });
-    it("allows verwaltung/bestellstamm with bestellung.read (not finanzen; Pharmaberater may open)", () => {
-        expect(routeChildPathAllowed("verwaltung/bestellstamm", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/bestellstamm", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/bestellstamm", "STEUERBERATER")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/bestellstamm", "PHARMABERATER")).toBe(true);
     });
 });
 
@@ -108,10 +219,16 @@ describe("navItemVisible", () => {
         const item = {
             to: "/compliance",
             labelKey: "nav.compliance",
-            icon: "x",
             visibility: { kind: "anyOf" as const, actions: ["ops.dsgvo", "ops.system"] },
         };
         expect(navItemVisible("ARZT", item)).toBe(true);
         expect(navItemVisible("REZEPTION", item)).toBe(false);
+    });
+    it("Verwaltung nav uses verwaltung.read (all four roles)", () => {
+        const item = NAV_ITEM_DEFINITIONS.find((i) => i.to === "/verwaltung");
+        expect(item).toBeDefined();
+        for (const role of ROLES) {
+            expect(navItemVisible(role, item!)).toBe(true);
+        }
     });
 });

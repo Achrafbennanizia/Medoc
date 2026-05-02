@@ -259,7 +259,7 @@ export function BestellungDetailPage() {
                     <ChevronLeftIcon />Zurück
                 </Button>
                 <div style={{ flex: "1 1 200px" }}>
-                    <div className="page-sub" style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <div className="page-sub page-sub-caps">
                         Bestellung
                     </div>
                     <h2 className="page-title" style={{ margin: 0 }}>

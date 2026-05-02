@@ -274,17 +274,7 @@ export function PersonalPage() {
 
     const readField = (label: string, value: string | null | boolean | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>
                 {value === null || value === undefined || value === "" ? "—" : String(value)}
             </span>
@@ -531,7 +521,7 @@ export function PersonalPage() {
                         Team, Rollen und Zugang — Liste links, anlegen und Details rechts (wie Produkte).
                     </p>
                 </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                     <Link to="/personal/arbeitsplan" className="btn btn-subtle">
                         Arbeitsplan & Einsätze
                     </Link>
@@ -559,7 +549,7 @@ export function PersonalPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card produkte-table-card" style={{ overflow: "auto" }}>
+                            <div className="card produkte-table-card tbl-scroll">
                                 <table className="tbl produkte-tbl" style={{ minWidth: 480 }}>
                                     <thead>
                                         <tr>

@@ -32,7 +32,7 @@ export function TagInput({ label, value, onChange, placeholder = "Eingabe und En
 
     return (
         <div style={{ marginBottom: 8 }}>
-            <label htmlFor={inputId} style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>
+            <label htmlFor={inputId} className="form-label">
                 {label}
             </label>
             <div

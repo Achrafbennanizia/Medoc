@@ -106,6 +106,17 @@ pub fn pick_patients_csv_file(session_state: State<'_, SessionState>) -> Result<
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
+/// Native file picker for backup validation (avoids manual path typing / wrong separators).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
+pub fn pick_backup_file(session_state: State<'_, SessionState>) -> Result<Option<String>, AppError> {
+    rbac::require(&session_state, "ops.backup")?;
+    let path = rfd::FileDialog::new()
+        .add_filter("Sicherung", &["db", "sqlite", "sqlite3", "zip"])
+        .pick_file();
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
 pub fn enforce_log_retention(

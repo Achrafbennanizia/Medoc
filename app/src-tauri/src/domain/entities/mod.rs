@@ -1,6 +1,7 @@
 pub mod anamnesebogen;
 pub mod attest;
 pub mod audit_log;
+pub mod dokument_template_user;
 pub mod behandlung;
 pub mod bestellung;
 pub mod bilanz_snapshot;
@@ -21,6 +22,7 @@ pub use audit_log::AuditLog;
 pub use behandlung::{Behandlung, Untersuchung};
 pub use bestellung::Bestellung;
 pub use bilanz_snapshot::BilanzSnapshot;
+pub use dokument_template_user::DokumentTemplateUser;
 pub use leistung::Leistung;
 pub use patient::Patient;
 pub use patientenakte::Patientenakte;

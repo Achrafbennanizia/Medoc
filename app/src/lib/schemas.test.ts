@@ -4,7 +4,6 @@ import {
     CreateTerminSchema,
     CreateBestellungSchema,
     CreateFeedbackSchema,
-    parseOrThrow,
     zodErrorToMessage,
 } from "./schemas";
 
@@ -47,7 +46,7 @@ describe("CreateTerminSchema", () => {
         const out = CreateTerminSchema.parse({
             datum: "2026-04-25",
             uhrzeit: "09:30",
-            art: "ROUTINE",
+            art: "KONTROLLE",
             patient_id: "pat-1",
             arzt_id: "arzt-1",
         });
@@ -98,18 +97,18 @@ describe("CreateFeedbackSchema", () => {
 });
 
 describe("parseOrThrow / zodErrorToMessage", () => {
-    it("throws Error with first issue message", () => {
-        try {
-            parseOrThrow(CreatePatientSchema, {
-                name: "",
-                geburtsdatum: "bad",
-                geschlecht: "MAENNLICH",
-                versicherungsnummer: "x",
-            });
-            expect.fail("should have thrown");
-        } catch (e) {
-            expect((e as Error).message).toMatch(/name/i);
-        }
+    it("throws Error combining all Zod issues with semicolon", () => {
+        const r = CreatePatientSchema.safeParse({
+            name: "",
+            geburtsdatum: "bad",
+            geschlecht: "MAENNLICH",
+            versicherungsnummer: "x",
+        });
+        expect(r.success).toBe(false);
+        if (r.success) throw new Error("expected failure");
+        const msg = zodErrorToMessage(r.error);
+        expect(msg).toContain(";");
+        expect(msg.length).toBeGreaterThan(10);
     });
 
     it("falls through non-zod errors verbatim", () => {

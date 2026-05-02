@@ -14,8 +14,14 @@ export async function getPatient(id: string): Promise<Patient> {
     return tauriInvoke<Patient>("get_patient", { id });
 }
 
-export async function searchPatienten(query: string): Promise<Patient[]> {
-    return tauriInvoke<Patient[]>("search_patienten", { query });
+export async function searchPatienten(
+    query: string,
+    opts?: { includeVersicherungsnummer?: boolean },
+): Promise<Patient[]> {
+    return tauriInvoke<Patient[]>("search_patienten", {
+        query,
+        include_versicherungsnummer: opts?.includeVersicherungsnummer !== false,
+    });
 }
 
 export async function createPatient(data: {

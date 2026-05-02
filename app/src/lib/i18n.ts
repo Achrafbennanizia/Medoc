@@ -4,6 +4,7 @@
 // of dot-separated keys per locale. Locale choice is persisted in
 // localStorage and exposed via the `useLocale` hook.
 
+import { useCallback } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -59,6 +60,7 @@ const dict: Record<Locale, Record<string, string>> = {
         "logs.audit_chain": "Audit-Kette",
         "a11y.skip_to_main": "Zum Hauptinhalt springen",
         "a11y.close_dialog": "Dialog schließen",
+        "a11y.dialog_heading_fallback": "Dialogfenster",
         "a11y.notifications_region": "Benachrichtigungen",
         "a11y.dismiss_notification": "Benachrichtigung schließen",
         "nav.help.dashboard": "Benachrichtigungen, Freigaben und Kurzüberblick",
@@ -321,6 +323,7 @@ const dict: Record<Locale, Record<string, string>> = {
         "logs.audit_chain": "Audit chain",
         "a11y.skip_to_main": "Skip to main content",
         "a11y.close_dialog": "Close dialog",
+        "a11y.dialog_heading_fallback": "Dialog",
         "a11y.notifications_region": "Notifications",
         "a11y.dismiss_notification": "Dismiss notification",
         "nav.help.dashboard": "Notifications and overview",
@@ -563,7 +566,8 @@ export function translateLocale(locale: Locale, key: string): string {
 }
 
 /// React hook variant for components that need to re-render on locale change.
+/** Returned translator is stable while `locale` is unchanged — safe for effect/useMemo deps. */
 export function useT() {
     const locale = useLocale((s) => s.locale);
-    return (key: string) => translateLocale(locale, key);
+    return useCallback((key: string) => translateLocale(locale, key), [locale]);
 }

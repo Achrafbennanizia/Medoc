@@ -14,6 +14,7 @@ import {
     type VVT,
 } from "../../controllers/compliance.controller";
 import { Button } from "../components/ui/button";
+import { useToastStore } from "../components/ui/toast-store";
 
 type ReportKind = "vvt" | "dsfa" | "retention";
 
@@ -44,35 +45,35 @@ function ActivitySection({ a, index }: { a: ProcessingActivity; index: number })
             <h3 style={{ margin: "0 0 10px", fontSize: 17 }}>{a.name}</h3>
             <dl style={{ margin: 0, display: "grid", gap: 10 }}>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Zweck</dt>
+                    <dt className="dl-term">Zweck</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.purpose}</dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Rechtsgrundlage</dt>
+                    <dt className="dl-term">Rechtsgrundlage</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.legal_basis}</dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Kategorien personenbezogener Daten</dt>
+                    <dt className="dl-term">Kategorien personenbezogener Daten</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.data_categories} /></dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Betroffene Personen</dt>
+                    <dt className="dl-term">Betroffene Personen</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.data_subjects} /></dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Empfänger</dt>
+                    <dt className="dl-term">Empfänger</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.recipients} /></dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Aufbewahrung</dt>
+                    <dt className="dl-term">Aufbewahrung</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.retention}</dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Technische Maßnahmen</dt>
+                    <dt className="dl-term">Technische Maßnahmen</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.technical_measures} /></dd>
                 </div>
                 <div>
-                    <dt style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--fg-3)", textTransform: "uppercase" }}>Organisatorische Maßnahmen</dt>
+                    <dt className="dl-term">Organisatorische Maßnahmen</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.organisational_measures} /></dd>
                 </div>
             </dl>
@@ -180,15 +181,14 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
 export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
     const t = useT();
     const navigate = useNavigate();
+    const toast = useToastStore((s) => s.add);
     const [report, setReport] = useState<{ kind: ReportKind; data: unknown } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showRawJson, setShowRawJson] = useState(false);
 
     async function run(kind: ReportKind) {
         setLoading(true);
         setError(null);
-        setShowRawJson(false);
         try {
             const data =
                 kind === "vvt" ? await generateVvt()
@@ -212,6 +212,16 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
             suggestedFilename: `medoc-${report.kind}-${new Date().toISOString().slice(0, 10)}.json`,
             textBody: text,
         });
+    }
+
+    async function copyStructuredJson() {
+        if (!report) return;
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(report.data, null, 2));
+            toast("JSON in Zwischenablage kopiert.", "success");
+        } catch (e) {
+            toast(`Kopieren fehlgeschlagen: ${errorMessage(e)}`, "error");
+        }
     }
 
     function printReport() {
@@ -240,7 +250,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                         <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
                             {t("compliance.cta_feedback")}
                         </Button>
-                        <Button type="button" variant="secondary" onClick={() => navigate("/einstellungen?tab=hilfe")}>
+                        <Button type="button" variant="secondary" onClick={() => navigate("/hilfe")}>
                             {t("compliance.cta_hilfe")}
                         </Button>
                     </>
@@ -256,14 +266,14 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 </Button>
                 {report ? (
                     <>
+                        <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
+                            JSON kopieren
+                        </Button>
                         <Button type="button" variant="ghost" onClick={download}>
-                            JSON herunterladen
+                            JSON-Datei…
                         </Button>
                         <Button type="button" variant="secondary" onClick={printReport}>
                             Bericht drucken
-                        </Button>
-                        <Button type="button" variant="ghost" onClick={() => setShowRawJson((x) => !x)}>
-                            {showRawJson ? "Rohdaten ausblenden" : "Rohdaten (JSON)"}
                         </Button>
                     </>
                 ) : null}
@@ -284,14 +294,6 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                     ) : (
                         <RetentionStructured data={report.data as LogRetentionReport} />
                     )}
-                    {showRawJson ? (
-                        <details className="compliance-no-print" style={{ marginTop: 20 }}>
-                            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Technische Rohdaten (JSON)</summary>
-                            <pre style={{ margin: "12px 0 0", overflow: "auto", maxHeight: "40vh", fontSize: 11, color: "var(--fg-3)" }}>
-                                {JSON.stringify(report.data, null, 2)}
-                            </pre>
-                        </details>
-                    ) : null}
                 </div>
             )}
         </div>

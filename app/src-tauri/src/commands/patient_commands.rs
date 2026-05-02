@@ -157,9 +157,11 @@ pub async fn search_patienten(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     query: String,
+    include_versicherungsnummer: Option<bool>,
 ) -> Result<Vec<Patient>, AppError> {
     let session = rbac::require(&session_state, "patient.read")?;
-    let rows = patient_repo::search(&pool, &query).await?;
+    let include_vn = include_versicherungsnummer.unwrap_or(true);
+    let rows = patient_repo::search(&pool, &query, include_vn).await?;
     // NFA-SEC-04 ext.: searches against patient PII are auditable. The query
     // string itself is omitted so we don't echo possibly-private input back.
     audit_repo::create(

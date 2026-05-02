@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ExportFormat = "csv" | "json" | "pdf" | "xml" | "zip";
+export type ExportFormat = "csv" | "html" | "json" | "pdf" | "xml" | "zip";
 
 export type ExportPreviewPayload = {
     format: ExportFormat;

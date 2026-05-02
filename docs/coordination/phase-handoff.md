@@ -3,6 +3,24 @@
 **Last phase label:** D20 — "Automation max" Workflow-Refactor: Modal→Page (Neue Zahlung), Patient-Detail-Header-Redesign + per-Sektion-Validierungs-Badges (LocalStorage-Persistenz), Two-Mode-Behandlung-Composer mit auto B-Nummer/Sitzung + einklappbarem "Nächsten Termin planen", Termin-create-Tipp-Pipeline, Rezept-Vorlagen Quick-Pick-Chips  
 **Last closed:** 2026-04-26
 
+## Responsive narrow layout (2026-05-02)
+
+### Verified
+
+- **`cd app && npm run build`**: PASS (`tsc` + `vite build`).
+- **Layout/order**: `patienten.tsx` — header (title, counts, **Neuer Patient** only) then `page-toolbar` (search `flex:1`, CSV); `bestellungen.tsx` — toolbar always above list, table in `.tbl-scroll`; `audit.tsx` — controls in `page-toolbar`, summary line, table in `.tbl-scroll`; `statistik.tsx` — period/actions in toolbar under title; dashboard/finanzen/personal header actions use `marginLeft: "auto"` where needed; split views (`leistungen`, `produkte`, `personal`, `vorlagen-rezepte-atteste`) list cards use `.tbl-scroll`.
+- **`app-layout.tsx`**: Sidebar rail toggle icon rotation via wrapper `span` (ChevronLeft has no `style` prop).
+- **`index.css`**: `.sidebar-rail-toggle` hidden by default, `inline-grid` from `min-width: 900px`.
+
+### Unverified / NOT OBSERVED
+
+- **`npm run lint`** and **`npm test`** for this batch (not run this session).
+- **Browser**: manual check at &lt;900px (icon rail + overlay) and density switching.
+
+### Next (optional)
+
+- Adopt `ResponsiveLabel` / `LABELS` on table headers that still crowd on narrow cards.
+
 ## Verified (Statistiken — merged workspace, 2026-04-26)
 
 - **`app/src/views/pages/statistik.tsx`**: Single left nav (`PANELS`: Überblick + Patienten/Behandlungen/Termine/Finanzen) with `activePanel` state; `role="tablist"` / `tabpanel` main area; no separate Übersicht/Detail split or scroll spy; fragment file removed after splice.

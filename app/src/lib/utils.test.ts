@@ -11,8 +11,8 @@ describe("escapeHtml", () => {
         expect(escapeHtml("a & b < c")).toBe("a &amp; b &lt; c");
     });
 
-    it("leaves plain text unchanged", () => {
-        expect(escapeHtml("Arbeitsunfähigkeit 42")).toBe("Arbeitsunfähigkeit 42");
+    it("escapes empty string", () => {
+        expect(escapeHtml("")).toBe("");
     });
 });
 

@@ -28,17 +28,7 @@ import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 function readField(label: string, value: string) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value || "—"}</span>
         </div>
     );
@@ -52,7 +42,7 @@ export function TagesabschlussPage() {
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canRead = role != null && allowed("finanzen.read", role);
-    const canWrite = role != null && allowed("finanzen.write", role);
+    const canWrite = role != null && allowed("finanzen.tagesabschluss.write", role);
 
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [protokolle, setProtokolle] = useState<TagesabschlussProtokoll[]>([]);
@@ -109,7 +99,7 @@ export function TagesabschlussPage() {
             if (extra.tagesberichtPdf) {
                 try {
                     await downloadTagesabschlussBerichtPdf(created, zahlungen, patienten);
-                    toast("Tagesbericht-PDF erzeugt (Gesamtdokumentation Stichtag, FA-FIN-INVOICE-Layout).", "success");
+                    toast("Tagesbericht-PDF erzeugt (Sammelbeleg je Patient zum Stichtag, FA-FIN-INVOICE-Layout).", "success");
                 } catch (e) {
                     toast(`Tagesbericht (PDF) fehlgeschlagen: ${errorMessage(e)}`, "error");
                 }

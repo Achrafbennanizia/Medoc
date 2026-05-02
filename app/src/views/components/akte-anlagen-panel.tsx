@@ -1,13 +1,20 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
+import { Dialog } from "./ui/dialog";
+import { Input } from "./ui/input";
 import { useDismissibleLayer } from "./ui/use-dismissible-layer";
 import { BoltIcon, MoreIcon, PlusIcon, ShieldCheckIcon, UploadCircleIcon } from "@/lib/icons";
 import type { AkteAnlage } from "@/lib/akte-anlagen";
 import {
+    AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT,
+    AKTE_ANLAGE_DOCUMENT_KINDS,
     anlageBadgeExt,
     formatAnlageBytes,
     isAnlageImagePreview,
+    labelForAkteDocumentKind,
+    normalizeAkteDocumentKind,
+    anlageCameraInputAccept,
     anlageInputAccept,
 } from "@/lib/akte-anlagen";
 
@@ -35,6 +42,8 @@ function AnlageCardMenu({
     onRevokeValidate,
     onOpenExternal,
     onDuplicate,
+    onRenameTitle,
+    onChangeKind,
     onRemove,
 }: {
     validated: boolean;
@@ -43,6 +52,8 @@ function AnlageCardMenu({
     onRevokeValidate: () => void;
     onOpenExternal?: () => void;
     onDuplicate?: () => void;
+    onRenameTitle?: () => void;
+    onChangeKind?: () => void;
     onRemove?: () => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -71,6 +82,16 @@ function AnlageCardMenu({
                     {onDuplicate ? (
                         <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onDuplicate(); setOpen(false); }}>
                             Kopie anlegen
+                        </button>
+                    ) : null}
+                    {onRenameTitle ? (
+                        <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onRenameTitle(); setOpen(false); }}>
+                            Bezeichnung ändern…
+                        </button>
+                    ) : null}
+                    {onChangeKind ? (
+                        <button type="button" role="menuitem" className="anlage-card__menu-item" onClick={() => { onChangeKind(); setOpen(false); }}>
+                            Dokumenttyp ändern…
                         </button>
                     ) : null}
                     {canValidate ? (
@@ -112,8 +133,9 @@ export type AkteAnlagenPanelProps = {
     /** Hochladen, Umbenennen, Löschen, Duplizieren (z. B. `patient.write_medical`) */
     canManageAnlagen: boolean;
     onPickFile: (file: File) => void;
-    /** Wird nach Bearbeitung des Namens aufgerufen (Blur), wenn sich die Bezeichnung geändert hat. */
+    /** Umbenennung erfolgt über Menü „Bezeichnung ändern …“. */
     onRename: (idx: number, name: string) => void;
+    onSetDocumentKind?: (idx: number, kind: string) => void;
     onRequestRemove: (idx: number, name: string) => void;
     onOpenExternal?: (idx: number) => void;
     onDuplicate?: (idx: number) => void;
@@ -134,6 +156,7 @@ export function AkteAnlagenPanel({
     canManageAnlagen,
     onPickFile,
     onRename,
+    onSetDocumentKind,
     onRequestRemove,
     onOpenExternal,
     onDuplicate,
@@ -145,6 +168,22 @@ export function AkteAnlagenPanel({
     onScannerClick,
 }: AkteAnlagenPanelProps) {
     const [dragOver, setDragOver] = useState(false);
+    const [renameIdx, setRenameIdx] = useState<number | null>(null);
+    const [renameDraft, setRenameDraft] = useState("");
+    const [kindIdx, setKindIdx] = useState<number | null>(null);
+    const [kindDraft, setKindDraft] = useState(AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT);
+
+    useEffect(() => {
+        if (renameIdx === null) return;
+        const row = anlagen[renameIdx];
+        if (row) setRenameDraft(row.name);
+    }, [renameIdx, anlagen]);
+
+    useEffect(() => {
+        if (kindIdx === null) return;
+        const row = anlagen[kindIdx];
+        if (row) setKindDraft(normalizeAkteDocumentKind(row.documentKind));
+    }, [kindIdx, anlagen]);
 
     const processFiles = (list: FileList | null) => {
         if (!canManageAnlagen) return;
@@ -175,7 +214,7 @@ export function AkteAnlagenPanel({
                 id={cameraInputId}
                 type="file"
                 className="sr-only"
-                accept="image/*"
+                accept={anlageCameraInputAccept()}
                 capture="environment"
                 onChange={(e) => {
                     processFiles(e.target.files);
@@ -251,25 +290,15 @@ export function AkteAnlagenPanel({
                                 </div>
                                 <div className="anlage-card__footer">
                                     <div className="anlage-card__meta col" style={{ minWidth: 0, gap: 2 }}>
-                                        canManageAnlagen ? (
-                                            <input
-                                                id={`anlage-name-${a.id}`}
-                                                key={`${a.id}:${a.name}`}
-                                                className="input-edit anlage-card__title-input"
-                                                defaultValue={a.name}
-                                                onBlur={(e) => {
-                                                    const v = e.target.value.trim();
-                                                    if (!v || v === a.name) return;
-                                                    onRename(idx, v);
-                                                }}
-                                                aria-label="Bezeichnung der Datei"
-                                            />
-                                        ) : (
-                                            <span className="anlage-card__title-input" style={{ fontWeight: 600 }}>
-                                                {a.name}
-                                            </span>
-                                        )
+                                        <span
+                                            className="anlage-card__title-input"
+                                            style={{ fontWeight: 600, wordBreak: "break-word" as const }}
+                                        >
+                                            {a.name}
+                                        </span>
                                         <span className="anlage-card__sub">
+                                            {labelForAkteDocumentKind(a.documentKind)}
+                                            {" · "}
                                             {formatAddedAt(a.addedAt)} · {formatAnlageBytes(a.sizeBytes)}
                                         </span>
                                     </div>
@@ -286,6 +315,14 @@ export function AkteAnlagenPanel({
                                                 ? () => onDuplicate(idx)
                                                 : undefined
                                         }
+                                        onRenameTitle={
+                                            canManageAnlagen ? () => setRenameIdx(idx) : undefined
+                                        }
+                                        onChangeKind={
+                                            canManageAnlagen && onSetDocumentKind
+                                                ? () => setKindIdx(idx)
+                                                : undefined
+                                        }
                                         onRemove={
                                             canManageAnlagen ? () => onRequestRemove(idx, a.name) : undefined
                                         }
@@ -296,6 +333,83 @@ export function AkteAnlagenPanel({
                     })}
                 </div>
             ) : null}
+
+            <Dialog
+                open={renameIdx !== null}
+                onClose={() => setRenameIdx(null)}
+                title="Bezeichnung ändern"
+                footer={
+                    <>
+                        <Button type="button" variant="ghost" onClick={() => setRenameIdx(null)}>
+                            Abbrechen
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                if (renameIdx === null) return;
+                                const v = renameDraft.trim();
+                                if (!v) return;
+                                onRename(renameIdx, v);
+                                setRenameIdx(null);
+                            }}
+                        >
+                            Speichern
+                        </Button>
+                    </>
+                }
+            >
+                {renameIdx !== null && anlagen[renameIdx] ? (
+                    <Input
+                        label="Bezeichnung in der Akte"
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        className="input-edit"
+                        autoComplete="off"
+                        autoFocus
+                    />
+                ) : null}
+            </Dialog>
+
+            <Dialog
+                open={kindIdx !== null}
+                onClose={() => setKindIdx(null)}
+                title="Dokumenttyp"
+                footer={
+                    <>
+                        <Button type="button" variant="ghost" onClick={() => setKindIdx(null)}>
+                            Abbrechen
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                if (kindIdx === null || !onSetDocumentKind) return;
+                                onSetDocumentKind(kindIdx, normalizeAkteDocumentKind(kindDraft));
+                                setKindIdx(null);
+                            }}
+                        >
+                            Übernehmen
+                        </Button>
+                    </>
+                }
+            >
+                <div className="col" style={{ gap: 8 }}>
+                    <label className="text-caption text-on-surface-variant" htmlFor="anlage-kind-select-panel">
+                        Kategorie
+                    </label>
+                    <select
+                        id="anlage-kind-select-panel"
+                        className="input-edit"
+                        value={kindDraft}
+                        onChange={(e) => setKindDraft(e.target.value)}
+                    >
+                        {AKTE_ANLAGE_DOCUMENT_KINDS.map((k) => (
+                            <option key={k.id} value={k.id}>
+                                {k.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </Dialog>
         </div>
     );
 }

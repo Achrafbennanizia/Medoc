@@ -1,4 +1,5 @@
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
@@ -14,7 +15,7 @@ import { ToastContainer } from "../components/ui/toast";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Select, Textarea } from "../components/ui/input";
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, MoreIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
+import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
@@ -22,7 +23,9 @@ import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates } from "@/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
+import { BreakGlassBanner } from "../components/break-glass-banner";
 import { PageLoading } from "../components/ui/page-status";
+import { loadClientSettings } from "../../lib/client-settings";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/controllers/native-menu.controller";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
@@ -125,6 +128,18 @@ const NAV_SECTIONS: Array<{ label: string; items: string[] }> = [
 ];
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
+const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
+
+type SidebarRailPref = "full" | "icons";
+
+function readSidebarRailPref(): SidebarRailPref {
+    try {
+        const v = localStorage.getItem(MEDOC_SIDEBAR_RAIL_PREF_KEY);
+        return v === "icons" ? "icons" : "full";
+    } catch {
+        return "full";
+    }
+}
 
 function readStoredUiZoom(): number {
     try {
@@ -139,6 +154,28 @@ function readStoredUiZoom(): number {
 function clampUiZoom(z: number): number {
     const r = Math.round(z * 100) / 100;
     return Math.min(2, Math.max(0.5, r));
+}
+
+type SidebarAccountPopoverFixed = { left: number; bottom: number; width: number };
+
+function measureSidebarAccountMenuWidthPx(labels: string[]): number {
+    if (typeof document === "undefined") return 168;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return 168;
+    ctx.font = "500 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    let maxWord = 0;
+    for (const lab of labels) {
+        for (const word of lab.split(/\s+/)) {
+            if (!word) continue;
+            maxWord = Math.max(maxWord, ctx.measureText(word).width);
+        }
+    }
+    // Largest word + 2 px horizontal padding (1 px each side); floor at readable minimum for tap targets.
+    const wordPx = Math.ceil(maxWord);
+    const chrome = 16 + 24; /* popover horizontal padding + row horizontal padding */
+    const raw = wordPx + 2 + chrome;
+    return Math.min(typeof window !== "undefined" ? window.innerWidth - 24 : raw, Math.max(140, raw));
 }
 
 export function AppLayout() {
@@ -164,14 +201,23 @@ export function AppLayout() {
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
+    const [wideShellLayout, setWideShellLayout] = useState(() =>
+        typeof window !== "undefined" ? window.matchMedia("(min-width: 900px)").matches : true,
+    );
     /** Hilfe-Texte aus dem nativen Menü (Windows/Linux-Menüleiste bzw. macOS-Menü). */
     const [nativeHelpTopic, setNativeHelpTopic] = useState<null | "calendar" | "shortcuts">(null);
     const [aboutOpen, setAboutOpen] = useState(false);
     const [aboutVersion, setAboutVersion] = useState("");
     const [uiZoom, setUiZoom] = useState(readStoredUiZoom);
+    const [sidebarRailPref, setSidebarRailPref] = useState<SidebarRailPref>(() =>
+        typeof window !== "undefined" ? readSidebarRailPref() : "full",
+    );
     const [userMenuAnchor, setUserMenuAnchor] = useState<"sidebar" | "topbar">("sidebar");
     const userMenuAnchorRef = useRef(userMenuAnchor);
     const userMenuRef = useRef<HTMLDivElement>(null);
+    const sidebarAccountPopoverRef = useRef<HTMLDivElement>(null);
+    const [sidebarAccountPopoverFixed, setSidebarAccountPopoverFixed] = useState<SidebarAccountPopoverFixed | null>(null);
     const topbarMenuRef = useRef<HTMLDivElement>(null);
     const notifWrapRef = useRef<HTMLDivElement>(null);
 
@@ -222,6 +268,35 @@ export function AppLayout() {
             /* ignore */
         }
     }, [uiZoom]);
+
+    useEffect(() => {
+        if (sidebarRailPref === "icons") {
+            document.documentElement.dataset.sidebarRail = "icons";
+        } else {
+            delete document.documentElement.dataset.sidebarRail;
+        }
+        try {
+            localStorage.setItem(MEDOC_SIDEBAR_RAIL_PREF_KEY, sidebarRailPref);
+        } catch {
+            /* ignore */
+        }
+    }, [sidebarRailPref]);
+
+    useEffect(() => {
+        const mq = window.matchMedia("(min-width: 900px)");
+        const sync = () => setWideShellLayout(mq.matches);
+        sync();
+        mq.addEventListener("change", sync);
+        return () => mq.removeEventListener("change", sync);
+    }, []);
+
+    /** Narrow strip: kein Konto-Menü in der Leiste — nur Anzeige (Name); Menü über Topbar. */
+    const sidebarProfileDisplayOnly =
+        (wideShellLayout && sidebarRailPref === "icons") || (!wideShellLayout && !mobileNavOpen);
+
+    useEffect(() => {
+        if (sidebarProfileDisplayOnly) setUserMenuOpen(false);
+    }, [sidebarProfileDisplayOnly]);
 
     useEffect(() => {
         if (!session) return;
@@ -316,7 +391,7 @@ export function AppLayout() {
             if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
             if (typing(e.target)) return;
             e.preventDefault();
-            navigate("/einstellungen?tab=hilfe");
+            navigate("/hilfe");
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
@@ -366,6 +441,37 @@ export function AppLayout() {
     }, [clear, navigate]);
 
     useEffect(() => {
+        const onReq = () => setLogoutConfirmOpen(true);
+        window.addEventListener("medoc-request-logout", onReq);
+        return () => window.removeEventListener("medoc-request-logout", onReq);
+    }, []);
+
+    useEffect(() => {
+        if (!session) return;
+        const mins = loadClientSettings().security?.idleLogoutMinutes ?? 0;
+        if (mins <= 0) return;
+        const ms = mins * 60_000;
+        let last = Date.now();
+        const bump = () => {
+            last = Date.now();
+        };
+        const events: (keyof DocumentEventMap)[] = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+        events.forEach((e) => document.addEventListener(e, bump, { passive: true }));
+        const tick = window.setInterval(() => {
+            if (Date.now() - last >= ms) {
+                void (async () => {
+                    await logout();
+                    navigate("/login");
+                })();
+            }
+        }, 15_000);
+        return () => {
+            events.forEach((e) => document.removeEventListener(e, bump));
+            window.clearInterval(tick);
+        };
+    }, [session, navigate]);
+
+    useEffect(() => {
         if (!breakOpen) return;
         listPatienten().then(setBgPatients).catch(() => { setBgPatients([]); });
     }, [breakOpen]);
@@ -388,8 +494,9 @@ export function AppLayout() {
     }, []);
 
     useDismissibleLayer({
-        open: userMenuOpen && userMenuAnchor === "sidebar",
+        open: userMenuOpen && userMenuAnchor === "sidebar" && !sidebarProfileDisplayOnly,
         rootRef: userMenuRef,
+        containRefs: [sidebarAccountPopoverRef],
         onDismiss: () => setUserMenuOpen(false),
     });
     useDismissibleLayer({
@@ -404,11 +511,80 @@ export function AppLayout() {
         onDismiss: () => setNotifOpen(false),
     });
 
+    useLayoutEffect(() => {
+        if (!userMenuOpen || userMenuAnchor !== "sidebar" || sidebarRailPref === "icons" || sidebarProfileDisplayOnly) {
+            setSidebarAccountPopoverFixed(null);
+            return undefined;
+        }
+        const update = () => {
+            const el = userMenuRef.current;
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const labels = ["Einstellungen"];
+            if (session?.rolle === "ARZT") labels.push("Notfallzugriff");
+            labels.push(t("auth.logout"));
+            const widthPx = measureSidebarAccountMenuWidthPx(labels);
+            let left = r.left;
+            if (typeof window !== "undefined") {
+                left = Math.max(8, Math.min(left, window.innerWidth - widthPx - 8));
+            }
+            const bottom = typeof window !== "undefined" ? window.innerHeight - r.top + 10 : 0;
+            setSidebarAccountPopoverFixed({ left, bottom, width: widthPx });
+        };
+        update();
+        window.addEventListener("resize", update);
+        window.addEventListener("scroll", update, true);
+        return () => {
+            window.removeEventListener("resize", update);
+            window.removeEventListener("scroll", update, true);
+        };
+    }, [userMenuOpen, userMenuAnchor, sidebarRailPref, sidebarProfileDisplayOnly, session?.rolle, t]);
+
     const handleLogout = async () => {
         await logout();
         navigate("/login");
     };
     const requestLogout = () => setLogoutConfirmOpen(true);
+
+    const sidebarAccountMenu = (
+        <>
+            <button
+                type="button"
+                role="menuitem"
+                className="sidebar-account-popover__item"
+                onClick={() => {
+                    setUserMenuOpen(false);
+                    navigate("/einstellungen");
+                }}
+            >
+                Einstellungen
+            </button>
+            {session?.rolle === "ARZT" ? (
+                <button
+                    type="button"
+                    role="menuitem"
+                    className="sidebar-account-popover__item sidebar-account-popover__item--breakglass"
+                    onClick={() => {
+                        setUserMenuOpen(false);
+                        setBreakOpen(true);
+                    }}
+                >
+                    Notfallzugriff
+                </button>
+            ) : null}
+            <button
+                type="button"
+                role="menuitem"
+                className="sidebar-account-popover__item sidebar-account-popover__item--logout"
+                onClick={() => {
+                    setUserMenuOpen(false);
+                    requestLogout();
+                }}
+            >
+                {t("auth.logout")}
+            </button>
+        </>
+    );
 
     const openCommandPalette = () => {
         setNotifOpen(false);
@@ -430,6 +606,7 @@ export function AppLayout() {
         try {
             await breakGlassActivate(bgReason.trim(), bgPatientId || undefined);
             toast("Notfallzugriff protokolliert. Zeitfenster aktiv.");
+            window.dispatchEvent(new Event("medoc-break-glass-refresh"));
             setBreakOpen(false);
             setBgReason("");
             setBgPatientId("");
@@ -533,6 +710,8 @@ export function AppLayout() {
                 {t("a11y.skip_to_main")}
             </a>
 
+            <BreakGlassBanner userId={session?.user_id} />
+
             <div className="app-shell">
             <button
                 type="button"
@@ -543,16 +722,42 @@ export function AppLayout() {
                 onClick={() => setMobileNavOpen(false)}
             />
             <aside className="glass app-sidebar" data-open={mobileNavOpen ? "true" : "false"}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px 14px" }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg, var(--accent), #39C4A5)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 700 }}>
-                        <PinIcon size={18} />
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>MeDoc</div>
-                        <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 400 }}>{t("app.sidebar_tagline")}</div>
-                    </div>
+                <div
+                    className="app-sidebar-brand-row"
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px 14px" }}
+                >
+                    <button
+                        type="button"
+                        className="app-sidebar-brand-hit app-sidebar-brand-hit--rail"
+                        title={
+                            sidebarRailPref === "icons"
+                                ? `Navigationsleiste erweitern · ⌥/⌘-Klick: ${t("nav.search_short")}`
+                                : `Navigationsleiste auf Symbole reduzieren · ⌥/⌘-Klick: ${t("nav.search_short")}`
+                        }
+                        aria-label={
+                            sidebarRailPref === "icons"
+                                ? "Navigationsleiste mit Beschriftungen erweitern"
+                                : "Navigationsleiste auf Symbole reduzieren"
+                        }
+                        onClick={(e) => {
+                            setMobileNavOpen(false);
+                            if (e.altKey || e.metaKey) {
+                                openCommandPalette();
+                                return;
+                            }
+                            setSidebarRailPref((p) => (p === "icons" ? "full" : "icons"));
+                        }}
+                    >
+                        <span className="app-sidebar-brand-mark" aria-hidden>
+                            <PinIcon size={18} />
+                        </span>
+                        <div className="app-sidebar-brand-meta">
+                            <div className="app-sidebar-brand-title">MeDoc</div>
+                            <div className="app-sidebar-brand-tag">{t("app.sidebar_tagline")}</div>
+                        </div>
+                    </button>
                 </div>
-                <nav style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+                <nav className="app-sidebar-scroll">
                     {NAV_SECTIONS.map((section) => {
                         const sectionItems = section.items
                             .map((to) => visibleByTo.get(to))
@@ -561,50 +766,72 @@ export function AppLayout() {
                         return (
                             <Fragment key={section.label}>
                                 <div className="sb-group-label">{section.label}</div>
-                                {sectionItems.map((item) => (
-                            <NavLink
-                                key={item.to}
-                                to={item.to}
-                                end={item.to !== "/patienten"}
-                                className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
-                            >
-                                {(() => {
-                                    const Ic = NAV_ICONS[item.to] ?? PinIcon;
-                                    return <Ic size={16} />;
-                                })()}
-                                {t(item.labelKey)}
-                            </NavLink>
-                                ))}
+                                {sectionItems.map((item) => {
+                                    const label = t(item.labelKey);
+                                    return (
+                                        <NavLink
+                                            key={item.to}
+                                            to={item.to}
+                                            end={item.to !== "/patienten"}
+                                            className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
+                                            title={label}
+                                            aria-label={label}
+                                        >
+                                            {(() => {
+                                                const Ic = NAV_ICONS[item.to] ?? PinIcon;
+                                                return <Ic size={16} aria-hidden />;
+                                            })()}
+                                            <span className="sb-item-label" aria-hidden="true">
+                                                {label}
+                                            </span>
+                                        </NavLink>
+                                    );
+                                })}
                             </Fragment>
                         );
                     })}
                 </nav>
-                <div style={{ marginTop: "auto", position: "relative" }} ref={userMenuRef}>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: 8,
-                            borderRadius: 14,
-                            background: "linear-gradient(135deg, #BFE6E0, #B7E1DB)",
-                            border: "1px solid rgba(0,0,0,0.05)",
-                        }}
-                    >
-                        <div className="av" style={{ width: 40, height: 40, fontSize: 16, background: "linear-gradient(135deg,#71DCC3,#1BAA8A)" }}>
-                            {initials}
+                <div className="app-sidebar-footer" ref={userMenuRef}>
+                    {sidebarProfileDisplayOnly ? (
+                        <div
+                            className="app-sidebar-user-card app-sidebar-user-card--collapsed-only"
+                            role="group"
+                            aria-label={`Angemeldet als ${session?.name ?? "Benutzer"}`}
+                            title={session?.name ?? undefined}
+                        >
+                            <div
+                                className="av"
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    fontSize: 16,
+                                    background: "linear-gradient(135deg,#71DCC3,#1BAA8A)",
+                                }}
+                            >
+                                {initials}
+                            </div>
+                            <div className="app-sidebar-user-lines app-sidebar-user-lines--narrow-strip" style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                    style={{
+                                        fontWeight: 700,
+                                        fontSize: 12.5,
+                                        lineHeight: 1.2,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {session?.name ?? "Benutzer"}
+                                </div>
+                            </div>
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 12.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session?.name ?? "Benutzer"}</div>
-                            <div style={{ color: "var(--fg-3)", fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profileRoleLine}</div>
-                        </div>
+                    ) : (
                         <button
                             type="button"
-                            className="icon-btn"
-                            style={{ width: 24, height: 24 }}
-                            aria-label="Profilmenü öffnen"
+                            className="app-sidebar-user-card"
                             aria-haspopup="menu"
                             aria-expanded={userMenuOpen && userMenuAnchor === "sidebar"}
+                            aria-label="Konto: Einstellungen und Abmelden"
                             onClick={() => {
                                 const switchingFromOther = userMenuAnchorRef.current !== "sidebar";
                                 setUserMenuAnchor("sidebar");
@@ -615,68 +842,79 @@ export function AppLayout() {
                                 });
                             }}
                         >
-                            <MoreIcon size={13} />
-                        </button>
-                    </div>
-                    {userMenuOpen && userMenuAnchor === "sidebar" ? (
-                        <div
-                            style={{
-                                position: "absolute",
-                                bottom: "calc(100% + 8px)",
-                                left: 0,
-                                right: 0,
-                                display: "flex",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                                gap: 8,
-                                padding: 8,
-                                borderRadius: 14,
-                                background: "rgba(255,255,255,0.78)",
-                                border: "1px solid var(--line)",
-                                boxShadow: "var(--shadow-lg)",
-                                overflowX: "hidden",
-                                zIndex: 45,
-                            }}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setUserMenuOpen(false);
-                                    navigate("/einstellungen");
+                            <div
+                                className="av"
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    fontSize: 16,
+                                    background: "linear-gradient(135deg,#71DCC3,#1BAA8A)",
                                 }}
-                                className="btn btn-subtle"
-                                style={{ padding: "6px 10px", fontSize: 11, whiteSpace: "normal", flex: "1 1 110px", justifyContent: "center", minWidth: 0 }}
                             >
-                                Einstellungen
-                            </button>
-                            {session?.rolle === "ARZT" ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setUserMenuOpen(false);
-                                        setBreakOpen(true);
+                                {initials}
+                            </div>
+                            <div className="app-sidebar-user-lines" style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                    style={{
+                                        fontWeight: 700,
+                                        fontSize: 12.5,
+                                        lineHeight: 1.2,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
                                     }}
-                                    className="btn btn-danger"
-                                    style={{ padding: "6px 10px", fontSize: 11, whiteSpace: "normal", flex: "1 1 110px", justifyContent: "center", minWidth: 0 }}
                                 >
-                                    Notfallzugriff
-                                </button>
-                            ) : null}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setUserMenuOpen(false);
-                                    requestLogout();
-                                }}
-                                className="btn btn-ghost"
-                                style={{ padding: "6px 10px", fontSize: 11, whiteSpace: "normal", flex: "1 1 110px", justifyContent: "center", minWidth: 0 }}
+                                    {session?.name ?? "Benutzer"}
+                                </div>
+                                <div
+                                    style={{
+                                        color: "var(--fg-3)",
+                                        fontSize: 10.5,
+                                        lineHeight: 1.2,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {profileRoleLine}
+                                </div>
+                            </div>
+                            <span
+                                className={`app-sidebar-user-card-chevron${userMenuOpen && userMenuAnchor === "sidebar" ? " is-open" : ""}`}
+                                aria-hidden
                             >
-                                {t("auth.logout")}
-                            </button>
-                        </div>
-                    ) : null}
+                                <ChevronDownIcon size={14} />
+                            </span>
+                        </button>
+                    )}
                 </div>
             </aside>
+            {typeof document !== "undefined" &&
+            userMenuOpen &&
+            userMenuAnchor === "sidebar" &&
+            !sidebarProfileDisplayOnly &&
+            sidebarRailPref !== "icons" &&
+            sidebarAccountPopoverFixed
+                ? createPortal(
+                      <div
+                          ref={sidebarAccountPopoverRef}
+                          className="app-sidebar-account-popover app-sidebar-account-popover--portal"
+                          role="menu"
+                          aria-label="Konto"
+                          style={{
+                              position: "fixed",
+                              left: sidebarAccountPopoverFixed.left,
+                              bottom: sidebarAccountPopoverFixed.bottom,
+                              width: sidebarAccountPopoverFixed.width,
+                              maxWidth: "calc(100vw - 24px)",
+                              zIndex: 10060,
+                          }}
+                      >
+                          {sidebarAccountMenu}
+                      </div>,
+                      document.body,
+                  )
+                : null}
 
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
                 <div className="topbar">
@@ -704,7 +942,7 @@ export function AppLayout() {
                         >
                             <SearchIcon size={14} aria-hidden />
                             <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
-                            <span style={{ fontSize: 11, color: "var(--fg-4)" }}>⌘K</span>
+                            <span className="ui-kbd-hint" style={{ fontSize: 11, color: "var(--fg-4)" }}>⌘K</span>
                         </button>
                         {updateAvailable && <button className="tb-chip update" onClick={() => navigate("/einstellungen")}><DownloadIcon size={12} />Update 2026.4.3</button>}
                         <span className={`tb-chip ${isOnline ? "live" : ""}`}><WifiIcon size={12} />{isOnline ? "Online" : "Offline"}</span>
@@ -745,7 +983,7 @@ export function AppLayout() {
                                 }}
                             >
                                 <span
-                                    className="av"
+                                    className="av topbar-user-av"
                                     style={{
                                         width: 24,
                                         height: 24,
@@ -774,7 +1012,7 @@ export function AppLayout() {
                                     }}
                                     onShortcuts={() => {
                                         setUserMenuOpen(false);
-                                        navigate("/einstellungen?tab=hilfe");
+                                        navigate("/hilfe");
                                     }}
                                     helpNavLabel={t("account.menu_help")}
                                     onLogoutRequest={() => {

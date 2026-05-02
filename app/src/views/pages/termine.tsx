@@ -17,6 +17,7 @@ import { listPatienten } from "../../controllers/patient.controller";
 import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
 import { errorMessage } from "../../lib/utils";
 import { MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
+import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import {
     DEFAULT_CLIENT_SETTINGS,
     loadClientSettings,
@@ -59,16 +60,19 @@ const statusBadge: Record<string, BadgeVariant> = {
 };
 
 const terminArten = [
+    { value: "ERSTBESUCH", label: "Erstbesuch" },
+    { value: "UNTERSUCHUNG", label: "Untersuchung" },
     { value: "KONTROLLE", label: "Kontrolle" },
     { value: "BEHANDLUNG", label: "Behandlung" },
-    { value: "NOTFALL", label: "Notfall" },
+    { value: "NOTFALL", label: "Notfall (Priorität)" },
     { value: "BERATUNG", label: "Beratung" },
 ];
 
 const EVENT_TONE_BY_ART: Record<string, "blue" | "accent" | "orange" | "purple" | "green"> = {
+    ERSTBESUCH: "blue",
     KONTROLLE: "green",
     BEHANDLUNG: "accent",
-    NOTFALL: "orange",
+    UNTERSUCHUNG: "blue",
     BERATUNG: "purple",
 };
 
@@ -129,11 +133,15 @@ const TERMIN_ART_LABEL: Record<string, string> = {
     BERATUNG: "Beratung",
     ERSTBESUCH: "Erstbesuch",
     UNTERSUCHUNG: "Untersuchung",
-    NOTFALL: "Notfall",
 };
 
 function terminArtLabel(art: string): string {
     return TERMIN_ART_LABEL[art] ?? art.replace(/_/g, " ");
+}
+
+function terminArtLabelFromTermin(t: Termin): string {
+    if (terminIstNotfallMarkiert(t)) return "Notfall";
+    return terminArtLabel(t.art);
 }
 
 /** Anzeige-Status: Durchgeführt / Geändert / Storniert / Bestätigt / Geplant (letztere wenn noch offen). */
@@ -203,8 +211,9 @@ function buildArztToneMap(aerzte: AerztSummary[]): Map<string, DoctorTone> {
     return m;
 }
 
-function blockToneForTermin(art: string, doctorTone: DoctorTone): BlockTone {
-    const fromArt = EVENT_TONE_BY_ART[art];
+function blockToneForTermin(termin: Pick<Termin, "art" | "notizen">, doctorTone: DoctorTone): BlockTone {
+    if (terminIstNotfallMarkiert(termin)) return "orange";
+    const fromArt = EVENT_TONE_BY_ART[termin.art];
     if (fromArt) return fromArt;
     return doctorTone;
 }
@@ -320,7 +329,9 @@ export function TerminePage() {
     const [view, setView] = useState<"tag" | "woche" | "monat">(() => {
         const v = loadClientSettings().workflows?.termineDefaultView;
         if (v === "tag" || v === "woche" || v === "monat") return v;
-        return "woche";
+        const d = DEFAULT_CLIENT_SETTINGS.workflows?.termineDefaultView;
+        if (d === "tag" || d === "woche" || d === "monat") return d;
+        return "monat";
     });
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [weekOffset, setWeekOffset] = useState(0);
@@ -433,7 +444,11 @@ export function TerminePage() {
     const baseFilteredTermine = useMemo(
         () =>
             termine.filter((x) => {
-                if (filterArt && x.art !== filterArt) return false;
+                if (filterArt) {
+                    if (filterArt === "NOTFALL") {
+                        if (!terminIstNotfallMarkiert(x)) return false;
+                    } else if (x.art !== filterArt) return false;
+                }
                 if (filterStatus && x.status !== filterStatus) return false;
                 if (filterArztIds.length > 0 && !filterArztIds.includes(x.arzt_id)) return false;
                 return true;
@@ -522,7 +537,7 @@ export function TerminePage() {
         if (q.length < 2) return;
         const match = baseFilteredTermine.find((term) => {
             const name = (patientNameById.get(term.patient_id) ?? "").toLowerCase();
-            const art = terminArtLabel(term.art).toLowerCase();
+            const art = terminArtLabelFromTermin(term).toLowerCase();
             return name.includes(q) || art.includes(q);
         });
         if (!match) return;
@@ -1439,7 +1454,7 @@ function TerminApptBlockView({
     onMouseDown: (e: ReactMouseEvent) => void;
     onContextMenu: (e: ReactMouseEvent) => void;
 }) {
-    const blockTone = blockToneForTermin(termin.art, doctorTone);
+    const blockTone = blockToneForTermin(termin, doctorTone);
     const cancelled = termin.status === "ABGESAGT" || termin.status === "NICHT_ERSCHIENEN";
     const durMin = daySlotDurationMin ?? TERMIN_DEFAULT_DUR_MIN;
     const timeStr = (dragPreviewUhrzeit ?? termin.uhrzeit).slice(0, 5);
@@ -1463,14 +1478,14 @@ function TerminApptBlockView({
             <span className="termin-appt-block-stripe" style={{ background: stripeColor }} aria-hidden />
             <span className="termin-appt-block-body-col">
                 <span className="termin-appt-block-name-row">
-                    {termin.art === "NOTFALL" ? (
+                    {terminIstNotfallMarkiert(termin) ? (
                         <span className="termin-appt-block-notfall-ic" aria-hidden>
                             <BoltIcon size={12} />
                         </span>
                     ) : null}
                     <span className="termin-appt-block-name">{patientName}</span>
                 </span>
-                <span className="termin-appt-block-type">{terminArtLabel(termin.art)}</span>
+                <span className="termin-appt-block-type">{terminArtLabelFromTermin(termin)}</span>
                 {dragTargetDatumHint ? (
                     <span className="termin-appt-block-target-day">{dragTargetDatumHint}</span>
                 ) : null}
@@ -1986,7 +2001,7 @@ function TerminDaySplit({
                             <div className="termin-next-time">{nextAppt.uhrzeit.slice(0, 5)}</div>
                             <div className="termin-next-name">{patientNameById.get(nextAppt.patient_id) ?? "Patient"}</div>
                             <div className="termin-next-meta">
-                                {terminArtLabel(nextAppt.art)} · {aerzte.find((a) => a.id === nextAppt.arzt_id)?.name ?? ""}
+                                {terminArtLabelFromTermin(nextAppt)} · {aerzte.find((a) => a.id === nextAppt.arzt_id)?.name ?? ""}
                             </div>
                         </>
                     ) : sortedToday.length > 0 ? (
@@ -2078,7 +2093,7 @@ function TerminDetailDrawer({
                     <div className="termin-drawer-section">
                         <div className="termin-drawer-eyebrow">Termin</div>
                         <h2 id={titleId} className="termin-drawer-title">{patientName}</h2>
-                        <div className="termin-drawer-sub">{terminArtLabel(termin.art)}</div>
+                        <div className="termin-drawer-sub">{terminArtLabelFromTermin(termin)}</div>
                     </div>
                     <div className="termin-drawer-meta-row">
                         <div>
@@ -2131,7 +2146,7 @@ function TerminDetailDrawer({
                         </div>
                         <div className="ios-row">
                             <div className="termin-drawer-eyebrow">Behandlungsart</div>
-                            <div className="termin-drawer-meta-val">{terminArtLabel(termin.art)}</div>
+                            <div className="termin-drawer-meta-val">{terminArtLabelFromTermin(termin)}</div>
                         </div>
                     </div>
                     {termin.notizen?.trim() ? (
@@ -2202,7 +2217,7 @@ function TerminContextMenu({
         <div className="menu termin-ctx-menu" style={{ position: "fixed", left, top }}>
             <div className="termin-ctx-title">{patientName}</div>
             <div className="termin-ctx-sub">
-                {termin.uhrzeit.slice(0, 5)} · {terminArtLabel(termin.art)}
+                {termin.uhrzeit.slice(0, 5)} · {terminArtLabelFromTermin(termin)}
             </div>
             <button type="button" className="menu-item" onClick={() => { onOpenDetails(); onClose(); }}>Details öffnen</button>
             <div className="menu-sep" />

@@ -1,8 +1,8 @@
 import { tauriInvoke } from "@/services/tauri.service";
+import type { FeedbackKategorie, FeedbackStatus } from "@/models/types";
 import { CreateFeedbackSchema, parseOrThrow } from "@/lib/schemas";
 
-export type FeedbackKategorie = "feedback" | "vigilance" | "technical";
-export type FeedbackStatus = "OFFEN" | "BEARBEITUNG" | "ERLEDIGT";
+export type { FeedbackKategorie, FeedbackStatus };
 
 export interface FeedbackEntry {
     id: string;

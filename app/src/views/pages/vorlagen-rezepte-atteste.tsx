@@ -237,11 +237,11 @@ export function VorlagenRezepteAttestePage() {
                     </p>
                 </div>
                 {canWrite ? (
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                         <Button type="button" variant="secondary" onClick={openNewAttest}>
                             Atteste einstellen
                         </Button>
-                        <Button type="button" onClick={openNewRezept}>
+                        <Button type="button" onClick={openNewRezept} style={{ flexShrink: 0 }}>
                             Rezept einstellen
                         </Button>
                     </div>
@@ -259,7 +259,7 @@ export function VorlagenRezepteAttestePage() {
                             />
                         </Card>
                     ) : (
-                        <div className="card produkte-table-card" style={{ overflow: "auto" }}>
+                        <div className="card produkte-table-card tbl-scroll">
                             <table className="tbl produkte-tbl" style={{ minWidth: 480 }}>
                                 <thead>
                                     <tr>

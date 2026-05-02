@@ -39,6 +39,30 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
     .await
     .expect("insert behandlung");
 
+    sqlx::query(
+        "INSERT INTO akte_validation (patient_id, section_or_item, validated_at, validated_by)
+         VALUES ('p-dsgvo-1', 'stamm', datetime('now'), 'u-test')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert akte_validation");
+
+    sqlx::query(
+        "INSERT INTO akte_next_termin_hint (patient_id, hint_json)
+         VALUES ('p-dsgvo-1', '{\"freeText\":\"Kontrolle\"}')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert akte_next_termin_hint");
+
+    sqlx::query(
+        "INSERT INTO rechnung_document (id, patient_id, document_number, payload_json, total_cents, created_at, created_by)
+         VALUES ('rd-dsgvo-1','p-dsgvo-1','RE-TEST','{}',0,datetime('now'),'u-test')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert rechnung_document");
+
     let n_beh: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM behandlung WHERE akte_id = 'akte-dsgvo-1'")
             .fetch_one(&pool)
@@ -63,6 +87,27 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
         n_beh_after.0, 0,
         "behandlung must be cascade-deleted with patientenakte"
     );
+
+    let n_val: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM akte_validation WHERE patient_id = 'p-dsgvo-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("count akte_validation");
+    assert_eq!(n_val.0, 0);
+
+    let n_hint: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM akte_next_termin_hint WHERE patient_id = 'p-dsgvo-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("count hint");
+    assert_eq!(n_hint.0, 0);
+
+    let n_rd: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM rechnung_document WHERE patient_id = 'p-dsgvo-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("count rechnung_document");
+    assert_eq!(n_rd.0, 0);
 
     let row: (String, String, String, String) = sqlx::query_as(
         "SELECT name, geschlecht, status, versicherungsnummer FROM patient WHERE id = 'p-dsgvo-1'",

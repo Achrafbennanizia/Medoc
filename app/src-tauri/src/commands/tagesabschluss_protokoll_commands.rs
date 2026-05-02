@@ -35,7 +35,7 @@ pub async fn create_tagesabschluss_protokoll(
     session_state: State<'_, SessionState>,
     data: CreateTagesabschlussProtokoll,
 ) -> Result<TagesabschlussProtokoll, AppError> {
-    let session = rbac::require(&session_state, "finanzen.write")?;
+    let session = rbac::require(&session_state, "finanzen.tagesabschluss.write")?;
     let row = tagesabschluss_protokoll_repo::create(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -57,7 +57,7 @@ pub async fn delete_tagesabschluss_protokoll(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<(), AppError> {
-    let session = rbac::require(&session_state, "finanzen.write")?;
+    let session = rbac::require(&session_state, "finanzen.tagesabschluss.write")?;
     tagesabschluss_protokoll_repo::delete_row(&pool, &id).await?;
     audit_repo::create(
         &pool,

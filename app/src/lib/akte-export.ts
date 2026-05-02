@@ -66,6 +66,8 @@ export type AkteExportSectionsState = {
     attest: boolean;
     zahlungen: boolean;
     anlagen: boolean;
+    /** Nur mit audit.read */
+    audit: boolean;
 };
 
 export const AKTE_EXPORT_SECTION_META: {
@@ -73,17 +75,19 @@ export const AKTE_EXPORT_SECTION_META: {
     label: string;
     needsMedical: boolean;
     needsFinanzen?: boolean;
+    needsAuditRead?: boolean;
 }[] = [
     { key: "patient", label: "Stammdaten", needsMedical: false },
     { key: "akteCore", label: "Patientenakte (Status, Diagnose, Befunde)", needsMedical: false },
-    { key: "zahnbefunde", label: "Zahnbefunde", needsMedical: true },
-    { key: "anamnese", label: "Anamnese / Fragebogen", needsMedical: true },
-    { key: "untersuchungen", label: "Untersuchungen", needsMedical: true },
+    { key: "anamnese", label: "Anamnese", needsMedical: true },
     { key: "behandlungen", label: "Behandlungen", needsMedical: true },
+    { key: "untersuchungen", label: "Untersuchungen", needsMedical: true },
+    { key: "zahnbefunde", label: "Zahnbefunde", needsMedical: true },
     { key: "rezepte", label: "Rezepte", needsMedical: true },
     { key: "attest", label: "Atteste", needsMedical: true },
-    { key: "zahlungen", label: "Zahlungen / Buchungen", needsMedical: false, needsFinanzen: true },
-    { key: "anlagen", label: "Anlagen (Metadaten, keine Datei-Inhalte)", needsMedical: false },
+    { key: "anlagen", label: "Anlagen", needsMedical: false },
+    { key: "zahlungen", label: "Zahlungen", needsMedical: false, needsFinanzen: true },
+    { key: "audit", label: "Audit-Auszug", needsMedical: false, needsAuditRead: true },
 ];
 
 export function defaultAkteExportSections(): AkteExportSectionsState {
@@ -98,6 +102,7 @@ export function defaultAkteExportSections(): AkteExportSectionsState {
         attest: true,
         zahlungen: true,
         anlagen: true,
+        audit: false,
     };
 }
 
@@ -118,7 +123,7 @@ export function suggestAkteExportFilenames(patient: Patient, ext: string): strin
     const d = new Date();
     const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
     const hms = d.toTimeString().slice(0, 8).replace(/:/g, "");
-    const isoCompact = d.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+    const isoCompact = d.toISOString().replace(/\D/g, "").slice(0, 14);
     const slug = slugPatientName(patient.name);
     return [
         `MeDoc-Akte-${id8}-${ymd}-${hms}.${ext}`,

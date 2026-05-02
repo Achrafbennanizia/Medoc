@@ -17,10 +17,10 @@ fn validate_status_transition(current: &str, next: &str) -> Result<(), AppError>
         return Ok(());
     }
     let allowed = match current {
-        "GEPLANT" => &["BESTAETIGT", "DURCHGEFUEHRT", "ABGESAGT", "NICHTERSCHIENEN"][..],
-        "BESTAETIGT" => &["DURCHGEFUEHRT", "ABGESAGT", "NICHTERSCHIENEN"][..],
-        // Terminal states
-        "DURCHGEFUEHRT" | "ABGESAGT" | "NICHTERSCHIENEN" => &[][..],
+        "GEPLANT" => &["BESTAETIGT", "DURCHGEFUEHRT", "ABGESAGT", "NICHT_ERSCHIENEN"][..],
+        "BESTAETIGT" => &["DURCHGEFUEHRT", "ABGESAGT", "NICHT_ERSCHIENEN"][..],
+        // Terminal states (legacy rows may still carry `NICHTERSCHIENEN` from older serde)
+        "DURCHGEFUEHRT" | "ABGESAGT" | "NICHT_ERSCHIENEN" | "NICHTERSCHIENEN" => &[][..],
         // Unknown source state — be permissive to keep migrations forward-compatible
         _ => return Ok(()),
     };

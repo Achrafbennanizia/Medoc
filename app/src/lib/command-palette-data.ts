@@ -2,7 +2,7 @@ import { routeChildPathAllowed } from "./rbac";
 
 /**
  * Static routes wired to {@link ROUTE_VISIBILITY} keys (must match `App.tsx`).
- * e.g. `verwaltung/vorlagen` is gated by `vorlagen.read`, not `personal.read`.
+ * e.g. `verwaltung/vorlagen` is gated by `verwaltung.vorlagen.read`, not `personal.read`.
  */
 export type PaletteCommand = {
     id: string;
@@ -129,7 +129,7 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "logs", routePath: "logs", href: "/logs", titleDe: "System-Logs", keywords: ["debug", "fehler"] },
     { id: "ops", routePath: "ops", href: "/ops", titleDe: "Betrieb & Backup", keywords: ["backup", "migration"] },
     { id: "compliance", routePath: "compliance", href: "/compliance", titleDe: "Compliance", keywords: ["richtlinien"] },
-    { id: "hilfe", routePath: "einstellungen", href: "/einstellungen?tab=hilfe", titleDe: "Hilfe & Kurzbefehle", keywords: ["bedienung", "shortcuts", "tastatur"] },
+    { id: "hilfe", routePath: "hilfe", href: "/hilfe", titleDe: "Hilfe & Kurzbefehle", keywords: ["bedienung", "shortcuts", "tastatur"] },
     { id: "feedback", routePath: "feedback", href: "/feedback", titleDe: "Feedback & Vigilanz", keywords: ["meldung", "hinweis", "sicherheit"] },
     { id: "migration", routePath: "migration", href: "/migration", titleDe: "Datenmigration (Assistent)", keywords: ["import", "umzug", "wizard"] },
 ];

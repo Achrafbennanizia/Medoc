@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { join } from "@tauri-apps/api/path";
 import {
     getLogLevel,
     setLogLevel,
@@ -17,6 +18,7 @@ const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 export function LoggingPage() {
     const [level, setLevel] = useState<LogLevel>("INFO");
     const [logDir, setLogDir] = useState<string>("");
+    const [exampleLogFile, setExampleLogFile] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
     const [initLoading, setInitLoading] = useState(true);
@@ -29,6 +31,11 @@ export function LoggingPage() {
             const [l, d] = await Promise.all([getLogLevel(), getLogDir()]);
             setLevel(l);
             setLogDir(d);
+            try {
+                setExampleLogFile(await join(d, "app.log"));
+            } catch {
+                setExampleLogFile(null);
+            }
         } catch (e) {
             setInitError(errorMessage(e));
         } finally {
@@ -130,6 +137,11 @@ export function LoggingPage() {
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Logverzeichnis</h3>
                 <p className="text-body font-mono text-on-surface-variant">{logDir}</p>
+                {exampleLogFile ? (
+                    <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 12 }}>
+                        Beispielpfad (App-Kanal): <span className="font-mono">{exampleLogFile}</span>
+                    </p>
+                ) : null}
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

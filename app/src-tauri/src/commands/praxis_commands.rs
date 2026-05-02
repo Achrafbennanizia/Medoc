@@ -166,7 +166,7 @@ pub async fn list_behandlungs_katalog(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<praxis_repo::BehandlungsKatalogItem>, AppError> {
-    rbac::require(&session_state, "patient.read")?;
+    rbac::require(&session_state, "verwaltung.kataloge.read")?;
     praxis_repo::list_behandlungs_katalog(&pool).await
 }
 
@@ -177,7 +177,7 @@ pub async fn create_behandlungs_katalog_item(
     session_state: State<'_, SessionState>,
     data: praxis_repo::CreateBehandlungsKatalogItem,
 ) -> Result<praxis_repo::BehandlungsKatalogItem, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.kataloge.write")?;
     let row = praxis_repo::create_behandlungs_katalog_item(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -200,7 +200,7 @@ pub async fn update_behandlungs_katalog_item(
     id: String,
     data: praxis_repo::UpdateBehandlungsKatalogItem,
 ) -> Result<praxis_repo::BehandlungsKatalogItem, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.kataloge.write")?;
     let row = praxis_repo::update_behandlungs_katalog_item(&pool, &id, &data).await?;
     audit_repo::create(
         &pool,
@@ -222,7 +222,7 @@ pub async fn delete_behandlungs_katalog_item(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<(), AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.kataloge.write")?;
     praxis_repo::delete_behandlungs_katalog_item(&pool, &id).await?;
     audit_repo::create(
         &pool,

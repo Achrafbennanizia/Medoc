@@ -8,6 +8,7 @@ import { FormSection } from "../components/ui/form-section";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { parseEuroInput } from "@/lib/tagesabschluss";
+import { errorMessage } from "@/lib/utils";
 import {
     VERTRAG_INTERVALL_OPTIONS,
     type VertragIntervall,
@@ -16,10 +17,16 @@ import {
     formatVertragLaufzeit,
     formatVertragbetragzeile,
     heuteYmd,
-    loadVertraege,
-    saveVertraege,
     vertragAktivHeute,
-} from "@/lib/vertrag-local";
+} from "@/lib/vertrag-domain";
+import {
+    deleteVertragOnBackend,
+    listVertraegeFromBackend,
+    migrateLegacyVertraegeFromLocalStorageOnce,
+    upsertVertragOnBackend,
+} from "@/controllers/vertrag.controller";
+import { allowed, parseRole } from "@/lib/rbac";
+import { useAuthStore } from "@/models/store/auth-store";
 import { EditIcon } from "@/lib/icons";
 
 type LaufzeitModus = "unbefristet" | "befristet";
@@ -64,10 +71,13 @@ function formFromVertrag(v: VertragItem): FormState {
 }
 
 /**
- * Dauer- und Dienstverträge — wie Produkte: Liste links, Erfassung & Bearbeiten rechts, lokale Speicherung.
+ * Dauer- und Dienstverträge — wie Produkte: Liste links, Erfassung & Bearbeiten rechts (SQLite).
  */
 export function VerwaltungVertraegePage() {
     const toast = useToastStore((s) => s.add);
+    const role = parseRole(useAuthStore((s) => s.session?.rolle));
+    const canWrite = role != null && allowed("verwaltung.vertraege.write", role);
+
     const [vertraege, setVertraege] = useState<VertragItem[]>([]);
     const [hydrated, setHydrated] = useState(false);
     const [creating, setCreating] = useState(false);
@@ -78,14 +88,33 @@ export function VerwaltungVertraegePage() {
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     useEffect(() => {
-        setVertraege(loadVertraege());
-        setHydrated(true);
-    }, []);
+        if (!canWrite) {
+            setCreating(false);
+            setDetailEdit(false);
+            setDeleteId(null);
+        }
+    }, [canWrite]);
 
-    const persist = useCallback((rows: VertragItem[]) => {
-        setVertraege(rows);
-        saveVertraege(rows);
-    }, []);
+    const refreshFromBackend = useCallback(async () => {
+        try {
+            const rows = await listVertraegeFromBackend();
+            setVertraege(rows);
+        } catch (e) {
+            toast(`Verträge laden: ${errorMessage(e)}`, "error");
+            setVertraege([]);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                await migrateLegacyVertraegeFromLocalStorageOnce();
+                await refreshFromBackend();
+            } finally {
+                setHydrated(true);
+            }
+        })();
+    }, [refreshFromBackend]);
 
     const validate = (f: FormState): boolean => {
         const e: typeof formErrors = {};
@@ -156,36 +185,40 @@ export function VerwaltungVertraegePage() {
         if (!validate(form)) return;
         const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `v-${Date.now()}`;
         const row = vertragItemFromForm(form, id, new Date().toISOString());
-        persist([row, ...vertraege]);
-        setCreating(false);
-        setSelected(row);
-        toast("Vertrag erfasst.", "success");
+        void (async () => {
+            try {
+                await upsertVertragOnBackend(row);
+                await refreshFromBackend();
+                setCreating(false);
+                setSelected(row);
+                toast("Vertrag erfasst.", "success");
+            } catch (e) {
+                toast(`Speichern: ${errorMessage(e)}`, "error");
+            }
+        })();
     };
 
     const handleUpdate = () => {
         if (!selected || !validate(form)) return;
         const row = vertragItemFromForm(form, selected.id, selected.createdAt);
-        persist(vertraege.map((x) => (x.id === row.id ? row : x)));
-        setSelected(row);
-        setDetailEdit(false);
-        toast("Vertrag gespeichert.", "success");
+        void (async () => {
+            try {
+                await upsertVertragOnBackend(row);
+                await refreshFromBackend();
+                setSelected(row);
+                setDetailEdit(false);
+                toast("Vertrag gespeichert.", "success");
+            } catch (e) {
+                toast(`Speichern: ${errorMessage(e)}`, "error");
+            }
+        })();
     };
 
     const heute = useMemo(() => heuteYmd(), []);
 
     const readField = (label: string, value: string) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value || "—"}</span>
         </div>
     );
@@ -334,12 +367,16 @@ export function VerwaltungVertraegePage() {
                         subtitle="Vertrag"
                         action={(
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
-                                    <EditIcon size={14} /> Bearbeiten
-                                </Button>
-                                <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(v.id)}>
-                                    Löschen
-                                </Button>
+                                {canWrite ? (
+                                    <>
+                                        <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
+                                            <EditIcon size={14} /> Bearbeiten
+                                        </Button>
+                                        <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(v.id)}>
+                                            Löschen
+                                        </Button>
+                                    </>
+                                ) : null}
                             </div>
                         )}
                     />
@@ -377,9 +414,11 @@ export function VerwaltungVertraegePage() {
                         Laufende Kosten: Betrag pro Tag, Woche, Monat oder Jahr; unbefristet oder mit Laufzeit — Liste links, Details rechts.
                     </p>
                 </div>
-                <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                    {creating ? "Abbrechen" : "+ Vertrag erfassen"}
-                </Button>
+                {canWrite ? (
+                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                        {creating ? "Abbrechen" : "+ Vertrag erfassen"}
+                    </Button>
+                ) : null}
             </div>
 
             {!hydrated ? (
@@ -449,15 +488,22 @@ export function VerwaltungVertraegePage() {
                 onClose={() => setDeleteId(null)}
                 onConfirm={() => {
                     if (!deleteId) return;
-                    const next = vertraege.filter((v) => v.id !== deleteId);
-                    persist(next);
-                    setSelected((s) => (s?.id === deleteId ? null : s));
-                    setDeleteId(null);
-                    setDetailEdit(false);
-                    toast("Vertrag entfernt.", "success");
+                    const rid = deleteId;
+                    void (async () => {
+                        try {
+                            await deleteVertragOnBackend(rid);
+                            await refreshFromBackend();
+                            setSelected((s) => (s?.id === rid ? null : s));
+                            setDeleteId(null);
+                            setDetailEdit(false);
+                            toast("Vertrag entfernt.", "success");
+                        } catch (e) {
+                            toast(`Löschen: ${errorMessage(e)}`, "error");
+                        }
+                    })();
                 }}
                 title="Vertrag löschen?"
-                message="Dieser Eintrag wird dauerhaft aus der lokalen Vertragsübersicht entfernt."
+                message="Dieser Eintrag wird dauerhaft aus der Vertragsübersicht (Datenbank) entfernt."
                 confirmLabel="Löschen"
                 danger
             />

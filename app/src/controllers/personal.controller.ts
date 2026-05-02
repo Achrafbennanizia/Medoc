@@ -1,5 +1,6 @@
 import { tauriInvoke } from "@/services/tauri.service";
 import type { Personal } from "@/models/types";
+import { CreatePersonalSchema, UpdatePersonalSchema, parseOrThrow } from "@/lib/schemas";
 
 /** Doctors (role ARZT) for appointment assignment — visible to Arzt + Rezeption. */
 export interface AerztSummary {
@@ -25,11 +26,13 @@ export async function createPersonal(data: {
     passwort: string;
     rolle: string;
 }): Promise<Personal> {
-    return tauriInvoke<Personal>("create_personal", { data });
+    const safe = parseOrThrow(CreatePersonalSchema, data);
+    return tauriInvoke<Personal>("create_personal", { data: safe });
 }
 
 export async function updatePersonal(id: string, data: Record<string, unknown>): Promise<Personal> {
-    return tauriInvoke<Personal>("update_personal", { id, data });
+    const safe = parseOrThrow(UpdatePersonalSchema, data);
+    return tauriInvoke<Personal>("update_personal", { id, data: safe });
 }
 
 export async function deletePersonal(id: string): Promise<void> {

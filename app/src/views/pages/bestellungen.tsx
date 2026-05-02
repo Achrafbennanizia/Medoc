@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { Input, Select } from "../components/ui/input";
@@ -125,41 +125,45 @@ export function BestellungenPage() {
                         Lieferungen und Bestellvorgänge der Praxis im Überblick.
                     </p>
                 </div>
-                {canWrite ? <Button onClick={() => navigate("/bestellungen/neu")}>+ Neue Bestellung</Button> : null}
+                {canWrite ? (
+                    <Button onClick={() => navigate("/bestellungen/neu")} style={{ flexShrink: 0 }}>
+                        + Neue Bestellung
+                    </Button>
+                ) : null}
             </div>
 
-            {/* Toolbar — single line, search + status filter; no overload */}
-            {rows.length > 0 ? (
-                <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ flex: "1 1 280px", minWidth: 220 }}>
-                        <Input
-                            id="best-search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Suchen: Lieferant, Artikel, Bestellnr…"
-                        />
-                    </div>
-                    <div style={{ width: 200 }}>
-                        <Select
-                            id="best-status"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                            options={[
-                                { value: "ALL", label: `Alle Status (${rows.length})` },
-                                { value: "OFFEN", label: "Offen" },
-                                { value: "UNTERWEGS", label: "Unterwegs" },
-                                { value: "GELIEFERT", label: "Geliefert" },
-                                { value: "STORNIERT", label: "Storniert" },
-                            ]}
-                        />
-                    </div>
-                    {(search || statusFilter !== "ALL") ? (
-                        <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
-                            Zurücksetzen
-                        </Button>
-                    ) : null}
+            {/* Toolbar — always above list so narrow layouts keep filters discoverable */}
+            <div className="page-toolbar">
+                <div className="page-toolbar__search">
+                    <Input
+                        id="best-search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Suchen: Lieferant, Artikel, Bestellnr…"
+                        disabled={rows.length === 0}
+                    />
                 </div>
-            ) : null}
+                <div className="page-toolbar__filters" style={{ width: 200, maxWidth: "100%" }}>
+                    <Select
+                        id="best-status"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                        disabled={rows.length === 0}
+                        options={[
+                            { value: "ALL", label: `Alle Status (${rows.length})` },
+                            { value: "OFFEN", label: "Offen" },
+                            { value: "UNTERWEGS", label: "Unterwegs" },
+                            { value: "GELIEFERT", label: "Geliefert" },
+                            { value: "STORNIERT", label: "Storniert" },
+                        ]}
+                    />
+                </div>
+                {rows.length > 0 && (search || statusFilter !== "ALL") ? (
+                    <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
+                        Zurücksetzen
+                    </Button>
+                ) : null}
+            </div>
 
             {/* Table — minimalist Produkte style */}
             {rows.length === 0 ? (
@@ -180,7 +184,7 @@ export function BestellungenPage() {
                     }}
                 />
             ) : (
-                <div className="card">
+                <div className="card tbl-scroll">
                     <table className="tbl">
                         <thead>
                             <tr>
@@ -195,59 +199,65 @@ export function BestellungenPage() {
                         <tbody>
                             {filtered.map((r) => {
                                 const overdue = isOverdue(r);
-                                const go = () => navigate(`/bestellungen/${r.id}`);
-                                const onRowKeyDown = (e: KeyboardEvent) => {
-                                    if (e.key === "Enter" || e.key === " ") {
+                                const detailHref = `/bestellungen/${r.id}`;
+                                const rowLabel = `Bestellung ${r.bestellnummer ?? r.id} öffnen`;
+                                const onRowLinkKeyDown = (e: KeyboardEvent<HTMLAnchorElement>) => {
+                                    if (e.key === " ") {
                                         e.preventDefault();
-                                        go();
+                                        e.currentTarget.click();
                                     }
                                 };
                                 return (
-                                    <tr
-                                        key={r.id}
-                                        className="bestellungen-row bestellungen-row--clickable"
-                                        tabIndex={0}
-                                        onClick={go}
-                                        onKeyDown={onRowKeyDown}
-                                        title="Details öffnen"
-                                        aria-label={`Bestellung ${r.bestellnummer ?? r.id} öffnen`}
-                                    >
-                                        <td>
-                                            <span
-                                                style={{
-                                                    color: "var(--accent-ink)",
-                                                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                                                    fontSize: 12.5,
-                                                }}
+                                    <tr key={r.id} className="bestellungen-row">
+                                        <td colSpan={5} className="bestellungen-row__nav">
+                                            <Link
+                                                to={detailHref}
+                                                role="link"
+                                                className="bestellungen-row-link"
+                                                aria-label={rowLabel}
+                                                title="Details öffnen"
+                                                onKeyDown={onRowLinkKeyDown}
                                             >
-                                                {r.bestellnummer ?? "—"}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontWeight: 600 }}>{r.lieferant}</div>
-                                            {r.pharmaberater ? (
-                                                <div className="page-sub" style={{ fontSize: 11.5 }}>{r.pharmaberater}</div>
-                                            ) : null}
-                                        </td>
-                                        <td style={{ maxWidth: 320 }}>{r.artikel}</td>
-                                        <td>{r.menge}{r.einheit ? ` ${r.einheit}` : ""}</td>
-                                        <td>
-                                            {r.erwartet_am ? (
-                                                <span style={{
-                                                    color: overdue ? "var(--red)" : undefined,
-                                                    fontWeight: overdue ? 600 : 400,
-                                                    fontVariantNumeric: "tabular-nums",
-                                                }}>
-                                                    {formatDate(r.erwartet_am)}
+                                                <span
+                                                    style={{
+                                                        color: "var(--accent-ink)",
+                                                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                                        fontSize: 12.5,
+                                                    }}
+                                                >
+                                                    {r.bestellnummer ?? "—"}
                                                 </span>
-                                            ) : (
-                                                <span className="page-sub">—</span>
-                                            )}
+                                                <span>
+                                                    <span style={{ display: "block", fontWeight: 600 }}>{r.lieferant}</span>
+                                                    {r.pharmaberater ? (
+                                                        <span className="page-sub" style={{ display: "block", fontSize: 11.5 }}>
+                                                            {r.pharmaberater}
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                                <span style={{ maxWidth: 320, minWidth: 0 }}>{r.artikel}</span>
+                                                <span>{r.menge}{r.einheit ? ` ${r.einheit}` : ""}</span>
+                                                <span>
+                                                    {r.erwartet_am ? (
+                                                        <span
+                                                            style={{
+                                                                color: overdue ? "var(--red)" : undefined,
+                                                                fontWeight: overdue ? 600 : 400,
+                                                                fontVariantNumeric: "tabular-nums",
+                                                            }}
+                                                        >
+                                                            {formatDate(r.erwartet_am)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="page-sub">—</span>
+                                                    )}
+                                                </span>
+                                            </Link>
                                         </td>
                                         <td
+                                            className="bestellungen-row__status"
                                             onClick={(e) => e.stopPropagation()}
                                             onPointerDown={(e) => e.stopPropagation()}
-                                            onMouseDown={(e) => e.stopPropagation()}
                                         >
                                             <div className="bestellungen-status-cell">
                                                 {canWrite ? (

@@ -1,15 +1,23 @@
 /**
  * Termin-Puffer / Reminder / No-Show — authoritative copy in SQLite `app_kv`
- * (`praxis.preferences.v1`, field `terminPlanning`), same blob as Bestätigungs-Dialoge.
- * `localStorage` is a synchronous cache (aligned with {@link praxis-planning.ts}).
+ * under {@link PRAXIS_TERMIN_PREFERENCES_KV_KEY} (migrated from legacy `praxis.preferences.v1`
+ * field `terminPlanning` and from removed browser cache).
  */
 
-import { getAppKv, setAppKv } from "@/controllers/app-kv.controller";
+import {
+    getAppKv,
+    setAppKv,
+    type AppKvKey,
+} from "@/controllers/app-kv.controller";
 import {
     parsePraxisPreferencesV1,
     PRAXIS_PREFERENCES_KV_KEY,
 } from "@/lib/confirmation-preferences";
 
+export const PRAXIS_TERMIN_PREFERENCES_KV_KEY =
+    "praxis.preferences-termin.v1" as const satisfies AppKvKey;
+
+/** @deprecated Legacy `localStorage` key — cleared on migration. */
 export const PRAXIS_PRAEFERENZEN_LS_KEY = "medoc-praxis-praeferenzen-v1";
 
 export type PraxisPraeferenzen = {
@@ -52,74 +60,74 @@ function normalizePartial(p: Partial<PraxisPraeferenzen> | undefined): PraxisPra
     };
 }
 
-/** Synchronous read from the local cache (defaults when missing). */
-export function loadPraxisPraeferenzen(): PraxisPraeferenzen {
+async function persistToDedicatedKey(next: PraxisPraeferenzen): Promise<void> {
+    const normalized = normalizePartial(next);
+    await setAppKv(PRAXIS_TERMIN_PREFERENCES_KV_KEY, JSON.stringify(normalized));
+}
+
+/** Read from SQLite, migrating older sources once. */
+export async function loadPraxisPraeferenzenFromKv(): Promise<PraxisPraeferenzen> {
     try {
-        const raw = localStorage.getItem(PRAXIS_PRAEFERENZEN_LS_KEY);
-        if (!raw) return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
-        const p = JSON.parse(raw) as Partial<PraxisPraeferenzen>;
-        return normalizePartial(p);
+        const raw = await getAppKv(PRAXIS_TERMIN_PREFERENCES_KV_KEY);
+        if (raw?.trim()) {
+            try {
+                const j = JSON.parse(raw) as Partial<PraxisPraeferenzen>;
+                return normalizePartial(j);
+            } catch {
+                /* fall through */
+            }
+        }
     } catch {
-        return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
+        /* offline */
     }
-}
 
-function writeLsCache(next: PraxisPraeferenzen): void {
     try {
-        localStorage.setItem(PRAXIS_PRAEFERENZEN_LS_KEY, JSON.stringify(next));
-    } catch {
-        /* quota */
-    }
-}
-
-async function writeKv(next: PraxisPraeferenzen): Promise<void> {
-    const raw = await getAppKv(PRAXIS_PREFERENCES_KV_KEY);
-    const base = parsePraxisPreferencesV1(raw);
-    await setAppKv(
-        PRAXIS_PREFERENCES_KV_KEY,
-        JSON.stringify({
-            ...base,
-            version: 1,
-            terminPlanning: {
-                pufferMin: next.pufferMin,
-                notfallPuffer: next.notfallPuffer,
-                reminder: next.reminder,
-                noShow: next.noShow,
-            },
-        }),
-    );
-}
-
-/**
- * Refresh cache from SQLite and persist legacy-only localStorage into KV once
- * when KV has no `terminPlanning` yet.
- */
-export async function hydratePraxisPraeferenzenFromKv(): Promise<PraxisPraeferenzen> {
-    try {
-        const raw = await getAppKv(PRAXIS_PREFERENCES_KV_KEY);
-        const base = parsePraxisPreferencesV1(raw);
+        const prefsRaw = await getAppKv(PRAXIS_PREFERENCES_KV_KEY);
+        const base = parsePraxisPreferencesV1(prefsRaw);
         const tp = base.terminPlanning;
         if (tp && (tp.pufferMin != null || tp.notfallPuffer != null || tp.reminder != null || tp.noShow != null)) {
             const merged = normalizePartial(tp as Partial<PraxisPraeferenzen>);
-            writeLsCache(merged);
+            await persistToDedicatedKey(merged);
             return merged;
         }
     } catch {
         /* offline */
     }
 
-    const legacy = loadPraxisPraeferenzen();
-    try {
-        await writeKv(legacy);
-    } catch {
-        /* offline — LS still holds values */
+    if (typeof window !== "undefined" && window.localStorage) {
+        try {
+            const ls = window.localStorage.getItem(PRAXIS_PRAEFERENZEN_LS_KEY);
+            if (ls) {
+                const j = JSON.parse(ls) as Partial<PraxisPraeferenzen>;
+                const merged = normalizePartial(j);
+                try {
+                    await persistToDedicatedKey(merged);
+                    window.localStorage.removeItem(PRAXIS_PRAEFERENZEN_LS_KEY);
+                } catch {
+                    return merged;
+                }
+                return merged;
+            }
+        } catch {
+            /* ignore */
+        }
     }
-    return legacy;
+
+    return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
 }
 
-/** Updates LS immediately and persists to SQLite (awaits KV when online). */
 export async function savePraxisPraeferenzen(next: PraxisPraeferenzen): Promise<void> {
-    const normalized = normalizePartial(next);
-    writeLsCache(normalized);
-    await writeKv(normalized);
+    await persistToDedicatedKey(next);
+}
+
+/**
+ * @deprecated Browser sync cache removed — returns defaults until {@link loadPraxisPraeferenzenFromKv} runs.
+ */
+export function loadPraxisPraeferenzen(): PraxisPraeferenzen {
+    return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
+}
+
+/** Alias for pages that already call `hydrate…`; loads authoritative KV (with migration). */
+export async function hydratePraxisPraeferenzenFromKv(): Promise<PraxisPraeferenzen> {
+    return loadPraxisPraeferenzenFromKv();
 }

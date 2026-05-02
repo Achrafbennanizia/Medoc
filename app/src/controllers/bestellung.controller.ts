@@ -1,7 +1,8 @@
 import { tauriInvoke } from "@/services/tauri.service";
+import type { BestellStatus } from "@/models/types";
 import { CreateBestellungSchema, UpdateBestellungSchema, parseOrThrow } from "@/lib/schemas";
 
-export type BestellStatus = "OFFEN" | "UNTERWEGS" | "GELIEFERT" | "STORNIERT";
+export type { BestellStatus };
 
 export interface Bestellung {
     id: string;

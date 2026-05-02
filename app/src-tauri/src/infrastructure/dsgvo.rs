@@ -119,6 +119,24 @@ pub async fn erase_patient(
         .await?
         .rows_affected();
 
+    deleted += sqlx::query("DELETE FROM akte_validation WHERE patient_id = ?1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    deleted += sqlx::query("DELETE FROM akte_next_termin_hint WHERE patient_id = ?1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    deleted += sqlx::query("DELETE FROM rechnung_document WHERE patient_id = ?1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
     // CASCADE removes zahnbefund, untersuchung, behandlung linked via patientenakte.
     deleted += sqlx::query("DELETE FROM patientenakte WHERE patient_id = ?1")
         .bind(patient_id)

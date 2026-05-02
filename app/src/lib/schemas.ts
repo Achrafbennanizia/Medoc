@@ -7,13 +7,22 @@
  * actionable error messages without a round-trip.
  *
  * Conventions:
+ * - Enum literals are imported from {@link ../models/types} (single source of truth).
  * - Mirror the Rust DTO field names exactly (snake_case).
- * - Default permissive on optional/null distinction so we don't reject
- *   payloads the backend would accept.
- * - Strings are trimmed via `.transform(s => s.trim())` only when the
- *   backend also trims them (otherwise we'd silently change values).
+ * - Strings are trimmed only when the backend also trims them.
  */
 import { z } from "zod";
+import {
+    AKTEN_STATUS_VALUES,
+    FEEDBACK_KATEGORIE_VALUES,
+    GESCHLECHT_VALUES,
+    PATIENT_STATUS_VALUES,
+    ROLLE_VALUES,
+    TERMIN_ART_VALUES,
+    TERMIN_STATUS_VALUES,
+    ZAHLUNGS_ART_VALUES,
+    ZAHLUNGS_STATUS_VALUES,
+} from "@/models/types";
 
 const isoDate = z
     .string()
@@ -28,13 +37,22 @@ const optionalText = z
     .optional()
     .transform((v) => (v == null || v === "" ? null : v));
 
-/** Matches Rust `Geschlecht` / DB CHECK and `PatientCreatePage` Select values. */
-export const PatientGeschlechtSchema = z.enum(["MAENNLICH", "WEIBLICH", "DIVERS"]);
+/** z.enum on readonly tuples (Zod 3). */
+function stringEnumConst<T extends readonly [string, ...string[]]>(values: T) {
+    return z.enum(values);
+}
+
+export const GeschlechtSchema = stringEnumConst(GESCHLECHT_VALUES);
+/** @deprecated Use {@link GeschlechtSchema}. */
+export const PatientGeschlechtSchema = GeschlechtSchema;
+
+export const PatientStatusSchema = stringEnumConst(PATIENT_STATUS_VALUES);
+export const AktenStatusSchema = stringEnumConst(AKTEN_STATUS_VALUES);
 
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name ist erforderlich").max(120),
     geburtsdatum: isoDate,
-    geschlecht: PatientGeschlechtSchema,
+    geschlecht: GeschlechtSchema,
     versicherungsnummer: nonEmpty("Versicherungsnummer fehlt").max(40),
     telefon: optionalText,
     email: z
@@ -51,24 +69,12 @@ export const UpdatePatientSchema = z
         telefon: optionalText,
         email: z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]).optional(),
         adresse: optionalText,
-        status: z.enum(["NEU", "AKTIV", "VALIDIERT", "READONLY"]).optional(),
+        status: PatientStatusSchema.optional(),
     })
     .strict();
 
-export const TerminArtSchema = z.enum([
-    "ROUTINE",
-    "NOTFALL",
-    "KONTROLLE",
-    "BERATUNG",
-    "BEHANDLUNG",
-]);
-export const TerminStatusSchema = z.enum([
-    "GEPLANT",
-    "BESTAETIGT",
-    "DURCHGEFUEHRT",
-    "NICHTERSCHIENEN",
-    "ABGESAGT",
-]);
+export const TerminArtSchema = stringEnumConst(TERMIN_ART_VALUES);
+export const TerminStatusSchema = stringEnumConst(TERMIN_STATUS_VALUES);
 
 export const CreateTerminSchema = z.object({
     datum: isoDate,
@@ -93,12 +99,7 @@ export const UpdateTerminSchema = z
     })
     .strict();
 
-export const RolleSchema = z.enum([
-    "ARZT",
-    "REZEPTION",
-    "PHARMABERATER",
-    "STEUERBERATER",
-]);
+export const RolleSchema = stringEnumConst(ROLLE_VALUES);
 
 export const CreatePersonalSchema = z.object({
     name: nonEmpty().max(120),
@@ -110,8 +111,20 @@ export const CreatePersonalSchema = z.object({
     telefon: optionalText,
 });
 
-export const ZahlungsartSchema = z.enum(["BAR", "KARTE", "UEBERWEISUNG", "VERSICHERUNG"]);
-export const ZahlungStatusSchema = z.enum(["AUSSTEHEND", "TEILBEZAHLT", "BEZAHLT", "STORNIERT"]);
+export const UpdatePersonalSchema = z
+    .object({
+        name: z.string().min(1).max(120).optional(),
+        email: z.string().email("Ungültige E-Mail").optional(),
+        rolle: RolleSchema.optional(),
+        taetigkeitsbereich: optionalText,
+        fachrichtung: optionalText,
+        telefon: optionalText,
+        verfuegbar: z.boolean().optional(),
+    })
+    .strict();
+
+export const ZahlungsartSchema = stringEnumConst(ZAHLUNGS_ART_VALUES);
+export const ZahlungStatusSchema = stringEnumConst(ZAHLUNGS_STATUS_VALUES);
 
 export const CreateZahlungSchema = z.object({
     patient_id: nonEmpty(),
@@ -119,7 +132,20 @@ export const CreateZahlungSchema = z.object({
     zahlungsart: ZahlungsartSchema,
     leistung_id: optionalText,
     beschreibung: optionalText,
+    behandlung_id: optionalText,
+    untersuchung_id: optionalText,
+    betrag_erwartet: z.number().finite().nonnegative().optional().nullable(),
 });
+
+export const UpdateZahlungSchema = z
+    .object({
+        id: nonEmpty(),
+        betrag: z.number().nonnegative(),
+        zahlungsart: ZahlungsartSchema,
+        leistung_id: optionalText,
+        beschreibung: optionalText,
+    })
+    .strict();
 
 export const CreateBestellungSchema = z.object({
     lieferant: nonEmpty().max(200),
@@ -132,7 +158,6 @@ export const CreateBestellungSchema = z.object({
     bemerkung: optionalText,
     bestellnummer: optionalText,
     pharmaberater: optionalText,
-    /** Summe (Lager-Einzelpreis × Menge) bei Erfassung; optional für alte Klienten. */
     gesamtbetrag: z.number().finite().nonnegative().optional().nullable(),
 });
 
@@ -152,30 +177,105 @@ export const UpdateBestellungSchema = z
     .strict();
 
 export const CreateLeistungSchema = z.object({
-    bezeichnung: nonEmpty().max(200),
+    name: nonEmpty().max(200),
+    beschreibung: optionalText,
     kategorie: nonEmpty().max(80),
     preis: z.number().nonnegative(),
-    dauer_minuten: z.number().int().nonnegative(),
-    beschreibung: optionalText,
-    aktiv: z.boolean().optional(),
 });
+
+export const UpdateLeistungSchema = z
+    .object({
+        name: z.string().min(1).max(200).optional(),
+        beschreibung: optionalText,
+        kategorie: z.string().min(1).max(80).optional(),
+        preis: z.number().nonnegative().optional(),
+        aktiv: z.boolean().optional(),
+    })
+    .strict();
 
 export const CreateRezeptSchema = z.object({
     patient_id: nonEmpty("Patient ist erforderlich"),
-    medikament: nonEmpty("Medikament ist erforderlich").max(200),
-    dosierung: nonEmpty().max(200),
-    einnahmehinweise: optionalText,
-    gueltig_bis: isoDate.optional(),
     arzt_id: nonEmpty(),
+    medikament: nonEmpty("Medikament ist erforderlich").max(200),
+    wirkstoff: optionalText,
+    dosierung: nonEmpty().max(200),
+    dauer: nonEmpty().max(200),
+    hinweise: optionalText,
+});
+
+export const UpdateRezeptSchema = z.object({
+    id: nonEmpty(),
+    medikament: nonEmpty().max(200),
+    wirkstoff: optionalText,
+    dosierung: nonEmpty().max(200),
+    dauer: nonEmpty().max(200),
+    hinweise: optionalText,
 });
 
 export const CreateAttestSchema = z.object({
     patient_id: nonEmpty(),
     arzt_id: nonEmpty(),
-    art: nonEmpty(),
+    typ: nonEmpty(),
     inhalt: nonEmpty().max(5000),
-    von_datum: isoDate.optional(),
-    bis_datum: isoDate.optional(),
+    gueltig_von: isoDate,
+    gueltig_bis: isoDate,
+});
+
+export const CreateBehandlungSchema = z.object({
+    akte_id: nonEmpty(),
+    art: nonEmpty(),
+    beschreibung: optionalText,
+    zaehne: optionalText,
+    material: optionalText,
+    notizen: optionalText,
+    kategorie: optionalText,
+    leistungsname: optionalText,
+    behandlungsnummer: optionalText,
+    sitzung: z.number().int().optional().nullable(),
+    behandlung_status: optionalText,
+    gesamtkosten: z.number().finite().optional().nullable(),
+    termin_erforderlich: z.boolean().optional().nullable(),
+    behandlung_datum: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((v) => (v === "" ? null : v)),
+});
+
+export const UpdateBehandlungSchema = z.object({
+    id: nonEmpty(),
+    art: nonEmpty(),
+    beschreibung: optionalText,
+    zaehne: optionalText,
+    material: optionalText,
+    notizen: optionalText,
+    kategorie: optionalText,
+    leistungsname: optionalText,
+    behandlungsnummer: optionalText,
+    sitzung: z.number().int().optional().nullable(),
+    behandlung_status: optionalText,
+    gesamtkosten: z.number().finite().optional().nullable(),
+    termin_erforderlich: z.boolean().optional().nullable(),
+    behandlung_datum: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((v) => (v === "" ? null : v)),
+});
+
+export const CreateUntersuchungSchema = z.object({
+    akte_id: nonEmpty(),
+    beschwerden: optionalText,
+    ergebnisse: optionalText,
+    diagnose: optionalText,
+    untersuchungsnummer: optionalText,
+});
+
+export const UpdateUntersuchungSchema = z.object({
+    id: nonEmpty(),
+    beschwerden: optionalText,
+    ergebnisse: optionalText,
+    diagnose: optionalText,
+});
+
+export const CreateZahnbefundSchema = z.object({
+    akte_id: nonEmpty(),
+    zahn_nummer: z.number().int(),
+    befund: nonEmpty(),
+    diagnose: optionalText,
+    notizen: optionalText,
 });
 
 export const CreateBilanzSnapshotSchema = z.object({
@@ -187,24 +287,30 @@ export const CreateBilanzSnapshotSchema = z.object({
     payload: z.unknown(),
 });
 
+export const FeedbackKategorieSchema = stringEnumConst(FEEDBACK_KATEGORIE_VALUES);
+
 export const CreateFeedbackSchema = z.object({
-    kategorie: z.enum(["feedback", "vigilance", "technical"]),
+    kategorie: FeedbackKategorieSchema,
     betreff: z.string().min(3, "Betreff zu kurz").max(200),
     nachricht: z.string().min(10, "Nachricht zu kurz").max(4000),
     referenz: optionalText,
 });
 
+export type UpdateLeistungInput = z.infer<typeof UpdateLeistungSchema>;
+
 /**
  * Convert a ZodError into a single human-readable string suitable for toasts.
- * Returns the first message; collapses nested errors so the user sees one
- * actionable line, not a JSON dump.
+ * Joins all issues with `"; "`.
  */
 export function zodErrorToMessage(err: unknown): string {
     if (err instanceof z.ZodError) {
-        const first = err.issues[0];
-        if (!first) return "Validierungsfehler";
-        const path = first.path.length ? `${first.path.join(".")}: ` : "";
-        return `${path}${first.message}`;
+        if (!err.issues.length) return "Validierungsfehler";
+        return err.issues
+            .map((issue) => {
+                const path = issue.path.length ? `${issue.path.join(".")}: ` : "";
+                return `${path}${issue.message}`;
+            })
+            .join("; ");
     }
     return err instanceof Error ? err.message : String(err);
 }

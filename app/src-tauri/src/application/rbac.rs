@@ -60,6 +60,31 @@ pub fn allowed(action: &str, role: Role) -> bool {
         // Purchase orders (Bestellungen) — same audience as products
         "bestellung.read" => true,
         "bestellung.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
+        // Verwaltung hub (sidebar + root) — any back-office role may open; cards/route gates narrow further.
+        "verwaltung.read" => true,
+        // Lager / Bestellwesen slice — mirrors `produkt.*`.
+        "verwaltung.lager.read" => true,
+        "verwaltung.lager.write" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater)
+        },
+        // Ausgabenverträge (Vertrags-CRUD) — read for all staff; write wie Bestellung (ohne Steuerberater).
+        "verwaltung.vertraege.read" => true,
+        "verwaltung.vertraege.write" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater)
+        },
+        // Leistungs- / Behandlungskataloge unter Verwaltung — Lesen wie Finanzen; Schreiben gleiche Praxisrollen.
+        "verwaltung.kataloge.read" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
+        },
+        "verwaltung.kataloge.write" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
+        },
+        // Dokumentvorlagen unter /verwaltung/vorlagen — gleiche Policy wie `vorlagen.*`.
+        "verwaltung.vorlagen.read" | "verwaltung.vorlagen.write" => role == Role::Arzt,
+        // Tagesabschluss-Protokoll mutieren — gleiche Rollen wie `finanzen.write`.
+        "finanzen.tagesabschluss.write" => {
+            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
+        },
         // Personnel administration — clinicians only
         "personal.read" | "personal.write" => role == Role::Arzt,
         // Prescription / certificate template catalog (Dokumentvorlagen) — clinicians only

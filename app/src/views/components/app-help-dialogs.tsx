@@ -19,6 +19,13 @@ export function AboutAppDialog({ open, onClose, appVersion = "0.1.0" }: AboutPro
                 <p style={{ fontSize: 12.5, color: "var(--fg-4)", margin: 0 }}>
                     Version <span className="font-mono">{appVersion}</span>
                 </p>
+                <p style={{ fontSize: 12, color: "var(--fg-3)", lineHeight: 1.5, margin: "12px 0 0" }}>
+                    Symbole:{" "}
+                    <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">
+                        Lucide
+                    </a>{" "}
+                    (ISC License).
+                </p>
             </div>
         </Dialog>
     );

@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
-import { exportAuditCsv, listAuditLogs } from "../../controllers/audit.controller";
+import { exportAuditCsv, listAuditLogsPaged } from "../../controllers/audit.controller";
 import { errorMessage, formatDateTime } from "../../lib/utils";
 import { openExportPreview } from "../../models/store/export-preview-store";
 import type { AuditLog } from "../../models/types";
+import { totalPages, type ListResponse } from "../../lib/list-params";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
+import { Button } from "../components/ui/button";
+
+const PAGE_SIZE_DEFAULT = 50;
+const PAGE_SIZE_MAX = 200;
 
 export function AuditPage() {
     const toast = useToastStore((s) => s.add);
-    const [logs, setLogs] = useState<AuditLog[]>([]);
+    const [resp, setResp] = useState<ListResponse<AuditLog> | null>(null);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -19,15 +26,15 @@ export function AuditPage() {
         setLoading(true);
         setLoadError(null);
         try {
-            const data = await listAuditLogs();
-            setLogs(data);
+            const data = await listAuditLogsPaged({ page, pageSize });
+            setResp(data);
         } catch (e) {
             setLoadError(errorMessage(e));
-            setLogs([]);
+            setResp(null);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [page, pageSize]);
 
     useEffect(() => {
         void load();
@@ -52,28 +59,67 @@ export function AuditPage() {
         }
     };
 
+    const logs = resp?.items ?? [];
+    const total = resp?.total ?? 0;
+    const pages = resp ? totalPages(resp) : 1;
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <div className="page-head">
-                <h2 className="page-title">Audit-Log</h2>
-                <button
-                    type="button"
-                    onClick={() => void exportCsv()}
-                    disabled={busy || logs.length === 0 || !!loadError}
-                    className="btn btn-subtle"
-                >
-                    {busy ? "Export…" : "CSV exportieren"}
-                </button>
+                <div>
+                    <h2 className="page-title">Audit-Log</h2>
+                    <p className="page-sub" style={{ marginTop: 4 }}>
+                        Seitenweise Ansicht (max. {PAGE_SIZE_MAX} Einträge pro Seite). Export bleibt vollständig.
+                    </p>
+                </div>
             </div>
+
+            <div className="page-toolbar" style={{ alignItems: "center" }}>
+                <div className="page-toolbar__filters row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
+                        Zeilen
+                        <select
+                            className="input-edit"
+                            style={{ width: 88, padding: "6px 8px" }}
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPage(1);
+                                setPageSize(Number.parseInt(e.target.value, 10) || PAGE_SIZE_DEFAULT);
+                            }}
+                        >
+                            {[25, 50, 100, 200].filter((n) => n <= PAGE_SIZE_MAX).map((n) => (
+                                <option key={n} value={n}>
+                                    {n}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => void exportCsv()}
+                        disabled={busy || total === 0 || !!loadError}
+                        className="btn btn-subtle"
+                    >
+                        {busy ? "Export…" : "CSV exportieren"}
+                    </button>
+                </div>
+            </div>
+
+            {!loading && !loadError && total > 0 ? (
+                <p className="page-sub" style={{ margin: 0 }}>
+                    {total} Einträge gesamt{logs.length > 0 ? ` · Seite ${page} / ${pages}` : ""}
+                </p>
+            ) : null}
 
             {loading ? (
                 <PageLoading label="Audit-Einträge werden geladen…" />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load()} />
-            ) : logs.length === 0 ? (
+            ) : total === 0 ? (
                 <EmptyState icon="📋" title="Keine Audit-Einträge" />
             ) : (
-                <div className="card">
+                <div className="card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    <div className="tbl-scroll">
                     <table className="tbl">
                         <thead>
                             <tr>
@@ -104,6 +150,23 @@ export function AuditPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
+                    <div
+                        className="card-pad row"
+                        style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, borderTop: "1px solid var(--line)" }}
+                    >
+                        <span style={{ color: "var(--fg-3)", fontSize: 13 }}>
+                            Seite {page} / {pages}
+                        </span>
+                        <div className="row" style={{ gap: 8 }}>
+                            <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                                Zurück
+                            </Button>
+                            <Button size="sm" variant="ghost" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
+                                Weiter
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

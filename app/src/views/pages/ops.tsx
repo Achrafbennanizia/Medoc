@@ -4,7 +4,9 @@ import {
     createBackup,
     listBackups,
     importPatientsCsv,
+    pickBackupFile,
     pickPatientsCsvFile,
+    validateBackup,
     type BackupInfo,
     type ImportReport,
 } from "../../controllers/ops.controller";
@@ -31,6 +33,8 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
     const [csvPath, setCsvPath] = useState("");
+    const [backupValidatePath, setBackupValidatePath] = useState("");
+    const [backupValidateMsg, setBackupValidateMsg] = useState<string | null>(null);
     const [dryRun, setDryRun] = useState(true);
     const [report, setReport] = useState<ImportReport | null>(null);
     const [health, setHealth] = useState<HealthCheck | null>(null);
@@ -86,6 +90,30 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             if (path) setCsvPath(path);
         } catch (e: unknown) {
             setMessage(`Dateiauswahl fehlgeschlagen: ${errorMessage(e)}`);
+        }
+    }
+
+    async function chooseBackupForValidate() {
+        setBackupValidateMsg(null);
+        try {
+            const picked = await pickBackupFile();
+            setBackupValidatePath(picked ?? "");
+        } catch (e: unknown) {
+            setMessage(`Dateiauswahl fehlgeschlagen: ${errorMessage(e)}`);
+        }
+    }
+
+    async function runValidateBackup() {
+        if (!backupValidatePath.trim()) return;
+        setBusy(true);
+        setBackupValidateMsg(null);
+        try {
+            const ok = await validateBackup(backupValidatePath.trim());
+            setBackupValidateMsg(ok ? "Datei konnte gelesen werden (Basisprüfung OK)." : "Validierung meldet: Datei nicht verwendbar oder beschädigt.");
+        } catch (e: unknown) {
+            setBackupValidateMsg(`Fehler: ${errorMessage(e)}`);
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -212,6 +240,23 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                         ))}
                     </ul>
                 )}
+                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <p className="text-body text-on-surface-variant" style={{ margin: 0 }}>
+                        Vor einer Wiederherstellung: ausgewählte Sicherungsdatei prüfen (Pfad per Systemdialog — korrekte Trenner unter Windows/macOS/Linux).
+                    </p>
+                    <div className="row" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                        <Button type="button" variant="secondary" onClick={() => void chooseBackupForValidate()} disabled={busy}>
+                            Backup-Datei wählen…
+                        </Button>
+                        <span className="text-body text-on-surface-variant" style={{ flex: "1 1 200px", overflow: "hidden", textOverflow: "ellipsis" }} title={backupValidatePath || undefined}>
+                            {backupValidatePath || "Keine Datei gewählt"}
+                        </span>
+                        <Button type="button" variant="ghost" onClick={() => void runValidateBackup()} disabled={busy || !backupValidatePath.trim()}>
+                            Prüfen
+                        </Button>
+                    </div>
+                    {backupValidateMsg ? <p className="text-body" role="status" style={{ margin: 0 }}>{backupValidateMsg}</p> : null}
+                </div>
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

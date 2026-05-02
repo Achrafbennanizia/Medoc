@@ -12,12 +12,33 @@ use crate::error::AppError;
 use crate::infrastructure::database::akte_anlage_repo::{self, AkteAnlageRow};
 use crate::infrastructure::database::audit_repo;
 
+const ALLOWED_DOCUMENT_KINDS: &[&str] = &[
+    "MRT",
+    "CT",
+    "ROENTGEN",
+    "LABOR",
+    "UEBERWEISUNG",
+    "EINVERSTAENDNIS",
+    "SONSTIGES",
+];
+
+fn normalize_document_kind(input: Option<&str>) -> String {
+    let s = input.unwrap_or("SONSTIGES").trim().to_ascii_uppercase();
+    if ALLOWED_DOCUMENT_KINDS.contains(&s.as_str()) {
+        s
+    } else {
+        "SONSTIGES".into()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateAkteAnlageInput {
     pub akte_id: String,
     pub display_name: String,
     pub mime_type: String,
     pub bytes_base64: String,
+    #[serde(default, alias = "documentKind")]
+    pub document_kind: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -26,6 +47,7 @@ pub struct AkteAnlageDto {
     pub display_name: String,
     pub mime_type: String,
     pub size_bytes: i64,
+    pub document_kind: String,
     pub created_at: String,
     /// Absoluter Pfad für `convertFileSrc` im Frontend
     pub abs_path: String,
@@ -44,6 +66,7 @@ fn row_to_dto(app_data_dir: &Path, row: AkteAnlageRow) -> AkteAnlageDto {
         display_name: row.display_name,
         mime_type: row.mime_type,
         size_bytes: row.size_bytes,
+        document_kind: normalize_document_kind(Some(row.document_kind.as_str())),
         created_at: row.created_at,
         abs_path: abs.to_string_lossy().to_string(),
     }
@@ -173,12 +196,14 @@ pub async fn create_akte_anlage(
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data.bytes_base64.trim())
         .map_err(|_| AppError::Validation("Ungültige Base64-Daten.".into()))?;
+    let kind = normalize_document_kind(data.document_kind.as_deref());
     let row = akte_anlage_repo::create(
         &pool,
         &app_dir,
         &data.akte_id,
         &data.display_name,
         &data.mime_type,
+        &kind,
         &bytes,
     )
     .await?;
@@ -243,6 +268,30 @@ pub async fn rename_akte_anlage(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn set_akte_anlage_document_kind(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    id: String,
+    document_kind: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let kind = normalize_document_kind(Some(document_kind.as_str()));
+    akte_anlage_repo::update_document_kind(&pool, &id, &kind).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "AkteAnlage",
+        Some(&id),
+        Some("document_kind"),
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, app))]
 pub async fn open_akte_anlage_externally(
     app: AppHandle,
@@ -297,6 +346,7 @@ pub async fn duplicate_akte_anlage(
         &src.akte_id,
         &new_name,
         &src.mime_type,
+        &normalize_document_kind(Some(src.document_kind.as_str())),
         &bytes,
     )
     .await?;

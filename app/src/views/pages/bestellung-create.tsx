@@ -388,17 +388,7 @@ export function BestellungCreatePage() {
                                 background: "color-mix(in oklab, var(--accent) 6%, transparent)",
                             }}
                         >
-                            <div
-                                style={{
-                                    fontSize: 11,
-                                    letterSpacing: "0.04em",
-                                    color: "var(--fg-3)",
-                                    textTransform: "uppercase",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                Voraussichtlicher Betrag (Lager-Preis × Menge)
-                            </div>
+                            <div className="form-label form-label--wide">Voraussichtlicher Betrag (Lager-Preis × Menge)</div>
                             <div style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                                 {formatCurrency(voraussichtGesamtbetrag)}
                             </div>
