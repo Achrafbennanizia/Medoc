@@ -246,14 +246,11 @@ export function TagesabschlussForm({
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--surface-1)", borderColor: "var(--border-2)" }}>
                 <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Option: Tagesbericht (PDF)</p>
                 <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                    Berichts-PDF: Leistungen (Untersuchungen &amp; Behandlungen) des Stichtags pro Patient mit
-                    {" "}
-                    <strong>Kosten/Gezahlt</strong>
-                    {" "}
-                    — gesamt für den Tag, kein einzelner Patient. Gleiche Druck-Pipeline wie
-                    {" "}
-                    <strong>Rechnung (PDF) / FA-FIN-INVOICE</strong>
-                    . Keine Rechnung im Wortsinn, sondern Beleg-Überblick.
+                    Berichts-PDF: <strong>Sammelbeleg</strong> zum Stichtag — Leistungen und Beträge gruppiert{" "}
+                    <strong>pro Patient</strong> (im PDF mit „Patient: …“ je Block). Das Dokument ist{" "}
+                    <strong>nicht</strong> als persönliche Rechnung an eine Einzelperson adressiert, sondern als
+                    Tagesübersicht für Buchhaltung/Abgleich. Gleiche Druck-Pipeline wie{" "}
+                    <strong>Rechnung (PDF) / FA-FIN-INVOICE</strong>.
                 </p>
                 <label className="row" style={{ gap: 10, alignItems: "center", fontSize: 14, color: "var(--fg-2)" }}>
                     <input

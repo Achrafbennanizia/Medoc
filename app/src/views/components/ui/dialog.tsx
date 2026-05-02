@@ -106,7 +106,20 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     if (!open) return null;
 
     const closeLabel = t("a11y.close_dialog");
-    const showDefaultHeader = !isCentered && (title.trim().length > 0 || headerExtra != null);
+    const titleTrimmed = title.trim();
+    const showDefaultHeader = !isCentered && (titleTrimmed.length > 0 || headerExtra != null);
+
+    const ariaLabelledBy = (() => {
+        if (isCentered) {
+            if (labelledBy) return labelledBy;
+            if (titleTrimmed) return titleId;
+            return undefined;
+        }
+        if (showDefaultHeader) return titleId;
+        return labelledBy;
+    })();
+
+    const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
         <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -114,14 +127,8 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby={
-                    isCentered
-                        ? (labelledBy ?? undefined)
-                        : showDefaultHeader
-                          ? titleId
-                          : (labelledBy ?? undefined)
-                }
-                aria-label={isCentered && !labelledBy ? (title || undefined) : undefined}
+                aria-labelledby={ariaLabelledBy}
+                aria-label={ariaLabel}
                 tabIndex={-1}
                 className={`modal ${isCentered ? "modal--centered" : ""} ${className ?? ""}`}
                 onClick={(e) => e.stopPropagation()}
@@ -139,9 +146,12 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                     </button>
                 ) : showDefaultHeader ? (
                     <div className="modal-header-row">
-                        <h3 id={titleId} className="modal-title">
-                            {title}
-                        </h3>
+                        <h2
+                            id={titleId}
+                            className={`modal-title${!titleTrimmed ? " sr-only" : ""}`}
+                        >
+                            {titleTrimmed ? title : t("a11y.dialog_heading_fallback")}
+                        </h2>
                         <div className="modal-header-actions row">
                             {headerExtra}
                             <button
@@ -157,7 +167,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                         </div>
                     </div>
                 ) : null}
-                <div className={isCentered ? "modal-body-pad modal-body-pad--flush" : "modal-body-pad"}>{children}</div>
+                <div className={isCentered ? "modal-body-pad modal-body-pad--flush" : "modal-body-pad"}>
+                    {isCentered && titleTrimmed && !labelledBy ? (
+                        <h2 id={titleId} className="sr-only">
+                            {title}
+                        </h2>
+                    ) : null}
+                    {children}
+                </div>
                 {footer && (
                     <div className="modal-actions">{footer}</div>
                 )}
@@ -211,9 +228,9 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
                         </svg>
                     </div>
                 ) : null}
-                <h3 id={confirmTitleId} className="confirm-title">
+                <h2 id={confirmTitleId} className="confirm-title">
                     {title}
-                </h3>
+                </h2>
                 <p className="confirm-text">{message}</p>
             </div>
         </Dialog>

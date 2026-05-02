@@ -1,5 +1,8 @@
 import { tauriInvoke } from "@/services/tauri.service";
 
+/** Must match `BREAK_GLASS_DURATION` in `application::break_glass` (Rust). */
+export const BREAK_GLASS_WINDOW_SECS = 30 * 60;
+
 export interface BreakGlassEntry {
     user_id: string;
     reason: string;

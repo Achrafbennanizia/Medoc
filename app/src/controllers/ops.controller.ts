@@ -33,6 +33,9 @@ export const dsgvoErasePatient = (patientId: string) =>
 export const importPatientsCsv = (csvPath: string, dryRun: boolean) =>
     tauriInvoke<ImportReport>("import_patients_csv", { csv_path: csvPath, dry_run: dryRun });
 
+/** Opens a native file dialog for validating a backup file. */
+export const pickBackupFile = () => tauriInvoke<string | null>("pick_backup_file");
+
 /** Opens a native file dialog; returns `null` if the user cancels. */
 export const pickPatientsCsvFile = () =>
     tauriInvoke<string | null>("pick_patients_csv_file");

@@ -40,12 +40,18 @@ fn rezeption_cannot_read_medical_records_or_audit() {
     assert!(!allowed("personal.read", Role::Rezeption));
     assert!(!allowed("ops.backup", Role::Rezeption));
     assert!(allowed("termin.list_aerzte", Role::Rezeption));
+    assert!(allowed("verwaltung.read", Role::Rezeption));
+    assert!(allowed("verwaltung.kataloge.read", Role::Rezeption));
+    assert!(!allowed("verwaltung.vorlagen.read", Role::Rezeption));
 }
 
 #[test]
 fn steuerberater_only_finanzen() {
     assert!(allowed("finanzen.read", Role::Steuerberater));
     assert!(allowed("finanzen.write", Role::Steuerberater));
+    assert!(allowed("verwaltung.read", Role::Steuerberater));
+    assert!(allowed("verwaltung.vertraege.read", Role::Steuerberater));
+    assert!(!allowed("verwaltung.vertraege.write", Role::Steuerberater));
     assert!(!allowed("patient.read_medical", Role::Steuerberater));
     assert!(!allowed("termin.write", Role::Steuerberater));
     assert!(!allowed("personal.write", Role::Steuerberater));
@@ -71,6 +77,9 @@ fn all_roles_can_read_dashboard_aggregates() {
 fn pharmaberater_only_inventory() {
     assert!(allowed("produkt.read", Role::Pharmaberater));
     assert!(allowed("produkt.write", Role::Pharmaberater));
+    assert!(allowed("verwaltung.read", Role::Pharmaberater));
+    assert!(allowed("verwaltung.lager.read", Role::Pharmaberater));
+    assert!(!allowed("verwaltung.kataloge.read", Role::Pharmaberater));
     assert!(!allowed("patient.read", Role::Pharmaberater));
     assert!(!allowed("finanzen.read", Role::Pharmaberater));
     assert!(!allowed("audit.read", Role::Pharmaberater));

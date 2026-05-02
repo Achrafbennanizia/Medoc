@@ -114,6 +114,22 @@ pub async fn find_paginated(
     Ok((rows, total.0))
 }
 
+/// Auditzeilen, die sich auf eine Patienten-ID beziehen (`entity_id` im Log).
+pub async fn find_for_patient_entity(
+    pool: &SqlitePool,
+    patient_id: &str,
+    limit: i64,
+) -> Result<Vec<AuditLog>, AppError> {
+    let rows = sqlx::query_as::<_, AuditLog>(
+        "SELECT * FROM audit_log WHERE entity_id = ?1 ORDER BY created_at DESC LIMIT ?2",
+    )
+    .bind(patient_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 pub async fn create(
     pool: &SqlitePool,
     user_id: &str,

@@ -38,6 +38,25 @@ export function allowed(action: string, role: Role): boolean {
         /** Mirrors Rust `bestellung.write` — not Steuerberater. */
         case "bestellung.write":
             return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
+        case "verwaltung.read":
+            return true;
+        case "verwaltung.lager.read":
+            return true;
+        case "verwaltung.lager.write":
+            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
+        case "verwaltung.vertraege.read":
+            return true;
+        case "verwaltung.vertraege.write":
+            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
+        case "verwaltung.kataloge.read":
+            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
+        case "verwaltung.kataloge.write":
+            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
+        case "verwaltung.vorlagen.read":
+        case "verwaltung.vorlagen.write":
+            return role === "ARZT";
+        case "finanzen.tagesabschluss.write":
+            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
         case "dashboard.read":
             return true;
         case "produkt.read":
@@ -73,7 +92,6 @@ export type NavVisibility =
 export type NavItemDefinition = {
     to: string;
     labelKey: string;
-    icon: string;
     visibility: NavVisibility;
 };
 
@@ -89,22 +107,20 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     {
         to: "/",
         labelKey: "nav.dashboard",
-        icon: "📊",
         visibility: { kind: "action", action: "dashboard.read" },
     },
-    { to: "/termine", labelKey: "nav.termine", icon: "📅", visibility: { kind: "action", action: "termin.read" } },
-    { to: "/patienten", labelKey: "nav.patienten", icon: "👥", visibility: { kind: "action", action: "patient.read" } },
-    { to: "/finanzen", labelKey: "nav.finanzen", icon: "💰", visibility: { kind: "action", action: "finanzen.read" } },
-    { to: "/bestellungen", labelKey: "nav.bestellungen", icon: "🚚", visibility: { kind: "action", action: "finanzen.read" } },
-    { to: "/leistungen", labelKey: "nav.leistungen", icon: "🦷", visibility: { kind: "action", action: "finanzen.read" } },
+    { to: "/termine", labelKey: "nav.termine", visibility: { kind: "action", action: "termin.read" } },
+    { to: "/patienten", labelKey: "nav.patienten", visibility: { kind: "action", action: "patient.read" } },
+    { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
+    { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
+    { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "action", action: "finanzen.read" } },
     /* `produkt.read` allows every role in Rust; sidebar matches product scope (exclude Steuerberater). */
-    { to: "/produkte", labelKey: "nav.produkte", icon: "📦", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] } },
-    { to: "/verwaltung", labelKey: "nav.verwaltung", icon: "🏢", visibility: { kind: "action", action: "personal.read" } },
-    { to: "/statistik", labelKey: "nav.statistik", icon: "📈", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
+    { to: "/produkte", labelKey: "nav.produkte", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] } },
+    { to: "/verwaltung", labelKey: "nav.verwaltung", visibility: { kind: "action", action: "verwaltung.read" } },
+    { to: "/statistik", labelKey: "nav.statistik", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
     {
         to: "/einstellungen",
         labelKey: "nav.einstellungen",
-        icon: "⚙️",
         visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] },
     },
 ];
@@ -147,26 +163,29 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     hilfe: { kind: "action", action: "dashboard.read" },
     feedback: { kind: "action", action: "dashboard.read" },
     migration: { kind: "action", action: "ops.migration" },
-    verwaltung: { kind: "action", action: "personal.read" },
+    verwaltung: { kind: "action", action: "verwaltung.read" },
     "verwaltung/team": { kind: "action", action: "personal.read" },
     "verwaltung/arbeitstage": { kind: "action", action: "personal.read" },
     "verwaltung/praxisplanung": { kind: "action", action: "personal.read" },
     "verwaltung/arbeitszeiten": { kind: "action", action: "personal.read" },
     "verwaltung/sonder-sperrzeiten": { kind: "action", action: "personal.read" },
     "verwaltung/praxis-praeferenzen": { kind: "action", action: "personal.read" },
-    "verwaltung/vorlagen": { kind: "action", action: "vorlagen.read" },
-    "verwaltung/vorlagen/editor": { kind: "action", action: "vorlagen.read" },
-    "verwaltung/behandlungs-katalog": { kind: "action", action: "personal.read" },
+    "verwaltung/vorlagen": { kind: "action", action: "verwaltung.vorlagen.read" },
+    "verwaltung/vorlagen/editor": { kind: "action", action: "verwaltung.vorlagen.write" },
+    "verwaltung/behandlungs-katalog": { kind: "action", action: "verwaltung.kataloge.read" },
     /** Bestellwesen (nicht `finanzen.*`) — spiegelt Tauri `bestellung.read` / `bestellung.write` für Praxis-Stammdaten. */
     "verwaltung/bestellstamm": { kind: "action", action: "bestellung.read" },
-    "verwaltung/finanzen-werkzeuge": { kind: "action", action: "personal.read" },
-    "verwaltung/tagesabschluss": { kind: "action", action: "personal.read" },
-    "verwaltung/finanzen-berichte": { kind: "action", action: "personal.read" },
-    "verwaltung/finanzen-berichte/tagesabschluss": { kind: "action", action: "personal.read" },
-    "verwaltung/finanzen-berichte/rechnung": { kind: "action", action: "personal.read" },
-    "verwaltung/lager-und-bestellwesen": { kind: "action", action: "personal.read" },
-    "verwaltung/vertraege": { kind: "action", action: "personal.read" },
-    "verwaltung/leistungen-kataloge-vorlagen": { kind: "action", action: "personal.read" },
+    "verwaltung/finanzen-werkzeuge": { kind: "action", action: "finanzen.read" },
+    "verwaltung/tagesabschluss": { kind: "action", action: "finanzen.read" },
+    "verwaltung/finanzen-berichte": { kind: "action", action: "finanzen.read" },
+    "verwaltung/finanzen-berichte/tagesabschluss": { kind: "action", action: "finanzen.read" },
+    "verwaltung/finanzen-berichte/rechnung": { kind: "action", action: "finanzen.read" },
+    "verwaltung/lager-und-bestellwesen": { kind: "action", action: "verwaltung.lager.read" },
+    "verwaltung/vertraege": { kind: "action", action: "verwaltung.vertraege.read" },
+    "verwaltung/leistungen-kataloge-vorlagen": {
+        kind: "anyOf",
+        actions: ["verwaltung.kataloge.read", "verwaltung.vorlagen.read"],
+    },
 };
 
 export function navVisibilitySatisfied(visibility: NavVisibility, rolle: string | undefined): boolean {

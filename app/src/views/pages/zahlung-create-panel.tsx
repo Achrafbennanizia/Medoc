@@ -415,15 +415,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                         background: "rgba(0,0,0,0.02)",
                                     }}
                                 >
-                                    <div
-                                        style={{
-                                            fontSize: 11,
-                                            letterSpacing: "0.04em",
-                                            color: "var(--fg-3)",
-                                            textTransform: "uppercase",
-                                            marginBottom: 10,
-                                        }}
-                                    >
+                                    <div className="form-label form-label--wide form-label--mb-10">
                                         Bisherige Zahlungen (dieser Patient)
                                     </div>
                                     <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--fg-3)" }}>
@@ -517,15 +509,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     className="rounded-lg px-4 py-3"
                                                     style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            letterSpacing: "0.04em",
-                                                            color: "var(--fg-3)",
-                                                            textTransform: "uppercase",
-                                                            marginBottom: 10,
-                                                        }}
-                                                    >
+                                                    <div className="form-label form-label--wide form-label--mb-10">
                                                         Kosten & offener Betrag (Behandlung)
                                                     </div>
                                                     <div
@@ -562,15 +546,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            letterSpacing: "0.04em",
-                                                            color: "var(--fg-3)",
-                                                            textTransform: "uppercase",
-                                                            marginBottom: 6,
-                                                        }}
-                                                    >
+                                                    <div className="form-label form-label--wide">
                                                         Zahlungsverlauf zu dieser Zeile
                                                     </div>
                                                     {hist.length > 0 ? (
@@ -635,15 +611,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     className="rounded-lg px-4 py-3"
                                                     style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            letterSpacing: "0.04em",
-                                                            color: "var(--fg-3)",
-                                                            textTransform: "uppercase",
-                                                            marginBottom: 8,
-                                                        }}
-                                                    >
+                                                    <div className="form-label form-label--wide form-label--mb-8">
                                                         Untersuchung (ohne Sollkosten)
                                                     </div>
                                                     <div
@@ -665,15 +633,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            letterSpacing: "0.04em",
-                                                            color: "var(--fg-3)",
-                                                            textTransform: "uppercase",
-                                                            marginBottom: 6,
-                                                        }}
-                                                    >
+                                                    <div className="form-label form-label--wide">
                                                         Zahlungsverlauf
                                                     </div>
                                                     {histU.length > 0 ? (

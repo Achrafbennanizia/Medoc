@@ -50,7 +50,7 @@ export const DEFAULT_CONFIRMATION_PREFS: ConfirmationPrefs = {
 /** SQLite `app_kv` blob for key {@link PRAXIS_PREFERENCES_KV_KEY} — extended fields stay backward-compatible. */
 export type PraxisPreferencesV1 = {
     version: 1;
-    /** Termin-Puffer / Reminder / No-Show — siehe `praxis-praeferenzen-storage.ts`. */
+/** @deprecated Prefer {@link PRAXIS_TERMIN_PREFERENCES_KV_KEY} / `praxis-praeferenzen-storage.ts`; optional migration source only. */
     terminPlanning?: {
         pufferMin?: string;
         notfallPuffer?: string;

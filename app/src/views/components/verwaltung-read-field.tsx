@@ -2,17 +2,7 @@
 export function VerwaltungReadField({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.45 }}>{value || "—"}</span>
         </div>
     );

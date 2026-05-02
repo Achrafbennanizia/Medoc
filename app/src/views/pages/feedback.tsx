@@ -88,7 +88,7 @@ export function FeedbackPage() {
                     />
                     <div className="row" style={{ gap: 10, marginTop: 12 }}>
                         <Button type="submit" disabled={submitting} loading={submitting}>{t("page.feedback.submit")}</Button>
-                        <Button type="button" variant="ghost" onClick={() => navigate("/einstellungen?tab=hilfe")}>
+                        <Button type="button" variant="ghost" onClick={() => navigate("/hilfe")}>
                             {t("page.feedback.back_help")}
                         </Button>
                     </div>

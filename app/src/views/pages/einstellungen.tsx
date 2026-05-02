@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createBackup } from "../../controllers/ops.controller";
 import { useAuthStore } from "../../models/store/auth-store";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
@@ -28,16 +28,18 @@ import {
     type TermineKalenderAnsicht,
 } from "../../lib/client-settings";
 import {
+    DEFAULT_PRAXIS_PRAEFERENZEN,
     hydratePraxisPraeferenzenFromKv,
-    loadPraxisPraeferenzen,
     savePraxisPraeferenzen,
     type PraxisPraeferenzen,
 } from "../../lib/praxis-praeferenzen-storage";
 import {
     CONFIRMATION_AREA_KEYS,
     CONFIRMATION_AREA_LABELS,
+    resolveConfirmationPresentation,
     type ConfirmationAreaKey,
-    type ConfirmationPresentMode,
+    type AreaOverride,
+    type ConfirmationPrefs,
 } from "../../lib/confirmation-preferences";
 import {
     loadDetectedPhotoViewerApps,
@@ -46,29 +48,17 @@ import {
     type DetectedPhotoViewerApp,
 } from "@/lib/photo-viewer-apps";
 import { getInvoicePraxisFromStorage, saveInvoicePraxisToStorage, type InvoicePraxis } from "../../lib/invoice-leistung";
+import { allowed, parseRole } from "@/lib/rbac";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { Dialog } from "../components/ui/dialog";
+import { AboutAppDialog } from "../components/app-help-dialogs";
+import { EinstellungenExportDruckSection } from "./einstellungen-export-druck";
 
 const LazyOpsPage = lazy(() => import("./ops").then((m) => ({ default: m.OpsPage })));
-const LazyHilfePage = lazy(() => import("./hilfe").then((m) => ({ default: m.HilfePage })));
-const LazyMigrationWizardPage = lazy(() => import("./migration-wizard").then((m) => ({ default: m.MigrationWizardPage })));
-const LazyTerminePage = lazy(() => import("./termine").then((m) => ({ default: m.TerminePage })));
-const LazyTerminCreatePage = lazy(() => import("./termin-create").then((m) => ({ default: m.TerminCreatePage })));
-const LazyPatientenPage = lazy(() => import("./patienten").then((m) => ({ default: m.PatientenPage })));
-const LazyFinanzenPage = lazy(() => import("./finanzen").then((m) => ({ default: m.FinanzenPage })));
-const LazyBestellungenPage = lazy(() => import("./bestellungen").then((m) => ({ default: m.BestellungenPage })));
-const LazyPersonalArbeitsplanPage = lazy(() => import("./personal-arbeitsplan").then((m) => ({ default: m.PersonalArbeitsplanPage })));
-const LazyVerwaltungPage = lazy(() => import("./verwaltung").then((m) => ({ default: m.VerwaltungPage })));
-const LazyVorlagenPage = lazy(() => import("./vorlagen-rezepte-atteste").then((m) => ({ default: m.VorlagenRezepteAttestePage })));
-const LazyStatistikPage = lazy(() => import("./statistik").then((m) => ({ default: m.StatistikPage })));
-const LazyPraxisplanungPage = lazy(() => import("./praxisplanung").then((m) => ({ default: m.PraxisplanungPage })));
-const LazyArbeitszeitenPage = lazy(() => import("./arbeitszeiten").then((m) => ({ default: m.ArbeitszeitenPage })));
-const LazyAuditPage = lazy(() => import("./audit").then((m) => ({ default: m.AuditPage })));
-const LazyLoggingPage = lazy(() => import("./logging").then((m) => ({ default: m.LoggingPage })));
-const LazyCompliancePage = lazy(() => import("./compliance").then((m) => ({ default: m.CompliancePage })));
 
+/** Zum Einbetten der Ops-Vorschau (vollständiger Inhalt — nur auf Wunsch). */
 function SettingsEmbeddedShell({ children }: { children: ReactNode }) {
     return (
         <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", background: "var(--surface)" }}>
@@ -87,9 +77,6 @@ function EmbedSuspenseFallback() {
     );
 }
 
-/**
- * Einstellungen — Praxis-Stammdaten (Rechnung/PDF), Konto, Client-Flags, Lizenz, Darstellung & Bestätigungs-Dialoge.
- */
 const ACCENT_KEY = "medoc-accent-preset";
 
 type AccentId = "mint" | "ocean" | "plum";
@@ -113,57 +100,32 @@ function applyAccentPreset(id: AccentId) {
     localStorage.setItem(ACCENT_KEY, id);
 }
 
-type AblaufPanelId =
-    | null
-    | "ops"
-    | "migration"
-    | "termine"
-    | "termin-neu"
-    | "patienten"
-    | "finanzen"
-    | "bestellungen"
-    | "arbeitsplan"
-    | "verwaltung"
-    | "vorlagen"
-    | "statistik";
+type SettingsSection = "praxis" | "konto" | "darstellung" | "arbeitsablaeufe" | "exportDruck" | "system" | "ueber";
 
-type TermineWorkbenchId = null | "kalender" | "neu" | "planung" | "arbeitszeiten";
+function cycleAreaOverride(cur: AreaOverride | undefined): AreaOverride {
+    if (cur == null || cur === "inherit") return "modal";
+    if (cur === "modal") return "inline";
+    return "inherit";
+}
 
-type SecurityWorkbenchId = null | "audit" | "logs" | "compliance";
-
-const ABL_MODULE_CHIPS: Array<{ id: Exclude<AblaufPanelId, null>; label: string }> = [
-    { id: "patienten", label: "Patienten" },
-    { id: "termine", label: "Termine" },
-    { id: "termin-neu", label: "Neuer Termin" },
-    { id: "finanzen", label: "Finanzen" },
-    { id: "bestellungen", label: "Bestellungen" },
-    { id: "arbeitsplan", label: "Arbeitsplan" },
-    { id: "verwaltung", label: "Verwaltung" },
-    { id: "vorlagen", label: "Vorlagen" },
-    { id: "statistik", label: "Statistik" },
-    { id: "ops", label: "Betrieb / Ops" },
-    { id: "migration", label: "Migration" },
-];
-
-type SettingsSection =
-    | "praxis"
-    | "konto"
-    | "benachrichtigung"
-    | "termine"
-    | "sicherheit"
-    | "lizenz"
-    | "integrationen"
-    | "migration"
-    | "ablauf"
-    | "darstellung"
-    | "hilfe";
+function modeDisplayLabel(prefs: ConfirmationPrefs, key: ConfirmationAreaKey): string {
+    const o = prefs.areas[key];
+    const resolved = resolveConfirmationPresentation(prefs, key);
+    if (o == null || o === "inherit") {
+        return resolved === "modal" ? "Standard → Modal" : "Standard → Inline";
+    }
+    return o === "modal" ? "Modal" : "Inline";
+}
 
 export function EinstellungenPage() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
     const locale = useLocale((s) => s.locale);
     const setLocale = useLocale((s) => s.setLocale);
     const toast = useToastStore((s) => s.add);
+    const role = parseRole(session?.rolle);
+    const canMigration = role != null && allowed("ops.migration", role);
 
     const hydrateConfirmations = useUiPreferencesStore((s) => s.hydrate);
     const confirmations = useUiPreferencesStore((s) => s.confirmations);
@@ -172,18 +134,12 @@ export function EinstellungenPage() {
     const setAreaConfirmationOverride = useUiPreferencesStore((s) => s.setAreaConfirmationOverride);
 
     const [activeSection, setActiveSection] = useState<SettingsSection>("praxis");
-
-    useEffect(() => {
-        if (searchParams.get("tab") === "hilfe") {
-            setActiveSection("hilfe");
-        }
-    }, [searchParams]);
     const [client, setClient] = useState<ClientSettingsV1>(() => loadClientSettings());
 
     const [praxis, setPraxis] = useState<InvoicePraxis>(() => getInvoicePraxisFromStorage());
     const [praxisDirty, setPraxisDirty] = useState(false);
 
-    const [praef, setPraef] = useState<PraxisPraeferenzen>(() => loadPraxisPraeferenzen());
+    const [praef, setPraef] = useState<PraxisPraeferenzen>(() => ({ ...DEFAULT_PRAXIS_PRAEFERENZEN }));
     const [praefDirty, setPraefDirty] = useState(false);
 
     const [oldPw, setOldPw] = useState("");
@@ -210,10 +166,16 @@ export function EinstellungenPage() {
     const [perfMs, setPerfMs] = useState<string>("");
     const [perfBusy, setPerfBusy] = useState(false);
 
-    const [ablaufPanel, setAblaufPanel] = useState<AblaufPanelId>(null);
-    const [termineWorkbench, setTermineWorkbench] = useState<TermineWorkbenchId>(null);
-    const [securityWorkbench, setSecurityWorkbench] = useState<SecurityWorkbenchId>(null);
+    const [opsEmbed, setOpsEmbed] = useState(false);
     const [photoViewerApps, setPhotoViewerApps] = useState<DetectedPhotoViewerApp[]>([]);
+    const [aboutOpen, setAboutOpen] = useState(false);
+
+    useEffect(() => {
+        if (searchParams.get("tab") === "hilfe") {
+            setSearchParams({}, { replace: true });
+            navigate("/hilfe", { replace: true });
+        }
+    }, [searchParams, setSearchParams, navigate]);
 
     useEffect(() => {
         let cancelled = false;
@@ -255,12 +217,22 @@ export function EinstellungenPage() {
     useEffect(() => {
         let cancelled = false;
         currentAppVersion()
-            .then((v) => { if (!cancelled) setAppVersion(v); })
-            .catch(() => { if (!cancelled) setAppVersion("?"); });
+            .then((v) => {
+                if (!cancelled) setAppVersion(v);
+            })
+            .catch(() => {
+                if (!cancelled) setAppVersion("?");
+            });
         getPerfThresholdMs()
-            .then((ms) => { if (!cancelled) setPerfMs(String(ms)); })
-            .catch(() => { if (!cancelled) setPerfMs(""); });
-        return () => { cancelled = true; };
+            .then((ms) => {
+                if (!cancelled) setPerfMs(String(ms));
+            })
+            .catch(() => {
+                if (!cancelled) setPerfMs("");
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -395,22 +367,17 @@ export function EinstellungenPage() {
     const menuItems: Array<{ id: SettingsSection; label: string }> = [
         { id: "praxis", label: "Praxis" },
         { id: "konto", label: "Konto" },
-        { id: "benachrichtigung", label: "Benachrichtigungen" },
-        { id: "termine", label: "Termine & Kalender" },
-        { id: "sicherheit", label: "Sicherheit" },
-        { id: "lizenz", label: "Lizenz & Abo" },
-        { id: "integrationen", label: "Integrationen" },
-        { id: "migration", label: "Migration" },
-        { id: "ablauf", label: "Module & Abläufe" },
         { id: "darstellung", label: "Darstellung" },
-        { id: "hilfe", label: "Hilfe & Kurzbefehle" },
+        { id: "arbeitsablaeufe", label: "Arbeitsabläufe" },
+        { id: "exportDruck", label: "Export & Druck" },
+        { id: "system", label: "System" },
+        { id: "ueber", label: "Über die Anwendung" },
     ];
 
-    const notif = client.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-    const sec = client.security ?? DEFAULT_CLIENT_SETTINGS.security!;
-    const integ = client.integrations ?? DEFAULT_CLIENT_SETTINGS.integrations!;
     const appearance = client.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
     const wf = client.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+    const searchPrefs = client.search ?? DEFAULT_CLIENT_SETTINGS.search!;
+    const security = client.security ?? DEFAULT_CLIENT_SETTINGS.security!;
     const akteClient = client.akte ?? DEFAULT_CLIENT_SETTINGS.akte!;
 
     const photoAppSelectOptions = useMemo(() => {
@@ -422,67 +389,10 @@ export function EinstellungenPage() {
         return opts;
     }, [photoViewerApps, akteClient.openImagesWithApp]);
 
-    function renderAblaufEmbed(id: Exclude<AblaufPanelId, null>) {
-        switch (id) {
-            case "ops":
-                return <LazyOpsPage embedded onOpenMigration={() => setAblaufPanel("migration")} />;
-            case "migration":
-                return <LazyMigrationWizardPage embedded onEmbeddedExit={() => setAblaufPanel(null)} />;
-            case "termine":
-                return <LazyTerminePage />;
-            case "termin-neu":
-                return <LazyTerminCreatePage />;
-            case "patienten":
-                return <LazyPatientenPage />;
-            case "finanzen":
-                return <LazyFinanzenPage />;
-            case "bestellungen":
-                return <LazyBestellungenPage />;
-            case "arbeitsplan":
-                return <LazyPersonalArbeitsplanPage />;
-            case "verwaltung":
-                return <LazyVerwaltungPage />;
-            case "vorlagen":
-                return <LazyVorlagenPage />;
-            case "statistik":
-                return <LazyStatistikPage />;
-            default:
-                return null;
-        }
-    }
-
-    function renderTermineWorkbench(id: Exclude<TermineWorkbenchId, null>) {
-        switch (id) {
-            case "kalender":
-                return <LazyTerminePage />;
-            case "neu":
-                return <LazyTerminCreatePage />;
-            case "planung":
-                return <LazyPraxisplanungPage />;
-            case "arbeitszeiten":
-                return <LazyArbeitszeitenPage />;
-            default:
-                return null;
-        }
-    }
-
-    function renderSecurityWorkbench(id: Exclude<SecurityWorkbenchId, null>) {
-        switch (id) {
-            case "audit":
-                return <LazyAuditPage />;
-            case "logs":
-                return <LazyLoggingPage />;
-            case "compliance":
-                return <LazyCompliancePage embedded />;
-            default:
-                return null;
-        }
-    }
-
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
             <h2 className="page-title">Einstellungen</h2>
-            <p className="page-sub">Praxis · Termine · Module · Konto · Sicherheit · Lizenz · Darstellung · Hilfe</p>
+            <p className="page-sub">Praxis · Darstellung · Abläufe · System</p>
 
             <div className="split settings-shell" style={{ gridTemplateColumns: "minmax(200px, 240px) 1fr", alignItems: "start" }}>
                 <div className="card card-pad settings-nav">
@@ -492,19 +402,7 @@ export function EinstellungenPage() {
                                 key={item.id}
                                 type="button"
                                 className={`sb-item settings-nav-item ${activeSection === item.id ? "active" : ""}`}
-                                onClick={() => {
-                                    const id = item.id;
-                                    setActiveSection(id);
-                                    setSearchParams(
-                                        (prev) => {
-                                            const n = new URLSearchParams(prev);
-                                            if (id === "hilfe") n.set("tab", "hilfe");
-                                            else n.delete("tab");
-                                            return n;
-                                        },
-                                        { replace: true },
-                                    );
-                                }}
+                                onClick={() => setActiveSection(item.id)}
                             >
                                 <span className="settings-nav-dot" aria-hidden />
                                 {item.label}
@@ -528,9 +426,6 @@ export function EinstellungenPage() {
                                     <Input id="praxis-kv" label="KV- / Betriebsnummer" value={praxis.kv_nummer ?? ""} onChange={(e) => { setPraxis((p) => ({ ...p, kv_nummer: e.target.value })); setPraxisDirty(true); }} />
                                     <Input id="praxis-oe" label="Öffnungszeiten (Kurztext)" value={praxis.oeffnungszeiten ?? ""} onChange={(e) => { setPraxis((p) => ({ ...p, oeffnungszeiten: e.target.value })); setPraxisDirty(true); }} />
                                 </div>
-                                <p className="card-sub" style={{ margin: 0 }}>
-                                    PDF-Rechnungen und Finanzberichte nutzen diese Stammdaten; Erstellung erfolgt über den eingebetteten Bereich Module → Finanzen (kein Seitenwechsel nötig).
-                                </p>
                                 <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                                     <Button type="button" onClick={savePraxis} disabled={!praxisDirty}>Speichern</Button>
                                 </div>
@@ -542,8 +437,8 @@ export function EinstellungenPage() {
                         <section>
                             <div className="card-head">
                                 <div>
-                                    <div className="card-title">Mein Konto</div>
-                                    <div className="card-sub">{session?.name} · {session?.email}</div>
+                                    <div className="card-title">Konto</div>
+                                    <div className="card-sub">Profil und Anmeldung</div>
                                 </div>
                             </div>
                             <div className="settings-row"><div><b>Name</b><div className="card-sub">{session?.name}</div></div></div>
@@ -563,308 +458,27 @@ export function EinstellungenPage() {
                                     <Button type="button" className={locale === "en" ? "btn-accent" : "btn-subtle"} onClick={() => setLocale("en")}>EN</Button>
                                 </div>
                             </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "benachrichtigung" ? (
-                        <section>
-                            <div className="card-head"><div><div className="card-title">Benachrichtigungen</div><div className="card-sub">Lokal gespeichert — Anbindung an E-Mail/Push folgt</div></div></div>
                             <div className="settings-row">
-                                <div><b>Push-Benachrichtigungen</b><div className="card-sub">Freigaben, Termine, Bestellungen</div></div>
-                                <input type="checkbox" checked={notif.push} onChange={() => persistClientSilent((c) => {
-                                    const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-                                    return mergeClientSettingsPatch(c, { notifications: { ...n, push: !n.push } });
-                                })} aria-label="Push" />
+                                <div><b>Abmelden</b><div className="card-sub">Sitzung beenden (Anmeldedialog)</div></div>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => window.dispatchEvent(new Event("medoc-request-logout"))}
+                                >
+                                    Abmelden…
+                                </Button>
                             </div>
-                            <div className="settings-row">
-                                <div><b>E-Mail-Zusammenfassung</b><div className="card-sub">Tagesüberblick</div></div>
-                                <input type="checkbox" checked={notif.mailDigest} onChange={() => persistClientSilent((c) => {
-                                    const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-                                    return mergeClientSettingsPatch(c, { notifications: { ...n, mailDigest: !n.mailDigest } });
-                                })} aria-label="E-Mail-Zusammenfassung" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Kritische Warnungen</b><div className="card-sub">Lager, Genehmigungen</div></div>
-                                <input type="checkbox" checked={notif.criticalAlerts} onChange={() => persistClientSilent((c) => {
-                                    const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-                                    return mergeClientSettingsPatch(c, { notifications: { ...n, criticalAlerts: !n.criticalAlerts } });
-                                })} aria-label="Kritische Warnungen" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Patienten-SMS (Erinnerungen)</b><div className="card-sub">Benötigt SMS-Anbieter</div></div>
-                                <input type="checkbox" checked={notif.smsReminders} onChange={() => persistClientSilent((c) => {
-                                    const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-                                    return mergeClientSettingsPatch(c, { notifications: { ...n, smsReminders: !n.smsReminders } });
-                                })} aria-label="SMS" />
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "termine" ? (
-                        <section>
-                            <div className="card-head">
-                                <div>
-                                    <div className="card-title">Termine &amp; Kalender</div>
-                                    <div className="card-sub">Regeln für Planung · Standardansicht der Terminübersicht</div>
-                                </div>
-                            </div>
-                            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                                <h3 className="text-title" style={{ margin: 0, fontSize: 15 }}>Terminregeln (Praxis-Präferenzen)</h3>
-                                <p className="card-sub" style={{ margin: 0 }}>Speicher identisch zur Verwaltungs-Ansicht — hier zentral bearbeitbar.</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Input id="set-puffer" type="number" min={0} label="Puffer zwischen Terminen (Min)" value={praef.pufferMin} onChange={(e) => { setPraef((p) => ({ ...p, pufferMin: e.target.value })); setPraefDirty(true); }} />
-                                    <Input id="set-notfall" type="number" min={0} label="Notfall-Restzeit (Min)" value={praef.notfallPuffer} onChange={(e) => { setPraef((p) => ({ ...p, notfallPuffer: e.target.value })); setPraefDirty(true); }} />
-                                    <Select
-                                        label="Reminder vor Termin"
-                                        value={praef.reminder}
-                                        options={[
-                                            { value: "0", label: "Kein Reminder" },
-                                            { value: "2", label: "2 Stunden vorher" },
-                                            { value: "24", label: "24 Stunden vorher" },
-                                            { value: "48", label: "48 Stunden vorher" },
-                                        ]}
-                                        onChange={(e) => { setPraef((p) => ({ ...p, reminder: e.target.value })); setPraefDirty(true); }}
-                                    />
-                                    <Select
-                                        label="No-Show Behandlung"
-                                        value={praef.noShow}
-                                        options={[
-                                            { value: "warn", label: "Nur markieren" },
-                                            { value: "fee", label: "Ausfallhinweis in Finanzen" },
-                                            { value: "block", label: "Patient intern kennzeichnen" },
-                                        ]}
-                                        onChange={(e) => { setPraef((p) => ({ ...p, noShow: e.target.value })); setPraefDirty(true); }}
-                                    />
-                                </div>
-                                <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                    <Button type="button" onClick={savePraef} disabled={!praefDirty}>Speichern</Button>
-                                </div>
-                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                                    <Select
-                                        label="Standard beim Öffnen von „Termine“"
-                                        value={wf.termineDefaultView ?? "monat"}
-                                        onChange={(e) => persistClientSilent((c) => {
-                                            const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
-                                            return mergeClientSettingsPatch(c, { workflows: { ...w, termineDefaultView: e.target.value as TermineKalenderAnsicht } });
-                                        })}
-                                        options={[
-                                            { value: "tag", label: "Tagesansicht" },
-                                            { value: "woche", label: "Wochenansicht" },
-                                            { value: "monat", label: "Monatsansicht" },
-                                        ]}
-                                    />
-                                    <p className="card-sub" style={{ margin: "8px 0 0" }}>Wird beim Seitenbesuch gesetzt; Änderungen in der Terminübersicht werden als neuer Standard gespeichert.</p>
-                                </div>
-                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                                    <div className="card-head" style={{ paddingTop: 0 }}><div><div className="card-title">Planung &amp; Kalender (eingebettet)</div><div className="card-sub">Kalender, Neuer Termin, Praxisplanung und Arbeitszeiten — dieselben Module wie in der App, ohne Route zu wechseln.</div></div></div>
-                                    <div className="row" style={{ flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                                        <Button type="button" variant={termineWorkbench === "kalender" ? undefined : "ghost"} onClick={() => setTermineWorkbench((w) => (w === "kalender" ? null : "kalender"))}>Kalender</Button>
-                                        <Button type="button" variant={termineWorkbench === "neu" ? undefined : "ghost"} onClick={() => setTermineWorkbench((w) => (w === "neu" ? null : "neu"))}>Neuer Termin</Button>
-                                        <Button type="button" variant={termineWorkbench === "planung" ? undefined : "ghost"} onClick={() => setTermineWorkbench((w) => (w === "planung" ? null : "planung"))}>Praxisplanung</Button>
-                                        <Button type="button" variant={termineWorkbench === "arbeitszeiten" ? undefined : "ghost"} onClick={() => setTermineWorkbench((w) => (w === "arbeitszeiten" ? null : "arbeitszeiten"))}>Arbeitszeiten</Button>
-                                    </div>
-                                    {termineWorkbench ? (
-                                        <Suspense fallback={<EmbedSuspenseFallback />}>
-                                            <SettingsEmbeddedShell>{renderTermineWorkbench(termineWorkbench)}</SettingsEmbeddedShell>
-                                        </Suspense>
-                                    ) : null}
-                                </div>
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "sicherheit" ? (
-                        <section>
-                            <div className="card-head">
-                                <div>
-                                    <div className="card-title">Sicherheit &amp; Compliance</div>
-                                    <div className="card-sub">Hinweise · Session und 2FA serverseitig</div>
-                                </div>
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Zwei-Faktor-Authentifizierung</b><div className="card-sub">Lokale Erinnerungs-Option</div></div>
-                                <input type="checkbox" checked={sec.remindTwoFactor} onChange={() => persistClientSilent((c) => {
-                                    const s = c.security ?? DEFAULT_CLIENT_SETTINGS.security!;
-                                    return mergeClientSettingsPatch(c, { security: { ...s, remindTwoFactor: !s.remindTwoFactor } });
-                                })} aria-label="2FA" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Inaktivität</b><div className="card-sub">Arbeitsplatz sperren — Erinnerung</div></div>
-                                <input type="checkbox" checked={sec.remindAutoLock} onChange={() => persistClientSilent((c) => {
-                                    const s = c.security ?? DEFAULT_CLIENT_SETTINGS.security!;
-                                    return mergeClientSettingsPatch(c, { security: { ...s, remindAutoLock: !s.remindAutoLock } });
-                                })} aria-label="Auto-Sperre" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Audit &amp; Protokolle</b><div className="card-sub">Prüfpfad und technische Logs (eingebettet)</div></div>
-                                <div className="row" style={{ gap: 8 }}>
-                                    <Button type="button" variant={securityWorkbench === "audit" ? "secondary" : "ghost"} onClick={() => setSecurityWorkbench((w) => (w === "audit" ? null : "audit"))}>Audit</Button>
-                                    <Button type="button" variant={securityWorkbench === "logs" ? "secondary" : "ghost"} onClick={() => setSecurityWorkbench((w) => (w === "logs" ? null : "logs"))}>Logs</Button>
-                                    <Button type="button" variant={securityWorkbench === "compliance" ? "secondary" : "ghost"} onClick={() => setSecurityWorkbench((w) => (w === "compliance" ? null : "compliance"))}>Compliance</Button>
-                                </div>
-                            </div>
-                            {securityWorkbench ? (
-                                <Suspense fallback={<EmbedSuspenseFallback />}>
-                                    <SettingsEmbeddedShell>{renderSecurityWorkbench(securityWorkbench)}</SettingsEmbeddedShell>
-                                </Suspense>
-                            ) : null}
-                            <div className="card-head" style={{ marginTop: 12 }}><div><div className="card-title">Systemstatus</div></div></div>
-                            <div className="settings-row">
-                                <div>
-                                    <b>Health-Check</b>
-                                    <div className="card-sub">
-                                        {healthLast
-                                            ? `DB ${healthLast.db_ok ? "OK" : "Fehler"} (${healthLast.db_latency_ms} ms) · Audit ${healthLast.audit_chain_ok ? "OK" : "Bruch"} · v${healthLast.version}`
-                                            : "Datenbank, Audit-Kette, Logverzeichnis"}
-                                    </div>
-                                </div>
-                                <Button type="button" variant="secondary" loading={healthBusy} disabled={healthBusy} onClick={() => void runHealthCheck()}>Prüfen</Button>
-                            </div>
-                            <div className="settings-row" style={{ alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
-                                <div style={{ flex: "1 1 200px" }}>
-                                    <Input id="perf-ms" label="Performance-Schwelle (ms)" value={perfMs} onChange={(e) => setPerfMs(e.target.value)} />
-                                    <span className="card-sub">Langsame Tauri-Aufrufe über dieser Zeit werden protokolliert</span>
-                                </div>
-                                <Button type="button" onClick={() => void savePerfThreshold()} loading={perfBusy} disabled={perfBusy}>Speichern</Button>
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "lizenz" ? (
-                        <section>
-                            <div className="settings-highlight-card" style={{ margin: 18, border: "1px solid #6ea9d8", borderRadius: 16, padding: 16, background: "#f7fbff" }}>
-                                <div className="row settings-highlight-head" style={{ justifyContent: "space-between" }}>
-                                    <span className="pill blue">Lizenz</span>
-                                    <span style={{ color: "var(--fg-3)", fontSize: 12 }}>Token prüfen</span>
-                                </div>
-                                <p className="card-sub" style={{ margin: "8px 0 0" }}>Geben Sie einen Lizenz-Token ein, um Gültigkeit und Konditionen abzufragen.</p>
-                                <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
-                                    <Button variant="ghost" type="button" onClick={() => void handleVerifyLicense()} disabled={licBusy || !licenseToken.trim()} loading={licBusy}>Jetzt prüfen</Button>
-                                    <Button type="button" onClick={async () => { const p = await openSubscriptionPortal(); window.open(p.url, "_blank", "noopener,noreferrer"); }}>Abo-Portal öffnen</Button>
-                                </div>
-                            </div>
-                            <div className="card-pad">
-                                <Input id="lic-token-inline" label="Lizenz-Token" value={licenseToken} onChange={(e) => setLicenseToken(e.target.value)} placeholder="Token einfügen" />
-                                {licenseStatus ? (
-                                    <p style={{ color: licenseStatus.valid ? "var(--accent)" : "var(--red)", margin: "8px 0 0", fontSize: 13 }}>
-                                        {licenseStatus.valid ? "Lizenz gültig" : `Ungültig: ${licenseStatus.reason ?? "Fehler"}`}
-                                    </p>
-                                ) : null}
-                            </div>
-                            <div className="card-head" style={{ marginTop: 8 }}><div><div className="card-title">Über &amp; Updates</div><div className="card-sub">Installierte Version</div></div></div>
-                            <div className="settings-row"><div><b>App-Version</b><div className="card-sub">MeDoc {appVersion}</div></div><Button variant="ghost" type="button" onClick={() => void handleCheckUpdates()} disabled={updateBusy} loading={updateBusy}>Nach Updates suchen</Button></div>
-                            <div className="card-head" style={{ marginTop: 16 }}><div><div className="card-title">Zahlungsmethode</div><div className="card-sub">Provider-Token (PCI-sicher)</div></div></div>
-                            <div className="settings-row" style={{ alignItems: "flex-end", gap: 12 }}>
-                                <div style={{ flex: 1 }}><Input id="pay-token" label="Provider-Token" placeholder="pm_… oder tok_…" value={paymentToken} onChange={(e) => setPaymentToken(e.target.value)} /></div>
-                                <Button type="button" onClick={() => void handleAttachPayment()} disabled={paymentBusy || !paymentToken.trim()} loading={paymentBusy}>Hinterlegen</Button>
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "integrationen" ? (
-                        <section>
-                            <div className="card-head"><div><div className="card-title">Integrationen</div><div className="card-sub">Lokale Kennzeichnung — Detailkonfiguration in den jeweiligen Modulen</div></div></div>
-                            <div className="settings-row">
-                                <div><b>DATEV-Export</b><div className="card-sub">Export-Pipeline</div></div>
-                                <input type="checkbox" checked={integ.datevMonthlyExport} onChange={() => persistClientSilent((c) => {
-                                    const x = c.integrations ?? DEFAULT_CLIENT_SETTINGS.integrations!;
-                                    return mergeClientSettingsPatch(c, { integrations: { ...x, datevMonthlyExport: !x.datevMonthlyExport } });
-                                })} aria-label="DATEV" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>DocCheck SSO</b><div className="card-sub">Geplant</div></div>
-                                <input type="checkbox" checked={integ.doccheckSso} onChange={() => persistClientSilent((c) => {
-                                    const x = c.integrations ?? DEFAULT_CLIENT_SETTINGS.integrations!;
-                                    return mergeClientSettingsPatch(c, { integrations: { ...x, doccheckSso: !x.doccheckSso } });
-                                })} aria-label="DocCheck" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>TK / KIM</b><div className="card-sub">Abrechnungs-Kennzeichnung</div></div>
-                                <input type="checkbox" checked={integ.tkKim} onChange={() => persistClientSilent((c) => {
-                                    const x = c.integrations ?? DEFAULT_CLIENT_SETTINGS.integrations!;
-                                    return mergeClientSettingsPatch(c, { integrations: { ...x, tkKim: !x.tkKim } });
-                                })} aria-label="TK" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Labor (Dental Union)</b><div className="card-sub">Beta</div></div>
-                                <input type="checkbox" checked={integ.laborDentalUnion} onChange={() => persistClientSilent((c) => {
-                                    const x = c.integrations ?? DEFAULT_CLIENT_SETTINGS.integrations!;
-                                    return mergeClientSettingsPatch(c, { integrations: { ...x, laborDentalUnion: !x.laborDentalUnion } });
-                                })} aria-label="Labor" />
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "migration" ? (
-                        <section>
-                            <div className="settings-highlight-card" style={{ margin: 18, border: "1px solid #6ea9d8", borderRadius: 16, padding: 16, background: "#f7fbff" }}>
-                                <div className="row settings-highlight-head" style={{ justifyContent: "space-between" }}>
-                                    <div>
-                                        <b>Migration aus Alt-System</b>
-                                        <div className="card-sub">Datenübernahme-Assistent — unten eingebettet, ohne die Einstellungen zu verlassen</div>
-                                    </div>
-                                    <span className="pill blue">Assistent</span>
-                                </div>
-                            </div>
-                            <Suspense fallback={<EmbedSuspenseFallback />}>
-                                <SettingsEmbeddedShell>
-                                    <LazyMigrationWizardPage embedded onEmbeddedExit={() => undefined} />
-                                </SettingsEmbeddedShell>
-                            </Suspense>
-                            <div className="card-head"><div><div className="card-title">Backups</div><div className="card-sub">Erstellung über Ops-Backend</div></div></div>
-                            <div className="settings-row">
-                                <div><b>Backup jetzt</b><div className="card-sub">In konfiguriertes Ziel</div></div>
-                                <Button type="button" loading={backupBusy} disabled={backupBusy} onClick={async () => {
-                                    setBackupBusy(true);
-                                    try {
-                                        await createBackup();
-                                        toast("Backup wurde erstellt.", "success");
-                                    } catch (e) {
-                                        toast(`Backup fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
-                                    } finally {
-                                        setBackupBusy(false);
-                                    }
-                                }}
-                                >Jetzt sichern</Button>
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {activeSection === "ablauf" ? (
-                        <section>
-                            <div className="card-head">
-                                <div>
-                                    <div className="card-title">Module &amp; Arbeitsabläufe</div>
-                                    <div className="card-sub">Arbeitsbereiche hier öffnen — eingebettet, ohne andere Route zu laden.</div>
-                                </div>
-                            </div>
-                            <div className="card-pad">
-                                <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-                                    {ABL_MODULE_CHIPS.map((c) => (
-                                        <Button
-                                            key={c.id}
-                                            type="button"
-                                            variant={ablaufPanel === c.id ? undefined : "ghost"}
-                                            onClick={() => setAblaufPanel((p) => (p === c.id ? null : c.id))}
-                                        >
-                                            {c.label}
-                                        </Button>
-                                    ))}
-                                </div>
-                                {ablaufPanel ? (
-                                    <Suspense fallback={<EmbedSuspenseFallback />}>
-                                        <SettingsEmbeddedShell>{renderAblaufEmbed(ablaufPanel)}</SettingsEmbeddedShell>
-                                    </Suspense>
-                                ) : (
-                                    <p className="card-sub" style={{ margin: "14px 0 0" }}>Modul auswählen — Inhalt erscheint darunter.</p>
-                                )}
+                            <div className="card-head" style={{ marginTop: 16 }}><div><div className="card-title">Hilfe &amp; Compliance</div><div className="card-sub">Eigenständige Seiten</div></div></div>
+                            <div className="card-pad row" style={{ gap: 10, flexWrap: "wrap" }}>
+                                <Link to="/hilfe" className="btn btn-subtle">Hilfe &amp; Kurzbefehle</Link>
+                                <Link to="/compliance" className="btn btn-subtle">Compliance</Link>
                             </div>
                         </section>
                     ) : null}
 
                     {activeSection === "darstellung" ? (
                         <section>
-                            <div className="card-head"><div><div className="card-title">Darstellung</div><div className="card-sub">Sidebar, Dichte, Akzent</div></div></div>
+                            <div className="card-head"><div><div className="card-title">Darstellung</div><div className="card-sub">Dichte, Navigation, Akzent</div></div></div>
                             <div className="settings-row">
                                 <div><b>Sidebar dunkel</b><div className="card-sub">Nur Navigation; Inhalt bleibt hell</div></div>
                                 <input type="checkbox" checked={appearance.darkSidebar} onChange={() => persistClientSilent((c) => {
@@ -891,6 +505,22 @@ export function EinstellungenPage() {
                                 </div>
                             </div>
                             <div className="settings-row">
+                                <div><b>Benutzeravatar in der Kopfleiste</b><div className="card-sub">Kreis mit Initialen rechts oben</div></div>
+                                <input type="checkbox" checked={appearance.showHeaderAvatar !== false} onChange={() => persistClientSilent((c) => {
+                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                    const on = a.showHeaderAvatar !== false;
+                                    return mergeClientSettingsPatch(c, { appearance: { ...a, showHeaderAvatar: on ? false : true } });
+                                })} aria-label="Avatar Header" />
+                            </div>
+                            <div className="settings-row">
+                                <div><b>Tastenkürzel anzeigen</b><div className="card-sub">z. B. ⌘K in der Suche</div></div>
+                                <input type="checkbox" checked={appearance.showKeyboardHints !== false} onChange={() => persistClientSilent((c) => {
+                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                    const on = a.showKeyboardHints !== false;
+                                    return mergeClientSettingsPatch(c, { appearance: { ...a, showKeyboardHints: on ? false : true } });
+                                })} aria-label="Tastenkürzel" />
+                            </div>
+                            <div className="settings-row">
                                 <div><b>Akzentfarbe</b><div className="card-sub">Markenfarbe (CSS-Variablen)</div></div>
                                 <Button type="button" variant="secondary" onClick={() => setAccentDialogOpen(true)}>{accentLabel}</Button>
                             </div>
@@ -898,14 +528,14 @@ export function EinstellungenPage() {
                             <div className="card-head" style={{ marginTop: 20 }}>
                                 <div>
                                     <div className="card-title">Akten-Anlagen</div>
-                                    <div className="card-sub">Programm für „Extern öffnen…“ in der Patientenakte (Register Extra Anlagen)</div>
+                                    <div className="card-sub">Programm für „Extern öffnen…“ in der Patientenakte</div>
                                 </div>
                             </div>
                             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0 }}>
                                 <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
                                     <p className="card-sub" style={{ margin: 0, flex: "1 1 220px" }}>
-                                        Es werden nur auf diesem Rechner installierte Programme angezeigt (Reihenfolge = typische
-                                        Beliebtheit). Leer = erste gefundene App; „Nur Systemstandard“ = wie Doppelklick im Finder.
+                                        Es werden nur auf diesem Rechner installierte Programme angezeigt. Leer = erste gefundene App;
+                                        „Nur Systemstandard“ = wie Doppelklick im Finder.
                                     </p>
                                     <Button
                                         type="button"
@@ -936,56 +566,290 @@ export function EinstellungenPage() {
                                     }
                                 />
                             </div>
-
-                            <div className="card-head" style={{ marginTop: 20 }}><div><div className="card-title">Sicherheitsabfragen (Akte)</div><div className="card-sub">Löschen und kritische Änderungen in der Patientenakte</div></div></div>
-                            {!hydratedUi ? (
-                                <p className="card-sub" style={{ margin: "0 18px 12px" }}>Lade Einstellungen …</p>
-                            ) : (
-                                <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                    <Select
-                                        label="Standard für alle Bereiche"
-                                        value={confirmations.defaultMode}
-                                        onChange={async (e) => {
-                                            const v = e.target.value as ConfirmationPresentMode;
-                                            await setDefaultConfirmationMode(v);
-                                            toast(`Standard: ${v === "modal" ? "Dialog" : "Inline"}`, "info");
-                                        }}
-                                        options={[
-                                            { value: "modal", label: "Dialog (Modal)" },
-                                            { value: "inline", label: "Inline im Kontext" },
-                                        ]}
-                                    />
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>Pro Bereich</div>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2" style={{ maxHeight: 320, overflow: "auto", paddingRight: 4 }}>
-                                        {CONFIRMATION_AREA_KEYS.map((key: ConfirmationAreaKey) => (
-                                            <Select
-                                                key={key}
-                                                label={CONFIRMATION_AREA_LABELS[key]}
-                                                value={confirmations.areas[key] ?? "inherit"}
-                                                onChange={async (e) => {
-                                                    const v = e.target.value as "inherit" | ConfirmationPresentMode;
-                                                    await setAreaConfirmationOverride(key, v);
-                                                }}
-                                                options={[
-                                                    { value: "inherit", label: "Standard" },
-                                                    { value: "modal", label: "Dialog" },
-                                                    { value: "inline", label: "Inline" },
-                                                ]}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </section>
                     ) : null}
 
-                    {activeSection === "hilfe" ? (
+                    {activeSection === "arbeitsablaeufe" ? (
                         <section>
-                            <Suspense fallback={<EmbedSuspenseFallback />}>
-                                <SettingsEmbeddedShell>
-                                    <LazyHilfePage embedded />
-                                </SettingsEmbeddedShell>
-                            </Suspense>
+                            <div className="card-head">
+                                <div>
+                                    <div className="card-title">Arbeitsabläufe</div>
+                                    <div className="card-sub">Termine, Suche, Sicherheitsabfragen</div>
+                                </div>
+                            </div>
+                            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                <h3 className="text-title" style={{ margin: 0, fontSize: 15 }}>Terminregeln (Praxis-Präferenzen)</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <Input id="set-puffer" type="number" min={0} label="Puffer zwischen Terminen (Min)" value={praef.pufferMin} onChange={(e) => { setPraef((p) => ({ ...p, pufferMin: e.target.value })); setPraefDirty(true); }} />
+                                    <Input id="set-notfall" type="number" min={0} label="Notfall-Restzeit (Min)" value={praef.notfallPuffer} onChange={(e) => { setPraef((p) => ({ ...p, notfallPuffer: e.target.value })); setPraefDirty(true); }} />
+                                    <Select
+                                        label="Reminder vor Termin"
+                                        value={praef.reminder}
+                                        options={[
+                                            { value: "0", label: "Kein Reminder" },
+                                            { value: "2", label: "2 Stunden vorher" },
+                                            { value: "24", label: "24 Stunden vorher" },
+                                            { value: "48", label: "48 Stunden vorher" },
+                                        ]}
+                                        onChange={(e) => { setPraef((p) => ({ ...p, reminder: e.target.value })); setPraefDirty(true); }}
+                                    />
+                                    <Select
+                                        label="No-Show Behandlung"
+                                        value={praef.noShow}
+                                        options={[
+                                            { value: "warn", label: "Nur markieren" },
+                                            { value: "fee", label: "Ausfallhinweis in Finanzen" },
+                                            { value: "block", label: "Patient intern kennzeichnen" },
+                                        ]}
+                                        onChange={(e) => { setPraef((p) => ({ ...p, noShow: e.target.value })); setPraefDirty(true); }}
+                                    />
+                                </div>
+                                <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                                    <Button type="button" onClick={savePraef} disabled={!praefDirty}>Speichern</Button>
+                                </div>
+
+                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+                                    <Select
+                                        label="Standard-Kalenderansicht für „Termine“"
+                                        value={wf.termineDefaultView ?? "monat"}
+                                        onChange={(e) => persistClientSilent((c) => {
+                                            const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+                                            return mergeClientSettingsPatch(c, { workflows: { ...w, termineDefaultView: e.target.value as TermineKalenderAnsicht } });
+                                        })}
+                                        options={[
+                                            { value: "tag", label: "Tagesansicht" },
+                                            { value: "woche", label: "Wochenansicht" },
+                                            { value: "monat", label: "Monatsansicht" },
+                                        ]}
+                                    />
+                                    <p className="card-sub" style={{ margin: "8px 0 0" }}>Wird beim ersten Öffnen von /termine verwendet; die Ansicht in der Terminübersicht aktualisiert diesen Standard.</p>
+                                </div>
+
+                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+                                    <Select
+                                        label="Standard-Termindauer (Min)"
+                                        value={String(wf.defaultTerminDauerMin ?? 30)}
+                                        onChange={(e) => persistClientSilent((c) => {
+                                            const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+                                            const n = Number.parseInt(e.target.value, 10);
+                                            return mergeClientSettingsPatch(c, { workflows: { ...w, defaultTerminDauerMin: Number.isFinite(n) ? n : 30 } });
+                                        })}
+                                        options={[
+                                            { value: "15", label: "15" },
+                                            { value: "20", label: "20" },
+                                            { value: "30", label: "30" },
+                                            { value: "45", label: "45" },
+                                            { value: "60", label: "60" },
+                                        ]}
+                                    />
+                                    <p className="card-sub" style={{ margin: "8px 0 0" }}>Vorauswahl bei „Neuer Termin“ (lokaler Entwurf kann abweichen).</p>
+                                </div>
+
+                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+                                    <Input
+                                        id="ta-reminder"
+                                        label="Tagesabschluss: Erinnerung (HH:MM, lokal)"
+                                        value={wf.tagesabschlussReminderTime ?? "18:00"}
+                                        onChange={(e) => persistClientSilent((c) => {
+                                            const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+                                            return mergeClientSettingsPatch(c, { workflows: { ...w, tagesabschlussReminderTime: e.target.value } });
+                                        })}
+                                        placeholder="18:00"
+                                    />
+                                    <p className="card-sub" style={{ margin: "8px 0 0" }}>Hinweis-Toast auf dem Dashboard (einmal pro Tag).</p>
+                                </div>
+
+                                <div className="settings-row" style={{ marginTop: 8 }}>
+                                    <div>
+                                        <b>Patientensuche: Versicherungsnummer</b>
+                                        <div className="card-sub">Suchbegriff auch gegen Versicherungsnummer prüfen</div>
+                                    </div>
+                                    <input type="checkbox" checked={searchPrefs.patientIncludeVersicherungsnummer !== false} onChange={() => persistClientSilent((c) => {
+                                        const s = c.search ?? DEFAULT_CLIENT_SETTINGS.search!;
+                                        const cur = s.patientIncludeVersicherungsnummer !== false;
+                                        return mergeClientSettingsPatch(c, { search: { ...s, patientIncludeVersicherungsnummer: !cur } });
+                                    })} aria-label="Suche VN" />
+                                </div>
+
+                                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+                                    <div className="card-head" style={{ paddingTop: 0 }}>
+                                        <div>
+                                            <div className="card-title">Bestätigung bei kritischen Aktionen (Akte)</div>
+                                            <div className="card-sub">Ein Klick pro Zeile wechselt Standard → Modal → Inline → Standard</div>
+                                        </div>
+                                    </div>
+                                    {!hydratedUi ? (
+                                        <p className="card-sub" style={{ margin: "0 0 12px" }}>Lade Einstellungen …</p>
+                                    ) : (
+                                        <>
+                                            <div className="settings-row" style={{ marginBottom: 10 }}>
+                                                <div><b>Globaler Standard</b><div className="card-sub">wenn „Standard“ in der Tabelle</div></div>
+                                                <div className="row" style={{ gap: 8 }}>
+                                                    <Button type="button" size="sm" variant={confirmations.defaultMode === "modal" ? "secondary" : "ghost"} onClick={() => void setDefaultConfirmationMode("modal").then(() => toast("Standard: Modal", "info"))}>Modal</Button>
+                                                    <Button type="button" size="sm" variant={confirmations.defaultMode === "inline" ? "secondary" : "ghost"} onClick={() => void setDefaultConfirmationMode("inline").then(() => toast("Standard: Inline", "info"))}>Inline</Button>
+                                                </div>
+                                            </div>
+                                            <div className="tbl-scroll">
+                                                <table className="tbl" style={{ fontSize: 13 }}>
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Bereich</th>
+                                                            <th scope="col">Modus</th>
+                                                            <th scope="col" style={{ width: 120 }}>Wechseln</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {CONFIRMATION_AREA_KEYS.map((key: ConfirmationAreaKey) => (
+                                                            <tr key={key}>
+                                                                <td>{CONFIRMATION_AREA_LABELS[key]}</td>
+                                                                <td>{modeDisplayLabel(confirmations, key)}</td>
+                                                                <td>
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => void (async () => {
+                                                                            const next = cycleAreaOverride(confirmations.areas[key]);
+                                                                            await setAreaConfirmationOverride(key, next);
+                                                                            toast(`${CONFIRMATION_AREA_LABELS[key]}: ${next === "inherit" ? "Standard" : next === "modal" ? "Modal" : "Inline"}`, "info");
+                                                                        })()}
+                                                                    >
+                                                                        Nächster
+                                                                    </Button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+                    ) : null}
+
+                    {activeSection === "exportDruck" ? <EinstellungenExportDruckSection /> : null}
+
+                    {activeSection === "system" ? (
+                        <section>
+                            <div className="card-head">
+                                <div>
+                                    <div className="card-title">System</div>
+                                    <div className="card-sub">Diagnose, Performance, Daten</div>
+                                </div>
+                            </div>
+                            <div className="settings-row" style={{ alignItems: "flex-start" }}>
+                                <div style={{ flex: 1 }}>
+                                    <b>Auto-Abmeldung bei Inaktivität</b>
+                                    <div className="card-sub">Nur auf diesem Gerät; 0 = aus. Bei Ablauf wird abgemeldet (wie Abmelden).</div>
+                                </div>
+                                <div style={{ minWidth: 160 }}>
+                                    <Select
+                                        label="Minuten"
+                                        value={String(security.idleLogoutMinutes ?? 0)}
+                                        onChange={(e) => persistClientSilent((c) => {
+                                            const s = c.security ?? DEFAULT_CLIENT_SETTINGS.security!;
+                                            const n = Number.parseInt(e.target.value, 10);
+                                            return mergeClientSettingsPatch(c, { security: { ...s, idleLogoutMinutes: Number.isFinite(n) ? n : 0 } });
+                                        })}
+                                        options={[
+                                            { value: "0", label: "Aus" },
+                                            { value: "5", label: "5" },
+                                            { value: "15", label: "15" },
+                                            { value: "30", label: "30" },
+                                            { value: "60", label: "60" },
+                                        ]}
+                                    />
+                                </div>
+                            </div>
+                            <div className="settings-row">
+                                <div>
+                                    <b>Health-Check</b>
+                                    <div className="card-sub">
+                                        {healthLast
+                                            ? `DB ${healthLast.db_ok ? "OK" : "Fehler"} (${healthLast.db_latency_ms} ms) · Audit ${healthLast.audit_chain_ok ? "OK" : "Bruch"} · v${healthLast.version}`
+                                            : "Datenbank, Audit-Kette"}
+                                    </div>
+                                </div>
+                                <Button type="button" variant="secondary" loading={healthBusy} disabled={healthBusy} onClick={() => void runHealthCheck()}>Prüfen</Button>
+                            </div>
+                            <div className="settings-row" style={{ alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+                                <div style={{ flex: "1 1 200px" }}>
+                                    <Input id="perf-ms" label="Performance-Schwelle (ms)" value={perfMs} onChange={(e) => setPerfMs(e.target.value)} />
+                                    <span className="card-sub">Langsame Tauri-Aufrufe über dieser Zeit werden protokolliert</span>
+                                </div>
+                                <Button type="button" onClick={() => void savePerfThreshold()} loading={perfBusy} disabled={perfBusy}>Speichern</Button>
+                            </div>
+                            <div className="card-head" style={{ marginTop: 12 }}><div><div className="card-title">Backup</div></div></div>
+                            <div className="settings-row">
+                                <div><b>Backup jetzt</b><div className="card-sub">In konfiguriertes Ziel (Ops)</div></div>
+                                <Button type="button" loading={backupBusy} disabled={backupBusy} onClick={async () => {
+                                    setBackupBusy(true);
+                                    try {
+                                        await createBackup();
+                                        toast("Backup wurde erstellt.", "success");
+                                    } catch (e) {
+                                        toast(`Backup fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+                                    } finally {
+                                        setBackupBusy(false);
+                                    }
+                                }}
+                                >Jetzt sichern</Button>
+                            </div>
+                            <div className="card-head" style={{ marginTop: 12 }}><div><div className="card-title">Weitere Seiten</div></div></div>
+                            <div className="card-pad row" style={{ gap: 10, flexWrap: "wrap" }}>
+                                <Link to="/audit" className="btn btn-subtle">Audit-Log</Link>
+                                <Link to="/logs" className="btn btn-subtle">Technische Logs</Link>
+                                <Link to="/ops" className="btn btn-subtle">Betrieb / Ops</Link>
+                                {canMigration ? <Link to="/migration" className="btn btn-subtle">Datenmigration</Link> : null}
+                                <Button type="button" variant={opsEmbed ? "secondary" : "ghost"} onClick={() => setOpsEmbed((v) => !v)}>Ops-Vorschau {opsEmbed ? "ausblenden" : "einblenden"}</Button>
+                            </div>
+                            {opsEmbed ? (
+                                <Suspense fallback={<EmbedSuspenseFallback />}>
+                                    <SettingsEmbeddedShell>
+                                        <LazyOpsPage embedded onOpenMigration={() => navigate("/migration")} />
+                                    </SettingsEmbeddedShell>
+                                </Suspense>
+                            ) : null}
+                        </section>
+                    ) : null}
+
+                    {activeSection === "ueber" ? (
+                        <section>
+                            <div className="card-head"><div><div className="card-title">Über die Anwendung</div><div className="card-sub">Version, Lizenz, Drittanbieter</div></div></div>
+                            <div className="settings-row"><div><b>App-Version</b><div className="card-sub">MeDoc {appVersion}</div></div><Button variant="ghost" type="button" onClick={() => void handleCheckUpdates()} disabled={updateBusy} loading={updateBusy}>Nach Updates suchen</Button></div>
+                            <div className="settings-row"><div><b>Über &amp; Lizenzen</b><div className="card-sub">Kurzinfo und Symbol-Bibliotheken</div></div><Button type="button" variant="secondary" onClick={() => setAboutOpen(true)}>Dialog öffnen</Button></div>
+                            <div className="settings-highlight-card" style={{ margin: 18, border: "1px solid #6ea9d8", borderRadius: 16, padding: 16, background: "#f7fbff" }}>
+                                <div className="row settings-highlight-head" style={{ justifyContent: "space-between" }}>
+                                    <span className="pill blue">Lizenz</span>
+                                    <span style={{ color: "var(--fg-3)", fontSize: 12 }}>Token prüfen</span>
+                                </div>
+                                <p className="card-sub" style={{ margin: "8px 0 0" }}>Lizenz-Token zur Prüfung eingeben.</p>
+                                <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+                                    <Button variant="ghost" type="button" onClick={() => void handleVerifyLicense()} disabled={licBusy || !licenseToken.trim()} loading={licBusy}>Jetzt prüfen</Button>
+                                    <Button type="button" onClick={async () => { const p = await openSubscriptionPortal(); window.open(p.url, "_blank", "noopener,noreferrer"); }}>Abo-Portal öffnen</Button>
+                                </div>
+                            </div>
+                            <div className="card-pad">
+                                <Input id="lic-token-inline" label="Lizenz-Token" value={licenseToken} onChange={(e) => setLicenseToken(e.target.value)} placeholder="Token einfügen" />
+                                {licenseStatus ? (
+                                    <p style={{ color: licenseStatus.valid ? "var(--accent)" : "var(--red)", margin: "8px 0 0", fontSize: 13 }}>
+                                        {licenseStatus.valid ? "Lizenz gültig" : `Ungültig: ${licenseStatus.reason ?? "Fehler"}`}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="card-head" style={{ marginTop: 16 }}><div><div className="card-title">Zahlungsmethode</div><div className="card-sub">Provider-Token (PCI-sicher)</div></div></div>
+                            <div className="settings-row" style={{ alignItems: "flex-end", gap: 12 }}>
+                                <div style={{ flex: 1 }}><Input id="pay-token" label="Provider-Token" placeholder="pm_… oder tok_…" value={paymentToken} onChange={(e) => setPaymentToken(e.target.value)} /></div>
+                                <Button type="button" onClick={() => void handleAttachPayment()} disabled={paymentBusy || !paymentToken.trim()} loading={paymentBusy}>Hinterlegen</Button>
+                            </div>
+                            <div className="card-pad">
+                                <p className="card-sub" style={{ margin: 0, lineHeight: 1.55 }}>
+                                    <strong>Drittanbieter:</strong> Symbole über <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">Lucide</a>{" "}
+                                    (ISC License). Weitere OSS-Bestandteile siehe mitgelieferte Dokumentation der Plattform (Tauri, React).
+                                </p>
+                            </div>
                         </section>
                     ) : null}
                 </div>
@@ -1032,6 +896,8 @@ export function EinstellungenPage() {
                     ))}
                 </div>
             </Dialog>
+
+            <AboutAppDialog open={aboutOpen} onClose={() => setAboutOpen(false)} appVersion={appVersion} />
         </div>
     );
 }

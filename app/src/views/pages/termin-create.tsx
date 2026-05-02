@@ -7,6 +7,7 @@ import { listPatienten } from "../../controllers/patient.controller";
 import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage } from "../../lib/utils";
+import { loadClientSettings } from "@/lib/client-settings";
 import {
     hasAnyAvailableSlot,
     isSlotBlockedByPraxisConfig,
@@ -14,7 +15,7 @@ import {
     readPraxisArbeitszeitenConfig,
     type PraxisArbeitszeitenConfig,
 } from "../../lib/praxis-planning";
-import type { Patient, Termin } from "../../models/types";
+import { TERMIN_ART_VALUES, type Patient, type Termin } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
@@ -24,11 +25,11 @@ import { useToastStore } from "../components/ui/toast-store";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import {
-    loadPlanNextTermin,
     planNextHasContent,
     planNextTerminSummary,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
+import { loadPlanNextTerminWithMigration } from "@/controllers/plan-next-termin.controller";
 
 const BEHANDLUNG_OPTIONS = [
     { value: "KONTROLLE", label: "Kontrolluntersuchung" },
@@ -70,7 +71,10 @@ type TerminDraft = {
 function normalizeArt(raw: string | null): string {
     if (!raw) return "KONTROLLE";
     if (raw === "NOTFALL") return "BEHANDLUNG";
-    return raw;
+    if (raw === "ROUTINE") return "KONTROLLE";
+    const allowed = TERMIN_ART_VALUES as readonly string[];
+    if (allowed.includes(raw)) return raw;
+    return "KONTROLLE";
 }
 
 export function TerminCreatePage() {
@@ -112,7 +116,10 @@ export function TerminCreatePage() {
     const [art, setArt] = useState(() => normalizeArt(artInit));
     const [beschwerdenTags, setBeschwerdenTags] = useState<string[]>([]);
     const [notizen, setNotizen] = useState("");
-    const [dauerMin, setDauerMin] = useState("30");
+    const [dauerMin, setDauerMin] = useState(() => {
+        const n = loadClientSettings().workflows?.defaultTerminDauerMin ?? 30;
+        return String(Number.isFinite(n) && n > 0 ? n : 30);
+    });
     const [statusWunsch, setStatusWunsch] = useState("GEPLANT");
     const [patientError, setPatientError] = useState("");
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
@@ -124,8 +131,20 @@ export function TerminCreatePage() {
             setDoctorPlan(null);
             return;
         }
-        const p = loadPlanNextTermin(patientId);
-        setDoctorPlan(planNextHasContent(p) ? p : null);
+        let cancelled = false;
+        void (async () => {
+            try {
+                const p = await loadPlanNextTerminWithMigration(patientId);
+                if (!cancelled) {
+                    setDoctorPlan(planNextHasContent(p) ? p : null);
+                }
+            } catch {
+                if (!cancelled) setDoctorPlan(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [patientId]);
 
     function formatPlanForNotes(p: PlanNextTerminV2): string {
@@ -587,7 +606,7 @@ export function TerminCreatePage() {
                             <div className="col" style={{ gap: 12 }}>
                                 <Input id="tc-datum" type="date" label="Datum" value={datum} onChange={(e) => setDatum(e.target.value)} />
                                 <div>
-                                    <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, textTransform: "uppercase", display: "block", marginBottom: 8 }}>Zeit</span>
+                                    <span className="form-label form-label--mb-8">Zeit</span>
                                     <TimeSlotPicker value={uhrzeit.slice(0, 5)} onChange={(t) => setUhrzeit(t)} busyKeys={combinedBusyKeys} selectedDate={datum} stepMinutes={slotStep} />
                                     <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--fg-3)" }}>
                                         Ausgegraute Zeiten sind durch bestehende Termine oder Praxisplanung (Urlaub, halbe Tage, Notfall-Schließung) gesperrt.
@@ -599,7 +618,7 @@ export function TerminCreatePage() {
 
                         <div className="col" style={{ gap: 14 }}>
                             <div>
-                                <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Patient</span>
+                                <span className="form-label">Patient</span>
                                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                     <div ref={patientPickerRef} style={{ position: "relative", flex: "1 1 240px", minWidth: 180 }}>
                                         <input

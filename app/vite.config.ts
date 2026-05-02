@@ -14,9 +14,27 @@ export default defineConfig(async () => ({
         "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
     },
     test: {
-        environment: "node",
-        include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+        setupFiles: ["./src/vitest-setup.ts"],
         passWithNoTests: false,
+        projects: [
+            {
+                extends: true,
+                test: {
+                    name: "node",
+                    environment: "node",
+                    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+                    exclude: ["src/**/*.smoke.test.ts", "src/**/*.smoke.test.tsx"],
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "smoke",
+                    environment: "jsdom",
+                    include: ["src/**/*.smoke.test.ts", "src/**/*.smoke.test.tsx"],
+                },
+            },
+        ],
     },
     resolve: {
         alias: {

@@ -250,7 +250,7 @@ export function ProduktePage() {
 
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-4)" }}>{label}</span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? "—" : value}</span>
         </div>
     );
@@ -358,7 +358,12 @@ export function ProduktePage() {
                     </p>
                 </div>
                 {canWrite ? (
-                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                    <Button
+                        type="button"
+                        variant={creating ? "secondary" : "primary"}
+                        onClick={creating ? cancelCreate : openCreate}
+                        style={{ flexShrink: 0, marginLeft: "auto" }}
+                    >
                         {creating ? "Neues Produkt abbrechen" : "+ Neues Produkt"}
                     </Button>
                 ) : null}
@@ -380,7 +385,7 @@ export function ProduktePage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card produkte-table-card" style={{ overflow: "auto" }}>
+                            <div className="card produkte-table-card tbl-scroll">
                                 <table className="tbl produkte-tbl" style={{ minWidth: 520 }}>
                                     <thead>
                                         <tr>

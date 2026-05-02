@@ -210,7 +210,7 @@ export function RezeptCreatePage() {
                     <ChevronLeftIcon />Zurück zur Akte
                 </Button>
                 <div>
-                    <div className="page-sub" style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <div className="page-sub page-sub-caps">
                         {patient.name}
                     </div>
                     <h1 className="page-title" style={{ margin: 0 }}>Neues Rezept</h1>
@@ -234,7 +234,7 @@ export function RezeptCreatePage() {
                         ) : null}
 
                         <div className="rezept-vorlagen-panel">
-                            <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--fg-3)", marginBottom: 10 }}>
+                            <div className="form-overline">
                                 Praxis-Vorlagen
                             </div>
                             {vorlagen.length > 0 ? (

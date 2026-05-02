@@ -3,7 +3,15 @@ import { useT } from "@/lib/i18n";
 import { useToastStore, type Toast as ToastItem } from "./toast-store";
 import { CheckIcon, XIcon } from "@/lib/icons";
 
-function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) => void }) {
+function ToastRow({
+    toast,
+    remove,
+    stackPointerInside,
+}: {
+    toast: ToastItem;
+    remove: (id: string) => void;
+    stackPointerInside: boolean;
+}) {
     const t = useT();
     const isError = toast.type === "error";
     const live = isError ? "assertive" : "polite";
@@ -16,12 +24,13 @@ function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) =>
 
     const armTimer = useCallback(() => {
         clearTimeout(timeoutRef.current);
+        if (pausedRef.current || stackPointerInside) return;
         const delay = remainingRef.current;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);
         }, delay + 400);
-    }, [remove, toast.id]);
+    }, [remove, toast.id, stackPointerInside]);
 
     useEffect(() => {
         remainingRef.current = toast.durationMs;
@@ -29,6 +38,15 @@ function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) =>
         armTimer();
         return () => clearTimeout(timeoutRef.current);
     }, [toast.durationMs, armTimer]);
+
+    useEffect(() => {
+        if (stackPointerInside) {
+            clearTimeout(timeoutRef.current);
+            remainingRef.current = Math.max(0, endAtRef.current - Date.now());
+        } else if (!pausedRef.current) {
+            armTimer();
+        }
+    }, [stackPointerInside, armTimer]);
 
     const handleUndo = () => {
         toast.onUndo?.();
@@ -45,7 +63,7 @@ function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) =>
     const onPointerLeave = () => {
         if (!pausedRef.current) return;
         pausedRef.current = false;
-        armTimer();
+        if (!stackPointerInside) armTimer();
     };
 
     return (
@@ -87,6 +105,8 @@ function ToastRow({ toast, remove }: { toast: ToastItem; remove: (id: string) =>
 export function ToastContainer() {
     const toasts = useToastStore((s) => s.toasts);
     const remove = useToastStore((s) => s.remove);
+    const stackPointerInside = useToastStore((s) => s.toastStackPointerInside);
+    const setStackPointerInside = useToastStore((s) => s.setToastStackPointerInside);
     const t = useT();
 
     if (toasts.length === 0) return null;
@@ -97,9 +117,16 @@ export function ToastContainer() {
             role="region"
             aria-label={t("a11y.notifications_region")}
             aria-live="polite"
+            onPointerEnter={() => setStackPointerInside(true)}
+            onPointerLeave={() => setStackPointerInside(false)}
         >
             {toasts.map((toast) => (
-                <ToastRow key={toast.id} toast={toast} remove={remove} />
+                <ToastRow
+                    key={toast.id}
+                    toast={toast}
+                    remove={remove}
+                    stackPointerInside={stackPointerInside}
+                />
             ))}
         </div>
     );

@@ -6,12 +6,12 @@ use crate::domain::entities::behandlung::{
     UpdateUntersuchung,
 };
 use crate::domain::entities::zahnbefund::CreateZahnbefund;
-use crate::domain::entities::{Anamnesebogen, Patientenakte, Rezept, Zahnbefund, Zahlung};
+use crate::domain::entities::{Anamnesebogen, Patientenakte, Zahnbefund};
 use crate::error::AppError;
 use crate::infrastructure::database::{
     akte_anlage_repo, akte_repo, attest_repo, audit_repo, patient_repo, rezept_repo, zahlung_repo,
 };
-use crate::infrastructure::pdf::{render_akte_blocks, AktePdfBlock};
+use crate::infrastructure::pdf::{render_akte_blocks, AktePdfBlock, AktePdfTable};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
@@ -43,6 +43,9 @@ pub struct AkteExportSections {
     pub zahlungen: bool,
     #[serde(default = "default_true")]
     pub anlagen: bool,
+    /// Audit-Log-Auszug für diesen Patienten (`entity_id`); nur mit `audit.read`.
+    #[serde(default)]
+    pub audit: bool,
 }
 
 impl Default for AkteExportSections {
@@ -58,6 +61,7 @@ impl Default for AkteExportSections {
             attest: true,
             zahlungen: true,
             anlagen: true,
+            audit: false,
         }
     }
 }
@@ -402,6 +406,11 @@ pub async fn export_akte_pdf(
         sec.zahlungen = false;
     }
 
+    let audit_ok = rbac::allowed("audit.read", role);
+    if !audit_ok {
+        sec.audit = false;
+    }
+
     let patient = patient_repo::find_by_id(&pool, &patient_id)
         .await?
         .ok_or(AppError::NotFound("Patient".into()))?;
@@ -419,71 +428,105 @@ pub async fn export_akte_pdf(
     let mut blocks: Vec<AktePdfBlock> = Vec::new();
 
     if sec.patient {
-        let mut lines = vec![
-            format!("Name: {}", patient.name),
-            format!("Geburtsdatum: {}", patient.geburtsdatum),
-            format!("Geschlecht: {}", patient.geschlecht),
-            format!("Versicherungsnummer: {}", patient.versicherungsnummer),
-            format!("Patienten-Status: {}", patient.status),
+        let mut kv = vec![
+            ("Name".into(), patient.name.clone()),
+            ("Geburtsdatum".into(), patient.geburtsdatum.to_string()),
+            ("Geschlecht".into(), patient.geschlecht.clone()),
+            (
+                "Versicherungsnummer".into(),
+                patient.versicherungsnummer.clone(),
+            ),
+            ("Patienten-Status".into(), patient.status.clone()),
         ];
         if let Some(t) = &patient.telefon {
-            lines.push(format!("Telefon: {}", t));
+            kv.push(("Telefon".into(), t.clone()));
         }
         if let Some(e) = &patient.email {
-            lines.push(format!("E-Mail: {}", e));
+            kv.push(("E-Mail".into(), e.clone()));
         }
         if let Some(a) = &patient.adresse {
-            lines.push(format!("Adresse: {}", a));
+            kv.push(("Adresse".into(), a.clone()));
         }
         blocks.push(AktePdfBlock {
             title: "Stammdaten".into(),
-            body_lines: lines,
+            body_lines: vec![],
+            kv_pairs: kv,
+            table: None,
         });
     }
 
     if sec.akte_core {
-        let mut lines = vec![
-            format!("Akten-ID: {}", akte_display.id),
-            format!("Akten-Status: {}", akte_display.status),
+        let mut kv = vec![
+            ("Akten-ID".into(), akte_display.id.clone()),
+            ("Akten-Status".into(), akte_display.status.clone()),
         ];
         if medical {
-            lines.push(format!(
-                "Diagnose: {}",
-                akte_display.diagnose.as_deref().unwrap_or("(keine Eintragung)")
+            kv.push((
+                "Diagnose".into(),
+                akte_display
+                    .diagnose
+                    .clone()
+                    .unwrap_or_else(|| "(keine Eintragung)".into()),
             ));
-            lines.push(format!(
-                "Befunde: {}",
-                akte_display.befunde.as_deref().unwrap_or("(keine Eintragung)")
+            kv.push((
+                "Befunde".into(),
+                akte_display
+                    .befunde
+                    .clone()
+                    .unwrap_or_else(|| "(keine Eintragung)".into()),
             ));
         } else {
-            lines.push("Hinweis: Diagnose/Befunde für diese Rolle nicht enthalten.".into());
+            kv.push((
+                "Hinweis".into(),
+                "Diagnose/Befunde für diese Rolle nicht enthalten.".into(),
+            ));
         }
         blocks.push(AktePdfBlock {
             title: "Patientenakte (Kern)".into(),
-            body_lines: lines,
+            body_lines: vec![],
+            kv_pairs: kv,
+            table: None,
         });
     }
 
     if sec.zahnbefunde && medical {
-        let rows = akte_repo::find_zahnbefunde(&pool, &akte.id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Zahnbefunde erfasst)".into()]
+        let rows_db = akte_repo::find_zahnbefunde(&pool, &akte.id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Zahn".into(),
+                    "Befund".into(),
+                    "Diagnose".into(),
+                    "Notizen".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter()
-                .map(|z| {
-                    format!(
-                        "Zahn {}: {} | Diagnose: {} | Notizen: {}",
-                        z.zahn_nummer,
-                        z.befund,
-                        z.diagnose.as_deref().unwrap_or("—"),
-                        z.notizen.as_deref().unwrap_or("—"),
-                    )
-                })
-                .collect()
+            AktePdfTable {
+                headers: vec![
+                    "Zahn".into(),
+                    "Befund".into(),
+                    "Diagnose".into(),
+                    "Notizen".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|z| {
+                        vec![
+                            z.zahn_nummer.to_string(),
+                            z.befund.clone(),
+                            z.diagnose.as_deref().unwrap_or("-").to_string(),
+                            z.notizen.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Zahnbefunde".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
@@ -496,132 +539,359 @@ pub async fn export_akte_pdf(
             blocks.push(AktePdfBlock {
                 title: "Anamnese / Fragebogen".into(),
                 body_lines: lines,
+                kv_pairs: vec![],
+                table: None,
             });
         } else {
-            blocks.push(AktePdfBlock {
-                title: "Anamnese / Fragebogen".into(),
-                body_lines: vec!["(kein Anamnesebogen erfasst)".into()],
-            });
+            blocks.push(AktePdfBlock::body(
+                "Anamnese / Fragebogen",
+                vec!["(kein Anamnesebogen erfasst)".into()],
+            ));
         }
     }
 
     if sec.untersuchungen && medical {
-        let rows = akte_repo::list_untersuchungen(&pool, &akte.id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Untersuchungen)".into()]
+        let rows_db = akte_repo::list_untersuchungen(&pool, &akte.id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Datum".into(),
+                    "Nr.".into(),
+                    "Beschwerden".into(),
+                    "Ergebnisse".into(),
+                    "Diagnose".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter()
-                .map(|u| {
-                    format!(
-                        "{} | Nr. {} | Beschwerden: {} | Ergebnisse: {} | Diagnose: {}",
-                        u.created_at.format("%Y-%m-%d"),
-                        u.untersuchungsnummer.as_deref().unwrap_or("—"),
-                        u.beschwerden.as_deref().unwrap_or("—"),
-                        u.ergebnisse.as_deref().unwrap_or("—"),
-                        u.diagnose.as_deref().unwrap_or("—"),
-                    )
-                })
-                .collect()
+            AktePdfTable {
+                headers: vec![
+                    "Datum".into(),
+                    "Nr.".into(),
+                    "Beschwerden".into(),
+                    "Ergebnisse".into(),
+                    "Diagnose".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|u| {
+                        vec![
+                            u.created_at.format("%Y-%m-%d").to_string(),
+                            u.untersuchungsnummer.as_deref().unwrap_or("-").to_string(),
+                            u.beschwerden.as_deref().unwrap_or("-").to_string(),
+                            u.ergebnisse.as_deref().unwrap_or("-").to_string(),
+                            u.diagnose.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Untersuchungen".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
     if sec.behandlungen && medical {
-        let rows = akte_repo::list_behandlungen(&pool, &akte.id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Behandlungen)".into()]
+        let rows_db = akte_repo::list_behandlungen(&pool, &akte.id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Datum".into(),
+                    "Leistung".into(),
+                    "Kat.".into(),
+                    "Sitz.".into(),
+                    "B-Nr.".into(),
+                    "Status".into(),
+                    "EUR".into(),
+                    "Notizen".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter()
-                .map(summarize_behandlung_pdf_line)
-                .collect()
+            AktePdfTable {
+                headers: vec![
+                    "Datum".into(),
+                    "Leistung".into(),
+                    "Kat.".into(),
+                    "Sitz.".into(),
+                    "B-Nr.".into(),
+                    "Status".into(),
+                    "EUR".into(),
+                    "Notizen".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|b| {
+                        let d = b.behandlung_datum.as_deref().unwrap_or("");
+                        let date_part = if d.is_empty() {
+                            b.created_at.format("%Y-%m-%d").to_string()
+                        } else {
+                            d.to_string()
+                        };
+                        let titel = b
+                            .leistungsname
+                            .as_deref()
+                            .or(b.beschreibung.as_deref())
+                            .unwrap_or(b.art.as_str())
+                            .to_string();
+                        let kosten = b
+                            .gesamtkosten
+                            .map(|k| format!("{:.2}", k))
+                            .unwrap_or_else(|| "-".into());
+                        vec![
+                            date_part,
+                            titel,
+                            b.kategorie.as_deref().unwrap_or("-").to_string(),
+                            b.sitzung.map(|s| s.to_string()).unwrap_or_else(|| "-".into()),
+                            b.behandlungsnummer.as_deref().unwrap_or("-").to_string(),
+                            b.behandlung_status.as_deref().unwrap_or("-").to_string(),
+                            kosten,
+                            b.notizen.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Behandlungen".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
     if sec.rezepte && medical {
-        let rows = rezept_repo::find_for_patient(&pool, &patient_id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Rezepte)".into()]
+        let rows_db = rezept_repo::find_for_patient(&pool, &patient_id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Ausgestellt".into(),
+                    "Medikament".into(),
+                    "Dosierung".into(),
+                    "Dauer".into(),
+                    "Status".into(),
+                    "Wirkstoff".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter().map(summarize_rezept_line).collect()
+            AktePdfTable {
+                headers: vec![
+                    "Ausgestellt".into(),
+                    "Medikament".into(),
+                    "Dosierung".into(),
+                    "Dauer".into(),
+                    "Status".into(),
+                    "Wirkstoff".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|r| {
+                        vec![
+                            r.ausgestellt_am.to_string(),
+                            r.medikament.clone(),
+                            r.dosierung.clone(),
+                            r.dauer.clone(),
+                            r.status.clone(),
+                            r.wirkstoff.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Rezepte".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
     if sec.attest && medical {
-        let rows = attest_repo::find_for_patient(&pool, &patient_id).await?;
-        if rows.is_empty() {
-            blocks.push(AktePdfBlock {
-                title: "Atteste".into(),
-                body_lines: vec!["(keine Atteste)".into()],
-            });
+        let rows_db = attest_repo::find_for_patient(&pool, &patient_id).await?;
+        if rows_db.is_empty() {
+            blocks.push(AktePdfBlock::body("Atteste", vec!["(keine Atteste)".into()]));
         } else {
-            let mut body: Vec<String> = Vec::new();
-            for a in rows {
-                body.push(format!(
-                    "——— {} | ausgestellt {} | gültig {} bis {} ———",
-                    a.typ, a.ausgestellt_am, a.gueltig_von, a.gueltig_bis
-                ));
-                for ln in a.inhalt.lines() {
-                    body.push(if ln.is_empty() {
-                        String::new()
-                    } else {
-                        format!("  {ln}")
-                    });
-                }
-                body.push(String::new());
-            }
+            let attest_rows: Vec<Vec<String>> = rows_db
+                .iter()
+                .map(|a| {
+                    vec![
+                        a.typ.clone(),
+                        a.gueltig_von.to_string(),
+                        a.gueltig_bis.to_string(),
+                        a.ausgestellt_am.to_string(),
+                    ]
+                })
+                .collect();
             blocks.push(AktePdfBlock {
-                title: "Atteste".into(),
-                body_lines: body,
+                title: "Atteste (Uebersicht)".into(),
+                body_lines: vec![],
+                kv_pairs: vec![],
+                table: Some(AktePdfTable {
+                    headers: vec![
+                        "Typ".into(),
+                        "Gueltig von".into(),
+                        "Gueltig bis".into(),
+                        "Ausgestellt".into(),
+                    ],
+                    rows: attest_rows,
+                }),
             });
+            for a in rows_db {
+                let mut lines: Vec<String> = Vec::new();
+                if a.inhalt.trim().is_empty() {
+                    lines.push("(kein Freitext)".into());
+                } else {
+                    for ln in a.inhalt.lines() {
+                        lines.push(if ln.is_empty() {
+                            " ".into()
+                        } else {
+                            ln.to_string()
+                        });
+                    }
+                }
+                blocks.push(AktePdfBlock::body(
+                    format!("Attest — {}", a.typ),
+                    lines,
+                ));
+            }
         }
     }
 
     if sec.zahlungen && finanzen {
-        let rows = zahlung_repo::find_by_patient_id(&pool, &patient_id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Zahlungsbuchungen)".into()]
+        let rows_db = zahlung_repo::find_by_patient_id(&pool, &patient_id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Zeit".into(),
+                    "EUR".into(),
+                    "Art".into(),
+                    "Status".into(),
+                    "Beschreibung".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter().map(summarize_zahlung_line).collect()
+            AktePdfTable {
+                headers: vec![
+                    "Zeit".into(),
+                    "EUR".into(),
+                    "Art".into(),
+                    "Status".into(),
+                    "Beschreibung".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|z| {
+                        vec![
+                            z.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                            format!("{:.2}", z.betrag),
+                            format!("{}", z.zahlungsart),
+                            format!("{}", z.status),
+                            z.beschreibung.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Zahlungen / Buchungen".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
     if sec.anlagen {
-        let rows = akte_anlage_repo::list_for_akte(&pool, &akte.id).await?;
-        let body = if rows.is_empty() {
-            vec!["(keine Dateianlagen — Metadaten; Dateiinhalte nicht eingebettet)".into()]
+        let rows_db = akte_anlage_repo::list_for_akte(&pool, &akte.id).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Dateiname".into(),
+                    "MIME".into(),
+                    "Datum".into(),
+                    "Bytes".into(),
+                ],
+                rows: vec![],
+            }
         } else {
-            rows.into_iter()
-                .map(|r| {
-                    format!(
-                        "{} | {} | {} | {} Bytes",
-                        r.display_name, r.mime_type, r.created_at, r.size_bytes
-                    )
-                })
-                .collect()
+            AktePdfTable {
+                headers: vec![
+                    "Dateiname".into(),
+                    "MIME".into(),
+                    "Datum".into(),
+                    "Bytes".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|r| {
+                        vec![
+                            r.display_name.clone(),
+                            r.mime_type.clone(),
+                            r.created_at.to_string(),
+                            r.size_bytes.to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
         };
         blocks.push(AktePdfBlock {
             title: "Akten-Anlagen (Metadaten)".into(),
-            body_lines: body,
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
+        });
+    }
+
+    if sec.audit && audit_ok {
+        let rows_db = audit_repo::find_for_patient_entity(&pool, &patient_id, 500).await?;
+        let tbl = if rows_db.is_empty() {
+            AktePdfTable {
+                headers: vec![
+                    "Zeit".into(),
+                    "Aktion".into(),
+                    "Entity".into(),
+                    "ID".into(),
+                    "Details".into(),
+                ],
+                rows: vec![],
+            }
+        } else {
+            AktePdfTable {
+                headers: vec![
+                    "Zeit".into(),
+                    "Aktion".into(),
+                    "Entity".into(),
+                    "ID".into(),
+                    "Details".into(),
+                ],
+                rows: rows_db
+                    .into_iter()
+                    .map(|r| {
+                        vec![
+                            r.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                            r.action.clone(),
+                            r.entity.clone(),
+                            r.entity_id.as_deref().unwrap_or("-").to_string(),
+                            r.details.as_deref().unwrap_or("-").to_string(),
+                        ]
+                    })
+                    .collect(),
+            }
+        };
+        blocks.push(AktePdfBlock {
+            title: "Audit-Auszug (Auszug)".into(),
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
         });
     }
 
     let bytes = render_akte_blocks(
-        "Patientenakte — Export",
+        "Patientenakte - Export",
         &generated,
         &format!("Patientenakte {}", patient.name),
         &blocks,
@@ -638,61 +908,6 @@ pub async fn export_akte_pdf(
     .await
     .ok();
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
-}
-
-fn summarize_behandlung_pdf_line(b: Behandlung) -> String {
-    let d = b.behandlung_datum.as_deref().unwrap_or("");
-    let date_part = if d.is_empty() {
-        b.created_at.format("%Y-%m-%d").to_string()
-    } else {
-        d.to_string()
-    };
-    let titel = b
-        .leistungsname
-        .as_deref()
-        .or(b.beschreibung.as_deref())
-        .unwrap_or(b.art.as_str());
-    let mut s = format!(
-        "{} | {} | Kategorie: {} | Nr. {} | Sitzung {:?}",
-        date_part,
-        titel,
-        b.kategorie.as_deref().unwrap_or("—"),
-        b.behandlungsnummer.as_deref().unwrap_or("—"),
-        b.sitzung
-    );
-    if let Some(k) = b.gesamtkosten {
-        s.push_str(&format!(" | Kosten: {:.2} EUR", k));
-    }
-    if let Some(n) = b.notizen.as_deref() {
-        if !n.is_empty() {
-            s.push_str(" | ");
-            s.push_str(n);
-        }
-    }
-    s
-}
-
-fn summarize_rezept_line(r: Rezept) -> String {
-    format!(
-        "{} | {} | {} | Dauer {} | Status {} | Wirkstoff: {}",
-        r.ausgestellt_am,
-        r.medikament,
-        r.dosierung,
-        r.dauer,
-        r.status,
-        r.wirkstoff.as_deref().unwrap_or("—"),
-    )
-}
-
-fn summarize_zahlung_line(z: Zahlung) -> String {
-    format!(
-        "{} | {:.2} EUR | {} | {} | {}",
-        z.created_at.format("%Y-%m-%d %H:%M"),
-        z.betrag,
-        z.zahlungsart,
-        z.status,
-        z.beschreibung.as_deref().unwrap_or("—"),
-    )
 }
 
 #[cfg(test)]

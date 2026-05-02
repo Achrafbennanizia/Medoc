@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { deletePatient, listPatienten, searchPatienten } from "../../controllers/patient.controller";
 import { listPatientIdsOpenInvoice } from "../../controllers/zahlung.controller";
 import { errorMessage, formatDate } from "../../lib/utils";
+import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
@@ -115,7 +116,11 @@ export function PatientenPage() {
         try {
             const q = debouncedSearch.trim();
             const [data, ids] = await Promise.all([
-                q ? searchPatienten(q) : listPatienten(),
+                q
+                    ? searchPatienten(q, {
+                          includeVersicherungsnummer: loadClientSettings().search?.patientIncludeVersicherungsnummer !== false,
+                      })
+                    : listPatienten(),
                 listPatientIdsOpenInvoice().catch(() => [] as string[]),
             ]);
             if (token !== searchLoadTokenRef.current) return;
@@ -192,9 +197,20 @@ export function PatientenPage() {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <div className="page-head">
-                <div><h1 className="page-title">Patientenakten</h1><div className="page-sub">{filtered.length} von {patienten.length} Patienten</div></div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <div className="input" style={{ width: "min(280px, 100%)", flex: "1 1 220px" }} title={t("patient.search.placeholder")}>
+                <div>
+                    <h1 className="page-title">Patientenakten</h1>
+                    <div className="page-sub">
+                        {filtered.length} von {patienten.length} Patienten
+                    </div>
+                </div>
+                <button className="btn btn-accent" onClick={() => navigate("/patienten/neu")} style={{ flexShrink: 0 }}>
+                    <PlusIcon />Neuer Patient
+                </button>
+            </div>
+
+            <div className="page-toolbar">
+                <div className="page-toolbar__search">
+                    <div className="input" style={{ width: "100%", minWidth: 0 }} title={t("patient.search.placeholder")}>
                         <SearchIcon size={14} aria-hidden />
                         <input
                             placeholder={t("patient.search.placeholder")}
@@ -214,6 +230,8 @@ export function PatientenPage() {
                             </button>
                         ) : null}
                     </div>
+                </div>
+                <div className="page-toolbar__filters">
                     <button
                         type="button"
                         className="btn btn-subtle"
@@ -224,7 +242,6 @@ export function PatientenPage() {
                     >
                         <ExportIcon size={14} aria-hidden /> CSV-Export
                     </button>
-                    <button className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />Neuer Patient</button>
                 </div>
             </div>
 
@@ -278,7 +295,7 @@ export function PatientenPage() {
                 </div>
             ) : (
                 <div className="card patienten-table card--overflow-visible">
-                    <div className="patienten-grid-head" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1.3fr 1fr 40px", padding: "12px 20px", borderBottom: "1px solid var(--line)", fontSize: 11, fontWeight: 600, color: "var(--fg-4)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                    <div className="patienten-grid-head">
                         <div>Patient</div><div>Geburtsdatum</div><div>Kontakt</div><div>Status</div><div />
                     </div>
                     {filtered.map((p) => {
@@ -290,9 +307,6 @@ export function PatientenPage() {
                                 key={p.id}
                                 onClick={() => navigate(`/patienten/${p.id}${detailSuffix}`)}
                                 className="patienten-grid-row"
-                                style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1.3fr 1fr 40px", padding: "14px 20px", borderBottom: "1px solid var(--line)", alignItems: "center", cursor: "pointer", transition: "background 120ms" }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.025)"; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
                             >
                                 <div className="row" style={{ gap: 12 }}>
                                     <div className="av" style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 80%), hsl(${hue} 60% 50%))` }}>

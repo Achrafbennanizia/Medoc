@@ -213,6 +213,22 @@ function deriveAggregateStatus(gezahlt: number, soll: number | null): Zahlung["s
     return "AUSSTEHEND";
 }
 
+/** Neueste Buchung zu einer Zuordnungs-Zeile (für Quittung aus der Summen-Ansicht). */
+export function latestZahlungForZuordnungRow(
+    row: Pick<ZahlZuordnungSummaryRow, "kind" | "lineId">,
+    zahlungen: Zahlung[],
+    patientId: string,
+): Zahlung | null {
+    const filtered = zahlungen.filter(
+        (z) =>
+            z.patient_id === patientId
+            && zahlCountsTowardPaid(z.status)
+            && (row.kind === "behand" ? z.behandlung_id === row.lineId : z.untersuchung_id === row.lineId),
+    );
+    if (filtered.length === 0) return null;
+    return filtered.reduce((best, z) => (String(z.created_at) > String(best.created_at) ? z : best));
+}
+
 /** Pro B-/U-Zeile genau eine Zeile: aktueller Stand (Summe Buchungen, offen, Status). */
 export function aggregateZahlungenByZuordnung(
     zahlungen: Zahlung[],

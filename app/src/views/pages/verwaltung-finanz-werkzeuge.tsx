@@ -5,7 +5,14 @@ import { listPatienten } from "../../controllers/patient.controller";
 import { allocateRechnungsnummer, renderInvoicePdf } from "../../controllers/invoice.controller";
 import { listZahlungenForPatient } from "../../controllers/zahlung.controller";
 import type { InvoiceInput } from "@/controllers/invoice.controller";
-import { appendInvoiceHistory, INVOICE_HISTORY_MAX, loadInvoiceHistory, sumInvoiceEur, type SavedInvoice } from "@/lib/invoice-history";
+import {
+    appendRechnungDocument,
+    INVOICE_HISTORY_MAX,
+    listRechnungDocuments,
+    migrateLegacyInvoiceHistoryFromLocalStorageOnce,
+    sumInvoiceEur,
+    type SavedInvoice,
+} from "@/controllers/rechnung-document.controller";
 import { getInvoicePraxisFromStorage, lineFromLeistungWahl } from "@/lib/invoice-leistung";
 import { buildZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
@@ -74,12 +81,22 @@ export function VerwaltungFinanzWerkzeugePage() {
     }, [load]);
 
     useEffect(() => {
-        const h = loadInvoiceHistory();
-        setInvoiceHistory(h);
-        if (h.length > 0) {
-            setSelectedHistoryId((cur) => cur ?? h[0]!.id);
-        }
-    }, []);
+        void (async () => {
+            if (canWriteZahlung) {
+                await migrateLegacyInvoiceHistoryFromLocalStorageOnce();
+            }
+            try {
+                const h = await listRechnungDocuments(INVOICE_HISTORY_MAX);
+                setInvoiceHistory(h);
+                if (h.length > 0) {
+                    setSelectedHistoryId((cur) => cur ?? h[0]!.id);
+                }
+            } catch (e) {
+                toast(`Rechnungsverlauf: ${errorMessage(e)}`, "error");
+                setInvoiceHistory([]);
+            }
+        })();
+    }, [canWriteZahlung, toast]);
 
     useEffect(() => {
         if (!patientId) {
@@ -90,10 +107,16 @@ export function VerwaltungFinanzWerkzeugePage() {
             return;
         }
         let cancelled = false;
-        const reserved = new Set(loadInvoiceHistory().map((x) => x.invoice.number.trim()));
-        void allocateRechnungsnummer(invoiceDate, { reserved }).then((n) => {
-            if (!cancelled) setRechnungNr(n);
-        });
+        void (async () => {
+            try {
+                const h = await listRechnungDocuments(INVOICE_HISTORY_MAX);
+                const reserved = new Set(h.map((x) => x.invoice.number.trim()));
+                const n = await allocateRechnungsnummer(invoiceDate, { reserved });
+                if (!cancelled) setRechnungNr(n);
+            } catch {
+                if (!cancelled) setRechnungNr("");
+            }
+        })();
         return () => {
             cancelled = true;
         };
@@ -187,7 +210,8 @@ export function VerwaltungFinanzWerkzeugePage() {
             toast("Leistungszeilen konnten nicht aufgebaut werden.");
             return;
         }
-        const reservedNums = new Set(loadInvoiceHistory().map((x) => x.invoice.number.trim()));
+        const h = await listRechnungDocuments(INVOICE_HISTORY_MAX);
+        const reservedNums = new Set(h.map((x) => x.invoice.number.trim()));
         const num =
             rechnungNr.trim()
             || (await allocateRechnungsnummer(invoiceDate, { reserved: reservedNums }));
@@ -217,13 +241,13 @@ export function VerwaltungFinanzWerkzeugePage() {
                 globalThis.crypto?.randomUUID != null
                     ? globalThis.crypto.randomUUID()
                     : `re-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-            appendInvoiceHistory({
+            await appendRechnungDocument({
                 id: newId,
                 createdAt: new Date().toISOString(),
                 patientId,
                 invoice: payload,
             });
-            setInvoiceHistory(loadInvoiceHistory());
+            setInvoiceHistory(await listRechnungDocuments(INVOICE_HISTORY_MAX));
             setSelectedHistoryId(newId);
             setCreating(false);
             toast("Rechnungs-PDF erzeugt und im Verlauf gespeichert.", "success");
@@ -249,8 +273,9 @@ export function VerwaltungFinanzWerkzeugePage() {
 
     const cancelCreate = () => {
         setCreating(false);
-        const h = loadInvoiceHistory();
-        setSelectedHistoryId(h[0]?.id ?? null);
+        void listRechnungDocuments(INVOICE_HISTORY_MAX).then((h) => {
+            setSelectedHistoryId(h[0]?.id ?? null);
+        });
     };
 
     const selectHistoryRow = (id: string) => {
@@ -509,14 +534,14 @@ export function VerwaltungFinanzWerkzeugePage() {
                     <Textarea id="read-note" label="Notiz" value={selectedEntry.invoice.note} readOnly tabIndex={-1} />
                 ) : null}
                 <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>
-                    Verlauf lokal in diesem Rechner (
-                    <code>medoc-invoice-history-v1</code>
+                    Verlauf in der Datenbank (
+                    <code>rechnung_document</code>
                     {") "}
                     — maximal
                     {" "}
                     {INVOICE_HISTORY_MAX}
                     {" "}
-                    Einträge.
+                    Einträge in der Ansicht.
                 </p>
             </div>
         </Card>
@@ -556,7 +581,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                         {" "}
                         <strong>Finanzen &amp; Berichte</strong>
                         {" "}
-                        — Rechnung aus dem Druck-Backend, Leistung aus der Akte; Verlauf lokal. Tagesbericht/Abgleich:
+                        — Rechnung aus dem Druck-Backend, Leistung aus der Akte; Verlauf in SQLite. Tagesbericht/Abgleich:
                         {" "}
                         <button
                             type="button"

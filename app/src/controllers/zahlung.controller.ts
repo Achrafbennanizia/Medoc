@@ -1,5 +1,6 @@
 import { tauriInvoke } from "@/services/tauri.service";
 import type { Bilanz, Zahlung, ZahlungsArt, ZahlungsStatus } from "@/models/types";
+import { CreateZahlungSchema, UpdateZahlungSchema, parseOrThrow } from "@/lib/schemas";
 
 export async function listZahlungen(): Promise<Zahlung[]> {
     return tauriInvoke<Zahlung[]>("list_zahlungen");
@@ -29,7 +30,8 @@ export async function createZahlung(data: {
     untersuchung_id?: string | null;
     betrag_erwartet?: number | null;
 }): Promise<Zahlung> {
-    return tauriInvoke<Zahlung>("create_zahlung", { data });
+    const safe = parseOrThrow(CreateZahlungSchema, data);
+    return tauriInvoke<Zahlung>("create_zahlung", { data: safe });
 }
 
 export async function updateZahlungStatus(id: string, status: ZahlungsStatus): Promise<Zahlung> {
@@ -43,7 +45,8 @@ export async function updateZahlung(data: {
     leistung_id?: string | null;
     beschreibung?: string | null;
 }): Promise<Zahlung> {
-    return tauriInvoke<Zahlung>("update_zahlung", { data });
+    const safe = parseOrThrow(UpdateZahlungSchema, data);
+    return tauriInvoke<Zahlung>("update_zahlung", { data: safe });
 }
 
 export async function deleteZahlung(id: string): Promise<void> {

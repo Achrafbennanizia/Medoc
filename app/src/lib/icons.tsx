@@ -66,9 +66,7 @@ export const BoltIcon: FC<{ size?: number }> = ({ size = 16 }) => (
     </IconBase>
 );
 export const DownloadIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 19h14" /></IconBase>;
-/** Emergency / Notfall — von Lucide „ambulance“ inspiriert.
- *  ISC License (Lucide Contributors): Nutzung unter Beibehaltung von Copyright- und Lizenz-Hinweis — siehe https://lucide.dev/license
- */
+/** Emergency / Notfall — von Lucide „ambulance“ inspiriert. Lizenz: `third_party/LICENSES.md` (ISC, Lucide). */
 export const AmbulanceIcon: FC<IconProps> = ({ size = 20, ...props }) => (
     <IconBase size={size} {...props}>
         <path d="M10 10H6" />
@@ -88,6 +86,14 @@ export const PackageIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase s
 const ChartIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M4 19V9M10 19V5M16 19v-7M22 19v-3" /></IconBase>;
 export const PillIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="4" y="8" width="16" height="8" rx="4" /><path d="M12 8v8" /></IconBase>;
 const DocIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></IconBase>;
+/** Verwaltung / Gebäude — an Lucide „building“ angelehnt; Lizenz siehe `third_party/LICENSES.md`. */
+const BuildingIcon: FC<{ size?: number }> = ({ size = 17 }) => (
+    <IconBase size={size}>
+        <path d="M6 22V10l6-4 6 4v12" />
+        <path d="M9 22v-4h6v4" />
+        <path d="M10 14h4M10 18h4" />
+    </IconBase>
+);
 export const ToothIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3c3 0 5 2 5 5 0 6-1 12-3 12-1.2 0-1.3-2-2-3-.7 1-1 3-2 3-2 0-3-6-3-12 0-3 2-5 5-5z" /></IconBase>;
 export const ClipboardIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4.5h6" /></IconBase>;
 const ScrollIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M6 4h12v14a3 3 0 01-3 3H8a3 3 0 01-3-3V7a3 3 0 013-3z" /><path d="M9 9h6M9 13h6" /></IconBase>;
@@ -138,7 +144,7 @@ export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
     "/einstellungen": SettingsIcon,
     "/bestellungen": TruckIcon,
     "/hilfe": HelpCircleIconImpl,
-    "/verwaltung": ClipboardIcon,
+    "/verwaltung": BuildingIcon,
 };
 
 /** Legacy Schlüssel aus Verwaltungs-Kacheln / eingebetteten Modulen — nicht mit Routen-Pfaden mischen. */

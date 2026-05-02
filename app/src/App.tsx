@@ -70,6 +70,7 @@ const BestellungCreatePage = lazy(async () => ({ default: (await import("./views
 const BestellungDetailPage = lazy(async () => ({ default: (await import("./views/pages/bestellung-detail")).BestellungDetailPage }));
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
+const HilfePage = lazy(async () => ({ default: (await import("./views/pages/hilfe")).HilfePage }));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const session = useAuthStore((s) => s.session);
@@ -219,7 +220,7 @@ export default function App() {
                     <Route path="logs" element={<RoleRoute routePath="logs"><LoggingPage /></RoleRoute>} />
                     <Route path="ops" element={<RoleRoute routePath="ops"><OpsPage /></RoleRoute>} />
                     <Route path="compliance" element={<RoleRoute routePath="compliance"><CompliancePage /></RoleRoute>} />
-                    <Route path="hilfe" element={<RoleRoute routePath="hilfe"><Navigate to="/einstellungen?tab=hilfe" replace /></RoleRoute>} />
+                    <Route path="hilfe" element={<RoleRoute routePath="hilfe"><Suspense fallback={<RouteFallback />}><HilfePage /></Suspense></RoleRoute>} />
                     <Route path="feedback" element={<RoleRoute routePath="feedback"><FeedbackPage /></RoleRoute>} />
                     <Route path="migration" element={<RoleRoute routePath="migration"><MigrationWizardPage /></RoleRoute>} />
                 </Route>

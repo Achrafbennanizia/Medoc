@@ -7,7 +7,6 @@ import {
     createZahnbefund,
     getAnamnesebogen,
     saveAnamnesebogen,
-    exportAktePdf,
     listBehandlungen,
     listUntersuchungen,
     createBehandlung,
@@ -24,8 +23,7 @@ import {
     duplicateAkteAnlage,
 } from "../../controllers/akte.controller";
 import { listBehandlungsKatalog, listDokumentVorlagen, createDokumentVorlage } from "../../controllers/praxis.controller";
-import { escapeHtml, formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
-import { saveOrDownloadBytes } from "../../lib/save-download";
+import { formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
 import { allowed, parseRole } from "../../lib/rbac";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, BehandlungsKatalogItem, DokumentVorlage } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -35,8 +33,6 @@ import { Button } from "../components/ui/button";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading } from "../components/ui/page-status";
-import { Spinner } from "../components/ui/spinner";
-import { DentalChart } from "../components/DentalChart";
 import { DentalMiniBar } from "../components/DentalMiniBar";
 import { AnamneseVisual } from "../components/AnamneseVisual";
 import {
@@ -50,34 +46,35 @@ import { CalendarIcon, ChevronLeftIcon, EditIcon, ExportIcon, MailIcon, PhoneIco
 import { FormSection } from "../components/ui/form-section";
 import { EmptyState } from "../components/ui/empty-state";
 import { AkteAnlagenPanel } from "../components/akte-anlagen-panel";
-import { AkteEditFormOrInline, ConfirmOrInline } from "../components/akte-confirm-presentation";
+import { AkteEditFormOrInline, AkteInlineEditPanelShell, ConfirmOrInline } from "../components/akte-confirm-presentation";
+import { BehandlungAkteComposerPanel, type BehandlungAkteComposerPanelProps } from "../components/behandlung-akte-composer-panel";
 import { ConfirmDialog } from "../components/ui/dialog";
+import { ExportPickerDialog, HtmlDocumentExportPickerDialog, type HtmlExportDocumentKind } from "../components/export-picker-dialog";
 import {
     SECTION_LABEL as VAL_SECTION_LABEL,
-    clearItemValidation,
-    clearSectionValidation,
-    clearStammAndAnamValidation,
     itemValidationKey,
-    loadItemValidationMap,
-    loadValidation,
-    setItemValidated,
-    setSectionValidated,
-    setStammAndAnamValidated,
     type ValidationRecord,
     type ValidationSection,
     type ValidationState,
 } from "@/lib/akte-validation";
+import {
+    clearAkteValidation,
+    listAkteValidation,
+    migrateLegacyAkteValidationFromLocalStorage,
+    rowsToValidationMaps,
+    setAkteItemValidated,
+    setAkteSectionValidated,
+} from "@/controllers/validation.controller";
 import { listRezepte, deleteRezept, createRezept, updateRezept, type Rezept } from "@/controllers/rezept.controller";
 import { listAtteste, createAttest, deleteAttest, type Attest } from "@/controllers/attest.controller";
 import { listZahlungenForPatient, createZahlung, updateZahlung, deleteZahlung } from "@/controllers/zahlung.controller";
 import type { Zahlung, ZahlungsArt } from "@/models/types";
 import {
     emptyPlanNextTermin,
-    loadPlanNextTermin,
     planNextHasContent,
-    savePlanNextTermin,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
+import { loadPlanNextTerminWithMigration, persistPlanNextTerminToBackend } from "@/controllers/plan-next-termin.controller";
 import {
     emptyRezeptLine,
     MEDIKAMENT_SUGGESTIONS,
@@ -108,6 +105,15 @@ import { loadClientSettings } from "@/lib/client-settings";
 import { resolveOpenImageWithAppPath } from "@/lib/photo-viewer-apps";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
+    bundleAttestExport,
+    bundleQuittungExport,
+    bundleRezeptExport,
+    suggestAttestExportBasename,
+    suggestQuittungExportBasename,
+    suggestRezeptExportBasename,
+    type ClinicalDocumentExportBundle,
+} from "@/lib/document-print-html";
+import {
     ZAHLUNG_ART_SELECT,
     ZAHL_EUR_EPS,
     aggregateZahlungenByZuordnung,
@@ -121,8 +127,10 @@ import {
     zahlCountsTowardPaid,
     zahlHistoryForBehandlung,
     zahlHistoryForUntersuchung,
+    latestZahlungForZuordnungRow,
     zahlStatusDisplay,
     zahlungsartLabel,
+    type ZahlZuordnungSummaryRow,
 } from "@/lib/zahlung-buchung";
 
 function validateRezeptLine(line: RezeptLine): string | null {
@@ -257,6 +265,8 @@ export function PatientDetailPage() {
     const canViewClinical = role != null && allowed("patient.read_medical", role);
     const canListBehandlungenForZahlung = role != null && allowed("patient.behandlungen_list_for_zahlung", role);
     const canWriteMedical = role != null && allowed("patient.write_medical", role);
+    const canReadFinanzen = role != null && allowed("finanzen.read", role);
+    const canAuditRead = role != null && allowed("audit.read", role);
     const [patient, setPatient] = useState<Patient | null>(null);
     const [patientLoadError, setPatientLoadError] = useState<string | null>(null);
     const [akteLoadError, setAkteLoadError] = useState<string | null>(null);
@@ -268,7 +278,14 @@ export function PatientDetailPage() {
     const [anamneseSign, setAnamneseSign] = useState(false);
     const [showUnterComposer, setShowUnterComposer] = useState(false);
     const [showBehandComposer, setShowBehandComposer] = useState(false);
-    const [pdfBusy, setPdfBusy] = useState(false);
+    const [akteExportPickerOpen, setAkteExportPickerOpen] = useState(false);
+    const [htmlDocExport, setHtmlDocExport] = useState<{
+        kind: HtmlExportDocumentKind;
+        bundle: ClinicalDocumentExportBundle;
+        suggestedBasename: string;
+        exportPreviewTitle: string;
+        hint?: string;
+    } | null>(null);
     const [katalog, setKatalog] = useState<BehandlungsKatalogItem[]>([]);
     const [selectedBehandTooth, setSelectedBehandTooth] = useState<string | null>(null);
     /** Anamnese: zuerst nur lesen, Felder nach „Bearbeiten“ freischalten. */
@@ -393,11 +410,35 @@ export function PatientDetailPage() {
         return r ? allowed("finanzen.write", r) : false;
     })();
 
+    const refreshValidationFromBackend = useCallback(async () => {
+        if (!id) return;
+        const rows = await listAkteValidation(id);
+        const { sections, items } = rowsToValidationMaps(rows);
+        setValidation(sections);
+        setItemValidation(items);
+    }, [id]);
+
+    /* Errors use store getter so `toast` need not be a dependency (avoids unnecessary effect reruns). */
     useEffect(() => {
         if (!id) return;
-        setValidation(loadValidation(id));
-        setItemValidation(loadItemValidationMap(id));
-        setPlanNext(loadPlanNextTermin(id));
+        void (async () => {
+            try {
+                await migrateLegacyAkteValidationFromLocalStorage(id);
+                await refreshValidationFromBackend();
+            } catch (e) {
+                useToastStore.getState().add(
+                    `Validierung laden: ${e instanceof Error ? e.message : String(e)}`,
+                    "error",
+                );
+            }
+        })();
+    }, [id, refreshValidationFromBackend]);
+
+    useEffect(() => {
+        if (!id) return;
+        void loadPlanNextTerminWithMigration(id)
+            .then(setPlanNext)
+            .catch(() => setPlanNext(emptyPlanNextTermin()));
     }, [id]);
 
     useEffect(() => {
@@ -406,63 +447,84 @@ export function PatientDetailPage() {
 
     /** Mark a section validated; informs the user via toast. */
     const validateSection = useCallback(
-        (section: ValidationSection) => {
+        async (section: ValidationSection) => {
             if (!id) return;
-            if (section === "stamm") {
-                const next = setStammAndAnamValidated(id, session?.user_id);
-                setValidation(next);
-                toast("Stammdaten und Anamnese als geprüft markiert.", "success");
-                return;
+            const by = session?.user_id ?? null;
+            try {
+                if (section === "stamm") {
+                    await setAkteSectionValidated(id, "stamm", by);
+                    await setAkteSectionValidated(id, "anam", by);
+                    toast("Stammdaten und Anamnese als geprüft markiert.", "success");
+                } else {
+                    await setAkteSectionValidated(id, section, by);
+                    toast(`„${VAL_SECTION_LABEL[section]}“ als geprüft markiert.`, "success");
+                }
+                await refreshValidationFromBackend();
+            } catch (e) {
+                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
             }
-            const next = setSectionValidated(id, section, session?.user_id);
-            setValidation(next);
-            toast(`„${VAL_SECTION_LABEL[section]}“ als geprüft markiert.`, "success");
         },
-        [id, session?.user_id, toast],
+        [id, session, toast, refreshValidationFromBackend],
     );
 
     const revokeSectionValidation = useCallback(
-        (section: ValidationSection) => {
+        async (section: ValidationSection) => {
             if (!id) return;
-            if (section === "stamm") {
-                const next = clearStammAndAnamValidation(id);
-                setValidation(next);
-                toast("Validierung für Stammdaten und Anamnese zurückgesetzt.", "info");
-                return;
+            try {
+                if (section === "stamm") {
+                    await clearAkteValidation(id, "stamm");
+                    await clearAkteValidation(id, "anam");
+                    toast("Validierung für Stammdaten und Anamnese zurückgesetzt.", "info");
+                } else {
+                    await clearAkteValidation(id, section);
+                    toast(`Validierung für „${VAL_SECTION_LABEL[section]}“ zurückgesetzt.`, "info");
+                }
+                await refreshValidationFromBackend();
+            } catch (e) {
+                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
             }
-            const next = clearSectionValidation(id, section);
-            setValidation(next);
-            toast(`Validierung für „${VAL_SECTION_LABEL[section]}“ zurückgesetzt.`, "info");
         },
-        [id, toast],
+        [id, toast, refreshValidationFromBackend],
     );
 
     const requestValidateItem = useCallback(
-        (itemKey: string, label: string) => {
+        async (itemKey: string, label: string) => {
             if (!id) return;
-            const nextItems = setItemValidated(id, itemKey, session?.user_id);
-            setItemValidation(nextItems);
-            toast(`„${label}“ als geprüft markiert.`, "success");
+            try {
+                await setAkteItemValidated(id, itemKey, session?.user_id ?? null);
+                await refreshValidationFromBackend();
+                toast(`„${label}“ als geprüft markiert.`, "success");
+            } catch (e) {
+                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+            }
         },
-        [id, session?.user_id, toast],
+        [id, session, toast, refreshValidationFromBackend],
     );
 
     const revokeItemValidationRow = useCallback(
-        (itemKey: string, shortLabel: string) => {
+        async (itemKey: string, shortLabel: string) => {
             if (!id) return;
-            const next = clearItemValidation(id, itemKey);
-            setItemValidation(next);
-            toast(`Validierung für „${shortLabel}“ zurückgesetzt.`, "info");
+            try {
+                await clearAkteValidation(id, itemKey);
+                await refreshValidationFromBackend();
+                toast(`Validierung für „${shortLabel}“ zurückgesetzt.`, "info");
+            } catch (e) {
+                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+            }
         },
-        [id, toast],
+        [id, toast, refreshValidationFromBackend],
     );
 
     const persistPlanNext = useCallback(
         (next: PlanNextTerminV2) => {
             setPlanNext(next);
-            if (id) savePlanNextTermin(id, next);
+            if (id) {
+                void persistPlanNextTerminToBackend(id, next).catch((e) => {
+                    toast(`Termin-Hinweis speichern: ${e instanceof Error ? e.message : String(e)}`, "error");
+                });
+            }
         },
-        [id],
+        [id, toast],
     );
 
     useEffect(() => {
@@ -633,34 +695,25 @@ export function PatientDetailPage() {
     useEffect(() => {
         if (activeTab !== "anam") return;
         const p = parseAnamneseV1(anamneseJson);
-        setAnamQuick({
+        const next = {
             versicherungsstatus: p?.versicherungsstatus ?? "",
             krankenkasse: p?.krankenkasse ?? "",
             chronisch: p?.vorerkrankungen?.chronisch ?? "",
             allergienMed: p?.allergien?.medikamente ?? "",
-        });
+        };
+        setAnamQuick((prev) =>
+            prev.versicherungsstatus === next.versicherungsstatus &&
+            prev.krankenkasse === next.krankenkasse &&
+            prev.chronisch === next.chronisch &&
+            prev.allergienMed === next.allergienMed
+                ? prev
+                : next,
+        );
     }, [activeTab, id, anamneseJson]);
 
     useEffect(() => {
         if (activeTab !== "anam") setAnamEditing(false);
     }, [activeTab]);
-
-    const handlePdfExport = async () => {
-        if (!id) return;
-        setPdfBusy(true);
-        try {
-            const b64 = await exportAktePdf(id);
-            const bin = atob(b64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            const ok = await saveOrDownloadBytes(`akte-${id}.pdf`, bytes, "application/pdf");
-            if (ok) toast("PDF exportiert");
-        } catch (e) {
-            toast(`Fehler: ${(e as Error).message ?? e}`);
-        } finally {
-            setPdfBusy(false);
-        }
-    };
 
     const runSavePatient = async () => {
         if (!id || !patient || !editForm.name.trim()) return;
@@ -1676,7 +1729,251 @@ export function PatientDetailPage() {
         return maxEditZahlungBehandlung(zahlungen, id, zahlEdit.behandlung_id, zahlEdit.id, gesamt);
     })();
 
+    const renderZahlPaymentEditFields = (): ReactNode => {
+        if (!zahlEdit || !canFinanzenWrite) return null;
+        const z = zahlEdit;
+        const pid = id ?? "";
+        let bezug = "—";
+        if (z.behandlung_id) {
+            const b = behandlungen.find((x) => x.id === z.behandlung_id);
+            const bn = (b?.behandlungsnummer ?? "").trim();
+            bezug = bn ? `Behandlung B ${bn}` : "Behandlung";
+        } else if (z.untersuchung_id) {
+            const u = untersuchungen.find((x) => x.id === z.untersuchung_id);
+            const un = (u?.untersuchungsnummer ?? "").trim();
+            bezug = un ? `Untersuchung U ${un}` : "Untersuchung";
+        }
+        const bRow = z.behandlung_id ? behandlungen.find((x) => x.id === z.behandlung_id) : undefined;
+        const gesamtLive =
+            bRow?.gesamtkosten != null && Number.isFinite(bRow.gesamtkosten)
+                ? bRow.gesamtkosten
+                : z.betrag_erwartet != null && Number.isFinite(z.betrag_erwartet)
+                    ? z.betrag_erwartet
+                    : null;
+        let histBlock: ReactNode = null;
+        let openAfter: number | null = null;
+        if (z.behandlung_id && pid) {
+            const hist = zahlHistoryForBehandlung(zahlungen, pid, z.behandlung_id);
+            const otherPaid = zahlungen
+                .filter(
+                    (x) =>
+                        x.patient_id === pid
+                        && x.behandlung_id === z.behandlung_id
+                        && x.id !== z.id
+                        && zahlCountsTowardPaid(x.status),
+                )
+                .reduce((s, x) => s + x.betrag, 0);
+            const cur = Number(String(zahlEditForm.betrag).replace(",", "."));
+            const curOk = Number.isFinite(cur) && cur > 0 ? cur : 0;
+            const totalPaid = otherPaid + curOk;
+            openAfter = gesamtLive != null && gesamtLive > 0 ? Math.max(0, gesamtLive - totalPaid) : null;
+            histBlock = (
+                <div style={{ marginTop: 12 }}>
+                    <div
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: "0.04em",
+                            color: "var(--fg-3)",
+                            textTransform: "uppercase",
+                            marginBottom: 6,
+                        }}
+                    >
+                        Zahlungsverlauf (dieselbe Zeile)
+                    </div>
+                    {hist.length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+                            {hist.map((h) => {
+                                const hs = zahlStatusDisplay(h.status);
+                                return (
+                                    <li key={h.id} style={{ opacity: h.id === z.id ? 1 : 0.85 }}>
+                                        {formatDate(h.created_at)}
+                                        {" · "}
+                                        {h.betrag.toFixed(2)} €
+                                        {" · "}
+                                        <Badge variant={hs.variant}>{hs.label}</Badge>
+                                        {h.id === z.id ? " (diese Buchung)" : null}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : null}
+                </div>
+            );
+        } else if (z.untersuchung_id && pid) {
+            const histU = zahlHistoryForUntersuchung(zahlungen, pid, z.untersuchung_id);
+            histBlock = (
+                <div style={{ marginTop: 12 }}>
+                    <div
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: "0.04em",
+                            color: "var(--fg-3)",
+                            textTransform: "uppercase",
+                            marginBottom: 6,
+                        }}
+                    >
+                        Zahlungsverlauf
+                    </div>
+                    {histU.length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+                            {histU.map((h) => {
+                                const hs = zahlStatusDisplay(h.status);
+                                return (
+                                    <li key={h.id}>
+                                        {formatDate(h.created_at)}
+                                        {" · "}
+                                        {h.betrag.toFixed(2)} €
+                                        {" · "}
+                                        <Badge variant={hs.variant}>{hs.label}</Badge>
+                                        {h.id === z.id ? " (diese Buchung)" : null}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : null}
+                </div>
+            );
+        }
+        return (
+            <>
+                <div
+                    className="rounded-lg px-4 py-3"
+                    style={{ border: "1px solid var(--line)", background: "var(--surface)", marginBottom: 12 }}
+                >
+                    <div style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-3)", textTransform: "uppercase" }}>
+                        Zuordnung
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>{bezug}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: 12, fontSize: 14 }}>
+                        <div>
+                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Kosten (Soll)</div>
+                            <div style={{ fontWeight: 700 }}>
+                                {gesamtLive != null ? formatCurrency(gesamtLive) : "—"}
+                            </div>
+                        </div>
+                        {z.behandlung_id && openAfter != null ? (
+                            <div>
+                                <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Offen nach diesem Betrag</div>
+                                <div style={{ fontWeight: 600 }}>{formatCurrency(openAfter)}</div>
+                            </div>
+                        ) : null}
+                    </div>
+                    {histBlock}
+                </div>
+                <div>
+                    <Input
+                        id="zex-betrag"
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={zahlEditMaxBetragEur != null ? zahlEditMaxBetragEur : undefined}
+                        label="Betrag (€) *"
+                        value={zahlEditForm.betrag}
+                        disabled={!zahlEditUnlocked}
+                        onChange={(e) => setZahlEditForm({ ...zahlEditForm, betrag: e.target.value })}
+                        onBlur={(e) => {
+                            if (zahlEditMaxBetragEur == null) return;
+                            const n = Number(String(e.target.value).replace(",", "."));
+                            if (!Number.isFinite(n) || n <= 0) return;
+                            if (n > zahlEditMaxBetragEur + ZAHL_EUR_EPS) {
+                                setZahlEditForm((p) => ({
+                                    ...p,
+                                    betrag: String(roundMoney2(zahlEditMaxBetragEur)),
+                                }));
+                                toast(
+                                    `Betrag auf maximal ${formatCurrency(zahlEditMaxBetragEur)} begrenzt.`,
+                                    "info",
+                                );
+                            }
+                        }}
+                    />
+                    {zahlEditMaxBetragEur != null ? (
+                        <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
+                            Höchstens {formatCurrency(zahlEditMaxBetragEur)} für diese Buchung (Kosten minus andere Zahlungen derselben Behandlung).
+                        </p>
+                    ) : null}
+                </div>
+                <Select
+                    id="zex-art"
+                    label="Zahlungsart"
+                    value={zahlEditForm.zahlungsart}
+                    disabled={!zahlEditUnlocked}
+                    onChange={(e) => setZahlEditForm({ ...zahlEditForm, zahlungsart: e.target.value as ZahlungsArt })}
+                    options={[...ZAHLUNG_ART_SELECT]}
+                />
+                <Textarea
+                    id="zex-beschr"
+                    label="Beschreibung"
+                    rows={2}
+                    value={zahlEditForm.beschreibung}
+                    disabled={!zahlEditUnlocked}
+                    onChange={(e) => setZahlEditForm({ ...zahlEditForm, beschreibung: e.target.value })}
+                />
+            </>
+        );
+    };
+
+    const zahlEditPanelSubtitle =
+        zahlEditUnlocked
+            ? "Nur für Zahlungen mit Status ausstehend oder teilbezahlt. Bei geändertem Betrag wird der Status automatisch neu gesetzt."
+            : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern.";
+
+    const zahlEditPanelHeaderExtra =
+        zahlEdit && !zahlEditUnlocked ? (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setZahlEditUnlocked(true)}>
+                Bearbeiten
+            </Button>
+        ) : null;
+
+    const zahlEditPanelFooter =
+        zahlEdit && canFinanzenWrite ? (
+            <>
+                <Button type="button" variant="ghost" onClick={() => setZahlEdit(null)}>
+                    Abbrechen
+                </Button>
+                <Button
+                    type="button"
+                    disabled={
+                        !zahlEditUnlocked
+                        || zahlEditMaxBetragEur != null && zahlEditMaxBetragEur <= ZAHL_EUR_EPS
+                    }
+                    onClick={() => void runSaveZahlEdit()}
+                >
+                    Speichern
+                </Button>
+            </>
+        ) : null;
+
     const behandFieldsLocked = Boolean(behandEditId) && !behandFormUnlocked;
+
+    const behandComposerCommon = {
+        navigate,
+        akte,
+        befunde,
+        selectedBehandTooth,
+        onSelectTooth: setSelectedBehandTooth,
+        behandEditId,
+        behandComposerMode,
+        behandFieldsLocked,
+        onUnlockFields: () => setBehandFormUnlocked(true),
+        onCancelComposer: () => {
+            setShowBehandComposer(false);
+            setBehandComposerMode(null);
+            setBehandEditId(null);
+            setContinueFromBehandlungId("");
+            setBehandFormUnlocked(true);
+        },
+        continueBehandlungOptions,
+        continueFromBehandlungId,
+        applyContinueFromBehandlung,
+        behandForm,
+        setBehandForm,
+        kategorieOptions,
+        leistungOptions,
+        katalog,
+        planNext,
+        runSaveBehandlung,
+    } satisfies BehandlungAkteComposerPanelProps;
 
     const rezeptPickFiltered = useMemo(() => {
         const q = rezeptPickQuery.trim().toLowerCase();
@@ -1859,29 +2156,40 @@ export function PatientDetailPage() {
     };
 
     const handlePrintAttest = (a: Attest) => {
-        const w = window.open("", "_blank", "width=600,height=800");
-        if (!w) return;
-        const title = escapeHtml(`Attest ${a.id}`);
-        const typ = escapeHtml(a.typ);
-        const patientLine = escapeHtml(patient.name);
-        const geb = escapeHtml(formatDate(patient.geburtsdatum));
-        const span = `${escapeHtml(formatDate(a.gueltig_von))} – ${escapeHtml(formatDate(a.gueltig_bis))}`;
-        const aus = escapeHtml(formatDate(a.ausgestellt_am));
-        const bodyHtml = escapeHtml(a.inhalt);
-        w.document.write(`<!doctype html><html><head><title>${title}</title>
-            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
-            h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
-            <h1>${typ}</h1>
-            <div class="row"><span class="label">Patient:</span>${patientLine}</div>
-            <div class="row"><span class="label">Geburtsdatum:</span>${geb}</div>
-            <div class="row"><span class="label">Gültig:</span>${span}</div>
-            <div class="row"><span class="label">Ausgestellt:</span>${aus}</div>
-            <hr/>
-            <div class="body">${bodyHtml}</div>
-            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
-            <script>window.print();</script></body></html>`);
-        w.document.close();
+        setHtmlDocExport({
+            kind: "attest",
+            bundle: bundleAttestExport(a, patient),
+            suggestedBasename: suggestAttestExportBasename(a),
+            exportPreviewTitle: `Attest — ${patient.name}`,
+        });
+    };
+
+    const handlePrintQuittung = (z: Zahlung) => {
+        setHtmlDocExport({
+            kind: "quittung",
+            bundle: bundleQuittungExport(z, patient, behandlungen, untersuchungen),
+            suggestedBasename: suggestQuittungExportBasename(z),
+            exportPreviewTitle: `Quittung — ${patient.name}`,
+        });
+    };
+
+    const handlePrintQuittungFromSummeRow = (row: ZahlZuordnungSummaryRow) => {
+        if (!id) return;
+        const z = latestZahlungForZuordnungRow(row, zahlungen, id);
+        if (!z) {
+            toast("Keine druckbare Buchung für diese Zuordnung.", "info");
+            return;
+        }
+        handlePrintQuittung(z);
+    };
+
+    const handlePrintRezept = (r: Rezept) => {
+        setHtmlDocExport({
+            kind: "rezept",
+            bundle: bundleRezeptExport(r, patient),
+            suggestedBasename: suggestRezeptExportBasename(r),
+            exportPreviewTitle: `Rezept — ${patient.name}`,
+        });
     };
 
     const patchRezeptLine = (idx: number, part: Partial<RezeptLine>) => {
@@ -1952,8 +2260,14 @@ export function PatientDetailPage() {
                             />
                         ) : null}
                     </button>
-                    <button type="button" className="btn btn-subtle" onClick={() => void handlePdfExport()} disabled={pdfBusy}>
-                        {pdfBusy ? <Spinner size="sm" aria-hidden /> : <ExportIcon />}Export
+                    <button
+                        type="button"
+                        className="btn btn-subtle"
+                        onClick={() => setAkteExportPickerOpen(true)}
+                        disabled={!id || !patient}
+                        title="Export — Bereiche, Format, Speicherort"
+                    >
+                        <ExportIcon />Export
                     </button>
                     <button type="button" className="btn btn-accent" onClick={() => navigate(terminBackLink)}><CalendarIcon />Termin</button>
                 </div>
@@ -2201,14 +2515,14 @@ export function PatientDetailPage() {
                                             <EditIcon />Bearbeiten
                                         </Button>
                                         {validation.stamm ? (
-                                            <Button size="sm" variant="ghost" onClick={() => revokeSectionValidation("stamm")}>
+                                            <Button size="sm" variant="ghost" onClick={() => void revokeSectionValidation("stamm")}>
                                                 Validierung zurückziehen
                                             </Button>
                                         ) : (
                                             <Button
                                                 size="sm"
                                                 variant="primary"
-                                                onClick={() => validateSection("stamm")}
+                                                onClick={() => void validateSection("stamm")}
                                             >
                                                 <ShieldCheckIcon />Validieren
                                             </Button>
@@ -2415,11 +2729,11 @@ export function PatientDetailPage() {
                             {untersuchungen.length === 0 ? (
                                 <p style={{ color: "var(--fg-3)" }}>Keine Untersuchungen.</p>
                             ) : (
-                                <div className="col" style={{ gap: 8 }}>
-                                    {untersuchungen.map((u) => {
+                                <div className="col unter-stack" style={{ gap: 8 }}>
+                                    {untersuchungen.flatMap((u) => {
                                         const detail = parseUntersuchungV1(u.ergebnisse);
                                         const open = unterDetailId === u.id;
-                                        return (
+                                        const entryCard = (
                                             <div key={u.id} className="card" style={{ padding: 12 }}>
                                                 <div className="row" style={{ justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                                                     <div className="col" style={{ gap: 2, minWidth: 0 }}>
@@ -2551,6 +2865,60 @@ export function PatientDetailPage() {
                                                 ) : null}
                                             </div>
                                         );
+                                        if (unterEdit?.id === u.id && akte) {
+                                            return [
+                                                <div key={`${u.id}-edit`} className="unter-stack-edit-slot">
+                                                    <AkteInlineEditPanelShell
+                                                        id={`ak-unter-edit-${u.id}`}
+                                                        ariaLabel="Untersuchung bearbeiten"
+                                                        title="Untersuchung bearbeiten"
+                                                        subtitle={(
+                                                            <>
+                                                                {(unterEdit.untersuchungsnummer ?? "").trim()
+                                                                    ? `U ${(unterEdit.untersuchungsnummer ?? "").trim()} · `
+                                                                    : null}
+                                                                Gleiche strukturierte Erfassung wie bei „Neue Untersuchung“ — Abschnitte per Chips wechseln.
+                                                                {!unterEditUnlocked ? " Zum Ändern „Bearbeiten“ wählen." : null}
+                                                            </>
+                                                        )}
+                                                        headerExtra={
+                                                            !unterEditUnlocked ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    onClick={() => setUnterEditUnlocked(true)}
+                                                                >
+                                                                    Bearbeiten
+                                                                </Button>
+                                                            ) : null
+                                                        }
+                                                        onClose={() => setUnterEdit(null)}
+                                                        rootClassName="akte-inline-panel--unter-stack-edit"
+                                                    >
+                                                        <UntersuchungComposer
+                                                            key={unterEdit.id}
+                                                            variant="edit"
+                                                            locked={!unterEditUnlocked}
+                                                            initialFromRecord={{
+                                                                beschwerden: unterEdit.beschwerden,
+                                                                ergebnisse: unterEdit.ergebnisse,
+                                                                diagnose: unterEdit.diagnose,
+                                                            }}
+                                                            befunde={befunde}
+                                                            onApplyTooth={async (tooth, statusKey) => {
+                                                                await createZahnbefund({ akte_id: akte.id, zahn_nummer: tooth, befund: statusKey });
+                                                                await load();
+                                                            }}
+                                                            onCancel={() => setUnterEdit(null)}
+                                                            onSave={async (payload) => runSaveUntersuchungEdit(payload)}
+                                                        />
+                                                    </AkteInlineEditPanelShell>
+                                                </div>,
+                                                entryCard,
+                                            ];
+                                        }
+                                        return [entryCard];
                                     })}
                                 </div>
                             )}
@@ -2571,56 +2939,6 @@ export function PatientDetailPage() {
                                     confirmLabel="Ja, löschen"
                                     danger
                                 />
-                            ) : null}
-                            {unterEdit && akte ? (
-                                <div className="akte-inline-panel" role="region" aria-label="Untersuchung bearbeiten">
-                                    <div className="akte-inline-panel-head">
-                                        <div>
-                                            <div className="akte-inline-panel-title">Untersuchung bearbeiten</div>
-                                            <div className="akte-inline-panel-sub">
-                                                {(unterEdit.untersuchungsnummer ?? "").trim()
-                                                    ? `U ${(unterEdit.untersuchungsnummer ?? "").trim()} · `
-                                                    : ""}
-                                                Gleiche strukturierte Erfassung wie bei „Neue Untersuchung“ — Abschnitte per Chips wechseln.
-                                                {!unterEditUnlocked ? " Zum Ändern „Bearbeiten“ wählen." : null}
-                                            </div>
-                                        </div>
-                                        <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                            {!unterEditUnlocked ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => setUnterEditUnlocked(true)}
-                                                >
-                                                    Bearbeiten
-                                                </Button>
-                                            ) : null}
-                                            <Button type="button" variant="ghost" size="sm" onClick={() => setUnterEdit(null)}>
-                                                Schließen
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
-                                        <UntersuchungComposer
-                                            key={unterEdit.id}
-                                            variant="edit"
-                                            locked={!unterEditUnlocked}
-                                            initialFromRecord={{
-                                                beschwerden: unterEdit.beschwerden,
-                                                ergebnisse: unterEdit.ergebnisse,
-                                                diagnose: unterEdit.diagnose,
-                                            }}
-                                            befunde={befunde}
-                                            onApplyTooth={async (tooth, statusKey) => {
-                                                await createZahnbefund({ akte_id: akte.id, zahn_nummer: tooth, befund: statusKey });
-                                                await load();
-                                            }}
-                                            onCancel={() => setUnterEdit(null)}
-                                            onSave={async (payload) => runSaveUntersuchungEdit(payload)}
-                                        />
-                                    </div>
-                                </div>
                             ) : null}
                             {akte && showUnterComposer ? (
                                 <div className="akte-inline-panel" role="region" aria-label="Neue Untersuchung">
@@ -2728,6 +3046,9 @@ export function PatientDetailPage() {
                                     </span>
                                 </div>
                             ) : null}
+                            {showBehandComposer && !behandEditId ? (
+                                <BehandlungAkteComposerPanel {...behandComposerCommon} />
+                            ) : null}
                             {behandlungen.length === 0 ? (
                                 <p style={{ color: "var(--fg-3)", marginTop: 4 }}>Noch keine Behandlungen.</p>
                             ) : (
@@ -2747,7 +3068,22 @@ export function PatientDetailPage() {
                                         {behandlungGroups.map((grp) => (
                                             <tbody key={grp[0]?.id ?? grp.map((x) => x.id).join()} className="behand-grp">
                                                 {grp.map((b) => (
-                                                    <tr key={b.id}>
+                                                    <Fragment key={b.id}>
+                                                        {showBehandComposer && behandEditId === b.id ? (
+                                                            <tr>
+                                                                <td
+                                                                    colSpan={7}
+                                                                    style={{
+                                                                        padding: 12,
+                                                                        verticalAlign: "top",
+                                                                        background: "var(--bg-elev)",
+                                                                    }}
+                                                                >
+                                                                    <BehandlungAkteComposerPanel {...behandComposerCommon} />
+                                                                </td>
+                                                            </tr>
+                                                        ) : null}
+                                                        <tr>
                                                         <td>{b.behandlung_datum ? formatDate(b.behandlung_datum) : formatDateTime(b.created_at)}</td>
                                                         <td>{b.zaehne || "—"}</td>
                                                         <td>{b.kategorie || b.art}</td>
@@ -2801,6 +3137,7 @@ export function PatientDetailPage() {
                                                             </div>
                                                         </td>
                                                     </tr>
+                                                    </Fragment>
                                                 ))}
                                             </tbody>
                                         ))}
@@ -2828,229 +3165,6 @@ export function PatientDetailPage() {
                             />
                         ) : null}
 
-                        {showBehandComposer ? (
-                        <div id="ak-behand-composer-panel" className="akte-inline-panel" role="region" aria-label="Behandlung erfassen">
-                            <div className="akte-inline-panel-head">
-                                <div>
-                                    <div className="akte-inline-panel-title">
-                                        {behandEditId
-                                            ? "Behandlung bearbeiten"
-                                            : behandComposerMode === "continue"
-                                                ? "Behandlung fortsetzen"
-                                                : "Neue Behandlung"}
-                                    </div>
-                                    <div className="akte-inline-panel-sub">
-                                        Automatisch vergeben:
-                                        {" "}
-                                        <strong>{behandForm.behandlungsnummer || "—"}</strong>
-                                        {" · "}
-                                        Sitzung <strong>{behandForm.sitzung || "—"}</strong>
-                                        {" · "}
-                                        Status <strong>{behandForm.behandlung_status === "GEPLANT" ? "Geplant" : behandForm.behandlung_status === "IN_BEARBEITUNG" ? "In Bearbeitung" : "Durchgeführt"}</strong>
-                                        {behandFieldsLocked ? " — Ansicht: „Bearbeiten“ zum Entsperren." : null}
-                                    </div>
-                                </div>
-                                <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    {behandFieldsLocked ? (
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => setBehandFormUnlocked(true)}
-                                        >
-                                            Bearbeiten
-                                        </Button>
-                                    ) : null}
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setShowBehandComposer(false);
-                                            setBehandComposerMode(null);
-                                            setBehandEditId(null);
-                                            setContinueFromBehandlungId("");
-                                            setBehandFormUnlocked(true);
-                                        }}
-                                    >
-                                        Abbrechen
-                                    </Button>
-                                </div>
-                            </div>
-                            <div className="akte-inline-panel-body">
-                            {behandComposerMode === "continue" && continueBehandlungOptions.length > 0 ? (
-                                <div style={{ marginBottom: 14 }}>
-                                    <Select
-                                        label="Ausgang: welche Sitzung fortsetzen?"
-                                        value={continueFromBehandlungId || continueBehandlungOptions[0]?.value || ""}
-                                        options={continueBehandlungOptions}
-                                        disabled={behandFieldsLocked}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            if (v) applyContinueFromBehandlung(v);
-                                        }}
-                                    />
-                                    <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 6 }}>
-                                        Jede Zeile zeigt B-Nummer, Sitzung, Leistung und Datum. Leistung aus Katalog wird passend zur gewählten Zeile gesetzt.
-                                    </p>
-                                </div>
-                            ) : null}
-                            {akte ? (
-                                <DentalChart
-                                    mode="picker"
-                                    befunde={befunde}
-                                    selectedTooth={selectedBehandTooth}
-                                    onToothSelect={setSelectedBehandTooth}
-                                    disabled={behandFieldsLocked}
-                                />
-                            ) : null}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ marginTop: 16 }}>
-                                <Input
-                                    id="bh-datum"
-                                    type="date"
-                                    label="Datum *"
-                                    value={behandForm.datum}
-                                    disabled={behandFieldsLocked}
-                                    onChange={(e) => setBehandForm({ ...behandForm, datum: e.target.value })}
-                                />
-                                <Input
-                                    id="bh-zahn"
-                                    label="Zahnnummer (FDI)"
-                                    value={selectedBehandTooth ?? ""}
-                                    disabled={behandFieldsLocked}
-                                    onChange={(e) => setSelectedBehandTooth(e.target.value.trim() || null)}
-                                    placeholder="aus Chart oder manuell"
-                                />
-                                <Select
-                                    label="Kategorie *"
-                                    value={behandForm.kategorie}
-                                    options={kategorieOptions}
-                                    disabled={behandFieldsLocked}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        setBehandForm({
-                                            ...behandForm,
-                                            kategorie: v,
-                                            leistungsname: "",
-                                            leistungKatalogId: "",
-                                            gesamtkosten: "",
-                                        });
-                                    }}
-                                />
-                                <div className="col" style={{ gap: 8 }}>
-                                    <Select
-                                        label="Leistung aus Katalog"
-                                        value={behandForm.leistungKatalogId || ""}
-                                        options={leistungOptions}
-                                        disabled={behandFieldsLocked}
-                                        onChange={(e) => {
-                                            const idSel = e.target.value;
-                                            const item = katalog.find((k) => k.id === idSel);
-                                            setBehandForm({
-                                                ...behandForm,
-                                                leistungKatalogId: idSel,
-                                                leistungsname: item?.name ?? "",
-                                                kategorie: item?.kategorie ?? behandForm.kategorie,
-                                                gesamtkosten:
-                                                    item?.default_kosten != null && Number.isFinite(item.default_kosten)
-                                                        ? String(item.default_kosten)
-                                                        : behandForm.gesamtkosten,
-                                            });
-                                        }}
-                                    />
-                                    <Input
-                                        id="bh-leist-text"
-                                        label="Leistungsname (Text) *"
-                                        value={behandForm.leistungsname}
-                                        disabled={behandFieldsLocked}
-                                        onChange={(e) =>
-                                            setBehandForm({
-                                                ...behandForm,
-                                                leistungsname: e.target.value,
-                                                leistungKatalogId: "",
-                                            })
-                                        }
-                                        placeholder="Aus Katalog wählen oder frei eintragen"
-                                    />
-                                </div>
-                                <Input
-                                    id="bh-kosten"
-                                    label="Gesamtkosten (€)"
-                                    value={behandForm.gesamtkosten}
-                                    disabled={behandFieldsLocked}
-                                    onChange={(e) => setBehandForm({ ...behandForm, gesamtkosten: e.target.value })}
-                                />
-                            </div>
-
-                            <details
-                                style={{
-                                    marginTop: 16,
-                                    border: "1px solid var(--line)",
-                                    borderRadius: 10,
-                                    padding: "10px 14px",
-                                    background: "rgba(0,0,0,0.015)",
-                                }}
-                                open={
-                                    behandForm.termin_erforderlich === "1"
-                                    || behandForm.notizen.trim().length > 0
-                                    || planNextHasContent(planNext)
-                                }
-                            >
-                                <summary style={{ cursor: behandFieldsLocked ? "default" : "pointer", fontWeight: 600, fontSize: 13.5 }}>
-                                    Nächsten Termin planen (optional)
-                                </summary>
-                                <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "8px 0 12px" }}>
-                                    Optional: Status und Folgetermin-Hinweis nur für diese Behandlungszeile. Für die Rezeption nutzen Sie oben „Plan nächsten Termin“.
-                                </p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Select
-                                        label="Status"
-                                        value={behandForm.behandlung_status}
-                                        options={[
-                                            { value: "GEPLANT", label: "Geplant" },
-                                            { value: "IN_BEARBEITUNG", label: "In Bearbeitung" },
-                                            { value: "DURCHGEFUEHRT", label: "Durchgeführt" },
-                                        ]}
-                                        disabled={behandFieldsLocked}
-                                        onChange={(e) => setBehandForm({ ...behandForm, behandlung_status: e.target.value })}
-                                    />
-                                    <Select
-                                        label="Termin erforderlich?"
-                                        value={behandForm.termin_erforderlich}
-                                        options={[
-                                            { value: "0", label: "Nein" },
-                                            { value: "1", label: "Ja — Folgetermin nötig" },
-                                        ]}
-                                        disabled={behandFieldsLocked}
-                                        onChange={(e) => setBehandForm({ ...behandForm, termin_erforderlich: e.target.value })}
-                                    />
-                                </div>
-                                <Textarea
-                                    id="bh-notes"
-                                    label="Notizen (Behandlung)"
-                                    value={behandForm.notizen}
-                                    disabled={behandFieldsLocked}
-                                    onChange={(e) => setBehandForm({ ...behandForm, notizen: e.target.value })}
-                                    placeholder="Interne Notiz zu dieser Sitzung"
-                                    className="min-h-[72px] mt-2"
-                                />
-                            </details>
-                            </div>
-
-                            <div className="akte-inline-panel-actions">
-                                <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/behandlungs-katalog")}>
-                                    Katalog verwalten
-                                </Button>
-                                <Button
-                                    type="button"
-                                    onClick={() => void runSaveBehandlung()}
-                                    disabled={!akte || behandFieldsLocked}
-                                >
-                                    {behandEditId ? "Änderungen speichern" : "Behandlung speichern"}
-                                </Button>
-                            </div>
-                        </div>
-                        ) : null}
                     </div>
                 </div>
             )}
@@ -3058,28 +3172,25 @@ export function PatientDetailPage() {
             {activeTab === "rezept" && (
                 <div id="panel-rezept" role="tabpanel" aria-labelledby="tab-rezept">
                 <Card className="card-pad">
-                    <div
-                        className="row"
-                        style={{ gap: 6, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}
-                        role="tablist"
-                        aria-label="Ansicht Rezepte oder Atteste"
-                    >
-                        <Button
+                    <div className="akte-zahl-modus" role="tablist" aria-label="Ansicht Rezepte oder Atteste" style={{ marginBottom: 16 }}>
+                        <button
                             type="button"
-                            size="sm"
-                            variant={rezeptAttestSub === "rezept" ? "secondary" : "ghost"}
+                            role="tab"
+                            aria-selected={rezeptAttestSub === "rezept"}
+                            className={`akte-zahl-modus__btn${rezeptAttestSub === "rezept" ? " is-active" : ""}`}
                             onClick={() => {
                                 setRezeptAttestSub("rezept");
                                 resetAttestWizard();
                                 setAttestDeleteId(null);
                             }}
                         >
-                            Rezepte
-                        </Button>
-                        <Button
+                            Rezept
+                        </button>
+                        <button
                             type="button"
-                            size="sm"
-                            variant={rezeptAttestSub === "attest" ? "secondary" : "ghost"}
+                            role="tab"
+                            aria-selected={rezeptAttestSub === "attest"}
+                            className={`akte-zahl-modus__btn${rezeptAttestSub === "attest" ? " is-active" : ""}`}
                             onClick={() => {
                                 setRezeptAttestSub("attest");
                                 resetRezeptWizard();
@@ -3088,7 +3199,7 @@ export function PatientDetailPage() {
                             }}
                         >
                             Atteste
-                        </Button>
+                        </button>
                     </div>
                     {rezeptAttestSub === "rezept" ? (
                     <>
@@ -3140,54 +3251,182 @@ export function PatientDetailPage() {
                                     <tbody>
                                         {rezepte.map((r) => {
                                             const st = rezeptStatusDisplay(r.status);
+                                            const showEditRow =
+                                                canWriteMedical && rezeptEdit?.id === r.id && !rezeptWizardStep;
                                             return (
-                                                <tr key={r.id}>
-                                                    <td style={{ fontWeight: 600 }}>{r.medikament}</td>
-                                                    <td>{r.dosierung}</td>
-                                                    <td>{r.dauer}</td>
-                                                    <td><Badge variant={st.variant}>{st.label}</Badge></td>
-                                                    <td>{formatDate(r.ausgestellt_am)}</td>
-                                                    <td>
-                                                        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                                            {canWriteMedical ? (
-                                                                <>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="secondary"
-                                                                        onClick={() => {
-                                                                            setRezeptDeleteId(null);
-                                                                            resetRezeptWizard();
-                                                                            setRezeptEditUnlocked(false);
+                                                <Fragment key={r.id}>
+                                                    {showEditRow ? (
+                                                        <tr>
+                                                            <td
+                                                                colSpan={6}
+                                                                style={{
+                                                                    padding: 12,
+                                                                    verticalAlign: "top",
+                                                                    background: "var(--bg-elev)",
+                                                                }}
+                                                            >
+                                                                <AkteEditFormOrInline
+                                                                    area="patient_akte_rezept_edit"
+                                                                    open={canWriteMedical && !!rezeptEdit && !rezeptWizardStep}
+                                                                    onClose={() => setRezeptEdit(null)}
+                                                                    title="Rezept bearbeiten"
+                                                                    subtitle={
+                                                                        rezeptEditUnlocked
+                                                                            ? "Änderungen gelten nur für diese Zeile in der Akte."
+                                                                            : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
+                                                                    }
+                                                                    inlineId={`ak-rezept-edit-inline-${r.id}`}
+                                                                    ariaLabel="Rezept bearbeiten"
+                                                                    panelVariant="rezept"
+                                                                    presentationOverride="inline"
+                                                                    headerExtra={
+                                                                        !rezeptEditUnlocked ? (
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="secondary"
+                                                                                size="sm"
+                                                                                onClick={() => setRezeptEditUnlocked(true)}
+                                                                            >
+                                                                                Bearbeiten
+                                                                            </Button>
+                                                                        ) : null
+                                                                    }
+                                                                    footer={(
+                                                                        <>
+                                                                            <Button type="button" variant="ghost" onClick={() => setRezeptEdit(null)}>
+                                                                                Abbrechen
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                onClick={() => void runSaveRezeptEdit()}
+                                                                                disabled={
+                                                                                    !rezeptEditUnlocked
+                                                                                    || !rezeptEditForm.medikament.trim()
+                                                                                    || !rezeptEditForm.dosierung.trim()
+                                                                                    || !rezeptEditForm.dauer.trim()
+                                                                                }
+                                                                            >
+                                                                                Speichern
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
+                                                                >
+                                                                    <Input
+                                                                        id={`rex-med-${r.id}`}
+                                                                        label="Medikament *"
+                                                                        value={rezeptEditForm.medikament}
+                                                                        disabled={!rezeptEditUnlocked}
+                                                                        onChange={(e) =>
                                                                             setRezeptEditForm({
-                                                                                medikament: r.medikament,
-                                                                                wirkstoff: r.wirkstoff ?? "",
-                                                                                dosierung: r.dosierung,
-                                                                                dauer: r.dauer,
-                                                                                hinweise: r.hinweise ?? "",
-                                                                            });
-                                                                            setRezeptEdit(r);
-                                                                        }}
-                                                                    >
-                                                                        Bearbeiten
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="danger"
-                                                                        size="sm"
-                                                                        onClick={() => {
-                                                                            resetRezeptWizard();
-                                                                            setRezeptEdit(null);
-                                                                            setRezeptDeleteId(r.id);
-                                                                        }}
-                                                                    >
-                                                                        Löschen
-                                                                    </Button>
-                                                                </>
-                                                            ) : (
-                                                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                                                ...rezeptEditForm,
+                                                                                medikament: e.target.value,
+                                                                            })}
+                                                                    />
+                                                                    <Input
+                                                                        id={`rex-wirk-${r.id}`}
+                                                                        label="Wirkstoff"
+                                                                        value={rezeptEditForm.wirkstoff}
+                                                                        disabled={!rezeptEditUnlocked}
+                                                                        onChange={(e) =>
+                                                                            setRezeptEditForm({
+                                                                                ...rezeptEditForm,
+                                                                                wirkstoff: e.target.value,
+                                                                            })}
+                                                                    />
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                                        <Input
+                                                                            id={`rex-dos-${r.id}`}
+                                                                            label="Dosierung *"
+                                                                            value={rezeptEditForm.dosierung}
+                                                                            disabled={!rezeptEditUnlocked}
+                                                                            onChange={(e) =>
+                                                                                setRezeptEditForm({
+                                                                                    ...rezeptEditForm,
+                                                                                    dosierung: e.target.value,
+                                                                                })}
+                                                                        />
+                                                                        <Input
+                                                                            id={`rex-dauer-${r.id}`}
+                                                                            label="Dauer *"
+                                                                            value={rezeptEditForm.dauer}
+                                                                            disabled={!rezeptEditUnlocked}
+                                                                            onChange={(e) =>
+                                                                                setRezeptEditForm({
+                                                                                    ...rezeptEditForm,
+                                                                                    dauer: e.target.value,
+                                                                                })}
+                                                                        />
+                                                                    </div>
+                                                                    <Textarea
+                                                                        id={`rex-hin-${r.id}`}
+                                                                        label="Hinweise"
+                                                                        rows={2}
+                                                                        value={rezeptEditForm.hinweise}
+                                                                        disabled={!rezeptEditUnlocked}
+                                                                        onChange={(e) =>
+                                                                            setRezeptEditForm({
+                                                                                ...rezeptEditForm,
+                                                                                hinweise: e.target.value,
+                                                                            })}
+                                                                    />
+                                                                </AkteEditFormOrInline>
+                                                            </td>
+                                                        </tr>
+                                                    ) : null}
+                                                    <tr>
+                                                        <td style={{ fontWeight: 600 }}>{r.medikament}</td>
+                                                        <td>{r.dosierung}</td>
+                                                        <td>{r.dauer}</td>
+                                                        <td><Badge variant={st.variant}>{st.label}</Badge></td>
+                                                        <td>{formatDate(r.ausgestellt_am)}</td>
+                                                        <td>
+                                                            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="secondary"
+                                                                    type="button"
+                                                                    onClick={() => handlePrintRezept(r)}
+                                                                >
+                                                                    Exportieren…
+                                                                </Button>
+                                                                {canWriteMedical ? (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="secondary"
+                                                                            onClick={() => {
+                                                                                setRezeptDeleteId(null);
+                                                                                resetRezeptWizard();
+                                                                                setRezeptEditUnlocked(false);
+                                                                                setRezeptEditForm({
+                                                                                    medikament: r.medikament,
+                                                                                    wirkstoff: r.wirkstoff ?? "",
+                                                                                    dosierung: r.dosierung,
+                                                                                    dauer: r.dauer,
+                                                                                    hinweise: r.hinweise ?? "",
+                                                                                });
+                                                                                setRezeptEdit(r);
+                                                                            }}
+                                                                        >
+                                                                            Bearbeiten
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="danger"
+                                                                            size="sm"
+                                                                            onClick={() => {
+                                                                                resetRezeptWizard();
+                                                                                setRezeptEdit(null);
+                                                                                setRezeptDeleteId(r.id);
+                                                                            }}
+                                                                        >
+                                                                            Löschen
+                                                                        </Button>
+                                                                    </>
+                                                                ) : null}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </Fragment>
                                             );
                                         })}
                                     </tbody>
@@ -3538,88 +3777,6 @@ export function PatientDetailPage() {
                             </div>
                         ) : null}
 
-                        {canWriteMedical && rezeptEdit && !rezeptWizardStep ? (
-                            <AkteEditFormOrInline
-                                area="patient_akte_rezept_edit"
-                                open={canWriteMedical && !!rezeptEdit && !rezeptWizardStep}
-                                onClose={() => setRezeptEdit(null)}
-                                title="Rezept bearbeiten"
-                                subtitle={
-                                    rezeptEditUnlocked
-                                        ? "Änderungen gelten nur für diese Zeile in der Akte."
-                                        : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
-                                }
-                                inlineId="ak-rezept-edit-panel"
-                                ariaLabel="Rezept bearbeiten"
-                                panelVariant="rezept"
-                                presentationOverride="inline"
-                                headerExtra={
-                                    !rezeptEditUnlocked ? (
-                                        <Button type="button" variant="secondary" size="sm" onClick={() => setRezeptEditUnlocked(true)}>
-                                            Bearbeiten
-                                        </Button>
-                                    ) : null
-                                }
-                                footer={(
-                                    <>
-                                        <Button type="button" variant="ghost" onClick={() => setRezeptEdit(null)}>
-                                            Abbrechen
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            onClick={() => void runSaveRezeptEdit()}
-                                            disabled={
-                                                !rezeptEditUnlocked
-                                                || !rezeptEditForm.medikament.trim()
-                                                || !rezeptEditForm.dosierung.trim()
-                                                || !rezeptEditForm.dauer.trim()
-                                            }
-                                        >
-                                            Speichern
-                                        </Button>
-                                    </>
-                                )}
-                            >
-                                <Input
-                                    id="rex-med"
-                                    label="Medikament *"
-                                    value={rezeptEditForm.medikament}
-                                    disabled={!rezeptEditUnlocked}
-                                    onChange={(e) => setRezeptEditForm({ ...rezeptEditForm, medikament: e.target.value })}
-                                />
-                                <Input
-                                    id="rex-wirk"
-                                    label="Wirkstoff"
-                                    value={rezeptEditForm.wirkstoff}
-                                    disabled={!rezeptEditUnlocked}
-                                    onChange={(e) => setRezeptEditForm({ ...rezeptEditForm, wirkstoff: e.target.value })}
-                                />
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <Input
-                                        id="rex-dos"
-                                        label="Dosierung *"
-                                        value={rezeptEditForm.dosierung}
-                                        disabled={!rezeptEditUnlocked}
-                                        onChange={(e) => setRezeptEditForm({ ...rezeptEditForm, dosierung: e.target.value })}
-                                    />
-                                    <Input
-                                        id="rex-dauer"
-                                        label="Dauer *"
-                                        value={rezeptEditForm.dauer}
-                                        disabled={!rezeptEditUnlocked}
-                                        onChange={(e) => setRezeptEditForm({ ...rezeptEditForm, dauer: e.target.value })}
-                                    />
-                                </div>
-                                <Textarea
-                                    id="rex-hin"
-                                    label="Hinweise"
-                                    rows={2}
-                                    value={rezeptEditForm.hinweise}
-                                    disabled={!rezeptEditUnlocked}
-                                    onChange={(e) => setRezeptEditForm({ ...rezeptEditForm, hinweise: e.target.value })}
-                                />
-                            </AkteEditFormOrInline>
-                        ) : null}
                     </FormSection>
                     </>
                     ) : (
@@ -3678,7 +3835,7 @@ export function PatientDetailPage() {
                                                 <td>
                                                     <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                                                         <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
-                                                            Drucken
+                                                            Exportieren…
                                                         </Button>
                                                         {canWriteMedical ? (
                                                             <Button
@@ -3989,46 +4146,6 @@ export function PatientDetailPage() {
             )}
             {activeTab === "anlage" && (
                 <div id="panel-anlage" role="tabpanel" aria-labelledby="tab-anlage">
-                <div /* Abstand unter dem Katalog */ style={{ marginBottom: 16 }}>
-                <Card className="card-pad">
-                    <CardHeader
-                        title="Leistungskatalog"
-                        subtitle="Aktive Katalogpositionen der Praxis (Lesen) — gleiche Daten wie unter Behandlungen / Verwaltung."
-                    />
-                    {katalog.length === 0 ? (
-                        <p className="card-sub" style={{ margin: 0 }}>
-                            Keine Katalogeinträge geladen oder Katalog ist leer.
-                        </p>
-                    ) : (
-                        <div style={{ overflow: "auto", maxHeight: 320 }}>
-                            <table className="tbl">
-                                <thead>
-                                    <tr>
-                                        <th>Kategorie</th>
-                                        <th>Leistung</th>
-                                        <th style={{ textAlign: "right" }}>Standard €</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {[...katalog]
-                                        .sort(
-                                            (a, b) =>
-                                                a.kategorie.localeCompare(b.kategorie, "de") ||
-                                                a.name.localeCompare(b.name, "de"),
-                                        )
-                                        .map((row) => (
-                                            <tr key={row.id}>
-                                                <td>{row.kategorie}</td>
-                                                <td>{row.name}</td>
-                                                <td style={{ textAlign: "right" }}>{formatCurrency(row.default_kosten ?? 0)}</td>
-                                            </tr>
-                                        ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </Card>
-                </div>
                 <Card className="card-pad">
                     <AkteAnlagenPanel
                         subtitle={
@@ -4102,9 +4219,9 @@ export function PatientDetailPage() {
                         }
                         canValidate={canViewClinical}
                         isValidated={(anlageId) => Boolean(itemValidation[itemValidationKey("anl", anlageId)])}
-                        onRequestValidate={(anlageId, label) => requestValidateItem(itemValidationKey("anl", anlageId), label)}
+                        onRequestValidate={(anlageId, label) => void requestValidateItem(itemValidationKey("anl", anlageId), label)}
                         onRevokeValidation={(anlageId, shortLabel) =>
-                            revokeItemValidationRow(itemValidationKey("anl", anlageId), shortLabel)}
+                            void revokeItemValidationRow(itemValidationKey("anl", anlageId), shortLabel)}
                         formatAddedAt={formatDate}
                         onScannerClick={() =>
                             toast("Scanner-Anbindung ist in dieser Version noch nicht verfügbar.", "info")}
@@ -4125,29 +4242,32 @@ export function PatientDetailPage() {
                                     : "Chronologische Buchungen wie in der Finanzliste — für Prüfung und Änderungen pro Eintrag nutzen Sie die Aktions-Spalte."
                         }
                         action={(
-                            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                                <div className="row" style={{ gap: 4 }} role="tablist" aria-label="Ansicht Abrechnung">
-                                    <Button
+                            <div className="row akte-zahl-toolbar" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                                <div className="akte-zahl-modus" role="tablist" aria-label="Ansicht Abrechnung">
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant={zahlListenModus === "summe" ? "secondary" : "ghost"}
+                                        role="tab"
+                                        aria-selected={zahlListenModus === "summe"}
+                                        className={`akte-zahl-modus__btn${zahlListenModus === "summe" ? " is-active" : ""}`}
                                         onClick={() => setZahlListenModus("summe")}
                                     >
                                         Zahlungen
-                                    </Button>
-                                    <Button
+                                    </button>
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant={zahlListenModus === "historie" ? "secondary" : "ghost"}
+                                        role="tab"
+                                        aria-selected={zahlListenModus === "historie"}
+                                        className={`akte-zahl-modus__btn${zahlListenModus === "historie" ? " is-active" : ""}`}
                                         onClick={() => setZahlListenModus("historie")}
                                     >
                                         Historie
-                                    </Button>
+                                    </button>
                                 </div>
                                 {canFinanzenWrite ? (
                                     <Button
                                         size="sm"
                                         variant="secondary"
+                                        className="akte-zahl-toolbar__cta"
                                         disabled={showZahlComposer}
                                         onClick={() => {
                                             setZahlEdit(null);
@@ -4484,11 +4604,12 @@ export function PatientDetailPage() {
                         ) : (
                             <table className="tbl tbl-zahl-akte">
                                 <colgroup>
-                                    <col style={{ width: "13%" }} />
-                                    <col style={{ width: "22%" }} />
-                                    <col style={{ width: "11%" }} />
-                                    <col style={{ width: "11%" }} />
-                                    <col style={{ width: "11%" }} />
+                                    <col style={{ width: "12%" }} />
+                                    <col style={{ width: "20%" }} />
+                                    <col style={{ width: "10%" }} />
+                                    <col style={{ width: "10%" }} />
+                                    <col style={{ width: "10%" }} />
+                                    <col style={{ width: "12%" }} />
                                     <col style={{ width: "14%" }} />
                                 </colgroup>
                                 <thead>
@@ -4499,6 +4620,7 @@ export function PatientDetailPage() {
                                         <th scope="col" className="zahl-th-num">Gezahlt</th>
                                         <th scope="col" className="zahl-th-num">Offen</th>
                                         <th scope="col">Status</th>
+                                        <th scope="col">Aktion</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -4523,6 +4645,16 @@ export function PatientDetailPage() {
                                                 </td>
                                                 <td>
                                                     <Badge variant={st.variant}>{st.label}</Badge>
+                                                </td>
+                                                <td className="zahl-td-actions">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() => handlePrintQuittungFromSummeRow(row)}
+                                                    >
+                                                        Quittung
+                                                    </Button>
                                                 </td>
                                             </tr>
                                         );
@@ -4551,7 +4683,7 @@ export function PatientDetailPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {zahlungenHistorisch.map((z) => {
+                                {zahlungenHistorisch.flatMap((z) => {
                                     const st = zahlStatusDisplay(z.status);
                                     const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
                                     let bezug = "—";
@@ -4564,7 +4696,7 @@ export function PatientDetailPage() {
                                         const un = (u?.untersuchungsnummer ?? "").trim();
                                         bezug = un ? `U ${un}` : "Untersuchung";
                                     }
-                                    return (
+                                    const dataRow = (
                                         <tr key={z.id}>
                                             <td>
                                                 <div className="zahl-td-clip" title={formatDate(z.created_at)}>
@@ -4587,13 +4719,21 @@ export function PatientDetailPage() {
                                             <td className="zahl-td-num">{z.betrag.toFixed(2)} €</td>
                                             <td className="zahl-td-actions">
                                                 <div className="zahl-actions-inner">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() => handlePrintQuittung(z)}
+                                                    >
+                                                        Quittung
+                                                    </Button>
                                                     {canViewClinical ? (
                                                         itemValidation[itemValidationKey("zahl", z.id)] ? (
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
                                                                 onClick={() =>
-                                                                    revokeItemValidationRow(
+                                                                    void revokeItemValidationRow(
                                                                         itemValidationKey("zahl", z.id),
                                                                         `Zahlung ${z.betrag.toFixed(2)} €`,
                                                                     )}
@@ -4605,7 +4745,7 @@ export function PatientDetailPage() {
                                                                 size="sm"
                                                                 variant="secondary"
                                                                 onClick={() =>
-                                                                    requestValidateItem(
+                                                                    void requestValidateItem(
                                                                         itemValidationKey("zahl", z.id),
                                                                         `Zahlung ${formatDate(z.created_at)} · ${z.betrag.toFixed(2)} €`,
                                                                     )}
@@ -4646,13 +4786,32 @@ export function PatientDetailPage() {
                                                             </Button>
                                                         </>
                                                     ) : null}
-                                                    {!canViewClinical && !canFinanzenWrite ? (
-                                                        <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
-                                                    ) : null}
                                                 </div>
                                             </td>
                                         </tr>
                                     );
+                                    if (canFinanzenWrite && zahlListenModus === "historie" && zahlEdit?.id === z.id) {
+                                        return [
+                                            <tr key={`${z.id}__edit`} className="zahl-historie-edit-row">
+                                                <td colSpan={6} className="zahl-historie-edit-cell">
+                                                    <AkteInlineEditPanelShell
+                                                        id="ak-zahl-edit-panel-row"
+                                                        ariaLabel="Zahlung bearbeiten"
+                                                        title="Zahlung bearbeiten"
+                                                        subtitle={zahlEditPanelSubtitle}
+                                                        headerExtra={zahlEditPanelHeaderExtra}
+                                                        onClose={() => setZahlEdit(null)}
+                                                        footer={zahlEditPanelFooter}
+                                                        rootClassName="akte-inline-panel--zahl-table-edit"
+                                                    >
+                                                        {renderZahlPaymentEditFields()}
+                                                    </AkteInlineEditPanelShell>
+                                                </td>
+                                            </tr>,
+                                            dataRow,
+                                        ];
+                                    }
+                                    return [dataRow];
                                 })}
                             </tbody>
                         </table>
@@ -4675,228 +4834,20 @@ export function PatientDetailPage() {
                             danger
                         />
                     ) : null}
-                    {canFinanzenWrite && zahlEdit ? (
+                    {canFinanzenWrite && zahlEdit && zahlListenModus !== "historie" ? (
                         <AkteEditFormOrInline
                             area="patient_akte_zahlung_edit"
                             open={canFinanzenWrite && !!zahlEdit}
                             onClose={() => setZahlEdit(null)}
                             title="Zahlung bearbeiten"
-                            subtitle={
-                                zahlEditUnlocked
-                                    ? "Nur für Zahlungen mit Status ausstehend oder teilbezahlt. Bei geändertem Betrag wird der Status automatisch neu gesetzt."
-                                    : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
-                            }
+                            subtitle={zahlEditPanelSubtitle}
                             inlineId="ak-zahl-edit-panel"
                             ariaLabel="Zahlung bearbeiten"
                             presentationOverride="inline"
-                            headerExtra={
-                                !zahlEditUnlocked ? (
-                                    <Button type="button" variant="secondary" size="sm" onClick={() => setZahlEditUnlocked(true)}>
-                                        Bearbeiten
-                                    </Button>
-                                ) : null
-                            }
-                            footer={(
-                                <>
-                                    <Button type="button" variant="ghost" onClick={() => setZahlEdit(null)}>
-                                        Abbrechen
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        disabled={
-                                            !zahlEditUnlocked
-                                            || zahlEditMaxBetragEur != null && zahlEditMaxBetragEur <= ZAHL_EUR_EPS
-                                        }
-                                        onClick={() => void runSaveZahlEdit()}
-                                    >
-                                        Speichern
-                                    </Button>
-                                </>
-                            )}
+                            headerExtra={zahlEditPanelHeaderExtra}
+                            footer={zahlEditPanelFooter}
                         >
-                            {(() => {
-                                const z = zahlEdit;
-                                const pid = id ?? "";
-                                let bezug = "—";
-                                if (z.behandlung_id) {
-                                    const b = behandlungen.find((x) => x.id === z.behandlung_id);
-                                    const bn = (b?.behandlungsnummer ?? "").trim();
-                                    bezug = bn ? `Behandlung B ${bn}` : "Behandlung";
-                                } else if (z.untersuchung_id) {
-                                    const u = untersuchungen.find((x) => x.id === z.untersuchung_id);
-                                    const un = (u?.untersuchungsnummer ?? "").trim();
-                                    bezug = un ? `Untersuchung U ${un}` : "Untersuchung";
-                                }
-                                const bRow = z.behandlung_id ? behandlungen.find((x) => x.id === z.behandlung_id) : undefined;
-                                const gesamtLive =
-                                    bRow?.gesamtkosten != null && Number.isFinite(bRow.gesamtkosten)
-                                        ? bRow.gesamtkosten
-                                        : z.betrag_erwartet != null && Number.isFinite(z.betrag_erwartet)
-                                            ? z.betrag_erwartet
-                                            : null;
-                                let histBlock: ReactNode = null;
-                                let openAfter: number | null = null;
-                                if (z.behandlung_id && pid) {
-                                    const hist = zahlHistoryForBehandlung(zahlungen, pid, z.behandlung_id);
-                                    const otherPaid = zahlungen
-                                        .filter(
-                                            (x) =>
-                                                x.patient_id === pid
-                                                && x.behandlung_id === z.behandlung_id
-                                                && x.id !== z.id
-                                                && zahlCountsTowardPaid(x.status),
-                                        )
-                                        .reduce((s, x) => s + x.betrag, 0);
-                                    const cur = Number(String(zahlEditForm.betrag).replace(",", "."));
-                                    const curOk = Number.isFinite(cur) && cur > 0 ? cur : 0;
-                                    const totalPaid = otherPaid + curOk;
-                                    openAfter =
-                                        gesamtLive != null && gesamtLive > 0 ? Math.max(0, gesamtLive - totalPaid) : null;
-                                    histBlock = (
-                                        <div style={{ marginTop: 12 }}>
-                                            <div
-                                                style={{
-                                                    fontSize: 11,
-                                                    letterSpacing: "0.04em",
-                                                    color: "var(--fg-3)",
-                                                    textTransform: "uppercase",
-                                                    marginBottom: 6,
-                                                }}
-                                            >
-                                                Zahlungsverlauf (dieselbe Zeile)
-                                            </div>
-                                            {hist.length > 0 ? (
-                                                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
-                                                    {hist.map((h) => {
-                                                        const hs = zahlStatusDisplay(h.status);
-                                                        return (
-                                                            <li key={h.id} style={{ opacity: h.id === z.id ? 1 : 0.85 }}>
-                                                                {formatDate(h.created_at)}
-                                                                {" · "}
-                                                                {h.betrag.toFixed(2)} €
-                                                                {" · "}
-                                                                <Badge variant={hs.variant}>{hs.label}</Badge>
-                                                                {h.id === z.id ? " (diese Buchung)" : null}
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            ) : null}
-                                        </div>
-                                    );
-                                } else if (z.untersuchung_id && pid) {
-                                    const histU = zahlHistoryForUntersuchung(zahlungen, pid, z.untersuchung_id);
-                                    histBlock = (
-                                        <div style={{ marginTop: 12 }}>
-                                            <div
-                                                style={{
-                                                    fontSize: 11,
-                                                    letterSpacing: "0.04em",
-                                                    color: "var(--fg-3)",
-                                                    textTransform: "uppercase",
-                                                    marginBottom: 6,
-                                                }}
-                                            >
-                                                Zahlungsverlauf
-                                            </div>
-                                            {histU.length > 0 ? (
-                                                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
-                                                    {histU.map((h) => {
-                                                        const hs = zahlStatusDisplay(h.status);
-                                                        return (
-                                                            <li key={h.id}>
-                                                                {formatDate(h.created_at)}
-                                                                {" · "}
-                                                                {h.betrag.toFixed(2)} €
-                                                                {" · "}
-                                                                <Badge variant={hs.variant}>{hs.label}</Badge>
-                                                                {h.id === z.id ? " (diese Buchung)" : null}
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            ) : null}
-                                        </div>
-                                    );
-                                }
-                                return (
-                                    <>
-                                        <div
-                                            className="rounded-lg px-4 py-3"
-                                            style={{ border: "1px solid var(--line)", background: "var(--surface)", marginBottom: 12 }}
-                                        >
-                                            <div style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-3)", textTransform: "uppercase" }}>
-                                                Zuordnung
-                                            </div>
-                                            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>{bezug}</div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: 12, fontSize: 14 }}>
-                                                <div>
-                                                    <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Kosten (Soll)</div>
-                                                    <div style={{ fontWeight: 700 }}>
-                                                        {gesamtLive != null ? formatCurrency(gesamtLive) : "—"}
-                                                    </div>
-                                                </div>
-                                                {z.behandlung_id && openAfter != null ? (
-                                                    <div>
-                                                        <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Offen nach diesem Betrag</div>
-                                                        <div style={{ fontWeight: 600 }}>{formatCurrency(openAfter)}</div>
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                            {histBlock}
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                            <div>
-                                <Input
-                                    id="zex-betrag"
-                                    type="number"
-                                    step="0.01"
-                                    min={0}
-                                    max={zahlEditMaxBetragEur != null ? zahlEditMaxBetragEur : undefined}
-                                    label="Betrag (€) *"
-                                    value={zahlEditForm.betrag}
-                                    disabled={!zahlEditUnlocked}
-                                    onChange={(e) => setZahlEditForm({ ...zahlEditForm, betrag: e.target.value })}
-                                    onBlur={(e) => {
-                                        if (zahlEditMaxBetragEur == null) return;
-                                        const n = Number(String(e.target.value).replace(",", "."));
-                                        if (!Number.isFinite(n) || n <= 0) return;
-                                        if (n > zahlEditMaxBetragEur + ZAHL_EUR_EPS) {
-                                            setZahlEditForm((p) => ({
-                                                ...p,
-                                                betrag: String(roundMoney2(zahlEditMaxBetragEur)),
-                                            }));
-                                            toast(
-                                                `Betrag auf maximal ${formatCurrency(zahlEditMaxBetragEur)} begrenzt.`,
-                                                "info",
-                                            );
-                                        }
-                                    }}
-                                />
-                                {zahlEditMaxBetragEur != null ? (
-                                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                                        Höchstens {formatCurrency(zahlEditMaxBetragEur)} für diese Buchung (Kosten minus andere Zahlungen derselben Behandlung).
-                                    </p>
-                                ) : null}
-                            </div>
-                            <Select
-                                id="zex-art"
-                                label="Zahlungsart"
-                                value={zahlEditForm.zahlungsart}
-                                disabled={!zahlEditUnlocked}
-                                onChange={(e) => setZahlEditForm({ ...zahlEditForm, zahlungsart: e.target.value as ZahlungsArt })}
-                                options={[...ZAHLUNG_ART_SELECT]}
-                            />
-                            <Textarea
-                                id="zex-beschr"
-                                label="Beschreibung"
-                                rows={2}
-                                value={zahlEditForm.beschreibung}
-                                disabled={!zahlEditUnlocked}
-                                onChange={(e) => setZahlEditForm({ ...zahlEditForm, beschreibung: e.target.value })}
-                            />
+                            {renderZahlPaymentEditFields()}
                         </AkteEditFormOrInline>
                     ) : null}
                 </Card>
@@ -4913,6 +4864,28 @@ export function PatientDetailPage() {
                 confirmLabel={akteSaveConfirm ? akteSaveConfirmUi(akteSaveConfirm).confirmLabel : "OK"}
                 loading={akteSaveBusy}
             />
+            {id ? (
+                <ExportPickerDialog
+                    open={akteExportPickerOpen}
+                    onClose={() => setAkteExportPickerOpen(false)}
+                    patientId={id}
+                    patient={patient}
+                    canViewClinical={canViewClinical}
+                    canReadFinanzen={canReadFinanzen}
+                    canAuditRead={canAuditRead}
+                />
+            ) : null}
+            {htmlDocExport ? (
+                <HtmlDocumentExportPickerDialog
+                    open
+                    onClose={() => setHtmlDocExport(null)}
+                    templateKind={htmlDocExport.kind}
+                    exportPreviewTitle={htmlDocExport.exportPreviewTitle}
+                    suggestedBasename={htmlDocExport.suggestedBasename}
+                    bundle={htmlDocExport.bundle}
+                    hint={htmlDocExport.hint}
+                />
+            ) : null}
         </div>
     );
 }

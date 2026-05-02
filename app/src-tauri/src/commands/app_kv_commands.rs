@@ -17,7 +17,9 @@ fn permission_for(key: &str) -> Option<&'static str> {
         // Praxis-wide working schedule + special closure rules.
         "praxis.arbeitszeiten.v1" | "praxis.sperrzeiten.v1" => Some("ops.system"),
         // Per-practice user-facing preferences (theme, density, ...).
-        "praxis.preferences.v1" => Some("dashboard.read"),
+        "praxis.preferences.v1" | "praxis.preferences-termin.v1" => Some("dashboard.read"),
+        // Export / print defaults (practice workstation — same scope as client prefs).
+        "export.path.v1" | "export.formats.v1" | "praxis.logo.v1" => Some("dashboard.read"),
         _ => None,
     }
 }

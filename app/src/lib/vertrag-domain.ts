@@ -10,8 +10,6 @@ export const VERTRAG_INTERVALL_OPTIONS: { value: VertragIntervall; label: string
     { value: "JAHR", label: "pro Jahr" },
 ];
 
-const LS_KEY = "medoc-vertraege-v1";
-
 export type VertragItem = {
     id: string;
     bezeichnung: string;
@@ -25,72 +23,6 @@ export type VertragItem = {
     periodeBis: string | null;
     createdAt: string;
 };
-
-function seedData(): VertragItem[] {
-    const now = new Date().toISOString();
-    return [
-        {
-            id: "seed-v-1",
-            bezeichnung: "Miete Praxisräume",
-            partner: "Hausverwaltung Nord",
-            betrag: 3200,
-            intervall: "MONAT",
-            unbefristet: true,
-            periodeVon: null,
-            periodeBis: null,
-            createdAt: now,
-        },
-        {
-            id: "seed-v-2",
-            bezeichnung: "Dental-Labor",
-            partner: "Labor Müller KG · abrechnung variabel laut Rechnung",
-            betrag: 0,
-            intervall: "MONAT",
-            unbefristet: true,
-            periodeVon: null,
-            periodeBis: null,
-            createdAt: now,
-        },
-        {
-            id: "seed-v-3",
-            bezeichnung: "Versicherung Haftpflicht",
-            partner: "Allianz",
-            betrag: 840,
-            intervall: "JAHR",
-            unbefristet: false,
-            periodeVon: "2024-01-01",
-            periodeBis: "2027-12-31",
-            createdAt: now,
-        },
-    ];
-}
-
-export function loadVertraege(): VertragItem[] {
-    if (typeof window === "undefined" || !window.localStorage) {
-        return seedData();
-    }
-    try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) {
-            const s = seedData();
-            localStorage.setItem(LS_KEY, JSON.stringify(s));
-            return s;
-        }
-        const p = JSON.parse(raw) as VertragItem[];
-        return Array.isArray(p) && p.length > 0 ? p : seedData();
-    } catch {
-        return seedData();
-    }
-}
-
-export function saveVertraege(rows: VertragItem[]): void {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    try {
-        localStorage.setItem(LS_KEY, JSON.stringify(rows));
-    } catch {
-        // ignore full storage
-    }
-}
 
 export function intervallKurz(i: VertragIntervall): string {
     switch (i) {

@@ -127,19 +127,33 @@ export function LoginPage() {
 
             <div className="login-form-wrap">
                 <form className="login-form" onSubmit={handleSubmit}>
-                    <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Anmelden</h2>
+                    <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                        <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }} tabIndex={-1}>
+                            Anmelden
+                        </h2>
+                        {import.meta.env.DEV ? (
+                            <span
+                                className="pill solid-amber"
+                                title="Nur in Entwicklungs-Builds sichtbar"
+                                style={{ fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase" }}
+                            >
+                                Dev-Build
+                            </span>
+                        ) : null}
+                    </div>
                     <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 28 }}>
-                        Die Berechtigung ergibt sich ausschließlich aus Ihrem Benutzerkonto — nicht aus dieser Maske.
+                        Die Rolle entsteht ausschließlich aus Ihrem Benutzerkonto nach erfolgreicher Anmeldung — nicht über
+                        Einstellungen auf dieser Seite.
                     </p>
                     {error && (
                         <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
                             {error}
                         </div>
                     )}
-                    <label htmlFor="email" style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", marginBottom: 6, display: "block" }}>E-Mail</label>
+                    <label htmlFor="email" className="form-label">E-Mail</label>
                     <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-                        <label htmlFor="passwort" style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", display: "block" }}>Passwort</label>
+                        <label htmlFor="passwort" className="form-label form-label--mb-0">Passwort</label>
                         <button
                             type="button"
                             aria-describedby="login-teaser-hint"
@@ -177,29 +191,18 @@ export function LoginPage() {
                             {t("login.caps_warning")}
                         </p>
                     ) : null}
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5, flexWrap: "wrap", gap: 8 }}>
+                    <div className="row" style={{ marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5, flexWrap: "wrap", gap: 8 }}>
                         <label className="row" style={{ gap: 8 }}>
                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-                            E-Mail auf diesem Gerät merken
+                            E-Mail auf diesem Gerät merken (nur lokal, für die nächste Anmeldung vorbefüllen)
                         </label>
-                        <span style={{ color: "var(--fg-4)" }} title="Für den Demonstrator nicht implementiert">Zusätzliche Anmeldung (2FA): nicht aktiv</span>
                     </div>
                     <button type="submit" className="login-submit" disabled={loading}>
                         {loading ? <span className="animate-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.5)", borderTopColor: "#fff", borderRadius: "50%" }} /> : null}
                         Anmelden
                     </button>
-                    <div className="login-alt">oder</div>
-                    <button
-                        type="button"
-                        className="btn btn-subtle"
-                        style={{ width: "100%", justifyContent: "center", padding: 11 }}
-                        aria-describedby="login-teaser-hint"
-                        onClick={() => setHelperMsg("Anmeldung mit HBA/eHC Karte ist für diese Version nicht implementiert — zunächst Passwort-Anmeldung verwenden.")}
-                    >
-                        Mit HBA-Karte anmelden <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>(demnächst)</span>
-                    </button>
                     <p id="login-teaser-hint" className="sr-only">
-                        Die mit „demnächst“ gekennzeichneten Aktionen sind Platzhalter ohne Produktfunktion.
+                        Zertifizierungs- und Infrastruktur-Claims erscheinen nur, wenn sie produktiv hinterlegt sind.
                     </p>
                     {helperMsg ? (
                         <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
@@ -210,8 +213,9 @@ export function LoginPage() {
                     </div>
                 </form>
                 {import.meta.env.DEV && (
-                    <p style={{ textAlign: "center", color: "var(--fg-4)", fontSize: 12, marginTop: 16 }}>
-                        Entwicklung: Zugangsdaten aus Seed-/Fixture-SQL oder lokaler Admin-Anlage — keine fest eingetragenen Demo-Passwörter.
+                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.45 }}>
+                        <strong>Dev-Build:</strong> Anmeldedaten stammen aus Ihrer lokalen Datenbank (Seed-/Fixture-SQL oder
+                        manuell angelegter Benutzer) — es gibt hier keine fest eingetragenen Demo-Passwörter.
                     </p>
                 )}
             </div>

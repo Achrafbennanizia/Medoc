@@ -34,6 +34,9 @@ venv/
 # OS
 Thumbs.db
 
+# Build outputs (root-level cargo target-dir, e.g. CARGO_TARGET_DIR=app/target)
+app/target/
+
 # Build outputs
 app/src-tauri/target/
 app/src-tauri/target-ci/

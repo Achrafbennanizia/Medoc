@@ -11,7 +11,9 @@ import { FilterIcon, NAV_ICONS, PlusIcon, SparkleIcon } from "@/lib/icons";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
+import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { useT } from "@/lib/i18n";
+import { loadClientSettings } from "@/lib/client-settings";
 
 function terminStatusLabel(status: string): string {
     const map: Record<string, string> = {
@@ -84,6 +86,32 @@ export function DashboardPage() {
         };
     }, [reloadToken, t, toast]);
 
+    /** Tagesabschluss-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
+    useEffect(() => {
+        const raw = (loadClientSettings().workflows?.tagesabschlussReminderTime ?? "18:00").trim();
+        const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+        if (!m) return;
+        const th = Number(m[1]);
+        const tmin = Number(m[2]);
+        if (!Number.isFinite(th) || !Number.isFinite(tmin) || th < 0 || th > 23 || tmin < 0 || tmin > 59) return;
+        const check = () => {
+            const now = new Date();
+            if (now.getHours() !== th || now.getMinutes() !== tmin) return;
+            const d = now.toISOString().slice(0, 10);
+            const k = `medoc-ta-reminder-${d}`;
+            try {
+                if (sessionStorage.getItem(k)) return;
+                sessionStorage.setItem(k, "1");
+            } catch {
+                return;
+            }
+            toast("Tagesabschluss: Zeit für den Abschluss heute?", "info");
+        };
+        check();
+        const id = window.setInterval(check, 30_000);
+        return () => window.clearInterval(id);
+    }, [toast]);
+
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const patientNameById = useMemo(() => new Map(patienten.map((p) => [p.id, p.name])), [patienten]);
 
@@ -111,7 +139,7 @@ export function DashboardPage() {
                         {today} · {stats.termine_heute ?? 0} {t("dashboard.termine_heute_sub")}
                     </div>
                 </div>
-                <div className="row" style={{ gap: 8 }}>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                     <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistik")}><FilterIcon />{t("dashboard.filter_stats")}</button>
                     <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />{t("dashboard.new_action")}</button>
                 </div>
@@ -222,12 +250,12 @@ export function DashboardPage() {
                             ) : (
                                 heuteTermine.map((r) => {
                                     const name = patientNameById.get(r.patient_id) ?? "Patient";
-                                    const tone = r.art === "NOTFALL" ? "yellow" : r.status === "BESTAETIGT" ? "blue" : "green";
+                                    const tone = terminIstNotfallMarkiert(r) ? "yellow" : r.status === "BESTAETIGT" ? "blue" : "green";
                                     return (
                                         <div key={r.id} className="dashboard-timeline-row">
                                             <div>
                                                 <div className="schedule-day-time-primary">{r.uhrzeit.slice(0, 5)}</div>
-                                                <div className="schedule-day-time-meta">{r.art.replace(/_/g, " ")}</div>
+                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? "Notfall" : r.art.replace(/_/g, " ")}</div>
                                             </div>
                                             <div className="row" style={{ gap: 12 }}>
                                                 <div

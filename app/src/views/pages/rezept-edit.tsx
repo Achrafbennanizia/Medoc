@@ -117,7 +117,7 @@ export function RezeptEditPage() {
                     <ChevronLeftIcon />Zurück zur Akte
                 </Button>
                 <div>
-                    <div className="page-sub" style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <div className="page-sub page-sub-caps">
                         {patient.name}
                     </div>
                     <h1 className="page-title" style={{ margin: 0 }}>Rezept bearbeiten</h1>

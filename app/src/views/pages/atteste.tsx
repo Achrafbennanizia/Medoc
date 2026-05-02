@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Input, Textarea, Select } from "../components/ui/input";
+import { PatientComboField } from "../components/patient-combo-field";
 import { Dialog, ConfirmDialog } from "../components/ui/dialog";
+import { Input, Select, Textarea } from "../components/ui/input";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -14,8 +15,10 @@ import {
     type Attest,
 } from "../../controllers/attest.controller";
 import type { Patient } from "../../models/types";
-import { errorMessage, escapeHtml, formatDate } from "../../lib/utils";
+import { errorMessage, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
+import { bundleAttestExport, suggestAttestExportBasename, type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 
 /**
  * Attestverwaltung (FA-ATT-01..04).
@@ -32,6 +35,11 @@ export function AttestePage() {
     const [listError, setListError] = useState<string | null>(null);
     const [showCreate, setShowCreate] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [htmlExport, setHtmlExport] = useState<{
+        bundle: ClinicalDocumentExportBundle;
+        suggestedBasename: string;
+        exportPreviewTitle: string;
+    } | null>(null);
     const today = new Date().toISOString().slice(0, 10);
     const [form, setForm] = useState({
         typ: "Arbeitsunfähigkeitsbescheinigung",
@@ -115,31 +123,13 @@ export function AttestePage() {
         }
     }
 
-    function handlePrint(a: Attest) {
-        const patient = patients.find((p) => p.id === a.patient_id);
-        const w = window.open("", "_blank", "width=600,height=800");
-        if (!w) return;
-        const title = escapeHtml(`Attest ${a.id}`);
-        const typ = escapeHtml(a.typ);
-        const patientLine = escapeHtml(patient?.name ?? a.patient_id);
-        const geb = patient ? escapeHtml(formatDate(patient.geburtsdatum)) : "";
-        const span = `${escapeHtml(formatDate(a.gueltig_von))} – ${escapeHtml(formatDate(a.gueltig_bis))}`;
-        const aus = escapeHtml(formatDate(a.ausgestellt_am));
-        const bodyHtml = escapeHtml(a.inhalt);
-        w.document.write(`<!doctype html><html><head><title>${title}</title>
-            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
-            h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
-            <h1>${typ}</h1>
-            <div class="row"><span class="label">Patient:</span>${patientLine}</div>
-            <div class="row"><span class="label">Geburtsdatum:</span>${geb}</div>
-            <div class="row"><span class="label">Gültig:</span>${span}</div>
-            <div class="row"><span class="label">Ausgestellt:</span>${aus}</div>
-            <hr/>
-            <div class="body">${bodyHtml}</div>
-            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
-            <script>window.print();</script></body></html>`);
-        w.document.close();
+    function openAttestExport(a: Attest) {
+        const pat = patients.find((p) => p.id === a.patient_id) ?? null;
+        setHtmlExport({
+            bundle: bundleAttestExport(a, pat),
+            suggestedBasename: suggestAttestExportBasename(a),
+            exportPreviewTitle: `Attest — ${pat?.name ?? a.patient_id}`,
+        });
     }
 
     return (
@@ -156,17 +146,14 @@ export function AttestePage() {
                 ) : patientsError ? (
                     <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
                 ) : (
-                    <Select
+                    <PatientComboField
                         id="att-patient"
-                        value={selectedPatient}
-                        onChange={(e) => setSelectedPatient(e.target.value)}
+                        label="Patient"
+                        patienten={patients}
+                        patientId={selectedPatient}
+                        onPatientIdChange={setSelectedPatient}
                         disabled={patients.length === 0}
-                        options={[
-                            ...(patients.length === 0
-                                ? [{ value: "", label: "Keine Patienten angelegt" }]
-                                : [{ value: "", label: "– Patient wählen –" }]),
-                            ...patients.map((p) => ({ value: p.id, label: p.name })),
-                        ]}
+                        placeholder={patients.length === 0 ? "Keine Patienten angelegt" : "Patient suchen…"}
                     />
                 )}
             </Card>
@@ -195,7 +182,7 @@ export function AttestePage() {
                                     <td>{formatDate(a.gueltig_bis)}</td>
                                     <td>{formatDate(a.ausgestellt_am)}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                        <Button size="sm" onClick={() => handlePrint(a)}>Drucken</Button>
+                                        <Button size="sm" onClick={() => openAttestExport(a)}>Exportieren…</Button>
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(a.id)}>Löschen</Button>
                                     </td>
                                 </tr>
@@ -243,6 +230,16 @@ export function AttestePage() {
                 confirmLabel="Löschen"
                 danger
             />
+            {htmlExport ? (
+                <HtmlDocumentExportPickerDialog
+                    open
+                    onClose={() => setHtmlExport(null)}
+                    templateKind="attest"
+                    exportPreviewTitle={htmlExport.exportPreviewTitle}
+                    suggestedBasename={htmlExport.suggestedBasename}
+                    bundle={htmlExport.bundle}
+                />
+            ) : null}
         </div>
     );
 }

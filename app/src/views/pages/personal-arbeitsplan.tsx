@@ -718,7 +718,7 @@ export function PersonalArbeitsplanPage() {
                             ))}
                         </div>
                         <div>
-                            <span style={{ fontSize: 10, color: "var(--fg-4)", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 2 }}>
+                            <span className="kpi-label-mini kpi-label-mini--strong kpi-label-mini--block">
                                 Personen
                             </span>
                             <div className="arbeitsplan-chips arbeitsplan-chips--compact">
@@ -1176,9 +1176,26 @@ function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filt
                             </div>
                         ) : null}
                         {showSollOnly ? (
-                            <div className="cal-evt grey" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onSelectDay(d); }}>
+                            <button
+                                type="button"
+                                className="cal-evt grey"
+                                style={{
+                                    cursor: "pointer",
+                                    display: "block",
+                                    width: "100%",
+                                    border: "none",
+                                    background: "none",
+                                    font: "inherit",
+                                    textAlign: "inherit",
+                                    padding: 0,
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectDay(d);
+                                }}
+                            >
                                 {label} {`${Math.round((sumMin / 60) * 10) / 10}`.replace(".", ",")} h
-                            </div>
+                            </button>
                         ) : null}
                         {empty ? <div style={{ fontSize: 11, color: "var(--fg-4)", padding: "2px 4px" }}>—</div> : null}
                     </div>

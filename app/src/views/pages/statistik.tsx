@@ -554,7 +554,13 @@ export function StatistikPage() {
                         Zeitraum: <b>{periodLabel}</b>.
                     </p>
                 </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            </header>
+
+            <div className="page-toolbar" style={{ alignItems: "center" }}>
+                <div
+                    className="page-toolbar__filters row"
+                    style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end", alignItems: "center" }}
+                >
                     <div className="seg" role="group" aria-label="Zeitraum">
                         <button type="button" aria-pressed={period === "6m"} onClick={() => setPeriod("6m")}>6 Monate</button>
                         <button type="button" aria-pressed={period === "12m"} onClick={() => setPeriod("12m")}>12 Monate</button>
@@ -566,7 +572,7 @@ export function StatistikPage() {
                         <ExportIcon size={14} /> CSV-Export
                     </Button>
                 </div>
-            </header>
+            </div>
 
             <div className="statistik-workspace">
                 <nav

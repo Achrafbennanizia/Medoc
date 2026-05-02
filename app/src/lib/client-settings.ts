@@ -1,6 +1,5 @@
 /**
- * Client-only Einstellungen (localStorage), hydration für Darstellung & Benachrichtigungs-Flags.
- * Server-Stammdaten bleiben über Tauri/KV wo vorhanden.
+ * Client-only Einstellungen (localStorage), hydration für Darstellung & Arbeitsabläufe.
  */
 
 export type DensityId = "compact" | "cozy" | "spacious";
@@ -10,34 +9,35 @@ export type TermineKalenderAnsicht = "tag" | "woche" | "monat";
 
 export type ClientSettingsV1 = {
     version: 1;
-    notifications?: {
-        push: boolean;
-        mailDigest: boolean;
-        criticalAlerts: boolean;
-        smsReminders: boolean;
-    };
-    security?: {
-        remindTwoFactor: boolean;
-        remindAutoLock: boolean;
-    };
-    integrations?: {
-        datevMonthlyExport: boolean;
-        doccheckSso: boolean;
-        tkKim: boolean;
-        laborDentalUnion: boolean;
-    };
     appearance?: {
         darkSidebar: boolean;
         density: DensityId;
+        /** Topbar-Benutzer-Avatar (Kreise mit Initialen). */
+        showHeaderAvatar?: boolean;
+        /** Sichtbare Kbd-Hinweise (z. B. ⌘K in der Leiste). */
+        showKeyboardHints?: boolean;
     };
-    /** Kalender & Termin-Workflow */
+    /** Kalender, Termine, Tagesabschluss */
     workflows?: {
         /** Öffnen von `/termine` mit dieser Ansicht */
         termineDefaultView?: TermineKalenderAnsicht;
+        /** Vorauswahl Dauer in „Neuer Termin“ (Minuten). */
+        defaultTerminDauerMin?: number;
+        /** Lokale Uhrzeit für einmalige Tages-Erinnerung (HH:mm, z. B. 18:00). */
+        tagesabschlussReminderTime?: string;
+    };
+    /** Suche */
+    search?: {
+        /** Bei false: nur Patientenname (Backend); bei true: Name oder Versicherungsnummer. */
+        patientIncludeVersicherungsnummer?: boolean;
+    };
+    /** Clientseitige Sitzung */
+    security?: {
+        /** Minuten ohne Eingabe bis Abmeldung. 0 = aus. */
+        idleLogoutMinutes?: number;
     };
     /** Akte → Anlagen extern öffnen: leer = empfohlene erste App; "__SYSTEM__" = nur Betriebssystem-Standard. */
     akte?: {
-        /** Pfad zur .app / .exe oder "__SYSTEM__" */
         openImagesWithApp?: string;
     };
 };
@@ -46,28 +46,22 @@ const KEY = "medoc-client-settings-v1";
 
 export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     version: 1,
-    notifications: {
-        push: true,
-        mailDigest: true,
-        criticalAlerts: true,
-        smsReminders: false,
-    },
-    security: {
-        remindTwoFactor: false,
-        remindAutoLock: true,
-    },
-    integrations: {
-        datevMonthlyExport: false,
-        doccheckSso: false,
-        tkKim: true,
-        laborDentalUnion: false,
-    },
     appearance: {
         darkSidebar: false,
         density: "cozy",
+        showHeaderAvatar: true,
+        showKeyboardHints: true,
     },
     workflows: {
         termineDefaultView: "monat",
+        defaultTerminDauerMin: 30,
+        tagesabschlussReminderTime: "18:00",
+    },
+    search: {
+        patientIncludeVersicherungsnummer: true,
+    },
+    security: {
+        idleLogoutMinutes: 0,
     },
     akte: {
         openImagesWithApp: "",
@@ -77,11 +71,10 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
 function mergeClient(a: ClientSettingsV1, b: Partial<ClientSettingsV1>): ClientSettingsV1 {
     return {
         version: 1,
-        notifications: { ...a.notifications!, ...b.notifications },
-        security: { ...a.security!, ...b.security },
-        integrations: { ...a.integrations!, ...b.integrations },
         appearance: { ...a.appearance!, ...b.appearance },
         workflows: { ...a.workflows!, ...b.workflows },
+        search: { ...a.search!, ...b.search },
+        security: { ...a.security!, ...b.security },
         akte: { ...a.akte!, ...b.akte },
     };
 }
@@ -91,13 +84,18 @@ export function mergeClientSettingsPatch(base: ClientSettingsV1, patch: Partial<
     return mergeClient(base, patch);
 }
 
+/** Migriert alte Speicherstände (notifications, integrations, …) weg — nur noch bekannte Keys. */
+function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
+    return mergeClient(DEFAULT_CLIENT_SETTINGS, j);
+}
+
 export function loadClientSettings(): ClientSettingsV1 {
     try {
         const raw = localStorage.getItem(KEY);
         if (!raw) return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
         const j = JSON.parse(raw) as Partial<ClientSettingsV1>;
         if (j.version !== 1) return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
-        return mergeClient(DEFAULT_CLIENT_SETTINGS, j);
+        return normalizeFromStorage(j);
     } catch {
         return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
     }
@@ -107,13 +105,17 @@ export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
 }
 
-/** Wendet Sidebar-Ton & globale Schrift-/Dichte-Stufe auf `<html>` an (vor Render der Shell konsistent). */
+/** Wendet Sidebar-Ton, Dichte, Avatar- & Kbd-Hinweise auf `<html>` an (vor Render der Shell konsistent). */
 export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     const dark = s.appearance?.darkSidebar ?? false;
     let density = s.appearance?.density ?? "cozy";
     if (density !== "compact" && density !== "cozy" && density !== "spacious") density = "cozy";
     document.documentElement.dataset.sidebarTone = dark ? "dark" : "light";
     document.documentElement.dataset.density = density;
+    const av = s.appearance?.showHeaderAvatar !== false;
+    document.documentElement.dataset.headerAvatar = av ? "true" : "false";
+    const kbd = s.appearance?.showKeyboardHints !== false;
+    document.documentElement.dataset.kbdHints = kbd ? "true" : "false";
 }
 
 export function hydrateAppearanceFromStorage(): void {

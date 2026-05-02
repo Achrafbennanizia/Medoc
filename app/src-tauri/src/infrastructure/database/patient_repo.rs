@@ -18,14 +18,17 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Patient>, 
     Ok(row)
 }
 
-pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Patient>, AppError> {
+pub async fn search(pool: &SqlitePool, query: &str, include_versicherungsnummer: bool) -> Result<Vec<Patient>, AppError> {
     let pattern = format!("%{}%", query);
-    let rows = sqlx::query_as::<_, Patient>(
-        "SELECT * FROM patient WHERE name LIKE ?1 OR versicherungsnummer LIKE ?1 ORDER BY name",
-    )
-    .bind(&pattern)
-    .fetch_all(pool)
-    .await?;
+    let sql = if include_versicherungsnummer {
+        "SELECT * FROM patient WHERE name LIKE ?1 OR versicherungsnummer LIKE ?1 ORDER BY name"
+    } else {
+        "SELECT * FROM patient WHERE name LIKE ?1 ORDER BY name"
+    };
+    let rows = sqlx::query_as::<_, Patient>(sql)
+        .bind(&pattern)
+        .fetch_all(pool)
+        .await?;
     Ok(rows)
 }
 

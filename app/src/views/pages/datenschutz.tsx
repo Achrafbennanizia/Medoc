@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { PatientComboField } from "../components/patient-combo-field";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { listPatienten } from "../../controllers/patient.controller";
@@ -35,6 +35,7 @@ export function DatenschutzPage() {
     const [patientsLoading, setPatientsLoading] = useState(true);
     const [patientsError, setPatientsError] = useState<string | null>(null);
     const [tablePage, setTablePage] = useState(0);
+    const [patientPickId, setPatientPickId] = useState("");
     const toast = useToastStore((s) => s.add);
 
     const loadPatients = useCallback(async () => {
@@ -114,13 +115,19 @@ export function DatenschutzPage() {
 
             <Card className="card-pad">
                 <CardHeader title={t("page.datenschutz.card_search")} />
-                <Input
-                    id="dsgvo-filter"
-                    label={t("page.datenschutz.filter_label")}
-                    placeholder={t("page.datenschutz.filter_ph")}
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                />
+                {patientsLoading ? (
+                    <p className="text-body text-on-surface-variant" role="status">{t("page.datenschutz.loading")}</p>
+                ) : patientsError ? null : (
+                    <PatientComboField
+                        id="dsgvo-patient-filter"
+                        label={t("page.datenschutz.filter_label")}
+                        patienten={patients}
+                        patientId={patientPickId}
+                        onPatientIdChange={setPatientPickId}
+                        onQueryChange={setFilter}
+                        placeholder={t("page.datenschutz.filter_ph")}
+                    />
+                )}
             </Card>
 
             {patientsLoading ? (

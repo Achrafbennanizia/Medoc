@@ -1,6 +1,14 @@
 import { tauriInvoke } from "../services/tauri.service";
 import type { AkteExportSectionsState } from "../lib/akte-export";
 import type { AkteAnlageRowDto } from "../lib/akte-anlagen";
+import {
+    CreateBehandlungSchema,
+    CreateUntersuchungSchema,
+    CreateZahnbefundSchema,
+    UpdateBehandlungSchema,
+    UpdateUntersuchungSchema,
+    parseOrThrow,
+} from "../lib/schemas";
 import type {
     Patientenakte,
     Zahnbefund,
@@ -21,10 +29,11 @@ export async function createZahnbefund(data: {
     akte_id: string;
     zahn_nummer: number;
     befund: string;
-    diagnose?: string;
-    notizen?: string;
+    diagnose?: string | null;
+    notizen?: string | null;
 }): Promise<Zahnbefund> {
-    return tauriInvoke<Zahnbefund>("update_zahnbefund", { data });
+    const safe = parseOrThrow(CreateZahnbefundSchema, data);
+    return tauriInvoke<Zahnbefund>("update_zahnbefund", { data: safe });
 }
 
 export async function getAnamnesebogen(patientId: string): Promise<Anamnesebogen | null> {
@@ -69,7 +78,8 @@ export async function createBehandlung(data: {
     termin_erforderlich?: boolean | null;
     behandlung_datum?: string | null;
 }): Promise<Behandlung> {
-    return tauriInvoke<Behandlung>("create_behandlung", { data });
+    const safe = parseOrThrow(CreateBehandlungSchema, data);
+    return tauriInvoke<Behandlung>("create_behandlung", { data: safe });
 }
 
 export async function createUntersuchung(data: {
@@ -79,7 +89,8 @@ export async function createUntersuchung(data: {
     diagnose?: string | null;
     untersuchungsnummer?: string | null;
 }): Promise<Untersuchung> {
-    return tauriInvoke<Untersuchung>("create_untersuchung", { data });
+    const safe = parseOrThrow(CreateUntersuchungSchema, data);
+    return tauriInvoke<Untersuchung>("create_untersuchung", { data: safe });
 }
 
 export async function updateUntersuchung(data: {
@@ -88,7 +99,8 @@ export async function updateUntersuchung(data: {
     ergebnisse?: string | null;
     diagnose?: string | null;
 }): Promise<Untersuchung> {
-    return tauriInvoke<Untersuchung>("update_untersuchung", { data });
+    const safe = parseOrThrow(UpdateUntersuchungSchema, data);
+    return tauriInvoke<Untersuchung>("update_untersuchung", { data: safe });
 }
 
 export async function deleteUntersuchung(id: string): Promise<void> {
@@ -111,7 +123,8 @@ export async function updateBehandlung(data: {
     termin_erforderlich?: boolean | null;
     behandlung_datum?: string | null;
 }): Promise<Behandlung> {
-    return tauriInvoke<Behandlung>("update_behandlung", { data });
+    const safe = parseOrThrow(UpdateBehandlungSchema, data);
+    return tauriInvoke<Behandlung>("update_behandlung", { data: safe });
 }
 
 export async function deleteBehandlung(id: string): Promise<void> {
@@ -127,6 +140,7 @@ export async function createAkteAnlage(data: {
     display_name: string;
     mime_type: string;
     bytes_base64: string;
+    document_kind?: string;
 }): Promise<AkteAnlageRowDto> {
     return tauriInvoke<AkteAnlageRowDto>("create_akte_anlage", { data });
 }
@@ -137,6 +151,13 @@ export async function deleteAkteAnlage(id: string): Promise<void> {
 
 export async function renameAkteAnlage(id: string, displayName: string): Promise<void> {
     return tauriInvoke<void>("rename_akte_anlage", { id, display_name: displayName });
+}
+
+export async function setAkteAnlageDocumentKind(id: string, documentKind: string): Promise<void> {
+    return tauriInvoke<void>("set_akte_anlage_document_kind", {
+        id,
+        document_kind: documentKind,
+    });
 }
 
 export async function openAkteAnlageExternally(id: string, withApp?: string | null): Promise<void> {

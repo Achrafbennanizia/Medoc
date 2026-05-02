@@ -19,6 +19,14 @@ import { listDokumentVorlagen } from "../../controllers/praxis.controller";
 import type { Patient, DokumentVorlage } from "../../models/types";
 import { errorMessage, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
+import {
+    bundleRezeptExport,
+    bundleRezepteComboExport,
+    suggestRezeptComboExportBasename,
+    suggestRezeptExportBasename,
+    type ClinicalDocumentExportBundle,
+} from "@/lib/document-print-html";
 import { PackageIcon, SearchIcon } from "@/lib/icons";
 import {
     MEDIKAMENT_SUGGESTIONS,
@@ -31,7 +39,7 @@ import {
 
 /**
  * Rezeptverwaltung (FA-REZ-01..05).
- * Pro Patient: Liste, Erstellung, Löschung. Druck/Print via Browser-Druckdialog.
+ * Export wie unter „Einstellungen › Export & Druck“ (Format, Pfad, strukturierte Vorlage).
  */
 export function RezeptePage() {
     const session = useAuthStore((s) => s.session);
@@ -54,6 +62,11 @@ export function RezeptePage() {
     const [medFilter, setMedFilter] = useState("");
     const [vorlagen, setVorlagen] = useState<DokumentVorlage[]>([]);
     const [vorlageId, setVorlageId] = useState("");
+    const [htmlExport, setHtmlExport] = useState<{
+        bundle: ClinicalDocumentExportBundle;
+        suggestedBasename: string;
+        exportPreviewTitle: string;
+    } | null>(null);
 
     const loadPatients = useCallback(async () => {
         setPatientsLoading(true);
@@ -321,58 +334,26 @@ export function RezeptePage() {
         }
     }
 
-    function escapeHtml(value: string): string {
-        return value
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-    }
-
-    function renderRezeptBlock(r: Rezept): string {
-        return `<section class="rx">
-            <div class="row"><span class="label">Medikament:</span><strong>${escapeHtml(r.medikament)}</strong></div>
-            ${r.wirkstoff ? `<div class="row"><span class="label">Wirkstoff:</span>${escapeHtml(r.wirkstoff)}</div>` : ""}
-            <div class="row"><span class="label">Dosierung:</span>${escapeHtml(r.dosierung)}</div>
-            <div class="row"><span class="label">Dauer:</span>${escapeHtml(r.dauer)}</div>
-            ${r.hinweise ? `<div class="row"><span class="label">Hinweise:</span>${escapeHtml(r.hinweise)}</div>` : ""}
-        </section>`;
-    }
-
-    function openPrintWindow(title: string, patient: Patient | undefined, datum: string, body: string) {
-        const w = window.open("", "_blank", "width=620,height=820");
-        if (!w) return;
-        w.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title>
-            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
-            h1{font-size:18pt;margin-bottom:0.4cm}h2{font-size:13pt;margin:0.4cm 0 0.2cm;color:#333}
-            .row{margin:0.25cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .rx{border-top:1px solid #ddd;padding-top:0.4cm;margin-top:0.4cm}
-            .rx:first-of-type{border-top:none;margin-top:0;padding-top:0}</style>
-            </head><body>
-            <h1>${escapeHtml(title)}</h1>
-            <div class="row"><span class="label">Patient:</span>${escapeHtml(patient?.name ?? "")}</div>
-            <div class="row"><span class="label">Geburtsdatum:</span>${patient ? escapeHtml(formatDate(patient.geburtsdatum)) : ""}</div>
-            <div class="row"><span class="label">Datum:</span>${escapeHtml(datum)}</div>
-            <hr/>
-            ${body}
-            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
-            <script>window.print();</script></body></html>`);
-        w.document.close();
+    function openRezeptExport(items: Rezept[]) {
+        if (items.length === 0) return;
+        const first = items[0]!;
+        const patient = patients.find((p) => p.id === first.patient_id) ?? null;
+        const bundle =
+            items.length === 1 ? bundleRezeptExport(first, patient) : bundleRezepteComboExport(items, patient);
+        const suggestedBasename =
+            items.length === 1 ? suggestRezeptExportBasename(first) : suggestRezeptComboExportBasename(items);
+        const pname = patient?.name ?? "";
+        const exportPreviewTitle =
+            items.length === 1 ? `Rezept — ${pname}` : `Kombinationsrezept (${items.length}) — ${pname}`;
+        setHtmlExport({ bundle, suggestedBasename, exportPreviewTitle });
     }
 
     function handlePrint(r: Rezept) {
-        const patient = patients.find((p) => p.id === r.patient_id);
-        openPrintWindow("Rezept", patient, formatDate(r.ausgestellt_am), renderRezeptBlock(r));
+        openRezeptExport([r]);
     }
 
     function printCombo(items: Rezept[]) {
-        if (items.length === 0) return;
-        const first = items[0]!;
-        const patient = patients.find((p) => p.id === first.patient_id);
-        const body = items.map(renderRezeptBlock).join("");
-        const title = items.length === 1 ? "Rezept" : `Kombinationsrezept (${items.length})`;
-        openPrintWindow(title, patient, formatDate(first.ausgestellt_am), body);
+        openRezeptExport(items);
     }
 
     return (
@@ -457,7 +438,7 @@ export function RezeptePage() {
                                     <td>{formatDate(r.ausgestellt_am)}</td>
                                     <td>{r.status}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                        <Button size="sm" onClick={() => handlePrint(r)}>Drucken</Button>
+                                        <Button size="sm" onClick={() => handlePrint(r)}>Exportieren…</Button>
                                         <Button size="sm" variant="ghost" onClick={() => openERezeptDialog(r)}>e-Rezept</Button>
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>Löschen</Button>
                                     </td>
@@ -638,6 +619,16 @@ export function RezeptePage() {
                     <Input id="er-qty" label="Menge" type="number" value={eRez.quantity} onChange={(e) => setERez({ ...eRez, quantity: e.target.value })} />
                 </div>
             </Dialog>
+            {htmlExport ? (
+                <HtmlDocumentExportPickerDialog
+                    open
+                    onClose={() => setHtmlExport(null)}
+                    templateKind="rezept"
+                    exportPreviewTitle={htmlExport.exportPreviewTitle}
+                    suggestedBasename={htmlExport.suggestedBasename}
+                    bundle={htmlExport.bundle}
+                />
+            ) : null}
         </div>
     );
 }

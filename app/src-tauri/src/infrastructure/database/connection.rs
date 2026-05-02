@@ -98,6 +98,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
             mime_type TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
             rel_storage_path TEXT NOT NULL,
+            document_kind TEXT NOT NULL DEFAULT 'SONSTIGES',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
     )
@@ -642,6 +643,27 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         }
     }
 
+    for (sql, col) in [(
+        "ALTER TABLE akte_anlage ADD COLUMN document_kind TEXT NOT NULL DEFAULT 'SONSTIGES'",
+        "document_kind",
+    )] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
+
     // Seed default admin user if no personal exists
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM personal")
         .fetch_one(pool)
@@ -668,6 +690,113 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         .execute(pool)
         .await?;
     }
+
+    // Patient-scoped clinical / workflow state (replaces browser localStorage; DSGVO-erased with patient).
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS akte_validation (
+            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            section_or_item TEXT NOT NULL,
+            validated_at TEXT NOT NULL,
+            validated_by TEXT,
+            PRIMARY KEY (patient_id, section_or_item)
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_akte_validation_patient ON akte_validation(patient_id)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS akte_next_termin_hint (
+            patient_id TEXT PRIMARY KEY REFERENCES patient(id) ON DELETE CASCADE,
+            hint_json TEXT NOT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS dokument_template_user (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            name TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+            created_by TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_dokument_template_kind ON dokument_template_user(kind)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS vertrag (
+            id TEXT PRIMARY KEY,
+            bezeichnung TEXT NOT NULL,
+            partner TEXT NOT NULL,
+            betrag REAL NOT NULL,
+            intervall TEXT NOT NULL CHECK (intervall IN ('TAG','WOCHE','MONAT','JAHR')),
+            unbefristet INTEGER NOT NULL CHECK (unbefristet IN (0,1)),
+            periode_von TEXT,
+            periode_bis TEXT,
+            created_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS rechnung_document (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            document_number TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            total_cents INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_rechnung_document_patient ON rechnung_document(patient_id)",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_rechnung_document_created ON rechnung_document(created_at DESC)",
+    )
+    .execute(pool)
+    .await?;
+
+    // GoBD-oriented append-only trail for issued invoice documents (in addition to audit_log).
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS rechnung_document_audit (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL REFERENCES rechnung_document(id) ON DELETE CASCADE,
+            event TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            payload_excerpt TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_rechnung_doc_audit_doc ON rechnung_document_audit(document_id)",
+    )
+    .execute(pool)
+    .await?;
 
     seed_demo_data(pool).await?;
 

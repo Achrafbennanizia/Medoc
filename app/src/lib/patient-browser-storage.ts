@@ -1,16 +1,16 @@
 /**
- * Patient-scoped browser storage cleared on Art. 17 erasure and full patient delete.
- * Backend SQLite is authoritative; these keys are UX caches only.
+ * Patient-scoped **legacy** browser keys cleared on Art. 17 erasure and full patient delete.
+ * Authoritative data lives in SQLite (`akte_validation`, `akte_next_termin_hint`, `rechnung_document`, …).
  */
 
-import { clearValidationStorageForPatient } from "./akte-validation";
-import { clearPlanNextTerminStorageForPatient } from "./plan-next-termin";
-import { removeInvoiceHistoryForPatient } from "./invoice-history";
+import { stripLegacyAkteValidationLocalStorage } from "@/controllers/validation.controller";
+import { stripLegacyPlanNextTerminLocalStorage } from "@/controllers/plan-next-termin.controller";
+import { stripLegacyInvoiceHistoryLocalStorage } from "@/controllers/rechnung-document.controller";
 
 export function clearPatientScopedBrowserStorage(patientId: string): void {
     const id = patientId.trim();
     if (!id) return;
-    clearValidationStorageForPatient(id);
-    clearPlanNextTerminStorageForPatient(id);
-    removeInvoiceHistoryForPatient(id);
+    stripLegacyAkteValidationLocalStorage(id);
+    stripLegacyPlanNextTerminLocalStorage(id);
+    stripLegacyInvoiceHistoryLocalStorage();
 }

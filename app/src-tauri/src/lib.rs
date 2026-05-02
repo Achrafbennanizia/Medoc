@@ -48,6 +48,26 @@ pub fn run() {
 
             match tauri::async_runtime::block_on(database::connection::init_db(&app_handle)) {
                 Ok(pool) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        if std::env::args().any(|a| a == "--dev-seed-vertraege") {
+                            if let Err(e) = tauri::async_runtime::block_on(
+                                database::vertrag_repo::dev_seed_demo(&pool),
+                            ) {
+                                tracing::warn!(
+                                    target: "medoc::system",
+                                    event = "DEV_VERTRAG_SEED_FAILED",
+                                    error = %e
+                                );
+                            } else {
+                                tracing::info!(
+                                    target: "medoc::system",
+                                    event = "DEV_VERTRAG_SEED_OK",
+                                    hint = "flag --dev-seed-vertraege (debug builds only)"
+                                );
+                            }
+                        }
+                    }
                     app_handle.manage(pool.clone());
                     tracing::info!(target: "medoc::system", event = "DB_READY");
 
@@ -92,6 +112,8 @@ pub fn run() {
             commands::auth_commands::get_session,
             commands::auth_commands::touch_session,
             commands::export_commands::save_export_file,
+            commands::export_commands::pick_export_directory,
+            commands::export_commands::save_export_bytes_to_folder,
             // Personal
             commands::personal_commands::list_personal,
             commands::personal_commands::list_aerzte,
@@ -156,8 +178,15 @@ pub fn run() {
             commands::akte_anlage_commands::create_akte_anlage,
             commands::akte_anlage_commands::delete_akte_anlage,
             commands::akte_anlage_commands::rename_akte_anlage,
+            commands::akte_anlage_commands::set_akte_anlage_document_kind,
             commands::akte_anlage_commands::open_akte_anlage_externally,
             commands::akte_anlage_commands::duplicate_akte_anlage,
+            commands::akte_validation_commands::list_akte_validation,
+            commands::akte_validation_commands::set_akte_section_validated,
+            commands::akte_validation_commands::set_akte_item_validated,
+            commands::akte_validation_commands::clear_akte_validation,
+            commands::akte_next_termin_commands::get_akte_next_termin_hint,
+            commands::akte_next_termin_commands::set_akte_next_termin_hint,
             // Zahlungen
             commands::zahlung_commands::list_zahlungen,
             commands::zahlung_commands::list_zahlungen_for_patient,
@@ -200,6 +229,7 @@ pub fn run() {
             commands::ops_commands::dsgvo_erase_patient,
             commands::ops_commands::import_patients_csv,
             commands::ops_commands::pick_patients_csv_file,
+            commands::ops_commands::pick_backup_file,
             commands::ops_commands::enforce_log_retention,
             // System: license / updates / perf
             commands::system_commands::verify_license,
@@ -227,6 +257,11 @@ pub fn run() {
             // Invoice
             commands::invoice_commands::render_invoice_pdf,
             commands::invoice_sequence_commands::allocate_invoice_document_number,
+            commands::rechnung_document_commands::list_rechnung_documents,
+            commands::rechnung_document_commands::append_rechnung_document,
+            commands::vertrag_commands::list_vertraege,
+            commands::vertrag_commands::upsert_vertrag,
+            commands::vertrag_commands::delete_vertrag,
             // Integrations & notifications
             commands::integration_commands::list_upcoming_appointments,
             commands::integration_commands::validate_eprescription,
@@ -254,6 +289,12 @@ pub fn run() {
             commands::app_kv_commands::get_app_kv,
             commands::app_kv_commands::set_app_kv,
             commands::app_kv_commands::delete_app_kv,
+            commands::dokument_template_commands::list_dokument_templates_for_kind,
+            commands::dokument_template_commands::create_dokument_template,
+            commands::dokument_template_commands::update_dokument_template,
+            commands::dokument_template_commands::delete_dokument_template,
+            commands::document_pdf_commands::preview_template_pdf,
+            commands::document_pdf_commands::preview_document_pdf,
             // Bilanz-Snapshots (FA-FIN-09/10)
             commands::bilanz_snapshot_commands::list_bilanz_snapshots,
             commands::bilanz_snapshot_commands::get_bilanz_snapshot,

@@ -380,7 +380,7 @@ export function FinanzenPage() {
                             Zahlungen · {bestellungen.length} Bestellungen
                         </div>
                     </div>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                         {canReadFinanzen ? (
                             <Button type="button" variant="secondary" onClick={exportCsv}>
                                 <ExportIcon size={14} /> Exportieren

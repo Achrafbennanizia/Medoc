@@ -35,8 +35,24 @@ pub enum TerminStatus {
     Geplant,
     Bestaetigt,
     Durchgefuehrt,
+    /// Matches SQLite `termin.status` CHECK (`NICHT_ERSCHIENEN`) — not serde’s default `NICHTERSCHIENEN`.
+    #[serde(rename = "NICHT_ERSCHIENEN")]
+    #[sqlx(rename = "NICHT_ERSCHIENEN")]
     NichtErschienen,
     Abgesagt,
+}
+
+#[cfg(test)]
+mod termin_status_serde_tests {
+    use super::TerminStatus;
+
+    #[test]
+    fn nicht_erschienen_serializes_like_sqlite_check() {
+        assert_eq!(
+            serde_json::to_string(&TerminStatus::NichtErschienen).unwrap(),
+            "\"NICHT_ERSCHIENEN\""
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
@@ -53,6 +69,9 @@ pub enum Geschlecht {
 #[serde(rename_all = "UPPERCASE")]
 pub enum AktenStatus {
     Entwurf,
+    /// Matches SQLite `patientenakte.status` CHECK (`IN_BEARBEITUNG`).
+    #[serde(rename = "IN_BEARBEITUNG")]
+    #[sqlx(rename = "IN_BEARBEITUNG")]
     InBearbeitung,
     Validiert,
     Readonly,

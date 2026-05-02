@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loadPraxisPraeferenzen, savePraxisPraeferenzen, type PraxisPraeferenzen } from "@/lib/praxis-praeferenzen-storage";
+import {
+    DEFAULT_PRAXIS_PRAEFERENZEN,
+    loadPraxisPraeferenzenFromKv,
+    savePraxisPraeferenzen,
+    type PraxisPraeferenzen,
+} from "@/lib/praxis-praeferenzen-storage";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
@@ -10,17 +15,40 @@ import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 export function PraxisPraeferenzenPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
-    const [prefs, setPrefs] = useState<PraxisPraeferenzen>(() => loadPraxisPraeferenzen());
+    const [prefs, setPrefs] = useState<PraxisPraeferenzen>(DEFAULT_PRAXIS_PRAEFERENZEN);
+    const [hydrated, setHydrated] = useState(false);
+
+    useEffect(() => {
+        void loadPraxisPraeferenzenFromKv()
+            .then((v) => setPrefs(v))
+            .catch(() => {
+                /* keep defaults */
+            })
+            .finally(() => setHydrated(true));
+    }, []);
 
     const save = async () => {
         try {
             await savePraxisPraeferenzen(prefs);
-            setPrefs(loadPraxisPraeferenzen());
+            const next = await loadPraxisPraeferenzenFromKv();
+            setPrefs(next);
             toast("Praxis-Präferenzen gespeichert");
         } catch (e: unknown) {
             toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
         }
     };
+
+    if (!hydrated) {
+        return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+                <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <VerwaltungBackButton />
+                    <h1 className="page-title" style={{ margin: 0 }}>Praxis-Präferenzen</h1>
+                </div>
+                <p className="page-sub">Lade Einstellungen…</p>
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">

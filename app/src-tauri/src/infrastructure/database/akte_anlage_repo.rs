@@ -18,6 +18,8 @@ pub struct AkteAnlageRow {
     pub size_bytes: i64,
     /// Relativ zu `app_data_dir`, z. B. `akte_anlagen/{akte_id}/{id}.pdf`
     pub rel_storage_path: String,
+    /// Vordefinierte Kategorie (z. B. MRT, LABOR); siehe Normalisierung in Commands.
+    pub document_kind: String,
     pub created_at: String,
 }
 
@@ -63,7 +65,7 @@ pub fn remove_storage_dir_best_effort(app_data_dir: &Path, akte_id: &str) {
 
 pub async fn list_for_akte(pool: &SqlitePool, akte_id: &str) -> Result<Vec<AkteAnlageRow>, AppError> {
     let rows = sqlx::query_as::<_, AkteAnlageRow>(
-        "SELECT id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, created_at
+        "SELECT id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at
          FROM akte_anlage WHERE akte_id = ?1 ORDER BY created_at DESC",
     )
     .bind(akte_id)
@@ -75,7 +77,7 @@ pub async fn list_for_akte(pool: &SqlitePool, akte_id: &str) -> Result<Vec<AkteA
 
 pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<AkteAnlageRow>, AppError> {
     let row = sqlx::query_as::<_, AkteAnlageRow>(
-        "SELECT id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, created_at
+        "SELECT id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at
          FROM akte_anlage WHERE id = ?1",
     )
     .bind(id)
@@ -91,6 +93,7 @@ pub async fn create(
     akte_id: &str,
     display_name: &str,
     mime_type: &str,
+    document_kind: &str,
     bytes: &[u8],
 ) -> Result<AkteAnlageRow, AppError> {
     if bytes.len() > ANLAGE_MAX_BYTES {
@@ -128,8 +131,8 @@ pub async fn create(
 
     let created = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT INTO akte_anlage (id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO akte_anlage (id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )
     .bind(&id)
     .bind(akte_id)
@@ -137,6 +140,7 @@ pub async fn create(
     .bind(mime_type)
     .bind(size_i64)
     .bind(&rel)
+    .bind(document_kind)
     .bind(&created)
     .execute(pool)
     .await
@@ -156,6 +160,24 @@ pub async fn update_display_name(pool: &SqlitePool, id: &str, display_name: &str
         return Err(AppError::Validation("Bezeichnung darf nicht leer sein.".into()));
     }
     let n = sqlx::query("UPDATE akte_anlage SET display_name = ?1 WHERE id = ?2")
+        .bind(trimmed)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?
+        .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Akte-Anlage".into()));
+    }
+    Ok(())
+}
+
+pub async fn update_document_kind(pool: &SqlitePool, id: &str, document_kind: &str) -> Result<(), AppError> {
+    let trimmed = document_kind.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::Validation("Dokumenttyp darf nicht leer sein.".into()));
+    }
+    let n = sqlx::query("UPDATE akte_anlage SET document_kind = ?1 WHERE id = ?2")
         .bind(trimmed)
         .bind(id)
         .execute(pool)

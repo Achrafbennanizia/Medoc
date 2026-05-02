@@ -32,7 +32,7 @@ export function BehandlungsKatalogPage() {
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
-    const canWrite = role ? allowed("personal.write", role) : false;
+    const canWrite = role ? allowed("verwaltung.kataloge.write", role) : false;
 
     const [rows, setRows] = useState<BehandlungsKatalogItem[]>([]);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -213,17 +213,7 @@ export function BehandlungsKatalogPage() {
 
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--fg-4)",
-                }}
-            >
-                {label}
-            </span>
+            <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value === null || value === undefined || value === "" ? "—" : value}</span>
         </div>
     );
