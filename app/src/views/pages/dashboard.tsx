@@ -1,19 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { getDashboardStats, type DashboardStats } from "../../controllers/statistik.controller";
 import { listTermine } from "../../controllers/termin.controller";
 import { listPatienten } from "../../controllers/patient.controller";
-import { errorMessage, formatCurrency } from "../../lib/utils";
+import { listBestellungen, updateBestellungStatus, type Bestellung } from "../../controllers/bestellung.controller";
+import { listAkteValidation, rowsToValidationMaps, setAkteSectionValidated } from "../../controllers/validation.controller";
+import { listAkteNextTerminHintsPending } from "@/controllers/plan-next-termin.controller";
+import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser } from "@/lib/plan-next-termin";
+import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Termin } from "../../models/types";
-import { FilterIcon, NAV_ICONS, PlusIcon, SparkleIcon } from "@/lib/icons";
+import { allowed, parseRole } from "@/lib/rbac";
+import { CheckIcon, FilterIcon, NAV_ICONS, PackageIcon, PlusIcon, SparkleIcon, XIcon } from "@/lib/icons";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { useT } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
+
+const PRUEF_PATIENT_CAP = 100;
+const DASHBOARD_BESTELLUNGEN_MAX = 10;
+const AKTE_VALIDATION_BATCH = 20;
+const PLAN_NEXT_FREIGABEN_CAP = 25;
+
+function todayISO(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function bestellungIsOverdue(b: Bestellung): boolean {
+    if (!b.erwartet_am) return false;
+    if (b.status === "GELIEFERT" || b.status === "STORNIERT") return false;
+    return b.erwartet_am < todayISO();
+}
+
+function bestellungWirePill(b: Bestellung, t: (k: string) => string): { label: string; cls: string } {
+    const od = bestellungIsOverdue(b);
+    if (od) return { label: `● ${t("dashboard.bestellungen.status_late")}`, cls: "dashboard-wire-pill-status--late" };
+    if (b.status === "UNTERWEGS")
+        return { label: `● ${t("dashboard.bestellungen.status_transit")}`, cls: "dashboard-wire-pill-status--transit" };
+    return { label: `● ${t("dashboard.bestellungen.status_open")}`, cls: "dashboard-wire-pill-status--open" };
+}
 
 function terminStatusLabel(status: string): string {
     const map: Record<string, string> = {
@@ -26,17 +55,37 @@ function terminStatusLabel(status: string): string {
     return map[status] ?? status;
 }
 
+function initialsFromName(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+    return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
 export function DashboardPage() {
     const t = useT();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [termine, setTermine] = useState<Termin[]>([]);
     const [patienten, setPatienten] = useState<Patient[]>([]);
+    const [bestellungen, setBestellungen] = useState<Bestellung[]>([]);
+    const [pruefStammPendingIds, setPruefStammPendingIds] = useState<string[]>([]);
+    const [pruefScanLoading, setPruefScanLoading] = useState(false);
+    const [dismissedFreigabe, setDismissedFreigabe] = useState<Record<string, true>>({});
+    const [approveBusyId, setApproveBusyId] = useState<string | null>(null);
+    const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
+    const [stornoConfirmBestellung, setStornoConfirmBestellung] = useState<Bestellung | null>(null);
     const [listsError, setListsError] = useState<string | null>(null);
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
+    const [planNextPending, setPlanNextPending] = useState<{ patientId: string; hintJson: string }[]>([]);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
     const session = useAuthStore((s) => s.session);
+
+    useEffect(() => {
+        setDismissedFreigabe({});
+    }, [reloadToken]);
+
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
 
@@ -60,20 +109,22 @@ export function DashboardPage() {
         let cancelled = false;
         listsErrorToastSent.current = false;
         setListsError(null);
-        Promise.all([listTermine(), listPatienten()])
-            .then(([termineList, patientList]) => {
+        Promise.all([listTermine(), listPatienten(), listBestellungen()])
+            .then(([termineList, patientList, bestellungenList]) => {
                 if (!cancelled) {
                     setTermine(termineList);
                     setPatienten(patientList);
+                    setBestellungen(bestellungenList);
                     setListsError(null);
                 }
             })
             .catch((e) => {
                 if (!cancelled) {
                     const msg = errorMessage(e);
-                    console.error("[Dashboard] listTermine/listPatienten failed:", e);
+                    console.error("[Dashboard] listTermine/listPatienten/listBestellungen failed:", e);
                     setTermine([]);
                     setPatienten([]);
+                    setBestellungen([]);
                     setListsError(msg);
                     if (!listsErrorToastSent.current) {
                         listsErrorToastSent.current = true;
@@ -85,6 +136,64 @@ export function DashboardPage() {
             cancelled = true;
         };
     }, [reloadToken, t, toast]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const r = parseRole(session?.rolle ?? undefined);
+        if (!r || !allowed("patient.read", r)) {
+            setPlanNextPending([]);
+            return;
+        }
+        void listAkteNextTerminHintsPending()
+            .then((rows) => {
+                if (!cancelled) setPlanNextPending(rows);
+            })
+            .catch(() => {
+                if (!cancelled) setPlanNextPending([]);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [reloadToken, session?.rolle]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const role = parseRole(session?.rolle ?? undefined);
+        if (!role || !allowed("patient.read", role)) {
+            setPruefStammPendingIds([]);
+            setPruefScanLoading(false);
+            return;
+        }
+        const slice = patienten.slice(0, PRUEF_PATIENT_CAP);
+        if (slice.length === 0) {
+            setPruefStammPendingIds([]);
+            setPruefScanLoading(false);
+            return;
+        }
+        setPruefScanLoading(true);
+        setPruefStammPendingIds([]);
+        void (async () => {
+            const pending: string[] = [];
+            for (let i = 0; i < slice.length && !cancelled; i += AKTE_VALIDATION_BATCH) {
+                const batch = slice.slice(i, i + AKTE_VALIDATION_BATCH);
+                const results = await Promise.all(
+                    batch.map((p) => listAkteValidation(p.id).then((rows) => ({ id: p.id, rows }))),
+                );
+                if (cancelled) return;
+                for (const { id, rows } of results) {
+                    const { sections } = rowsToValidationMaps(rows);
+                    if (!sections.stamm) pending.push(id);
+                }
+            }
+            if (!cancelled) {
+                setPruefStammPendingIds(pending);
+                setPruefScanLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [patienten, session?.rolle, reloadToken]);
 
     /** Tagesabschluss-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
     useEffect(() => {
@@ -114,12 +223,136 @@ export function DashboardPage() {
 
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const patientNameById = useMemo(() => new Map(patienten.map((p) => [p.id, p.name])), [patienten]);
+    const role = useMemo(() => parseRole(session?.rolle ?? undefined), [session?.rolle]);
+
+    const heuteGeplantCount = useMemo(() => {
+        if (!role || !allowed("termin.read", role)) return 0;
+        return termine.filter((x) => x.datum === todayIso && x.status === "GEPLANT").length;
+    }, [termine, todayIso, role]);
+
+    const pruefStammRows = useMemo(() => {
+        return [...pruefStammPendingIds].sort((a, b) =>
+            (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", "de", { sensitivity: "base" }),
+        );
+    }, [pruefStammPendingIds, patientNameById]);
+
+    const dashboardBestellungen = useMemo(() => {
+        return bestellungen
+            .filter((b) => b.status === "OFFEN" || b.status === "UNTERWEGS")
+            .sort((a, b) => {
+                const od = (bestellungIsOverdue(b) ? 1 : 0) - (bestellungIsOverdue(a) ? 1 : 0);
+                if (od !== 0) return od;
+                return b.created_at.localeCompare(a.created_at);
+            })
+            .slice(0, DASHBOARD_BESTELLUNGEN_MAX);
+    }, [bestellungen]);
+
+    const showAuditCta = role != null && allowed("audit.read", role);
+    const showGeplantFreigabe = role != null && allowed("termin.read", role) && heuteGeplantCount > 0;
+
+    const patientById = useMemo(() => new Map(patienten.map((p) => [p.id, p])), [patienten]);
+
+    const planNextFreigabeRows = useMemo(() => {
+        const known = new Set(patienten.map((p) => p.id));
+        const out: { patientId: string; name: string; teaser: string }[] = [];
+        for (const row of planNextPending) {
+            if (!known.has(row.patientId)) continue;
+            const plan = parsePlanNextFromHintJson(row.hintJson);
+            if (!plan || !planNextHasContent(plan)) continue;
+            const teaser = planNextReceptionTeaser(plan);
+            out.push({
+                patientId: row.patientId,
+                name: patientNameById.get(row.patientId) ?? row.patientId,
+                teaser: teaser || t("dashboard.freigaben.plan_teaser_fallback"),
+            });
+            if (out.length >= PLAN_NEXT_FREIGABEN_CAP) break;
+        }
+        return out;
+    }, [planNextPending, patienten, patientNameById, t]);
+
+    const filteredStammRows = useMemo(
+        () => pruefStammRows.filter((id) => !dismissedFreigabe[`stamm:${id}`]),
+        [pruefStammRows, dismissedFreigabe],
+    );
+    const showGeplantRow = showGeplantFreigabe && !dismissedFreigabe["geplant"];
+
+    const filteredPlanNextRows = useMemo(
+        () => planNextFreigabeRows.filter((r) => !dismissedFreigabe[`plan:${r.patientId}`]),
+        [planNextFreigabeRows, dismissedFreigabe],
+    );
+
+    const freigabenItemCount = filteredStammRows.length + (showGeplantRow ? 1 : 0) + filteredPlanNextRows.length;
+    const freigabenLeer = !pruefScanLoading && freigabenItemCount === 0 && !listsError;
+
+    const canPatientWrite = role != null && allowed("patient.write", role);
+    const canBestellungWrite = role != null && allowed("bestellung.write", role);
 
     const heuteTermine = useMemo(() => {
         return termine
             .filter((x) => x.datum === todayIso && x.status !== "ABGESAGT")
             .sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
     }, [termine, todayIso]);
+
+    const dismissFreigabe = useCallback((key: string) => {
+        setDismissedFreigabe((p) => ({ ...p, [key]: true }));
+    }, []);
+
+    const handleApproveStamm = useCallback(
+        async (patientId: string) => {
+            if (!session?.user_id) {
+                toast(t("dashboard.freigaben.toast_no_session"), "error");
+                return;
+            }
+            setApproveBusyId(patientId);
+            try {
+                await setAkteSectionValidated(patientId, "stamm", session.user_id);
+                setPruefStammPendingIds((prev) => prev.filter((id) => id !== patientId));
+                toast(t("dashboard.freigaben.toast_approved"), "success");
+            } catch (e) {
+                toast(`${t("dashboard.freigaben.toast_approve_error")}: ${errorMessage(e)}`, "error");
+            } finally {
+                setApproveBusyId(null);
+            }
+        },
+        [session?.user_id, t, toast],
+    );
+
+    const handleOrderZusagen = useCallback(
+        async (b: Bestellung) => {
+            setOrderBusyId(b.id);
+            try {
+                const next = b.status === "OFFEN" ? "UNTERWEGS" : "GELIEFERT";
+                const updated = await updateBestellungStatus(b.id, next);
+                setBestellungen((list) => list.map((row) => (row.id === b.id ? updated : row)));
+                toast(t("dashboard.bestellungen.toast_status_updated"), "success");
+            } catch (e) {
+                toast(`${t("dashboard.bestellungen.toast_status_error")}: ${errorMessage(e)}`, "error");
+            } finally {
+                setOrderBusyId(null);
+            }
+        },
+        [t, toast],
+    );
+
+    const handleOrderAbsagen = useCallback((b: Bestellung) => {
+        setStornoConfirmBestellung(b);
+    }, []);
+
+    const confirmOrderStorno = useCallback(async () => {
+        const b = stornoConfirmBestellung;
+        if (!b) return;
+        setStornoConfirmBestellung(null);
+        setOrderBusyId(b.id);
+        try {
+            const updated = await updateBestellungStatus(b.id, "STORNIERT");
+            setBestellungen((list) => list.map((row) => (row.id === b.id ? updated : row)));
+            toast(t("dashboard.bestellungen.toast_storno"), "success");
+        } catch (e) {
+            toast(`${t("dashboard.bestellungen.toast_status_error")}: ${errorMessage(e)}`, "error");
+        } finally {
+            setOrderBusyId(null);
+        }
+    }, [stornoConfirmBestellung, t, toast]);
 
     if (statsError) {
         return <PageLoadError message={statsError} onRetry={reload} />;
@@ -130,14 +363,28 @@ export function DashboardPage() {
 
     const today = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
+    const freigabenSub = pruefScanLoading
+        ? t("dashboard.freigaben.scanning")
+        : freigabenItemCount > 0
+          ? t("dashboard.freigaben.sub_count").replace("{{count}}", String(freigabenItemCount))
+          : t("dashboard.freigaben.sub_zero");
+
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1, minHeight: 0 }} className="animate-fade-in dashboard-page">
+        <div
+            style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1, minHeight: 0 }}
+            className="animate-fade-in dashboard-page"
+            role="region"
+            aria-label={t("a11y.notifications_region")}
+        >
             <div className="page-head" style={{ alignItems: "center" }}>
                 <div>
                     <h1 className="page-title">Guten Morgen, {session?.name ?? "Team"}</h1>
                     <div className="page-sub">
                         {today} · {stats.termine_heute ?? 0} {t("dashboard.termine_heute_sub")}
                     </div>
+                    <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--fg-3)", maxWidth: 560, lineHeight: 1.45 }}>
+                        {t("dashboard.page_hub")}
+                    </p>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                     <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistik")}><FilterIcon />{t("dashboard.filter_stats")}</button>
@@ -204,40 +451,291 @@ export function DashboardPage() {
                 )}
             </div>
             <div className="split dashboard-main-split" style={{ gridTemplateColumns: "1.25fr 1fr", flex: 1 }}>
-                <div className="col dashboard-col-primary" style={{ gap: 14 }}>
+                <div className="col dashboard-col-primary">
                     <div className="card dashboard-card-fill">
-                        <div className="card-head">
-                            <div>
+                        <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                            <div style={{ minWidth: 0 }}>
                                 <div className="card-title">{t("dashboard.freigaben.title")}</div>
-                                <div className="card-sub">{t("dashboard.freigaben.sub")}</div>
+                                <div className="card-sub">{freigabenSub}</div>
                             </div>
-                            <button type="button" className="btn btn-subtle" style={{ paddingInline: 18 }} onClick={() => navigate("/audit")}>{t("dashboard.freigaben.cta")}</button>
+                            <div className="dashboard-wire-head-actions">
+                                {showAuditCta ? (
+                                    <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/audit")}>
+                                        {t("dashboard.freigaben.cta")}
+                                    </button>
+                                ) : null}
+                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/patienten")}>
+                                    {t("dashboard.freigaben.show_all")} ›
+                                </button>
+                            </div>
                         </div>
-                        <div className="dashboard-card-list" style={{ padding: "8px 0" }}>
-                            <EmptyState icon="✅" title={t("dashboard.freigaben.empty_title")} description={t("dashboard.freigaben.empty_desc")} />
+                        <div className="dashboard-card-list" style={{ padding: 0 }}>
+                            {pruefScanLoading && freigabenItemCount === 0 ? (
+                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("dashboard.freigaben.scanning")}</div>
+                            ) : null}
+                            {showGeplantRow ? (
+                                <div className="dashboard-wire-row">
+                                    <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
+                                        {heuteGeplantCount > 9 ? "9+" : String(heuteGeplantCount)}
+                                    </div>
+                                    <div className="dashboard-wire-row-main">
+                                        <div className="dashboard-wire-name-line">
+                                            <span className="dashboard-wire-name">
+                                                {t("dashboard.freigaben.row_geplant").replace("{{count}}", String(heuteGeplantCount))}
+                                            </span>
+                                            <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_termine")}</span>
+                                        </div>
+                                        <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_termine")}</div>
+                                    </div>
+                                    <div className="dashboard-wire-row-aside">
+                                        <div className="dashboard-wire-date">{formatDate(todayIso)}</div>
+                                        <div className="dashboard-wire-freigabe-actions">
+                                            <button
+                                                type="button"
+                                                className="dashboard-wire-icon-btn"
+                                                title={t("dashboard.freigaben.dismiss")}
+                                                aria-label={t("dashboard.freigaben.dismiss")}
+                                                onClick={() => dismissFreigabe("geplant")}
+                                            >
+                                                <XIcon size={16} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="dashboard-wire-approve-btn"
+                                                onClick={() => navigate("/termine")}
+                                            >
+                                                {t("dashboard.freigaben.open_termine")}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+                            {filteredPlanNextRows.map((row) => {
+                                const canTw = role != null && allowed("termin.write", role);
+                                return (
+                                    <div key={`plan-${row.patientId}`} className="dashboard-wire-row">
+                                        <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
+                                            <SparkleIcon size={18} />
+                                        </div>
+                                        <div className="dashboard-wire-row-main">
+                                            <div className="dashboard-wire-name-line">
+                                                <span className="dashboard-wire-name">{row.name}</span>
+                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_plan")}</span>
+                                            </div>
+                                            <div className="dashboard-wire-desc">
+                                                {row.teaser}
+                                                {" · "}
+                                                <span style={{ color: "var(--fg-3)" }}>{t("dashboard.freigaben.desc_plan")}</span>
+                                            </div>
+                                        </div>
+                                        <div className="dashboard-wire-row-aside">
+                                            <div className="dashboard-wire-date">{formatDate(todayIso)}</div>
+                                            <div className="dashboard-wire-freigabe-actions">
+                                                <button
+                                                    type="button"
+                                                    className="dashboard-wire-icon-btn"
+                                                    title={t("dashboard.freigaben.dismiss")}
+                                                    aria-label={t("dashboard.freigaben.dismiss")}
+                                                    onClick={() => dismissFreigabe(`plan:${row.patientId}`)}
+                                                >
+                                                    <XIcon size={16} />
+                                                </button>
+                                                {canTw ? (
+                                                    <Link
+                                                        to={`/termine/neu?patient_id=${encodeURIComponent(row.patientId)}&apply_plan=1`}
+                                                        className="dashboard-wire-approve-btn"
+                                                    >
+                                                        {t("dashboard.freigaben.open_neu_termin")}
+                                                    </Link>
+                                                ) : (
+                                                    <Link
+                                                        to={`/patienten/${encodeURIComponent(row.patientId)}`}
+                                                        className="dashboard-wire-approve-btn"
+                                                    >
+                                                        {t("dashboard.freigaben.open_patient")}
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {filteredStammRows.map((pid) => {
+                                const name = patientNameById.get(pid) ?? "Patient";
+                                const patient = patientById.get(pid);
+                                const dateStr = patient ? formatDate(patient.created_at.slice(0, 10)) : "—";
+                                const busy = approveBusyId === pid;
+                                return (
+                                    <div key={pid} className="dashboard-wire-row">
+                                        <div className="dashboard-wire-avatar" aria-hidden>
+                                            {initialsFromName(name)}
+                                        </div>
+                                        <div className="dashboard-wire-row-main">
+                                            <div className="dashboard-wire-name-line">
+                                                <span className="dashboard-wire-name">{name}</span>
+                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_stamm")}</span>
+                                            </div>
+                                            <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_stamm")}</div>
+                                        </div>
+                                        <div className="dashboard-wire-row-aside">
+                                            <div className="dashboard-wire-date">{dateStr}</div>
+                                            <div className="dashboard-wire-freigabe-actions">
+                                                <button
+                                                    type="button"
+                                                    className="dashboard-wire-icon-btn"
+                                                    title={t("dashboard.freigaben.dismiss")}
+                                                    aria-label={t("dashboard.freigaben.dismiss")}
+                                                    disabled={busy}
+                                                    onClick={() => dismissFreigabe(`stamm:${pid}`)}
+                                                >
+                                                    <XIcon size={16} />
+                                                </button>
+                                                {canPatientWrite ? (
+                                                    <button
+                                                        type="button"
+                                                        className="dashboard-wire-approve-btn"
+                                                        disabled={busy}
+                                                        onClick={() => void handleApproveStamm(pid)}
+                                                    >
+                                                        <CheckIcon size={15} />
+                                                        {t("dashboard.freigaben.approve")}
+                                                    </button>
+                                                ) : (
+                                                    <Link to={`/patienten/${pid}#stamm`} className="dashboard-wire-approve-btn">
+                                                        {t("dashboard.freigaben.open_patient")}
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {patienten.length > PRUEF_PATIENT_CAP && role != null && allowed("patient.read", role) ? (
+                                <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 20px 12px", lineHeight: 1.45 }}>
+                                    {t("dashboard.freigaben.scan_cap_note").replace("{{cap}}", String(PRUEF_PATIENT_CAP))}
+                                </p>
+                            ) : null}
+                            {freigabenLeer ? (
+                                <EmptyState icon="✅" title={t("dashboard.freigaben.empty_title")} description={t("dashboard.freigaben.empty_desc")} />
+                            ) : null}
                         </div>
                     </div>
                     <div className="card dashboard-card-fill">
-                        <div className="card-head">
-                            <div>
+                        <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                            <div style={{ minWidth: 0 }}>
                                 <div className="card-title">{t("dashboard.bestellungen.title")}</div>
                                 <div className="card-sub">{t("dashboard.bestellungen.sub")}</div>
                             </div>
-                            <div className="row" style={{ gap: 8 }}>
-                                <button type="button" className="btn btn-subtle" onClick={() => navigate("/bestellungen")}>{t("dashboard.bestellungen.cta")}</button>
-                                <button type="button" className="btn btn-subtle" onClick={() => navigate("/produkte")}>{t("dashboard.bestellungen.cta_produkte")}</button>
+                            <div className="dashboard-wire-head-actions">
+                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/produkte")}>
+                                    {t("dashboard.bestellungen.cta_produkte")}
+                                </button>
+                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/bestellungen")}>
+                                    {t("dashboard.bestellungen.show_all")} ›
+                                </button>
                             </div>
                         </div>
-                        <div className="dashboard-card-list" style={{ padding: "8px 0" }}>
-                            <EmptyState icon="📦" title={t("dashboard.bestellungen.empty_title")} description={t("dashboard.bestellungen.empty_desc")} />
+                        <div className="dashboard-card-list" style={{ padding: 0 }}>
+                            {dashboardBestellungen.length === 0 ? (
+                                <EmptyState icon="📦" title={t("dashboard.bestellungen.empty_title")} description={t("dashboard.bestellungen.empty_desc")} />
+                            ) : (
+                                dashboardBestellungen.map((b) => {
+                                    const pill = bestellungWirePill(b, t);
+                                    const bestellRef = b.bestellnummer?.trim() || "—";
+                                    const obusy = orderBusyId === b.id;
+                                    return (
+                                        <div key={b.id} className="dashboard-wire-order">
+                                            <div className="dashboard-wire-order-head">
+                                                <div className="dashboard-wire-order-icon" aria-hidden>
+                                                    <PackageIcon size={22} />
+                                                </div>
+                                                <div className="dashboard-wire-order-body">
+                                                    <div className="dashboard-wire-order-title-row">
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div className="dashboard-wire-order-title">{b.artikel}</div>
+                                                            <div className="dashboard-wire-order-meta">
+                                                                {b.lieferant} · {bestellRef}
+                                                            </div>
+                                                        </div>
+                                                        <span className={`dashboard-wire-pill-status ${pill.cls}`}>{pill.label}</span>
+                                                    </div>
+                                                    <div className="dashboard-wire-kpis">
+                                                        <div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_menge")}</div>
+                                                            <div className="dashboard-wire-kpi-val">
+                                                                {b.menge}
+                                                                {b.einheit ? ` ${b.einheit}` : ""}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_bestellt")}</div>
+                                                            <div className="dashboard-wire-kpi-val">{formatDate(b.created_at.slice(0, 10))}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_lieferung")}</div>
+                                                            <div className="dashboard-wire-kpi-val">
+                                                                {b.erwartet_am ? formatDate(b.erwartet_am) : "—"}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="dashboard-wire-order-actions">
+                                                        {canBestellungWrite ? (
+                                                            <button
+                                                                type="button"
+                                                                className="dashboard-wire-btn-secondary"
+                                                                disabled={obusy}
+                                                                onClick={() => handleOrderAbsagen(b)}
+                                                            >
+                                                                {t("dashboard.bestellungen.absagen")}
+                                                            </button>
+                                                        ) : null}
+                                                        {canBestellungWrite ? (
+                                                            <button
+                                                                type="button"
+                                                                className="dashboard-wire-btn-primary"
+                                                                title={
+                                                                    b.status === "OFFEN"
+                                                                        ? t("dashboard.bestellungen.zusagen_hint_open")
+                                                                        : t("dashboard.bestellungen.zusagen_hint_transit")
+                                                                }
+                                                                disabled={obusy}
+                                                                onClick={() => void handleOrderZusagen(b)}
+                                                            >
+                                                                {t("dashboard.bestellungen.zusagen")}
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                className="dashboard-wire-btn-primary"
+                                                                disabled={obusy}
+                                                                onClick={() => navigate(`/bestellungen/${b.id}`)}
+                                                            >
+                                                                {t("dashboard.bestellungen.details")}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 </div>
                 <div className="col dashboard-col-secondary" style={{ gap: 14 }}>
                     <div className="card dashboard-card-fill">
-                        <div className="card-head">
-                            <div className="card-title">{t("dashboard.heute.title")} · {new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</div>
-                            <span className="pill accent"><span className="dot" aria-hidden />Live</span>
+                        <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                            <div style={{ minWidth: 0 }}>
+                                <div className="card-title">
+                                    {t("dashboard.heute.title")} · {new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                                </div>
+                                <div className="card-sub">{t("dashboard.heute.sub")}</div>
+                            </div>
+                            <span className="pill accent" style={{ marginLeft: "auto" }}>
+                                <span className="dot" aria-hidden />
+                                Live
+                            </span>
                         </div>
                         <div className="dashboard-card-list">
                             {heuteTermine.length === 0 ? (
@@ -308,6 +806,15 @@ export function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={stornoConfirmBestellung !== null}
+                onClose={() => setStornoConfirmBestellung(null)}
+                onConfirm={() => void confirmOrderStorno()}
+                title={t("dashboard.bestellungen.absagen")}
+                message={t("dashboard.bestellungen.confirm_storno")}
+                confirmLabel={t("dashboard.bestellungen.absagen")}
+            />
         </div>
     );
 }

@@ -78,3 +78,80 @@ export function befundeForTooth(befunde: Zahnbefund[], fdi: string): Zahnbefund[
 export function behandlungenForTooth(behandlungen: Behandlung[], fdi: string): Behandlung[] {
     return behandlungen.filter((b) => parseZaehneTokens(b.zaehne).some((t) => t === fdi));
 }
+
+/**
+ * Split stored Beschwerden text into tag fragments. Semicolons separate tags; commas
+ * outside parentheses also separate (legacy), but commas inside `(Zähne 14, 16)` do not.
+ */
+export function splitBeschwerdenParts(raw: string | null | undefined): string[] {
+    const t = (raw ?? "").trim();
+    if (!t) return [];
+    function splitAtTopLevelComma(s: string): string[] {
+        const out: string[] = [];
+        let depth = 0;
+        let start = 0;
+        for (let i = 0; i < s.length; i++) {
+            const c = s[i];
+            if (c === "(") depth++;
+            else if (c === ")") depth = Math.max(0, depth - 1);
+            else if (c === "," && depth === 0) {
+                const frag = s.slice(start, i).trim();
+                if (frag) out.push(frag);
+                start = i + 1;
+            }
+        }
+        const last = s.slice(start).trim();
+        if (last) out.push(last);
+        return out;
+    }
+    return t
+        .split(/\s*;\s*/)
+        .flatMap((seg) => splitAtTopLevelComma(seg))
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+/** FDI display order (upper R→L, lower R→L) for sorting selected teeth. */
+const FDI_SORT_INDEX: ReadonlyMap<string, number> = (() => {
+    const order = [...DENTAL_UPPER_R, ...DENTAL_UPPER_L, ...DENTAL_LOWER_R, ...DENTAL_LOWER_L];
+    const m = new Map<string, number>();
+    order.forEach((fdi, i) => m.set(fdi, i));
+    return m;
+})();
+
+export function sortFdiTeeth(teeth: string[]): string[] {
+    const seen = new Set<string>();
+    const uniq: string[] = [];
+    for (const t of teeth) {
+        const s = t.trim();
+        if (!/^\d{1,2}$/.test(s) || seen.has(s)) continue;
+        seen.add(s);
+        uniq.push(s);
+    }
+    return [...uniq].sort((a, b) => (FDI_SORT_INDEX.get(a) ?? 99) - (FDI_SORT_INDEX.get(b) ?? 99));
+}
+
+/**
+ * Parses one stored Beschwerden fragment for Zahnschmerz + teeth, e.g.
+ * `Zahnschmerzen (Zahn 14)` or `Zahnschmerzen (Zähne 14, 16)`.
+ */
+export function parseZahnschmerzTeethFromBeschwerdenPart(part: string): string[] | null {
+    const p = part.trim();
+    const m = /^Zahnschmerzen\s*\(\s*(?:Zähne|Zahn)\s+([\d\s,]+)\s*\)\s*$/i.exec(p);
+    if (!m?.[1]) return null;
+    const tokens = m[1]
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter((s) => /^\d{1,2}$/.test(s));
+    return tokens.length ? sortFdiTeeth(tokens) : null;
+}
+
+/** Parses full `termin.beschwerden` for FDI numbers (structured Zahnschmerz fragment). */
+export function extractZahnschmerzFdisFromBeschwerden(raw: string | null | undefined): string[] {
+    if (!raw?.trim()) return [];
+    for (const part of splitBeschwerdenParts(raw)) {
+        const teeth = parseZahnschmerzTeethFromBeschwerdenPart(part);
+        if (teeth?.length) return teeth;
+    }
+    return [];
+}

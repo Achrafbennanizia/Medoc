@@ -22,6 +22,8 @@ export type VertragItem = {
     periodeVon: string | null;
     periodeBis: string | null;
     createdAt: string;
+    /** Optional: gescanntes oder archiviertes Vertragsdokument (absoluter Pfad). */
+    dokumentPfad: string | null;
 };
 
 export function intervallKurz(i: VertragIntervall): string {

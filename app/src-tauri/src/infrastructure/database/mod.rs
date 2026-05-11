@@ -4,6 +4,7 @@ pub mod akte_repo;
 pub mod akte_validation_repo;
 pub mod app_kv_repo;
 pub mod dokument_template_repo;
+pub mod in_app_notification_repo;
 pub mod attest_repo;
 pub mod audit_repo;
 pub mod bestellung_repo;

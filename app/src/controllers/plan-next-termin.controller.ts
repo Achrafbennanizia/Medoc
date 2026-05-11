@@ -109,6 +109,16 @@ export async function persistPlanNextTerminToBackend(
     });
 }
 
+export type AkteNextTerminPendingRow = {
+    patientId: string;
+    hintJson: string;
+};
+
+/** Patients with a non-empty „nächster Termin“-Hinweis (Dashboard / Rezeption). */
+export async function listAkteNextTerminHintsPending(): Promise<AkteNextTerminPendingRow[]> {
+    return tauriInvoke<AkteNextTerminPendingRow[]>("list_akte_next_termin_hints_pending");
+}
+
 /** Load from DB, migrating legacy browser storage once when the backend row is empty. */
 export async function loadPlanNextTerminWithMigration(patientId: string): Promise<PlanNextTerminV2> {
     const pid = typeof patientId === "string" ? patientId.trim() : "";

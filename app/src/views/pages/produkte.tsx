@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "../../controllers/produkt.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "../../lib/utils";
@@ -8,68 +8,13 @@ import type { Produkt } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
-import { Input, Textarea } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { EditIcon } from "@/lib/icons";
-
-type ProduktForm = {
-    name: string;
-    kategorie: string;
-    preis: string;
-    bestand: string;
-    mindestbestand: string;
-    beschreibung: string;
-};
-
-const emptyForm = (): ProduktForm => ({
-    name: "",
-    kategorie: "",
-    preis: "",
-    bestand: "",
-    mindestbestand: "",
-    beschreibung: "",
-});
-
-function toForm(p: Produkt): ProduktForm {
-    return {
-        name: p.name,
-        kategorie: p.kategorie,
-        preis: String(p.preis),
-        bestand: String(p.bestand),
-        mindestbestand: String(p.mindestbestand),
-        beschreibung: p.beschreibung ?? "",
-    };
-}
-
-function parseForm(f: ProduktForm): {
-    name: string;
-    kategorie: string;
-    preis: number;
-    bestand: number;
-    mindestbestand: number;
-    beschreibung: string | undefined;
-} {
-    return {
-        name: f.name.trim(),
-        kategorie: f.kategorie.trim(),
-        preis: Number(String(f.preis).replace(",", ".")),
-        bestand: Math.trunc(Number(f.bestand)),
-        mindestbestand: Math.trunc(Number(f.mindestbestand)),
-        beschreibung: f.beschreibung.trim() || undefined,
-    };
-}
-
-function formValid(f: ProduktForm): boolean {
-    if (!f.name.trim() || !f.kategorie.trim()) return false;
-    const preis = Number(String(f.preis).replace(",", "."));
-    if (!Number.isFinite(preis) || preis < 0) return false;
-    if (!Number.isFinite(Number(f.bestand)) || !Number.isFinite(Number(f.mindestbestand))) return false;
-    return true;
-}
+import { ProduktFormFields, emptyForm, formValid, parseForm, toForm, type ProduktForm } from "../components/produkt-form-shared";
 
 function isSafeInternalReturnPath(path: string | null): path is string {
     if (path == null || path.length === 0 || path.length > 4000) return false;
@@ -458,76 +403,5 @@ export function ProduktePage() {
                 danger
             />
         </div>
-    );
-}
-
-function ProduktFormFields({
-    form,
-    setForm,
-    idPrefix,
-    kategorieVorschlaege,
-}: {
-    form: ProduktForm;
-    setForm: (f: ProduktForm | ((p: ProduktForm) => ProduktForm)) => void;
-    idPrefix: string;
-    kategorieVorschlaege: string[];
-}) {
-    const kategorieDatalistId = useId();
-    return (
-        <>
-            <Input
-                id={`${idPrefix}-name`}
-                label="Name"
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            />
-            <div>
-                <Input
-                    id={`${idPrefix}-kat`}
-                    label="Kategorie"
-                    value={form.kategorie}
-                    list={kategorieDatalistId}
-                    autoComplete="off"
-                    onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))}
-                />
-                <datalist id={kategorieDatalistId}>
-                    {kategorieVorschlaege.map((k) => (
-                        <option key={k} value={k} />
-                    ))}
-                </datalist>
-            </div>
-            <Input
-                id={`${idPrefix}-preis`}
-                type="number"
-                min={0}
-                step="0.01"
-                label="Preis (€)"
-                value={form.preis}
-                onChange={(e) => setForm((p) => ({ ...p, preis: e.target.value }))}
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                    id={`${idPrefix}-bestand`}
-                    type="number"
-                    label="Bestand"
-                    value={form.bestand}
-                    onChange={(e) => setForm((p) => ({ ...p, bestand: e.target.value }))}
-                />
-                <Input
-                    id={`${idPrefix}-mindest`}
-                    type="number"
-                    label="Mindestbestand"
-                    value={form.mindestbestand}
-                    onChange={(e) => setForm((p) => ({ ...p, mindestbestand: e.target.value }))}
-                />
-            </div>
-            <Textarea
-                id={`${idPrefix}-beschr`}
-                label="Beschreibung"
-                rows={3}
-                value={form.beschreibung}
-                onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))}
-            />
-        </>
     );
 }

@@ -1,12 +1,11 @@
-// TWAIN scanner stub (FA-DEV-04).
+// TWAIN scanner watch-folder adapter (FA-DEV-04).
 //
-// Real TWAIN integration requires the platform-specific TWAIN DSM and a
-// safe Rust binding (e.g. `twain-rs`). This stub:
+// Direct TWAIN / SANE bindings would require vendor SDKs. Production workflow:
 //
-// - exposes the contract surface so frontend wiring can proceed,
-// - watches a configurable filesystem folder for newly written images and
-//   reports them as "scanned" documents,
-// - emits structured `device.log` events for every detected file.
+// - Use `host_integration::open_system_scan_utility` to open Image Capture (macOS),
+//   Windows Scan (`ms-scan:`), or simple-scan / xsane (Linux), save into the
+//   watch folder, then `list_recent` picks up new files.
+// - `list_recent` enumerates the folder, newest first.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -81,5 +80,32 @@ pub fn attach_to_patient(
     let target = target_dir.join(filename);
     std::fs::copy(src, &target).map_err(|e| AppError::Internal(format!("archive copy: {e}")))?;
     log_device!(info, event = "SCAN_ATTACHED", patient_id = %patient_id, path = %target.display());
+    Ok(target)
+}
+
+/// Copy a scan into `archive_root/vertraege/{vertrag_id}/` for contract filing.
+pub fn attach_to_vertrag(
+    src: &Path,
+    archive_root: &Path,
+    vertrag_id: &str,
+) -> Result<PathBuf, AppError> {
+    let target_dir = archive_root.join("vertraege").join(vertrag_id);
+    std::fs::create_dir_all(&target_dir)
+        .map_err(|e| AppError::Internal(format!("vertrag-doc mkdir: {e}")))?;
+    let filename = src
+        .file_name()
+        .ok_or_else(|| AppError::Validation("source has no filename".into()))?;
+    let stem = filename.to_string_lossy();
+    let unique = format!(
+        "{}_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        stem,
+    );
+    let target = target_dir.join(unique);
+    std::fs::copy(src, &target).map_err(|e| AppError::Internal(format!("vertrag-doc copy: {e}")))?;
+    log_device!(info, event = "VERTRAG_DOC_ATTACHED", vertrag_id = %vertrag_id, path = %target.display());
     Ok(target)
 }

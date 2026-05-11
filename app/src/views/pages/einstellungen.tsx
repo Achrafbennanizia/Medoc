@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type FC, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createBackup } from "../../controllers/ops.controller";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -24,7 +24,6 @@ import {
     saveClientSettings,
     applyAppearanceFromSettings,
     type ClientSettingsV1,
-    type DensityId,
     type TermineKalenderAnsicht,
 } from "../../lib/client-settings";
 import {
@@ -47,7 +46,7 @@ import {
     OPEN_IMAGE_SYSTEM_ONLY,
     type DetectedPhotoViewerApp,
 } from "@/lib/photo-viewer-apps";
-import { getInvoicePraxisFromStorage, saveInvoicePraxisToStorage, type InvoicePraxis } from "../../lib/invoice-leistung";
+import { getInvoicePraxisFromStorage, saveInvoicePraxisToStorage, buildInvoiceHeaderAddressLines, type InvoicePraxis } from "../../lib/invoice-leistung";
 import { allowed, parseRole } from "@/lib/rbac";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
@@ -55,6 +54,17 @@ import { useToastStore } from "../components/ui/toast-store";
 import { Dialog } from "../components/ui/dialog";
 import { AboutAppDialog } from "../components/app-help-dialogs";
 import { EinstellungenExportDruckSection } from "./einstellungen-export-druck";
+import { ACCENT_LABELS, accentColorCircle, normalizeAccentId } from "../../lib/accent-preset";
+import {
+    ChevronRightIcon,
+    ExportIcon,
+    InfoIcon,
+    SettingsIcon,
+    SlidersHorizontalIcon,
+    StethoscopeIcon,
+    SunIcon,
+    UsersIcon,
+} from "@/lib/icons";
 
 const LazyOpsPage = lazy(() => import("./ops").then((m) => ({ default: m.OpsPage })));
 
@@ -77,27 +87,29 @@ function EmbedSuspenseFallback() {
     );
 }
 
-const ACCENT_KEY = "medoc-accent-preset";
+const SETTINGS_BREADCRUMB = "Praxis · Konto · Darstellung · Arbeitsabläufe · Export · System";
 
-type AccentId = "mint" | "ocean" | "plum";
-
-const ACCENT_LABELS: Record<AccentId, string> = {
-    mint: "Mint",
-    ocean: "Ocean",
-    plum: "Plum",
-};
-
-function applyAccentPreset(id: AccentId) {
-    const presets: Record<AccentId, { accent: string; soft: string; ink: string }> = {
-        mint: { accent: "#0EA07E", soft: "#DCF3EC", ink: "#06604B" },
-        ocean: { accent: "#0A84FF", soft: "#E5F1FF", ink: "#0355B7" },
-        plum: { accent: "#AF52DE", soft: "#F2E4FB", ink: "#6B2A95" },
-    };
-    const v = presets[id];
-    document.documentElement.style.setProperty("--accent", v.accent);
-    document.documentElement.style.setProperty("--accent-soft", v.soft);
-    document.documentElement.style.setProperty("--accent-ink", v.ink);
-    localStorage.setItem(ACCENT_KEY, id);
+function SettingsSwitch({
+    checked,
+    onChange,
+    ariaLabel,
+}: {
+    checked: boolean;
+    onChange: (next: boolean) => void;
+    ariaLabel: string;
+}) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            aria-label={ariaLabel}
+            className={`settings-switch${checked ? " settings-switch--on" : ""}`}
+            onClick={() => onChange(!checked)}
+        >
+            <span className="settings-switch__thumb" aria-hidden />
+        </button>
+    );
 }
 
 type SettingsSection = "praxis" | "konto" | "darstellung" | "arbeitsablaeufe" | "exportDruck" | "system" | "ueber";
@@ -157,7 +169,6 @@ export function EinstellungenPage() {
     const [paymentBusy, setPaymentBusy] = useState(false);
 
     const [accentDialogOpen, setAccentDialogOpen] = useState(false);
-    const [accentLabel, setAccentLabel] = useState("Mint");
 
     const [backupBusy, setBackupBusy] = useState(false);
     const [healthBusy, setHealthBusy] = useState(false);
@@ -233,14 +244,6 @@ export function EinstellungenPage() {
         return () => {
             cancelled = true;
         };
-    }, []);
-
-    useEffect(() => {
-        const saved = localStorage.getItem(ACCENT_KEY) as AccentId | null;
-        if (saved === "ocean" || saved === "plum" || saved === "mint") {
-            applyAccentPreset(saved);
-            setAccentLabel(ACCENT_LABELS[saved]);
-        }
     }, []);
 
     async function handleChangePassword() {
@@ -364,17 +367,18 @@ export function EinstellungenPage() {
 
     const roleLabel = useMemo(() => session?.rolle ?? "—", [session?.rolle]);
 
-    const menuItems: Array<{ id: SettingsSection; label: string }> = [
-        { id: "praxis", label: "Praxis" },
-        { id: "konto", label: "Konto" },
-        { id: "darstellung", label: "Darstellung" },
-        { id: "arbeitsablaeufe", label: "Arbeitsabläufe" },
-        { id: "exportDruck", label: "Export & Druck" },
-        { id: "system", label: "System" },
-        { id: "ueber", label: "Über die Anwendung" },
+    const menuItems: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
+        { id: "praxis", label: "Praxis", icon: StethoscopeIcon },
+        { id: "konto", label: "Konto", icon: UsersIcon },
+        { id: "darstellung", label: "Darstellung", icon: SunIcon },
+        { id: "arbeitsablaeufe", label: "Arbeitsabläufe", icon: SlidersHorizontalIcon },
+        { id: "exportDruck", label: "Export & Druck", icon: ExportIcon },
+        { id: "system", label: "System", icon: SettingsIcon },
+        { id: "ueber", label: "Über die Anwendung", icon: InfoIcon },
     ];
 
     const appearance = client.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+    const accentPresetId = normalizeAccentId(appearance.accentPreset);
     const wf = client.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
     const searchPrefs = client.search ?? DEFAULT_CLIENT_SETTINGS.search!;
     const security = client.security ?? DEFAULT_CLIENT_SETTINGS.security!;
@@ -390,187 +394,406 @@ export function EinstellungenPage() {
     }, [photoViewerApps, akteClient.openImagesWithApp]);
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-            <h2 className="page-title">Einstellungen</h2>
-            <p className="page-sub">Praxis · Darstellung · Abläufe · System</p>
+        <div className="settings-page animate-fade-in--sticky-safe">
+            <header className="settings-page-head">
+                <h2 className="page-title">Einstellungen</h2>
+                <p className="page-sub settings-page-breadcrumb">{SETTINGS_BREADCRUMB}</p>
+            </header>
 
-            <div className="split settings-shell" style={{ gridTemplateColumns: "minmax(200px, 240px) 1fr", alignItems: "start" }}>
-                <div className="card card-pad settings-nav">
-                    <div className="col">
-                        {menuItems.map((item) => (
-                            <button
-                                key={item.id}
-                                type="button"
-                                className={`sb-item settings-nav-item ${activeSection === item.id ? "active" : ""}`}
-                                onClick={() => setActiveSection(item.id)}
-                            >
-                                <span className="settings-nav-dot" aria-hidden />
-                                {item.label}
-                            </button>
-                        ))}
+            <div className="split settings-shell" style={{ gridTemplateColumns: "minmax(220px, 260px) 1fr", alignItems: "start" }}>
+                <nav className="settings-nav-card settings-nav" aria-label="Einstellungen Abschnitte">
+                    <div className="settings-nav-list">
+                        {menuItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className={`settings-nav-btn${activeSection === item.id ? " active" : ""}`}
+                                    onClick={() => setActiveSection(item.id)}
+                                >
+                                    <Icon size={18} aria-hidden />
+                                    <span className="settings-nav-label">{item.label}</span>
+                                </button>
+                            );
+                        })}
                     </div>
-                </div>
-                <div className="card settings-panel" style={{ overflow: "hidden" }}>
+                </nav>
+                <div className="settings-panel-stack">
                     {activeSection === "praxis" ? (
-                        <section>
+                        <section className="settings-subcard">
                             <div className="card-head">
                                 <div>
                                     <div className="card-title">Praxis</div>
-                                    <div className="card-sub">Stammdaten für Rechnungen, PDF-Export und interne Anzeige</div>
+                                    <p className="card-sub settings-praxis-intro">
+                                        Stammdaten für Rechnungen, Tagesabschluss-PDF und Anzeige in der App. Änderungen gelten lokal auf diesem Gerät (Browser-Speicher).
+                                    </p>
+                                    <p className="card-sub settings-praxis-intro settings-praxis-intro--tight">
+                                        Termin-Puffer, Erinnerungen und Kalender:&nbsp;
+                                        <button
+                                            type="button"
+                                            className="linkish"
+                                            onClick={() => setActiveSection("arbeitsablaeufe")}
+                                        >
+                                            Arbeitsabläufe
+                                        </button>
+                                    </p>
                                 </div>
                             </div>
-                            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                                <Input id="praxis-name" label="Praxisname" value={praxis.name} onChange={(e) => { setPraxis((p) => ({ ...p, name: e.target.value })); setPraxisDirty(true); }} />
-                                <PraxisAddressArea label="Adresse (Zeilen wie auf Briefpapier)" value={praxis.addr} onChange={(v) => { setPraxis((p) => ({ ...p, addr: v })); setPraxisDirty(true); }} />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Input id="praxis-kv" label="KV- / Betriebsnummer" value={praxis.kv_nummer ?? ""} onChange={(e) => { setPraxis((p) => ({ ...p, kv_nummer: e.target.value })); setPraxisDirty(true); }} />
-                                    <Input id="praxis-oe" label="Öffnungszeiten (Kurztext)" value={praxis.oeffnungszeiten ?? ""} onChange={(e) => { setPraxis((p) => ({ ...p, oeffnungszeiten: e.target.value })); setPraxisDirty(true); }} />
+                            <div className="card-pad settings-praxis-body">
+                                <div className="settings-praxis-grid">
+                                    <div className="settings-praxis-fields">
+                                        <h3 className="settings-praxis-section-title">Name &amp; Anschrift</h3>
+                                        <Input
+                                            id="praxis-name"
+                                            label="Praxisname"
+                                            placeholder="z. B. Zahnarztpraxis Dr. Muster"
+                                            value={praxis.name}
+                                            onChange={(e) => {
+                                                setPraxis((p) => ({ ...p, name: e.target.value }));
+                                                setPraxisDirty(true);
+                                            }}
+                                        />
+                                        <PraxisAddressArea
+                                            label="Adresse"
+                                            value={praxis.addr}
+                                            onChange={(v) => {
+                                                setPraxis((p) => ({ ...p, addr: v }));
+                                                setPraxisDirty(true);
+                                            }}
+                                        />
+
+                                        <h3 className="settings-praxis-section-title">Kontakt &amp; Online</h3>
+                                        <p className="card-sub settings-praxis-field-hint">
+                                            Erscheinen unter der Anschrift in der PDF-Vorschau und auf gedruckten Belegen (Rechnung, Tagesbericht).
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <Input
+                                                id="praxis-tel"
+                                                label="Telefon"
+                                                type="tel"
+                                                autoComplete="tel"
+                                                placeholder="z. B. 030 12345678"
+                                                value={praxis.telefon ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, telefon: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-fax"
+                                                label="Fax"
+                                                placeholder="optional"
+                                                value={praxis.fax ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, fax: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-email"
+                                                label="E-Mail"
+                                                type="email"
+                                                autoComplete="email"
+                                                placeholder="praxis@example.de"
+                                                value={praxis.email ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, email: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-web"
+                                                label="Webseite"
+                                                type="url"
+                                                placeholder="https://…"
+                                                value={praxis.web ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, web: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                        </div>
+
+                                        <h3 className="settings-praxis-section-title">Register &amp; Steuern</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <Input
+                                                id="praxis-kv"
+                                                label="KV- / Betriebsnummer"
+                                                placeholder="optional"
+                                                value={praxis.kv_nummer ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, kv_nummer: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-ust"
+                                                label="USt-IdNr."
+                                                placeholder="optional"
+                                                value={praxis.ust_id ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, ust_id: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-steuernr"
+                                                label="Steuernummer"
+                                                placeholder="optional"
+                                                value={praxis.steuernummer ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, steuernummer: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                            <Input
+                                                id="praxis-oe"
+                                                label="Öffnungszeiten (Kurztext)"
+                                                placeholder="z. B. Mo–Fr 8–12, 14–18"
+                                                value={praxis.oeffnungszeiten ?? ""}
+                                                onChange={(e) => {
+                                                    setPraxis((p) => ({ ...p, oeffnungszeiten: e.target.value }));
+                                                    setPraxisDirty(true);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <PraxisBriefkopfPreview praxis={praxis} pdfAddressLines={buildInvoiceHeaderAddressLines(praxis)} />
                                 </div>
-                                <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                    <Button type="button" onClick={savePraxis} disabled={!praxisDirty}>Speichern</Button>
-                                </div>
+
+                                {praxisDirty ? (
+                                    <div className="settings-praxis-actions settings-praxis-actions--unsaved">
+                                        <span className="settings-praxis-status settings-praxis-status--dirty">Ungespeicherte Änderungen</span>
+                                        <Button type="button" onClick={savePraxis}>
+                                            Speichern
+                                        </Button>
+                                    </div>
+                                ) : null}
                             </div>
                         </section>
                     ) : null}
 
                     {activeSection === "konto" ? (
-                        <section>
-                            <div className="card-head">
-                                <div>
-                                    <div className="card-title">Konto</div>
-                                    <div className="card-sub">Profil und Anmeldung</div>
+                        <>
+                            <section className="settings-subcard">
+                                <div className="card-head">
+                                    <div>
+                                        <div className="card-title">Mein Konto</div>
+                                        <div className="card-sub">
+                                            {(session?.name ?? "—") + (session?.email ? ` · ${session.email}` : "")}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="settings-row"><div><b>Name</b><div className="card-sub">{session?.name}</div></div></div>
-                            <div className="settings-row"><div><b>E-Mail</b><div className="card-sub">{session?.email}</div></div></div>
-                            <div className="settings-row">
-                                <div><b>Rolle</b><div className="card-sub">{roleLabel}</div></div>
-                                <span className="pill blue">{session?.rolle ?? "—"}</span>
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Passwort</b><div className="card-sub">Anmeldepasswort ändern</div></div>
-                                <Button variant="secondary" type="button" onClick={() => setPwDialogOpen(true)}>Ändern</Button>
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Sprache</b><div className="card-sub">Oberfläche</div></div>
-                                <div className="row" style={{ gap: 8 }}>
-                                    <Button type="button" className={locale === "de" ? "btn-accent" : "btn-subtle"} onClick={() => setLocale("de")}>DE</Button>
-                                    <Button type="button" className={locale === "en" ? "btn-accent" : "btn-subtle"} onClick={() => setLocale("en")}>EN</Button>
+                                <div className="settings-row">
+                                    <div>
+                                        <b>Name</b>
+                                        <div className="card-sub">{session?.name}</div>
+                                    </div>
+                                    <span className="settings-chevron" aria-hidden>
+                                        <ChevronRightIcon size={18} />
+                                    </span>
                                 </div>
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Abmelden</b><div className="card-sub">Sitzung beenden (Anmeldedialog)</div></div>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => window.dispatchEvent(new Event("medoc-request-logout"))}
-                                >
-                                    Abmelden…
-                                </Button>
-                            </div>
-                            <div className="card-head" style={{ marginTop: 16 }}><div><div className="card-title">Hilfe &amp; Compliance</div><div className="card-sub">Eigenständige Seiten</div></div></div>
-                            <div className="card-pad row" style={{ gap: 10, flexWrap: "wrap" }}>
-                                <Link to="/hilfe" className="btn btn-subtle">Hilfe &amp; Kurzbefehle</Link>
-                                <Link to="/compliance" className="btn btn-subtle">Compliance</Link>
-                            </div>
-                        </section>
+                                <div className="settings-row">
+                                    <div>
+                                        <b>E-Mail</b>
+                                        <div className="card-sub">{session?.email}</div>
+                                    </div>
+                                    <span className="settings-chevron" aria-hidden>
+                                        <ChevronRightIcon size={18} />
+                                    </span>
+                                </div>
+                                <div className="settings-row">
+                                    <div><b>Rolle</b><div className="card-sub">{roleLabel}</div></div>
+                                    <span className="pill blue">{session?.rolle ?? "—"}</span>
+                                </div>
+                                <div className="settings-row">
+                                    <div><b>Passwort</b><div className="card-sub">Zuletzt geändert — über „Ändern“ aktualisieren</div></div>
+                                    <Button variant="secondary" type="button" onClick={() => setPwDialogOpen(true)}>Ändern</Button>
+                                </div>
+                                <div className="settings-row">
+                                    <div><b>Sprache</b><div className="card-sub">Oberfläche</div></div>
+                                    <div className="settings-lang-seg" role="group" aria-label="Sprache">
+                                        <button type="button" className={`settings-lang-seg__btn${locale === "de" ? " is-active" : ""}`} onClick={() => setLocale("de")}>DE</button>
+                                        <button type="button" className={`settings-lang-seg__btn${locale === "en" ? " is-active" : ""}`} onClick={() => setLocale("en")}>EN</button>
+                                    </div>
+                                </div>
+                                <div className="settings-row">
+                                    <div><b>Abmelden</b><div className="card-sub">Sitzung beenden (Anmeldedialog)</div></div>
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() => window.dispatchEvent(new Event("medoc-request-logout"))}
+                                    >
+                                        Abmelden…
+                                    </Button>
+                                </div>
+                            </section>
+                            <section className="settings-subcard">
+                                <div className="card-head">
+                                    <div>
+                                        <div className="card-title">Hilfe &amp; Compliance</div>
+                                        <div className="card-sub">Eigenständige Seiten</div>
+                                    </div>
+                                </div>
+                                <div className="card-pad row" style={{ gap: 10, flexWrap: "wrap" }}>
+                                    <Link to="/hilfe" className="btn btn-subtle">Hilfe &amp; Kurzbefehle</Link>
+                                    <Link to="/compliance" className="btn btn-subtle">Compliance</Link>
+                                </div>
+                            </section>
+                        </>
                     ) : null}
 
                     {activeSection === "darstellung" ? (
-                        <section>
-                            <div className="card-head"><div><div className="card-title">Darstellung</div><div className="card-sub">Dichte, Navigation, Akzent</div></div></div>
-                            <div className="settings-row">
-                                <div><b>Sidebar dunkel</b><div className="card-sub">Nur Navigation; Inhalt bleibt hell</div></div>
-                                <input type="checkbox" checked={appearance.darkSidebar} onChange={() => persistClientSilent((c) => {
-                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                    return mergeClientSettingsPatch(c, { appearance: { ...a, darkSidebar: !a.darkSidebar } });
-                                })} aria-label="Dark sidebar" />
-                            </div>
-                            <div className="settings-row" style={{ alignItems: "flex-start" }}>
-                                <div style={{ flex: 1, paddingTop: 4 }}><b>Raster-Dichte</b><div className="card-sub">Schrift und Abstände global</div></div>
-                                <div style={{ minWidth: 200 }}>
-                                    <Select
-                                        label="Dichte"
-                                        value={appearance.density}
-                                        onChange={(e) => persistClientSilent((c) => {
-                                            const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                            return mergeClientSettingsPatch(c, { appearance: { ...a, density: e.target.value as DensityId } });
-                                        })}
-                                        options={[
-                                            { value: "compact", label: "Kompakt" },
-                                            { value: "cozy", label: "Standard" },
-                                            { value: "spacious", label: "Weit" },
-                                        ]}
-                                    />
+                        <>
+                            <section className="settings-subcard">
+                                <div className="card-head">
+                                    <div>
+                                        <div className="card-title">Darstellung</div>
+                                        <div className="card-sub">Navigation, Dichte, Akzent — konsistent mit dem Arbeitsbereich</div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Benutzeravatar in der Kopfleiste</b><div className="card-sub">Kreis mit Initialen rechts oben</div></div>
-                                <input type="checkbox" checked={appearance.showHeaderAvatar !== false} onChange={() => persistClientSilent((c) => {
-                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                    const on = a.showHeaderAvatar !== false;
-                                    return mergeClientSettingsPatch(c, { appearance: { ...a, showHeaderAvatar: on ? false : true } });
-                                })} aria-label="Avatar Header" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Tastenkürzel anzeigen</b><div className="card-sub">z. B. ⌘K in der Suche</div></div>
-                                <input type="checkbox" checked={appearance.showKeyboardHints !== false} onChange={() => persistClientSilent((c) => {
-                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                    const on = a.showKeyboardHints !== false;
-                                    return mergeClientSettingsPatch(c, { appearance: { ...a, showKeyboardHints: on ? false : true } });
-                                })} aria-label="Tastenkürzel" />
-                            </div>
-                            <div className="settings-row">
-                                <div><b>Akzentfarbe</b><div className="card-sub">Markenfarbe (CSS-Variablen)</div></div>
-                                <Button type="button" variant="secondary" onClick={() => setAccentDialogOpen(true)}>{accentLabel}</Button>
-                            </div>
-
-                            <div className="card-head" style={{ marginTop: 20 }}>
-                                <div>
-                                    <div className="card-title">Akten-Anlagen</div>
-                                    <div className="card-sub">Programm für „Extern öffnen…“ in der Patientenakte</div>
-                                </div>
-                            </div>
-                            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0 }}>
-                                <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
-                                    <p className="card-sub" style={{ margin: 0, flex: "1 1 220px" }}>
-                                        Es werden nur auf diesem Rechner installierte Programme angezeigt. Leer = erste gefundene App;
-                                        „Nur Systemstandard“ = wie Doppelklick im Finder.
-                                    </p>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() =>
-                                            void loadDetectedPhotoViewerApps(true).then((a) => {
-                                                setPhotoViewerApps(a);
-                                                toast(`${a.length} Viewer gefunden`, "info");
+                                <div className="settings-row">
+                                    <div>
+                                        <b>Sidebar dunkel</b>
+                                        <div className="card-sub">Nur Sidebar dunkel · Arbeitsbereich bleibt hell</div>
+                                    </div>
+                                    <SettingsSwitch
+                                        ariaLabel="Sidebar dunkel"
+                                        checked={appearance.darkSidebar}
+                                        onChange={() =>
+                                            persistClientSilent((c) => {
+                                                const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                                return mergeClientSettingsPatch(c, { appearance: { ...a, darkSidebar: !a.darkSidebar } });
                                             })
                                         }
-                                    >
-                                        Neu scannen
-                                    </Button>
+                                    />
                                 </div>
-                                <Select
-                                    id="set-akte-open-app"
-                                    label="App zum externen Öffnen"
-                                    value={akteClient.openImagesWithApp ?? ""}
-                                    options={photoAppSelectOptions}
-                                    onChange={(e) =>
-                                        persistClientSilent((c) => {
-                                            const ak = c.akte ?? DEFAULT_CLIENT_SETTINGS.akte!;
-                                            return mergeClientSettingsPatch(c, {
-                                                akte: { ...ak, openImagesWithApp: e.target.value },
-                                            });
-                                        })
-                                    }
-                                />
-                            </div>
-                        </section>
+                                <div className="settings-row settings-row--wrap">
+                                    <div style={{ flex: "1 1 200px" }}>
+                                        <b>Dichte</b>
+                                        <div className="card-sub">Gemütlich · Kompakt · Weit — Schrift und Abstände</div>
+                                    </div>
+                                    <div className="settings-density-seg" role="group" aria-label="Raster-Dichte">
+                                        {(
+                                            [
+                                                { id: "cozy" as const, label: "Gemütlich" },
+                                                { id: "compact" as const, label: "Kompakt" },
+                                                { id: "spacious" as const, label: "Weit" },
+                                            ] as const
+                                        ).map((opt) => (
+                                            <button
+                                                key={opt.id}
+                                                type="button"
+                                                className={`settings-density-seg__btn${appearance.density === opt.id ? " is-active" : ""}`}
+                                                onClick={() =>
+                                                    persistClientSilent((c) => {
+                                                        const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                                        return mergeClientSettingsPatch(c, { appearance: { ...a, density: opt.id } });
+                                                    })
+                                                }
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="settings-row">
+                                    <div>
+                                        <b>Benutzeravatar in der Kopfleiste</b>
+                                        <div className="card-sub">Kreis mit Initialen rechts oben</div>
+                                    </div>
+                                    <SettingsSwitch
+                                        ariaLabel="Benutzeravatar in der Kopfleiste"
+                                        checked={appearance.showHeaderAvatar !== false}
+                                        onChange={() =>
+                                            persistClientSilent((c) => {
+                                                const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                                const on = a.showHeaderAvatar !== false;
+                                                return mergeClientSettingsPatch(c, { appearance: { ...a, showHeaderAvatar: on ? false : true } });
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="settings-row">
+                                    <div>
+                                        <b>Tastenkürzel anzeigen</b>
+                                        <div className="card-sub">z. B. ⌘K in der Suche</div>
+                                    </div>
+                                    <SettingsSwitch
+                                        ariaLabel="Tastenkürzel anzeigen"
+                                        checked={appearance.showKeyboardHints !== false}
+                                        onChange={() =>
+                                            persistClientSilent((c) => {
+                                                const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                                const on = a.showKeyboardHints !== false;
+                                                return mergeClientSettingsPatch(c, { appearance: { ...a, showKeyboardHints: on ? false : true } });
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="settings-row">
+                                    <div>
+                                        <b>Akzentfarbe</b>
+                                        <div className="card-sub">Markenfarbe für Schaltflächen, Links und Fokus</div>
+                                    </div>
+                                    <button type="button" className="settings-accent-trigger" onClick={() => setAccentDialogOpen(true)} aria-label="Akzentfarbe wählen">
+                                        <span className="settings-accent-trigger__dot" style={{ background: accentColorCircle(accentPresetId) }} />
+                                        <span className="settings-chevron" aria-hidden>
+                                            <ChevronRightIcon size={18} />
+                                        </span>
+                                    </button>
+                                </div>
+                            </section>
+                            <section className="settings-subcard">
+                                <div className="card-head">
+                                    <div>
+                                        <div className="card-title">Akten-Anlagen</div>
+                                        <div className="card-sub">Programm für „Extern öffnen…“ in der Patientenakte</div>
+                                    </div>
+                                </div>
+                                <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0 }}>
+                                    <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                                        <p className="card-sub" style={{ margin: 0, flex: "1 1 220px" }}>
+                                            Es werden nur auf diesem Rechner installierte Programme angezeigt. Leer = erste gefundene App;
+                                            „Nur Systemstandard“ = wie Doppelklick im Finder.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() =>
+                                                void loadDetectedPhotoViewerApps(true).then((a) => {
+                                                    setPhotoViewerApps(a);
+                                                    toast(`${a.length} Viewer gefunden`, "info");
+                                                })
+                                            }
+                                        >
+                                            Neu scannen
+                                        </Button>
+                                    </div>
+                                    <Select
+                                        id="set-akte-open-app"
+                                        label="App zum externen Öffnen"
+                                        value={akteClient.openImagesWithApp ?? ""}
+                                        options={photoAppSelectOptions}
+                                        onChange={(e) =>
+                                            persistClientSilent((c) => {
+                                                const ak = c.akte ?? DEFAULT_CLIENT_SETTINGS.akte!;
+                                                return mergeClientSettingsPatch(c, {
+                                                    akte: { ...ak, openImagesWithApp: e.target.value },
+                                                });
+                                            })
+                                        }
+                                    />
+                                </div>
+                            </section>
+                        </>
                     ) : null}
 
                     {activeSection === "arbeitsablaeufe" ? (
-                        <section>
+                        <section className="settings-subcard">
                             <div className="card-head">
                                 <div>
                                     <div className="card-title">Arbeitsabläufe</div>
@@ -732,7 +955,7 @@ export function EinstellungenPage() {
                     {activeSection === "exportDruck" ? <EinstellungenExportDruckSection /> : null}
 
                     {activeSection === "system" ? (
-                        <section>
+                        <section className="settings-subcard">
                             <div className="card-head">
                                 <div>
                                     <div className="card-title">System</div>
@@ -816,7 +1039,7 @@ export function EinstellungenPage() {
                     ) : null}
 
                     {activeSection === "ueber" ? (
-                        <section>
+                        <section className="settings-subcard">
                             <div className="card-head"><div><div className="card-title">Über die Anwendung</div><div className="card-sub">Version, Lizenz, Drittanbieter</div></div></div>
                             <div className="settings-row"><div><b>App-Version</b><div className="card-sub">MeDoc {appVersion}</div></div><Button variant="ghost" type="button" onClick={() => void handleCheckUpdates()} disabled={updateBusy} loading={updateBusy}>Nach Updates suchen</Button></div>
                             <div className="settings-row"><div><b>Über &amp; Lizenzen</b><div className="card-sub">Kurzinfo und Symbol-Bibliotheken</div></div><Button type="button" variant="secondary" onClick={() => setAboutOpen(true)}>Dialog öffnen</Button></div>
@@ -884,10 +1107,13 @@ export function EinstellungenPage() {
                         <Button
                             key={id}
                             type="button"
-                            variant={accentLabel === ACCENT_LABELS[id] ? undefined : "ghost"}
+                            variant={accentPresetId === id ? undefined : "ghost"}
                             onClick={() => {
-                                applyAccentPreset(id);
-                                setAccentLabel(ACCENT_LABELS[id]);
+                                persistClientSilent((c) => {
+                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                    return mergeClientSettingsPatch(c, { appearance: { ...a, accentPreset: id } });
+                                });
+                                setAccentDialogOpen(false);
                                 toast(`Akzent: ${ACCENT_LABELS[id]}`, "success");
                             }}
                         >
@@ -903,10 +1129,61 @@ export function EinstellungenPage() {
 }
 
 function PraxisAddressArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+    const id = "praxis-addr";
     return (
-        <label className="input-wrap" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label className="input-wrap" htmlFor={id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span className="input-label">{label}</span>
-            <textarea className="input-edit" rows={4} value={value} onChange={(e) => onChange(e.target.value)} />
+            <textarea
+                id={id}
+                className="input-edit settings-praxis-addr-ta"
+                rows={5}
+                autoComplete="street-address"
+                spellCheck={false}
+                placeholder={"Straße Hausnummer\nPLZ Ort"}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+            />
+            <p className="card-sub settings-praxis-field-hint" style={{ margin: 0 }}>
+                Eine Zeile pro Zeile wie auf dem Briefpapier; Leerzeilen mit Enter.
+            </p>
         </label>
+    );
+}
+
+function PraxisBriefkopfPreview({ praxis, pdfAddressLines }: { praxis: InvoicePraxis; pdfAddressLines: string[] }) {
+    const name = (praxis.name ?? "").trim();
+    const hasLines = pdfAddressLines.length > 0;
+    const hasAny = hasLines || Boolean(name);
+
+    return (
+        <aside className="settings-praxis-preview" aria-label="Vorschau Briefkopf">
+            <div className="settings-praxis-preview__kicker">Vorschau</div>
+            <p className="settings-praxis-preview__sub">
+                Oben die Zeilen, die im PDF untereinander stehen (Adresse, Kontakt, Nummern, Öffnungszeiten), darunter der Praxisname — wie im Drucklayout.
+            </p>
+            <div className="settings-praxis-preview__paper">
+                {!hasAny ? (
+                    <p className="settings-praxis-preview__empty">Stammdaten eintragen — die Vorschau aktualisiert sich live.</p>
+                ) : (
+                    <>
+                        {hasLines ? (
+                            <div className="settings-praxis-preview__pdfblock">
+                                <div className="settings-praxis-preview__pdfblock-label">Kopfzeile im PDF</div>
+                                {pdfAddressLines.map((line, i) => (
+                                    <div key={i} className="settings-praxis-preview__pdfline">
+                                        {line}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="settings-praxis-preview__muted settings-praxis-preview__muted--block">(noch keine Anschrift — Kopfzeile leer)</p>
+                        )}
+                        {name ? <div className="settings-praxis-preview__name">{name}</div> : (
+                            <div className="settings-praxis-preview__muted settings-praxis-preview__muted--block">(kein Praxisname)</div>
+                        )}
+                    </>
+                )}
+            </div>
+        </aside>
     );
 }

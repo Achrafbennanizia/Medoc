@@ -1,5 +1,18 @@
-import { type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+    type CSSProperties,
+    type Dispatch,
+    type MutableRefObject,
+    type MouseEvent as ReactMouseEvent,
+    type SetStateAction,
+    useCallback,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
     addDays,
@@ -15,6 +28,7 @@ import { de } from "date-fns/locale";
 import { listTermine, deleteTermin, updateTermin } from "../../controllers/termin.controller";
 import { listPatienten } from "../../controllers/patient.controller";
 import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
+import { listAbwesenheiten } from "../../controllers/praxis.controller";
 import { errorMessage } from "../../lib/utils";
 import { MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
@@ -24,9 +38,23 @@ import {
     mergeClientSettingsPatch,
     saveClientSettings,
 } from "@/lib/client-settings";
-import type { Termin, Patient } from "../../models/types";
+import {
+    DEFAULT_MONTH_CAL_PATIENT_LOAD,
+    loadPraxisPraeferenzenFromKv,
+    monthCalPatientLoadAccentHex,
+    monthCalPatientLoadTier,
+    type MonthCalendarPatientLoadPrefs,
+} from "@/lib/praxis-praeferenzen-storage";
+import {
+    loadPraxisArbeitszeitenConfig,
+    readPraxisArbeitszeitenConfig,
+    type PraxisArbeitszeitenConfig,
+} from "@/lib/praxis-planning";
+import { validateTerminSchedulingUpdates } from "@/lib/termin-availability";
+import { extractZahnschmerzFdisFromBeschwerden } from "@/lib/dental";
+import type { Termin, Patient, Abwesenheit } from "../../models/types";
 import { Button } from "../components/ui/button";
-import { Dialog, ConfirmDialog } from "../components/ui/dialog";
+import { Dialog, ConfirmDialog, IosConfirmActions } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -94,6 +122,12 @@ const DAY_INNER_EDGE_PX = 36;
 const WEEK_NAV_EDGE_PX = 48;
 /** Beim Drag: Kalender-Tag oder Woche höchstens einmal alle 500 ms wechseln (vermeidet “Durchwandern”). */
 const DRAG_DATUM_NAV_COOLDOWN_MS = 500;
+/** Nach Drag: Kontextmenü kurz unterdrücken (Trackpad/OS feuert oft „contextmenu“ nach dem Loslassen). */
+const APPT_CTX_SUPPRESS_AFTER_DRAG_MS = 1400;
+/** Wochenansicht: Nach Ziehen ersten „click“ blocken (Browser feuert oft click direkt nach mouseup auf dem Termin-Button). */
+const APPT_CLICK_SUPPRESS_AFTER_DROP_MS = 500;
+/** Summe der Zeigerbewegung (|dx|+|dy|) ab der Drag-Zeit – ab diesem Wert als Zieh-Geste werten. */
+const APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX = 6;
 
 function useDayTimelineLayout() {
     const hostRef = useRef<HTMLDivElement>(null);
@@ -239,6 +273,8 @@ function computePackedUpdatesAfterMove(
     targetDatum: string,
     desiredStartMin: number,
     slotDur: number,
+    /** Puffer zwischen Terminen (Min), aus Praxis-Präferenzen — verhindert zu dichtes Packen. */
+    gapAfterMin: number,
 ): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
     const moving = all.find((t) => t.id === movingId);
     if (!moving) return { updates: [] };
@@ -261,7 +297,8 @@ function computePackedUpdatesAfterMove(
 
     blocks.push({ id: movingId, start });
 
-    const endOf = (s: number) => s + slotDur;
+    const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
+    const endOf = (s: number) => s + slotDur + gap;
 
     let guard = 0;
     let changed = true;
@@ -316,12 +353,19 @@ function calendarMonthOffsetFromToday(d: Date): number {
 
 export function TerminePage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const [termine, setTermine] = useState<Termin[]>([]);
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
+    const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
+    const [praxisPlanCfg, setPraxisPlanCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
+    const [terminPufferMin, setTerminPufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [monthCalPatientLoad, setMonthCalPatientLoad] = useState<MonthCalendarPatientLoadPrefs>(() => ({
+        ...DEFAULT_MONTH_CAL_PATIENT_LOAD,
+    }));
     const [notfallConfirmOpen, setNotfallConfirmOpen] = useState(false);
     const notfallTitleId = useId();
     const terminFilterArtSelectId = useId();
@@ -368,16 +412,33 @@ export function TerminePage() {
     }, [dragState]);
     /** Letzter Wechsel von `currentDatum` per Drag (Tagsspalte, Rand, Woche ±1). */
     const lastDragDatumNavAtRef = useRef(0);
-    const goNeuerTermin = useCallback((opts?: { datum?: string; patient_id?: string; art?: string; id?: string; uhrzeit?: string }) => {
+    const suppressApptContextMenuUntilRef = useRef(0);
+    /** Nur Wochenansicht: Klick auf Termin-Kachel nach Drag-Drop erst wieder zulassen (s. `APPT_CLICK_SUPPRESS_AFTER_DROP_MS`). */
+    const suppressApptClickUntilRef = useRef(0);
+    const dragPointerTravelRef = useRef(0);
+    const dragLastClientRef = useRef<{ x: number; y: number } | null>(null);
+    const goNeuerTermin = useCallback((opts?: {
+        datum?: string;
+        patient_id?: string;
+        art?: string;
+        id?: string;
+        uhrzeit?: string;
+        arzt_id?: string;
+    }) => {
         const p = new URLSearchParams();
-        if (opts?.id) p.set("id", opts.id);
+        if (opts?.id) {
+            p.set("id", opts.id);
+        } else {
+            const aid = opts?.arzt_id ?? praxisPlanCfg.defaultArztId;
+            if (aid) p.set("arzt_id", aid);
+        }
         if (opts?.datum) p.set("datum", opts.datum);
         if (opts?.patient_id) p.set("patient_id", opts.patient_id);
         if (opts?.art) p.set("art", opts.art);
         if (opts?.uhrzeit) p.set("uhrzeit", opts.uhrzeit);
         const q = p.toString();
         navigate(q ? `/termine/neu?${q}` : "/termine/neu");
-    }, [navigate]);
+    }, [navigate, praxisPlanCfg.defaultArztId]);
     const toast = useToastStore((s) => s.add);
 
     const load = useCallback(async () => {
@@ -388,17 +449,57 @@ export function TerminePage() {
             setTermine(t);
             setPatienten(p);
             setAerzte(a);
+            try {
+                setAbwesenheiten(await listAbwesenheiten());
+            } catch {
+                setAbwesenheiten([]);
+            }
+            try {
+                setPraxisPlanCfg(await loadPraxisArbeitszeitenConfig());
+            } catch {
+                setPraxisPlanCfg(readPraxisArbeitszeitenConfig());
+            }
+            try {
+                const praef = await loadPraxisPraeferenzenFromKv();
+                setTerminPufferMin(Math.max(0, Number.parseInt(String(praef.pufferMin ?? "0"), 10) || 0));
+            } catch {
+                setTerminPufferMin(0);
+            }
         } catch (e) {
             setLoadError(errorMessage(e));
             setTermine([]);
             setPatienten([]);
             setAerzte([]);
+            setAbwesenheiten([]);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => { void load(); }, [load]);
+
+    useEffect(() => {
+        const refreshMonthCalPrefs = () => {
+            void loadPraxisPraeferenzenFromKv().then((p) => {
+                setMonthCalPatientLoad(p.monthCalendarPatientLoad);
+                setTerminPufferMin(Math.max(0, Number.parseInt(String(p.pufferMin ?? "0"), 10) || 0));
+            });
+        };
+        const refreshPraxisPlan = () => {
+            void loadPraxisArbeitszeitenConfig().then(setPraxisPlanCfg).catch(() => {});
+            void listAbwesenheiten().then(setAbwesenheiten).catch(() => {});
+        };
+        refreshMonthCalPrefs();
+        refreshPraxisPlan();
+        const onVis = () => {
+            if (document.visibilityState === "visible") {
+                refreshMonthCalPrefs();
+                refreshPraxisPlan();
+            }
+        };
+        document.addEventListener("visibilitychange", onVis);
+        return () => document.removeEventListener("visibilitychange", onVis);
+    }, [location.pathname]);
 
     useEffect(() => {
         const cur = loadClientSettings();
@@ -711,12 +812,30 @@ export function TerminePage() {
 
     const commitDrag = useCallback(
         async (id: string, datum: string, startMin: number) => {
-            const { updates, error } = computePackedUpdatesAfterMove(termine, id, datum, startMin, TERMIN_DEFAULT_DUR_MIN);
+            const { updates, error } = computePackedUpdatesAfterMove(
+                termine,
+                id,
+                datum,
+                startMin,
+                TERMIN_DEFAULT_DUR_MIN,
+                terminPufferMin,
+            );
             if (error) {
                 toast(error);
                 return;
             }
             if (updates.length === 0) return;
+            const schedErr = validateTerminSchedulingUpdates(
+                termine,
+                updates,
+                TERMIN_DEFAULT_DUR_MIN,
+                praxisPlanCfg,
+                abwesenheiten,
+            );
+            if (schedErr) {
+                toast(schedErr, "error");
+                return;
+            }
             const moved = updates.find((u) => u.id === id);
             let snap: { iso: string; startMin: number } | undefined;
             if (moved?.data.uhrzeit) {
@@ -735,12 +854,22 @@ export function TerminePage() {
                 toast(errorMessage(e));
             }
         },
-        [load, toast, termine],
+        [load, toast, termine, praxisPlanCfg, abwesenheiten, terminPufferMin],
     );
+
+    const handleApptContextMenu = useCallback((termin: Termin, e: ReactMouseEvent) => {
+        e.preventDefault();
+        if (Date.now() < suppressApptContextMenuUntilRef.current) {
+            return;
+        }
+        setCtxMenu({ x: e.clientX, y: e.clientY, termin });
+    }, []);
 
     useEffect(() => {
         const dragId = dragState?.id;
         if (!dragId) return undefined;
+        dragPointerTravelRef.current = 0;
+        dragLastClientRef.current = null;
         const spanMin = DAY_END_MIN - DAY_START_MIN;
         const clampStartMin = (rawMin: number, durMin: number) => {
             const snapped = Math.round(rawMin / 5) * 5;
@@ -751,6 +880,15 @@ export function TerminePage() {
         const onMove = (e: MouseEvent) => {
             const ds = dragStateRef.current;
             if (!ds || ds.id !== dragId) return;
+
+            if (dragLastClientRef.current === null) {
+                dragLastClientRef.current = { x: e.clientX, y: e.clientY };
+            } else {
+                const lx = dragLastClientRef.current.x;
+                const ly = dragLastClientRef.current.y;
+                dragPointerTravelRef.current += Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly);
+                dragLastClientRef.current = { x: e.clientX, y: e.clientY };
+            }
 
             /** Neues Zieldatum im Drag nur alle `DRAG_DATUM_NAV_COOLDOWN_MS` (gleicher Tag → Uhrzeit ohne Cooldown). */
             const applyDragTimeline = (targetIso: string, clamped: number, jumpIfDayChanges: boolean) => {
@@ -870,13 +1008,23 @@ export function TerminePage() {
             }
         };
         const onUp = () => {
-            setDragState((prev) => {
-                if (!prev) return null;
-                if (prev.currentDatum !== prev.originalDatum || prev.currentStartMin !== prev.originalStartMin) {
-                    void commitDrag(prev.id, prev.currentDatum, prev.currentStartMin);
+            const travel = dragPointerTravelRef.current;
+            dragPointerTravelRef.current = 0;
+            dragLastClientRef.current = null;
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return;
+            const changed = prev.currentDatum !== prev.originalDatum || prev.currentStartMin !== prev.originalStartMin;
+            if (changed) {
+                void commitDrag(prev.id, prev.currentDatum, prev.currentStartMin);
+            }
+            const endedDragGesture = changed || travel >= APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX;
+            if (endedDragGesture) {
+                suppressApptContextMenuUntilRef.current = Date.now() + APPT_CTX_SUPPRESS_AFTER_DRAG_MS;
+                if (view === "woche") {
+                    suppressApptClickUntilRef.current = Date.now() + APPT_CLICK_SUPPRESS_AFTER_DROP_MS;
                 }
-                return null;
-            });
+            }
+            setDragState(null);
         };
         window.addEventListener("mousemove", onMove);
         window.addEventListener("mouseup", onUp);
@@ -1207,10 +1355,7 @@ export function TerminePage() {
                             dragState={dragState}
                             setDragState={setDragState}
                             onOpenDrawer={openDrawerFor}
-                            onContextMenu={(termin, e) => {
-                                e.preventDefault();
-                                setCtxMenu({ x: e.clientX, y: e.clientY, termin });
-                            }}
+                            onContextMenu={handleApptContextMenu}
                             onNewAt={(iso, min) => goNeuerTermin({ datum: iso, uhrzeit: minutesToUhrzeit(min) })}
                             emptyDescription={tagViewEmptyDescription}
                             emptyHasFilters={tagViewHasActiveFilters}
@@ -1235,9 +1380,9 @@ export function TerminePage() {
                             monthOffset={monthOffset}
                             onMonthChange={setMonthOffset}
                             termine={displayTermine}
-                            patientNameById={patientNameById}
                             aerzte={aerzte}
                             arztToneMap={arztToneMap}
+                            patientLoadSettings={monthCalPatientLoad}
                             onPickDay={(iso) => {
                                 jumpToIsoDate(iso);
                                 setView("tag");
@@ -1253,15 +1398,13 @@ export function TerminePage() {
                             setDragState={setDragState}
                             snapLabel={terminDaySnapLabel}
                             onClearSnapLabel={() => setTerminDaySnapLabel(null)}
+                            clickSuppressUntilRef={suppressApptClickUntilRef}
                             onHeaderDay={(iso) => {
                                 jumpToIsoDate(iso);
                                 setView("tag");
                             }}
                             onOpenDrawer={openDrawerFor}
-                            onContextMenu={(termin, e) => {
-                                e.preventDefault();
-                                setCtxMenu({ x: e.clientX, y: e.clientY, termin });
-                            }}
+                            onContextMenu={handleApptContextMenu}
                             onNewAt={(iso, min) => goNeuerTermin({ datum: iso, uhrzeit: minutesToUhrzeit(min) })}
                             nowMin={() => {
                                 const n = new Date();
@@ -1276,37 +1419,35 @@ export function TerminePage() {
                 open={notfallConfirmOpen}
                 onClose={() => setNotfallConfirmOpen(false)}
                 title=""
-                presentation="centered"
-                className="notfall-confirm-dialog"
                 labelledBy={notfallTitleId}
-                footer={(
-                    <>
-                        <button type="button" onClick={() => setNotfallConfirmOpen(false)}>Abbrechen</button>
-                        <button
-                            type="button"
-                            className="destructive"
-                            onClick={() => {
-                                const todayIso = format(new Date(), "yyyy-MM-dd");
-                                setDayOffset(0);
-                                setWeekOffset(0);
-                                setMonthOffset(0);
-                                setView("tag");
-                                goNeuerTermin({ datum: todayIso, art: "NOTFALL", uhrzeit: "11:45" });
-                                setNotfallConfirmOpen(false);
-                                toast("Notfall-Termin um 11:45 vorbereitet");
-                            }}
-                        >
-                            Notfall einplanen
-                        </button>
-                    </>
-                )}
+                className="modal--ios-confirm notfall-confirm-dialog"
             >
-                <div className="modal-body">
-                    <div className="confirm-icon" aria-hidden="true">
-                        <AmbulanceIcon />
+                <div className="ios-confirm">
+                    <div className="ios-confirm-body">
+                        <div className="confirm-icon" aria-hidden="true">
+                            <AmbulanceIcon />
+                        </div>
+                        <h2 id={notfallTitleId} className="ios-confirm-title">
+                            {NOTFALL_CONFIRM_TITLE}
+                        </h2>
+                        <p className="ios-confirm-message">{NOTFALL_CONFIRM_MESSAGE}</p>
                     </div>
-                    <h3 id={notfallTitleId}>{NOTFALL_CONFIRM_TITLE}</h3>
-                    <p>{NOTFALL_CONFIRM_MESSAGE}</p>
+                    <IosConfirmActions
+                        cancelLabel="Abbrechen"
+                        confirmLabel="Notfall einplanen"
+                        onCancel={() => setNotfallConfirmOpen(false)}
+                        destructive
+                        onConfirm={() => {
+                            const todayIso = format(new Date(), "yyyy-MM-dd");
+                            setDayOffset(0);
+                            setWeekOffset(0);
+                            setMonthOffset(0);
+                            setView("tag");
+                            goNeuerTermin({ datum: todayIso, art: "NOTFALL", uhrzeit: "11:45" });
+                            setNotfallConfirmOpen(false);
+                            toast("Notfall-Termin um 11:45 vorbereitet");
+                        }}
+                    />
                 </div>
             </Dialog>
 
@@ -1314,27 +1455,25 @@ export function TerminePage() {
                 open={pauseConfirmOpen}
                 onClose={() => setPauseConfirmOpen(false)}
                 title=""
-                presentation="centered"
                 labelledBy={pauseTitleId}
-                footer={(
-                    <>
-                        <button type="button" onClick={() => setPauseConfirmOpen(false)}>Abbrechen</button>
-                        <button
-                            type="button"
-                            className="btn btn-accent"
-                            onClick={() => {
-                                setPauseConfirmOpen(false);
-                                toast("Pause-Block 12:30–13:15 eingetragen (Demonstration).");
-                            }}
-                        >
-                            Einfügen
-                        </button>
-                    </>
-                )}
+                className="modal--ios-confirm"
             >
-                <div className="modal-body">
-                    <h3 id={pauseTitleId}>Pause einfügen?</h3>
-                    <p>Möchten Sie einen Pause-Block 12:30–13:15 in den Kalender eintragen?</p>
+                <div className="ios-confirm">
+                    <div className="ios-confirm-body">
+                        <h2 id={pauseTitleId} className="ios-confirm-title">
+                            Pause einfügen?
+                        </h2>
+                        <p className="ios-confirm-message">Möchten Sie einen Pause-Block 12:30–13:15 in den Kalender eintragen?</p>
+                    </div>
+                    <IosConfirmActions
+                        cancelLabel="Abbrechen"
+                        confirmLabel="Einfügen"
+                        onCancel={() => setPauseConfirmOpen(false)}
+                        onConfirm={() => {
+                            setPauseConfirmOpen(false);
+                            toast("Pause-Block 12:30–13:15 eingetragen (Demonstration).");
+                        }}
+                    />
                 </div>
             </Dialog>
 
@@ -1460,10 +1599,12 @@ function TerminApptBlockView({
     const timeStr = (dragPreviewUhrzeit ?? termin.uhrzeit).slice(0, 5);
     const pill = terminCalendarStatusPill(termin);
     const stripeColor = doctorStripeVar(doctorTone);
+    const weekCompact = !dayColumn;
+    const schmerzZaehne = extractZahnschmerzFdisFromBeschwerden(termin.beschwerden);
     return (
         <button
             type="button"
-            className={`termin-appt-block termin-appt-block--calendar-row ${dayColumn ? "termin-appt-block--day-tall" : "termin-appt-block--week-compact"} termin-appt-block--${blockTone}${cancelled ? " termin-appt-block--cancelled" : ""}${dragging ? " termin-appt-block--dragging" : ""}`}
+            className={`termin-appt-block termin-appt-block--calendar-row ${dayColumn ? "termin-appt-block--day-tall" : "termin-appt-block--week-compact"} termin-appt-block--${blockTone}${cancelled ? " termin-appt-block--cancelled" : ""}${dragging ? " termin-appt-block--dragging" : ""}${weekCompact ? ` termin-appt-status-surface--${pill.tone}` : ""}`}
             style={{
                 ...style,
             }}
@@ -1486,11 +1627,23 @@ function TerminApptBlockView({
                     <span className="termin-appt-block-name">{patientName}</span>
                 </span>
                 <span className="termin-appt-block-type">{terminArtLabelFromTermin(termin)}</span>
+                {schmerzZaehne.length ? (
+                    <span
+                        className="termin-appt-block-zahn"
+                        title={`Zahnschmerz · FDI ${schmerzZaehne.join(", ")}`}
+                    >
+                        {schmerzZaehne.length === 1 ? `Zahn ${schmerzZaehne[0]}` : `Zähne ${schmerzZaehne.join(", ")}`}
+                    </span>
+                ) : null}
                 {dragTargetDatumHint ? (
                     <span className="termin-appt-block-target-day">{dragTargetDatumHint}</span>
                 ) : null}
             </span>
-            <span className={`termin-appt-status-pill termin-appt-status-pill--${pill.tone}`}>{pill.label}</span>
+            {weekCompact ? (
+                <span className="sr-only">{pill.label}</span>
+            ) : (
+                <span className={`termin-appt-status-pill termin-appt-status-pill--${pill.tone}`}>{pill.label}</span>
+            )}
         </button>
     );
 }
@@ -1510,6 +1663,7 @@ function TerminTimeColumnBody({
     nowMin,
     singleDay,
     axisLayout,
+    clickSuppressUntilRef,
 }: {
     iso: string;
     termine: Termin[];
@@ -1543,6 +1697,8 @@ function TerminTimeColumnBody({
     onNewAt: (isoDay: string, startMin: number) => void;
     nowMin: () => number;
     singleDay: boolean;
+    /** Wochenansicht: erster Klick nach Drag-Drop verwerfen (s. Parent-Ref). */
+    clickSuppressUntilRef?: MutableRefObject<number>;
     /** Tag- und Wochenansicht: Stundenhöhe aus verfügbarem Raster (ResizeObserver) */
     axisLayout?: { hourPx: number; pxPerMin: number };
 }) {
@@ -1623,7 +1779,10 @@ function TerminTimeColumnBody({
                             left: 4,
                             right: 4,
                         }}
-                        onClick={() => onOpenDrawer(ap)}
+                        onClick={() => {
+                            if (clickSuppressUntilRef && Date.now() < clickSuppressUntilRef.current) return;
+                            onOpenDrawer(ap);
+                        }}
                         onMouseDown={(e) => {
                             if (e.button !== 0) return;
                             e.stopPropagation();
@@ -1655,6 +1814,7 @@ function TerminWeekGrid({
     setDragState,
     snapLabel,
     onClearSnapLabel,
+    clickSuppressUntilRef,
     onHeaderDay,
     onOpenDrawer,
     onContextMenu,
@@ -1665,6 +1825,7 @@ function TerminWeekGrid({
     weekOffset: number;
     patientNameById: Map<string, string>;
     arztToneMap: Map<string, DoctorTone>;
+    clickSuppressUntilRef: MutableRefObject<number>;
     dragState: {
         id: string;
         datum: string;
@@ -1770,6 +1931,7 @@ function TerminWeekGrid({
                                 singleDay={false}
                                 axisLayout={weekAxisLayout}
                                 onBeginAppointmentDrag={onClearSnapLabel}
+                                clickSuppressUntilRef={clickSuppressUntilRef}
                             />
                         );
                     })}
@@ -2232,17 +2394,17 @@ function MonthCalendar({
     monthOffset,
     onMonthChange,
     termine,
-    patientNameById,
     aerzte,
     arztToneMap,
+    patientLoadSettings,
     onPickDay,
 }: {
     monthOffset: number;
     onMonthChange: Dispatch<SetStateAction<number>>;
     termine: Termin[];
-    patientNameById: Map<string, string>;
     aerzte: AerztSummary[];
     arztToneMap: Map<string, DoctorTone>;
+    patientLoadSettings: MonthCalendarPatientLoadPrefs;
     onPickDay: (iso: string) => void;
 }) {
     const anchor = addMonths(new Date(), monthOffset);
@@ -2277,8 +2439,13 @@ function MonthCalendar({
                     const iso = format(date, "yyyy-MM-dd");
                     const events = [...(byDate[iso] ?? [])].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
                     const isTodayCell = iso === todayIso;
-                    const visible = events.slice(0, 3);
-                    const more = events.length - visible.length;
+                    const terminCount = events.length;
+                    const loadTier = terminCount > 0 ? monthCalPatientLoadTier(terminCount, patientLoadSettings) : null;
+                    const loadHex =
+                        loadTier != null ? monthCalPatientLoadAccentHex(loadTier, patientLoadSettings) : null;
+                    const loadLabelDe =
+                        loadTier === "few" ? "wenig" : loadTier === "medium" ? "mittel" : loadTier === "high" ? "hoch" : "";
+                    const terminBadgeText = terminCount === 1 ? "1 Termin" : `${terminCount} Termine`;
                     return (
                         <div
                             key={idx}
@@ -2294,29 +2461,26 @@ function MonthCalendar({
                             }}
                         >
                             <div className="cal-num">{date.getDate()}</div>
-                            {visible.map((ev) => (
-                                <div
-                                    key={ev.id}
-                                    className={`cal-evt ${EVENT_TONE_BY_ART[ev.art] ?? "green"}`}
-                                    style={{ display: "flex", gap: 4, alignItems: "center" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onPickDay(iso);
-                                    }}
-                                >
-                                    <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{ev.uhrzeit.slice(0, 5)}</span>
-                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-                                        {patientNameById.get(ev.patient_id) ?? "Patient"}
-                                    </span>
-                                </div>
-                            ))}
-                            {more > 0 ? (
-                                <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, padding: "2px 4px" }}>
-                                    +{more} weitere
-                                </div>
-                            ) : null}
-                            {inMonth && events.length === 0 ? (
-                                <div style={{ fontSize: 11, color: "var(--fg-4)", padding: "2px 4px" }}>—</div>
+                            {inMonth ? (
+                                terminCount > 0 ? (
+                                    <div
+                                        className="cal-cell-termin-pill"
+                                        data-load-tier={loadTier ?? undefined}
+                                        style={
+                                            loadHex
+                                                ? ({ "--termin-pill-accent": loadHex } as CSSProperties)
+                                                : undefined
+                                        }
+                                        aria-label={`${terminBadgeText}, Auslastung ${loadLabelDe}`}
+                                        title={`${terminBadgeText} · Auslastung ${loadLabelDe}`}
+                                    >
+                                        {terminBadgeText}
+                                    </div>
+                                ) : (
+                                    <div className="cal-cell-termin-pill cal-cell-termin-pill--empty" aria-label="Keine Termine">
+                                        —
+                                    </div>
+                                )
                             ) : null}
                         </div>
                     );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listProdukte } from "../../controllers/produkt.controller";
+import { listProdukte, createProdukt } from "../../controllers/produkt.controller";
 import {
     listLieferantStamm,
     createLieferantStamm,
@@ -16,12 +16,14 @@ import { useAuthStore } from "@/models/store/auth-store";
 import type { LieferantPharmaVorlage, LieferantStamm, PharmaberaterStamm, Produkt } from "@/models/types";
 import { countProdukteWithName, errorMessage, produktSelectLabel } from "@/lib/utils";
 import { Button } from "../components/ui/button";
+import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { TrashIcon } from "@/lib/icons";
+import { ProduktFormFields, emptyForm, formValid, parseForm, type ProduktForm } from "../components/produkt-form-shared";
 
 /**
  * Verwaltung: Stammdaten für Bestellungen — Lieferanten, Pharmaberater/Kontakte
@@ -32,6 +34,7 @@ export function BestellstammVerwaltungPage() {
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
     const canWrite = role ? allowed("bestellung.write", role) : false;
+    const canProduktWrite = role ? allowed("produkt.write", role) : false;
 
     const [lieferanten, setLieferanten] = useState<LieferantStamm[]>([]);
     const [kontakte, setKontakte] = useState<PharmaberaterStamm[]>([]);
@@ -46,11 +49,14 @@ export function BestellstammVerwaltungPage() {
     const [comboKontaktId, setComboKontaktId] = useState("");
     const [comboProduktId, setComboProduktId] = useState("");
 
+    const [creatingProdukt, setCreatingProdukt] = useState(false);
+    const [produktCreateForm, setProduktCreateForm] = useState<ProduktForm>(emptyForm());
+    const [produktCreateBusy, setProduktCreateBusy] = useState(false);
     const [busy, setBusy] = useState(false);
     const [deleteKind, setDeleteKind] = useState<"lief" | "kontakt" | "vorlage" | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    const reload = useCallback(async () => {
+    const reload = useCallback(async (opts?: { selectProduktId?: string }) => {
         setLoadError(null);
         setStatus("loading");
         try {
@@ -66,7 +72,12 @@ export function BestellstammVerwaltungPage() {
             setVorlagen(v);
             setComboLiefId((prev) => (prev && l.some((x) => x.id === prev) ? prev : l[0]?.id ?? ""));
             setComboKontaktId((prev) => (prev && k.some((x) => x.id === prev) ? prev : k[0]?.id ?? ""));
-            setComboProduktId((prev) => (prev && prods.some((x) => x.id === prev) ? prev : prods[0]?.id ?? ""));
+            setComboProduktId((prev) => {
+                const prefer = opts?.selectProduktId;
+                if (prefer && prods.some((x) => x.id === prefer)) return prefer;
+                if (prev && prods.some((x) => x.id === prev)) return prev;
+                return prods[0]?.id ?? "";
+            });
             setStatus("ready");
         } catch (e) {
             setLoadError(errorMessage(e));
@@ -99,6 +110,15 @@ export function BestellstammVerwaltungPage() {
             })),
         [produkte, produkteSorted],
     );
+
+    const kategorieVorschlaege = useMemo(() => {
+        const s = new Set<string>();
+        for (const p of produkte) {
+            const k = p.kategorie?.trim();
+            if (k) s.add(k);
+        }
+        return [...s].sort((a, b) => a.localeCompare(b, "de"));
+    }, [produkte]);
 
     const addLieferant = async () => {
         if (!canWrite || !newLief.trim()) {
@@ -133,6 +153,28 @@ export function BestellstammVerwaltungPage() {
             toast(errorMessage(e), "error");
         } finally {
             setBusy(false);
+        }
+    };
+
+    const cancelCreateProdukt = () => {
+        setCreatingProdukt(false);
+        setProduktCreateForm(emptyForm());
+    };
+
+    const handleCreateProdukt = async () => {
+        if (!formValid(produktCreateForm) || !canProduktWrite) return;
+        setProduktCreateBusy(true);
+        try {
+            const payload = parseForm(produktCreateForm);
+            const created = await createProdukt(payload);
+            toast("Produkt erstellt", "success");
+            setProduktCreateForm(emptyForm());
+            setCreatingProdukt(false);
+            await reload({ selectProduktId: created.id });
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setProduktCreateBusy(false);
         }
     };
 
@@ -268,8 +310,56 @@ export function BestellstammVerwaltungPage() {
                 </div>
             </div>
 
+            {canProduktWrite ? (
+                <Card>
+                    <CardHeader
+                        title="Neues Produkt (Lager)"
+                        subtitle="Wie unter Produkte — erscheint direkt in der Auswahl „Produkt (Lager)“ für Kombinationen."
+                        action={
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={creatingProdukt ? "secondary" : "ghost"}
+                                onClick={
+                                    creatingProdukt
+                                        ? cancelCreateProdukt
+                                        : () => {
+                                              setCreatingProdukt(true);
+                                              setProduktCreateForm(emptyForm());
+                                          }
+                                }
+                            >
+                                {creatingProdukt ? "Abbrechen" : "+ Neues Produkt"}
+                            </Button>
+                        }
+                    />
+                    {creatingProdukt ? (
+                        <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                            <ProduktFormFields
+                                form={produktCreateForm}
+                                setForm={setProduktCreateForm}
+                                idPrefix="bs-prod-new"
+                                kategorieVorschlaege={kategorieVorschlaege}
+                            />
+                            <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                                <Button type="button" variant="ghost" onClick={cancelCreateProdukt} disabled={produktCreateBusy}>
+                                    Abbrechen
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => void handleCreateProdukt()}
+                                    disabled={!formValid(produktCreateForm) || produktCreateBusy}
+                                    loading={produktCreateBusy}
+                                >
+                                    Erstellen
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+                </Card>
+            ) : null}
+
             <div className="card card-pad">
-                <h2 className="text-title" style={{ margin: "0 0 12px" }}>Kombinationen (Schnellwahl)</h2>
                 <p style={{ color: "var(--fg-3)", fontSize: 13, marginTop: 0 }}>
                     Verknüpft einen Lieferanten mit einem Kontakt — in <b>Neue Bestellung</b> als Dropdown „Vorlage“ wählbar.
                 </p>

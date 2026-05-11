@@ -7,4 +7,5 @@
 
 pub mod dicom;
 pub mod gdt;
+pub mod host_integration;
 pub mod scanner;

@@ -127,43 +127,59 @@ fn build_datei_submenu<R: Runtime, M: Manager<R>>(
     manager: &M,
     gates: &NativeFileNewGate,
 ) -> tauri::Result<Submenu<R>> {
-    let mut items: Vec<MenuItem<R>> = Vec::new();
+    let mut new_items: Vec<MenuItem<R>> = Vec::new();
 
     if gates.termin {
-        items.push(
+        new_items.push(
             MenuItemBuilder::with_id("menu_new_termin", "Neuer Termin …")
                 .accelerator("CmdOrCtrl+N")
                 .build(manager)?,
         );
     }
     if gates.patient {
-        items.push(MenuItemBuilder::with_id("menu_new_patient", "Neuer Patient …").build(manager)?);
+        new_items.push(MenuItemBuilder::with_id("menu_new_patient", "Neuer Patient …").build(manager)?);
     }
     if gates.zahlung {
-        items.push(MenuItemBuilder::with_id("menu_new_zahlung", "Neue Zahlung …").build(manager)?);
+        new_items.push(MenuItemBuilder::with_id("menu_new_zahlung", "Neue Zahlung …").build(manager)?);
     }
     if gates.bestellung {
-        items.push(MenuItemBuilder::with_id("menu_new_bestellung", "Neue Bestellung …").build(manager)?);
+        new_items.push(MenuItemBuilder::with_id("menu_new_bestellung", "Neue Bestellung …").build(manager)?);
     }
     if gates.leistung {
-        items.push(MenuItemBuilder::with_id("menu_new_leistung", "Neue Leistung …").build(manager)?);
+        new_items.push(MenuItemBuilder::with_id("menu_new_leistung", "Neue Leistung …").build(manager)?);
     }
     if gates.bilanz {
-        items.push(MenuItemBuilder::with_id("menu_new_bilanz", "Neuer Bilanz-Eintrag …").build(manager)?);
+        new_items.push(MenuItemBuilder::with_id("menu_new_bilanz", "Neuer Bilanz-Eintrag …").build(manager)?);
     }
 
+    let print_item = MenuItemBuilder::with_id("menu_file_print", "Drucken …")
+        .accelerator("CmdOrCtrl+P")
+        .build(manager)?;
+
     #[cfg(target_os = "macos")]
-    if items.is_empty() {
-        items.push(
+    let role_placeholder: Option<MenuItem<R>> = if new_items.is_empty() {
+        Some(
             MenuItemBuilder::with_id("menu_file_placeholder", "(Keine neuen Einträge für diese Rolle)")
                 .enabled(false)
                 .build(manager)?,
-        );
-    }
+        )
+    } else {
+        None
+    };
 
     let mut b = SubmenuBuilder::new(manager, "Datei");
-    for it in &items {
+    for it in &new_items {
         b = b.item(it);
+    }
+    if !new_items.is_empty() {
+        b = b.separator();
+    }
+    b = b.item(&print_item);
+
+    #[cfg(target_os = "macos")]
+    if let Some(ph) = role_placeholder {
+        b = b.separator();
+        b = b.item(&ph);
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -171,9 +187,7 @@ fn build_datei_submenu<R: Runtime, M: Manager<R>>(
         let quit_app = MenuItemBuilder::with_id("menu_quit", "Beenden")
             .accelerator("CmdOrCtrl+Q")
             .build(manager)?;
-        if !items.is_empty() {
-            b = b.separator();
-        }
+        b = b.separator();
         b = b.item(&quit_app);
     }
 
@@ -355,6 +369,8 @@ pub fn handle_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &MenuEven
         "menu_new_bestellung" => emit_menu(app, json!({ "kind": "navigate", "path": "/bestellungen/neu" })),
         "menu_new_leistung" => emit_menu(app, json!({ "kind": "navigate", "path": "/leistungen/neu" })),
         "menu_new_bilanz" => emit_menu(app, json!({ "kind": "navigate", "path": "/bilanz/neu" })),
+
+        "menu_file_print" => emit_menu(app, json!({ "kind": "app", "action": "print" })),
 
         "menu_termin_view_tag" => emit_menu(app, json!({ "kind": "termin", "action": "view_tag" })),
         "menu_termin_view_woche" => emit_menu(app, json!({ "kind": "termin", "action": "view_woche" })),

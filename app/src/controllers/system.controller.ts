@@ -129,12 +129,34 @@ export interface ScannedDocument {
 export const scannerListRecent = (folder: string, limit?: number) =>
     tauriInvoke<ScannedDocument[]>("scanner_list_recent", { folder, limit });
 
+/** Opens OS scan UI (Image Capture, Windows Scan, simple-scan, …). */
+export const openSystemScanUtility = () => tauriInvoke<void>("open_system_scan_utility");
+
+/** System print dialog for the main webview (native where supported); fallback: `window.print()`. */
+export const openNativePrintDialog = () => tauriInvoke<void>("open_native_print_dialog");
+
 export const scannerAttach = (src: string, archiveRoot: string, patientId: string) =>
     tauriInvoke<string>("scanner_attach", {
         src,
         archive_root: archiveRoot,
         patient_id: patientId,
     });
+
+export const scannerAttachVertrag = (src: string, archiveRoot: string, vertragId: string) =>
+    tauriInvoke<string>("scanner_attach_vertrag", {
+        src,
+        archive_root: archiveRoot,
+        vertrag_id: vertragId,
+    });
+
+/** Copy into ~/medoc-data/vertraege/{vertragId}/ (or ./medoc-data if no home). */
+export const scannerAttachVertragAppData = (src: string, vertragId: string) =>
+    tauriInvoke<string>("scanner_attach_vertrag_app_data", {
+        src,
+        vertrag_id: vertragId,
+    });
+
+export const pickVertragPdfFile = () => tauriInvoke<string | null>("pick_vertrag_pdf_file");
 
 /* ─────────────────── Card / SEPA processing (FA-FIN-PAY) ──────────────── */
 

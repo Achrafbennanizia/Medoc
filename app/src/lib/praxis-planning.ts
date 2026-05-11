@@ -29,12 +29,24 @@ export type PraxisClosureRule = {
     reason?: string;
 };
 
+/** Nur Wochenplan + Pause + Slot — Sonder-Sperrzeiten bleiben praxisweit. */
+export type ArztArbeitszeitProfil = {
+    plan: Record<PraxisDayKey, PraxisDayPlan>;
+    pauseVon: string;
+    pauseBis: string;
+    slotMin: string;
+};
+
 export type PraxisArbeitszeitenConfig = {
     plan: Record<PraxisDayKey, PraxisDayPlan>;
     pauseVon: string;
     pauseBis: string;
     slotMin: string;
     closures: PraxisClosureRule[];
+    /** Default Behandler for „Neuer Termin“ when the URL does not override it. */
+    defaultArztId?: string;
+    /** Eigene Sprechzeiten pro Arzt; fehlender Eintrag = Praxis-Standard ({@link plan}, Pause, Slot). */
+    arztSchedules?: Record<string, ArztArbeitszeitProfil>;
 };
 
 const DEFAULT_PLAN: Record<PraxisDayKey, PraxisDayPlan> = {
@@ -53,16 +65,63 @@ const DEFAULT_CFG: PraxisArbeitszeitenConfig = {
     pauseBis: "13:30",
     slotMin: "30",
     closures: [],
+    defaultArztId: undefined,
+    arztSchedules: undefined,
 };
+
+type PlanParseInput = Record<
+    string,
+    { aktiv?: boolean; von?: string; bis?: string; segments?: Array<{ from: string; to: string }> }
+> | undefined;
+
+function mergePlanFromParsed(planRaw: PlanParseInput): Record<PraxisDayKey, PraxisDayPlan> {
+    const mergedPlan = { ...DEFAULT_PLAN } as Record<PraxisDayKey, PraxisDayPlan>;
+    if (!planRaw) return mergedPlan;
+    for (const key of PRAXIS_DAY_KEYS) {
+        const p = planRaw[key];
+        if (!p) continue;
+        const legacySeg = p.von && p.bis ? [{ from: p.von, to: p.bis }] : undefined;
+        mergedPlan[key] = {
+            aktiv: p.aktiv ?? mergedPlan[key].aktiv,
+            segments: (p.segments && p.segments.length ? p.segments : legacySeg ?? mergedPlan[key].segments)
+                .filter((s) => s.from && s.to && s.from < s.to),
+        };
+    }
+    return mergedPlan;
+}
+
+function parseArztSchedules(raw: unknown): Record<string, ArztArbeitszeitProfil> | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const out: Record<string, ArztArbeitszeitProfil> = {};
+    for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+        const aid = id.trim();
+        if (!aid || !v || typeof v !== "object") continue;
+        const vo = v as {
+            plan?: PlanParseInput;
+            pauseVon?: string;
+            pauseBis?: string;
+            slotMin?: string;
+        };
+        out[aid] = {
+            plan: mergePlanFromParsed(vo.plan),
+            pauseVon: typeof vo.pauseVon === "string" ? vo.pauseVon : DEFAULT_CFG.pauseVon,
+            pauseBis: typeof vo.pauseBis === "string" ? vo.pauseBis : DEFAULT_CFG.pauseBis,
+            slotMin: typeof vo.slotMin === "string" ? vo.slotMin : DEFAULT_CFG.slotMin,
+        };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
 
 function parseConfigBlob(raw: string | null | undefined): PraxisArbeitszeitenConfig {
     try {
         if (!raw) return DEFAULT_CFG;
         const parsed = JSON.parse(raw) as {
-            plan?: Record<string, { aktiv?: boolean; von?: string; bis?: string; segments?: Array<{ from: string; to: string }> }>;
+            plan?: PlanParseInput;
             pauseVon?: string;
             pauseBis?: string;
             slotMin?: string;
+            defaultArztId?: string;
+            arztSchedules?: Record<string, unknown>;
             closures?: Array<{
                 id: string;
                 date: string;
@@ -73,20 +132,7 @@ function parseConfigBlob(raw: string | null | undefined): PraxisArbeitszeitenCon
                 reason?: string;
             }>;
         };
-        const mergedPlan = { ...DEFAULT_PLAN } as Record<PraxisDayKey, PraxisDayPlan>;
-        for (const key of PRAXIS_DAY_KEYS) {
-            const p = parsed.plan?.[key];
-            if (!p) continue;
-            const legacySeg =
-                p.von && p.bis
-                    ? [{ from: p.von, to: p.bis }]
-                    : undefined;
-            mergedPlan[key] = {
-                aktiv: p.aktiv ?? mergedPlan[key].aktiv,
-                segments: (p.segments && p.segments.length ? p.segments : legacySeg ?? mergedPlan[key].segments)
-                    .filter((s) => s.from && s.to && s.from < s.to),
-            };
-        }
+        const mergedPlan = mergePlanFromParsed(parsed.plan);
         const closures = (parsed.closures ?? []).map((c) => {
             if (c.mode === "FULL_DAY") return { ...c, mode: "FULL_DAY" as const, periods: [] };
             if (c.mode === "CUSTOM") {
@@ -101,12 +147,19 @@ function parseConfigBlob(raw: string | null | undefined): PraxisArbeitszeitenCon
             if (c.mode === "EVENING") return { ...c, mode: "CUSTOM" as const, periods: [{ from: "12:00", to: "23:59" }] };
             return { ...c, mode: "FULL_DAY" as const, periods: [] };
         });
+        const defaultArztId =
+            typeof parsed.defaultArztId === "string" && parsed.defaultArztId.trim()
+                ? parsed.defaultArztId.trim()
+                : undefined;
+        const arztSchedules = parseArztSchedules(parsed.arztSchedules);
         return {
             plan: mergedPlan,
             pauseVon: parsed.pauseVon ?? DEFAULT_CFG.pauseVon,
             pauseBis: parsed.pauseBis ?? DEFAULT_CFG.pauseBis,
             slotMin: parsed.slotMin ?? DEFAULT_CFG.slotMin,
             closures,
+            defaultArztId,
+            arztSchedules,
         };
     } catch {
         return DEFAULT_CFG;
@@ -155,6 +208,27 @@ export async function savePraxisArbeitszeitenConfig(cfg: PraxisArbeitszeitenConf
     await setAppKv(PRAXIS_KV_KEY, blob);
 }
 
+/**
+ * Effektive Konfiguration für einen Behandler: eigenes Profil oder Praxis-Standard.
+ * `closures` bleiben immer praxisweit.
+ */
+export function resolveEffectiveArbeitszeitenForArzt(
+    cfg: PraxisArbeitszeitenConfig,
+    arztId: string | null | undefined,
+): PraxisArbeitszeitenConfig {
+    const id = typeof arztId === "string" ? arztId.trim() : "";
+    if (!id) return cfg;
+    const prof = cfg.arztSchedules?.[id];
+    if (!prof) return cfg;
+    return {
+        ...cfg,
+        plan: prof.plan,
+        pauseVon: prof.pauseVon,
+        pauseBis: prof.pauseBis,
+        slotMin: prof.slotMin,
+    };
+}
+
 function hmToMinutes(hm: string): number {
     const [h, m] = hm.split(":").map((n) => Number(n));
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
@@ -183,6 +257,23 @@ export function isSlotBlockedByPraxisConfig(cfg: PraxisArbeitszeitenConfig, isoD
     for (const r of rules) {
         if (r.mode === "FULL_DAY") return true;
         if (r.mode === "CUSTOM" && (r.periods ?? []).some((p) => inRange(hm, p.from, p.to))) return true;
+    }
+    return false;
+}
+
+/** True if any minute in [startMin, endMin) is outside Sprechzeit, inside Pause, or in Sonder-Sperrzeiten. */
+export function isAppointmentSpanBlockedByPraxisConfig(
+    cfg: PraxisArbeitszeitenConfig,
+    isoDate: string,
+    startMin: number,
+    endMin: number,
+): boolean {
+    if (endMin <= startMin) return true;
+    for (let m = startMin; m < endMin; m += 1) {
+        const h = Math.floor(m / 60);
+        const mi = m % 60;
+        const hm = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+        if (isSlotBlockedByPraxisConfig(cfg, isoDate, hm)) return true;
     }
     return false;
 }

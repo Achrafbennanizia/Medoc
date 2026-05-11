@@ -65,6 +65,35 @@ export const BoltIcon: FC<{ size?: number }> = ({ size = 16 }) => (
         <path d="M13 2L3 14h7l-1 8 11-12h-7l3-8z" />
     </IconBase>
 );
+/** Sonne — Darstellung / Theme. */
+export const SunIcon: FC<{ size?: number }> = ({ size = 18 }) => (
+    <IconBase size={size}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77" />
+    </IconBase>
+);
+/** Einstellungen-Schieberegler — Arbeitsabläufe. */
+export const SlidersHorizontalIcon: FC<{ size?: number }> = ({ size = 18 }) => (
+    <IconBase size={size}>
+        <path d="M4 21v-6.5M4 10V3M12 21v-3M12 14V3M20 21v-9M20 8V3M9 10h6M14 17h7M7 17H5" />
+    </IconBase>
+);
+/** Stethoskop — Praxis (an Lucide angelehnt). */
+export const StethoscopeIcon: FC<{ size?: number }> = ({ size = 18 }) => (
+    <IconBase size={size}>
+        <path d="M6 20v-2a4 4 0 014-4h1" />
+        <path d="M6 4a2 2 0 114 0v7a3 3 0 006 0V5a2 2 0 114 0v6" />
+        <path d="M12 11V9" />
+    </IconBase>
+);
+/** Schlüssel — Lizenz & Abo. */
+export const KeyRoundIcon: FC<{ size?: number }> = ({ size = 18 }) => (
+    <IconBase size={size}>
+        <path d="M3 14l9.5 9.5a3 3 0 004.24-4.24L10.5 12.5" />
+        <path d="M8 8l4 4" />
+        <circle cx="14.5" cy="9.5" r="3.5" />
+    </IconBase>
+);
 export const DownloadIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 19h14" /></IconBase>;
 /** Emergency / Notfall — von Lucide „ambulance“ inspiriert. Lizenz: `third_party/LICENSES.md` (ISC, Lucide). */
 export const AmbulanceIcon: FC<IconProps> = ({ size = 20, ...props }) => (
@@ -97,7 +126,7 @@ const BuildingIcon: FC<{ size?: number }> = ({ size = 17 }) => (
 export const ToothIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3c3 0 5 2 5 5 0 6-1 12-3 12-1.2 0-1.3-2-2-3-.7 1-1 3-2 3-2 0-3-6-3-12 0-3 2-5 5-5z" /></IconBase>;
 export const ClipboardIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4.5h6" /></IconBase>;
 const ScrollIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M6 4h12v14a3 3 0 01-3 3H8a3 3 0 01-3-3V7a3 3 0 013-3z" /><path d="M9 9h6M9 13h6" /></IconBase>;
-const SettingsIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" /></IconBase>;
+export const SettingsIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" /></IconBase>;
 const ShieldIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /></IconBase>;
 const LockIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></IconBase>;
 const TruckIcon: FC<{ size?: number }> = ({ size = 17 }) => (

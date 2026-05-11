@@ -11,6 +11,7 @@ import {
     inspectDicomFile,
     scannerListRecent,
     scannerAttach,
+    openSystemScanUtility,
     type GdtRecord,
     type DicomFileInfo,
     type ScannedDocument,
@@ -279,7 +280,25 @@ function DeviceFilePanel() {
                 </div>
                 <div style={{ marginTop: 16 }}>
                     <Input id="scan-folder" label="Scanner-Ordner" value={scanFolder} onChange={(e) => setScanFolder(e.target.value)} placeholder="/Users/…/scans" />
+                    <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45 }}>
+                        Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“.
+                    </p>
                     <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: "wrap" }}>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                                void (async () => {
+                                    try {
+                                        await openSystemScanUtility();
+                                    } catch (e) {
+                                        toast(`Scanner-Programm: ${errorMessage(e)}`);
+                                    }
+                                })();
+                            }}
+                        >
+                            System-Scanner öffnen
+                        </Button>
                         <Button type="button" onClick={() => void runScan()} disabled={scanBusy} loading={scanBusy}>Liste aktualisieren</Button>
                     </div>
                     {docs.length > 0 ? (

@@ -4,6 +4,7 @@ import type { TagesabschlussProtokoll } from "@/controllers/tagesabschluss-proto
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 import {
     buildTagesberichtLines,
+    buildInvoiceHeaderAddressLines,
     getInvoicePraxisFromStorage,
 } from "@/lib/invoice-leistung";
 import { openExportPreview } from "@/models/store/export-preview-store";
@@ -81,7 +82,7 @@ export async function downloadTagesabschlussBerichtPdf(
         recipient_name: "Tagesbericht (Gesamtdokumentation)",
         recipient_address: [stichtag, "Beleg-Überblick je Patient mit Tagesvorgang"],
         practice_name: praxis.name,
-        practice_address: praxis.addr.split("\n").map((s) => s.trim()).filter(Boolean),
+        practice_address: buildInvoiceHeaderAddressLines(praxis),
         lines: aggregated,
         note: note || null,
     });

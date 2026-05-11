@@ -3,6 +3,7 @@ import { Button } from "@/views/components/ui/button";
 import { Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { DocumentTemplateEditor } from "@/views/components/document-template-editor";
+import { ConfirmDialog } from "@/views/components/ui/dialog";
 import {
     BUILTIN_TEMPLATES_BY_KIND,
     DOCUMENT_KIND_LABEL,
@@ -71,6 +72,7 @@ export function EinstellungenExportDruckSection() {
     const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
     const [editorKind, setEditorKind] = useState<DocumentKind>("quittung");
     const [editorNewName, setEditorNewName] = useState("");
+    const [deleteTemplate, setDeleteTemplate] = useState<{ kind: DocumentKind; row: DokumentTemplateDto } | null>(null);
 
     useEffect(() => {
         let c = false;
@@ -246,13 +248,18 @@ export function EinstellungenExportDruckSection() {
         }
     };
 
-    const removeUser = async (kind: DocumentKind, row: DokumentTemplateDto) => {
-        const ok = typeof window !== "undefined" ? window.confirm(`Vorlage „${row.name}“ löschen?`) : false;
-        if (!ok) return;
+    const requestRemoveUser = (kind: DocumentKind, row: DokumentTemplateDto) => {
+        setDeleteTemplate({ kind, row });
+    };
+
+    const confirmRemoveTemplate = async () => {
+        const target = deleteTemplate;
+        if (!target) return;
+        setDeleteTemplate(null);
         try {
-            await deleteDokumentTemplate(row.id);
+            await deleteDokumentTemplate(target.row.id);
             toast("Vorlage gelöscht", "success");
-            await reloadTemplates(kind);
+            await reloadTemplates(target.kind);
         } catch (e) {
             toast(`Löschen: ${e instanceof Error ? e.message : String(e)}`, "error");
         }
@@ -270,7 +277,7 @@ export function EinstellungenExportDruckSection() {
     };
 
     return (
-        <section>
+        <section className="settings-subcard">
             <div className="card-head">
                 <div>
                     <div className="card-title">Export &amp; Druck</div>
@@ -498,7 +505,7 @@ export function EinstellungenExportDruckSection() {
                                                         <Button type="button" size="sm" variant="ghost" onClick={() => void copyUser(kind, row)}>
                                                             Kopieren
                                                         </Button>
-                                                        <Button type="button" size="sm" variant="ghost" onClick={() => void removeUser(kind, row)}>
+                                                        <Button type="button" size="sm" variant="ghost" onClick={() => requestRemoveUser(kind, row)}>
                                                             Löschen
                                                         </Button>
                                                     </li>
@@ -512,6 +519,15 @@ export function EinstellungenExportDruckSection() {
                     </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={deleteTemplate !== null}
+                onClose={() => setDeleteTemplate(null)}
+                onConfirm={() => void confirmRemoveTemplate()}
+                title="Vorlage löschen"
+                message={deleteTemplate ? `Vorlage „${deleteTemplate.row.name}“ löschen?` : ""}
+                confirmLabel="Löschen"
+            />
 
             <DocumentTemplateEditor
                 open={editorOpen}

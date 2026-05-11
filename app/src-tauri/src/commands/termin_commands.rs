@@ -1,4 +1,5 @@
 use crate::application::rbac;
+use crate::application::termin_hint_fulfillment;
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::termin::{CreateTermin, UpdateTermin};
 use crate::domain::entities::Termin;
@@ -75,6 +76,7 @@ pub async fn create_termin(
     )
     .await
     .ok();
+    termin_hint_fulfillment::after_termin_created_best_effort(&pool, &session.user_id, &t).await;
     Ok(t)
 }
 

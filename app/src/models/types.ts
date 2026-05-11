@@ -47,6 +47,18 @@ export interface Session {
     rolle: Rolle;
 }
 
+/** Persisted in SQLite `in_app_notification` (Benachrichtigungen für eingeloggtes Personal). */
+export interface InAppNotification {
+    id: string;
+    user_id: string;
+    kind: string;
+    title: string;
+    body: string;
+    payload_json: string | null;
+    read_at: string | null;
+    created_at: string;
+}
+
 export interface Personal {
     id: string;
     name: string;

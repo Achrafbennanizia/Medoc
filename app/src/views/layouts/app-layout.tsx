@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -20,7 +20,7 @@ import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { NotificationsPopover } from "../components/notifications-popover";
-import { checkForUpdates } from "@/controllers/system.controller";
+import { checkForUpdates, openNativePrintDialog } from "@/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { BreakGlassBanner } from "../components/break-glass-banner";
@@ -29,6 +29,7 @@ import { loadClientSettings } from "../../lib/client-settings";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/controllers/native-menu.controller";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
+import { countUnreadInAppNotifications } from "@/controllers/in-app-notification.controller";
 
 function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/termine/neu") return ["MeDoc", "Terminübersicht", "Neuer Termin"];
@@ -200,6 +201,7 @@ export function AppLayout() {
     const [commandOpen, setCommandOpen] = useState(false);
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
+    const [inAppUnread, setInAppUnread] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -252,6 +254,28 @@ export function AppLayout() {
         if (r === "PHARMABERATER") return t("app.role_label.PHARMABERATER");
         return "";
     }, [session?.rolle, t]);
+
+    const refreshInAppUnread = useCallback(async () => {
+        if (!session?.user_id) {
+            setInAppUnread(0);
+            return;
+        }
+        try {
+            const n = await countUnreadInAppNotifications();
+            setInAppUnread(typeof n === "number" && n > 0 ? n : 0);
+        } catch {
+            setInAppUnread(0);
+        }
+    }, [session?.user_id]);
+
+    useEffect(() => {
+        void refreshInAppUnread();
+    }, [refreshInAppUnread, location.pathname]);
+
+    useEffect(() => {
+        const id = window.setInterval(() => void refreshInAppUnread(), 120_000);
+        return () => window.clearInterval(id);
+    }, [refreshInAppUnread]);
 
     // Inactivity guard (FA-AUTH-03 / NFA-SEC-09): the backend expires sessions after 30 min.
     // Throttle activity pings to once every 30 s and poll the session status
@@ -677,6 +701,23 @@ export function AppLayout() {
                                 setUiZoom(1);
                                 return;
                             }
+                            if (p.action === "print") {
+                                void (async () => {
+                                    try {
+                                        await openNativePrintDialog();
+                                    } catch (e) {
+                                        try {
+                                            window.print();
+                                        } catch {
+                                            useToastStore.getState().add(
+                                                `Drucken fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`,
+                                                "error",
+                                            );
+                                        }
+                                    }
+                                })();
+                                return;
+                            }
                         }
                         if (p.kind === "help") {
                             if (p.topic === "calendar") setNativeHelpTopic("calendar");
@@ -961,9 +1002,17 @@ export function AppLayout() {
                                 }}
                             >
                                 <BellIcon size={18} />
-                                <span className="dot" aria-hidden />
+                                {inAppUnread > 0 ? <span className="dot" aria-hidden /> : null}
                             </button>
-                            {notifOpen ? <NotificationsPopover onClose={() => setNotifOpen(false)} /> : null}
+                            {notifOpen ? (
+                                <NotificationsPopover
+                                    onClose={() => {
+                                        setNotifOpen(false);
+                                        void refreshInAppUnread();
+                                    }}
+                                    onUnreadChanged={() => void refreshInAppUnread()}
+                                />
+                            ) : null}
                         </div>
                         <div ref={topbarMenuRef} style={{ position: "relative" }}>
                             <button
