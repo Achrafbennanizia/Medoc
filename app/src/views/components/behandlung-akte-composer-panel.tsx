@@ -221,7 +221,7 @@ export function BehandlungAkteComposerPanel({
                         Nächsten Termin planen (optional)
                     </summary>
                     <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "8px 0 12px" }}>
-                        Optional: Status und Folgetermin-Hinweis nur für diese Behandlungszeile. Für die Rezeption nutzen Sie oben „Plan nächsten Termin“.
+                        Nur wenn ein Folgetermin geplant ist: erscheint automatisch als kompakter Hinweis für die Rezeption (Dashboard + Neuer Termin), zusätzlich zur Akte „Plan nächsten Termin“.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select

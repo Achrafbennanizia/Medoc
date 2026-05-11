@@ -71,6 +71,7 @@ import { listZahlungenForPatient, createZahlung, updateZahlung, deleteZahlung } 
 import type { Zahlung, ZahlungsArt } from "@/models/types";
 import {
     emptyPlanNextTermin,
+    mergeBehandlungFollowupIntoPlan,
     planNextHasContent,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
@@ -104,8 +105,7 @@ import {
 import { loadClientSettings } from "@/lib/client-settings";
 import { resolveOpenImageWithAppPath } from "@/lib/photo-viewer-apps";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
-import {
-    bundleAttestExport,
+import { bundleAttestExport,
     bundleQuittungExport,
     bundleRezeptExport,
     suggestAttestExportBasename,
@@ -113,6 +113,7 @@ import {
     suggestRezeptExportBasename,
     type ClinicalDocumentExportBundle,
 } from "@/lib/document-print-html";
+import { openSystemScanUtility } from "@/controllers/system.controller";
 import {
     ZAHLUNG_ART_SELECT,
     ZAHL_EUR_EPS,
@@ -257,9 +258,6 @@ export function PatientDetailPage() {
     const detailQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
     const fromTerminCreate = detailQuery.get("from") === "termin-create";
     const draft = detailQuery.get("draft") ?? "";
-    const terminBackLink = fromTerminCreate && draft
-        ? `/termine/neu?patient_id=${encodeURIComponent(id ?? "")}&draft=${encodeURIComponent(draft)}`
-        : `/termine/neu?patient_id=${encodeURIComponent(id ?? "")}`;
     const session = useAuthStore((s) => s.session);
     const role = session?.rolle ? parseRole(session.rolle) : null;
     const canViewClinical = role != null && allowed("patient.read_medical", role);
@@ -349,7 +347,16 @@ export function PatientDetailPage() {
     const [itemValidation, setItemValidation] = useState<Partial<Record<string, ValidationRecord>>>({});
     /** Arzt → Rezeption: strukturierter Terminplan (localStorage v2). */
     const [showPlanTip, setShowPlanTip] = useState(false);
-    const [planNext, setPlanNext] = useState<PlanNextTerminV2>(emptyPlanNextTermin);
+    const [planNext, setPlanNext] = useState<PlanNextTerminV2>(() => emptyPlanNextTermin());
+
+    const terminBackLink = useMemo(() => {
+        const pid = id ?? "";
+        const q = new URLSearchParams();
+        q.set("patient_id", pid);
+        if (fromTerminCreate && draft) q.set("draft", draft);
+        if (planNextHasContent(planNext)) q.set("apply_plan", "1");
+        return `/termine/neu?${q.toString()}`;
+    }, [id, fromTerminCreate, draft, planNext]);
     const [behandComposerMode, setBehandComposerMode] = useState<"new" | "continue" | null>(null);
     const [continueFromBehandlungId, setContinueFromBehandlungId] = useState<string>("");
     const [behandEditId, setBehandEditId] = useState<string | null>(null);
@@ -816,6 +823,23 @@ export function PatientDetailPage() {
         } catch (e) {
             toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
             return;
+        }
+        if (id && payload.termin_erforderlich) {
+            const merged = mergeBehandlungFollowupIntoPlan(planNext, {
+                leistungsname: behandForm.leistungsname,
+                notizen: behandForm.notizen ?? "",
+            });
+            if (planNextHasContent(merged)) {
+                try {
+                    await persistPlanNextTerminToBackend(id, merged);
+                    setPlanNext(merged);
+                } catch (err) {
+                    toast(
+                        `Folgetermin-Hinweis: ${err instanceof Error ? err.message : String(err)}`,
+                        "error",
+                    );
+                }
+            }
         }
         setBehandForm({
             datum: new Date().toISOString().slice(0, 10),
@@ -2279,16 +2303,16 @@ export function PatientDetailPage() {
                     aria-label="Terminplanung für Rezeption"
                     style={{ padding: 14, borderColor: "var(--accent)" }}
                 >
-                    <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
+                    <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
                         <div>
-                            <div style={{ fontWeight: 600, fontSize: 13.5 }}>Nächster Termin — Kontext für die Rezeption</div>
-                            <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2 }}>
-                                Wird beim Anlegen eines Termins als Karten-Vorschau angezeigt (Dringlichkeit, Abstand, Dauer, Wunsch-Tage).
+                            <div style={{ fontWeight: 600, fontSize: 13.5 }}>Hinweis für die Rezeption</div>
+                            <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2, maxWidth: 640, lineHeight: 1.45 }}>
+                                Kurz halten — erscheint kompakt im Dashboard unter „Ausstehende Freigaben“ mit Direktlink zu „Neuer Termin“.
                             </div>
                         </div>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowPlanTip(false)}>Schließen</button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Select
                             id="plan-urgency"
                             label="Dringlichkeit"
@@ -2296,23 +2320,9 @@ export function PatientDetailPage() {
                             onChange={(e) =>
                                 persistPlanNext({ ...planNext, urgency: e.target.value as PlanNextTerminV2["urgency"] })}
                             options={[
-                                { value: "routine", label: "Routine / planbar" },
-                                { value: "bald", label: "Zeitnah (1–3 Wochen)" },
+                                { value: "routine", label: "Routine" },
+                                { value: "bald", label: "Zeitnah" },
                                 { value: "dringend", label: "Dringend" },
-                            ]}
-                        />
-                        <Select
-                            id="plan-interval"
-                            label="Abstand (Orientierung)"
-                            value={planNext.intervalWeeks}
-                            onChange={(e) => persistPlanNext({ ...planNext, intervalWeeks: e.target.value })}
-                            options={[
-                                { value: "", label: "— keine Vorgabe —" },
-                                { value: "2", label: "ca. 2 Wochen" },
-                                { value: "4", label: "ca. 4 Wochen" },
-                                { value: "6", label: "ca. 6 Wochen" },
-                                { value: "12", label: "ca. 12 Wochen" },
-                                { value: "26", label: "ca. 6 Monate" },
                             ]}
                         />
                         <Select
@@ -2326,17 +2336,47 @@ export function PatientDetailPage() {
                                 { value: "BEHANDLUNG", label: "Behandlung" },
                                 { value: "UNTERSUCHUNG", label: "Untersuchung" },
                                 { value: "BERATUNG", label: "Beratung" },
-                                { value: "NOTFALL", label: "Notfall" },
+                                { value: "ERSTBESUCH", label: "Erstbesuch" },
                             ]}
                         />
                         <Input
                             id="plan-dur"
-                            label="Geschätzte Dauer (Min.)"
+                            type="number"
+                            min={5}
+                            step={5}
+                            label="Dauer (Min.)"
                             value={planNext.durationMin}
                             onChange={(e) => persistPlanNext({ ...planNext, durationMin: e.target.value })}
                             placeholder="z. B. 30"
                         />
-                        <div className="md:col-span-2">
+                    </div>
+                    <Input
+                        id="patient-plan-freetext"
+                        label="Kurztext (max. eine Zeile)"
+                        value={planNext.freeText}
+                        onChange={(e) => persistPlanNext({ ...planNext, freeText: e.target.value.slice(0, 140) })}
+                        placeholder="z. B. Füllung 36 — Kontrolle in 2 Wo."
+                        style={{ marginTop: 12 }}
+                    />
+                    <details style={{ marginTop: 14 }}>
+                        <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: "var(--fg-2)" }}>
+                            Weitere Angaben (optional)
+                        </summary>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ marginTop: 12 }}>
+                            <Select
+                                id="plan-interval"
+                                label="Abstand (Orientierung)"
+                                value={planNext.intervalWeeks}
+                                onChange={(e) => persistPlanNext({ ...planNext, intervalWeeks: e.target.value })}
+                                options={[
+                                    { value: "", label: "— —" },
+                                    { value: "2", label: "ca. 2 Wochen" },
+                                    { value: "4", label: "ca. 4 Wochen" },
+                                    { value: "6", label: "ca. 6 Wochen" },
+                                    { value: "12", label: "ca. 12 Wochen" },
+                                    { value: "26", label: "ca. 6 Monate" },
+                                ]}
+                            />
                             <Input
                                 id="plan-days"
                                 label="Bevorzugte Wochentage"
@@ -2345,27 +2385,20 @@ export function PatientDetailPage() {
                                 placeholder="z. B. Mo, Do"
                             />
                         </div>
-                    </div>
-                    <Textarea
-                        id="patient-plan-freetext"
-                        label="Kurztext für die Rezeption"
-                        rows={3}
-                        value={planNext.freeText}
-                        onChange={(e) => persistPlanNext({ ...planNext, freeText: e.target.value })}
-                        placeholder="z. B. „Nach Füllung 36: Recall, Prophylaxe 30 Min.“"
-                    />
-                    <Textarea
-                        id="patient-plan-internal"
-                        label="Interne Notiz (nur Praxis, optional)"
-                        rows={2}
-                        value={planNext.internalNote}
-                        onChange={(e) => persistPlanNext({ ...planNext, internalNote: e.target.value })}
-                        placeholder="z. B. „Patient nur vormittags.“"
-                    />
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+                        <Textarea
+                            id="patient-plan-internal"
+                            label="Intern (nicht im Dashboard sichtbar)"
+                            rows={2}
+                            value={planNext.internalNote}
+                            onChange={(e) => persistPlanNext({ ...planNext, internalNote: e.target.value })}
+                            placeholder="Nur Praxis-intern"
+                            style={{ marginTop: 12 }}
+                        />
+                    </details>
+                    <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
                         {planNextHasContent(planNext) ? (
                             <Button size="sm" variant="ghost" onClick={() => persistPlanNext(emptyPlanNextTermin())}>
-                                Alle Hinweise leeren
+                                Hinweis leeren
                             </Button>
                         ) : null}
                     </div>
@@ -4223,8 +4256,19 @@ export function PatientDetailPage() {
                         onRevokeValidation={(anlageId, shortLabel) =>
                             void revokeItemValidationRow(itemValidationKey("anl", anlageId), shortLabel)}
                         formatAddedAt={formatDate}
-                        onScannerClick={() =>
-                            toast("Scanner-Anbindung ist in dieser Version noch nicht verfügbar.", "info")}
+                        onScannerClick={() => {
+                            void (async () => {
+                                try {
+                                    await openSystemScanUtility();
+                                    toast(
+                                        "System-Scanner geöffnet. Nach dem Speichern die Datei hier über „Datei wählen“ an die Akte anhängen.",
+                                        "success",
+                                    );
+                                } catch (e) {
+                                    toast(`Scanner: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                }
+                            })();
+                        }}
                     />
                 </Card>
                 </div>

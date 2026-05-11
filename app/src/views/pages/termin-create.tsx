@@ -4,7 +4,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { de } from "date-fns/locale";
 import { createTermin, getTermin, listTermine, updateTermin } from "../../controllers/termin.controller";
 import { listPatienten } from "../../controllers/patient.controller";
+import { getAkte, listZahnbefunde } from "../../controllers/akte.controller";
 import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
+import { listAbwesenheiten } from "../../controllers/praxis.controller";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage } from "../../lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
@@ -13,19 +15,25 @@ import {
     isSlotBlockedByPraxisConfig,
     loadPraxisArbeitszeitenConfig,
     readPraxisArbeitszeitenConfig,
+    resolveEffectiveArbeitszeitenForArzt,
     type PraxisArbeitszeitenConfig,
 } from "../../lib/praxis-planning";
-import { TERMIN_ART_VALUES, type Patient, type Termin } from "../../models/types";
+import { terminSchedulingBlockReason, uhrzeitToMinutes } from "@/lib/termin-availability";
+import { parseZahnschmerzTeethFromBeschwerdenPart, sortFdiTeeth, splitBeschwerdenParts } from "@/lib/dental";
+import { TERMIN_ART_VALUES, type Patient, type Termin, type Abwesenheit, type Zahnbefund } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { TagInput } from "../components/ui/tag-input";
 import { TimeSlotPicker } from "../components/ui/time-slot-picker";
+import { DentalToothPickerMini } from "../components/dental-tooth-picker-mini";
 import { useToastStore } from "../components/ui/toast-store";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import {
+    planNextAutofillNote,
     planNextHasContent,
+    planNextReceptionTeaser,
     planNextTerminSummary,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
@@ -53,6 +61,42 @@ const DURATION_OPTIONS = [
 ];
 
 const BESCHWERDEN_SUG = ["Zahnschmerzen", "Kiefergelenk", "Blutung", "Empfindlichkeit", "Notfall", "Kontrolle", "Ästhetik"];
+const ZAHNSCHMERZ_TAG = "Zahnschmerzen";
+
+function normalizeBeschwerdenTagsFromStored(raw: string): { tags: string[]; teeth: string[] } {
+    const parts = splitBeschwerdenParts(raw);
+    let teeth: string[] = [];
+    const tags: string[] = [];
+    for (const part of parts) {
+        const p = part.trim();
+        if (!p) continue;
+        const z = parseZahnschmerzTeethFromBeschwerdenPart(p);
+        if (z) {
+            teeth = z;
+            if (!tags.includes(ZAHNSCHMERZ_TAG)) tags.push(ZAHNSCHMERZ_TAG);
+            continue;
+        }
+        if (p === ZAHNSCHMERZ_TAG) {
+            if (!tags.includes(ZAHNSCHMERZ_TAG)) tags.push(ZAHNSCHMERZ_TAG);
+            continue;
+        }
+        tags.push(p);
+    }
+    return { tags, teeth };
+}
+
+function buildBeschwerdenPayload(tags: string[], zahnschmerzTeeth: string[]): string {
+    const zSorted = sortFdiTeeth(zahnschmerzTeeth);
+    return tags
+        .map((t) => {
+            if (t !== ZAHNSCHMERZ_TAG) return t;
+            if (zSorted.length === 0) return t;
+            if (zSorted.length === 1) return `${ZAHNSCHMERZ_TAG} (Zahn ${zSorted[0]})`;
+            return `${ZAHNSCHMERZ_TAG} (Zähne ${zSorted.join(", ")})`;
+        })
+        .join("; ");
+}
+
 const DRAFT_PREFIX = "medoc-termin-draft-";
 
 type TerminDraft = {
@@ -63,6 +107,10 @@ type TerminDraft = {
     arztId: string;
     art: string;
     beschwerdenTags: string[];
+    /** FDI numbers when Zahnschmerzen + teeth chosen (e.g. `["14","16"]`). */
+    zahnschmerzenTeeth?: string[];
+    /** @deprecated Draft key — migrated to zahnschmerzenTeeth */
+    zahnschmerzenTooth?: string | null;
     notizen: string;
     dauerMin: string;
     statusWunsch: string;
@@ -79,12 +127,13 @@ function normalizeArt(raw: string | null): string {
 
 export function TerminCreatePage() {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const session = useAuthStore((s) => s.session);
     const toast = useToastStore((s) => s.add);
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
     const [termine, setTermine] = useState<Termin[]>([]);
+    const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
     const [busy, setBusy] = useState(false);
     const [patientQuery, setPatientQuery] = useState("");
     const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -92,6 +141,8 @@ export function TerminCreatePage() {
     const editId = searchParams.get("id");
     const isEdit = Boolean(editId);
     const hasDatumParam = searchParams.has("datum");
+    const hasArztParam = searchParams.has("arzt_id");
+    const arztInit = searchParams.get("arzt_id")?.trim() ?? "";
     const hasPatientParam = searchParams.has("patient_id");
     const hasArtParam = searchParams.has("art");
     const hasUhrzeitParam = searchParams.has("uhrzeit");
@@ -102,11 +153,13 @@ export function TerminCreatePage() {
     const uhrzeitInit =
         uhrzeitInitRaw && /^\d{2}:\d{2}$/.test(uhrzeitInitRaw) ? uhrzeitInitRaw : null;
     const draftFromQuery = searchParams.get("draft");
+    const applyPlanFromQuery = searchParams.get("apply_plan") === "1";
     const [draftId] = useState(() => draftFromQuery ?? crypto.randomUUID());
     const [editLoaded, setEditLoaded] = useState<boolean>(!isEdit);
     const [editError, setEditError] = useState<string | null>(null);
     const [draftHydrated, setDraftHydrated] = useState(false);
     const draftRestoredRef = useRef(false);
+    const applyPlanConsumedRef = useRef(false);
     const patientPickerRef = useRef<HTMLDivElement>(null);
 
     const [datum, setDatum] = useState(datumInit);
@@ -115,6 +168,8 @@ export function TerminCreatePage() {
     const [arztId, setArztId] = useState("");
     const [art, setArt] = useState(() => normalizeArt(artInit));
     const [beschwerdenTags, setBeschwerdenTags] = useState<string[]>([]);
+    const [zahnschmerzenTeeth, setZahnschmerzenTeeth] = useState<string[]>([]);
+    const [chartBefunde, setChartBefunde] = useState<Zahnbefund[]>([]);
     const [notizen, setNotizen] = useState("");
     const [dauerMin, setDauerMin] = useState(() => {
         const n = loadClientSettings().workflows?.defaultTerminDauerMin ?? 30;
@@ -125,6 +180,22 @@ export function TerminCreatePage() {
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
     /** Strukturierter Plan aus der Akte („Plan nächsten Termin“). */
     const [doctorPlan, setDoctorPlan] = useState<PlanNextTerminV2 | null>(null);
+    const [praxisCfg, setPraxisCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
+
+    useEffect(() => {
+        let cancelled = false;
+        void loadPraxisArbeitszeitenConfig().then((cfg) => {
+            if (!cancelled) setPraxisCfg(cfg);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const effectivePraxisCfg = useMemo(
+        () => resolveEffectiveArbeitszeitenForArzt(praxisCfg, arztId || null),
+        [praxisCfg, arztId],
+    );
 
     useEffect(() => {
         if (!patientId) {
@@ -146,6 +217,30 @@ export function TerminCreatePage() {
             cancelled = true;
         };
     }, [patientId]);
+
+    useEffect(() => {
+        applyPlanConsumedRef.current = false;
+    }, [patientId]);
+
+    useEffect(() => {
+        if (!applyPlanFromQuery || isEdit || !draftHydrated) return;
+        if (!doctorPlan || !planNextHasContent(doctorPlan)) return;
+        if (applyPlanConsumedRef.current) return;
+        applyPlanConsumedRef.current = true;
+        const artH = doctorPlan.terminArtHint.trim();
+        if (artH && (TERMIN_ART_VALUES as readonly string[]).includes(artH)) {
+            setArt(normalizeArt(artH));
+        }
+        const dm = doctorPlan.durationMin.trim();
+        if (dm && /^\d+$/.test(dm)) setDauerMin(dm);
+        const note = planNextAutofillNote(doctorPlan);
+        if (note.trim()) setNotizen(note.trim());
+        setSearchParams((prev) => {
+            const p = new URLSearchParams(prev);
+            p.delete("apply_plan");
+            return p;
+        }, { replace: true });
+    }, [applyPlanFromQuery, isEdit, draftHydrated, doctorPlan, setSearchParams]);
 
     function formatPlanForNotes(p: PlanNextTerminV2): string {
         const parts: string[] = [];
@@ -192,13 +287,18 @@ export function TerminCreatePage() {
                 } else if (d.uhrzeit) {
                     setUhrzeit(d.uhrzeit);
                 }
-                if (d.arztId) setArztId(d.arztId);
+                if (!hasArztParam && d.arztId) setArztId(d.arztId);
                 if (hasArtParam) {
                     setArt(normalizeArt(artInit));
                 } else if (d.art) {
                     setArt(d.art);
                 }
                 if (Array.isArray(d.beschwerdenTags)) setBeschwerdenTags(d.beschwerdenTags);
+                if (Array.isArray(d.zahnschmerzenTeeth)) {
+                    setZahnschmerzenTeeth(sortFdiTeeth(d.zahnschmerzenTeeth.filter((x) => typeof x === "string")));
+                } else if (typeof d.zahnschmerzenTooth === "string" && d.zahnschmerzenTooth.trim()) {
+                    setZahnschmerzenTeeth(sortFdiTeeth([d.zahnschmerzenTooth.trim()]));
+                }
                 if (d.notizen) setNotizen(d.notizen);
                 if (d.dauerMin) setDauerMin(d.dauerMin);
                 if (d.statusWunsch) setStatusWunsch(d.statusWunsch);
@@ -208,7 +308,7 @@ export function TerminCreatePage() {
         } finally {
             setDraftHydrated(true);
         }
-    }, [draftId, hasDatumParam, hasPatientParam, hasArtParam, hasUhrzeitParam, datumInit, patientInit, artInit, uhrzeitInit, isEdit]);
+    }, [draftId, hasDatumParam, hasPatientParam, hasArtParam, hasUhrzeitParam, hasArztParam, datumInit, patientInit, artInit, uhrzeitInit, isEdit]);
 
     useEffect(() => {
         if (!isEdit || !editId) return;
@@ -223,12 +323,9 @@ export function TerminCreatePage() {
                 setPatientId(t.patient_id);
                 setArztId(t.arzt_id);
                 setArt(normalizeArt(t.art));
-                setBeschwerdenTags(
-                    (t.beschwerden ?? "")
-                        .split(/[;,]/)
-                        .map((s) => s.trim())
-                        .filter((s) => s.length > 0),
-                );
+                const { tags: bTags, teeth: bTeeth } = normalizeBeschwerdenTagsFromStored(t.beschwerden ?? "");
+                setBeschwerdenTags(bTags);
+                setZahnschmerzenTeeth(bTeeth);
                 const notesRaw = t.notizen ?? "";
                 const dauerMatch = /Dauer:\s*(\d+)\s*min/.exec(notesRaw);
                 if (dauerMatch && dauerMatch[1]) {
@@ -273,12 +370,37 @@ export function TerminCreatePage() {
             arztId,
             art,
             beschwerdenTags,
+            zahnschmerzenTeeth,
             notizen,
             dauerMin,
             statusWunsch,
         };
         localStorage.setItem(`${DRAFT_PREFIX}${draftId}`, JSON.stringify(snap));
-    }, [datum, uhrzeit, patientId, patientQuery, arztId, art, beschwerdenTags, notizen, dauerMin, statusWunsch, draftId, draftHydrated, isEdit]);
+    }, [datum, uhrzeit, patientId, patientQuery, arztId, art, beschwerdenTags, zahnschmerzenTeeth, notizen, dauerMin, statusWunsch, draftId, draftHydrated, isEdit]);
+
+    useEffect(() => {
+        if (!beschwerdenTags.includes(ZAHNSCHMERZ_TAG)) setZahnschmerzenTeeth([]);
+    }, [beschwerdenTags]);
+
+    useEffect(() => {
+        if (!patientId || session?.rolle !== "ARZT") {
+            setChartBefunde([]);
+            return;
+        }
+        let cancelled = false;
+        void (async () => {
+            try {
+                const akte = await getAkte(patientId);
+                const bf = await listZahnbefunde(akte.id);
+                if (!cancelled) setChartBefunde(bf);
+            } catch {
+                if (!cancelled) setChartBefunde([]);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [patientId, session?.rolle]);
 
     const load = useCallback(async () => {
         try {
@@ -289,6 +411,11 @@ export function TerminCreatePage() {
                 setAerzte(await listAerzte());
             } catch {
                 setAerzte([]);
+            }
+            try {
+                setAbwesenheiten(await listAbwesenheiten());
+            } catch {
+                setAbwesenheiten([]);
             }
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -306,14 +433,22 @@ export function TerminCreatePage() {
     });
 
     useEffect(() => {
+        if (!hasArztParam || !arztInit) return;
+        if (!aerzte.some((a) => a.id === arztInit)) return;
+        setArztId(arztInit);
+    }, [hasArztParam, arztInit, aerzte]);
+
+    useEffect(() => {
         if (!session) return;
+        if (hasArztParam && arztInit && aerzte.some((a) => a.id === arztInit)) return;
         setArztId((prev) => {
             if (prev) return prev;
             if (session.rolle === "ARZT") return session.user_id;
-            const first = aerzte[0]?.id;
-            return first ?? "";
+            const def = (praxisCfg.defaultArztId ?? "").trim();
+            if (def && aerzte.some((a) => a.id === def)) return def;
+            return aerzte[0]?.id ?? "";
         });
-    }, [session, aerzte]);
+    }, [session, aerzte, hasArztParam, arztInit, praxisCfg.defaultArztId]);
 
     const busyKeys = useMemo(() => {
         const s = new Set<string>();
@@ -325,15 +460,7 @@ export function TerminCreatePage() {
         return s;
     }, [termine, isEdit, editId]);
 
-    const [praxisCfg, setPraxisCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
-    useEffect(() => {
-        let cancelled = false;
-        void loadPraxisArbeitszeitenConfig().then((cfg) => {
-            if (!cancelled) setPraxisCfg(cfg);
-        });
-        return () => { cancelled = true; };
-    }, []);
-    const slotStep = useMemo(() => Math.max(5, Number(praxisCfg.slotMin) || 30), [praxisCfg.slotMin]);
+    const slotStep = useMemo(() => Math.max(5, Number(effectivePraxisCfg.slotMin) || 30), [effectivePraxisCfg.slotMin]);
 
     const blockedKeys = useMemo(() => {
         const s = new Set<string>();
@@ -341,13 +468,13 @@ export function TerminCreatePage() {
             for (let m = 0; m < 60; m += slotStep) {
                 if (h === 21 && m > 0) break;
                 const hm = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                if (isSlotBlockedByPraxisConfig(praxisCfg, datum, hm)) {
+                if (isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, hm)) {
                     s.add(`${datum}|${hm}`);
                 }
             }
         }
         return s;
-    }, [datum, praxisCfg, slotStep]);
+    }, [datum, effectivePraxisCfg, slotStep]);
 
     const combinedBusyKeys = useMemo(() => {
         const all = new Set<string>(busyKeys);
@@ -355,20 +482,29 @@ export function TerminCreatePage() {
         return all;
     }, [busyKeys, blockedKeys]);
 
+    const toggleZahnschmerzZahn = useCallback((fdi: string) => {
+        setZahnschmerzenTeeth((prev) => {
+            const next = new Set(prev);
+            if (next.has(fdi)) next.delete(fdi);
+            else next.add(fdi);
+            return sortFdiTeeth([...next]);
+        });
+    }, []);
+
     useEffect(() => {
         const current = uhrzeit.slice(0, 5);
-        if (!isSlotBlockedByPraxisConfig(praxisCfg, datum, current) && !busyKeys.has(`${datum}|${current}`)) return;
+        if (!isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, current) && !busyKeys.has(`${datum}|${current}`)) return;
         for (let h = 6; h <= 21; h += 1) {
             for (let m = 0; m < 60; m += slotStep) {
                 if (h === 21 && m > 0) break;
                 const hm = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                if (!isSlotBlockedByPraxisConfig(praxisCfg, datum, hm) && !busyKeys.has(`${datum}|${hm}`)) {
+                if (!isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, hm) && !busyKeys.has(`${datum}|${hm}`)) {
                     setUhrzeit(hm);
                     return;
                 }
             }
         }
-    }, [datum, uhrzeit, praxisCfg, slotStep, busyKeys]);
+    }, [datum, uhrzeit, effectivePraxisCfg, slotStep, busyKeys]);
 
     const filteredPatients = useMemo(() => {
         const q = patientQuery.trim().toLowerCase();
@@ -398,7 +534,7 @@ export function TerminCreatePage() {
         return eachDayOfInterval({ start: gridStart, end: gridEnd });
     }, [calendarMonth]);
 
-    const beschwerdenStr = beschwerdenTags.length ? beschwerdenTags.join("; ") : "";
+    const beschwerdenStr = beschwerdenTags.length ? buildBeschwerdenPayload(beschwerdenTags, zahnschmerzenTeeth) : "";
 
     const submit = async () => {
         setPatientError("");
@@ -410,8 +546,11 @@ export function TerminCreatePage() {
             toast("Datum, Uhrzeit und Behandler sind Pflichtfelder.", "error");
             return;
         }
-        if (isSlotBlockedByPraxisConfig(praxisCfg, datum, uhrzeit.slice(0, 5))) {
-            toast("Dieser Zeitraum ist durch Praxisplanung gesperrt.", "error");
+        const durMin = Math.max(5, Number(dauerMin) || 30);
+        const startM = uhrzeitToMinutes(uhrzeit);
+        const blockReason = terminSchedulingBlockReason(effectivePraxisCfg, abwesenheiten, datum, startM, startM + durMin);
+        if (blockReason) {
+            toast(blockReason, "error");
             return;
         }
         const parts: string[] = [];
@@ -492,48 +631,19 @@ export function TerminCreatePage() {
                     style={{
                         display: "flex",
                         gap: 10,
-                        padding: "12px 14px",
-                        borderRadius: 12,
+                        padding: "10px 12px",
+                        borderRadius: 10,
                         border: "1px solid var(--accent)",
                         background: "var(--accent-soft)",
                         color: "var(--accent-ink)",
-                        alignItems: "flex-start",
+                        alignItems: "center",
                     }}
                 >
-                    <span aria-hidden style={{ fontSize: 16, lineHeight: 1.2 }}>💡</span>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13.5 }}>Hinweis aus der Akte — nächster Termin</div>
-                        <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                            {doctorPlan.urgency === "dringend" ? (
-                                <span className="pill red" style={{ fontSize: 11 }}>Dringend</span>
-                            ) : doctorPlan.urgency === "bald" ? (
-                                <span className="pill orange" style={{ fontSize: 11 }}>Zeitnah</span>
-                            ) : (
-                                <span className="pill blue" style={{ fontSize: 11 }}>Routine</span>
-                            )}
-                            {doctorPlan.intervalWeeks ? (
-                                <span className="pill blue" style={{ fontSize: 11 }}>ca. {doctorPlan.intervalWeeks} Wo.</span>
-                            ) : null}
-                            {doctorPlan.terminArtHint ? (
-                                <span className="pill blue" style={{ fontSize: 11 }}>{doctorPlan.terminArtHint}</span>
-                            ) : null}
-                            {doctorPlan.durationMin.trim() ? (
-                                <span className="pill blue" style={{ fontSize: 11 }}>{doctorPlan.durationMin} Min.</span>
-                            ) : null}
-                            {doctorPlan.preferredWeekdays.trim() ? (
-                                <span className="pill blue" style={{ fontSize: 11 }}>{doctorPlan.preferredWeekdays}</span>
-                            ) : null}
-                        </div>
-                        {doctorPlan.freeText.trim() ? (
-                            <div style={{ fontSize: 13, marginTop: 8, whiteSpace: "pre-wrap" }}>{doctorPlan.freeText.trim()}</div>
-                        ) : null}
-                        {doctorPlan.internalNote.trim() ? (
-                            <div style={{ fontSize: 12, marginTop: 6, color: "var(--fg-3)" }}>
-                                <strong>Intern:</strong> {doctorPlan.internalNote.trim()}
-                            </div>
-                        ) : null}
-                        <div style={{ fontSize: 11, color: "var(--fg-3)", marginTop: 6 }}>
-                            Aus „Plan nächsten Termin“ in der Patientenakte. Button rechts fügt alles strukturiert in die Termin-Notizen ein.
+                    <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>💡</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12.5 }}>Kurzhinweis aus der Akte</div>
+                        <div style={{ fontSize: 12.5, marginTop: 4, color: "var(--fg-2)", fontWeight: 500 }}>
+                            {planNextReceptionTeaser(doctorPlan) || planNextAutofillNote(doctorPlan) || "—"}
                         </div>
                     </div>
                     <button
@@ -545,7 +655,7 @@ export function TerminCreatePage() {
                             else setNotizen((prev) => `${prev.trim()}\n\n${block}`);
                         }}
                     >
-                        In Notizen übernehmen
+                        In Notizen
                     </button>
                 </div>
             ) : null}
@@ -577,7 +687,7 @@ export function TerminCreatePage() {
                                         const inM = isSameMonth(day, calendarMonth);
                                         const sel = iso === datum;
                                         const isToday = isSameDay(day, new Date());
-                                        const blockedDay = inM && !hasAnyAvailableSlot(praxisCfg, iso);
+                                        const blockedDay = inM && !hasAnyAvailableSlot(effectivePraxisCfg, iso);
                                         return (
                                             <button
                                                 key={iso}
@@ -662,7 +772,12 @@ export function TerminCreatePage() {
                                                         type="button"
                                                         role="option"
                                                         aria-selected={patientId === p.id}
-                                                        onClick={() => { setPatientId(p.id); setPatientQuery(p.name); setPatientDropdownOpen(false); }}
+                                                        onClick={() => {
+                                                            setPatientId(p.id);
+                                                            setPatientQuery(p.name);
+                                                            setPatientDropdownOpen(false);
+                                                            setZahnschmerzenTeeth([]);
+                                                        }}
                                                         style={{
                                                             display: "block",
                                                             width: "100%",
@@ -714,6 +829,13 @@ export function TerminCreatePage() {
                             <Select id="tc-art" label="Behandlungstyp" value={art} onChange={(e) => setArt(e.target.value)} options={BEHANDLUNG_OPTIONS} />
                             <Select id="tc-status" label="Status" value={statusWunsch} onChange={(e) => setStatusWunsch(e.target.value)} options={STATUS_OPTIONS} />
                             <TagInput label="Beschwerden" value={beschwerdenTags} onChange={setBeschwerdenTags} suggestions={BESCHWERDEN_SUG} />
+                            {beschwerdenTags.includes(ZAHNSCHMERZ_TAG) ? (
+                                <DentalToothPickerMini
+                                    befunde={chartBefunde}
+                                    selectedTeeth={zahnschmerzenTeeth}
+                                    onToggleTooth={toggleZahnschmerzZahn}
+                                />
+                            ) : null}
                             <Textarea id="tc-notes" label="Notizen / Bemerkungen" value={notizen} onChange={(e) => setNotizen(e.target.value)} style={{ minHeight: 88 }} />
                         </div>
                     </div>

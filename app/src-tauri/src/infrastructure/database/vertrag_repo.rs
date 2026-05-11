@@ -13,11 +13,23 @@ pub struct VertragRow {
     pub periode_von: Option<String>,
     pub periode_bis: Option<String>,
     pub created_at: String,
+    pub dokument_pfad: Option<String>,
+}
+
+pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<VertragRow>, AppError> {
+    let row = sqlx::query_as::<_, VertragRow>(
+        "SELECT id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at, dokument_pfad
+         FROM vertrag WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
 }
 
 pub async fn list_all(pool: &SqlitePool) -> Result<Vec<VertragRow>, AppError> {
     let rows = sqlx::query_as::<_, VertragRow>(
-        "SELECT id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at
+        "SELECT id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at, dokument_pfad
          FROM vertrag ORDER BY created_at DESC",
     )
     .fetch_all(pool)
@@ -30,8 +42,8 @@ pub async fn upsert(
     row: &VertragRow,
 ) -> Result<(), AppError> {
     sqlx::query(
-        "INSERT INTO vertrag (id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        "INSERT INTO vertrag (id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at, dokument_pfad)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
          ON CONFLICT(id) DO UPDATE SET
             bezeichnung = excluded.bezeichnung,
             partner = excluded.partner,
@@ -39,7 +51,8 @@ pub async fn upsert(
             intervall = excluded.intervall,
             unbefristet = excluded.unbefristet,
             periode_von = excluded.periode_von,
-            periode_bis = excluded.periode_bis",
+            periode_bis = excluded.periode_bis,
+            dokument_pfad = excluded.dokument_pfad",
     )
     .bind(&row.id)
     .bind(&row.bezeichnung)
@@ -50,6 +63,7 @@ pub async fn upsert(
     .bind(&row.periode_von)
     .bind(&row.periode_bis)
     .bind(&row.created_at)
+    .bind(&row.dokument_pfad)
     .execute(pool)
     .await?;
     Ok(())
@@ -84,6 +98,7 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             periode_von: None,
             periode_bis: None,
             created_at: now.clone(),
+            dokument_pfad: None,
         },
         VertragRow {
             id: "seed-v-2".into(),
@@ -95,6 +110,7 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             periode_von: None,
             periode_bis: None,
             created_at: now.clone(),
+            dokument_pfad: None,
         },
         VertragRow {
             id: "seed-v-3".into(),
@@ -106,6 +122,7 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             periode_von: Some("2024-01-01".into()),
             periode_bis: Some("2027-12-31".into()),
             created_at: now,
+            dokument_pfad: None,
         },
     ] {
         upsert(pool, &row).await?;

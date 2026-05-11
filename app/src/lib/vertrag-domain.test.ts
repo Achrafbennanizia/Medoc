@@ -17,6 +17,7 @@ describe("vertrag-domain", () => {
             periodeVon: "2020-01-01",
             periodeBis: "2040-12-31",
             createdAt: "",
+            dokumentPfad: null,
         };
         expect(v.unbefristet).toBe(false);
         const vPast: VertragItem = { ...v, periodeBis: "2000-01-01" };

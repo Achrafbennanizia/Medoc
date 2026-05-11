@@ -1,0 +1,69 @@
+//! Launch locally installed OS tools for scanning and (via Tauri Webview) printing.
+//! Scanning still uses a watch folder (`scanner::list_recent`) — this module opens
+//! the vendor/system UI so the operator can acquire an image into that folder.
+
+use crate::error::AppError;
+use crate::log_device;
+
+/// Opens the default system scan capture UI for the current platform.
+pub fn open_system_scan_utility() -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .args(["-a", "Image Capture"])
+            .status()
+            .map_err(|e| AppError::Internal(format!("Scanner-Programm starten: {e}")))?;
+        if !status.success() {
+            return Err(AppError::Internal(
+                "„Image Capture“ konnte nicht gestartet werden.".into(),
+            ));
+        }
+        log_device!(
+            info,
+            event = "HOST_SCAN_UI_OPENED",
+            platform = "macos",
+            app = "Image Capture"
+        );
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows Fax and Scan / modern scan UI (URI handler).
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", "ms-scan:"])
+            .spawn()
+            .map_err(|e| AppError::Internal(format!("Scanner-Programm starten: {e}")))?;
+        log_device!(info, event = "HOST_SCAN_UI_OPENED", platform = "windows", app = "ms-scan");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        for app in ["simple-scan", "skanlite", "xsane", "gscan2pdf"] {
+            match std::process::Command::new(app).spawn() {
+                Ok(_) => {
+                    log_device!(
+                        info,
+                        event = "HOST_SCAN_UI_OPENED",
+                        platform = "linux",
+                        app = app
+                    );
+                    return Ok(());
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(AppError::Internal(format!("{app}: {e}"))),
+            }
+        }
+        return Err(AppError::Validation(
+            "Kein kompatibles Scan-Programm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen.".into(),
+        ));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Err(AppError::Validation(
+            "System-Scanner wird auf dieser Plattform nicht unterstützt.".into(),
+        ))
+    }
+}

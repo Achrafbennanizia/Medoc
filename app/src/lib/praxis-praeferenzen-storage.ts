@@ -20,11 +20,79 @@ export const PRAXIS_TERMIN_PREFERENCES_KV_KEY =
 /** @deprecated Legacy `localStorage` key — cleared on migration. */
 export const PRAXIS_PRAEFERENZEN_LS_KEY = "medoc-praxis-praeferenzen-v1";
 
+/** Schwellen für die Anzahl **Termine** pro Tag in der Monatsansicht (Farb-Badge). */
+export type MonthCalendarPatientLoadPrefs = {
+    /** Bis einschließlich: Stufe „wenig“. */
+    fewMax: number;
+    /** Bis einschließlich: Stufe „mittel“ (darüber = „hoch“). Muss &gt; {@link fewMax}. */
+    mediumMax: number;
+    /** Hex-Farben (#RRGGBB), für Fläche/Rand im Kalender */
+    colorFew: string;
+    colorMedium: string;
+    colorHigh: string;
+};
+
+export const DEFAULT_MONTH_CAL_PATIENT_LOAD: MonthCalendarPatientLoadPrefs = {
+    fewMax: 3,
+    mediumMax: 7,
+    colorFew: "#22C55E",
+    colorMedium: "#EAB308",
+    colorHigh: "#EF4444",
+};
+
+/** Stufe aus der **Terminanzahl** eines Tages (Monatskalender-Badge). */
+export type MonthCalPatientLoadTier = "few" | "medium" | "high";
+
+export function normalizeMonthCalendarPatientLoad(
+    raw: Partial<MonthCalendarPatientLoadPrefs> | undefined,
+): MonthCalendarPatientLoadPrefs {
+    const d = DEFAULT_MONTH_CAL_PATIENT_LOAD;
+    let fewMax = Number.parseInt(String(raw?.fewMax ?? ""), 10);
+    let mediumMax = Number.parseInt(String(raw?.mediumMax ?? ""), 10);
+    if (!Number.isFinite(fewMax) || fewMax < 0) fewMax = d.fewMax;
+    if (!Number.isFinite(mediumMax) || mediumMax < 0) mediumMax = d.mediumMax;
+    if (mediumMax <= fewMax) mediumMax = fewMax + 1;
+    return {
+        fewMax,
+        mediumMax,
+        colorFew: normalizeMonthCalHexColor(raw?.colorFew, d.colorFew),
+        colorMedium: normalizeMonthCalHexColor(raw?.colorMedium, d.colorMedium),
+        colorHigh: normalizeMonthCalHexColor(raw?.colorHigh, d.colorHigh),
+    };
+}
+
+function normalizeMonthCalHexColor(raw: string | undefined, fallback: string): string {
+    if (raw == null || typeof raw !== "string") return fallback;
+    const t = raw.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(t)) return t;
+    if (/^#[0-9A-Fa-f]{3}$/.test(t)) {
+        return `#${t[1]}${t[1]}${t[2]}${t[2]}${t[3]}${t[3]}`;
+    }
+    return fallback;
+}
+
+export function monthCalPatientLoadTier(
+    terminCountForDay: number,
+    s: MonthCalendarPatientLoadPrefs,
+): MonthCalPatientLoadTier {
+    if (terminCountForDay <= s.fewMax) return "few";
+    if (terminCountForDay <= s.mediumMax) return "medium";
+    return "high";
+}
+
+export function monthCalPatientLoadAccentHex(
+    tier: MonthCalPatientLoadTier,
+    s: MonthCalendarPatientLoadPrefs,
+): string {
+    return tier === "few" ? s.colorFew : tier === "medium" ? s.colorMedium : s.colorHigh;
+}
+
 export type PraxisPraeferenzen = {
     pufferMin: string;
     notfallPuffer: string;
     reminder: string;
     noShow: string;
+    monthCalendarPatientLoad: MonthCalendarPatientLoadPrefs;
 };
 
 export const DEFAULT_PRAXIS_PRAEFERENZEN: PraxisPraeferenzen = {
@@ -32,6 +100,7 @@ export const DEFAULT_PRAXIS_PRAEFERENZEN: PraxisPraeferenzen = {
     notfallPuffer: "8",
     reminder: "24",
     noShow: "warn",
+    monthCalendarPatientLoad: { ...DEFAULT_MONTH_CAL_PATIENT_LOAD },
 };
 
 function clampNonNegativeIntString(raw: string | undefined, fallback: string): string {
@@ -42,7 +111,7 @@ function clampNonNegativeIntString(raw: string | undefined, fallback: string): s
 }
 
 function normalizePartial(p: Partial<PraxisPraeferenzen> | undefined): PraxisPraeferenzen {
-    return {
+    const base = {
         pufferMin: clampNonNegativeIntString(
             p?.pufferMin != null ? String(p.pufferMin) : undefined,
             DEFAULT_PRAXIS_PRAEFERENZEN.pufferMin,
@@ -57,7 +126,11 @@ function normalizePartial(p: Partial<PraxisPraeferenzen> | undefined): PraxisPra
         noShow: p?.noShow != null && String(p.noShow).trim() !== ""
             ? String(p.noShow)
             : DEFAULT_PRAXIS_PRAEFERENZEN.noShow,
+        monthCalendarPatientLoad: normalizeMonthCalendarPatientLoad(
+            p?.monthCalendarPatientLoad,
+        ),
     };
+    return base;
 }
 
 async function persistToDedicatedKey(next: PraxisPraeferenzen): Promise<void> {
@@ -113,7 +186,7 @@ export async function loadPraxisPraeferenzenFromKv(): Promise<PraxisPraeferenzen
         }
     }
 
-    return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
+    return normalizePartial({});
 }
 
 export async function savePraxisPraeferenzen(next: PraxisPraeferenzen): Promise<void> {
@@ -124,7 +197,7 @@ export async function savePraxisPraeferenzen(next: PraxisPraeferenzen): Promise<
  * @deprecated Browser sync cache removed — returns defaults until {@link loadPraxisPraeferenzenFromKv} runs.
  */
 export function loadPraxisPraeferenzen(): PraxisPraeferenzen {
-    return { ...DEFAULT_PRAXIS_PRAEFERENZEN };
+    return normalizePartial({});
 }
 
 /** Alias for pages that already call `hydrate…`; loads authoritative KV (with migration). */

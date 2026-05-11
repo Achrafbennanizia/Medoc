@@ -3,7 +3,7 @@ import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Card, CardHeader } from "../components/ui/card";
-import { ConfirmDialog } from "../components/ui/dialog";
+import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { FormSection } from "../components/ui/form-section";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
@@ -23,11 +23,15 @@ import {
     deleteVertragOnBackend,
     listVertraegeFromBackend,
     migrateLegacyVertraegeFromLocalStorageOnce,
+    openVertragDokument,
     upsertVertragOnBackend,
 } from "@/controllers/vertrag.controller";
+import { pickVertragPdfFile, openSystemScanUtility, scannerAttachVertragAppData, scannerListRecent } from "@/controllers/system.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { EditIcon } from "@/lib/icons";
+import { EditIcon, BoltIcon } from "@/lib/icons";
+
+const LS_VERTRAG_SCAN_FOLDER = "medoc-vertrag-scan-folder";
 
 type LaufzeitModus = "unbefristet" | "befristet";
 
@@ -86,12 +90,27 @@ export function VerwaltungVertraegePage() {
     const [form, setForm] = useState<FormState>(emptyForm());
     const [formErrors, setFormErrors] = useState<Partial<Record<keyof FormState | "periode", string>>>({});
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [scanDialogOpen, setScanDialogOpen] = useState(false);
+    const [scanFolder, setScanFolder] = useState("");
+    const [scanDocs, setScanDocs] = useState<{ path: string; bytes: number }[]>([]);
+    const [scanBusy, setScanBusy] = useState(false);
+    const [attachBusy, setAttachBusy] = useState(false);
+
+    useEffect(() => {
+        try {
+            const f = localStorage.getItem(LS_VERTRAG_SCAN_FOLDER);
+            if (f) setScanFolder(f);
+        } catch {
+            /* ignore */
+        }
+    }, []);
 
     useEffect(() => {
         if (!canWrite) {
             setCreating(false);
             setDetailEdit(false);
             setDeleteId(null);
+            setScanDialogOpen(false);
         }
     }, [canWrite]);
 
@@ -166,7 +185,7 @@ export function VerwaltungVertraegePage() {
         if (selected) setForm(formFromVertrag(selected));
     };
 
-    const vertragItemFromForm = (f: FormState, id: string, createdAt: string): VertragItem => {
+    const vertragItemFromForm = (f: FormState, id: string, createdAt: string, dokumentPfad: string | null): VertragItem => {
         const b = f.betrag.trim() === "" ? 0 : parseEuroInput(f.betrag)!;
         return {
             id,
@@ -178,13 +197,14 @@ export function VerwaltungVertraegePage() {
             periodeVon: f.laufzeitModus === "befristet" ? f.periodeVon : null,
             periodeBis: f.laufzeitModus === "befristet" ? f.periodeBis : null,
             createdAt,
+            dokumentPfad,
         };
     };
 
     const handleCreate = () => {
         if (!validate(form)) return;
         const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `v-${Date.now()}`;
-        const row = vertragItemFromForm(form, id, new Date().toISOString());
+        const row = vertragItemFromForm(form, id, new Date().toISOString(), null);
         void (async () => {
             try {
                 await upsertVertragOnBackend(row);
@@ -200,7 +220,7 @@ export function VerwaltungVertraegePage() {
 
     const handleUpdate = () => {
         if (!selected || !validate(form)) return;
-        const row = vertragItemFromForm(form, selected.id, selected.createdAt);
+        const row = vertragItemFromForm(form, selected.id, selected.createdAt, selected.dokumentPfad);
         void (async () => {
             try {
                 await upsertVertragOnBackend(row);
@@ -210,6 +230,96 @@ export function VerwaltungVertraegePage() {
                 toast("Vertrag gespeichert.", "success");
             } catch (e) {
                 toast(`Speichern: ${errorMessage(e)}`, "error");
+            }
+        })();
+    };
+
+    const refreshScanList = async () => {
+        if (!scanFolder.trim()) {
+            toast("Bitte Scanner-Ordner angeben.", "error");
+            return;
+        }
+        setScanBusy(true);
+        try {
+            const docs = await scannerListRecent(scanFolder.trim(), 20);
+            setScanDocs(docs);
+            try {
+                localStorage.setItem(LS_VERTRAG_SCAN_FOLDER, scanFolder.trim());
+            } catch {
+                /* ignore */
+            }
+        } catch (e) {
+            toast(`Scanner: ${errorMessage(e)}`, "error");
+        } finally {
+            setScanBusy(false);
+        }
+    };
+
+    const attachScanToSelected = async (src: string) => {
+        if (!selected || !canWrite) return;
+        setAttachBusy(true);
+        try {
+            const dest = await scannerAttachVertragAppData(src, selected.id);
+            const row: VertragItem = { ...selected, dokumentPfad: dest };
+            await upsertVertragOnBackend(row);
+            await refreshFromBackend();
+            setSelected(row);
+            setScanDialogOpen(false);
+            toast("Vertragsdokument verknüpft.", "success");
+        } catch (e) {
+            toast(`Anhängen: ${errorMessage(e)}`, "error");
+        } finally {
+            setAttachBusy(false);
+        }
+    };
+
+    const attachLocalPdfToSelected = async () => {
+        if (!selected || !canWrite) return;
+        let src: string | null;
+        try {
+            src = await pickVertragPdfFile();
+        } catch (e) {
+            toast(`Dateiauswahl: ${errorMessage(e)}`, "error");
+            return;
+        }
+        if (!src) return;
+        setAttachBusy(true);
+        try {
+            const dest = await scannerAttachVertragAppData(src, selected.id);
+            const row: VertragItem = { ...selected, dokumentPfad: dest };
+            await upsertVertragOnBackend(row);
+            await refreshFromBackend();
+            setSelected(row);
+            toast("PDF wurde gespeichert und verknüpft.", "success");
+        } catch (e) {
+            toast(`Anhängen: ${errorMessage(e)}`, "error");
+        } finally {
+            setAttachBusy(false);
+        }
+    };
+
+    const clearVertragDokument = () => {
+        if (!selected || !canWrite) return;
+        const row: VertragItem = { ...selected, dokumentPfad: null };
+        void (async () => {
+            try {
+                await upsertVertragOnBackend(row);
+                await refreshFromBackend();
+                setSelected(row);
+                toast("Dokument-Verknüpfung entfernt.", "success");
+            } catch (e) {
+                toast(`Speichern: ${errorMessage(e)}`, "error");
+            }
+        })();
+    };
+
+    const tryOpenVertragDokument = () => {
+        if (!selected?.dokumentPfad) return;
+        void (async () => {
+            try {
+                await openVertragDokument(selected.id);
+            } catch (e) {
+                toast(`Öffnen: ${errorMessage(e)}`, "error");
             }
         })();
     };
@@ -389,6 +499,57 @@ export function VerwaltungVertraegePage() {
                             {aktiv ? <Badge variant="success">Aktiv</Badge> : <Badge variant="warning">Außerhalb Laufzeit</Badge>}
                         </div>
                         {readField("Richtwert", formatMonatsaequivalenzText(v))}
+                        <FormSection title="Vertragsdokument (Scan / Datei)">
+                            <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
+                                PDF auswählen oder Datei aus dem Scanner-Ordner übernehmen — Kopie unter{" "}
+                                <code style={{ fontSize: 11 }}>medoc-data/vertraege/{"{Vertrag-ID}"}/</code>{" "}
+                                (Benutzerverzeichnis), Pfad in der Datenbank; öffnen über „Dokument öffnen“.
+                            </p>
+                            {v.dokumentPfad ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    <span className="kpi-label-mini">Gespeicherter Pfad</span>
+                                    <span style={{ fontSize: 12, color: "var(--fg-2)", wordBreak: "break-all" }}>{v.dokumentPfad}</span>
+                                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                        <Button type="button" size="sm" variant="secondary" onClick={() => void tryOpenVertragDokument()}>
+                                            Dokument öffnen
+                                        </Button>
+                                        {canWrite ? (
+                                            <Button type="button" size="sm" variant="ghost" onClick={clearVertragDokument}>
+                                                Verknüpfung entfernen
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Noch kein Dokument verknüpft.</p>
+                            )}
+                            {canWrite ? (
+                                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="secondary"
+                                        disabled={attachBusy}
+                                        onClick={() => {
+                                            setScanDocs([]);
+                                            setScanDialogOpen(true);
+                                        }}
+                                    >
+                                        <BoltIcon size={14} /> Aus Scanner übernehmen…
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="secondary"
+                                        disabled={attachBusy}
+                                        loading={attachBusy}
+                                        onClick={() => void attachLocalPdfToSelected()}
+                                    >
+                                        PDF auswählen…
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </FormSection>
                     </div>
                 </Card>
             );
@@ -456,7 +617,9 @@ export function VerwaltungVertraegePage() {
                                                     onClick={() => selectRow(v)}
                                                     style={{ cursor: "pointer" }}
                                                 >
-                                                    <td style={{ color: "var(--fg-3)" }}>📄</td>
+                                                    <td style={{ color: "var(--fg-3)", textAlign: "center" }} title={v.dokumentPfad ? "Mit Dokument" : undefined}>
+                                                        {v.dokumentPfad ? "📎" : "📄"}
+                                                    </td>
                                                     <td>
                                                         <div style={{ fontWeight: 700 }}>{v.bezeichnung}</div>
                                                         <div style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 2 }}>{v.partner}</div>
@@ -482,6 +645,90 @@ export function VerwaltungVertraegePage() {
                     <div className="produkte-workspace__detail">{sidePanel}</div>
                 </div>
             )}
+
+            <Dialog
+                open={scanDialogOpen}
+                onClose={() => {
+                    if (attachBusy) return;
+                    setScanDialogOpen(false);
+                }}
+                title="Scanner: Vertragsdokument"
+                footer={(
+                    <Button type="button" variant="ghost" onClick={() => setScanDialogOpen(false)} disabled={attachBusy}>
+                        Schließen
+                    </Button>
+                )}
+            >
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <p className="page-sub" style={{ margin: 0, fontSize: 13 }}>
+                        Ordner angeben, in den Ihr Scan-Gerät die Dateien schreibt — dann Liste aktualisieren und eine Datei dem Vertrag{" "}
+                        <strong>{selected?.bezeichnung ?? ""}</strong> zuordnen. Die Kopie landet unter{" "}
+                        <code style={{ fontSize: 11 }}>medoc-data/vertraege/{"{Vertrag-ID}"}/</code>.
+                    </p>
+                    <Input
+                        id="vertrag-scan-folder"
+                        label="Scanner-Ordner"
+                        value={scanFolder}
+                        onChange={(e) => setScanFolder(e.target.value)}
+                        placeholder="/Users/…/scans"
+                    />
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={scanBusy || attachBusy}
+                            onClick={() => {
+                                void (async () => {
+                                    try {
+                                        await openSystemScanUtility();
+                                    } catch (e) {
+                                        toast(`Scanner-Programm: ${errorMessage(e)}`, "error");
+                                    }
+                                })();
+                            }}
+                        >
+                            System-Scanner öffnen
+                        </Button>
+                        <Button type="button" onClick={() => void refreshScanList()} disabled={scanBusy} loading={scanBusy}>
+                            Liste aktualisieren
+                        </Button>
+                    </div>
+                    {scanDocs.length > 0 ? (
+                        <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 240, overflow: "auto" }}>
+                            {scanDocs.map((d) => (
+                                <li
+                                    key={d.path}
+                                    className="row"
+                                    style={{
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "8px 0",
+                                        borderBottom: "1px solid var(--line)",
+                                    }}
+                                >
+                                    <span style={{ fontSize: 13, minWidth: 0, wordBreak: "break-all" }}>
+                                        {d.path}{" "}
+                                        <span style={{ color: "var(--fg-3)" }}>({d.bytes} Bytes)</span>
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="primary"
+                                        disabled={attachBusy}
+                                        loading={attachBusy}
+                                        onClick={() => void attachScanToSelected(d.path)}
+                                    >
+                                        Übernehmen
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Keine passenden Dateien — Ordner prüfen und „Liste aktualisieren“.</p>
+                    )}
+                </div>
+            </Dialog>
 
             <ConfirmDialog
                 open={Boolean(deleteId)}

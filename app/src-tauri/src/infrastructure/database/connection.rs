@@ -720,6 +720,26 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     .await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS in_app_notification (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            payload_json TEXT,
+            read_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_in_app_notification_user ON in_app_notification(user_id, created_at DESC)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
         "CREATE TABLE IF NOT EXISTS dokument_template_user (
             id TEXT PRIMARY KEY,
             kind TEXT NOT NULL,
@@ -754,6 +774,27 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     )
     .execute(pool)
     .await?;
+
+    for (sql, col) in [(
+        "ALTER TABLE vertrag ADD COLUMN dokument_pfad TEXT",
+        "dokument_pfad",
+    )] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS rechnung_document (

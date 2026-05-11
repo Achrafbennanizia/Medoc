@@ -14,6 +14,7 @@ pub mod dokument_template_commands;
 pub mod document_pdf_commands;
 pub mod export_commands;
 pub mod feedback_commands;
+pub mod in_app_notification_commands;
 pub mod integration_commands;
 pub mod invoice_commands;
 pub mod invoice_sequence_commands;

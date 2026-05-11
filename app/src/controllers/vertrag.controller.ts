@@ -11,6 +11,7 @@ export type VertragDto = {
     periode_von: string | null;
     periode_bis: string | null;
     created_at: string;
+    dokument_pfad?: string | null;
 };
 
 function dtoToItem(d: VertragDto): VertragItem {
@@ -24,6 +25,7 @@ function dtoToItem(d: VertragDto): VertragItem {
         periodeVon: d.periode_von,
         periodeBis: d.periode_bis,
         createdAt: d.created_at,
+        dokumentPfad: d.dokument_pfad ?? null,
     };
 }
 
@@ -38,6 +40,7 @@ function itemToDto(v: VertragItem): VertragDto {
         periode_von: v.periodeVon,
         periode_bis: v.periodeBis,
         created_at: v.createdAt,
+        dokument_pfad: v.dokumentPfad,
     };
 }
 
@@ -115,6 +118,7 @@ export async function migrateLegacyVertraegeFromLocalStorageOnce(): Promise<void
             periodeVon: typeof o.periodeVon === "string" ? o.periodeVon : null,
             periodeBis: typeof o.periodeBis === "string" ? o.periodeBis : null,
             createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
+            dokumentPfad: typeof o.dokumentPfad === "string" ? o.dokumentPfad : null,
         };
         try {
             await upsertVertragOnBackend(item);
@@ -127,6 +131,10 @@ export async function migrateLegacyVertraegeFromLocalStorageOnce(): Promise<void
     } catch {
         /* ignore */
     }
+}
+
+export async function openVertragDokument(vertragId: string): Promise<void> {
+    return tauriInvoke<void>("open_vertrag_dokument", { vertragId });
 }
 
 export function stripLegacyVertraegeLocalStorage(): void {

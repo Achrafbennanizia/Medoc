@@ -131,6 +131,13 @@ pub async fn erase_patient(
         .await?
         .rows_affected();
 
+    let in_app_needle = format!("%\"patient_id\":\"{patient_id}\"%");
+    deleted += sqlx::query("DELETE FROM in_app_notification WHERE payload_json LIKE ?1")
+        .bind(&in_app_needle)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
     deleted += sqlx::query("DELETE FROM rechnung_document WHERE patient_id = ?1")
         .bind(patient_id)
         .execute(&mut *tx)

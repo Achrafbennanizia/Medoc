@@ -2,6 +2,14 @@
  * Client-only Einstellungen (localStorage), hydration für Darstellung & Arbeitsabläufe.
  */
 
+import {
+    applyAccentPresetToDocument,
+    mirrorAccentToLegacyStorage,
+    normalizeAccentId,
+    readLegacyAccentFromStorage,
+    type AccentId,
+} from "./accent-preset";
+
 export type DensityId = "compact" | "cozy" | "spacious";
 
 /** Standard-Ansicht Terminübersicht (`/termine`). */
@@ -12,6 +20,8 @@ export type ClientSettingsV1 = {
     appearance?: {
         darkSidebar: boolean;
         density: DensityId;
+        /** Marken-Akzent (CSS --accent / --accent-soft / --accent-ink). */
+        accentPreset?: AccentId;
         /** Topbar-Benutzer-Avatar (Kreise mit Initialen). */
         showHeaderAvatar?: boolean;
         /** Sichtbare Kbd-Hinweise (z. B. ⌘K in der Leiste). */
@@ -49,6 +59,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     appearance: {
         darkSidebar: false,
         density: "cozy",
+        accentPreset: "mint",
         showHeaderAvatar: true,
         showKeyboardHints: true,
     },
@@ -95,7 +106,21 @@ export function loadClientSettings(): ClientSettingsV1 {
         if (!raw) return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
         const j = JSON.parse(raw) as Partial<ClientSettingsV1>;
         if (j.version !== 1) return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
-        return normalizeFromStorage(j);
+        let out = normalizeFromStorage(j);
+        const rawAp = j.appearance?.accentPreset;
+        const hasStoredPreset = rawAp === "mint" || rawAp === "ocean" || rawAp === "plum";
+        if (!hasStoredPreset) {
+            const leg = readLegacyAccentFromStorage();
+            if (leg != null) {
+                out = mergeClient(out, { appearance: { ...out.appearance!, accentPreset: leg } });
+                try {
+                    localStorage.setItem(KEY, JSON.stringify(out));
+                } catch {
+                    /* ignore */
+                }
+            }
+        }
+        return out;
     } catch {
         return mergeClient(DEFAULT_CLIENT_SETTINGS, {});
     }
@@ -105,7 +130,7 @@ export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
 }
 
-/** Wendet Sidebar-Ton, Dichte, Avatar- & Kbd-Hinweise auf `<html>` an (vor Render der Shell konsistent). */
+/** Wendet Sidebar-Ton, Dichte, Akzent, Avatar- & Kbd-Hinweise auf `<html>` an (vor Render der Shell konsistent). */
 export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     const dark = s.appearance?.darkSidebar ?? false;
     let density = s.appearance?.density ?? "cozy";
@@ -116,6 +141,9 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     document.documentElement.dataset.headerAvatar = av ? "true" : "false";
     const kbd = s.appearance?.showKeyboardHints !== false;
     document.documentElement.dataset.kbdHints = kbd ? "true" : "false";
+    const accent = normalizeAccentId(s.appearance?.accentPreset);
+    applyAccentPresetToDocument(accent);
+    mirrorAccentToLegacyStorage(accent);
 }
 
 export function hydrateAppearanceFromStorage(): void {

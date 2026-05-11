@@ -186,6 +186,7 @@ pub fn run() {
             commands::akte_validation_commands::set_akte_item_validated,
             commands::akte_validation_commands::clear_akte_validation,
             commands::akte_next_termin_commands::get_akte_next_termin_hint,
+            commands::akte_next_termin_commands::list_akte_next_termin_hints_pending,
             commands::akte_next_termin_commands::set_akte_next_termin_hint,
             // Zahlungen
             commands::zahlung_commands::list_zahlungen,
@@ -245,7 +246,12 @@ pub fn run() {
             commands::devices_commands::parse_gdt_file,
             commands::devices_commands::inspect_dicom_file,
             commands::devices_commands::scanner_list_recent,
+            commands::devices_commands::open_system_scan_utility,
+            commands::devices_commands::open_native_print_dialog,
             commands::devices_commands::scanner_attach,
+            commands::devices_commands::scanner_attach_vertrag,
+            commands::devices_commands::scanner_attach_vertrag_app_data,
+            commands::devices_commands::pick_vertrag_pdf_file,
             // Finance
             commands::devices_commands::process_payment,
             // Updates
@@ -262,7 +268,12 @@ pub fn run() {
             commands::vertrag_commands::list_vertraege,
             commands::vertrag_commands::upsert_vertrag,
             commands::vertrag_commands::delete_vertrag,
+            commands::vertrag_commands::open_vertrag_dokument,
             // Integrations & notifications
+            commands::in_app_notification_commands::list_in_app_notifications,
+            commands::in_app_notification_commands::count_unread_in_app_notifications,
+            commands::in_app_notification_commands::mark_in_app_notification_read,
+            commands::in_app_notification_commands::mark_all_in_app_notifications_read,
             commands::integration_commands::list_upcoming_appointments,
             commands::integration_commands::validate_eprescription,
             commands::integration_commands::submit_eprescription,

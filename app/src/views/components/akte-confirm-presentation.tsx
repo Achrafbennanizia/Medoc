@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ConfirmDialog, Dialog } from "./ui/dialog";
+import { ConfirmDialog, Dialog, IosConfirmActions } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { useUiPreferencesStore } from "@/models/store/ui-preferences-store";
 import {
@@ -47,13 +47,14 @@ export function AkteInlineConfirm({
                     </div>
                 </div>
             </div>
-            <div className="akte-inline-panel-actions">
-                <Button type="button" variant="ghost" onClick={onCancel} disabled={loading}>
-                    Abbrechen
-                </Button>
-                <Button type="button" variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading}>
-                    {confirmLabel}
-                </Button>
+            <div className="akte-inline-panel-actions akte-inline-panel-actions--ios">
+                <IosConfirmActions
+                    cancelLabel="Abbrechen"
+                    confirmLabel={confirmLabel}
+                    onCancel={onCancel}
+                    onConfirm={onConfirm}
+                    loading={loading}
+                />
             </div>
         </div>
     );

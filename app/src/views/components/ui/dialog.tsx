@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
-import { Button } from "./button";
 
 interface DialogProps {
     open: boolean;
@@ -188,6 +187,46 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     return layer;
 }
 
+/* ── iOS-style alert actions (shared by ConfirmDialog & custom Dialogs) ── */
+export type IosConfirmActionsProps = {
+    cancelLabel?: string;
+    confirmLabel: string;
+    onCancel: () => void;
+    onConfirm: () => void;
+    disabled?: boolean;
+    loading?: boolean;
+    /** Primary label color: red (destructive) vs system blue */
+    destructive?: boolean;
+};
+
+export function IosConfirmActions({
+    cancelLabel = "Abbrechen",
+    confirmLabel,
+    onCancel,
+    onConfirm,
+    disabled = false,
+    loading = false,
+    destructive = false,
+}: IosConfirmActionsProps) {
+    const busy = disabled || loading;
+    return (
+        <div className="ios-confirm-actions" role="group" aria-label="Aktionen">
+            <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={busy}>
+                {cancelLabel}
+            </button>
+            <span className="ios-confirm-actions__vsep" aria-hidden="true" />
+            <button
+                type="button"
+                className={`ios-confirm-btn ios-confirm-btn--primary${destructive ? " ios-confirm-btn--destructive" : ""}`}
+                onClick={onConfirm}
+                disabled={busy}
+            >
+                {loading ? "…" : confirmLabel}
+            </button>
+        </div>
+    );
+}
+
 /* ── Confirm Dialog shorthand ── */
 interface ConfirmDialogProps {
     open: boolean;
@@ -196,42 +235,49 @@ interface ConfirmDialogProps {
     title: string;
     message: string;
     confirmLabel?: string;
+    cancelLabel?: string;
+    /** Prefer red primary label (still sheet layout; rare — most delete flows use blue like iOS default actions). */
     danger?: boolean;
     loading?: boolean;
 }
 
-export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = "Bestätigen", danger, loading }: ConfirmDialogProps) {
+export function ConfirmDialog({
+    open,
+    onClose,
+    onConfirm,
+    title,
+    message,
+    confirmLabel = "Bestätigen",
+    cancelLabel = "Abbrechen",
+    danger: _dangerUnused = false,
+    loading = false,
+}: ConfirmDialogProps) {
     const confirmTitleId = useId();
+    const handleClose = () => {
+        if (!loading) onClose();
+    };
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={handleClose}
             title=""
             labelledBy={confirmTitleId}
-            footer={
-                <>
-                    <Button variant="ghost" onClick={onClose} disabled={loading}>
-                        Abbrechen
-                    </Button>
-                    <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading}>
-                        {confirmLabel}
-                    </Button>
-                </>
-            }
+            className="modal--ios-confirm"
         >
-            <div className="confirm-body">
-                {danger ? (
-                    <div className="confirm-icon" aria-hidden="true">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <path d="M12 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                            <path d="M7.5 5.8a9 9 0 1 0 9 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                        </svg>
-                    </div>
-                ) : null}
-                <h2 id={confirmTitleId} className="confirm-title">
-                    {title}
-                </h2>
-                <p className="confirm-text">{message}</p>
+            <div className="ios-confirm">
+                <div className="ios-confirm-body">
+                    <h2 id={confirmTitleId} className="ios-confirm-title">
+                        {title}
+                    </h2>
+                    <p className="ios-confirm-message">{message}</p>
+                </div>
+                <IosConfirmActions
+                    cancelLabel={cancelLabel}
+                    confirmLabel={confirmLabel}
+                    onCancel={handleClose}
+                    onConfirm={onConfirm}
+                    loading={loading}
+                />
             </div>
         </Dialog>
     );

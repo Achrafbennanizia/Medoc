@@ -19,6 +19,35 @@ pub struct AkteNextTerminHintDto {
     pub hint_json: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AkteNextTerminPendingRow {
+    pub patient_id: String,
+    pub hint_json: String,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_akte_next_termin_hints_pending(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<AkteNextTerminPendingRow>, AppError> {
+    let _session = rbac::require(&session_state, "patient.read")?;
+    let rows = akte_next_termin_repo::list_all_ordered(&pool).await?;
+    let mut out = Vec::new();
+    for (patient_id, hint_json) in rows {
+        let trimmed = hint_json.trim();
+        if !akte_next_termin_repo::hint_json_is_pending_non_empty(trimmed) {
+            continue;
+        }
+        out.push(AkteNextTerminPendingRow {
+            patient_id,
+            hint_json: trimmed.to_string(),
+        });
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_akte_next_termin_hint(

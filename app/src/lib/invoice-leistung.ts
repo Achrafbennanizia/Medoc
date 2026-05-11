@@ -17,9 +17,45 @@ export type InvoicePraxis = {
     kv_nummer?: string;
     /** Freitext Öffnungszeiten */
     oeffnungszeiten?: string;
+    telefon?: string;
+    fax?: string;
+    email?: string;
+    /** Praxis-Webseite (wird im PDF ohne https:// dargestellt, wenn gewünscht) */
+    web?: string;
+    steuernummer?: string;
+    ust_id?: string;
 };
 
 const DEFAULTS: InvoicePraxis = { name: "Zahnarztpraxis", addr: "Musterstraße 1\n12345 Ort" };
+
+/**
+ * Zeilen für den Praxis-Kopf im PDF (`practice_address`): Anschrift, dann Kontakt und Pflichtangaben.
+ * Reihenfolge orientiert sich an typischen Rechnungs-/Briefköpfen.
+ */
+export function buildInvoiceHeaderAddressLines(p: InvoicePraxis): string[] {
+    const lines: string[] = [];
+    for (const raw of (p.addr ?? "").split(/\r?\n/)) {
+        const t = raw.trim();
+        if (t) lines.push(t);
+    }
+    const tel = (p.telefon ?? "").trim();
+    if (tel) lines.push(`Tel. ${tel}`);
+    const fax = (p.fax ?? "").trim();
+    if (fax) lines.push(`Fax ${fax}`);
+    const em = (p.email ?? "").trim();
+    if (em) lines.push(`E-Mail ${em}`);
+    const web = (p.web ?? "").trim();
+    if (web) lines.push(web.replace(/^https?:\/\//i, ""));
+    const kv = (p.kv_nummer ?? "").trim();
+    if (kv) lines.push(`KV- / Betriebsnr. ${kv}`);
+    const ust = (p.ust_id ?? "").trim();
+    if (ust) lines.push(`USt-IdNr. ${ust}`);
+    const st = (p.steuernummer ?? "").trim();
+    if (st) lines.push(`St.-Nr. ${st}`);
+    const oz = (p.oeffnungszeiten ?? "").trim();
+    if (oz) lines.push(`Öffn.: ${oz}`);
+    return lines;
+}
 
 export type InvoiceNumberOpts = {
     /** Nummern, die bereits im lokalen Verlauf / Session liegen — Kollision vermeiden. */
@@ -75,12 +111,31 @@ export function getInvoicePraxisFromStorage(): InvoicePraxis {
             addr?: string;
             kv_nummer?: string;
             oeffnungszeiten?: string;
+            telefon?: string;
+            fax?: string;
+            email?: string;
+            web?: string;
+            steuernummer?: string;
+            ust_id?: string;
         };
         const name = (j.name ?? "").trim() || DEFAULTS.name;
         const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
-        const kv_nummer = (j.kv_nummer ?? "").trim() || undefined;
-        const oeffnungszeiten = (j.oeffnungszeiten ?? "").trim() || undefined;
-        return { name, addr, kv_nummer, oeffnungszeiten };
+        const opt = (s: string | undefined) => {
+            const t = (s ?? "").trim();
+            return t || undefined;
+        };
+        return {
+            name,
+            addr,
+            kv_nummer: opt(j.kv_nummer),
+            oeffnungszeiten: opt(j.oeffnungszeiten),
+            telefon: opt(j.telefon),
+            fax: opt(j.fax),
+            email: opt(j.email),
+            web: opt(j.web),
+            steuernummer: opt(j.steuernummer),
+            ust_id: opt(j.ust_id),
+        };
     } catch {
         return { ...DEFAULTS };
     }
@@ -92,10 +147,18 @@ export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
         name: p.name.trim() || DEFAULTS.name,
         addr: p.addr.trim() || DEFAULTS.addr,
     };
-    const kv = (p.kv_nummer ?? "").trim();
-    const oe = (p.oeffnungszeiten ?? "").trim();
-    if (kv) blob.kv_nummer = kv;
-    if (oe) blob.oeffnungszeiten = oe;
+    const put = (key: string, v: string | undefined) => {
+        const t = (v ?? "").trim();
+        if (t) blob[key] = t;
+    };
+    put("kv_nummer", p.kv_nummer);
+    put("oeffnungszeiten", p.oeffnungszeiten);
+    put("telefon", p.telefon);
+    put("fax", p.fax);
+    put("email", p.email);
+    put("web", p.web);
+    put("steuernummer", p.steuernummer);
+    put("ust_id", p.ust_id);
     localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(blob));
 }
 

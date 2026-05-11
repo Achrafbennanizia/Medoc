@@ -28,6 +28,8 @@ type DentalChartProps = {
     onToothSelect?: (fdi: string) => void;
     /** Clinical: apply status key to tooth (persisted by parent). */
     onApply?: (tooth: number, statusKey: string) => Promise<void>;
+    /** Picker: override the helper line below the palette (default DE copy). */
+    pickerHint?: string;
     /** Nur Anzeige — keine Zahnwahl / kein Befund setzen (Ansichtsmodus). */
     disabled?: boolean;
 };
@@ -39,6 +41,7 @@ export function DentalChart({
     onToothSelect,
     onApply,
     disabled = false,
+    pickerHint,
 }: DentalChartProps) {
     const [active, setActive] = useState<DentalStatusKey>("healthy");
     const [pulseTooth, setPulseTooth] = useState<string | null>(null);
@@ -120,7 +123,7 @@ export function DentalChart({
                 <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>
                     {disabled
                         ? "Ansicht — Bearbeiten aktivieren, um einen Zahn zu wählen."
-                        : "Zahn im Chart antippen — die Nummer wird ins Formular übernommen."}
+                        : pickerHint ?? "Zahn im Chart antippen — die Nummer wird ins Formular übernommen."}
                 </p>
             )}
             <div className="col" style={{ gap: 16 }}>
