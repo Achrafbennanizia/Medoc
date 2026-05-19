@@ -8,6 +8,15 @@ import {
 export interface InvoiceLineInput {
     description: string;
     amount_cents: number;
+    goz_nr?: string | null;
+    faktor?: number | null;
+    einzelpreis_cents?: number | null;
+    menge?: number | null;
+    zahn_nr?: string | null;
+    behandlungsdatum?: string | null;
+    ust_prozent?: number | null;
+    material?: string | null;
+    diagnose_begruendung?: string | null;
 }
 
 export interface InvoiceInput {
@@ -19,6 +28,12 @@ export interface InvoiceInput {
     practice_address: string[];
     lines: InvoiceLineInput[];
     note?: string | null;
+    behandler_name?: string | null;
+    behandler_zanr?: string | null;
+    praxis_bsnr?: string | null;
+    bankverbindung?: string[] | null;
+    zahlungsziel_text?: string | null;
+    ust_hinweis?: string | null;
 }
 
 export type InvoiceDocKind = "RE" | "BR";

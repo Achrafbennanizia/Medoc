@@ -13,6 +13,14 @@ export interface Rezept {
     ausgestellt_am: string;
     status: string;
     created_at: string;
+    pzn?: string | null;
+    darreichungsform?: string | null;
+    packungsgroesse?: string | null;
+    menge?: number | null;
+    aut_idem?: boolean | null;
+    rezept_typ?: string | null;
+    icd10_code?: string | null;
+    verordnender_arzt_id?: string | null;
 }
 
 export interface CreateRezept {
@@ -23,6 +31,14 @@ export interface CreateRezept {
     dosierung: string;
     dauer: string;
     hinweise?: string | null;
+    pzn?: string | null;
+    darreichungsform?: string | null;
+    packungsgroesse?: string | null;
+    menge?: number | null;
+    aut_idem?: boolean | null;
+    rezept_typ?: "PRIVAT" | "KASSE" | "BTM" | null;
+    icd10_code?: string | null;
+    verordnender_arzt_id?: string | null;
 }
 
 export const listRezepte = (patientId: string) =>
@@ -43,6 +59,14 @@ export interface UpdateRezept {
     dosierung: string;
     dauer: string;
     hinweise?: string | null;
+    pzn?: string | null;
+    darreichungsform?: string | null;
+    packungsgroesse?: string | null;
+    menge?: number | null;
+    aut_idem?: boolean | null;
+    rezept_typ?: "PRIVAT" | "KASSE" | "BTM" | null;
+    icd10_code?: string | null;
+    verordnender_arzt_id?: string | null;
 }
 
 export const updateRezept = (data: UpdateRezept) => {

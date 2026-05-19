@@ -27,9 +27,16 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Attest>, A
 
 pub async fn create(pool: &SqlitePool, data: &CreateAttest) -> Result<Attest, AppError> {
     let id = Uuid::new_v4().to_string();
+    let erst_oder_folge = data
+        .erst_oder_folge
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("ERST");
     sqlx::query(
-        "INSERT INTO attest (id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO attest (
+            id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis,
+            icd10_code, erst_oder_folge, arbeitgeber, ausstellender_arzt_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
     )
     .bind(&id)
     .bind(&data.patient_id)
@@ -38,6 +45,10 @@ pub async fn create(pool: &SqlitePool, data: &CreateAttest) -> Result<Attest, Ap
     .bind(&data.inhalt)
     .bind(data.gueltig_von)
     .bind(data.gueltig_bis)
+    .bind(&data.icd10_code)
+    .bind(erst_oder_folge)
+    .bind(&data.arbeitgeber)
+    .bind(&data.ausstellender_arzt_id)
     .execute(pool)
     .await?;
     find_by_id(pool, &id)

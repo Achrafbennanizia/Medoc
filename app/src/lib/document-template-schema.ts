@@ -10,7 +10,16 @@ export type PraxisFieldKey =
     | "email"
     | "kv"
     | "tax"
-    | "hours";
+    | "hours"
+    | "behandler"
+    | "zanr"
+    | "bsnr"
+    | "bank"
+    | "kammer"
+    | "kzv"
+    | "zahlungsziel"
+    | "ust_hinweis"
+    | "notfall_tel";
 
 export type TextAlignment = "left" | "center" | "right";
 
@@ -77,6 +86,15 @@ export const PRAXIS_FIELD_OPTIONS: { id: PraxisFieldKey; label: string }[] = [
     { id: "kv", label: "KV-Nr." },
     { id: "tax", label: "Steuer-Nr." },
     { id: "hours", label: "Öffnungszeiten" },
+    { id: "behandler", label: "Behandler" },
+    { id: "zanr", label: "ZANR" },
+    { id: "bsnr", label: "BSNR" },
+    { id: "bank", label: "Bankverbindung" },
+    { id: "kammer", label: "Kammer" },
+    { id: "kzv", label: "KZV" },
+    { id: "zahlungsziel", label: "Zahlungsziel" },
+    { id: "ust_hinweis", label: "USt-Hinweis" },
+    { id: "notfall_tel", label: "Notfall-Tel." },
 ];
 
 export function emptyDocumentTemplatePayloadV1(): DocumentTemplatePayloadV1 {

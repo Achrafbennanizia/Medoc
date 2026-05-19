@@ -222,6 +222,14 @@ export const CreateRezeptSchema = z.object({
     dosierung: nonEmpty().max(200),
     dauer: nonEmpty().max(200),
     hinweise: optionalText,
+    pzn: optionalText,
+    darreichungsform: optionalText,
+    packungsgroesse: optionalText,
+    menge: z.number().int().positive().optional().nullable(),
+    aut_idem: z.boolean().optional().nullable(),
+    rezept_typ: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
+    icd10_code: optionalText,
+    verordnender_arzt_id: optionalText,
 });
 
 export const UpdateRezeptSchema = z.object({
@@ -231,6 +239,14 @@ export const UpdateRezeptSchema = z.object({
     dosierung: nonEmpty().max(200),
     dauer: nonEmpty().max(200),
     hinweise: optionalText,
+    pzn: optionalText,
+    darreichungsform: optionalText,
+    packungsgroesse: optionalText,
+    menge: z.number().int().positive().optional().nullable(),
+    aut_idem: z.boolean().optional().nullable(),
+    rezept_typ: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
+    icd10_code: optionalText,
+    verordnender_arzt_id: optionalText,
 });
 
 export const CreateAttestSchema = z.object({
@@ -240,6 +256,10 @@ export const CreateAttestSchema = z.object({
     inhalt: nonEmpty().max(5000),
     gueltig_von: isoDate,
     gueltig_bis: isoDate,
+    icd10_code: optionalText,
+    erst_oder_folge: z.enum(["ERST", "FOLGE"]).optional().nullable(),
+    arbeitgeber: optionalText,
+    ausstellender_arzt_id: optionalText,
 });
 
 export const CreateBehandlungSchema = z.object({

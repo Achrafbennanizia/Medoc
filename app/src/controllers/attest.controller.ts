@@ -11,6 +11,10 @@ export interface Attest {
     gueltig_bis: string;
     ausgestellt_am: string;
     created_at: string;
+    icd10_code?: string | null;
+    erst_oder_folge?: string | null;
+    arbeitgeber?: string | null;
+    ausstellender_arzt_id?: string | null;
 }
 
 export interface CreateAttest {
@@ -20,6 +24,10 @@ export interface CreateAttest {
     inhalt: string;
     gueltig_von: string;
     gueltig_bis: string;
+    icd10_code?: string | null;
+    erst_oder_folge?: "ERST" | "FOLGE" | null;
+    arbeitgeber?: string | null;
+    ausstellender_arzt_id?: string | null;
 }
 
 export const listAtteste = (patientId: string) =>

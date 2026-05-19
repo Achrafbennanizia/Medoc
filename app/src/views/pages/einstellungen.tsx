@@ -61,6 +61,9 @@ import {
     buildInvoiceHeaderAddressLines,
     getInvoicePraxisFromStorage,
     hydrateInvoicePraxisFromAppKv,
+    isValidPraxisDigitId,
+    isValidPraxisIban,
+    praxisRechnungPflichtMissing,
     saveInvoicePraxisToStorage,
     syncInvoicePraxisToAppKv,
     type InvoicePraxis,
@@ -81,6 +84,7 @@ import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { Dialog } from "../components/ui/dialog";
 import { EinstellungenExportDruckSection } from "./einstellungen-export-druck";
+import { EinstellungenPraxisBillingSection } from "./einstellungen-praxis-billing";
 import { EinstellungenCompanyPortalSection } from "./einstellungen-company-portal-section";
 import { EinstellungenLanHostSection } from "./einstellungen-lan-host";
 import { ACCENT_HINTS, ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, normalizeAccentId, type AccentId } from "../../lib/accent-preset";
@@ -290,6 +294,8 @@ export function EinstellungenPage() {
     const [draftPraxisKv, setDraftPraxisKv] = useState("");
     const [editPraxisExtra, setEditPraxisExtra] = useState(false);
     const [praxisExtraSnapshot, setPraxisExtraSnapshot] = useState<InvoicePraxis | null>(null);
+    const [editPraxisBilling, setEditPraxisBilling] = useState(false);
+    const [praxisBillingSnapshot, setPraxisBillingSnapshot] = useState<InvoicePraxis | null>(null);
     const [logoBusy, setLogoBusy] = useState(false);
     const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
     const [client, setClient] = useState<ClientSettingsV1>(() => loadClientSettings());
@@ -429,7 +435,12 @@ export function EinstellungenPage() {
 
     useEffect(() => {
         const editingPraxis =
-            editPraxisName || editPraxisAddr || editPraxisOeffnungszeiten || editPraxisKv || editPraxisExtra;
+            editPraxisName ||
+            editPraxisAddr ||
+            editPraxisOeffnungszeiten ||
+            editPraxisKv ||
+            editPraxisExtra ||
+            editPraxisBilling;
         if (activeSection !== "praxis" || !session?.user_id || editingPraxis) return;
         let cancelled = false;
         void hydrateInvoicePraxisFromAppKv().then((fromKv) => {
@@ -451,6 +462,7 @@ export function EinstellungenPage() {
         editPraxisOeffnungszeiten,
         editPraxisKv,
         editPraxisExtra,
+        editPraxisBilling,
     ]);
 
     useEffect(() => {
@@ -788,6 +800,52 @@ export function EinstellungenPage() {
         setPraxisExtraSnapshot(null);
     }
 
+    const praxisBillingIncomplete = useMemo(() => praxisRechnungPflichtMissing(praxis), [praxis]);
+
+    function startEditPraxisBilling() {
+        setPraxisBillingSnapshot({ ...praxis });
+        setEditPraxisBilling(true);
+    }
+
+    function cancelPraxisBilling() {
+        if (praxisBillingSnapshot) setPraxis(praxisBillingSnapshot);
+        setEditPraxisBilling(false);
+        setPraxisBillingSnapshot(null);
+    }
+
+    function savePraxisBilling() {
+        const zanr = (praxis.zanr ?? "").trim();
+        const bsnr = (praxis.bsnr ?? "").trim();
+        const iban = (praxis.bankverbindung_iban ?? "").trim();
+        if (zanr && !isValidPraxisDigitId(zanr)) {
+            toast("ZANR: genau 9 Ziffern erforderlich", "error");
+            return;
+        }
+        if (bsnr && !isValidPraxisDigitId(bsnr)) {
+            toast("BSNR: genau 9 Ziffern erforderlich", "error");
+            return;
+        }
+        if (iban && !isValidPraxisIban(iban)) {
+            toast("IBAN: ungültiges Format (DE: DE + 20 Ziffern)", "error");
+            return;
+        }
+        const zt = praxis.zahlungsziel_tage ?? 14;
+        const next: InvoicePraxis = {
+            ...praxis,
+            zahlungsziel_tage: Number.isFinite(zt) && zt > 0 ? Math.round(zt) : 14,
+            ust_befreiung_hinweis:
+                (praxis.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG",
+        };
+        setPraxis(next);
+        saveInvoicePraxisToStorage(next);
+        void syncInvoicePraxisToAppKv(next).catch(() => {
+            /* offline / Web */
+        });
+        toast("Rechnungs-Stammdaten gespeichert", "success");
+        setEditPraxisBilling(false);
+        setPraxisBillingSnapshot(null);
+    }
+
     const refreshDeviceSessions = useCallback(async () => {
         try {
             setDeviceSessionsBusy(true);
@@ -967,6 +1025,24 @@ export function EinstellungenPage() {
                                         <p className="card-sub">Grunddaten · werden auf Rezepten und Rechnungen gedruckt</p>
                                     </div>
                                 </div>
+                                {praxisBillingIncomplete ? (
+                                    <div
+                                        className="card-pad"
+                                        role="status"
+                                        style={{
+                                            margin: "0 var(--card-pad-x) var(--space-3)",
+                                            padding: "var(--space-3)",
+                                            borderRadius: 8,
+                                            background: "var(--warn-bg, #fff8e6)",
+                                            border: "1px solid var(--warn-border, #e6c200)",
+                                            color: "var(--text)",
+                                            fontSize: "0.92rem",
+                                        }}
+                                    >
+                                        <strong>Wichtig:</strong> Pflichtangaben für Rechnungen/Rezepte fehlen. Bitte füllen Sie
+                                        Behandler-Name, ZANR, BSNR und IBAN aus.
+                                    </div>
+                                ) : null}
                                 <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                                     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                                         <span className="settings-field-label">
@@ -1204,6 +1280,14 @@ export function EinstellungenPage() {
                                         </div>
                                     </div>
                                 ) : null}
+                                <EinstellungenPraxisBillingSection
+                                    praxis={praxis}
+                                    editing={editPraxisBilling}
+                                    onStartEdit={startEditPraxisBilling}
+                                    onCancel={cancelPraxisBilling}
+                                    onSave={savePraxisBilling}
+                                    onChange={(patch) => setPraxis((p) => ({ ...p, ...patch }))}
+                                />
                                 <button type="button" className="settings-row-clickable" onClick={() => setSection("arbeitsablaeufe")}>
                                     <div>
                                         <b>Termine &amp; Kalender</b>

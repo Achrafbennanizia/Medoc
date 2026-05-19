@@ -3,7 +3,19 @@
  * Gespeichert in localStorage (wie Stammdaten) — wirkt sofort auf neue Drucke/Exporte.
  */
 
-export type PraxisHeaderPrivacyKey = "tel" | "fax" | "email" | "web" | "kv" | "ust" | "steuer" | "oz";
+export type PraxisHeaderPrivacyKey =
+    | "tel"
+    | "fax"
+    | "email"
+    | "web"
+    | "kv"
+    | "ust"
+    | "steuer"
+    | "oz"
+    | "behandler"
+    | "zanr"
+    | "bsnr"
+    | "bank";
 
 export type PraxisHeaderPrivacyV1 = Record<PraxisHeaderPrivacyKey, boolean>;
 
@@ -16,6 +28,10 @@ export const DEFAULT_PRAXIS_HEADER_PRIVACY: PraxisHeaderPrivacyV1 = {
     ust: true,
     steuer: true,
     oz: true,
+    behandler: true,
+    zanr: true,
+    bsnr: true,
+    bank: true,
 };
 
 const LS_KEY = "medoc-praxis-header-privacy-v1";
