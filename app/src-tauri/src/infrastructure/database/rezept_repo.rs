@@ -27,9 +27,17 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Rezept>, A
 
 pub async fn create(pool: &SqlitePool, data: &CreateRezept) -> Result<Rezept, AppError> {
     let id = Uuid::new_v4().to_string();
+    let aut_idem = data.aut_idem.unwrap_or(true);
+    let rezept_typ = data
+        .rezept_typ
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("PRIVAT");
     sqlx::query(
-        "INSERT INTO rezept (id, patient_id, arzt_id, medikament, wirkstoff, dosierung, dauer, hinweise)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO rezept (
+            id, patient_id, arzt_id, medikament, wirkstoff, dosierung, dauer, hinweise,
+            pzn, darreichungsform, packungsgroesse, menge, aut_idem, rezept_typ, icd10_code, verordnender_arzt_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
     )
     .bind(&id)
     .bind(&data.patient_id)
@@ -39,6 +47,14 @@ pub async fn create(pool: &SqlitePool, data: &CreateRezept) -> Result<Rezept, Ap
     .bind(&data.dosierung)
     .bind(&data.dauer)
     .bind(&data.hinweise)
+    .bind(&data.pzn)
+    .bind(&data.darreichungsform)
+    .bind(&data.packungsgroesse)
+    .bind(data.menge)
+    .bind(aut_idem)
+    .bind(rezept_typ)
+    .bind(&data.icd10_code)
+    .bind(&data.verordnender_arzt_id)
     .execute(pool)
     .await?;
     find_by_id(pool, &id)
@@ -58,15 +74,33 @@ pub async fn update(pool: &SqlitePool, data: &UpdateRezept) -> Result<Rezept, Ap
     let ex = find_by_id(pool, &data.id)
         .await?
         .ok_or(AppError::NotFound("Rezept".into()))?;
+    let aut_idem = data.aut_idem.or(ex.aut_idem).unwrap_or(true);
+    let rezept_typ = data
+        .rezept_typ
+        .as_deref()
+        .or(ex.rezept_typ.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("PRIVAT");
     sqlx::query(
-        "UPDATE rezept SET medikament = ?1, wirkstoff = ?2, dosierung = ?3, dauer = ?4, hinweise = ?5
-         WHERE id = ?6",
+        "UPDATE rezept SET
+            medikament = ?1, wirkstoff = ?2, dosierung = ?3, dauer = ?4, hinweise = ?5,
+            pzn = ?6, darreichungsform = ?7, packungsgroesse = ?8, menge = ?9,
+            aut_idem = ?10, rezept_typ = ?11, icd10_code = ?12, verordnender_arzt_id = ?13
+         WHERE id = ?14",
     )
     .bind(&data.medikament)
     .bind(&data.wirkstoff)
     .bind(&data.dosierung)
     .bind(&data.dauer)
     .bind(&data.hinweise)
+    .bind(&data.pzn)
+    .bind(&data.darreichungsform)
+    .bind(&data.packungsgroesse)
+    .bind(data.menge)
+    .bind(aut_idem)
+    .bind(rezept_typ)
+    .bind(&data.icd10_code)
+    .bind(&data.verordnender_arzt_id)
     .bind(&data.id)
     .execute(pool)
     .await?;

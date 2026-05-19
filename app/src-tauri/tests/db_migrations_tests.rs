@@ -55,3 +55,47 @@ async fn run_migrations_twice_is_idempotent() {
         staff.0
     );
 }
+
+#[tokio::test]
+async fn rezept_and_attest_forward_migrations_add_columns() {
+    let pool = memory_pool().await;
+    run_migrations(&pool).await.expect("migrations");
+
+    let rezept_cols: Vec<String> =
+        sqlx::query_scalar::<_, String>("SELECT name FROM pragma_table_info('rezept')")
+            .fetch_all(&pool)
+            .await
+            .expect("pragma rezept");
+    for col in [
+        "pzn",
+        "darreichungsform",
+        "packungsgroesse",
+        "menge",
+        "aut_idem",
+        "rezept_typ",
+        "icd10_code",
+        "verordnender_arzt_id",
+    ] {
+        assert!(
+            rezept_cols.iter().any(|c| c == col),
+            "rezept missing column {col}: {rezept_cols:?}"
+        );
+    }
+
+    let attest_cols: Vec<String> =
+        sqlx::query_scalar::<_, String>("SELECT name FROM pragma_table_info('attest')")
+            .fetch_all(&pool)
+            .await
+            .expect("pragma attest");
+    for col in [
+        "icd10_code",
+        "erst_oder_folge",
+        "arbeitgeber",
+        "ausstellender_arzt_id",
+    ] {
+        assert!(
+            attest_cols.iter().any(|c| c == col),
+            "attest missing column {col}: {attest_cols:?}"
+        );
+    }
+}

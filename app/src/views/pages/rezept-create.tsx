@@ -14,6 +14,10 @@ import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { ChevronLeftIcon } from "@/lib/icons";
 import {
     MEDIKAMENT_SUGGESTIONS,
+    DARREICHUNGSFORM_OPTIONS,
+    PACKUNGSGROESSE_OPTIONS,
+    REZEPT_TYP_OPTIONS,
+    DENTAL_ICD10_SUGGESTIONS,
     findSuggestion as findMedSuggestion,
     emptyRezeptLine,
     parseRezeptVorlagePayload,
@@ -165,6 +169,7 @@ export function RezeptCreatePage() {
         try {
             for (const line of queue) {
                 const merged = [line.hinweise, shared].filter((s) => s.trim()).join(" · ");
+                const mengeN = Number.parseInt(line.menge.trim(), 10);
                 await createRezept({
                     patient_id: patientId,
                     arzt_id: session.user_id,
@@ -173,6 +178,14 @@ export function RezeptCreatePage() {
                     dosierung: line.dosierung.trim(),
                     dauer: line.dauer.trim(),
                     hinweise: merged.trim() || null,
+                    pzn: line.pzn.trim() || null,
+                    darreichungsform: line.darreichungsform.trim() || null,
+                    packungsgroesse: line.packungsgroesse.trim() || null,
+                    menge: Number.isFinite(mengeN) && mengeN > 0 ? mengeN : null,
+                    aut_idem: line.aut_idem,
+                    rezept_typ: line.rezept_typ,
+                    icd10_code: line.icd10_code.trim() || null,
+                    verordnender_arzt_id: session.user_id,
                 });
                 ok += 1;
             }
@@ -341,6 +354,74 @@ export function RezeptCreatePage() {
                                 value={draft.hinweise}
                                 onChange={(e) => setDraft({ ...draft, hinweise: e.target.value })}
                             />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
+                                <Input
+                                    id="rc-pzn"
+                                    label="PZN"
+                                    value={draft.pzn}
+                                    onChange={(e) => setDraft({ ...draft, pzn: e.target.value })}
+                                />
+                                <Select
+                                    id="rc-dar"
+                                    label="Darreichungsform"
+                                    value={draft.darreichungsform}
+                                    options={[
+                                        { value: "", label: "—" },
+                                        ...DARREICHUNGSFORM_OPTIONS.map((d) => ({ value: d, label: d })),
+                                    ]}
+                                    onChange={(e) => setDraft({ ...draft, darreichungsform: e.target.value })}
+                                />
+                                <Select
+                                    id="rc-pack"
+                                    label="Packungsgröße"
+                                    value={draft.packungsgroesse}
+                                    options={[
+                                        { value: "", label: "—" },
+                                        ...PACKUNGSGROESSE_OPTIONS.map((p) => ({ value: p, label: p })),
+                                    ]}
+                                    onChange={(e) => setDraft({ ...draft, packungsgroesse: e.target.value })}
+                                />
+                                <Input
+                                    id="rc-menge"
+                                    label="Menge"
+                                    type="number"
+                                    min={1}
+                                    value={draft.menge}
+                                    onChange={(e) => setDraft({ ...draft, menge: e.target.value })}
+                                />
+                                <Select
+                                    id="rc-typ"
+                                    label="Rezepttyp"
+                                    value={draft.rezept_typ}
+                                    options={REZEPT_TYP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                                    onChange={(e) =>
+                                        setDraft({
+                                            ...draft,
+                                            rezept_typ: e.target.value as RezeptLine["rezept_typ"],
+                                        })
+                                    }
+                                />
+                                <Input
+                                    id="rc-icd"
+                                    label="ICD-10"
+                                    list="rc-icd-suggestions"
+                                    value={draft.icd10_code}
+                                    onChange={(e) => setDraft({ ...draft, icd10_code: e.target.value })}
+                                />
+                            </div>
+                            <datalist id="rc-icd-suggestions">
+                                {DENTAL_ICD10_SUGGESTIONS.map((c) => (
+                                    <option key={c} value={c} />
+                                ))}
+                            </datalist>
+                            <label className="row" style={{ gap: 8, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+                                <input
+                                    type="checkbox"
+                                    checked={draft.aut_idem}
+                                    onChange={(e) => setDraft({ ...draft, aut_idem: e.target.checked })}
+                                />
+                                aut idem (Substitution erlaubt)
+                            </label>
                             <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={addLine}>
                                     + Zeile zur Liste

@@ -471,6 +471,51 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(pool)
     .await?;
 
+    for (sql, col) in [
+        ("ALTER TABLE rezept ADD COLUMN pzn TEXT", "pzn"),
+        (
+            "ALTER TABLE rezept ADD COLUMN darreichungsform TEXT",
+            "darreichungsform",
+        ),
+        (
+            "ALTER TABLE rezept ADD COLUMN packungsgroesse TEXT",
+            "packungsgroesse",
+        ),
+        ("ALTER TABLE rezept ADD COLUMN menge INTEGER", "menge"),
+        (
+            "ALTER TABLE rezept ADD COLUMN aut_idem BOOLEAN DEFAULT 1",
+            "aut_idem",
+        ),
+        (
+            "ALTER TABLE rezept ADD COLUMN rezept_typ TEXT DEFAULT 'PRIVAT'",
+            "rezept_typ",
+        ),
+        (
+            "ALTER TABLE rezept ADD COLUMN icd10_code TEXT",
+            "icd10_code",
+        ),
+        (
+            "ALTER TABLE rezept ADD COLUMN verordnender_arzt_id TEXT REFERENCES personal(id)",
+            "verordnender_arzt_id",
+        ),
+    ] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS attest (
             id TEXT PRIMARY KEY,
@@ -486,6 +531,41 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     )
     .execute(pool)
     .await?;
+
+    for (sql, col) in [
+        (
+            "ALTER TABLE attest ADD COLUMN icd10_code TEXT",
+            "icd10_code",
+        ),
+        (
+            "ALTER TABLE attest ADD COLUMN erst_oder_folge TEXT DEFAULT 'ERST'",
+            "erst_oder_folge",
+        ),
+        (
+            "ALTER TABLE attest ADD COLUMN arbeitgeber TEXT",
+            "arbeitgeber",
+        ),
+        (
+            "ALTER TABLE attest ADD COLUMN ausstellender_arzt_id TEXT REFERENCES personal(id)",
+            "ausstellender_arzt_id",
+        ),
+    ] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS abwesenheit (
@@ -608,18 +688,30 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     }
 
     for (sql, col) in [
-        ("ALTER TABLE behandlung ADD COLUMN kategorie TEXT", "kategorie"),
-        ("ALTER TABLE behandlung ADD COLUMN leistungsname TEXT", "leistungsname"),
+        (
+            "ALTER TABLE behandlung ADD COLUMN kategorie TEXT",
+            "kategorie",
+        ),
+        (
+            "ALTER TABLE behandlung ADD COLUMN leistungsname TEXT",
+            "leistungsname",
+        ),
         (
             "ALTER TABLE behandlung ADD COLUMN behandlungsnummer TEXT",
             "behandlungsnummer",
         ),
-        ("ALTER TABLE behandlung ADD COLUMN sitzung INTEGER", "sitzung"),
+        (
+            "ALTER TABLE behandlung ADD COLUMN sitzung INTEGER",
+            "sitzung",
+        ),
         (
             "ALTER TABLE behandlung ADD COLUMN behandlung_status TEXT",
             "behandlung_status",
         ),
-        ("ALTER TABLE behandlung ADD COLUMN gesamtkosten REAL", "gesamtkosten"),
+        (
+            "ALTER TABLE behandlung ADD COLUMN gesamtkosten REAL",
+            "gesamtkosten",
+        ),
         (
             "ALTER TABLE behandlung ADD COLUMN termin_erforderlich INTEGER",
             "termin_erforderlich",
@@ -1418,10 +1510,11 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     .await?;
 
     let anam_demo = r#"{"version":1,"versicherungsstatus":"GKV","krankenkasse":"AOK Bremen / Plus","vorerkrankungen":{"chronisch":"Asthma leicht","frueherDiagnosen":"Karies Jugendalter","operationen":"","krankenhaus":"","psychisch":""},"medikation":{"regelmaessig":"Vitamin D 1000 IE","einnahme":"täglich morgens","selbst":"","vergessen":"","nebenwirkungen":""},"allergien":{"medikamente":"Penicillin","lebensmittel":"Nüsse","sonstige":"","material":"","impfreaktionen":""}}"#;
-    let _ = sqlx::query("UPDATE anamnesebogen SET antworten = ?1 WHERE patient_id = 'seed-pat-001'")
-        .bind(anam_demo)
-        .execute(pool)
-        .await;
+    let _ =
+        sqlx::query("UPDATE anamnesebogen SET antworten = ?1 WHERE patient_id = 'seed-pat-001'")
+            .bind(anam_demo)
+            .execute(pool)
+            .await;
 
     // ---------------------------------------------------------------
     // Bestellungen: dummy demo data so the page is populated and the

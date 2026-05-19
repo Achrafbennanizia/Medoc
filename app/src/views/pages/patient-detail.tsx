@@ -1117,6 +1117,7 @@ export function PatientDetailPage() {
         try {
             for (const line of queue) {
                 const merged = [line.hinweise, shared].filter((s) => s.trim()).join(" · ");
+                const mengeN = Number.parseInt(line.menge.trim(), 10);
                 const r = await createRezept({
                     patient_id: id,
                     arzt_id: session.user_id,
@@ -1125,6 +1126,14 @@ export function PatientDetailPage() {
                     dosierung: line.dosierung.trim(),
                     dauer: line.dauer.trim(),
                     hinweise: merged.trim() || null,
+                    pzn: line.pzn.trim() || null,
+                    darreichungsform: line.darreichungsform.trim() || null,
+                    packungsgroesse: line.packungsgroesse.trim() || null,
+                    menge: Number.isFinite(mengeN) && mengeN > 0 ? mengeN : null,
+                    aut_idem: line.aut_idem,
+                    rezept_typ: line.rezept_typ,
+                    icd10_code: line.icd10_code.trim() || null,
+                    verordnender_arzt_id: session.user_id,
                 });
                 createdIds.push(r.id);
             }
@@ -1164,6 +1173,13 @@ export function PatientDetailPage() {
                 inhalt,
                 gueltig_von: fields.gueltig_von.slice(0, 10),
                 gueltig_bis: fields.gueltig_bis.slice(0, 10),
+                icd10_code: fields.icd10_code.trim() || null,
+                erst_oder_folge: fields.erst_oder_folge,
+                arbeitgeber:
+                    fields.typ.includes("Arbeitsunfähig") && fields.arbeitgeber.trim()
+                        ? fields.arbeitgeber.trim()
+                        : null,
+                ausstellender_arzt_id: session.user_id,
             });
             if (!options?.silent) {
                 toast("Attest gespeichert", "success", {
@@ -2190,6 +2206,9 @@ export function PatientDetailPage() {
             einschraenkung: parsed.einschraenkung.trim(),
             gueltig_von: today,
             gueltig_bis: attestGueltigBisFromVonAndTage(today, String(n)),
+            icd10_code: "",
+            erst_oder_folge: "ERST",
+            arbeitgeber: "",
         };
         setAttestForm(nextForm);
         setAttestBaselineJson(JSON.stringify(nextForm));
@@ -4188,6 +4207,42 @@ export function PatientDetailPage() {
                                                 onChange={(e) => setAttestForm({ ...attestForm, typ: e.target.value })}
                                                 options={[...ATTEST_TYP_OPTIONS]}
                                             />
+                                            <div className="row" style={{ gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+                                                <span style={{ fontSize: 13, fontWeight: 600 }}>Bescheinigung:</span>
+                                                <label className="row" style={{ gap: 6, fontSize: 13 }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="ak-att-erstfolge"
+                                                        checked={attestForm.erst_oder_folge === "ERST"}
+                                                        onChange={() => setAttestForm({ ...attestForm, erst_oder_folge: "ERST" })}
+                                                    />
+                                                    Erstbescheinigung
+                                                </label>
+                                                <label className="row" style={{ gap: 6, fontSize: 13 }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="ak-att-erstfolge"
+                                                        checked={attestForm.erst_oder_folge === "FOLGE"}
+                                                        onChange={() => setAttestForm({ ...attestForm, erst_oder_folge: "FOLGE" })}
+                                                    />
+                                                    Folgebescheinigung
+                                                </label>
+                                            </div>
+                                            <Input
+                                                id="ak-att-icd"
+                                                label="Diagnose (ICD-10)"
+                                                value={attestForm.icd10_code}
+                                                onChange={(e) => setAttestForm({ ...attestForm, icd10_code: e.target.value })}
+                                                placeholder="z. B. K04.0"
+                                            />
+                                            {attestForm.typ.includes("Arbeitsunfähig") ? (
+                                                <Input
+                                                    id="ak-att-ag"
+                                                    label="Arbeitgeber"
+                                                    value={attestForm.arbeitgeber}
+                                                    onChange={(e) => setAttestForm({ ...attestForm, arbeitgeber: e.target.value })}
+                                                />
+                                            ) : null}
                                             <datalist id="ak-attest-krank-dl">
                                                 {KRANKHEITEN_SUGGESTIONS.map((k) => (
                                                     <option key={k} value={k} />

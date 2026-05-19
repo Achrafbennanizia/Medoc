@@ -25,6 +25,15 @@ const KOPF_ORDER: PraxisFieldKey[] = [
     "kv",
     "tax",
     "hours",
+    "behandler",
+    "zanr",
+    "bsnr",
+    "bank",
+    "kammer",
+    "kzv",
+    "zahlungsziel",
+    "ust_hinweis",
+    "notfall_tel",
 ];
 
 function formatWeb(p: InvoicePraxis): string {
@@ -96,6 +105,66 @@ export function buildClinicalTemplateKopfLines(
                 const t = (praxis.oeffnungszeiten ?? "").trim();
                 if (!t) break;
                 lines.push(`Öffn.: ${privacy.oz ? t : maskPraxisExportToken(t)}`);
+                break;
+            }
+            case "behandler": {
+                const n = (praxis.behandler_name ?? "").trim();
+                if (!n) break;
+                const beruf = (praxis.berufsbezeichnung ?? "").trim();
+                const label = beruf ? `${n}, ${beruf}` : n;
+                lines.push(`Behandler: ${privacy.behandler ? label : maskPraxisExportToken(label)}`);
+                break;
+            }
+            case "zanr": {
+                const t = (praxis.zanr ?? "").trim();
+                if (!t) break;
+                lines.push(`ZANR: ${privacy.zanr ? t : maskPraxisExportToken(t)}`);
+                break;
+            }
+            case "bsnr": {
+                const t = (praxis.bsnr ?? "").trim();
+                if (!t) break;
+                lines.push(`BSNR: ${privacy.bsnr ? t : maskPraxisExportToken(t)}`);
+                break;
+            }
+            case "bank": {
+                const iban = (praxis.bankverbindung_iban ?? "").trim();
+                const bic = (praxis.bankverbindung_bic ?? "").trim();
+                const bank = (praxis.bankverbindung_bank ?? "").trim();
+                if (!iban && !bic && !bank) break;
+                const parts: string[] = [];
+                if (iban) parts.push(`IBAN: ${privacy.bank ? iban : maskPraxisExportToken(iban)}`);
+                if (bic) parts.push(`BIC: ${privacy.bank ? bic : maskPraxisExportToken(bic)}`);
+                if (bank) parts.push(`Bank: ${privacy.bank ? bank : maskPraxisExportToken(bank)}`);
+                lines.push(parts.join(" | "));
+                break;
+            }
+            case "kammer": {
+                const t = (praxis.kammer ?? "").trim();
+                if (!t) break;
+                lines.push(`Kammer: ${t}`);
+                break;
+            }
+            case "kzv": {
+                const t = (praxis.kzv ?? "").trim();
+                if (!t) break;
+                lines.push(`KZV: ${t}`);
+                break;
+            }
+            case "zahlungsziel": {
+                const days = praxis.zahlungsziel_tage ?? 14;
+                if (days > 0) lines.push(`Zahlungsziel: ${days} Tage`);
+                break;
+            }
+            case "ust_hinweis": {
+                const t = (praxis.ust_befreiung_hinweis ?? "").trim();
+                if (t) lines.push(t);
+                break;
+            }
+            case "notfall_tel": {
+                const t = (praxis.notfall_telefon ?? "").trim();
+                if (!t) break;
+                lines.push(`Notfall: ${t}`);
                 break;
             }
             default:

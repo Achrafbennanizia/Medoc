@@ -38,12 +38,50 @@ export function findSuggestion(label: string): MedikamentSuggestion | undefined 
 }
 
 /** Item used in the cascading "combo" UI for a single Rezept-line. */
+export const DARREICHUNGSFORM_OPTIONS = [
+    "Tabletten",
+    "Kapseln",
+    "Tropfen",
+    "Salbe",
+    "Gel",
+    "Spray",
+    "Lösung",
+    "Zäpfchen",
+] as const;
+
+export const PACKUNGSGROESSE_OPTIONS = ["N1", "N2", "N3", "Sonstige"] as const;
+
+export const REZEPT_TYP_OPTIONS = [
+    { value: "PRIVAT", label: "Privat" },
+    { value: "KASSE", label: "Kasse" },
+    { value: "BTM", label: "BtM" },
+] as const;
+
+/** Häufige zahnmedizinische ICD-10-Codes (Auswahl). */
+export const DENTAL_ICD10_SUGGESTIONS = [
+    "K02.1 — Karies Dentin",
+    "K04.0 — Pulpitis",
+    "K05.0 — Akute Gingivitis",
+    "K05.3 — Chronische Parodontitis",
+    "K08.1 — Verlust von Zähnen durch Unfall",
+    "K10.2 — Entzündliche Erkrankungen der Kiefer",
+    "K12.0 — Aphthen",
+    "S02.5 — Fraktur des Zahnbogens",
+] as const;
+
 export interface RezeptLine {
     medikament: string;
     wirkstoff: string;
     dosierung: string;
     dauer: string;
     hinweise: string;
+    pzn: string;
+    darreichungsform: string;
+    packungsgroesse: string;
+    menge: string;
+    aut_idem: boolean;
+    rezept_typ: "PRIVAT" | "KASSE" | "BTM";
+    icd10_code: string;
 }
 
 export const emptyRezeptLine = (): RezeptLine => ({
@@ -52,6 +90,13 @@ export const emptyRezeptLine = (): RezeptLine => ({
     dosierung: "",
     dauer: "",
     hinweise: "",
+    pzn: "",
+    darreichungsform: "",
+    packungsgroesse: "",
+    menge: "",
+    aut_idem: true,
+    rezept_typ: "PRIVAT",
+    icd10_code: "",
 });
 
 /**
@@ -79,6 +124,7 @@ export function vorlageItemsToLines(items: VorlageRezeptItem[]): RezeptLine[] {
             const sugg = findSuggestion(it.medikament);
             const dauerRaw = (it.dauer ?? "").trim();
             return {
+                ...emptyRezeptLine(),
                 medikament: it.medikament.trim(),
                 wirkstoff: sugg?.wirkstoff ?? "",
                 dosierung: (it.dosierung ?? sugg?.dosierung ?? "").trim(),

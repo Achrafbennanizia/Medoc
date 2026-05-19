@@ -27,6 +27,9 @@ export type AttestComposerFormFields = {
     einschraenkung: string;
     gueltig_von: string;
     gueltig_bis: string;
+    icd10_code: string;
+    erst_oder_folge: "ERST" | "FOLGE";
+    arbeitgeber: string;
 };
 
 export function emptyAttestComposerForm(today: string): AttestComposerFormFields {
@@ -37,6 +40,9 @@ export function emptyAttestComposerForm(today: string): AttestComposerFormFields
         einschraenkung: "",
         gueltig_von: today,
         gueltig_bis: today,
+        icd10_code: "",
+        erst_oder_folge: "ERST",
+        arbeitgeber: "",
     };
 }
 

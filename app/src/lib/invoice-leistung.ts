@@ -33,9 +33,109 @@ export type InvoicePraxis = {
     web?: string;
     steuernummer?: string;
     ust_id?: string;
+    /** "Dr. Max Mustermann" */
+    behandler_name?: string;
+    /** "Zahnarzt" / "Zahnärztin" */
+    berufsbezeichnung?: string;
+    /** Zahnarztnummer (9 Ziffern) */
+    zanr?: string;
+    /** Betriebsstättennummer (9 Ziffern) */
+    bsnr?: string;
+    /** LANR (falls abweichend) */
+    lanr?: string;
+    bankverbindung_iban?: string;
+    bankverbindung_bic?: string;
+    bankverbindung_bank?: string;
+    bankverbindung_inhaber?: string;
+    /** "Landeszahnärztekammer …" */
+    kammer?: string;
+    /** "KZV …" */
+    kzv?: string;
+    /** Standard 14 Tage */
+    zahlungsziel_tage?: number;
+    /** z. B. Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG */
+    ust_befreiung_hinweis?: string;
+    notfall_telefon?: string;
 };
 
-const DEFAULTS: InvoicePraxis = { name: "Zahnarztpraxis", addr: "Musterstraße 1\n12345 Ort" };
+const DEFAULT_UST_HINWEIS = "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
+
+const DEFAULTS: InvoicePraxis = {
+    name: "Zahnarztpraxis",
+    addr: "Musterstraße 1\n12345 Ort",
+    zahlungsziel_tage: 14,
+    ust_befreiung_hinweis: DEFAULT_UST_HINWEIS,
+};
+
+const INVOICE_PRAXIS_OPTIONAL_STRING_KEYS = [
+    "kv_nummer",
+    "oeffnungszeiten",
+    "telefon",
+    "fax",
+    "email",
+    "web",
+    "steuernummer",
+    "ust_id",
+    "behandler_name",
+    "berufsbezeichnung",
+    "zanr",
+    "bsnr",
+    "lanr",
+    "bankverbindung_iban",
+    "bankverbindung_bic",
+    "bankverbindung_bank",
+    "bankverbindung_inhaber",
+    "kammer",
+    "kzv",
+    "ust_befreiung_hinweis",
+    "notfall_telefon",
+] as const;
+
+type InvoicePraxisJson = {
+    name?: string;
+    addr?: string;
+} & Partial<Record<(typeof INVOICE_PRAXIS_OPTIONAL_STRING_KEYS)[number], string>> & {
+    zahlungsziel_tage?: number;
+};
+
+function optStr(s: string | undefined): string | undefined {
+    const t = (s ?? "").trim();
+    return t || undefined;
+}
+
+function parseInvoicePraxisJson(j: InvoicePraxisJson): InvoicePraxis {
+    const name = (j.name ?? "").trim() || DEFAULTS.name;
+    const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
+    const out: InvoicePraxis = { name, addr };
+    for (const key of INVOICE_PRAXIS_OPTIONAL_STRING_KEYS) {
+        const v = optStr(j[key]);
+        if (v) (out as Record<string, string | number | undefined>)[key] = v;
+    }
+    const zt = j.zahlungsziel_tage;
+    if (typeof zt === "number" && Number.isFinite(zt) && zt > 0) {
+        out.zahlungsziel_tage = Math.round(zt);
+    } else if (out.zahlungsziel_tage == null) {
+        out.zahlungsziel_tage = DEFAULTS.zahlungsziel_tage;
+    }
+    if (!out.ust_befreiung_hinweis?.trim()) {
+        out.ust_befreiung_hinweis = DEFAULT_UST_HINWEIS;
+    }
+    return out;
+}
+
+function invoicePraxisToBlob(p: InvoicePraxis): Record<string, string | number> {
+    const blob: Record<string, string | number> = {
+        name: p.name.trim() || DEFAULTS.name,
+        addr: p.addr.trim() || DEFAULTS.addr,
+    };
+    for (const key of INVOICE_PRAXIS_OPTIONAL_STRING_KEYS) {
+        const t = optStr(p[key]);
+        if (t) blob[key] = t;
+    }
+    const zt = p.zahlungsziel_tage ?? DEFAULTS.zahlungsziel_tage;
+    if (zt != null && Number.isFinite(zt) && zt > 0) blob.zahlungsziel_tage = Math.round(zt);
+    return blob;
+}
 
 /**
  * Zeilen für den Praxis-Kopf im PDF (`practice_address`): Anschrift, dann Kontakt und Pflichtangaben.
@@ -69,6 +169,29 @@ export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHea
     const oz = (p.oeffnungszeiten ?? "").trim();
     if (oz) lines.push(`Öffn.: ${show.oz ? oz : maskPraxisExportToken(oz)}`);
     return lines;
+}
+
+/** ZANR / BSNR: genau 9 Ziffern (ohne Leerzeichen). */
+export function isValidPraxisDigitId(value: string): boolean {
+    return value.replace(/\D/g, "").length === 9;
+}
+
+/** IBAN: DE + 20 Ziffern oder allgemeines ISO-Format. */
+export function isValidPraxisIban(value: string): boolean {
+    const s = value.replace(/\s/g, "").toUpperCase();
+    if (!s) return false;
+    if (s.startsWith("DE")) return /^DE\d{20}$/.test(s);
+    return /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(s);
+}
+
+/** Pflichtfelder für Rechnungen/Rezepte laut Praxis-Stammdaten. */
+export function praxisRechnungPflichtMissing(p: InvoicePraxis): boolean {
+    return (
+        !(p.behandler_name ?? "").trim() ||
+        !(p.zanr ?? "").trim() ||
+        !(p.bsnr ?? "").trim() ||
+        !(p.bankverbindung_iban ?? "").trim()
+    );
 }
 
 /** Rechnungs-PDF und Speichern: aktuelle Privatsphäre-Einstellung aus dem Gerät. */
@@ -125,36 +248,8 @@ export function getInvoicePraxisFromStorage(): InvoicePraxis {
     try {
         const raw = localStorage.getItem(LS_INVOICE_PRAXIS);
         if (!raw) return { ...DEFAULTS };
-        const j = JSON.parse(raw) as {
-            name?: string;
-            addr?: string;
-            kv_nummer?: string;
-            oeffnungszeiten?: string;
-            telefon?: string;
-            fax?: string;
-            email?: string;
-            web?: string;
-            steuernummer?: string;
-            ust_id?: string;
-        };
-        const name = (j.name ?? "").trim() || DEFAULTS.name;
-        const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
-        const opt = (s: string | undefined) => {
-            const t = (s ?? "").trim();
-            return t || undefined;
-        };
-        return {
-            name,
-            addr,
-            kv_nummer: opt(j.kv_nummer),
-            oeffnungszeiten: opt(j.oeffnungszeiten),
-            telefon: opt(j.telefon),
-            fax: opt(j.fax),
-            email: opt(j.email),
-            web: opt(j.web),
-            steuernummer: opt(j.steuernummer),
-            ust_id: opt(j.ust_id),
-        };
+        const j = JSON.parse(raw) as InvoicePraxisJson;
+        return parseInvoicePraxisJson(j);
     } catch {
         return { ...DEFAULTS };
     }
@@ -162,44 +257,12 @@ export function getInvoicePraxisFromStorage(): InvoicePraxis {
 
 /** Persistiert Praxis-Stammdaten (Rechnungen, PDFs, Einstellungen). */
 export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
-    const blob: Record<string, string> = {
-        name: p.name.trim() || DEFAULTS.name,
-        addr: p.addr.trim() || DEFAULTS.addr,
-    };
-    const put = (key: string, v: string | undefined) => {
-        const t = (v ?? "").trim();
-        if (t) blob[key] = t;
-    };
-    put("kv_nummer", p.kv_nummer);
-    put("oeffnungszeiten", p.oeffnungszeiten);
-    put("telefon", p.telefon);
-    put("fax", p.fax);
-    put("email", p.email);
-    put("web", p.web);
-    put("steuernummer", p.steuernummer);
-    put("ust_id", p.ust_id);
-    localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(blob));
+    localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(invoicePraxisToBlob(p)));
 }
 
 /** Praxis-Rechnungskopf zusätzlich in SQLite `app_kv` (praxisweit, LAN-synchronisierbar). */
 export async function syncInvoicePraxisToAppKv(p: InvoicePraxis): Promise<void> {
-    const blob: Record<string, string> = {
-        name: p.name.trim() || DEFAULTS.name,
-        addr: p.addr.trim() || DEFAULTS.addr,
-    };
-    const put = (key: string, v: string | undefined) => {
-        const t = (v ?? "").trim();
-        if (t) blob[key] = t;
-    };
-    put("kv_nummer", p.kv_nummer);
-    put("oeffnungszeiten", p.oeffnungszeiten);
-    put("telefon", p.telefon);
-    put("fax", p.fax);
-    put("email", p.email);
-    put("web", p.web);
-    put("steuernummer", p.steuernummer);
-    put("ust_id", p.ust_id);
-    await setAppKv(INVOICE_PRAXIS_KV_KEY, JSON.stringify(blob));
+    await setAppKv(INVOICE_PRAXIS_KV_KEY, JSON.stringify(invoicePraxisToBlob(p)));
 }
 
 /** Lädt `invoice.praxis.v1` aus der DB und spiegelt nach localStorage (Desktop). */
@@ -207,36 +270,8 @@ export async function hydrateInvoicePraxisFromAppKv(): Promise<InvoicePraxis | n
     try {
         const raw = await getAppKv(INVOICE_PRAXIS_KV_KEY);
         if (!raw) return null;
-        const j = JSON.parse(raw) as {
-            name?: string;
-            addr?: string;
-            kv_nummer?: string;
-            oeffnungszeiten?: string;
-            telefon?: string;
-            fax?: string;
-            email?: string;
-            web?: string;
-            steuernummer?: string;
-            ust_id?: string;
-        };
-        const name = (j.name ?? "").trim() || DEFAULTS.name;
-        const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
-        const opt = (s: string | undefined) => {
-            const t = (s ?? "").trim();
-            return t || undefined;
-        };
-        const merged: InvoicePraxis = {
-            name,
-            addr,
-            kv_nummer: opt(j.kv_nummer),
-            oeffnungszeiten: opt(j.oeffnungszeiten),
-            telefon: opt(j.telefon),
-            fax: opt(j.fax),
-            email: opt(j.email),
-            web: opt(j.web),
-            steuernummer: opt(j.steuernummer),
-            ust_id: opt(j.ust_id),
-        };
+        const j = JSON.parse(raw) as InvoicePraxisJson;
+        const merged = parseInvoicePraxisJson(j);
         saveInvoicePraxisToStorage(merged);
         return merged;
     } catch {

@@ -12,6 +12,15 @@ use std::fmt::Write;
 pub struct InvoiceLine {
     pub description: String,
     pub amount_cents: i64,
+    pub goz_nr: Option<String>,
+    pub faktor: Option<f64>,
+    pub einzelpreis_cents: Option<i64>,
+    pub menge: Option<i32>,
+    pub zahn_nr: Option<String>,
+    pub behandlungsdatum: Option<String>,
+    pub ust_prozent: Option<f64>,
+    pub material: Option<String>,
+    pub diagnose_begruendung: Option<String>,
 }
 
 pub struct Invoice {
@@ -23,6 +32,12 @@ pub struct Invoice {
     pub practice_address: Vec<String>,
     pub lines: Vec<InvoiceLine>,
     pub note: Option<String>,
+    pub behandler_name: Option<String>,
+    pub behandler_zanr: Option<String>,
+    pub praxis_bsnr: Option<String>,
+    pub bankverbindung: Option<Vec<String>>,
+    pub zahlungsziel_text: Option<String>,
+    pub ust_hinweis: Option<String>,
 }
 
 impl Invoice {
@@ -302,13 +317,14 @@ fn akte_pdf_emit_block_table(
     let col_w: i32 = (480 / ncol as i32).max(36);
     let cell_chars = ((col_w / 5).max(6)) as usize;
 
-    let ensure_room = |need_below: i32, cur: &mut String, page_streams: &mut Vec<String>, y: &mut i32| {
-        if *y < need_below + 48 {
-            akte_pdf_break_page(cur, page_streams, y);
-            akte_pdf_emit_line(cur, 60, *y, 11, "(Fortsetzung)");
-            *y -= 20;
-        }
-    };
+    let ensure_room =
+        |need_below: i32, cur: &mut String, page_streams: &mut Vec<String>, y: &mut i32| {
+            if *y < need_below + 48 {
+                akte_pdf_break_page(cur, page_streams, y);
+                akte_pdf_emit_line(cur, 60, *y, 11, "(Fortsetzung)");
+                *y -= 20;
+            }
+        };
 
     ensure_room(60, cur, page_streams, y);
 
@@ -352,17 +368,16 @@ pub fn render_akte_blocks(
     let mut cur = String::new();
     let mut y: i32 = 800;
 
-    let emit_line =
-        |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
-            let _ = writeln!(
-                s,
-                "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
-                fs = font_size,
-                x = x,
-                y = y,
-                txt = pdf_escape(text),
-            );
-        };
+    let emit_line = |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
+        let _ = writeln!(
+            s,
+            "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
+            fs = font_size,
+            x = x,
+            y = y,
+            txt = pdf_escape(text),
+        );
+    };
 
     let break_page = |cur: &mut String, streams: &mut Vec<String>, y: &mut i32| {
         if !cur.is_empty() {
@@ -494,10 +509,10 @@ fn emit_multipage_pdf(page_streams: &[String], pdf_title_meta: &str) -> Result<V
         ),
     );
 
-    for i in 0..n {
+    for (i, stream_text) in page_streams.iter().enumerate().take(n) {
         let page_id = 3 + i * 2;
         let content_id = 4 + i * 2;
-        let stream_bytes = page_streams[i].as_bytes();
+        let stream_bytes = stream_text.as_bytes();
 
         offsets.push(out.len());
         write_str(
@@ -544,10 +559,7 @@ fn emit_multipage_pdf(page_streams: &[String], pdf_title_meta: &str) -> Result<V
     );
 
     let xref_pos = out.len();
-    write_str(
-        &mut out,
-        &format!("xref\n0 {}\n", offsets.len() + 1),
-    );
+    write_str(&mut out, &format!("xref\n0 {}\n", offsets.len() + 1));
     write_str(&mut out, "0000000000 65535 f \n");
     for off in &offsets {
         write_str(&mut out, &format!("{:010} 00000 n \n", off));
@@ -591,7 +603,10 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
             kv_pairs: vec![
                 ("Patient".into(), doc.patient_name.clone()),
                 ("Geburtsdatum".into(), doc.patient_geburtsdatum.clone()),
-                ("Versicherungsnr.".into(), doc.patient_versicherungsnummer.clone()),
+                (
+                    "Versicherungsnr.".into(),
+                    doc.patient_versicherungsnummer.clone(),
+                ),
                 ("Akten-Status".into(), doc.akte_status.clone()),
             ],
             table: None,
@@ -689,7 +704,7 @@ pub fn render_template_preview_pdf(
             continue;
         }
         line(&mut stream, 60, y, fs, bl);
-        y -= (fs as i32) + 4;
+        y -= fs + 4;
         if y < 80 {
             break;
         }
@@ -775,6 +790,22 @@ pub fn render_template_preview_pdf(
 mod tests {
     use super::*;
 
+    fn sample_line(description: &str, amount_cents: i64) -> InvoiceLine {
+        InvoiceLine {
+            description: description.into(),
+            amount_cents,
+            goz_nr: None,
+            faktor: None,
+            einzelpreis_cents: None,
+            menge: None,
+            zahn_nr: None,
+            behandlungsdatum: None,
+            ust_prozent: None,
+            material: None,
+            diagnose_begruendung: None,
+        }
+    }
+
     #[test]
     fn renders_minimal_invoice() {
         let inv = Invoice {
@@ -785,16 +816,16 @@ mod tests {
             practice_name: "Zahnarztpraxis Dr. Beispiel".into(),
             practice_address: vec!["Hauptstr. 2".into(), "10115 Berlin".into()],
             lines: vec![
-                InvoiceLine {
-                    description: "Kontrolluntersuchung".into(),
-                    amount_cents: 4500,
-                },
-                InvoiceLine {
-                    description: "Zahnreinigung".into(),
-                    amount_cents: 8500,
-                },
+                sample_line("Kontrolluntersuchung", 4500),
+                sample_line("Zahnreinigung", 8500),
             ],
             note: Some("Zahlbar innerhalb 14 Tagen.".into()),
+            behandler_name: None,
+            behandler_zanr: None,
+            praxis_bsnr: None,
+            bankverbindung: None,
+            zahlungsziel_text: None,
+            ust_hinweis: None,
         };
         let pdf = render(&inv).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
