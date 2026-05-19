@@ -395,3 +395,101 @@ pub async fn delete_untersuchung(pool: &SqlitePool, id: &str) -> Result<(), AppE
     }
     Ok(())
 }
+
+pub async fn release_behandlung_for_billing(
+    pool: &SqlitePool,
+    behandlung_id: &str,
+    arzt_personal_id: &str,
+) -> Result<Behandlung, AppError> {
+    let n = sqlx::query(
+        "UPDATE behandlung SET freigegeben_von_arzt_id = ?1, freigegeben_am = datetime('now')
+         WHERE id = ?2",
+    )
+    .bind(arzt_personal_id)
+    .bind(behandlung_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Behandlung".into()));
+    }
+    find_behandlung_by_id(pool, behandlung_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Behandlung nach Freigabe nicht lesbar".into()))
+}
+
+pub async fn release_untersuchung_for_billing(
+    pool: &SqlitePool,
+    untersuchung_id: &str,
+    arzt_personal_id: &str,
+) -> Result<Untersuchung, AppError> {
+    let n = sqlx::query(
+        "UPDATE untersuchung SET freigegeben_von_arzt_id = ?1, freigegeben_am = datetime('now')
+         WHERE id = ?2",
+    )
+    .bind(arzt_personal_id)
+    .bind(untersuchung_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Untersuchung".into()));
+    }
+    find_untersuchung_by_id(pool, untersuchung_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Untersuchung nach Freigabe nicht lesbar".into()))
+}
+
+/// FA-AKTE-15: Akten mit Status ENTWURF oder IN_BEARBEITUNG (ärztliche Validierung ausstehend).
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct AkteZuValidierenRow {
+    pub patient_id: String,
+    pub patient_name: String,
+    pub akte_id: String,
+    pub akte_status: String,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+pub async fn list_akten_zu_validieren(pool: &SqlitePool) -> Result<Vec<AkteZuValidierenRow>, AppError> {
+    let rows = sqlx::query_as::<_, AkteZuValidierenRow>(
+        "SELECT p.id AS patient_id, p.name AS patient_name, pa.id AS akte_id, pa.status AS akte_status, pa.updated_at
+         FROM patientenakte pa
+         INNER JOIN patient p ON p.id = pa.patient_id
+         WHERE pa.status IN ('ENTWURF', 'IN_BEARBEITUNG')
+         ORDER BY datetime(pa.updated_at) ASC",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Setzt Akten-Status auf VALIDIERT (nur Vorwärts aus ENTWURF / IN_BEARBEITUNG).
+pub async fn validate_patientenakte_status(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Patientenakte, AppError> {
+    let cur = find_akte_by_patient(pool, patient_id)
+        .await?
+        .ok_or(AppError::NotFound("Patientenakte".into()))?;
+    let s = cur.status.as_str();
+    if s == "VALIDIERT" || s == "READONLY" {
+        return Err(AppError::Validation(
+            "Akte ist bereits validiert oder archiviert.".into(),
+        ));
+    }
+    if s != "ENTWURF" && s != "IN_BEARBEITUNG" {
+        return Err(AppError::Validation(format!(
+            "Akten-Status {s} kann nicht validiert werden"
+        )));
+    }
+    sqlx::query(
+        "UPDATE patientenakte SET status = 'VALIDIERT', updated_at = CURRENT_TIMESTAMP
+         WHERE patient_id = ?1",
+    )
+    .bind(patient_id)
+    .execute(pool)
+    .await?;
+    find_akte_by_patient(pool, patient_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Akte nach Validierung nicht lesbar".into()))
+}

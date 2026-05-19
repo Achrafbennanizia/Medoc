@@ -54,6 +54,21 @@ export async function exportAktePdf(patientId: string, sections?: AkteExportSect
     });
 }
 
+/** FA-DOK-08 — Entlassungs-Merkblatt / Nachsorge (PDF, base64). */
+export async function exportDischargeMerkblattPdf(args: {
+    patientId: string;
+    zusatzHinweise?: string | null;
+    ueberweisungHinweise?: string | null;
+}): Promise<string> {
+    return tauriInvoke<string>("export_discharge_merkblatt_pdf", {
+        args: {
+            patientId: args.patientId,
+            zusatzHinweise: args.zusatzHinweise ?? undefined,
+            ueberweisungHinweise: args.ueberweisungHinweise ?? undefined,
+        },
+    });
+}
+
 export async function listBehandlungen(akteId: string): Promise<Behandlung[]> {
     return tauriInvoke<Behandlung[]>("list_behandlungen", { akte_id: akteId });
 }
@@ -129,6 +144,15 @@ export async function updateBehandlung(data: {
 
 export async function deleteBehandlung(id: string): Promise<void> {
     return tauriInvoke<void>("delete_behandlung", { id });
+}
+
+/** FA-LEIST-05: zur Abrechnung freigeben (nur ärztliche Rolle). */
+export async function releaseBehandlungForBilling(behandlungId: string): Promise<Behandlung> {
+    return tauriInvoke<Behandlung>("release_behandlung_for_billing", { behandlung_id: behandlungId });
+}
+
+export async function releaseUntersuchungForBilling(untersuchungId: string): Promise<Untersuchung> {
+    return tauriInvoke<Untersuchung>("release_untersuchung_for_billing", { untersuchung_id: untersuchungId });
 }
 
 export async function listAkteAnlagen(akteId: string): Promise<AkteAnlageRowDto[]> {

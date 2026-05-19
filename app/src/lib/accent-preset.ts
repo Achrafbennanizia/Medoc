@@ -2,12 +2,28 @@
  * Akzentfarben (CSS-Variablen auf :root). Wird mit Darstellungseinstellungen synchron gehalten.
  */
 
-export type AccentId = "mint" | "ocean" | "plum";
+export type AccentId = "mint" | "ocean" | "plum" | "amber" | "rose";
 
 export const ACCENT_LABELS: Record<AccentId, string> = {
     mint: "Mint",
     ocean: "Ocean",
     plum: "Plum",
+    amber: "Amber",
+    rose: "Rose",
+};
+
+/** Reihenfolge im Farbwähler (Darstellung). */
+export const ACCENT_ORDER: readonly AccentId[] = ["mint", "ocean", "plum", "amber", "rose"];
+
+const ACCENT_ID_SET = new Set<string>(ACCENT_ORDER as readonly string[]);
+
+/** Kurzbeschreibung unter dem Namen — nur UI. */
+export const ACCENT_HINTS: Record<AccentId, string> = {
+    mint: "Ruhig, medizinisch",
+    ocean: "Klassisches Blau",
+    plum: "Kontrastreich",
+    amber: "Warm, aufmerksam",
+    rose: "Freundlich, klar",
 };
 
 /** Legacy-Schlüssel — Migration in {@link loadClientSettings}. */
@@ -17,23 +33,35 @@ const PRESETS: Record<AccentId, { accent: string; soft: string; ink: string }> =
     mint: { accent: "#0EA07E", soft: "#DCF3EC", ink: "#06604B" },
     ocean: { accent: "#0A84FF", soft: "#E5F1FF", ink: "#0355B7" },
     plum: { accent: "#AF52DE", soft: "#F2E4FB", ink: "#6B2A95" },
+    amber: { accent: "#D97706", soft: "#FEF3C7", ink: "#92400E" },
+    rose: { accent: "#E11D48", soft: "#FFE4E9", ink: "#9F1239" },
 };
 
-export function normalizeAccentId(raw: unknown): AccentId {
-    return raw === "ocean" || raw === "plum" || raw === "mint" ? raw : "mint";
+export function isAccentIdString(raw: unknown): raw is AccentId {
+    return typeof raw === "string" && ACCENT_ID_SET.has(raw);
 }
 
-export function applyAccentPresetToDocument(id: AccentId): void {
+export function normalizeAccentId(raw: unknown): AccentId {
+    const s = typeof raw === "string" ? raw : "";
+    return ACCENT_ID_SET.has(s) ? (s as AccentId) : "mint";
+}
+
+export function applyAccentPresetToDocument(id: AccentId, theme: "light" | "dark" = "light"): void {
     const v = PRESETS[normalizeAccentId(id)];
     document.documentElement.style.setProperty("--accent", v.accent);
-    document.documentElement.style.setProperty("--accent-soft", v.soft);
-    document.documentElement.style.setProperty("--accent-ink", v.ink);
+    if (theme === "dark") {
+        document.documentElement.style.setProperty("--accent-soft", `color-mix(in oklab, ${v.accent} 28%, #12161d)`);
+        document.documentElement.style.setProperty("--accent-ink", `color-mix(in oklab, #f4f4f5 88%, ${v.accent})`);
+    } else {
+        document.documentElement.style.setProperty("--accent-soft", v.soft);
+        document.documentElement.style.setProperty("--accent-ink", v.ink);
+    }
 }
 
 export function readLegacyAccentFromStorage(): AccentId | null {
     try {
         const raw = localStorage.getItem(LEGACY_ACCENT_STORAGE_KEY);
-        if (raw === "ocean" || raw === "plum" || raw === "mint") return raw;
+        if (raw && ACCENT_ID_SET.has(raw)) return raw as AccentId;
     } catch {
         /* ignore */
     }

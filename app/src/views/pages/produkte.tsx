@@ -14,7 +14,8 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { EditIcon } from "@/lib/icons";
-import { ProduktFormFields, emptyForm, formValid, parseForm, toForm, type ProduktForm } from "../components/produkt-form-shared";
+import { ProduktFormFields } from "../components/produkt-form-shared";
+import { emptyForm, formValid, parseForm, toForm, type ProduktForm } from "@/lib/produkt-form-model";
 
 function isSafeInternalReturnPath(path: string | null): path is string {
     if (path == null || path.length === 0 || path.length > 4000) return false;

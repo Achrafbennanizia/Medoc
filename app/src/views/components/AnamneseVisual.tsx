@@ -12,7 +12,7 @@ function EntryList({ entries }: { entries: [string, string][] }) {
             {rows.map(([k, v]) => (
                 <div key={k} className="row" style={{ alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
                     <dt style={{ color: "var(--fg-3)", fontSize: 12, fontWeight: 600, minWidth: 140 }}>{anamneseLabelFor(k)}</dt>
-                    <dd style={{ margin: 0, textAlign: "right", flex: 1, fontSize: 13.5 }}>{v}</dd>
+                    <dd style={{ margin: 0, textAlign: "right", flex: 1, fontSize: 13.5, color: "var(--fg)" }}>{v}</dd>
                 </div>
             ))}
         </dl>
@@ -41,7 +41,7 @@ export function AnamneseVisual({ data }: { data: AnamneseV1 }) {
     const [openId, setOpenId] = useState<string | null>("stamm");
 
     return (
-        <div className="col" style={{ gap: 0 }}>
+        <div className="anam-opt-list col" style={{ gap: 0 }}>
             {sections.map((s) => {
                 const isOpen = openId === s.id;
                 return (

@@ -1,14 +1,5 @@
-// Subscription / billing portal commands (FA-PAY-01..06).
-//
-// MeDoc never stores PAN/IBAN/CVV locally (PCI-DSS). The actual checkout is
-// hosted by the payment provider (Stripe/Mollie); we only:
-//
-// 1. Generate the customer-portal URL the user should open in the browser.
-// 2. Surface the local billing tier so the UI can gate features.
-//
-// Both steps are stubs today — they'll be wired to the vendor backend when
-// the SaaS layer ships. The contract surface and audit logging are in place
-// so the frontend can integrate without further changes.
+// Subscription / billing — primär **MeDoc Hersteller-Portal** (`company_portal` HTTP),
+// Fallback: lokale Stub-URL / Audit nur, wenn keine Portal-Konfiguration erreichbar ist.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -17,6 +8,10 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
+use crate::infrastructure::company_portal::config::load_company_portal_config;
+use crate::infrastructure::company_portal::{
+    attach_payment_method_remote, post_billing_portal_url,
+};
 use crate::infrastructure::database::audit_repo;
 use crate::log_system;
 
@@ -52,11 +47,22 @@ pub async fn open_subscription_portal(
     .await
     .ok();
     log_system!(info, event = "SUBSCRIPTION_PORTAL_OPEN", user = %session.user_id);
+    let cfg = load_company_portal_config(&pool).await;
+    if crate::infrastructure::company_portal::config::effective_base_url(&cfg).is_some()
+        && !crate::infrastructure::company_portal::config::effective_api_key(&cfg).is_empty()
+        && !cfg.practice_slug.trim().is_empty()
+    {
+        let url = post_billing_portal_url(&cfg).await?;
+        return Ok(SubscriptionPortal {
+            url,
+            provider: "Hersteller-Portal".to_string(),
+            note: "Abrechnung über das MeDoc-Hersteller-Backend.".to_string(),
+        });
+    }
     Ok(SubscriptionPortal {
         url: "https://portal.medoc.local/billing".to_string(),
-        provider: "Stripe".to_string(),
-        note: "Konto-Verwaltung erfolgt im Hersteller-Portal. \
-               Keine Kartendaten werden lokal gespeichert (PCI-DSS)."
+        provider: "Stub".to_string(),
+        note: "Hersteller-Portal nicht konfiguriert — bitte in Einstellungen › System › Hersteller-Anbindung hinterlegen."
             .to_string(),
     })
 }
@@ -98,7 +104,13 @@ pub async fn attach_payment_method(
     .await
     .ok();
     log_system!(info, event = "PAYMENT_METHOD_ATTACHED", user = %session.user_id);
-    // Real implementation: POST to vendor backend with bearer token.
+    let cfg = load_company_portal_config(&pool).await;
+    if crate::infrastructure::company_portal::config::effective_base_url(&cfg).is_some()
+        && !crate::infrastructure::company_portal::config::effective_api_key(&cfg).is_empty()
+        && !cfg.practice_slug.trim().is_empty()
+    {
+        attach_payment_method_remote(&cfg, &request.provider_token).await?;
+    }
     Ok(())
 }
 

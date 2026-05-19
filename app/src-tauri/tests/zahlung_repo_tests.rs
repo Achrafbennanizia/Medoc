@@ -55,6 +55,14 @@ async fn seed_patient_behandlung_100(pool: &sqlx::SqlitePool) -> (String, String
     .await
     .expect("insert behandlung");
 
+    sqlx::query(
+        "UPDATE behandlung SET freigegeben_von_arzt_id = 'seed-arzt-001', freigegeben_am = datetime('now') WHERE id = ?1",
+    )
+    .bind(&beh_id)
+    .execute(pool)
+    .await
+    .expect("freigabe seed");
+
     (patient_id, beh_id)
 }
 

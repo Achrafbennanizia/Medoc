@@ -43,6 +43,40 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, AppError> {
     Ok(pool)
 }
 
+/// Initialise the same SQLite store as [`init_db`], but without a Tauri [`AppHandle`].
+/// Used by the headless `medoc-server` binary — **`app_data_dir` must match** the desktop
+/// app’s data directory so LAN clients and GUI share one database.
+pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
+    std::fs::create_dir_all(app_data_dir).map_err(|e| {
+        AppError::Internal(format!(
+            "App-Datenverzeichnis konnte nicht angelegt werden: {e}"
+        ))
+    })?;
+
+    audit_repo::init_audit_hmac_key(app_data_dir).map_err(|e| {
+        AppError::Internal(format!(
+            "Audit-HMAC-Schlüssel konnte nicht initialisiert werden: {e}"
+        ))
+    })?;
+
+    let db_path = app_data_dir.join("medoc.db");
+    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
+
+    let options = SqliteConnectOptions::from_str(&db_url)
+        .map_err(AppError::Database)?
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .create_if_missing(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(options)
+        .await
+        .map_err(AppError::Database)?;
+
+    run_migrations(&pool).await?;
+    Ok(pool)
+}
+
 /// Applies full schema DDL, forward `ALTER`s, and default seed staff when `personal` is empty.
 /// Public for integration tests (`cargo test`) and tooling; production callers use [`init_db`].
 pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
@@ -61,6 +95,23 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"
     ).execute(pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS personal_permission_override (
+            personal_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            effect TEXT NOT NULL CHECK (effect IN ('ALLOW','DENY')),
+            PRIMARY KEY (personal_id, action)
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_perm_ov_personal ON personal_permission_override(personal_id)",
+    )
+    .execute(pool)
+    .await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS patient (
@@ -297,6 +348,25 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
             value TEXT NOT NULL,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS device_session (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            device_label TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+            ended_at TEXT
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_device_session_user ON device_session (user_id, ended_at)",
     )
     .execute(pool)
     .await?;
@@ -558,6 +628,14 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
             "ALTER TABLE behandlung ADD COLUMN behandlung_datum TEXT",
             "behandlung_datum",
         ),
+        (
+            "ALTER TABLE behandlung ADD COLUMN freigegeben_von_arzt_id TEXT",
+            "freigegeben_von_arzt_id_beh",
+        ),
+        (
+            "ALTER TABLE behandlung ADD COLUMN freigegeben_am TEXT",
+            "freigegeben_am_beh",
+        ),
     ] {
         match sqlx::query(sql).execute(pool).await {
             Ok(_) => {}
@@ -580,6 +658,14 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         (
             "ALTER TABLE untersuchung ADD COLUMN untersuchungsnummer TEXT",
             "untersuchungsnummer",
+        ),
+        (
+            "ALTER TABLE untersuchung ADD COLUMN freigegeben_von_arzt_id TEXT",
+            "freigegeben_von_arzt_id_u",
+        ),
+        (
+            "ALTER TABLE untersuchung ADD COLUMN freigegeben_am TEXT",
+            "freigegeben_am_u",
         ),
         (
             "ALTER TABLE zahlung ADD COLUMN behandlung_id TEXT",
@@ -691,6 +777,42 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         .await?;
     }
 
+    // FA-LEIST-05: einmalige Legacy-Freigabe für Altbestände (`app_kv`-Schlüssel verhindert Überschreiben neuer Zeilen).
+    let ins = sqlx::query(
+        "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.billing_freigabe_legacy_v1', '1')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if ins.rows_affected() > 0 {
+        let _ = sqlx::query(
+            r#"UPDATE behandlung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(
+                   freigegeben_am,
+                   COALESCE(NULLIF(TRIM(behandlung_datum), ''), datetime(created_at))
+                 )
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+
+        let _ = sqlx::query(
+            r#"UPDATE untersuchung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(freigegeben_am, datetime(created_at))
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+    }
+
     // Patient-scoped clinical / workflow state (replaces browser localStorage; DSGVO-erased with patient).
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS akte_validation (
@@ -735,6 +857,31 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     .await?;
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_in_app_notification_user ON in_app_notification(user_id, created_at DESC)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS praxis_ticket (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            from_user_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            to_arzt_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'OFFEN' CHECK (status IN ('OFFEN','IN_BEARBEITUNG','ERLEDIGT')),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_ticket_arzt ON praxis_ticket(to_arzt_id, status, datetime(created_at) DESC)",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_ticket_from ON praxis_ticket(from_user_id, datetime(created_at) DESC)",
     )
     .execute(pool)
     .await?;

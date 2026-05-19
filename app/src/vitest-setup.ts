@@ -15,3 +15,23 @@ if (typeof globalThis.localStorage?.clear !== "function") {
         writable: true,
     });
 }
+
+/**
+ * jsdom: ensure matchMedia for app-layout breakpoint.
+ * Default jsdom can report false for (min-width: 900px), which hides the sidebar profile menu button
+ * and breaks smoke tests that open logout from the sidebar.
+ */
+Object.defineProperty(globalThis, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+        matches: /min-width:\s*900px/.test(query),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+    }),
+});

@@ -110,6 +110,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     return [];
                 case "list_patienten":
                     return [];
+                case "list_bestellungen":
+                    return [];
                 default:
                     throw new Error(`unmocked IPC in flow (a): ${cmd}`);
             }
@@ -131,8 +133,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
         expect(await screen.findByRole("heading", { name: /Guten Morgen, Dr\. Smoke/ })).toBeInTheDocument();
 
         const aside = screen.getByRole("complementary");
-        await user.click(within(aside).getByRole("button", { name: "Profilmenü öffnen" }));
-        await user.click(await within(aside).findByRole("button", { name: "Abmelden" }));
+        await user.click(within(aside).getByRole("button", { name: "Konto: Einstellungen und Abmelden" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Abmelden" }));
 
         const logoutDialog = await screen.findByRole("dialog", { name: "Abmelden?" });
         await user.click(within(logoutDialog).getByRole("button", { name: "Abmelden" }));

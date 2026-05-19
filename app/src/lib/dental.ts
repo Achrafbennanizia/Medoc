@@ -25,8 +25,8 @@ export const DENTAL_STATES: Record<DentalStatusKey, { fill: string; stroke: stri
     krone: { fill: "#FFF0C8", stroke: "#D9A300", label: "Krone" },
     wurzel: { fill: "#E8DCFB", stroke: "#9B6BD8", label: "Wurzel-Fx" },
     fehlt: { fill: "transparent", stroke: "#BFC3C7", label: "Fehlt" },
-    implantat: { fill: "#D4F1E3", stroke: "#0EA07E", label: "Implantat" },
-    geplant: { fill: "#DCF3EC", stroke: "#0EA07E", label: "Geplant" },
+    implantat: { fill: "var(--accent-soft)", stroke: "var(--accent)", label: "Implantat" },
+    geplant: { fill: "var(--accent-soft)", stroke: "var(--accent)", label: "Geplant" },
 };
 
 export type DentalToothShapeKey = "incisor" | "canine" | "premolar" | "molar";

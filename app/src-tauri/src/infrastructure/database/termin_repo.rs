@@ -148,3 +148,29 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .await?;
     Ok(())
 }
+
+/// Nächster noch nicht liegender Termin für den Patienten (lokal nach Datum/Uhrzeit).
+/// Schließt abgesagte Termine aus.
+pub async fn find_next_for_patient(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Option<Termin>, AppError> {
+    let row = sqlx::query_as::<_, Termin>(
+        "SELECT * FROM termin
+         WHERE patient_id = ?1
+           AND (status IS NULL OR TRIM(UPPER(status)) NOT IN ('ABGESAGT'))
+           AND (
+             (datum || ' ' || CASE
+               WHEN trim(COALESCE(uhrzeit, '')) = '' THEN '23:59'
+               ELSE trim(uhrzeit)
+             END)
+             >= strftime('%Y-%m-%d %H:%M', 'now', 'localtime')
+           )
+         ORDER BY datum ASC, uhrzeit ASC
+         LIMIT 1",
+    )
+    .bind(patient_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}

@@ -13,6 +13,8 @@ import {
     createUntersuchung,
     updateBehandlung,
     deleteBehandlung,
+    releaseBehandlungForBilling,
+    releaseUntersuchungForBilling,
     updateUntersuchung,
     deleteUntersuchung,
     listAkteAnlagen,
@@ -41,6 +43,7 @@ import {
     parseAnamneseV1,
 } from "@/lib/anamnese";
 import { UntersuchungComposer } from "../components/UntersuchungComposer";
+import { computeAkteCompleteness, type AkteCompletenessGap } from "@/lib/akte-completeness";
 import { parseUntersuchungV1, previewNextUntersuchungsnummer } from "@/lib/untersuchung";
 import { CalendarIcon, ChevronLeftIcon, EditIcon, ExportIcon, MailIcon, PhoneIcon, PlusIcon, ShieldCheckIcon } from "@/lib/icons";
 import { FormSection } from "../components/ui/form-section";
@@ -49,7 +52,9 @@ import { AkteAnlagenPanel } from "../components/akte-anlagen-panel";
 import { AkteEditFormOrInline, AkteInlineEditPanelShell, ConfirmOrInline } from "../components/akte-confirm-presentation";
 import { BehandlungAkteComposerPanel, type BehandlungAkteComposerPanelProps } from "../components/behandlung-akte-composer-panel";
 import { ConfirmDialog } from "../components/ui/dialog";
+import { PatientAkteWorkflowDialogs, type PatientAkteWorkflowMode } from "../components/patient-akte-workflow-dialogs";
 import { ExportPickerDialog, HtmlDocumentExportPickerDialog, type HtmlExportDocumentKind } from "../components/export-picker-dialog";
+import { DischargeMerkblattDialog } from "../components/discharge-merkblatt-dialog";
 import {
     SECTION_LABEL as VAL_SECTION_LABEL,
     itemValidationKey,
@@ -261,6 +266,9 @@ export function PatientDetailPage() {
     const session = useAuthStore((s) => s.session);
     const role = session?.rolle ? parseRole(session.rolle) : null;
     const canViewClinical = role != null && allowed("patient.read_medical", role);
+    const canListPatientDocuments =
+        role != null
+        && (allowed("patient.read_medical", role) || allowed("patient.read_documents", role));
     const canListBehandlungenForZahlung = role != null && allowed("patient.behandlungen_list_for_zahlung", role);
     const canWriteMedical = role != null && allowed("patient.write_medical", role);
     const canReadFinanzen = role != null && allowed("finanzen.read", role);
@@ -277,6 +285,8 @@ export function PatientDetailPage() {
     const [showUnterComposer, setShowUnterComposer] = useState(false);
     const [showBehandComposer, setShowBehandComposer] = useState(false);
     const [akteExportPickerOpen, setAkteExportPickerOpen] = useState(false);
+    const [dischargeMerkblattOpen, setDischargeMerkblattOpen] = useState(false);
+    const [akteWorkflowMode, setAkteWorkflowMode] = useState<PatientAkteWorkflowMode>(null);
     const [htmlDocExport, setHtmlDocExport] = useState<{
         kind: HtmlExportDocumentKind;
         bundle: ClinicalDocumentExportBundle;
@@ -524,14 +534,18 @@ export function PatientDetailPage() {
 
     const persistPlanNext = useCallback(
         (next: PlanNextTerminV2) => {
-            setPlanNext(next);
-            if (id) {
-                void persistPlanNextTerminToBackend(id, next).catch((e) => {
-                    toast(`Termin-Hinweis speichern: ${e instanceof Error ? e.message : String(e)}`, "error");
-                });
-            }
+            setPlanNext((prev) => {
+                const merged =
+                    canViewClinical ? next : { ...next, internalNote: prev.internalNote };
+                if (id) {
+                    void persistPlanNextTerminToBackend(id, merged).catch((e) => {
+                        toast(`Termin-Hinweis speichern: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    });
+                }
+                return merged;
+            });
         },
-        [id, toast],
+        [id, toast, canViewClinical],
     );
 
     useEffect(() => {
@@ -592,9 +606,9 @@ export function PatientDetailPage() {
             setAkte(a);
             void refreshAnlagen(a.id);
             const [rez, zPat, att, katRows] = await Promise.all([
-                listRezepte(id),
+                canListPatientDocuments ? listRezepte(id) : Promise.resolve([] as Rezept[]),
                 listZahlungenForPatient(id),
-                listAtteste(id),
+                canListPatientDocuments ? listAtteste(id) : Promise.resolve([] as Attest[]),
                 listBehandlungsKatalog().catch(() => [] as BehandlungsKatalogItem[]),
             ]);
             setRezepte(rez);
@@ -640,7 +654,7 @@ export function PatientDetailPage() {
                 setAkteLoadError(e instanceof Error ? e.message : String(e));
             }
         }
-    }, [id, canViewClinical, canListBehandlungenForZahlung, refreshAnlagen]);
+    }, [id, canViewClinical, canListPatientDocuments, canListBehandlungenForZahlung, refreshAnlagen]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -2040,6 +2054,18 @@ export function PatientDetailPage() {
         return () => { cancelled = true; };
     }, [activeTab, canWriteMedical]);
 
+    const akteCompleteness = useMemo(() => {
+        if (!patient || !akte) return { gaps: [] as AkteCompletenessGap[] };
+        return computeAkteCompleteness({
+            patientVersicherungsnummer: patient.versicherungsnummer,
+            anamneseJson,
+            zahnbefundeCount: befunde.length,
+            untersuchungenCount: untersuchungen.length,
+            patientStatus: patient.status,
+            includeClinicalGaps: canViewClinical,
+        });
+    }, [patient, akte, anamneseJson, befunde.length, untersuchungen.length, canViewClinical]);
+
     if (!id) {
         return (
             <div className="animate-fade-in">
@@ -2256,6 +2282,15 @@ export function PatientDetailPage() {
                             {validationPendingTotal}
                         </span>
                     ) : null}
+                    {akteCompleteness.gaps.length > 0 ? (
+                        <span
+                            className="tab-badge muted"
+                            style={{ marginLeft: 8, verticalAlign: "middle" }}
+                            title={`${akteCompleteness.gaps.length} offene${akteCompleteness.gaps.length === 1 ? "r" : ""} Pflicht${akteCompleteness.gaps.length === 1 ? "punkt" : "punkte"} (Heuristik)`}
+                        >
+                            {akteCompleteness.gaps.length} offen
+                        </span>
+                    ) : null}
                 </h1>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <button
@@ -2293,9 +2328,69 @@ export function PatientDetailPage() {
                     >
                         <ExportIcon />Export
                     </button>
+                    {role === "REZEPTION" && id && patient ? (
+                        <button
+                            type="button"
+                            className="btn btn-subtle"
+                            onClick={() => setAkteWorkflowMode("ticket")}
+                            title="Strukturiertes Ticket an einen Arzt (FA-PERS-08)"
+                        >
+                            Ticket an Arzt
+                        </button>
+                    ) : null}
+                    {(role === "ARZT" || role === "REZEPTION") && id && patient ? (
+                        <button
+                            type="button"
+                            className="btn btn-subtle"
+                            onClick={() => setAkteWorkflowMode("forward")}
+                            title="Kolleg:innen per Benachrichtigung um Akten-Review bitten"
+                        >
+                            Review anfragen
+                        </button>
+                    ) : null}
+                    {canViewClinical ? (
+                        <button
+                            type="button"
+                            className="btn btn-subtle"
+                            onClick={() => setDischargeMerkblattOpen(true)}
+                            disabled={!id || !patient}
+                            title="Entlassungs-Merkblatt / Nachsorge (PDF, FA-DOK-08)"
+                        >
+                            Merkblatt
+                        </button>
+                    ) : null}
                     <button type="button" className="btn btn-accent" onClick={() => navigate(terminBackLink)}><CalendarIcon />Termin</button>
                 </div>
             </div>
+            {akte && akteCompleteness.gaps.length > 0 ? (
+                <div
+                    className="card card-pad"
+                    role="region"
+                    aria-label="Aktenvollständigkeit"
+                    style={{
+                        padding: "12px 14px",
+                        background: "color-mix(in oklab, var(--warning, #b45309) 8%, var(--surface-1))",
+                        borderColor: "color-mix(in oklab, var(--warning, #b45309) 35%, var(--line))",
+                    }}
+                >
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>Akte — fehlende Einträge (Hinweis)</div>
+                    <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 720 }}>
+                        Heuristik gemäß FA-AKTE-16; kein Ersatz für klinische Beurteilung. Klick springt zum passenden Reiter.
+                    </p>
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        {akteCompleteness.gaps.map((g) => (
+                            <button
+                                key={g.id}
+                                type="button"
+                                className="btn btn-subtle btn-sm"
+                                onClick={() => goTab(g.tab as AkteTab)}
+                            >
+                                {g.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
             {showPlanTip ? (
                 <div
                     className="card"
@@ -2385,15 +2480,17 @@ export function PatientDetailPage() {
                                 placeholder="z. B. Mo, Do"
                             />
                         </div>
-                        <Textarea
-                            id="patient-plan-internal"
-                            label="Intern (nicht im Dashboard sichtbar)"
-                            rows={2}
-                            value={planNext.internalNote}
-                            onChange={(e) => persistPlanNext({ ...planNext, internalNote: e.target.value })}
-                            placeholder="Nur Praxis-intern"
-                            style={{ marginTop: 12 }}
-                        />
+                        {canViewClinical ? (
+                            <Textarea
+                                id="patient-plan-internal"
+                                label="Intern (nicht im Dashboard sichtbar)"
+                                rows={2}
+                                value={planNext.internalNote}
+                                onChange={(e) => persistPlanNext({ ...planNext, internalNote: e.target.value })}
+                                placeholder="Nur Praxis-intern"
+                                style={{ marginTop: 12 }}
+                            />
+                        ) : null}
                     </details>
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
                         {planNextHasContent(planNext) ? (
@@ -2407,7 +2504,7 @@ export function PatientDetailPage() {
             <div className="card patient-hero-card">
                 <div className="patient-hero-top">
                     <div className="patient-hero-identity">
-                        <div className="av av-lg" style={{ background: "linear-gradient(135deg,#B6E7DA,#0EA07E)" }}>
+                        <div className="av av-lg av--accent">
                             {patient.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                         </div>
                         <div className="patient-hero-identity-text">
@@ -2724,9 +2821,7 @@ export function PatientDetailPage() {
                             </div>
                             {parsedAnamnesePreview ? (
                                 <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-                                    <div style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-3)", textTransform: "uppercase", marginBottom: 10 }}>
-                                        Übersicht
-                                    </div>
+                                    <div className="akte-section-eyebrow">Übersicht</div>
                                     <AnamneseVisual data={parsedAnamnesePreview} />
                                 </div>
                             ) : (
@@ -2779,8 +2874,35 @@ export function PatientDetailPage() {
                                                         </div>
                                                         <div style={{ fontWeight: 600 }}>{u.diagnose || detail?.diagnosis || "Diagnose offen"}</div>
                                                         <div style={{ color: "var(--fg-3)", fontSize: 13 }}>{u.beschwerden || detail?.chiefComplaint || "—"}</div>
+                                                        <div className="row" style={{ gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                                            {u.freigegeben_von_arzt_id && (u.freigegeben_am ?? "").trim() !== "" ? (
+                                                                <Badge variant="primary">Abrechnung freigegeben</Badge>
+                                                            ) : (
+                                                                <Badge variant="warning">Abrechnung ausstehend</Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                                        {canViewClinical && !(u.freigegeben_von_arzt_id && (u.freigegeben_am ?? "").trim() !== "") ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    void (async () => {
+                                                                        try {
+                                                                            const upd = await releaseUntersuchungForBilling(u.id);
+                                                                            setUntersuchungen((prev) => prev.map((x) => (x.id === u.id ? upd : x)));
+                                                                            toast("Untersuchung zur Abrechnung freigegeben.", "success");
+                                                                        } catch (e) {
+                                                                            toast(e instanceof Error ? e.message : String(e), "error");
+                                                                        }
+                                                                    })();
+                                                                }}
+                                                            >
+                                                                Zur Abrechnung freigeben
+                                                            </Button>
+                                                        ) : null}
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
@@ -3095,7 +3217,8 @@ export function PatientDetailPage() {
                                                 <th>Leistungsname</th>
                                                 <th>Sitzung</th>
                                                 <th>B.Nummer</th>
-                                                <th style={{ width: 200 }}>Aktion</th>
+                                                <th>Abrechnung</th>
+                                                <th style={{ width: 220 }}>Aktion</th>
                                             </tr>
                                         </thead>
                                         {behandlungGroups.map((grp) => (
@@ -3105,7 +3228,7 @@ export function PatientDetailPage() {
                                                         {showBehandComposer && behandEditId === b.id ? (
                                                             <tr>
                                                                 <td
-                                                                    colSpan={7}
+                                                                    colSpan={8}
                                                                     style={{
                                                                         padding: 12,
                                                                         verticalAlign: "top",
@@ -3124,7 +3247,37 @@ export function PatientDetailPage() {
                                                         <td>{b.sitzung != null ? `Nr. ${b.sitzung}` : "—"}</td>
                                                         <td>{b.behandlungsnummer || "—"}</td>
                                                         <td>
+                                                            {b.freigegeben_von_arzt_id && (b.freigegeben_am ?? "").trim() !== "" ? (
+                                                                <Badge variant="primary">Freigegeben</Badge>
+                                                            ) : (
+                                                                <Badge variant="warning">Ausstehend</Badge>
+                                                            )}
+                                                        </td>
+                                                        <td>
                                                             <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                                                {canViewClinical && !(b.freigegeben_von_arzt_id && (b.freigegeben_am ?? "").trim() !== "") ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="secondary"
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            void (async () => {
+                                                                                try {
+                                                                                    const upd = await releaseBehandlungForBilling(b.id);
+                                                                                    setBehandlungen((prev) => prev.map((x) => (x.id === b.id ? upd : x)));
+                                                                                    toast("Zur Abrechnung freigegeben.", "success");
+                                                                                } catch (e) {
+                                                                                    toast(
+                                                                                        e instanceof Error ? e.message : String(e),
+                                                                                        "error",
+                                                                                    );
+                                                                                }
+                                                                            })();
+                                                                        }}
+                                                                    >
+                                                                        Freigeben
+                                                                    </Button>
+                                                                ) : null}
                                                                 <Button
                                                                     size="sm"
                                                                     variant="ghost"
@@ -4919,6 +5072,14 @@ export function PatientDetailPage() {
                     canAuditRead={canAuditRead}
                 />
             ) : null}
+            {id ? (
+                <DischargeMerkblattDialog
+                    open={dischargeMerkblattOpen}
+                    onClose={() => setDischargeMerkblattOpen(false)}
+                    patientId={id}
+                    patient={patient}
+                />
+            ) : null}
             {htmlDocExport ? (
                 <HtmlDocumentExportPickerDialog
                     open
@@ -4928,6 +5089,16 @@ export function PatientDetailPage() {
                     suggestedBasename={htmlDocExport.suggestedBasename}
                     bundle={htmlDocExport.bundle}
                     hint={htmlDocExport.hint}
+                />
+            ) : null}
+            {id && patient && session && role ? (
+                <PatientAkteWorkflowDialogs
+                    mode={akteWorkflowMode}
+                    onClose={() => setAkteWorkflowMode(null)}
+                    patientId={id}
+                    currentUserId={session.user_id}
+                    role={role}
+                    toast={toast}
                 />
             ) : null}
         </div>

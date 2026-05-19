@@ -29,8 +29,12 @@ function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
 
 /** Shared Verwaltung TOC: real `<a href>` rows, RBAC-filtered, keyboard-safe (Enter + Space). */
 export function VerwaltungTocPage({ title, subtitle, links }: Props) {
-    const rolle = useAuthStore((s) => s.session?.rolle);
-    const visible = links.filter((l) => (l.requires != null && l.requires !== "" ? routeChildPathAllowed(l.requires, rolle) : true));
+    const session = useAuthStore((s) => s.session);
+    const visible = links.filter((l) =>
+        l.requires != null && l.requires !== ""
+            ? routeChildPathAllowed(l.requires, session?.rolle, session?.permission_overrides)
+            : true,
+    );
     const useIcons = visible.some((l) => Boolean(l.iconKey));
 
     return (

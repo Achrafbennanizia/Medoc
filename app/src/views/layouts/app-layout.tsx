@@ -10,6 +10,7 @@ import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavIt
 import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
+import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useToastStore } from "../components/ui/toast-store";
 import { ToastContainer } from "../components/ui/toast";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
@@ -30,6 +31,7 @@ import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib
 import { syncNativeMenu } from "@/controllers/native-menu.controller";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/controllers/in-app-notification.controller";
+import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/termine/neu") return ["MeDoc", "Terminübersicht", "Neuer Termin"];
@@ -37,6 +39,8 @@ function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/bestellungen/neu") return ["MeDoc", "Bestellungen", "Neue Bestellung"];
     if (pathname === "/patienten/neu") return ["MeDoc", "Patienten", "Neuer Patient"];
     if (pathname === "/bilanz/neu") return ["MeDoc", "Bilanz", "Neuer Bilanz"];
+    if (pathname === "/akten/zu-validieren") return ["MeDoc", "Patienten", "Akten zu validieren"];
+    if (pathname === "/tickets") return ["MeDoc", "Praxis-Tickets"];
     if (pathname === "/verwaltung") return ["MeDoc", "Verwaltung"];
     if (pathname === "/verwaltung/arbeitstage") return ["MeDoc", "Verwaltung", "Arbeitstage"];
     if (pathname === "/verwaltung/praxisplanung") return ["MeDoc", "Verwaltung", "Praxisplanung"];
@@ -81,6 +85,8 @@ const CRUMBS: Record<string, string[]> = {
     "/termine": ["MeDoc", "Terminübersicht"],
     "/termine/neu": ["MeDoc", "Terminübersicht", "Neuer Termin"],
     "/patienten": ["MeDoc", "Patienten"],
+    "/akten/zu-validieren": ["MeDoc", "Patienten", "Akten zu validieren"],
+    "/tickets": ["MeDoc", "Praxis-Tickets"],
     "/finanzen": ["MeDoc", "Finanzen"],
     "/finanzen/neu": ["MeDoc", "Finanzen", "Neue Zahlung"],
     "/bestellungen": ["MeDoc", "Bestellungen"],
@@ -124,7 +130,7 @@ const CRUMBS: Record<string, string[]> = {
 
 const NAV_SECTIONS: Array<{ label: string; items: string[] }> = [
     { label: "Übersicht", items: ["/", "/termine"] },
-    { label: "Behandlung", items: ["/patienten", "/rezepte", "/statistik"] },
+    { label: "Behandlung", items: ["/patienten", "/akten/zu-validieren", "/tickets", "/rezepte", "/statistik"] },
     { label: "Praxis", items: ["/finanzen", "/bestellungen", "/verwaltung", "/einstellungen"] },
 ];
 
@@ -222,14 +228,17 @@ export function AppLayout() {
     const [sidebarAccountPopoverFixed, setSidebarAccountPopoverFixed] = useState<SidebarAccountPopoverFixed | null>(null);
     const topbarMenuRef = useRef<HTMLDivElement>(null);
     const notifWrapRef = useRef<HTMLDivElement>(null);
-
-    const paletteCommands = useMemo(() => filterCommandsForRole(session?.rolle), [session?.rolle]);
+    const desktopChrome = useDesktopChromeMode();
+    const paletteCommands = useMemo(
+        () => filterCommandsForRole(session?.rolle, session?.permission_overrides),
+        [session?.rolle, session?.permission_overrides],
+    );
     const breadcrumbs = useMemo(() => breadcrumbsForPath(location.pathname), [location.pathname]);
     const isDashboardRoute = location.pathname === "/";
     const isTermineCalendarRoute = location.pathname === "/termine";
     const visibleNavItems = useMemo(
-        () => NAV_ITEM_DEFINITIONS.filter((item) => navItemVisible(session?.rolle, item)),
-        [session?.rolle],
+        () => NAV_ITEM_DEFINITIONS.filter((item) => navItemVisible(session?.rolle, item, session?.permission_overrides)),
+        [session?.rolle, session?.permission_overrides],
     );
     const visibleByTo = useMemo(
         () => new Map(visibleNavItems.map((item) => [item.to, item])),
@@ -267,6 +276,8 @@ export function AppLayout() {
             setInAppUnread(0);
         }
     }, [session?.user_id]);
+
+    const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
 
     useEffect(() => {
         void refreshInAppUnread();
@@ -392,8 +403,8 @@ export function AppLayout() {
 
             if (key === "n" && !e.shiftKey) {
                 if (location.pathname.startsWith("/termine")) return;
-                const rolle = useAuthStore.getState().session?.rolle;
-                if (!routeChildPathAllowed("termine/neu", rolle)) return;
+                const acct = useAuthStore.getState().session;
+                if (!routeChildPathAllowed("termine/neu", acct?.rolle, acct?.permission_overrides)) return;
                 e.preventDefault();
                 navigate("/termine/neu");
                 setMobileNavOpen(false);
@@ -649,8 +660,8 @@ export function AppLayout() {
                             const pathOnly = p.path.split("?")[0];
                             const routeKey =
                                 pathOnly === "/" || pathOnly === "" ? "" : pathOnly.replace(/^\//, "");
-                            const rolle = useAuthStore.getState().session?.rolle;
-                            if (!routeChildPathAllowed(routeKey, rolle)) {
+                            const acct = useAuthStore.getState().session;
+                            if (!routeChildPathAllowed(routeKey, acct?.rolle, acct?.permission_overrides)) {
                                 useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
                                 return;
                             }
@@ -659,8 +670,8 @@ export function AppLayout() {
                             return;
                         }
                         if (p.kind === "termin" && typeof p.action === "string") {
-                            const rolle = useAuthStore.getState().session?.rolle;
-                            if (!routeChildPathAllowed("termine", rolle)) {
+                            const acct = useAuthStore.getState().session;
+                            if (!routeChildPathAllowed("termine", acct?.rolle, acct?.permission_overrides)) {
                                 useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
                                 return;
                             }
@@ -741,6 +752,179 @@ export function AppLayout() {
         };
     }, [navigate, location.pathname, locale]);
 
+    const isMacUnifiedChrome = desktopChrome === "mac-overlay";
+
+    const sidebarBrandRow = (
+        <div className="app-sidebar-brand-row">
+            <button
+                type="button"
+                className="app-sidebar-brand-hit app-sidebar-brand-hit--rail"
+                title={
+                    sidebarRailPref === "icons"
+                        ? `Navigationsleiste erweitern · ⌥/⌘-Klick: ${t("nav.search_short")}`
+                        : `Navigationsleiste auf Symbole reduzieren · ⌥/⌘-Klick: ${t("nav.search_short")}`
+                }
+                aria-label={
+                    sidebarRailPref === "icons"
+                        ? "Navigationsleiste mit Beschriftungen erweitern"
+                        : "Navigationsleiste auf Symbole reduzieren"
+                }
+                onClick={(e) => {
+                    setMobileNavOpen(false);
+                    if (e.altKey || e.metaKey) {
+                        openCommandPalette();
+                        return;
+                    }
+                    setSidebarRailPref((p) => (p === "icons" ? "full" : "icons"));
+                }}
+            >
+                <span className="app-sidebar-brand-mark" aria-hidden>
+                    <PinIcon size={18} />
+                </span>
+                <div className="app-sidebar-brand-meta">
+                    <div className="app-sidebar-brand-title">MeDoc</div>
+                    <div className="app-sidebar-brand-tag">{t("app.sidebar_tagline")}</div>
+                </div>
+            </button>
+        </div>
+    );
+
+    const topbarToolbar = (
+        <>
+            <button type="button" className="icon-btn mobile-nav-trigger" aria-label="Menü öffnen" onClick={() => setMobileNavOpen(true)}>
+                <MenuIcon size={18} />
+            </button>
+            <div className="crumb">
+                {breadcrumbs.map((c, i) => (
+                    <Fragment key={`${c}-${i}`}>
+                        {i > 0 && (
+                            <span style={{ color: "var(--fg-4)" }}>
+                                <ChevronRightIcon size={12} />
+                            </span>
+                        )}
+                        {i === breadcrumbs.length - 1 ? <b>{c}</b> : <span>{c}</span>}
+                    </Fragment>
+                ))}
+            </div>
+            <div
+                className="topbar-actions"
+                style={{
+                    marginLeft: "auto",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                }}
+            >
+                <button type="button" className="input focus-ring topbar-search-trigger" onClick={openCommandPalette}>
+                    <SearchIcon size={14} aria-hidden />
+                    <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
+                    <span className="ui-kbd-hint" style={{ fontSize: 11, color: "var(--fg-4)" }}>
+                        ⌘K
+                    </span>
+                </button>
+                {updateAvailable && (
+                    <button className="tb-chip update" onClick={() => navigate("/einstellungen")}>
+                        <DownloadIcon size={12} />
+                        Update 2026.4.3
+                    </button>
+                )}
+                <span className={`tb-chip ${isOnline ? "live" : ""}`}>
+                    <WifiIcon size={12} />
+                    {isOnline ? "Online" : "Offline"}
+                </span>
+                <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label={t("nav.quick_add")}
+                    title={t("nav.quick_add")}
+                    onClick={openCommandPalette}
+                >
+                    <PlusIcon size={18} />
+                </button>
+                <div ref={notifWrapRef} style={{ position: "relative" }}>
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={t("a11y.notifications_region")}
+                        aria-expanded={notifOpen}
+                        onClick={() => {
+                            setNotifOpen((o) => !o);
+                            setUserMenuOpen(false);
+                        }}
+                    >
+                        <BellIcon size={18} />
+                        {inAppUnread > 0 ? <span className="dot" aria-hidden /> : null}
+                    </button>
+                    {notifOpen ? (
+                        <NotificationsPopover
+                            onClose={() => {
+                                setNotifOpen(false);
+                                void refreshInAppUnread();
+                            }}
+                            onUnreadChanged={() => void refreshInAppUnread()}
+                        />
+                    ) : null}
+                </div>
+                <div ref={topbarMenuRef} style={{ position: "relative" }}>
+                    <button
+                        type="button"
+                        className="btn btn-subtle"
+                        style={{
+                            padding: "4px 8px 4px 4px",
+                            fontSize: 12,
+                            borderRadius: 999,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                        }}
+                        aria-haspopup="menu"
+                        aria-expanded={userMenuOpen && userMenuAnchor === "topbar"}
+                        onClick={() => {
+                            const switchingFromOther = userMenuAnchorRef.current !== "topbar";
+                            setUserMenuAnchor("topbar");
+                            setUserMenuOpen((wasOpen) => {
+                                if (!wasOpen) return true;
+                                if (switchingFromOther) return true;
+                                return false;
+                            });
+                        }}
+                    >
+                        <span className="av av--accent topbar-user-av" style={{ width: 24, height: 24, fontSize: 10 }}>
+                            {initials}
+                        </span>
+                        <ChevronDownIcon size={12} />
+                    </button>
+                    {userMenuOpen && userMenuAnchor === "topbar" ? (
+                        <UserAccountMenuDropdown
+                            placement="below"
+                            initials={initials}
+                            name={session?.name ?? "Benutzer"}
+                            emailFallback={session?.email ?? "praxis@medoc.de"}
+                            logoutLabel={t("auth.logout")}
+                            onRoleSwitch={() => {
+                                setUserMenuOpen(false);
+                                setRoleSwitchOpen(true);
+                            }}
+                            onSettings={() => {
+                                navigate("/einstellungen");
+                                setUserMenuOpen(false);
+                            }}
+                            onShortcuts={() => {
+                                setUserMenuOpen(false);
+                                navigate("/hilfe");
+                            }}
+                            helpNavLabel={t("account.menu_help")}
+                            onLogoutRequest={() => {
+                                setUserMenuOpen(false);
+                                requestLogout();
+                            }}
+                        />
+                    ) : null}
+                </div>
+            </div>
+        </>
+    );
+
     return (
         <div className="app">
             {/* First in tab order: bypass sidebar (WCAG 2.4.1) */}
@@ -753,7 +937,7 @@ export function AppLayout() {
 
             <BreakGlassBanner userId={session?.user_id} />
 
-            <div className="app-shell">
+            <div className={`app-shell${isMacUnifiedChrome ? " app-shell--mac-unified" : ""}`}>
             <button
                 type="button"
                 className="app-sidebar-backdrop"
@@ -762,42 +946,18 @@ export function AppLayout() {
                 tabIndex={-1}
                 onClick={() => setMobileNavOpen(false)}
             />
-            <aside className="glass app-sidebar" data-open={mobileNavOpen ? "true" : "false"}>
-                <div
-                    className="app-sidebar-brand-row"
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px 14px" }}
+            {isMacUnifiedChrome ? (
+                <header
+                    className="app-window-chrome topbar topbar--mac-traffic"
+                    data-tauri-drag-region
+                    onMouseDown={handleMacWindowDrag}
                 >
-                    <button
-                        type="button"
-                        className="app-sidebar-brand-hit app-sidebar-brand-hit--rail"
-                        title={
-                            sidebarRailPref === "icons"
-                                ? `Navigationsleiste erweitern · ⌥/⌘-Klick: ${t("nav.search_short")}`
-                                : `Navigationsleiste auf Symbole reduzieren · ⌥/⌘-Klick: ${t("nav.search_short")}`
-                        }
-                        aria-label={
-                            sidebarRailPref === "icons"
-                                ? "Navigationsleiste mit Beschriftungen erweitern"
-                                : "Navigationsleiste auf Symbole reduzieren"
-                        }
-                        onClick={(e) => {
-                            setMobileNavOpen(false);
-                            if (e.altKey || e.metaKey) {
-                                openCommandPalette();
-                                return;
-                            }
-                            setSidebarRailPref((p) => (p === "icons" ? "full" : "icons"));
-                        }}
-                    >
-                        <span className="app-sidebar-brand-mark" aria-hidden>
-                            <PinIcon size={18} />
-                        </span>
-                        <div className="app-sidebar-brand-meta">
-                            <div className="app-sidebar-brand-title">MeDoc</div>
-                            <div className="app-sidebar-brand-tag">{t("app.sidebar_tagline")}</div>
-                        </div>
-                    </button>
-                </div>
+                    <div className="app-window-chrome__brand glass">{sidebarBrandRow}</div>
+                    <div className="app-window-chrome__toolbar topbar-mac-content-row">{topbarToolbar}</div>
+                </header>
+            ) : null}
+            <aside className="glass app-sidebar" data-open={mobileNavOpen ? "true" : "false"}>
+                {!isMacUnifiedChrome ? sidebarBrandRow : null}
                 <nav className="app-sidebar-scroll">
                     {NAV_SECTIONS.map((section) => {
                         const sectionItems = section.items
@@ -815,7 +975,7 @@ export function AppLayout() {
                                             to={item.to}
                                             end={item.to !== "/patienten"}
                                             className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
-                                            title={label}
+                                            title={sidebarRailPref === "icons" ? label : undefined}
                                             aria-label={label}
                                         >
                                             {(() => {
@@ -840,28 +1000,11 @@ export function AppLayout() {
                             aria-label={`Angemeldet als ${session?.name ?? "Benutzer"}`}
                             title={session?.name ?? undefined}
                         >
-                            <div
-                                className="av"
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    fontSize: 16,
-                                    background: "linear-gradient(135deg,#71DCC3,#1BAA8A)",
-                                }}
-                            >
+                            <div className="av av--accent" style={{ width: 40, height: 40, fontSize: 16 }}>
                                 {initials}
                             </div>
                             <div className="app-sidebar-user-lines app-sidebar-user-lines--narrow-strip" style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                    style={{
-                                        fontWeight: 700,
-                                        fontSize: 12.5,
-                                        lineHeight: 1.2,
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
+                                <div className="app-sidebar-user-card__name">
                                     {session?.name ?? "Benutzer"}
                                 </div>
                             </div>
@@ -883,42 +1026,12 @@ export function AppLayout() {
                                 });
                             }}
                         >
-                            <div
-                                className="av"
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    fontSize: 16,
-                                    background: "linear-gradient(135deg,#71DCC3,#1BAA8A)",
-                                }}
-                            >
+                            <div className="av av--accent" style={{ width: 40, height: 40, fontSize: 16 }}>
                                 {initials}
                             </div>
                             <div className="app-sidebar-user-lines" style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                    style={{
-                                        fontWeight: 700,
-                                        fontSize: 12.5,
-                                        lineHeight: 1.2,
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {session?.name ?? "Benutzer"}
-                                </div>
-                                <div
-                                    style={{
-                                        color: "var(--fg-3)",
-                                        fontSize: 10.5,
-                                        lineHeight: 1.2,
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {profileRoleLine}
-                                </div>
+                                <div className="app-sidebar-user-card__name">{session?.name ?? "Benutzer"}</div>
+                                <div className="app-sidebar-user-card__meta">{profileRoleLine}</div>
                             </div>
                             <span
                                 className={`app-sidebar-user-card-chevron${userMenuOpen && userMenuAnchor === "sidebar" ? " is-open" : ""}`}
@@ -957,123 +1070,18 @@ export function AppLayout() {
                   )
                 : null}
 
-            <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
-                <div className="topbar">
-                    <button type="button" className="icon-btn mobile-nav-trigger" aria-label="Menü öffnen" onClick={() => setMobileNavOpen(true)}>
-                        <MenuIcon size={18} />
-                    </button>
-                    <div className="crumb">
-                        {breadcrumbs.map((c, i) => (
-                            <Fragment key={`${c}-${i}`}>
-                                {i > 0 && <span style={{ color: "var(--fg-4)" }}><ChevronRightIcon size={12} /></span>}
-                                {i === breadcrumbs.length - 1 ? <b>{c}</b> : <span>{c}</span>}
-                            </Fragment>
-                        ))}
+            <div className="app-main-column" style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
+                {!isMacUnifiedChrome ? (
+                    <div className="topbar">
+                        <div className="topbar-inner--contents">{topbarToolbar}</div>
                     </div>
-                    <div className="topbar-actions" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-                        <button
-                            type="button"
-                            className="input focus-ring topbar-search-trigger"
-                            onClick={openCommandPalette}
-                            style={{
-                                background: "rgba(0,0,0,0.04)",
-                                border: "none",
-                                cursor: "pointer",
-                            }}
-                        >
-                            <SearchIcon size={14} aria-hidden />
-                            <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
-                            <span className="ui-kbd-hint" style={{ fontSize: 11, color: "var(--fg-4)" }}>⌘K</span>
-                        </button>
-                        {updateAvailable && <button className="tb-chip update" onClick={() => navigate("/einstellungen")}><DownloadIcon size={12} />Update 2026.4.3</button>}
-                        <span className={`tb-chip ${isOnline ? "live" : ""}`}><WifiIcon size={12} />{isOnline ? "Online" : "Offline"}</span>
-                        <button type="button" className="icon-btn" aria-label={t("nav.quick_add")} title={t("nav.quick_add")} onClick={openCommandPalette}>
-                            <PlusIcon size={18} />
-                        </button>
-                        <div ref={notifWrapRef} style={{ position: "relative" }}>
-                            <button
-                                type="button"
-                                className="icon-btn"
-                                aria-label={t("a11y.notifications_region")}
-                                aria-expanded={notifOpen}
-                                onClick={() => {
-                                    setNotifOpen((o) => !o);
-                                    setUserMenuOpen(false);
-                                }}
-                            >
-                                <BellIcon size={18} />
-                                {inAppUnread > 0 ? <span className="dot" aria-hidden /> : null}
-                            </button>
-                            {notifOpen ? (
-                                <NotificationsPopover
-                                    onClose={() => {
-                                        setNotifOpen(false);
-                                        void refreshInAppUnread();
-                                    }}
-                                    onUnreadChanged={() => void refreshInAppUnread()}
-                                />
-                            ) : null}
-                        </div>
-                        <div ref={topbarMenuRef} style={{ position: "relative" }}>
-                            <button
-                                type="button"
-                                className="btn btn-subtle"
-                                style={{ padding: "4px 8px 4px 4px", fontSize: 12, borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6 }}
-                                aria-haspopup="menu"
-                                aria-expanded={userMenuOpen && userMenuAnchor === "topbar"}
-                                onClick={() => {
-                                    const switchingFromOther = userMenuAnchorRef.current !== "topbar";
-                                    setUserMenuAnchor("topbar");
-                                    setUserMenuOpen((wasOpen) => {
-                                        if (!wasOpen) return true;
-                                        if (switchingFromOther) return true;
-                                        return false;
-                                    });
-                                }}
-                            >
-                                <span
-                                    className="av topbar-user-av"
-                                    style={{
-                                        width: 24,
-                                        height: 24,
-                                        fontSize: 10,
-                                        background: "linear-gradient(135deg,#71DCC3,#1BAA8A)",
-                                    }}
-                                >
-                                    {initials}
-                                </span>
-                                <ChevronDownIcon size={12} />
-                            </button>
-                            {userMenuOpen && userMenuAnchor === "topbar" ? (
-                                <UserAccountMenuDropdown
-                                    placement="below"
-                                    initials={initials}
-                                    name={session?.name ?? "Benutzer"}
-                                    emailFallback={session?.email ?? "praxis@medoc.de"}
-                                    logoutLabel={t("auth.logout")}
-                                    onRoleSwitch={() => {
-                                        setUserMenuOpen(false);
-                                        setRoleSwitchOpen(true);
-                                    }}
-                                    onSettings={() => {
-                                        navigate("/einstellungen");
-                                        setUserMenuOpen(false);
-                                    }}
-                                    onShortcuts={() => {
-                                        setUserMenuOpen(false);
-                                        navigate("/hilfe");
-                                    }}
-                                    helpNavLabel={t("account.menu_help")}
-                                    onLogoutRequest={() => {
-                                        setUserMenuOpen(false);
-                                        requestLogout();
-                                    }}
-                                />
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-                <main id="main-content" tabIndex={-1} style={{ padding: "clamp(10px, 1.8vw, 24px)", display: "flex", flexDirection: "column", gap: 20, overflowY: isDashboardRoute || isTermineCalendarRoute ? "hidden" : "auto", overflowX: "hidden", flex: 1, minHeight: 0 }} aria-label={t("app.title")}>
+                ) : null}
+                <main
+                    id="main-content"
+                    tabIndex={-1}
+                    className={`app-main${isDashboardRoute || isTermineCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
+                    aria-label={t("app.title")}
+                >
                     <Suspense fallback={<PageLoading label="Seite wird geladen…" />}>
                         <Outlet />
                     </Suspense>

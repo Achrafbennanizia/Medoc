@@ -1,3 +1,7 @@
+/**
+ * Zahlenwerte für TS/React — visuelle Grundlage ist `index.css` (`:root`, `.icon-btn`, `.btn`, …).
+ * Dialogradius = `--radius-card` (16px); Abweichungen nur mit triftigem Grund.
+ */
 export const INTERACTION_STANDARD = {
     control: {
         iconButtonSize: 34,
@@ -13,7 +17,7 @@ export const INTERACTION_STANDARD = {
     dialog: {
         width: 420,
         maxWidthViewport: 92,
-        radius: 18,
+        radius: 16,
     },
 } as const;
 

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { createPersonal, deletePersonal, listPersonal, setPersonalPasswordByAdmin, updatePersonal } from "../../controllers/personal.controller";
+import { checkSession } from "../../controllers/auth.controller";
+import {
+    createPersonal,
+    deletePersonal,
+    deletePersonalPermissionOverride,
+    listPersonal,
+    listPersonalPermissionOverrides,
+    setPersonalPasswordByAdmin,
+    setPersonalPermissionOverride,
+    updatePersonal,
+} from "../../controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { errorMessage, formatDate } from "../../lib/utils";
@@ -57,11 +67,17 @@ export function PersonalPage() {
     const [resetPw2, setResetPw2] = useState("");
     const [resetPwError, setResetPwError] = useState<string | undefined>(undefined);
     const [resetBusy, setResetBusy] = useState(false);
+    /** FA-PERS-07 overrides editor (nur im Bearbeiten-Modus). */
+    const [permOverrides, setPermOverrides] = useState<{ action: string; effect: "ALLOW" | "DENY" }[]>([]);
+    const [permBusy, setPermBusy] = useState(false);
+    const [newPermAction, setNewPermAction] = useState("");
+    const [newPermEffect, setNewPermEffect] = useState<"ALLOW" | "DENY">("DENY");
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteBusy, setDeleteBusy] = useState(false);
     const toast = useToastStore((s) => s.add);
-    const role = parseRole(useAuthStore((s) => s.session?.rolle));
-    const canWrite = role != null && allowed("personal.write", role);
+    const session = useAuthStore((s) => s.session);
+    const role = parseRole(session?.rolle);
+    const canWrite = role != null && allowed("personal.write", role, session?.permission_overrides);
 
     const load = useCallback(
         async (opts?: { initial?: boolean }) => {
@@ -91,6 +107,34 @@ export function PersonalPage() {
     useEffect(() => {
         void load({ initial: true });
     }, [load]);
+
+    useEffect(() => {
+        if (!selected?.id || !detailEdit || !canWrite) {
+            setPermOverrides([]);
+            return;
+        }
+        let cancelled = false;
+        setPermBusy(true);
+        void listPersonalPermissionOverrides(selected.id)
+            .then((rows) => {
+                if (cancelled) return;
+                setPermOverrides(
+                    rows.map((r) => ({
+                        action: r.action,
+                        effect: r.effect === "ALLOW" ? "ALLOW" : "DENY",
+                    })),
+                );
+            })
+            .catch((e) => {
+                if (!cancelled) toast(`Berechtigungen laden: ${errorMessage(e)}`, "error");
+            })
+            .finally(() => {
+                if (!cancelled) setPermBusy(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selected?.id, detailEdit, canWrite, toast]);
 
     const neuFromQuery = searchParams.get("neu");
     useEffect(() => {
@@ -409,6 +453,119 @@ export function PersonalPage() {
                         />
                         <div
                             className="card card-pad"
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 10,
+                                background: "var(--surface-1)",
+                                borderColor: "var(--border-2)",
+                            }}
+                        >
+                            <p className="text-title" style={{ margin: 0, fontSize: 14 }}>
+                                Abweichende Berechtigungen (FA-PERS-07)
+                            </p>
+                            <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
+                                Pro Aktion ein Override: <strong>ALLOW</strong> ergänzt die Rolle, <strong>DENY</strong> sperrt explizit.
+                                Aktion wie im Backend (z. B. <code>finanzen.read</code>, <code>audit.read</code>).
+                            </p>
+                            {permBusy ? (
+                                <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>Lade Overrides…</p>
+                            ) : (
+                                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                                    {permOverrides.map((row) => (
+                                        <li key={row.action} style={{ marginBottom: 6 }}>
+                                            <code>{row.action}</code> → <strong>{row.effect}</strong>{" "}
+                                            <button
+                                                type="button"
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ marginLeft: 8 }}
+                                                onClick={() => {
+                                                    if (!selected) return;
+                                                    void (async () => {
+                                                        try {
+                                                            await deletePersonalPermissionOverride(selected.id, row.action);
+                                                            setPermOverrides((prev) => prev.filter((x) => x.action !== row.action));
+                                                            if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                                await checkSession();
+                                                            }
+                                                            toast("Override entfernt.", "success");
+                                                        } catch (e) {
+                                                            toast(errorMessage(e), "error");
+                                                        }
+                                                    })();
+                                                }}
+                                            >
+                                                Entfernen
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                                <Input
+                                    id="perm-action"
+                                    label="Aktion"
+                                    value={newPermAction}
+                                    onChange={(e) => setNewPermAction(e.target.value)}
+                                    placeholder="z. B. audit.read"
+                                    list="perm-action-hints"
+                                    style={{ flex: "1 1 200px", minWidth: 160 }}
+                                />
+                                <datalist id="perm-action-hints">
+                                    <option value="finanzen.read" />
+                                    <option value="finanzen.write" />
+                                    <option value="audit.read" />
+                                    <option value="patient.read_medical" />
+                                    <option value="bestellung.write" />
+                                    <option value="verwaltung.kataloge.write" />
+                                </datalist>
+                                <Select
+                                    id="perm-eff"
+                                    label="Effekt"
+                                    value={newPermEffect}
+                                    onChange={(e) => setNewPermEffect(e.target.value as "ALLOW" | "DENY")}
+                                    options={[
+                                        { value: "ALLOW", label: "ALLOW" },
+                                        { value: "DENY", label: "DENY" },
+                                    ]}
+                                    style={{ width: 120 }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => {
+                                        if (!selected) return;
+                                        const a = newPermAction.trim();
+                                        if (!a) {
+                                            toast("Aktion eingeben.", "info");
+                                            return;
+                                        }
+                                        void (async () => {
+                                            try {
+                                                await setPersonalPermissionOverride(selected.id, a, newPermEffect);
+                                                setPermOverrides((prev) => {
+                                                    const rest = prev.filter((x) => x.action !== a);
+                                                    return [...rest, { action: a, effect: newPermEffect }].sort((x, y) =>
+                                                        x.action.localeCompare(y.action),
+                                                    );
+                                                });
+                                                setNewPermAction("");
+                                                if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                    await checkSession();
+                                                }
+                                                toast("Override gespeichert.", "success");
+                                            } catch (e) {
+                                                toast(errorMessage(e), "error");
+                                            }
+                                        })();
+                                    }}
+                                >
+                                    Hinzufügen / Aktualisieren
+                                </Button>
+                            </div>
+                        </div>
+                        <div
+                            className="card card-pad"
                             style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--surface-1)", borderColor: "var(--border-2)" }}
                         >
                             <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Passwort zurücksetzen</p>
@@ -571,10 +728,7 @@ export function PersonalPage() {
                                                     style={{ cursor: "pointer" }}
                                                 >
                                                     <td>
-                                                        <span
-                                                            className="av"
-                                                            style={{ background: "linear-gradient(135deg,#9be7ff,#0A84FF)" }}
-                                                        >
+                                                        <span className="av av--accent">
                                                             {initialsFromName(p.name)}
                                                         </span>
                                                     </td>

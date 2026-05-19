@@ -698,7 +698,7 @@ export function TerminCreatePage() {
                                                     padding: "8px 0",
                                                     borderRadius: 8,
                                                     border: sel ? "2px solid var(--accent)" : "1px solid var(--line)",
-                                                    background: sel ? "var(--accent-soft)" : isToday ? "rgba(10,132,255,0.08)" : "#fff",
+                                                    background: sel ? "var(--accent-soft)" : isToday ? "color-mix(in oklab, var(--accent) 10%, transparent)" : "var(--bg-elev)",
                                                     color: inM && !blockedDay ? "var(--fg)" : "var(--fg-4)",
                                                     fontSize: 13,
                                                     fontWeight: sel ? 700 : 500,
@@ -754,7 +754,7 @@ export function TerminCreatePage() {
                                                     overflowY: "auto",
                                                     border: "1px solid var(--line)",
                                                     borderRadius: 10,
-                                                    background: "#fff",
+                                                    background: "var(--bg-elev)",
                                                     boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
                                                 }}
                                             >
@@ -797,7 +797,7 @@ export function TerminCreatePage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => navigate(`/patienten?from=termin-create&draft=${encodeURIComponent(draftId)}`)}
-                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: "1px solid var(--line)", background: "#fff", cursor: "pointer", fontSize: 13, color: "var(--accent)" }}
+                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: "1px solid var(--line)", background: "var(--bg-elev)", cursor: "pointer", fontSize: 13, color: "var(--accent)" }}
                                                 >
                                                     In Akten suchen...
                                                 </button>

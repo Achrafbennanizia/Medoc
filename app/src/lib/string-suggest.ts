@@ -1,3 +1,8 @@
+export type SuggestSimilarTitlesOptions = {
+    /** NFA-USE-10 — keine fuzzy Treffer-Hinweise (Patientensuche, Schnellzugriff). */
+    disabled?: boolean;
+};
+
 /** Levenshtein distance for fuzzy matching (e.g. command palette suggestions). */
 export function levenshtein(a: string, b: string): number {
     const m = a.length;
@@ -16,7 +21,14 @@ export function levenshtein(a: string, b: string): number {
     return dp[m][n];
 }
 
-export function suggestSimilarTitles(query: string, titles: readonly string[], maxDist = 2, limit = 4): string[] {
+export function suggestSimilarTitles(
+    query: string,
+    titles: readonly string[],
+    maxDist = 2,
+    limit = 4,
+    options?: SuggestSimilarTitlesOptions,
+): string[] {
+    if (options?.disabled) return [];
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
     const scored = titles

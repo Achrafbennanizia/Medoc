@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { checkSession } from "../../controllers/auth.controller";
+import { mergeAutocompleteFromPraxisKvIntoLocal } from "@/lib/praxis-search-prefs-sync";
 import { useAuthStore } from "../../models/store/auth-store";
 
 /**
@@ -10,9 +11,12 @@ export function SessionGate({ children }: { children: ReactNode }) {
     const sessionChecked = useAuthStore((s) => s.sessionChecked);
 
     useEffect(() => {
-        checkSession().finally(() => {
-            useAuthStore.getState().markSessionChecked();
-        });
+        void checkSession()
+            .then(() => mergeAutocompleteFromPraxisKvIntoLocal())
+            .catch(() => {})
+            .finally(() => {
+                useAuthStore.getState().markSessionChecked();
+            });
     }, []);
 
     if (!sessionChecked) {

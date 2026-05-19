@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../../controllers/auth.controller";
 import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
+import { useDesktopChromeMode } from "../components/desktop-chrome";
+import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
 const LS_REMEMBER_FLAG = "medoc-login-remember-me";
@@ -75,6 +77,9 @@ export function LoginPage() {
     const [capsOn, setCapsOn] = useState(false);
     const navigate = useNavigate();
     const [showPw, setShowPw] = useState(false);
+    const desktopChrome = useDesktopChromeMode();
+    const isMacOverlay = desktopChrome === "mac-overlay";
+    const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,7 +87,10 @@ export function LoginPage() {
         setHelperMsg("");
         setLoading(true);
         try {
-            await login(email, passwort);
+            await login(email, passwort, {
+                device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
+                user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+            });
             persistRememberMe(rememberMe, email);
             navigate("/");
         } catch (err) {
@@ -99,9 +107,26 @@ export function LoginPage() {
     };
 
     return (
-        <div className="login-root">
-            <div className="login-art">
-                <div style={{ position: "relative", zIndex: 1 }}>
+        <div className={`login-root${isMacOverlay ? " login-root--mac" : ""}`}>
+            {isMacOverlay ? (
+                <header
+                    className="login-window-chrome"
+                    data-tauri-drag-region
+                    onMouseDown={handleMacWindowDrag}
+                    aria-label="Fenster verschieben"
+                >
+                    <span className="login-window-chrome__hint" aria-hidden>
+                        MeDoc
+                    </span>
+                </header>
+            ) : null}
+            <div className="login-root__panels">
+            <div
+                className={`login-art${isMacOverlay ? " login-art--mac-drag" : ""}`}
+                data-tauri-drag-region={isMacOverlay ? true : undefined}
+                onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
+            >
+                <div className="login-art__content" style={{ position: "relative", zIndex: 1 }}>
                     <div className="row" style={{ gap: 10 }}>
                         <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "grid", placeItems: "center" }}>
                             <PinIcon size={18} />
@@ -125,7 +150,11 @@ export function LoginPage() {
                 </div>
             </div>
 
-            <div className="login-form-wrap">
+            <div
+                className={`login-form-wrap${isMacOverlay ? " login-form-wrap--mac-drag" : ""}`}
+                data-tauri-drag-region={isMacOverlay ? true : undefined}
+                onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
+            >
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
                         <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }} tabIndex={-1}>
@@ -163,10 +192,10 @@ export function LoginPage() {
                             Vergessen? <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>(demnächst)</span>
                         </button>
                     </div>
-                    <div className="input" style={{ background: "#fff", marginBottom: 8 }}>
+                    <div className="input login-password-input-row" style={{ marginBottom: 8 }}>
                         <input
                             id="passwort"
-                            className="input-edit"
+                            className="input-edit login-password-input-row__field"
                             style={{ border: 0, boxShadow: "none", padding: 0 }}
                             type={showPw ? "text" : "password"}
                             value={passwort}
@@ -218,6 +247,7 @@ export function LoginPage() {
                         manuell angelegter Benutzer) — es gibt hier keine fest eingetragenen Demo-Passwörter.
                     </p>
                 )}
+            </div>
             </div>
         </div>
     );

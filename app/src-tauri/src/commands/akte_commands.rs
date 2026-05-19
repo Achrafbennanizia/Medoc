@@ -9,7 +9,8 @@ use crate::domain::entities::zahnbefund::CreateZahnbefund;
 use crate::domain::entities::{Anamnesebogen, Patientenakte, Zahnbefund};
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    akte_anlage_repo, akte_repo, attest_repo, audit_repo, patient_repo, rezept_repo, zahlung_repo,
+    akte_anlage_repo, akte_repo, attest_repo, audit_repo, patient_repo, rezept_repo, termin_repo,
+    zahlung_repo,
 };
 use crate::infrastructure::pdf::{render_akte_blocks, AktePdfBlock, AktePdfTable};
 use serde::Deserialize;
@@ -18,6 +19,22 @@ use tauri::State;
 
 fn default_true() -> bool {
     true
+}
+
+/// Keine klinischen Freitexte/Zahnbezüge an die Rezeption (Need-to-know bei `patient.behandlungen_list_for_zahlung`).
+fn redact_behandlung_for_rezeption(mut b: Behandlung) -> Behandlung {
+    b.beschreibung = None;
+    b.zaehne = None;
+    b.material = None;
+    b.notizen = None;
+    b
+}
+
+fn redact_untersuchung_for_rezeption(mut u: Untersuchung) -> Untersuchung {
+    u.beschwerden = None;
+    u.ergebnisse = None;
+    u.diagnose = None;
+    u
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +91,18 @@ pub struct ExportAktePdfArgs {
     pub patient_id: String,
     #[serde(default)]
     pub sections: AkteExportSections,
+}
+
+/// FA-DOK-08: Entlassungs-Merkblatt / Nachsorge als PDF (kompakte Zusammenfassung).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportDischargeMerkblattPdfArgs {
+    #[serde(alias = "patient_id")]
+    pub patient_id: String,
+    #[serde(default)]
+    pub zusatz_hinweise: Option<String>,
+    #[serde(default)]
+    pub ueberweisung_hinweise: Option<String>,
 }
 
 #[tauri::command]
@@ -172,7 +201,11 @@ pub async fn list_behandlungen(
     )
     .await
     .ok();
-    Ok(rows)
+    let out = match Role::parse(&session.rolle) {
+        Some(Role::Rezeption) => rows.into_iter().map(redact_behandlung_for_rezeption).collect(),
+        _ => rows,
+    };
+    Ok(out)
 }
 
 #[tauri::command]
@@ -197,7 +230,58 @@ pub async fn list_untersuchungen(
     )
     .await
     .ok();
-    Ok(rows)
+    let out = match Role::parse(&session.rolle) {
+        Some(Role::Rezeption) => rows.into_iter().map(redact_untersuchung_for_rezeption).collect(),
+        _ => rows,
+    };
+    Ok(out)
+}
+
+/// FA-LEIST-05: Behandlung zur Abrechnung freigeben (nur ärztliche Akte).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn release_behandlung_for_billing(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    behandlung_id: String,
+) -> Result<Behandlung, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let b = akte_repo::release_behandlung_for_billing(&pool, &behandlung_id, &session.user_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "FREIGABE_ABRECHNUNG",
+        "Behandlung",
+        Some(&behandlung_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(b)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn release_untersuchung_for_billing(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    untersuchung_id: String,
+) -> Result<Untersuchung, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let u =
+        akte_repo::release_untersuchung_for_billing(&pool, &untersuchung_id, &session.user_id)
+            .await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "FREIGABE_ABRECHNUNG",
+        "Untersuchung",
+        Some(&untersuchung_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(u)
 }
 
 #[tauri::command]
@@ -910,6 +994,211 @@ pub async fn export_akte_pdf(
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn export_discharge_merkblatt_pdf(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    args: ExportDischargeMerkblattPdfArgs,
+) -> Result<String, AppError> {
+    use base64::Engine;
+
+    let session = rbac::require(&session_state, "patient.read_medical")?;
+
+    let patient_id = args.patient_id.clone();
+    let patient = patient_repo::find_by_id(&pool, &patient_id)
+        .await?
+        .ok_or(AppError::NotFound("Patient".into()))?;
+    let akte = akte_repo::find_akte_by_patient(&pool, &patient_id)
+        .await?
+        .ok_or(AppError::NotFound("Patientenakte".into()))?;
+
+    let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
+    let mut blocks: Vec<AktePdfBlock> = Vec::new();
+
+    let mut stamm_kv = vec![
+        ("Name".into(), patient.name.clone()),
+        ("Geburtsdatum".into(), patient.geburtsdatum.to_string()),
+    ];
+    if let Some(t) = &patient.telefon {
+        stamm_kv.push(("Telefon".into(), t.clone()));
+    }
+    if let Some(e) = &patient.email {
+        stamm_kv.push(("E-Mail".into(), e.clone()));
+    }
+    blocks.push(AktePdfBlock {
+        title: "Patient — Stammdaten".into(),
+        body_lines: vec![],
+        kv_pairs: stamm_kv,
+        table: None,
+    });
+
+    let mut bh_list = akte_repo::list_behandlungen(&pool, &akte.id).await?;
+    bh_list.sort_by(|a, b| {
+        let da = a.behandlung_datum.as_deref().unwrap_or("0000-01-01");
+        let db = b.behandlung_datum.as_deref().unwrap_or("0000-01-01");
+        db.cmp(da).then_with(|| b.created_at.cmp(&a.created_at))
+    });
+    let latest_bh = bh_list.into_iter().next();
+
+    if let Some(b) = latest_bh {
+        let mut lines: Vec<String> = Vec::new();
+        lines.push(format!("Datum: {}", b.behandlung_datum.clone().unwrap_or_else(|| "(ohne Datum)".into())));
+        lines.push(format!("Art: {}", b.art));
+        if let Some(k) = &b.kategorie {
+            if !k.trim().is_empty() {
+                lines.push(format!("Kategorie: {}", k));
+            }
+        }
+        if let Some(desc) = &b.beschreibung {
+            if !desc.trim().is_empty() {
+                lines.push("Beschreibung:".into());
+                for ln in desc.lines() {
+                    lines.push(if ln.is_empty() { " ".into() } else { ln.to_string() });
+                }
+            }
+        }
+        if let Some(n) = &b.notizen {
+            if !n.trim().is_empty() {
+                lines.push("Notizen:".into());
+                for ln in n.lines() {
+                    lines.push(if ln.is_empty() { " ".into() } else { ln.to_string() });
+                }
+            }
+        }
+        blocks.push(AktePdfBlock::body("Letzte dokumentierte Behandlung", lines));
+    } else {
+        blocks.push(AktePdfBlock::body(
+            "Letzte dokumentierte Behandlung",
+            vec!["(keine Behandlungseinträge)".into()],
+        ));
+    }
+
+    let rezepte = rezept_repo::find_for_patient(&pool, &patient_id).await?;
+    let rz_take: Vec<_> = rezepte.into_iter().take(12).collect();
+    if rz_take.is_empty() {
+        blocks.push(AktePdfBlock::body(
+            "Medikation (Rezepte)",
+            vec!["(keine Rezepte erfasst)".into()],
+        ));
+    } else {
+        let tbl = AktePdfTable {
+            headers: vec![
+                "Ausgestellt".into(),
+                "Medikament".into(),
+                "Dosierung".into(),
+                "Dauer".into(),
+                "Hinweise".into(),
+            ],
+            rows: rz_take
+                .iter()
+                .map(|r| {
+                    vec![
+                        r.ausgestellt_am.to_string(),
+                        r.medikament.clone(),
+                        r.dosierung.clone(),
+                        r.dauer.clone(),
+                        r.hinweise.as_deref().unwrap_or("-").to_string(),
+                    ]
+                })
+                .collect(),
+        };
+        blocks.push(AktePdfBlock {
+            title: "Medikation (Rezepte, Auszug)".into(),
+            body_lines: vec![],
+            kv_pairs: vec![],
+            table: Some(tbl),
+        });
+    }
+
+    match termin_repo::find_next_for_patient(&pool, &patient_id).await? {
+        Some(t) => {
+            blocks.push(AktePdfBlock::body(
+                "Nächster Termin",
+                vec![
+                    format!("Datum: {} {}", t.datum, t.uhrzeit),
+                    format!("Art: {}", t.art),
+                    format!(
+                        "Status: {}",
+                        t.status
+                    ),
+                    t.notizen
+                        .filter(|s| !s.trim().is_empty())
+                        .map(|s| format!("Notizen: {}", s))
+                        .unwrap_or_else(|| "(keine Terminnotizen)".into()),
+                ],
+            ));
+        }
+        None => {
+            blocks.push(AktePdfBlock::body(
+                "Nächster Termin",
+                vec!["(kein zukünftiger Termin gebucht)".into()],
+            ));
+        }
+    }
+
+    if let Some(txt) = args
+        .ueberweisung_hinweise
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        let mut lines: Vec<String> = Vec::new();
+        for ln in txt.lines() {
+            lines.push(if ln.is_empty() {
+                " ".into()
+            } else {
+                ln.to_string()
+            });
+        }
+        blocks.push(AktePdfBlock::body("Überweisung / weiterführende Versorgung", lines));
+    }
+
+    if let Some(txt) = args
+        .zusatz_hinweise
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        let mut lines: Vec<String> = Vec::new();
+        for ln in txt.lines() {
+            lines.push(if ln.is_empty() {
+                " ".into()
+            } else {
+                ln.to_string()
+            });
+        }
+        blocks.push(AktePdfBlock::body("Zusätzliche Hinweise / Nachsorge", lines));
+    }
+
+    blocks.push(AktePdfBlock::body(
+        "Hinweis",
+        vec![
+            "Dieses Merkblatt fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung.".into(),
+            "Bitte bringen Sie dieses Blatt zu Folgeterminen mit, wenn es Ihnen ausgehändigt wurde.".into(),
+        ],
+    ));
+
+    let bytes = render_akte_blocks(
+        "Entlassungs-Merkblatt / Nachsorge",
+        &generated,
+        &format!("Entlassungs-Merkblatt — {}", patient.name),
+        &blocks,
+    )?;
+
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "EXPORT_PDF",
+        "EntlassungsMerkblatt",
+        Some(&patient_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
 #[cfg(test)]
 mod export_akte_pdf_args_tests {
     use super::ExportAktePdfArgs;
@@ -939,5 +1228,19 @@ mod export_akte_pdf_args_tests {
         assert!(a.sections.patient);
         assert!(!a.sections.zahlungen);
         assert!(a.sections.akte_core);
+    }
+
+    #[test]
+    fn discharge_args_deserializes_camel_case() {
+        use super::ExportDischargeMerkblattPdfArgs;
+        let j = serde_json::json!({
+            "patientId": "p1",
+            "zusatzHinweise": "Nachsorge",
+            "ueberweisungHinweise": "KHK"
+        });
+        let a: ExportDischargeMerkblattPdfArgs = serde_json::from_value(j).unwrap();
+        assert_eq!(a.patient_id, "p1");
+        assert_eq!(a.zusatz_hinweise.as_deref(), Some("Nachsorge"));
+        assert_eq!(a.ueberweisung_hinweise.as_deref(), Some("KHK"));
     }
 }

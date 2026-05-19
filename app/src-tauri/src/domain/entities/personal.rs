@@ -46,3 +46,13 @@ pub struct UpdatePersonal {
     pub telefon: Option<String>,
     pub verfuegbar: Option<bool>,
 }
+
+/// Selbstpflege (Einstellungen » Konto) — keine Rolle / kein `verfuegbar`.
+#[derive(Debug, Deserialize)]
+pub struct UpdateOwnProfile {
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub taetigkeitsbereich: Option<String>,
+    pub fachrichtung: Option<String>,
+    pub telefon: Option<String>,
+}

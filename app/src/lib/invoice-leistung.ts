@@ -1,6 +1,12 @@
 import type { Behandlung, Untersuchung, Zahlung } from "@/models/types";
 import { formatCurrency } from "@/lib/utils";
 import {
+    DEFAULT_PRAXIS_HEADER_PRIVACY,
+    loadPraxisHeaderPrivacy,
+    maskPraxisExportToken,
+    type PraxisHeaderPrivacyV1,
+} from "@/lib/praxis-header-privacy";
+import {
     roundMoney2,
     sumZahlungenForBehandlung,
     sumZahlungenForUntersuchung,
@@ -8,7 +14,10 @@ import {
 } from "@/lib/zahlung-buchung";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 
+import { getAppKv, setAppKv } from "@/controllers/app-kv.controller";
+
 const LS_INVOICE_PRAXIS = "medoc-invoice-praxis-v1";
+const INVOICE_PRAXIS_KV_KEY = "invoice.praxis.v1" as const;
 
 export type InvoicePraxis = {
     name: string;
@@ -31,30 +40,40 @@ const DEFAULTS: InvoicePraxis = { name: "Zahnarztpraxis", addr: "Musterstraße 1
 /**
  * Zeilen für den Praxis-Kopf im PDF (`practice_address`): Anschrift, dann Kontakt und Pflichtangaben.
  * Reihenfolge orientiert sich an typischen Rechnungs-/Briefköpfen.
+ *
+ * @param show — pro Feld `true` = Klartext, `false` = maskiert (wie in Einstellungen › Praxis).
  */
-export function buildInvoiceHeaderAddressLines(p: InvoicePraxis): string[] {
+export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHeaderPrivacyV1 = DEFAULT_PRAXIS_HEADER_PRIVACY): string[] {
     const lines: string[] = [];
     for (const raw of (p.addr ?? "").split(/\r?\n/)) {
         const t = raw.trim();
         if (t) lines.push(t);
     }
     const tel = (p.telefon ?? "").trim();
-    if (tel) lines.push(`Tel. ${tel}`);
+    if (tel) lines.push(`Tel. ${show.tel ? tel : maskPraxisExportToken(tel)}`);
     const fax = (p.fax ?? "").trim();
-    if (fax) lines.push(`Fax ${fax}`);
+    if (fax) lines.push(`Fax ${show.fax ? fax : maskPraxisExportToken(fax)}`);
     const em = (p.email ?? "").trim();
-    if (em) lines.push(`E-Mail ${em}`);
+    if (em) lines.push(`E-Mail ${show.email ? em : maskPraxisExportToken(em)}`);
     const web = (p.web ?? "").trim();
-    if (web) lines.push(web.replace(/^https?:\/\//i, ""));
+    if (web) {
+        const w = web.replace(/^https?:\/\//i, "");
+        lines.push(show.web ? w : maskPraxisExportToken(w));
+    }
     const kv = (p.kv_nummer ?? "").trim();
-    if (kv) lines.push(`KV- / Betriebsnr. ${kv}`);
+    if (kv) lines.push(`KV- / Betriebsnr. ${show.kv ? kv : maskPraxisExportToken(kv)}`);
     const ust = (p.ust_id ?? "").trim();
-    if (ust) lines.push(`USt-IdNr. ${ust}`);
+    if (ust) lines.push(`USt-IdNr. ${show.ust ? ust : maskPraxisExportToken(ust)}`);
     const st = (p.steuernummer ?? "").trim();
-    if (st) lines.push(`St.-Nr. ${st}`);
+    if (st) lines.push(`St.-Nr. ${show.steuer ? st : maskPraxisExportToken(st)}`);
     const oz = (p.oeffnungszeiten ?? "").trim();
-    if (oz) lines.push(`Öffn.: ${oz}`);
+    if (oz) lines.push(`Öffn.: ${show.oz ? oz : maskPraxisExportToken(oz)}`);
     return lines;
+}
+
+/** Rechnungs-PDF und Speichern: aktuelle Privatsphäre-Einstellung aus dem Gerät. */
+export function buildInvoiceHeaderAddressLinesForExport(p: InvoicePraxis): string[] {
+    return buildInvoiceHeaderAddressLines(p, loadPraxisHeaderPrivacy());
 }
 
 export type InvoiceNumberOpts = {
@@ -160,6 +179,69 @@ export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
     put("steuernummer", p.steuernummer);
     put("ust_id", p.ust_id);
     localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(blob));
+}
+
+/** Praxis-Rechnungskopf zusätzlich in SQLite `app_kv` (praxisweit, LAN-synchronisierbar). */
+export async function syncInvoicePraxisToAppKv(p: InvoicePraxis): Promise<void> {
+    const blob: Record<string, string> = {
+        name: p.name.trim() || DEFAULTS.name,
+        addr: p.addr.trim() || DEFAULTS.addr,
+    };
+    const put = (key: string, v: string | undefined) => {
+        const t = (v ?? "").trim();
+        if (t) blob[key] = t;
+    };
+    put("kv_nummer", p.kv_nummer);
+    put("oeffnungszeiten", p.oeffnungszeiten);
+    put("telefon", p.telefon);
+    put("fax", p.fax);
+    put("email", p.email);
+    put("web", p.web);
+    put("steuernummer", p.steuernummer);
+    put("ust_id", p.ust_id);
+    await setAppKv(INVOICE_PRAXIS_KV_KEY, JSON.stringify(blob));
+}
+
+/** Lädt `invoice.praxis.v1` aus der DB und spiegelt nach localStorage (Desktop). */
+export async function hydrateInvoicePraxisFromAppKv(): Promise<InvoicePraxis | null> {
+    try {
+        const raw = await getAppKv(INVOICE_PRAXIS_KV_KEY);
+        if (!raw) return null;
+        const j = JSON.parse(raw) as {
+            name?: string;
+            addr?: string;
+            kv_nummer?: string;
+            oeffnungszeiten?: string;
+            telefon?: string;
+            fax?: string;
+            email?: string;
+            web?: string;
+            steuernummer?: string;
+            ust_id?: string;
+        };
+        const name = (j.name ?? "").trim() || DEFAULTS.name;
+        const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
+        const opt = (s: string | undefined) => {
+            const t = (s ?? "").trim();
+            return t || undefined;
+        };
+        const merged: InvoicePraxis = {
+            name,
+            addr,
+            kv_nummer: opt(j.kv_nummer),
+            oeffnungszeiten: opt(j.oeffnungszeiten),
+            telefon: opt(j.telefon),
+            fax: opt(j.fax),
+            email: opt(j.email),
+            web: opt(j.web),
+            steuernummer: opt(j.steuernummer),
+            ust_id: opt(j.ust_id),
+        };
+        saveInvoicePraxisToStorage(merged);
+        return merged;
+    } catch {
+        return null;
+    }
 }
 
 /** Tagesbericht / PDF-Nr. — längerer Zufallsteil als früher (Kollisionen seltener). */

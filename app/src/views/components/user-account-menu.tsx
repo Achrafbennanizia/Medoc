@@ -35,7 +35,7 @@ export function UserAccountMenuDropdown({
             role="menu"
         >
             <div className="menu-header">
-                <div className="av" style={{ width: 34, height: 34, fontSize: 12, background: "linear-gradient(135deg,#B6E7DA,#0EA07E)" }}>{initials}</div>
+                <div className="av av--accent" style={{ width: 34, height: 34, fontSize: 12 }}>{initials}</div>
                 <div style={{ minWidth: 0 }}>
                     <p className="menu-title">{name}</p>
                     <p className="menu-subtitle">{emailFallback}</p>

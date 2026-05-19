@@ -13,7 +13,7 @@ import {
     sumInvoiceEur,
     type SavedInvoice,
 } from "@/controllers/rechnung-document.controller";
-import { getInvoicePraxisFromStorage, buildInvoiceHeaderAddressLines, lineFromLeistungWahl } from "@/lib/invoice-leistung";
+import { getInvoicePraxisFromStorage, buildInvoiceHeaderAddressLinesForExport, lineFromLeistungWahl } from "@/lib/invoice-leistung";
 import { buildZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { openExportPreview } from "@/models/store/export-preview-store";
@@ -223,7 +223,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                 ? p.adresse.split("\n").map((s) => s.trim()).filter(Boolean)
                 : ["–"],
             practice_name: praxis.name.trim(),
-            practice_address: buildInvoiceHeaderAddressLines(praxis),
+            practice_address: buildInvoiceHeaderAddressLinesForExport(praxis),
             lines: pdfLines.map((l) => ({ description: l.description, amount_cents: l.amount_cents })),
             note: note.trim() || null,
         };

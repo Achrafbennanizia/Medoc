@@ -8,7 +8,10 @@ export type AppKvKey =
     | "praxis.preferences-termin.v1"
     | "export.path.v1"
     | "export.formats.v1"
-    | "praxis.logo.v1";
+    | "praxis.logo.v1"
+    | "invoice.praxis.v1"
+    /** LAN-Host Konfiguration (gleicher Schlüssel wie Backend `APP_KV_KEY`). */
+    | "lan.server.config.v1";
 
 export const getAppKv = (key: AppKvKey) =>
     tauriInvoke<string | null>("get_app_kv", { key });

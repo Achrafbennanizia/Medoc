@@ -10,12 +10,22 @@ pub struct LoginRequest {
     pub passwort: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionOverride {
+    pub action: String,
+    pub effect: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub user_id: String,
     pub name: String,
     pub email: String,
     pub rolle: String,
+    #[serde(default)]
+    pub permission_overrides: Vec<PermissionOverride>,
+    #[serde(default)]
+    pub device_session_id: Option<String>,
 }
 
 pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Session, AppError> {
@@ -35,5 +45,7 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         name: user.name,
         email: user.email,
         rolle: user.rolle,
+        permission_overrides: Vec::new(),
+        device_session_id: None,
     })
 }

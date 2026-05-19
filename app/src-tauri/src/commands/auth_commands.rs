@@ -1,6 +1,7 @@
+use crate::application::rbac;
 use crate::application::auth_service::{self, LoginRequest, Session};
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::{audit_repo, device_session_repo, personal_permission_repo};
 use crate::infrastructure::logging::brute_force::{BruteForceTracker, CheckResult};
 use crate::log_security;
 use sqlx::SqlitePool;
@@ -49,6 +50,8 @@ pub async fn login(
     brute_force: State<'_, BruteForceState>,
     email: String,
     passwort: String,
+    device_label: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<Session, AppError> {
     // Use email as the brute-force key for desktop (no real client IP).
     match brute_force.0.check(&email) {
@@ -67,7 +70,7 @@ pub async fn login(
         email: email.clone(),
         passwort,
     };
-    let session = match auth_service::authenticate(&pool, &req).await {
+    let mut session = match auth_service::authenticate(&pool, &req).await {
         Ok(s) => s,
         Err(e) => {
             let locked = brute_force.0.record_failure(&email);
@@ -93,6 +96,9 @@ pub async fn login(
         email = %redact_login_identifier(&session.email),
     );
 
+    session.permission_overrides =
+        personal_permission_repo::list_for_personal(&pool, &session.user_id).await?;
+
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -104,20 +110,48 @@ pub async fn login(
     .await
     .ok();
 
+    let ds_id = uuid::Uuid::new_v4().to_string();
+    let label = device_label
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "MeDoc-Desktop".into());
+    device_session_repo::insert(
+        &pool,
+        &ds_id,
+        &session.user_id,
+        &label,
+        user_agent.as_deref(),
+    )
+    .await?;
+
     let result = Session {
         user_id: session.user_id.clone(),
         name: session.name.clone(),
         email: session.email.clone(),
         rolle: session.rolle.clone(),
+        permission_overrides: session.permission_overrides.clone(),
+        device_session_id: Some(ds_id),
     };
 
-    *session_state.lock_session() = Some((session, Instant::now()));
+    *session_state.lock_session() = Some((result.clone(), Instant::now()));
     Ok(result)
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state))]
-pub async fn logout(session_state: State<'_, SessionState>) -> Result<(), AppError> {
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn logout(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<(), AppError> {
+    let device_id = {
+        let guard = session_state.lock_session();
+        guard
+            .as_ref()
+            .and_then(|(s, _)| s.device_session_id.clone())
+    };
+    if let Some(ref id) = device_id {
+        let _ = device_session_repo::end(&pool, id).await;
+    }
     let mut guard = session_state.lock_session();
     if let Some((s, _)) = guard.as_ref() {
         log_security!(info, event = "LOGOUT", user_id = %s.user_id);
@@ -127,29 +161,80 @@ pub async fn logout(session_state: State<'_, SessionState>) -> Result<(), AppErr
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "debug", skip(session_state))]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
 pub async fn get_session(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Option<Session>, AppError> {
-    let mut guard = session_state.lock_session();
-    if let Some((sess, last)) = guard.as_ref() {
-        if last.elapsed().as_secs() > IDLE_TIMEOUT_SECS {
-            log_security!(info, event = "SESSION_EXPIRED", user_id = %sess.user_id);
-            *guard = None;
-            return Ok(None);
+    let expired_device_id = {
+        let mut guard = session_state.lock_session();
+        match guard.as_ref() {
+            Some((sess, last)) if last.elapsed().as_secs() > IDLE_TIMEOUT_SECS => {
+                log_security!(info, event = "SESSION_EXPIRED", user_id = %sess.user_id);
+                let id = sess.device_session_id.clone();
+                *guard = None;
+                id
+            }
+            _ => None,
         }
+    };
+    if let Some(ref id) = expired_device_id {
+        let _ = device_session_repo::end(&pool, id).await;
+        return Ok(None);
     }
+    let guard = session_state.lock_session();
     Ok(guard.as_ref().map(|(s, _)| s.clone()))
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "debug", skip(session_state))]
-pub async fn touch_session(session_state: State<'_, SessionState>) -> Result<bool, AppError> {
-    let mut guard = session_state.lock_session();
-    if let Some((_, last)) = guard.as_mut() {
-        *last = Instant::now();
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn touch_session(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<bool, AppError> {
+    let device_id = {
+        let mut guard = session_state.lock_session();
+        if let Some((s, last)) = guard.as_mut() {
+            *last = Instant::now();
+            s.device_session_id.clone()
+        } else {
+            None
+        }
+    };
+    if let Some(ref id) = device_id {
+        device_session_repo::touch(&pool, id).await?;
         Ok(true)
     } else {
         Ok(false)
     }
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn list_my_device_sessions(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<device_session_repo::DeviceSessionRow>, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    device_session_repo::list_active_for_user(
+        &pool,
+        &session.user_id,
+        session.device_session_id.as_deref(),
+    )
+    .await
+}
+
+/// Beendet alle **anderen** Geräte-Sitzungen dieses Benutzers (nicht die aktuelle).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn revoke_my_other_device_sessions(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<u64, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let keep = session
+        .device_session_id
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("Keine Geräte-Sitzungs-ID".into()))?;
+    device_session_repo::end_other_than(&pool, &session.user_id, keep).await
 }

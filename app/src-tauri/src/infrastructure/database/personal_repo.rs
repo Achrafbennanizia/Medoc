@@ -87,6 +87,22 @@ pub async fn update(
     };
     let verfuegbar = data.verfuegbar.unwrap_or(existing.verfuegbar);
 
+    let taetigkeitsbereich = match data.taetigkeitsbereich.as_deref() {
+        None => existing.taetigkeitsbereich.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+    let fachrichtung = match data.fachrichtung.as_deref() {
+        None => existing.fachrichtung.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+    let telefon = match data.telefon.as_deref() {
+        None => existing.telefon.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+
     sqlx::query(
         "UPDATE personal SET name = ?1, email = ?2, rolle = ?3, taetigkeitsbereich = ?4,
          fachrichtung = ?5, telefon = ?6, verfuegbar = ?7, updated_at = CURRENT_TIMESTAMP
@@ -95,17 +111,9 @@ pub async fn update(
     .bind(name)
     .bind(email)
     .bind(&rolle)
-    .bind(
-        data.taetigkeitsbereich
-            .as_deref()
-            .or(existing.taetigkeitsbereich.as_deref()),
-    )
-    .bind(
-        data.fachrichtung
-            .as_deref()
-            .or(existing.fachrichtung.as_deref()),
-    )
-    .bind(data.telefon.as_deref().or(existing.telefon.as_deref()))
+    .bind(taetigkeitsbereich)
+    .bind(fachrichtung)
+    .bind(telefon)
     .bind(verfuegbar)
     .bind(id)
     .execute(pool)

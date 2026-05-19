@@ -56,15 +56,49 @@ pub struct UpdateInfo {
     pub channel: String,
 }
 
-/// Stub: in production this would query an HTTPS update server with a signed
-/// manifest. For now returns "no update available" but exercises the logging
-/// path so the contract is in place.
+/// Ruft optional das **Hersteller-Portal** (`/v1/updates/manifest`) auf — sonst lokaler Stub.
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state))]
-pub fn check_for_updates(session_state: State<'_, SessionState>) -> Result<UpdateInfo, AppError> {
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn check_for_updates(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<UpdateInfo, AppError> {
     rbac::require_authenticated(&session_state)?;
     let current = env!("CARGO_PKG_VERSION").to_string();
     log_system!(info, event = "UPDATE_CHECK", current_version = %current);
+
+    let cfg = crate::infrastructure::company_portal::config::load_company_portal_config(&pool).await;
+    if let (Some(_base), true) = (
+        crate::infrastructure::company_portal::config::effective_base_url(&cfg),
+        !crate::infrastructure::company_portal::config::effective_api_key(&cfg).is_empty()
+            && !cfg.practice_slug.trim().is_empty(),
+    ) {
+        if let Ok(m) =
+            crate::infrastructure::company_portal::fetch_update_manifest(&cfg, &current).await
+        {
+            let latest = m
+                .get("latest_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&current)
+                .to_string();
+            let update_available = m
+                .get("update_available")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let channel = m
+                .get("channel")
+                .and_then(|v| v.as_str())
+                .unwrap_or("stable")
+                .to_string();
+            return Ok(UpdateInfo {
+                current_version: current.clone(),
+                latest_version: latest,
+                update_available,
+                channel,
+            });
+        }
+    }
+
     Ok(UpdateInfo {
         current_version: current.clone(),
         latest_version: current,

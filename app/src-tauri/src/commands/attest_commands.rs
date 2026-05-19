@@ -15,7 +15,10 @@ pub async fn list_atteste(
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Vec<Attest>, AppError> {
-    let session = rbac::require(&session_state, "patient.read_medical")?;
+    let session = rbac::require_one_of(
+        &session_state,
+        &["patient.read_medical", "patient.read_documents"],
+    )?;
     let a = attest_repo::find_for_patient(&pool, &patient_id).await?;
     audit_repo::create(
         &pool,

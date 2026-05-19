@@ -40,11 +40,17 @@ export type FeedbackKategorie = (typeof FEEDBACK_KATEGORIE_VALUES)[number];
 export const FEEDBACK_STATUS_VALUES = ["OFFEN", "BEARBEITUNG", "ERLEDIGT"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUS_VALUES)[number];
 
+/** FA-PERS-07 — granular capability overrides (must match backend `PermissionOverride`). */
+export type PermissionOverride = { action: string; effect: "ALLOW" | "DENY" };
+
 export interface Session {
     user_id: string;
     name: string;
     email: string;
     rolle: Rolle;
+    permission_overrides?: PermissionOverride[];
+    /** Desktop/Browser-Gerätesitzung (SQLite `device_session`). */
+    device_session_id?: string | null;
 }
 
 /** Persisted in SQLite `in_app_notification` (Benachrichtigungen für eingeloggtes Personal). */
@@ -138,6 +144,9 @@ export interface Untersuchung {
     diagnose: string | null;
     untersuchungsnummer?: string | null;
     created_at: string;
+    /** FA-LEIST-05 */
+    freigegeben_von_arzt_id?: string | null;
+    freigegeben_am?: string | null;
 }
 
 export interface Behandlung {
@@ -157,6 +166,9 @@ export interface Behandlung {
     gesamtkosten?: number | null;
     termin_erforderlich?: number | null;
     behandlung_datum?: string | null;
+    /** FA-LEIST-05 */
+    freigegeben_von_arzt_id?: string | null;
+    freigegeben_am?: string | null;
 }
 
 /** Verwaltung: vordefinierte Behandlungsleistungen für Akten-Formulare (`behandlungs_katalog`). */
