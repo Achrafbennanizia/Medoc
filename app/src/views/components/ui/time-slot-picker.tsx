@@ -50,7 +50,7 @@ export function TimeSlotPicker({
                             fontSize: 13,
                             fontWeight: 600,
                             border: active ? "2px solid var(--accent)" : "1px solid var(--line)",
-                            background: active ? "var(--accent-soft)" : busy ? "rgba(0,0,0,0.04)" : "#fff",
+                            background: active ? "var(--accent-soft)" : busy ? "rgba(0,0,0,0.04)" : "var(--bg-elev)",
                             color: busy ? "var(--fg-4)" : "var(--fg)",
                             cursor: busy ? "not-allowed" : "pointer",
                         }}

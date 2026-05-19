@@ -738,7 +738,14 @@ export function PersonalArbeitsplanPage() {
                     <div className="arbeitsplan-toolbar arbeitsplan-toolbar--slim" style={{ marginTop: 0 }}>
                         <div className="arbeitsplan-seg" role="tablist" aria-label="Ansicht">
                             {(["day", "week", "month"] as const).map((k) => (
-                                <button key={k} type="button" role="tab" className={view === k ? "is-active" : undefined} onClick={() => setView(k)}>
+                                <button
+                                    key={k}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={view === k}
+                                    className={view === k ? "is-active" : undefined}
+                                    onClick={() => setView(k)}
+                                >
                                     {k === "day" ? "Tag" : k === "week" ? "Woche" : "Monat"}
                                 </button>
                             ))}

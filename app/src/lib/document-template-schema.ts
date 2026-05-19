@@ -1,7 +1,16 @@
 /**
  * Typed document template structure (v1) — edited in UI, persisted as JSON, consumed by Rust PDF (no raw HTML).
  */
-export type PraxisFieldKey = "name" | "address" | "phone" | "email" | "kv" | "tax" | "hours";
+export type PraxisFieldKey =
+    | "name"
+    | "address"
+    | "phone"
+    | "fax"
+    | "web"
+    | "email"
+    | "kv"
+    | "tax"
+    | "hours";
 
 export type TextAlignment = "left" | "center" | "right";
 
@@ -62,6 +71,8 @@ export const PRAXIS_FIELD_OPTIONS: { id: PraxisFieldKey; label: string }[] = [
     { id: "name", label: "Name" },
     { id: "address", label: "Adresse" },
     { id: "phone", label: "Telefon" },
+    { id: "fax", label: "Fax" },
+    { id: "web", label: "Web" },
     { id: "email", label: "E-Mail" },
     { id: "kv", label: "KV-Nr." },
     { id: "tax", label: "Steuer-Nr." },

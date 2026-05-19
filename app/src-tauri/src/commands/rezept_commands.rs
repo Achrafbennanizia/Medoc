@@ -15,7 +15,10 @@ pub async fn list_rezepte(
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Vec<Rezept>, AppError> {
-    let session = rbac::require(&session_state, "patient.read_medical")?;
+    let session = rbac::require_one_of(
+        &session_state,
+        &["patient.read_medical", "patient.read_documents"],
+    )?;
     let r = rezept_repo::find_for_patient(&pool, &patient_id).await?;
     audit_repo::create(
         &pool,

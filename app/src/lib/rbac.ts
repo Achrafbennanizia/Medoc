@@ -1,7 +1,11 @@
 /**
  * Client-side RBAC for navigation and UI gating.
- * Must stay aligned with `app/src-tauri/src/application/rbac.rs` (`allowed` matrix).
+ * Must stay aligned with `app/src-tauri/src/application/rbac.rs` (`allowed` / `effective_allowed`).
  */
+
+import type { PermissionOverride } from "../models/types";
+
+export type { PermissionOverride };
 
 export type Role = "ARZT" | "REZEPTION" | "STEUERBERATER" | "PHARMABERATER";
 
@@ -12,12 +16,15 @@ export function parseRole(s: string | undefined): Role | null {
     return null;
 }
 
-/** Mirrors `application::rbac::allowed` in Rust (keep lists identical). */
-export function allowed(action: string, role: Role): boolean {
+/** Rollenmatrix ohne Overrides — wie `rbac::allowed` in Rust. */
+function baseAllowed(action: string, role: Role): boolean {
     switch (action) {
         case "patient.read_medical":
         case "patient.write_medical":
             return role === "ARZT";
+        /** Rezept-/Attest-Liste Druck / Frontdesk — mirrors Rust `patient.read_documents`. */
+        case "patient.read_documents":
+            return role === "ARZT" || role === "REZEPTION";
         /** List Behandlung/Untersuchung rows for payment booking — mirrors Rust `patient.behandlungen_list_for_zahlung`. */
         case "patient.behandlungen_list_for_zahlung":
             return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
@@ -83,6 +90,19 @@ export function allowed(action: string, role: Role): boolean {
     }
 }
 
+/** Mirrors Rust `effective_allowed` (FA-PERS-07): Overrides schlagen die Rollenmatrix. */
+export function allowed(
+    action: string,
+    role: Role,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    if (overrides != null && overrides.length > 0) {
+        const hit = overrides.find((o) => o.action === action);
+        if (hit) return hit.effect === "ALLOW";
+    }
+    return baseAllowed(action, role);
+}
+
 export type NavVisibility =
     | { kind: "action"; action: string }
     | { kind: "allOf"; actions: readonly string[] }
@@ -95,8 +115,12 @@ export type NavItemDefinition = {
     visibility: NavVisibility;
 };
 
-export function navItemVisible(rolle: string | undefined, item: NavItemDefinition): boolean {
-    return navVisibilitySatisfied(item.visibility, rolle);
+export function navItemVisible(
+    rolle: string | undefined,
+    item: NavItemDefinition,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    return navVisibilitySatisfied(item.visibility, rolle, overrides);
 }
 
 /**
@@ -111,6 +135,8 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     },
     { to: "/termine", labelKey: "nav.termine", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", visibility: { kind: "action", action: "patient.read" } },
+    { to: "/akten/zu-validieren", labelKey: "nav.akten_zu_validieren", visibility: { kind: "action", action: "patient.read_medical" } },
+    { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "action", action: "finanzen.read" } },
@@ -138,6 +164,8 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "patienten/:id": { kind: "action", action: "patient.read" },
     "patienten/:id/rezept/neu": { kind: "action", action: "patient.write_medical" },
     "patienten/:id/rezept/:rezeptId": { kind: "action", action: "patient.write_medical" },
+    "akten/zu-validieren": { kind: "action", action: "patient.read_medical" },
+    tickets: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
     finanzen: { kind: "action", action: "finanzen.read" },
     "finanzen/neu": { kind: "action", action: "finanzen.write" },
     bestellungen: { kind: "action", action: "finanzen.read" },
@@ -188,17 +216,29 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     },
 };
 
-export function navVisibilitySatisfied(visibility: NavVisibility, rolle: string | undefined): boolean {
+export function navVisibilitySatisfied(
+    visibility: NavVisibility,
+    rolle: string | undefined,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
     const role = parseRole(rolle);
     if (!role) return false;
-    if (visibility.kind === "action") return allowed(visibility.action, role);
-    if (visibility.kind === "allOf") return visibility.actions.every((a) => allowed(a, role));
-    if (visibility.kind === "anyOf") return visibility.actions.some((a) => allowed(a, role));
+    if (visibility.kind === "action") return allowed(visibility.action, role, overrides);
+    if (visibility.kind === "allOf") {
+        return visibility.actions.every((a) => allowed(a, role, overrides));
+    }
+    if (visibility.kind === "anyOf") {
+        return visibility.actions.some((a) => allowed(a, role, overrides));
+    }
     return visibility.roles.includes(role);
 }
 
-export function routeChildPathAllowed(routePath: string, rolle: string | undefined): boolean {
+export function routeChildPathAllowed(
+    routePath: string,
+    rolle: string | undefined,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
     const visibility = ROUTE_VISIBILITY[routePath];
     if (!visibility) return false;
-    return navVisibilitySatisfied(visibility, rolle);
+    return navVisibilitySatisfied(visibility, rolle, overrides);
 }

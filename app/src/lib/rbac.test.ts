@@ -167,6 +167,12 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
         expect(allowed("patient.behandlungen_list_for_zahlung", "STEUERBERATER")).toBe(true);
         expect(allowed("patient.behandlungen_list_for_zahlung", "PHARMABERATER")).toBe(false);
     });
+    it("patient.read_documents matches Rust (ARZT + REZEPTION)", () => {
+        expect(allowed("patient.read_documents", "ARZT")).toBe(true);
+        expect(allowed("patient.read_documents", "REZEPTION")).toBe(true);
+        expect(allowed("patient.read_documents", "STEUERBERATER")).toBe(false);
+        expect(allowed("patient.read_documents", "PHARMABERATER")).toBe(false);
+    });
 });
 
 describe("routeChildPathAllowed", () => {
@@ -211,6 +217,17 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("bilanz/neu", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("bilanz/neu", "STEUERBERATER")).toBe(true);
         expect(routeChildPathAllowed("bilanz/neu", "REZEPTION")).toBe(false);
+    });
+    it("allows akten zu validieren only for Arzt (patient.read_medical)", () => {
+        expect(routeChildPathAllowed("akten/zu-validieren", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("akten/zu-validieren", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("akten/zu-validieren", "STEUERBERATER")).toBe(false);
+    });
+    it("allows tickets for Arzt and Rezeption only", () => {
+        expect(routeChildPathAllowed("tickets", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("tickets", "STEUERBERATER")).toBe(false);
+        expect(routeChildPathAllowed("tickets", "PHARMABERATER")).toBe(false);
     });
 });
 

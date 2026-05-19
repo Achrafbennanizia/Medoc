@@ -19,6 +19,20 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "termine-neu", routePath: "termine/neu", href: "/termine/neu", titleDe: "Neuer Termin", keywords: ["anlegen", "termin neu", "buchung"] },
     { id: "patienten", routePath: "patienten", href: "/patienten", titleDe: "Patientenakten", keywords: ["akte", "patient", "patientenakte", "stammdaten"] },
     { id: "patienten-neu", routePath: "patienten/neu", href: "/patienten/neu", titleDe: "Neuer Patient", keywords: ["anlegen", "neu"] },
+    {
+        id: "akten-zu-validieren",
+        routePath: "akten/zu-validieren",
+        href: "/akten/zu-validieren",
+        titleDe: "Akten zu validieren",
+        keywords: ["validierung", "akte", "arzt", "entwurf", "fa-akte-15"],
+    },
+    {
+        id: "praxis-tickets",
+        routePath: "tickets",
+        href: "/tickets",
+        titleDe: "Praxis-Tickets",
+        keywords: ["ticket", "rezeption", "arzt", "nachricht", "fa-pers-08"],
+    },
     { id: "finanzen", routePath: "finanzen", href: "/finanzen", titleDe: "Finanzen", keywords: ["geld", "kasse"] },
     {
         id: "finanzen-neu",
@@ -134,6 +148,9 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     { id: "migration", routePath: "migration", href: "/migration", titleDe: "Datenmigration (Assistent)", keywords: ["import", "umzug", "wizard"] },
 ];
 
-export function filterCommandsForRole(rolle: string | undefined): PaletteCommand[] {
-    return PALETTE_COMMANDS.filter((c) => routeChildPathAllowed(c.routePath, rolle));
+export function filterCommandsForRole(
+    rolle: string | undefined,
+    overrides?: import("@/models/types").PermissionOverride[] | null,
+): PaletteCommand[] {
+    return PALETTE_COMMANDS.filter((c) => routeChildPathAllowed(c.routePath, rolle, overrides));
 }

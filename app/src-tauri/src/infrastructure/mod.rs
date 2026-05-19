@@ -1,10 +1,13 @@
 pub mod app_menu;
 pub mod backup;
+pub mod company_host;
+pub mod company_portal;
 pub mod crypto;
 pub mod database;
 pub mod devices;
 pub mod dsfa;
 pub mod dsgvo;
+pub mod lan_server;
 pub mod license;
 pub mod logging;
 pub mod migration;

@@ -10,6 +10,9 @@ pub struct Untersuchung {
     pub diagnose: Option<String>,
     pub untersuchungsnummer: Option<String>,
     pub created_at: NaiveDateTime,
+    /// FA-LEIST-05: vor Buchung einer Zahlung mit `untersuchung_id` gesetzt werden.
+    pub freigegeben_von_arzt_id: Option<String>,
+    pub freigegeben_am: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +43,9 @@ pub struct Behandlung {
     pub gesamtkosten: Option<f64>,
     pub termin_erforderlich: Option<i64>,
     pub behandlung_datum: Option<String>,
+    /// FA-LEIST-05: vor Buchung einer Zahlung mit `behandlung_id` gesetzt werden.
+    pub freigegeben_von_arzt_id: Option<String>,
+    pub freigegeben_am: Option<String>,
 }
 
 /// Vollständiges Update einer bestehenden Behandlungszeile (Aktenverlauf).

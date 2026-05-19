@@ -1,4 +1,5 @@
-use medoc_lib::application::rbac::{allowed, Role};
+use medoc_lib::application::auth_service::PermissionOverride;
+use medoc_lib::application::rbac::{allowed, effective_allowed, Role};
 
 #[test]
 fn role_parse_round_trip() {
@@ -36,6 +37,7 @@ fn arzt_can_do_everything_clinical_and_admin() {
 fn rezeption_cannot_read_medical_records_or_audit() {
     assert!(!allowed("patient.read_medical", Role::Rezeption));
     assert!(!allowed("patient.write_medical", Role::Rezeption));
+    assert!(allowed("patient.read_documents", Role::Rezeption));
     assert!(!allowed("audit.read", Role::Rezeption));
     assert!(!allowed("personal.read", Role::Rezeption));
     assert!(!allowed("ops.backup", Role::Rezeption));
@@ -53,6 +55,7 @@ fn steuerberater_only_finanzen() {
     assert!(allowed("verwaltung.vertraege.read", Role::Steuerberater));
     assert!(!allowed("verwaltung.vertraege.write", Role::Steuerberater));
     assert!(!allowed("patient.read_medical", Role::Steuerberater));
+    assert!(!allowed("patient.read_documents", Role::Steuerberater));
     assert!(!allowed("termin.write", Role::Steuerberater));
     assert!(!allowed("personal.write", Role::Steuerberater));
     assert!(!allowed("termin.list_aerzte", Role::Steuerberater));
@@ -95,4 +98,24 @@ fn ops_logs_arzt_only() {
 fn unknown_action_denied_by_default() {
     assert!(!allowed("evil.shell", Role::Arzt));
     assert!(!allowed("", Role::Arzt));
+}
+
+#[test]
+fn effective_allow_grants_action_denied_by_role() {
+    let o = vec![PermissionOverride {
+        action: "audit.read".into(),
+        effect: "ALLOW".into(),
+    }];
+    assert!(!allowed("audit.read", Role::Rezeption));
+    assert!(effective_allowed("audit.read", Role::Rezeption, &o));
+}
+
+#[test]
+fn effective_deny_blocks_action_allowed_by_role() {
+    let o = vec![PermissionOverride {
+        action: "dashboard.read".into(),
+        effect: "DENY".into(),
+    }];
+    assert!(allowed("dashboard.read", Role::Rezeption));
+    assert!(!effective_allowed("dashboard.read", Role::Rezeption, &o));
 }

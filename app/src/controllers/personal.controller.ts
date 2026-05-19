@@ -1,6 +1,26 @@
 import { tauriInvoke } from "@/services/tauri.service";
-import type { Personal } from "@/models/types";
-import { CreatePersonalSchema, UpdatePersonalSchema, parseOrThrow } from "@/lib/schemas";
+import type { PermissionOverride, Personal, Rolle } from "@/models/types";
+import { CreatePersonalSchema, UpdatePersonalSchema, UpdateOwnProfileSchema, parseOrThrow } from "@/lib/schemas";
+
+/** Antwort von `get_own_profile` / `update_own_profile` (ohne Passwort-Hash). */
+export interface OwnProfileDto {
+    user_id: string;
+    name: string;
+    email: string;
+    rolle: Rolle;
+    taetigkeitsbereich: string | null;
+    fachrichtung: string | null;
+    telefon: string | null;
+}
+
+export async function getOwnProfile(): Promise<OwnProfileDto> {
+    return tauriInvoke<OwnProfileDto>("get_own_profile");
+}
+
+export async function updateOwnProfile(data: Record<string, unknown>): Promise<OwnProfileDto> {
+    const safe = parseOrThrow(UpdateOwnProfileSchema, data);
+    return tauriInvoke<OwnProfileDto>("update_own_profile", { data: safe });
+}
 
 /** Doctors (role ARZT) for appointment assignment — visible to Arzt + Rezeption. */
 export interface AerztSummary {
@@ -45,4 +65,25 @@ export async function setPersonalPasswordByAdmin(
     newPassword: string,
 ): Promise<void> {
     return tauriInvoke("set_personal_password_by_admin", { id, new_password: newPassword });
+}
+
+/** FA-PERS-07 */
+export async function listPersonalPermissionOverrides(personalId: string): Promise<PermissionOverride[]> {
+    return tauriInvoke<PermissionOverride[]>("list_personal_permission_overrides", { personal_id: personalId });
+}
+
+export async function setPersonalPermissionOverride(
+    personalId: string,
+    action: string,
+    effect: "ALLOW" | "DENY",
+): Promise<void> {
+    return tauriInvoke("set_personal_permission_override", {
+        personal_id: personalId,
+        action,
+        effect,
+    });
+}
+
+export async function deletePersonalPermissionOverride(personalId: string, action: string): Promise<void> {
+    return tauriInvoke("delete_personal_permission_override", { personal_id: personalId, action });
 }

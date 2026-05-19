@@ -14,6 +14,8 @@ const PATH_LABEL_KEYS: Record<string, string> = {
     "/": "nav.dashboard",
     "/termine": "nav.termine",
     "/patienten": "nav.patienten",
+    "/akten/zu-validieren": "nav.akten_zu_validieren",
+    "/tickets": "nav.praxis_tickets",
     "/rezepte": "nav.rezepte",
     "/atteste": "nav.atteste",
     "/statistik": "nav.statistik",
@@ -37,7 +39,7 @@ const PATH_LABEL_KEYS: Record<string, string> = {
 /** Route groups: separators between groups; within a group, order matches sidebar-style UX. */
 const NATIVE_GO_GROUPS: readonly (readonly string[])[] = [
     ["/", "/termine"],
-    ["/patienten", "/rezepte", "/atteste", "/statistik", "/bilanz"],
+    ["/patienten", "/akten/zu-validieren", "/tickets", "/rezepte", "/atteste", "/statistik", "/bilanz"],
     ["/finanzen", "/bestellungen", "/leistungen", "/produkte"],
     ["/verwaltung"],
     ["/einstellungen"],

@@ -5,12 +5,26 @@
 @tailwind utilities;
 
 :root {
+  /*
+   * MeDoc UI-Farben (Kurzregeln)
+   * — 60/30/10: neutrale Flächen dominieren; Akzent (`--accent*`) sparsam für Führung/CTA.
+   * — Auswahl & Opt-Listen (Segmente, Akte-Modi): aktiver Chip = `var(--accent)` + `var(--text-on-accent)`; Track neutral mit `var(--line)`.
+   * — Primär-CTA: `--accent` + `--text-on-accent` (nicht `background: var(--fg)` mit heller Schrift).
+   * — Kalender/Akte: Flächen `--bg-elev` / `--bg`, keine festen Weißflächen außerhalb der Tokens.
+   */
   /* Breakpoints (align with `lib/breakpoints.ts`) */
   --bp-sm: 640px;
   --bp-md: 900px;
   --bp-lg: 1200px;
   --bg: #F3F4F6;
   --bg-elev: #FFFFFF;
+  /** Flächenstufen (hell) — für Tabellen/Listen; dunkel in `html[data-theme="dark"]` überschrieben */
+  --panel: #f4f4f5;
+  --surface: var(--bg-elev);
+  --surface-1: #fafafa;
+  --surface-2: #f4f4f5;
+  --surface-dim: #eaeaea;
+  --surface-container: #e8e8ea;
   --sidebar: rgba(248,249,251,0.78);
   --line: rgba(0,0,0,0.06);
   --line-strong: rgba(0,0,0,0.12);
@@ -52,6 +66,9 @@
   --shadow-lg: 0 8px 32px rgba(16,24,40,0.08), 0 24px 64px rgba(16,24,40,0.06);
   --card-pad-x: clamp(14px, 1.8vw, 20px);
   --card-pad-y: clamp(12px, 1.5vh, 16px);
+  /* Hauptbereich (Outlet) — einheitlich mit App-Shell */
+  --main-padding: clamp(10px, 1.8vw, 24px);
+  --main-stack-gap: var(--space-5);
   /* Density: 1 = cozy; compact ~0.85; spacious ~1.15 (`html[data-density]`) */
   --density-scale: 1;
   --row-h: calc(44px * var(--density-scale));
@@ -82,6 +99,7 @@
   --z-sidebar-mobile: 56;
   --z-modal: 1200;
   --z-toast: 2000;
+  --desktop-chrome-drag-height: 32px;
   /*
    * Layout / type — reference from @layer components (playbook: avoid raw px in blocks).
    * --layout-sticky-below-chrome: aligns sticky side nav under topbar + typical page heading.
@@ -99,11 +117,72 @@
   /* Elevation: small control shadows (tokens so components stay hex-free) */
   --shadow-thumb: 0 var(--space-1) var(--space-2) color-mix(in srgb, var(--fg) 16%, transparent);
   --shadow-ring-inset: inset 0 0 0 1px color-mix(in srgb, var(--fg) 8%, transparent);
+
+  /*
+   * Sidebar · Konto-Chip (60-30-10): Leiste = Canvas (~60%), Chip = erhöhte Fläche (~30%),
+   * Marke/Akzent primär am Avatar & feiner Rand (~10%). Namen = Hierarchie / Kontrast.
+   */
+  --surface-sidebar-canvas: var(--sidebar);
+  --surface-sidebar-user: color-mix(in oklab, var(--accent-soft) 78%, var(--surface-1));
+  --surface-sidebar-user-hover: color-mix(in oklab, var(--accent-soft) 70%, var(--surface-1));
+  --border-sidebar-user: color-mix(in oklab, var(--accent) 22%, var(--line-strong));
+  --text-sidebar-user-primary: var(--fg);
+  --text-sidebar-user-secondary: var(--fg-3);
+  /** „Inverse“ auf gesättigter Markenfläche (Avatar) — unabhängig von --fg-on-saturated (Buttons) */
+  --text-on-accent: #ffffff;
+}
+
+/**
+ * Dunkles Erscheinungsbild — `data-theme` wird in `applyAppearanceFromSettings` gesetzt
+ * (Hell / Dunkel / System inkl. OS-Präferenz). Akzent-Hex bleibt inline von `applyAccentPresetToDocument`.
+ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0e13;
+  --bg-elev: #131820;
+  --panel: #161b24;
+  --surface: var(--bg-elev);
+  --surface-1: #171d27;
+  --surface-2: #1c2330;
+  --surface-dim: #1a2030;
+  --surface-container: #222a3a;
+  --sidebar: rgba(18, 22, 30, 0.94);
+  --line: rgba(255, 255, 255, 0.085);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --fg: #f3f4f6;
+  --fg-2: #d1d5db;
+  --fg-3: #9ca3af;
+  --fg-4: #6b7280;
+  --blue-soft: color-mix(in oklab, var(--blue) 28%, var(--bg-elev));
+  --red-soft: color-mix(in oklab, var(--red) 26%, var(--bg-elev));
+  --orange-soft: color-mix(in oklab, var(--orange) 26%, var(--bg-elev));
+  --yellow-soft: color-mix(in oklab, var(--yellow) 28%, var(--bg-elev));
+  --green-soft: color-mix(in oklab, var(--green) 26%, var(--bg-elev));
+  --purple-soft: color-mix(in oklab, var(--purple) 26%, var(--bg-elev));
+  --fg-on-saturated: #0c0e13;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-thumb: 0 var(--space-1) var(--space-2) color-mix(in srgb, #000 35%, transparent);
+  --shadow-ring-inset: inset 0 0 0 1px color-mix(in srgb, #fff 10%, transparent);
+  --focus-ring-color: color-mix(in oklab, #ffffff 50%, var(--accent));
+
+  /* Sidebar-Konto: etwas heller als Leisten-Canvas, dezenter Akzentanteil */
+  --surface-sidebar-canvas: rgba(18, 22, 30, 0.94);
+  --surface-sidebar-user: color-mix(in oklab, var(--surface-2) 88%, var(--accent) 10%);
+  --surface-sidebar-user-hover: color-mix(in oklab, var(--surface-2) 84%, var(--accent) 14%);
+  --border-sidebar-user: color-mix(in oklab, var(--accent) 26%, var(--line-strong));
+  --text-sidebar-user-primary: var(--fg);
+  --text-sidebar-user-secondary: var(--fg-3);
+  --text-on-accent: #ffffff;
 }
 
 @layer base {
   * { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   html, body { margin: 0; padding: 0; height: 100%; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; letter-spacing: -0.005em; background: var(--bg); color: var(--fg); }
+  html[data-font-stack="system"] body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
   html, body, #root { width: 100%; max-width: 100%; overflow-x: clip; }
   #root { min-height: 100%; min-height: 100dvh; }
   button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
@@ -117,6 +196,9 @@
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
   ::-webkit-scrollbar-track { background: transparent; }
+  html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+  }
   @media (prefers-reduced-motion: reduce) {
     .animate-fade-in, .animate-fade-in--sticky-safe, .animate-scale-in, .animate-slide-up,
     .modal-backdrop, .modal, .skeleton-shimmer, .empty-state-graphic-wrap--float,
@@ -146,7 +228,262 @@
     max-height: 100dvh;
     min-height: 0;
     overflow: hidden;
-    background: radial-gradient(1200px 600px at -10% -10%, rgba(14,160,126,0.05), transparent 60%), radial-gradient(900px 500px at 110% 10%, rgba(10,132,255,0.04), transparent 60%), var(--bg);
+    background: radial-gradient(1200px 600px at -10% -10%, color-mix(in oklab, var(--accent) 7%, transparent), transparent 60%), radial-gradient(900px 500px at 110% 10%, color-mix(in oklab, var(--blue) 6%, transparent), transparent 60%), var(--bg);
+  }
+  /* Tauri: Vollhöhe + Zieh-Leiste / frameless-Titelleiste (`DesktopWindowFrame`). */
+  html.tauri-frameless,
+  html.tauri-frameless body,
+  html.tauri-macos-traffic,
+  html.tauri-macos-traffic body {
+    height: 100%;
+    overflow: hidden;
+  }
+  html.tauri-frameless #root,
+  html.tauri-macos-traffic #root {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    min-height: 100dvh;
+  }
+  html.tauri-frameless #root .desktop-app-frame,
+  html.tauri-macos-traffic #root .desktop-app-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .desktop-app-frame {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .desktop-drag-shim {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    height: var(--desktop-chrome-drag-height, 32px);
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    max-height: var(--desktop-chrome-drag-height, 32px);
+    box-sizing: border-box;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    background: transparent;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .desktop-titlebar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    height: var(--desktop-chrome-drag-height, 32px);
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--fg-2);
+    user-select: none;
+  }
+  html.tauri-frameless .desktop-titlebar.desktop-titlebar--frameless-invisible {
+    background: transparent;
+    border-bottom: none;
+    color: var(--fg-2);
+  }
+  .desktop-titlebar__drag {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: 8px;
+  }
+  .desktop-titlebar__title {
+    font-size: 12.5px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--fg-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .desktop-titlebar__controls {
+    display: flex;
+    flex-shrink: 0;
+    align-items: stretch;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .desktop-titlebar__btn {
+    width: 44px;
+    min-width: 44px;
+    display: grid;
+    place-items: center;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .desktop-titlebar__btn:hover {
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+    color: var(--fg);
+  }
+  .desktop-titlebar__btn--close:hover {
+    background: color-mix(in oklab, var(--red) 88%, var(--fg));
+    color: #fff;
+  }
+  .desktop-app-frame__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .desktop-app-frame__fill {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  html.tauri-frameless .desktop-app-frame__fill .app,
+  html.tauri-frameless .desktop-app-frame__fill .login-root,
+  html.tauri-frameless .desktop-app-frame__fill .route-fallback,
+  html.tauri-macos-traffic .desktop-app-frame__fill .app,
+  html.tauri-macos-traffic .desktop-app-frame__fill .login-root,
+  html.tauri-macos-traffic .desktop-app-frame__fill .route-fallback {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  html.tauri-frameless .app,
+  html.tauri-macos-traffic .app {
+    height: 100%;
+    max-height: 100%;
+  }
+  html.tauri-frameless .login-root,
+  html.tauri-macos-traffic .login-root {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+  html.tauri-frameless .session-gate-loading,
+  html.tauri-macos-traffic .session-gate-loading {
+    min-height: 0 !important;
+    flex: 1 1 auto;
+  }
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic:not(.app-window-chrome) {
+    /* Legacy single-column topbar (non-unified shell). Unified chrome uses `.app-window-chrome`. */
+    position: relative;
+    isolation: isolate;
+    align-items: stretch;
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    padding: 6px 0;
+    background: transparent !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    -webkit-app-region: drag;
+    app-region: drag;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .topbar-mac-content-row {
+    display: flex;
+    flex: 1 1 auto;
+    align-self: stretch;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    padding-left: var(--main-padding);
+    padding-right: var(--main-padding);
+  }
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .mobile-nav-trigger,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic button,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .input,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .tb-chip,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .topbar-actions {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .mobile-nav-trigger,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic button,
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic .input {
+    cursor: pointer;
+  }
+  .topbar-inner--contents {
+    display: contents;
+  }
+  html.tauri-macos-traffic .login-root--mac {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+  html.tauri-macos-traffic .login-root--mac .login-root__panels {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    width: 100%;
+  }
+  html.tauri-macos-traffic .login-window-chrome {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 100%;
+    min-height: 52px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-end;
+    padding: 0;
+    margin: 0;
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    border-bottom: 1px solid var(--line);
+    -webkit-app-region: drag;
+    app-region: drag;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    z-index: 5;
+  }
+  html.tauri-macos-traffic .login-window-chrome__hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  html.tauri-macos-traffic .login-form-wrap--mac-drag,
+  html.tauri-macos-traffic .login-art--mac-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  html.tauri-macos-traffic .login-art--mac-drag .login-art__content {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
   }
   .app-shell {
     display: grid;
@@ -168,7 +505,7 @@
     min-height: 0;
     height: 100%;
     max-height: 100%;
-    background: var(--sidebar);
+    background: var(--surface-sidebar-canvas);
     backdrop-filter: saturate(180%) blur(24px);
     -webkit-backdrop-filter: saturate(180%) blur(24px);
     border-right: 1px solid var(--line);
@@ -211,19 +548,21 @@
     margin: 0;
     padding: 8px;
     border-radius: 14px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    background: linear-gradient(135deg, #bfe6e0, #b7e1db);
+    border: 1px solid var(--border-sidebar-user);
+    background: var(--surface-sidebar-user);
+    color: var(--text-sidebar-user-primary);
     cursor: pointer;
     font: inherit;
-    color: inherit;
     text-align: left;
     transition:
+      background var(--motion-fast) var(--ease-out),
       box-shadow var(--motion-fast) var(--ease-out),
       transform var(--motion-fast) var(--ease-out),
       filter var(--motion-fast) var(--ease-out);
   }
   button.app-sidebar-user-card:hover {
-    box-shadow: 0 4px 14px rgba(14, 160, 126, 0.18);
+    background: var(--surface-sidebar-user-hover);
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--accent) 18%, transparent);
     filter: brightness(1.02);
   }
   button.app-sidebar-user-card:focus-visible {
@@ -241,14 +580,31 @@
     margin: 0;
     padding: 8px;
     border-radius: 14px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    background: linear-gradient(135deg, #bfe6e0, #b7e1db);
+    border: 1px solid var(--border-sidebar-user);
+    background: var(--surface-sidebar-user);
+    color: var(--text-sidebar-user-primary);
     cursor: default;
     font: inherit;
-    color: inherit;
     text-align: center;
     box-sizing: border-box;
     user-select: none;
+  }
+  .app-sidebar-user-card__name {
+    font-weight: 700;
+    font-size: 12.5px;
+    line-height: 1.2;
+    color: var(--text-sidebar-user-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-sidebar-user-card__meta {
+    font-size: 10.5px;
+    line-height: 1.2;
+    color: var(--text-sidebar-user-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .app-sidebar-user-lines--narrow-strip {
     width: 100%;
@@ -270,7 +626,7 @@
   .app-sidebar-user-card-chevron {
     flex-shrink: 0;
     display: inline-flex;
-    color: var(--fg-3);
+    color: var(--text-sidebar-user-secondary);
     transition: transform 160ms ease;
   }
   .app-sidebar-user-card-chevron.is-open {
@@ -291,11 +647,69 @@
     overflow: visible;
   }
   .card-pad { padding: var(--card-pad-y) var(--card-pad-x); }
+  /*
+   * Design system — surfaces & rhythm (MeDoc)
+   * Nutzen: Token statt Einzel-Pixel; Karten = .card / .card-elevated; Typ = .page-title / .card-sub.
+   */
+  .ds-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--main-stack-gap);
+    min-width: 0;
+  }
+  .ds-stack-tight {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .ds-stack-loose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+  }
+  .ds-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .ds-muted {
+    color: var(--fg-3);
+    font-size: var(--text-caption);
+    line-height: 1.45;
+  }
+  .ds-divider {
+    height: 1px;
+    background: var(--line);
+    border: none;
+    margin: var(--space-3) 0;
+  }
+  /* Outlet: seitlicher Innenrand & vertikaler Rhythmus (siehe .app-main) */
+  .app-main {
+    padding: var(--main-padding);
+    display: flex;
+    flex-direction: column;
+    gap: var(--main-stack-gap);
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  .app-main--scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-main--fill-y {
+    overflow-y: hidden;
+  }
   .card-head { display: flex; align-items: center; justify-content: space-between; padding: clamp(12px, 1.8vh, 16px) var(--card-pad-x); border-bottom: 1px solid var(--line); }
   .card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
   .card-sub { color: var(--fg-3); font-size: 13px; margin-top: 2px; }
   .card-subtitle { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
-  .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px); background: rgba(243,244,246,0.72); border-bottom: 1px solid var(--line); padding: 14px 28px; display: flex; align-items: center; gap: 16px; }
+  .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px); background: rgba(243,244,246,0.72); border-bottom: 1px solid var(--line); padding: 14px var(--main-padding); display: flex; align-items: center; gap: 16px; }
   .topbar-actions { min-width: 0; }
   .topbar-search-trigger { flex: 1 1 240px; min-width: 160px; max-width: 420px; }
   .crumb { display: flex; align-items: center; gap: 6px; color: var(--fg-3); font-size: 13px; }
@@ -319,8 +733,17 @@
   .btn:active:not(:disabled) {
     transform: scale(0.98);
   }
-  .btn-accent { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(14,160,126,0.25), inset 0 -1px 0 rgba(0,0,0,0.08); }
-  .btn-accent:hover { background: #0B8E6F; transform: translateY(-1px); }
+  .btn-accent {
+    background: var(--accent);
+    color: var(--fg-on-saturated);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--accent) 35%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--fg) 12%, transparent);
+  }
+  .btn-accent:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    transform: translateY(-1px);
+  }
   .btn-accent:active:not(:disabled) { transform: scale(0.98); }
   .btn-ghost { background: rgba(0,0,0,0.045); color: var(--fg); }
   .btn-ghost:hover { background: rgba(0,0,0,0.08); }
@@ -369,9 +792,21 @@
   .dashboard-page .kpi-delta { font-size: var(--dash-meta-size); }
   .kpi-delta.up { color: #148B4C; }
   .kpi-delta.down { color: var(--red); }
+  /** KPI-Zusatzzeilen (Dashboard/Statistik): keine Inline-Farben — Dark-Mode-Kontrast zentral */
+  .kpi-delta__trend--positive {
+    color: #148b4c;
+    font-weight: 500;
+  }
+  .kpi-delta__trend--negative {
+    color: #c94a4a;
+    font-weight: 500;
+  }
 
   .input { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 8px 12px; transition: border var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
-  .input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(14,160,126,0.12); }
+  .input:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  }
   .input input { border: 0; outline: 0; flex: 1; background: transparent; font-size: 13.5px; }
   .input-edit { min-height: var(--input-h); box-sizing: border-box; background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); padding: 10px 12px; font-size: 13.5px; font-weight: 500; width: 100%; transition: border var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
   /* Standard horizontal scroll shell for data tables below ~900px */
@@ -394,7 +829,11 @@
   .page-toolbar__filters {
     flex: 0 1 auto;
   }
-  .input-edit:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(14,160,126,0.12); }
+  .input-edit:focus {
+    outline: 0;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  }
   .input-edit.ui-field-error {
     border-color: color-mix(in oklab, var(--red) 55%, var(--line-strong));
   }
@@ -508,14 +947,52 @@
     outline-offset: var(--focus-ring-offset);
     border-radius: var(--radius-sm);
   }
-  .seg { display: inline-flex; background: rgba(0,0,0,0.055); border-radius: var(--radius-ctl); padding: 3px; gap: 2px; }
-  .seg button { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--fg-2); transition: all 140ms ease; }
+  /**
+   * Segment-Steuerung: Track neutral, aktiver Chip = gesättigter Akzent + Text „on-accent“
+   * (einheitlich mit Akte Zahlungen/Historie und übrigen Opt-Listen).
+   */
+  .seg {
+    display: inline-flex;
+    background: color-mix(in oklab, var(--fg) 5.5%, transparent);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    padding: 3px;
+    gap: 2px;
+  }
+  .seg.seg--wrap {
+    flex-wrap: wrap;
+  }
+  .seg button {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg-2);
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+  }
+  .seg button:hover {
+    color: var(--fg);
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+  }
   .seg button[aria-pressed="true"],
   .seg button[aria-selected="true"] {
-    background: #fff;
-    color: var(--fg);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 32%, transparent);
     font-weight: 600;
+  }
+  .seg__count {
+    font-weight: 600;
+    color: var(--fg-4);
+  }
+  .seg button[aria-pressed="true"] .seg__count,
+  .seg button[aria-selected="true"] .seg__count {
+    color: color-mix(in oklab, var(--text-on-accent) 78%, transparent);
   }
   .tabs { display: flex; gap: 2px; align-items: center; }
   .tab { padding: 8px 14px; border-radius: var(--radius-ctl); font-size: 13px; font-weight: 500; color: var(--fg-3); cursor: pointer; transition: all 120ms ease; }
@@ -527,6 +1004,12 @@
   .av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; color: #fff; flex: 0 0 auto; font-size: 13px; letter-spacing: -0.01em; }
   .av-sm { width: 28px; height: 28px; font-size: 11px; }
   .av-lg { width: 52px; height: 52px; font-size: 17px; }
+  /** Brand/Primary auf dem Avatar — Text „inverse“ über --text-on-accent (nicht --fg-on-saturated). */
+  .av--accent {
+    background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 52%, var(--text-on-accent)), var(--accent));
+    color: var(--text-on-accent);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
+  }
   .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .tbl thead th { text-align: left; padding: var(--tbl-th-pad-y) 14px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 600; color: var(--fg-4); letter-spacing: 0.04em; text-transform: uppercase; background: rgba(0,0,0,0.015); }
   .tbl tbody td { padding: var(--tbl-td-pad-y) 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -1438,7 +1921,7 @@
   .btn-chip {
     appearance: none;
     border: 1px solid var(--line);
-    background: var(--surface, #fff);
+    background: var(--bg-elev);
     color: var(--fg-2);
     font-size: 12.5px;
     padding: 6px 12px;
@@ -1446,12 +1929,15 @@
     cursor: pointer;
     transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
   }
-  .btn-chip:hover { background: var(--accent-soft); }
+  .btn-chip:hover {
+    background: color-mix(in oklab, var(--fg) 6%, var(--bg-elev));
+  }
   .btn-chip.is-active {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--line-strong));
+    color: var(--text-on-accent);
     font-weight: 600;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 20%, transparent);
   }
   .dental-mini-label {
     font-size: 9px;
@@ -1541,15 +2027,36 @@
     font-style: italic;
   }
 
-  /* Anamnese accordion */
+  /* Akte · Anamnese-Übersicht: vertikale Optionsliste — gleiche Token wie Segment-Steuerungen (.seg) */
+  .akte-section-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    margin: 0 0 10px;
+  }
+  .anam-opt-list {
+    gap: 8px !important;
+  }
   .anam-acc-item {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-card);
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
-    background: #fff;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+  }
+  .anam-acc-item.is-open {
+    border-color: color-mix(in oklab, var(--accent) 42%, var(--line-strong));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 16%, transparent),
+      0 4px 18px color-mix(in oklab, var(--accent) 12%, transparent);
   }
   .anam-acc-item + .anam-acc-item {
-    margin-top: 10px;
+    margin-top: 0;
   }
   .anam-acc-trigger {
     width: 100%;
@@ -1557,31 +2064,45 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 13px 16px;
     border: none;
-    background: rgba(0, 0, 0, 0.02);
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
     font: inherit;
     font-weight: 600;
     font-size: 14px;
     text-align: left;
     cursor: pointer;
     color: var(--fg);
-    transition: background 140ms ease;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
   }
   .anam-acc-trigger:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  }
+  .anam-acc-item.is-open .anam-acc-trigger {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+  .anam-acc-item.is-open .anam-acc-trigger:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    color: var(--text-on-accent);
   }
   .anam-acc-chev {
     font-size: 12px;
     color: var(--fg-3);
     transition: transform 180ms ease;
+    flex-shrink: 0;
   }
   .anam-acc-item.is-open .anam-acc-chev {
     transform: rotate(90deg);
+    color: var(--text-on-accent);
+    opacity: 0.92;
   }
   .anam-acc-body {
-    padding: 4px 14px 14px;
+    padding: 12px 16px 16px;
     border-top: 1px solid var(--line);
+    background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-elev));
   }
 
   /* Neuer Patient: step strip */
@@ -1612,11 +2133,11 @@
     background: linear-gradient(to top, var(--bg, #f6f7f8) 70%, transparent);
   }
   .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--line); border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--line); }
-  .cal-head { background: #fff; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.03em; text-transform: uppercase; }
-  .cal-cell { background: #fff; min-height: 92px; padding: 7px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 120ms ease; }
-  .cal-cell:hover { background: #FAFAFB; }
-  .cal-cell.dim { color: var(--fg-4); background: #FAFAFB; }
-  .cal-cell.today .cal-num { background: var(--accent); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+  .cal-head { background: var(--bg-elev); padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.03em; text-transform: uppercase; }
+  .cal-cell { background: var(--bg-elev); min-height: 92px; padding: 7px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 120ms ease; }
+  .cal-cell:hover { background: color-mix(in oklab, var(--fg) 4.5%, var(--bg-elev)); }
+  .cal-cell.dim { color: var(--fg-4); background: color-mix(in oklab, var(--fg) 5%, var(--bg)); }
+  .cal-cell.today .cal-num { background: var(--accent); color: var(--text-on-accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
   .cal-num { font-size: 12px; font-weight: 600; align-self: flex-end; color: var(--fg-2); }
   .cal-evt { font-size: 11px; padding: 3px 7px; border-radius: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal-evt.green  { background: var(--green-soft);  color: #146C2E; }
@@ -1624,7 +2145,7 @@
   .cal-evt.orange { background: var(--orange-soft); color: #A35A00; }
   .cal-evt.accent { background: var(--accent-soft); color: var(--accent-ink); }
   .cal-evt.purple { background: var(--purple-soft); color: #6B2A95; }
-  .cal-evt.grey { background: rgba(0,0,0,0.06); color: var(--fg-3); }
+  .cal-evt.grey { background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev)); color: var(--fg-3); }
   .toast-stack {
     position: fixed;
     top: max(12px, env(safe-area-inset-top, 0px));
@@ -1673,6 +2194,13 @@
     background: var(--blue);
     flex-shrink: 0;
   }
+  .toast-warning-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--orange);
+    flex-shrink: 0;
+  }
   .toast-progress-track {
     height: 3px;
     background: rgba(0,0,0,0.06);
@@ -1690,6 +2218,8 @@
   .toast-item.error .toast-progress-bar { background: var(--red); }
   .toast-item.info { background: var(--blue-soft); color: #0355B7; }
   .toast-item.info .toast-progress-bar { background: var(--blue); }
+  .toast-item.warning { background: var(--orange-soft); color: #A35A00; }
+  .toast-item.warning .toast-progress-bar { background: var(--orange); }
   @keyframes toast-progress-shrink {
     from { transform: scaleX(1); }
     to { transform: scaleX(0); }
@@ -2323,10 +2853,58 @@
   .login-art::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 22px 22px; opacity: 0.5; }
   .login-form-wrap { display: grid; place-items: center; padding: 40px; }
   .login-form { width: 100%; max-width: 380px; }
-  .login-role-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-ctl); cursor: pointer; transition: all 140ms; font-size: 13px; font-weight: 500; margin-bottom: 8px; background: #fff; width: 100%; }
-  .login-role-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
-  .login-submit { width: 100%; padding: 12px; border-radius: var(--radius-ctl); background: var(--fg); color: #fff; font-weight: 600; font-size: 14px; transition: all 140ms; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .login-submit:hover { background: #1a1a1f; transform: translateY(-1px); }
+  .login-role-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    cursor: pointer;
+    transition: all 140ms;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    background: var(--bg-elev);
+    width: 100%;
+  }
+  .login-role-chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  /** Primäre CTA: Brand/Primary + Text inverse (nicht `background: var(--fg)` — bricht im Dark Mode) */
+  .login-submit {
+    width: 100%;
+    padding: 12px;
+    border-radius: var(--radius-ctl);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 140ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .login-submit:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--accent) 82%, var(--fg));
+    transform: translateY(-1px);
+  }
+  .login-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+  }
+  /** Passwortzeile: gleiche Fläche wie E-Mail-Feld (kein heller Kasten im Dark Mode) */
+  .login-password-input-row {
+    background: var(--bg-elev);
+    border: 1px solid var(--line-strong);
+  }
+  .login-password-input-row__field {
+    background: transparent !important;
+  }
   .login-alt { text-align: center; color: var(--fg-3); font-size: 12.5px; margin: 20px 0; position: relative; }
   .login-alt::before, .login-alt::after { content: ''; position: absolute; top: 50%; width: 38%; height: 1px; background: var(--line); }
   .login-alt::before { left: 0; } .login-alt::after { right: 0; }
@@ -2368,7 +2946,7 @@
   .settings-row input[type="checkbox"] {
     width: calc(var(--space-8) - var(--space-2));
     height: calc(var(--space-3) + var(--space-2));
-    accent-color: var(--blue);
+    accent-color: var(--accent);
   }
   .settings-page {
     display: flex;
@@ -2386,10 +2964,18 @@
     color: var(--fg-3);
     letter-spacing: 0.01em;
   }
+  /* Bei zweispaltigem Shell (Nav links) entfällt die doppelte „Menü“-Zeile unter der Überschrift. */
+  @media (min-width: 1201px) {
+    .settings-page-breadcrumb {
+      display: none;
+    }
+  }
   .settings-nav-card {
     padding: calc(var(--space-2) + var(--space-1));
     border-radius: var(--radius-card);
-    background: var(--bg-elev);
+    background: var(--surface-sidebar-canvas);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
     border: 1px solid var(--line);
     box-shadow: var(--shadow-sm);
   }
@@ -2430,12 +3016,12 @@
     opacity: 0.88;
   }
   .settings-nav-btn.active {
-    background: var(--blue-soft);
-    color: var(--blue);
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+    color: var(--accent-ink);
   }
   .settings-nav-btn.active svg {
     opacity: 1;
-    color: var(--blue);
+    color: var(--accent-ink);
   }
   .settings-nav-label {
     min-width: 0;
@@ -2470,6 +3056,25 @@
     color: var(--fg-3);
     line-height: 1.45;
   }
+  .settings-subcard.settings-subcard--segment-safe {
+    overflow: visible;
+  }
+  .settings-subcard.settings-subcard--segment-safe .settings-row {
+    min-width: 0;
+  }
+  .settings-row--wrap .settings-lang-seg,
+  .settings-row--wrap .settings-density-seg {
+    flex: 1 1 100%;
+    max-width: 100%;
+    justify-content: stretch;
+    width: 100%;
+  }
+  .settings-row--wrap .settings-lang-seg > .settings-lang-seg__btn,
+  .settings-row--wrap .settings-density-seg > .settings-density-seg__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+  }
   .settings-subcard .settings-row:first-of-type {
     border-top: none;
   }
@@ -2479,8 +3084,8 @@
     height: calc(var(--space-3) + var(--space-4));
     flex-shrink: 0;
     border-radius: var(--radius-pill);
-    border: 1px solid var(--line-strong);
-    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    border: 1px solid color-mix(in oklab, var(--fg) 14%, var(--line-strong));
+    background: color-mix(in oklab, var(--fg) 9%, var(--bg-elev));
     cursor: pointer;
     transition:
       background var(--motion-fast) var(--ease-out),
@@ -2496,40 +3101,53 @@
   }
   .settings-switch__thumb {
     position: absolute;
-    top: calc(var(--space-1) - 1px);
-    left: calc(var(--space-1) - 1px);
-    width: var(--space-5);
-    height: var(--space-5);
+    top: 50%;
+    left: 3px;
+    width: calc(var(--space-5) - 2px);
+    height: calc(var(--space-5) - 2px);
     border-radius: 50%;
-    background: var(--bg-elev);
+    background: #fff;
+    border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
     box-shadow: var(--shadow-thumb);
+    transform: translateY(-50%);
     transition: transform var(--motion-fast) var(--ease-out);
   }
   .settings-switch--on {
-    background: var(--blue);
-    border-color: color-mix(in srgb, var(--blue) 55%, var(--line-strong));
+    background: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
   }
   .settings-switch--on .settings-switch__thumb {
-    transform: translateX(var(--space-5));
+    transform: translateY(-50%) translateX(calc(var(--space-5) + var(--space-1) - 2px));
+  }
+  .settings-switch:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
   }
   .settings-density-seg {
     display: inline-flex;
-    padding: calc(var(--space-1) - 1px);
+    align-items: stretch;
+    padding: 3px;
     border-radius: var(--radius-pill);
     background: color-mix(in oklab, var(--fg) 4.5%, transparent);
     border: 1px solid var(--line);
-    gap: var(--space-half);
+    gap: 3px;
     flex-shrink: 0;
+    box-sizing: border-box;
+    max-width: 100%;
   }
   .settings-density-seg__btn {
     margin: 0;
-    padding: var(--space-2) var(--space-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.125rem;
+    padding: 0 var(--space-3);
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 7px;
     background: transparent;
     font-size: var(--text-chip);
     font-weight: 600;
-    color: var(--fg-3);
+    color: var(--fg-2);
     cursor: pointer;
     transition:
       background var(--motion-fast) var(--ease-out),
@@ -2542,27 +3160,46 @@
     background: color-mix(in oklab, var(--bg-elev) 65%, transparent);
   }
   .settings-density-seg__btn.is-active {
-    background: var(--bg-elev);
-    color: var(--blue);
-    box-shadow: var(--shadow-sm);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .settings-density-seg__btn:first-child {
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-density-seg__btn:last-child {
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-lang-seg {
     display: inline-flex;
-    padding: calc(var(--space-1) - 1px);
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: flex-end;
+    max-width: 100%;
+    padding: 3px;
     border-radius: var(--radius-pill);
     background: color-mix(in oklab, var(--fg) 4.5%, transparent);
     border: 1px solid var(--line);
-    gap: var(--space-half);
+    gap: 3px;
+    box-sizing: border-box;
   }
   .settings-lang-seg__btn {
     margin: 0;
-    padding: var(--space-2) calc(var(--space-3) + var(--space-1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.125rem;
+    padding: 0 calc(var(--space-3) + var(--space-1));
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 7px;
     background: transparent;
     font-size: var(--text-chip);
     font-weight: 600;
-    color: var(--fg-3);
+    color: var(--fg-2);
     cursor: pointer;
     transition:
       background var(--motion-fast) var(--ease-out),
@@ -2573,36 +3210,72 @@
     transform: scale(0.98);
   }
   .settings-lang-seg__btn.is-active {
-    background: var(--blue);
-    color: var(--fg-on-saturated);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
   }
-  .settings-accent-trigger {
+  .settings-lang-seg__btn:first-child {
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-lang-seg__btn:last-child {
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
+  }
+  /* Akzentfarbe — Inline-Farbpunkte (Einstellungen Darstellung) */
+  .settings-accent-inline {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-2) var(--space-2) calc(var(--space-2) + var(--space-1));
-    border-radius: var(--radius-ctl);
-    border: 1px solid var(--line);
-    background: var(--bg-elev);
-    cursor: pointer;
-    transition:
-      background var(--motion-fast) var(--ease-out),
-      border-color var(--motion-fast) var(--ease-out),
-      transform var(--motion-fast) var(--ease-out);
+    flex-shrink: 0;
+    justify-content: flex-end;
   }
-  .settings-accent-trigger:active:not(:disabled) {
-    transform: scale(0.98);
+  .settings-row--accent .settings-accent-inline {
+    flex: 1 1 auto;
+    min-width: min(100%, 17.5rem);
   }
-  .settings-accent-trigger:hover {
-    background: color-mix(in oklab, var(--fg) 3%, transparent);
-    border-color: var(--line-strong);
+  @media (max-width: 440px) {
+    .settings-row--accent .settings-accent-inline {
+      justify-content: flex-start;
+      width: 100%;
+    }
   }
-  .settings-accent-trigger__dot {
-    width: calc(var(--space-4) + var(--space-2));
-    height: calc(var(--space-4) + var(--space-2));
+  .settings-accent-inline__swatch {
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
     border-radius: 50%;
-    border: calc(var(--space-1) / 2) solid color-mix(in oklab, var(--bg-elev) 85%, var(--fg));
-    box-shadow: var(--shadow-ring-inset), var(--shadow-thumb);
+    border: 2px solid color-mix(in oklab, var(--fg) 14%, transparent);
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 color-mix(in oklab, #fff 22%, transparent);
+    transition:
+      transform var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out);
+  }
+  .settings-accent-inline__swatch:hover:not(.is-selected) {
+    border-color: color-mix(in oklab, var(--fg) 28%, transparent);
+    transform: scale(1.05);
+  }
+  .settings-accent-inline__swatch:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+  .settings-accent-inline__swatch.is-selected {
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--fg));
+    box-shadow:
+      0 0 0 2px var(--bg-elev),
+      0 0 0 4px color-mix(in oklab, var(--accent) 42%, transparent),
+      var(--shadow-sm),
+      inset 0 1px 0 color-mix(in oklab, #fff 22%, transparent);
+  }
+  .settings-accent-inline__swatch:active:not(:disabled) {
+    transform: scale(0.96);
   }
   .settings-shell {
     align-items: start;
@@ -2610,6 +3283,195 @@
   .settings-nav {
     position: sticky;
     top: var(--layout-sticky-below-chrome);
+  }
+  .settings-nav-sep {
+    margin: var(--space-2) var(--space-1);
+    height: 1px;
+    background: var(--line);
+    opacity: 0.85;
+  }
+  .settings-nav-muted {
+    padding: var(--space-1) var(--space-3) var(--space-half);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+  }
+  .settings-field-label .req {
+    color: var(--red);
+    font-weight: 700;
+    margin-left: 2px;
+  }
+  .settings-row-clickable {
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    border: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+  .settings-row-clickable:hover {
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+  }
+  .settings-row-clickable:active {
+    background: color-mix(in oklab, var(--fg) 7%, transparent);
+  }
+  .settings-row-clickable:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: -2px;
+  }
+  .settings-row-clickable__label {
+    text-align: left;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .settings-subcard > .settings-row-clickable:first-of-type {
+    border-top: none;
+  }
+  .settings-row-muted {
+    font-size: var(--text-caption);
+    color: var(--fg-3);
+    margin-top: 2px;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  .settings-pill-green {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--green) 14%, transparent);
+    color: color-mix(in oklab, var(--green) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--green) 28%, var(--line));
+  }
+  .settings-pill-green::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+  .settings-pill-blue {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  }
+  .settings-pill-blue::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .settings-pill-gray {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+    color: var(--fg-3);
+    border: 1px solid var(--line);
+  }
+  .settings-license-hero {
+    margin: var(--card-pad-x);
+    padding: var(--space-4);
+    border-radius: var(--radius-card);
+    border: 1px solid color-mix(in oklab, var(--blue) 35%, var(--line));
+    background: linear-gradient(135deg, color-mix(in oklab, var(--blue) 8%, var(--bg-elev)) 0%, var(--bg-elev) 55%);
+    box-shadow: var(--shadow-sm);
+  }
+  .settings-license-hero__grid {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .settings-license-metric {
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .settings-license-metric strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+  }
+  .settings-progress {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 7%, transparent);
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .settings-progress > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--blue);
+    transition: width 320ms var(--ease-out);
+  }
+  .settings-team-card .settings-row {
+    align-items: flex-start;
+  }
+  .settings-team-lock {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: var(--blue-soft);
+    color: var(--blue);
+  }
+  .settings-team-lock.is-muted {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    color: var(--fg-3);
+  }
+  .settings-team-meta {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  .settings-btn-danger-text {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--red);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+  .settings-btn-danger-text:hover {
+    background: color-mix(in oklab, var(--red) 10%, transparent);
   }
   /* Einstellungen › Praxis: layout + Briefkopf-Vorschau */
   .settings-praxis-body {
@@ -2666,6 +3528,120 @@
     min-height: 7.5rem;
     line-height: 1.45;
   }
+  .settings-praxis-preview__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-1);
+  }
+  .settings-praxis-preview__toolbar .settings-praxis-preview__kicker {
+    margin-bottom: 0;
+  }
+  .settings-praxis-preview__bulk {
+    flex-shrink: 0;
+    padding: 6px 11px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .settings-praxis-preview__bulk:hover {
+    border-color: var(--line-strong);
+    color: var(--fg);
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+  }
+  .settings-praxis-preview__bulk.is-all-on {
+    border-color: color-mix(in oklab, var(--blue) 35%, var(--line));
+    color: var(--blue);
+    background: color-mix(in oklab, var(--blue-soft) 55%, var(--bg-elev));
+  }
+  .settings-praxis-preview__bulk:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+  .settings-praxis-preview__reveal-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 var(--space-3);
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--fg-2);
+  }
+  .settings-praxis-preview__reveal-group--register {
+    margin-top: var(--space-1);
+    padding-top: var(--space-3);
+    border-top: 1px solid color-mix(in oklab, var(--line-strong) 65%, transparent);
+    font-size: 11.5px;
+    color: var(--fg-3);
+  }
+  .settings-praxis-preview__reveal-row {
+    display: grid;
+    grid-template-columns: minmax(5.75rem, max-content) 1fr auto;
+    gap: 0.35rem 0.6rem;
+    align-items: baseline;
+    word-break: break-word;
+  }
+  .settings-praxis-preview__reveal-row--dense {
+    font-size: inherit;
+    color: inherit;
+  }
+  .settings-praxis-preview__reveal-label {
+    font-weight: 600;
+    color: var(--fg-2);
+  }
+  .settings-praxis-preview__reveal-group--register .settings-praxis-preview__reveal-label {
+    color: var(--fg-2);
+  }
+  .settings-praxis-preview__reveal-value {
+    min-width: 0;
+  }
+  .settings-praxis-preview__reveal-value.is-masked {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    letter-spacing: 0.04em;
+    color: var(--fg-4);
+    user-select: none;
+  }
+  .settings-praxis-preview__reveal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: -4px 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+    color: var(--fg-2);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .settings-praxis-preview__reveal-btn:hover {
+    background: color-mix(in oklab, var(--fg) 9%, transparent);
+    color: var(--fg);
+  }
+  .settings-praxis-preview__reveal-btn:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+  .settings-praxis-preview__reveal-ic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .settings-praxis-preview__kicker {
     font-size: 11px;
     font-weight: 700;
@@ -2683,32 +3659,73 @@
   .settings-praxis-preview__paper {
     border-radius: var(--radius-card);
     border: 1px solid var(--line-strong);
-    background: color-mix(in oklab, var(--bg-elev) 92%, #fff);
+    background: linear-gradient(165deg, color-mix(in oklab, var(--bg-elev) 88%, #fff) 0%, color-mix(in oklab, var(--bg-elev) 94%, #fff) 100%);
     padding: var(--space-4) var(--space-4);
     min-height: 11rem;
     box-shadow: var(--shadow-sm);
   }
-  .settings-praxis-preview__empty {
-    margin: 0;
-    font-size: 13px;
+  .settings-praxis-preview__letter {
+    max-width: 34em;
+    margin: 0 auto;
+  }
+  .settings-praxis-preview__brand {
+    font-size: clamp(1.28rem, 2.8vw, 1.72rem);
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: var(--fg);
+    margin: 0 0 var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid color-mix(in oklab, var(--fg) 12%, transparent);
+  }
+  .settings-praxis-preview__address {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-3);
+  }
+  .settings-praxis-preview__contact-line {
+    margin: 0 0 var(--space-3);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--fg-2);
+    word-break: break-word;
+  }
+  .settings-praxis-preview__contact-seg {
+    white-space: normal;
+  }
+  .settings-praxis-preview__contact-dot {
+    color: var(--fg-4);
+    font-weight: 400;
+  }
+  .settings-praxis-preview__register {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: var(--space-3) 0 0;
+    border-top: 1px solid color-mix(in oklab, var(--line-strong) 65%, transparent);
+    font-size: 11.5px;
     line-height: 1.5;
     color: var(--fg-3);
   }
-  .settings-praxis-preview__name {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--fg);
-    margin-top: var(--space-3);
-    line-height: 1.25;
+  .settings-praxis-preview__register li {
+    margin: 0 0 5px;
   }
-  .settings-praxis-preview__pdfblock {
+  .settings-praxis-preview__register li:last-child {
+    margin-bottom: 0;
+  }
+  .settings-praxis-preview__reg-k {
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-right: 0.35em;
+  }
+  .settings-praxis-preview__pdf-ref {
+    margin-top: var(--space-4);
     padding: var(--space-3);
     border-radius: 10px;
     background: color-mix(in oklab, var(--fg) 3.5%, transparent);
-    border: 1px dashed color-mix(in oklab, var(--line-strong) 80%, transparent);
+    border: 1px dashed color-mix(in oklab, var(--line-strong) 75%, transparent);
   }
-  .settings-praxis-preview__pdfblock-label {
+  .settings-praxis-preview__pdf-ref-label {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -2716,11 +3733,45 @@
     color: var(--fg-4);
     margin-bottom: var(--space-2);
   }
-  .settings-praxis-preview__pdfline {
-    font-size: 11px;
+  .settings-praxis-preview__pdf-ref-lines {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 10.5px;
     line-height: 1.45;
     color: var(--fg-2);
+  }
+  .settings-praxis-preview__pdf-ref-line {
     word-break: break-word;
+  }
+  .settings-praxis-preview__pdf-ref-note {
+    margin: var(--space-2) 0 0;
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: var(--fg-4);
+    font-style: italic;
+  }
+  .settings-praxis-preview__hidden-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3);
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--fg) 4%, transparent);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--fg-3);
+  }
+  .settings-praxis-preview__hidden-ic {
+    flex-shrink: 0;
+    margin-top: 2px;
+    opacity: 0.85;
+  }
+  .settings-praxis-preview__empty {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--fg-3);
   }
   .settings-praxis-preview__muted--block {
     margin: var(--space-2) 0;
@@ -2907,6 +3958,7 @@
   /* Freigaben: Inhaltshöhe + Scroll statt leerer Fläche; Bestellungen füllt den Rest */
   .dashboard-col-primary > .dashboard-card-fill:first-child {
     flex: 0 1 auto;
+    flex-shrink: 0;
     min-height: 0;
   }
   .dashboard-col-primary > .dashboard-card-fill:first-child .dashboard-card-list {
@@ -3471,7 +4523,7 @@
     position: sticky;
     top: 0;
     z-index: 6;
-    background: #fff;
+    background: var(--bg-elev);
     box-shadow: 0 1px 0 var(--line);
   }
   .schedule-day-view-card > .card-head {
@@ -3518,12 +4570,12 @@
     padding-bottom: 0;
   }
   .schedule-day-list {
-    background: #fff;
+    background: var(--bg-elev);
   }
   .schedule-day-pill-slot {
     padding: 0;
     border-bottom: 1px solid var(--line);
-    background: #fff;
+    background: var(--bg-elev);
   }
   .schedule-day-pill-slot:last-child {
     border-bottom: 0;
@@ -3536,7 +4588,7 @@
     padding: 16px var(--card-pad-x);
     min-height: 76px;
     --row-tint: transparent;
-    background: linear-gradient(96deg, var(--row-tint) 0%, transparent 58%), #fff;
+    background: linear-gradient(96deg, var(--row-tint) 0%, transparent 58%), var(--bg-elev);
     transition: background 140ms ease, filter 140ms ease;
   }
   .day-appt-list-row--art-blue { --row-tint: color-mix(in oklab, #2563eb 20%, transparent); }
@@ -3545,7 +4597,7 @@
   .day-appt-list-row--art-purple { --row-tint: color-mix(in oklab, #9333ea 20%, transparent); }
   .day-appt-list-row:hover {
     background: linear-gradient(96deg, var(--row-tint) 0%, transparent 58%),
-      color-mix(in oklab, #0f172a 4%, #fff);
+      color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
   }
   @media (max-width: 520px) {
     .day-appt-list-row {
@@ -3664,7 +4716,7 @@
     z-index: 30;
     min-width: 168px;
     padding: 4px;
-    background: #fff;
+    background: var(--bg-elev);
     border: 1px solid var(--line-strong);
     border-radius: 12px;
     box-shadow: var(--shadow-lg);
@@ -3683,7 +4735,7 @@
     color: var(--fg);
   }
   .day-appt-pill-menu button:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.05);
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
   }
   .day-appt-pill-menu button:disabled {
     opacity: 0.45;
@@ -3706,11 +4758,11 @@
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.01em;
-    color: #0D1117;
+    color: var(--fg);
   }
   .schedule-sidepanel-sub {
     margin-top: 4px;
-    color: #5B5E66;
+    color: var(--fg-3);
     font-size: 12.5px;
   }
   .schedule-sidepanel-grid {
@@ -3720,21 +4772,22 @@
     min-height: 42px;
     border-radius: 14px;
     font-size: 14px;
-    border-color: #CBD5E1;
-    color: #111827;
+    border-color: var(--line-strong);
+    color: var(--fg);
+    background: var(--bg-elev);
   }
   .schedule-search-input::placeholder {
-    color: #6B7280;
+    color: var(--fg-4);
     opacity: 1;
   }
   .quick-calendar {
     margin-top: 10px;
     margin-bottom: 14px;
-    border: 1px solid #C5CEDA;
+    border: 1px solid var(--line-strong);
     border-radius: 14px;
     padding: 10px;
-    background: #FFFFFF;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
+    background: var(--bg-elev);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 5%, transparent);
   }
   .quick-calendar-nav {
     display: grid;
@@ -3749,7 +4802,7 @@
     font-weight: 700;
     font-size: 12.5px;
     cursor: pointer;
-    color: #0F172A;
+    color: var(--fg);
   }
   .quick-calendar-mode:hover {
     background: color-mix(in oklab, var(--accent) 12%, transparent);
@@ -3781,8 +4834,8 @@
   }
   .quick-calendar-cell.active {
     background: var(--accent);
-    color: #fff;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+    color: var(--text-on-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-on-accent) 22%, transparent);
   }
   .quick-grid-3 {
     display: grid;
@@ -3794,15 +4847,15 @@
     border-radius: 999px;
     font-weight: 700;
     font-size: 13px;
-    color: #0F172A;
+    color: var(--fg);
   }
   .quick-grid-item:hover {
     background: color-mix(in oklab, var(--accent) 12%, transparent);
   }
   .quick-grid-item.active {
     background: var(--accent);
-    color: #fff;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.24);
+    color: var(--text-on-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-on-accent) 24%, transparent);
   }
   .quick-calendar-reset {
     width: 100%;
@@ -3810,9 +4863,9 @@
     margin-top: 10px;
     min-height: 38px;
     border-radius: 10px;
-    border-color: #C3CFDD;
-    color: #0F172A;
-    background: #F8FAFC;
+    border-color: var(--line-strong);
+    color: var(--fg);
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
   }
   .quick-calendar-reset:hover {
     background: var(--accent-soft);
@@ -3865,7 +4918,7 @@
     border: 1px solid var(--line);
     border-radius: 12px;
     padding: 4px 6px;
-    background: #fff;
+    background: var(--bg-elev);
   }
   .month-view-period-label {
     min-width: 140px;
@@ -3980,7 +5033,7 @@
     text-align: left;
     border-radius: 12px;
     border: 1px solid var(--line);
-    background: #fff;
+    background: var(--bg-elev);
     padding: 10px;
     min-height: 200px;
     cursor: pointer;
@@ -4019,7 +5072,7 @@
     border-radius: 999px;
     text-align: center;
     padding: 3px 6px;
-    background: #fff;
+    background: var(--bg-elev);
   }
   .btn-compact-sm {
     padding: 4px 10px;
@@ -4230,6 +5283,14 @@
     .mobile-nav-trigger {
       display: inline-grid !important;
       place-items: center;
+    }
+    html.tauri-macos-traffic .app-shell:not(.app-shell--mac-unified) .topbar.topbar--mac-traffic .topbar-mac-content-row {
+      padding-left: max(76px, var(--main-padding));
+      padding-right: var(--main-padding);
+    }
+    html.tauri-macos-traffic .app-shell.app-shell--mac-unified .app-window-chrome__toolbar {
+      padding-left: var(--main-padding);
+      padding-right: var(--main-padding);
     }
   }
   @media (min-width: 900px) {
@@ -4563,14 +5624,14 @@
   cursor: pointer;
 }
 .akte-subnav button:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in oklab, var(--fg) 6%, transparent);
 }
 .akte-subnav button.active {
-  border-color: var(--line);
-  background: var(--blue-soft);
-  color: var(--blue);
+  border-color: var(--line-strong);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent-ink);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--blue);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .akte-subnav button {
   display: flex;
@@ -4642,12 +5703,12 @@
     box-shadow var(--motion-fast) var(--ease-out);
 }
 .statistik-nav__item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in oklab, var(--fg) 5%, transparent);
 }
 .statistik-nav__item--active {
-  background: color-mix(in oklab, var(--blue) 9%, #fff);
-  border-color: var(--line);
-  box-shadow: inset 4px 0 0 var(--blue);
+  background: color-mix(in oklab, var(--accent) 16%, var(--bg-elev));
+  border-color: var(--line-strong);
+  box-shadow: inset 4px 0 0 var(--accent);
 }
 .statistik-nav__title {
   font-size: 13.5px;
@@ -4657,7 +5718,7 @@
   margin: 0;
 }
 .statistik-nav__item--active .statistik-nav__title {
-  color: var(--blue);
+  color: var(--accent-ink);
 }
 .statistik-nav__desc {
   font-size: 11.5px;
@@ -4735,6 +5796,10 @@ button.linkish:hover {
 /* Sidebar: logo + MeDoc = one control (opens command palette); account popover = vertical list */
 .app-sidebar-brand-row {
   flex-wrap: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 14px;
 }
 .app-sidebar-brand-hit {
   display: flex;
@@ -4760,12 +5825,236 @@ button.linkish:hover {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * macOS unified window chrome: one full-width header row (brand under traffic lights + toolbar).
+ * No vertical rule in the header — avoids cutting through the green traffic-light button.
+ */
+@media (min-width: 900px) {
+  html.tauri-macos-traffic {
+    --mac-chrome-bar-height: 56px;
+    --mac-chrome-traffic-top: 34px;
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified > .app-window-chrome {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    align-items: stretch;
+    min-height: var(--mac-chrome-bar-height, 56px);
+    padding: 0;
+    margin: 0;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(
+      105deg,
+      var(--surface-sidebar-canvas) 0%,
+      var(--surface-sidebar-canvas) 38%,
+      color-mix(in oklab, var(--bg) 90%, var(--surface-sidebar-canvas)) 62%,
+      color-mix(in oklab, var(--bg) 84%, var(--surface-sidebar-canvas)) 100%
+    );
+    -webkit-app-region: drag;
+    app-region: drag;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified > .glass.app-sidebar {
+    grid-row: 2;
+    grid-column: 1;
+    padding: 6px 10px 14px;
+    border-right: 1px solid var(--line);
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified > .app-main-column {
+    grid-row: 2;
+    grid-column: 2;
+    min-height: 0;
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    min-width: 0;
+    padding: var(--mac-chrome-traffic-top, 34px) 12px 10px 12px;
+    border-right: none;
+    background: transparent;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand.glass {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-right: none;
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand .app-sidebar-brand-row {
+    padding: 0;
+    width: 100%;
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand .app-sidebar-brand-hit {
+    padding: 6px 8px;
+    width: 100%;
+    border-radius: 12px;
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand .app-sidebar-brand-hit:hover {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+  }
+  html.tauri-macos-traffic .app-window-chrome__brand .app-sidebar-brand-tag {
+    font-size: 10.5px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html.tauri-macos-traffic .app-window-chrome__toolbar {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    padding: var(--mac-chrome-traffic-top, 34px) var(--main-padding) 10px var(--main-padding);
+    box-sizing: border-box;
+    background: transparent;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  html.tauri-macos-traffic .app-window-chrome__toolbar .mobile-nav-trigger,
+  html.tauri-macos-traffic .app-window-chrome__toolbar button,
+  html.tauri-macos-traffic .app-window-chrome__toolbar .input,
+  html.tauri-macos-traffic .app-window-chrome__toolbar .tb-chip,
+  html.tauri-macos-traffic .app-window-chrome__toolbar .topbar-actions {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  /* Open sidebar (full labels): taller header, brand aligned with `.sb-item` column under traffic lights. */
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-shell.app-shell--mac-unified > .app-window-chrome {
+    min-height: 76px;
+    align-items: stretch;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand {
+  /* Left inset matches `.sb-item` (10px) so the mark sits under the traffic lights, not beside them. */
+    padding: 30px 10px 12px 8px;
+    align-items: flex-end;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-row {
+    padding: 0;
+    margin: 0;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-hit {
+    padding: 6px 10px 6px 2px;
+    gap: 10px;
+    margin: 0;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-title {
+    font-size: 13.5px;
+    font-weight: 650;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-tag {
+    font-size: 11px;
+    max-width: 100%;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__brand .app-sidebar-brand-mark {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 9px;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-window-chrome__toolbar {
+    padding: 30px var(--main-padding) 12px var(--main-padding);
+    align-items: center;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-shell.app-shell--mac-unified > .glass.app-sidebar {
+    padding: 4px 10px 14px;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-shell.app-shell--mac-unified .app-sidebar-scroll > .sb-group-label:first-child {
+    padding-top: 4px;
+  }
+  html.tauri-macos-traffic:not([data-sidebar-rail="icons"]) .app-shell.app-shell--mac-unified .sb-item {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-window-chrome__brand .app-sidebar-brand-meta {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-shell.app-shell--mac-unified > .app-window-chrome {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-shell.app-shell--mac-unified > .glass.app-sidebar {
+    padding: 6px 4px 12px;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-window-chrome__brand {
+    align-items: center;
+    justify-content: center;
+    padding: var(--mac-chrome-traffic-top, 34px) 4px 8px;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-window-chrome__brand .app-sidebar-brand-hit {
+    justify-content: center;
+    padding: 6px;
+    width: auto;
+    flex: 0 0 auto;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .app-window-chrome__brand .app-sidebar-brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .glass.app-sidebar .sb-item {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    margin-inline: auto;
+    padding: 9px 0;
+    border-radius: 11px;
+  }
+  html.tauri-macos-traffic[data-sidebar-rail="icons"] .glass.app-sidebar .sb-item.active {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+}
+@media (max-width: 899px) {
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified > .app-window-chrome {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified .app-window-chrome__brand {
+    padding: var(--mac-chrome-traffic-top, 34px) 4px 8px;
+    align-items: center;
+    justify-content: center;
+  }
+  html.tauri-macos-traffic .app-shell.app-shell--mac-unified .app-window-chrome__brand .app-sidebar-brand-meta {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+}
+
 .app-sidebar-brand-mark {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), #39c4a5);
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 72%, #ffffff));
   display: grid;
   place-items: center;
   color: #fff;
@@ -4847,18 +6136,6 @@ html[data-sidebar-rail="icons"] .glass.app-sidebar .app-sidebar-brand-hit {
 html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
   background: rgba(255, 255, 255, 0.06);
 }
-html[data-sidebar-tone="dark"] button.app-sidebar-user-card {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: linear-gradient(135deg, rgba(127, 216, 196, 0.22), rgba(60, 140, 118, 0.28));
-}
-html[data-sidebar-tone="dark"] button.app-sidebar-user-card:hover {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-  filter: brightness(1.06);
-}
-html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--collapsed-only {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: linear-gradient(135deg, rgba(127, 216, 196, 0.22), rgba(60, 140, 118, 0.28));
-}
 
 /* Patient akte · Abrechnung: clearer mode switch vs. primary „Neue Zahlung“ */
 .akte-zahl-toolbar {
@@ -4870,9 +6147,9 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   display: inline-flex;
   padding: 3px;
   border-radius: 11px;
-  background: rgba(0, 0, 0, 0.055);
+  background: color-mix(in oklab, var(--fg) 5.5%, transparent);
   border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
 }
 .akte-zahl-modus__btn {
   margin: 0;
@@ -4891,17 +6168,32 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 }
 .akte-zahl-modus__btn:hover:not(.is-active) {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in oklab, var(--fg) 8%, transparent);
 }
 .akte-zahl-modus__btn.is-active {
-  color: #fff;
-  background: linear-gradient(180deg, #12a886 0%, #0b8e6f 100%);
+  color: var(--text-on-accent);
+  background: var(--accent);
   box-shadow:
-    0 1px 3px rgba(14, 160, 126, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+    0 1px 3px color-mix(in oklab, var(--accent) 32%, transparent);
 }
-.akte-zahl-toolbar__cta {
-  box-shadow: 0 2px 10px rgba(14, 160, 126, 0.32);
+.akte-zahl-toolbar__cta.btn-subtle,
+.btn-subtle.akte-zahl-toolbar__cta {
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line-strong));
+  background: color-mix(in oklab, var(--fg) 4.5%, var(--bg-elev));
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent),
+    0 2px 14px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.akte-zahl-toolbar__cta.btn-subtle:hover:not(:disabled),
+.btn-subtle.akte-zahl-toolbar__cta:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 42%, var(--line-strong));
+  filter: none;
+  transform: none;
 }
 
 /* Inline panels in patient akte (card look, not modal overlays) */
@@ -5005,21 +6297,15 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 
 /* Patientenakte — Anlagen (Upload-Zone + Kartenraster) */
 .akte-anlagen-dropzone {
-  border: 1.5px dashed rgba(10, 132, 255, 0.35);
+  border: 1.5px dashed color-mix(in oklab, var(--blue) 38%, var(--line-strong));
   border-radius: var(--radius-card);
-  background: repeating-linear-gradient(
-    -12deg,
-    rgba(243, 244, 246, 0.9),
-    rgba(243, 244, 246, 0.9) 8px,
-    rgba(235, 238, 242, 0.95) 8px,
-    rgba(235, 238, 242, 0.95) 16px
-  );
+  background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-elev));
   padding: clamp(20px, 3vw, 28px);
   transition: border-color var(--motion-ui) var(--ease-out), background var(--motion-ui) var(--ease-out);
 }
 .akte-anlagen-dropzone--active {
   border-color: var(--blue);
-  background: rgba(10, 132, 255, 0.06);
+  background: color-mix(in oklab, var(--blue) 10%, var(--bg-elev));
 }
 .akte-anlagen-dropzone--disabled {
   opacity: 0.55;
@@ -5514,7 +6800,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   padding: 0 5px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;
@@ -5636,7 +6922,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   min-height: 40px;
   border-radius: 12px;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--bg-elev);
 }
 .termin-toolbar-search input {
   flex: 1;
@@ -5768,7 +7054,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   font-size: 12px;
   font-weight: 700;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .termin-month-view .termine-month-cal.cal .cal-cell.dim .cal-num {
   position: absolute;
@@ -5970,7 +7256,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   position: sticky;
   left: 0;
   z-index: 3;
-  background: linear-gradient(90deg, #fff 70%, transparent);
+  background: linear-gradient(90deg, var(--bg-elev) 70%, transparent);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -5996,14 +7282,14 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 .termin-day-col {
   position: relative;
   border-top: 1px solid var(--line);
-  background: #fff;
+  background: var(--bg-elev);
   min-height: calc(var(--termin-hour-row, 5.25rem) * var(--termin-slot-count, 11));
 }
 .termin-day-col--today {
-  background: rgba(14, 160, 126, 0.025);
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-elev));
 }
 .termin-day-col--weekend {
-  background: color-mix(in oklab, var(--fg) 2.5%, #fff);
+  background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
 }
 .termin-hour-line {
   position: absolute;
@@ -6059,7 +7345,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   transition: transform 120ms ease, box-shadow 120ms ease;
   z-index: 4;
   width: calc(100% - 8px);
-  background: #fff;
+  background: var(--bg-elev);
   color: var(--fg);
   box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
 }
@@ -6087,7 +7373,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 .termin-appt-block--accent,
 .termin-appt-block--orange,
 .termin-appt-block--purple {
-  background: #fff;
+  background: var(--bg-elev);
   color: var(--fg);
 }
 .termin-appt-block--calendar-row {
@@ -6204,16 +7490,16 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   padding: 3px 7px;
 }
 .termin-appt-status-pill--active {
-  background: color-mix(in oklab, var(--green) 16%, #fff);
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
   color: #146c2e;
 }
 .termin-appt-status-pill--planned {
-  background: color-mix(in oklab, var(--fg) 7%, #fff);
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
   color: var(--fg-2);
   border: 1px solid var(--line);
 }
 .termin-appt-status-pill--done {
-  background: color-mix(in oklab, var(--accent) 14%, #fff);
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
   color: var(--accent-ink);
 }
 .termin-appt-status-pill--cancel {
@@ -6227,7 +7513,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 
 /* Wochenansicht: gesamte Karte in Statusfarbe (keine separate Pille – mehr Platz für Namen) */
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned {
-  background: color-mix(in oklab, var(--fg) 7%, #fff);
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--fg) 18%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-time-col .termin-appt-block-time,
@@ -6240,7 +7526,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 }
 
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active {
-  background: color-mix(in oklab, var(--green) 16%, #fff);
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--green) 35%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-time-col .termin-appt-block-time,
@@ -6253,7 +7539,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 }
 
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done {
-  background: color-mix(in oklab, var(--accent) 14%, #fff);
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-time-col .termin-appt-block-time,
@@ -6305,6 +7591,8 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   align-items: stretch;
   flex: 1;
   min-height: 0;
+  container-type: size;
+  container-name: termin-day-split;
 }
 /* Grid-Items sonst min-height:auto → wachsen über Viewport */
 .termin-day-split > * {
@@ -6359,10 +7647,8 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid var(--line);
-  background: #fff;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.8) inset,
-    0 2px 20px rgba(10, 12, 16, 0.06);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-sm);
 }
 .termin-day-main.card {
   /* card + termin-day-main: einheitliche Fläche */
@@ -6377,7 +7663,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--bg-elev);
 }
 .termin-day-body-grid.termin-week-body-grid {
   flex: 1;
@@ -6388,7 +7674,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   border-radius: 12px;
 }
 .termin-day-hours {
-  background: linear-gradient(90deg, #fafbfc 0%, #fff 100%);
+  background: linear-gradient(90deg, color-mix(in oklab, var(--fg) 4%, var(--bg-elev)) 0%, var(--bg-elev) 100%);
   border-right: 1px solid var(--line);
 }
 .termin-day-hours .termin-hour-label {
@@ -6447,7 +7733,11 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  overflow: hidden;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .termin-day-sidebar > .card {
   flex-shrink: 0;
@@ -6511,7 +7801,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 }
 .termin-mini-cal-cell.selected {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .termin-side-h3 {
   font-size: 11px;
@@ -6563,7 +7853,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   letter-spacing: -0.02em;
 }
 .termin-next-card {
-  background: linear-gradient(135deg, var(--accent-soft), #fff);
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-elev));
   border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
 }
 .termin-next-time {
@@ -6579,6 +7869,78 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   color: var(--fg-3);
   margin-top: 6px;
 }
+
+/* Tag-Ansicht: bei wenig Fensterhöhe — kompakte Seitenleiste, alles per Scroll erreichbar */
+.termin-day-split.termin-day-split--compact .termin-day-sidebar {
+  gap: 8px;
+}
+@container termin-day-split (max-height: 680px) {
+  .termin-day-sidebar {
+    gap: 8px;
+  }
+  .termin-day-sidebar > .card,
+  .termin-day-split.termin-day-split--compact .termin-day-sidebar > .card {
+    flex-shrink: 0;
+  }
+  .termin-day-sidebar .card-pad,
+  .termin-day-split.termin-day-split--compact .termin-day-sidebar .card-pad {
+    padding: 10px 12px;
+  }
+  .termin-mini-cal-cell {
+    min-height: 26px;
+    font-size: 11px;
+  }
+  .termin-mini-cal-head {
+    font-size: 9px;
+    padding: 2px 0;
+  }
+  .termin-stat-big {
+    font-size: 28px;
+  }
+  .termin-stat-big-label {
+    margin-bottom: 8px;
+  }
+  .termin-stat-row.termin-stat-row--day {
+    padding-top: 10px;
+    gap: 6px;
+  }
+  .termin-stat-line-val {
+    font-size: 13px;
+  }
+  .termin-next-time {
+    font-size: 18px;
+  }
+  .termin-next-name {
+    font-size: 14px;
+  }
+}
+@container termin-day-split (max-height: 520px) {
+  .termin-day-split {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 30%);
+    gap: 12px;
+  }
+  .termin-mini-month-card .row {
+    margin-bottom: 4px !important;
+  }
+}
+.termin-day-split.termin-day-split--compact {
+  gap: 12px;
+}
+.termin-day-split--compact .termin-day-sidebar__summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.termin-day-split--compact .termin-day-sidebar__summary .termin-stat-row--day {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding-top: 10px;
+}
+.termin-day-split--compact .termin-next-card {
+  padding: 10px 12px;
+}
+
 .termin-status-list {
   display: flex;
   flex-direction: column;
@@ -6638,7 +8000,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   z-index: 1;
   width: min(460px, 100vw);
   max-width: 100%;
-  background: #fff;
+  background: var(--bg-elev);
   box-shadow:
     -12px 0 40px rgba(10, 12, 16, 0.22),
     0 0 0 1px rgba(10, 12, 16, 0.06);
@@ -6660,7 +8022,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   flex-shrink: 0;
   padding: max(12px, env(safe-area-inset-bottom, 12px)) var(--card-pad-x) max(16px, env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
-  background: #fff;
+  background: var(--bg-elev);
   box-shadow: 0 -8px 24px rgba(10, 12, 16, 0.04);
 }
 .termin-drawer-head {
@@ -6719,7 +8081,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
   height: 34px;
   border-radius: 999px;
   border: 2px solid var(--line-strong);
-  background: #fff;
+  background: var(--bg-elev);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6731,7 +8093,7 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 .termin-workflow-node.on {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .termin-workflow-node.current {
   box-shadow: 0 0 0 4px rgba(14, 160, 126, 0.18);
@@ -6806,29 +8168,37 @@ html[data-sidebar-tone="dark"] div.app-sidebar-user-card.app-sidebar-user-card--
 }
 .arbeitsplan-seg {
   display: inline-flex;
-  border-radius: 8px;
-  border: 1px solid var(--line-1);
-  overflow: hidden;
-  background: var(--bg-1);
+  flex-wrap: wrap;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 .arbeitsplan-seg button {
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
   border: none;
+  border-radius: 8px;
   background: transparent;
   color: var(--fg-3);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
 }
 .arbeitsplan-seg button:hover {
-  color: var(--fg-1);
-  background: rgba(0, 0, 0, 0.04);
+  color: var(--fg);
+  background: color-mix(in oklab, var(--fg) 5%, transparent);
 }
 .arbeitsplan-seg button.is-active {
-  color: var(--fg-1);
-  background: var(--surface-1);
-  box-shadow: inset 0 0 0 1px var(--line-1);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+    0 1px 3px color-mix(in oklab, var(--accent) 32%, transparent);
 }
 .arbeitsplan-nav {
   display: flex;
@@ -7530,8 +8900,20 @@ html[data-kbd-hints="false"] .topbar .ui-kbd-hint {
 }
 
 /* Einstellungen: Sidebar-Ton & UI-Dichte (data-* auf <html>, gesetzt in client-settings) */
+html[data-sidebar-tone="dark"] {
+  /* Dynamische Sidebar-Palette: Canvas vs. Konto-Chip vs. Akzent-Rand (begrenzte Mischungen) */
+  --surface-sidebar-canvas: rgba(22, 27, 34, 0.94);
+  --surface-sidebar-user: color-mix(in oklab, #ffffff 11%, #1a222c);
+  --surface-sidebar-user-hover: color-mix(in oklab, #ffffff 16%, #202a38);
+  --border-sidebar-user: color-mix(in oklab, var(--accent) 40%, rgba(255, 255, 255, 0.14));
+  --text-sidebar-user-primary: rgba(255, 255, 255, 0.97);
+  --text-sidebar-user-secondary: rgba(255, 255, 255, 0.62);
+}
+html[data-sidebar-tone="dark"] .glass .av--accent {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
 html[data-sidebar-tone="dark"] .glass {
-  background: rgba(22, 27, 34, 0.94);
+  background: var(--surface-sidebar-canvas);
   color: rgba(255, 255, 255, 0.94);
   border-right-color: rgba(255, 255, 255, 0.1);
 }
@@ -7590,4 +8972,254 @@ html[data-density="spacious"] {
 html[data-density="spacious"] .glass {
   padding: 20px 16px 16px;
   gap: 8px;
+}
+
+/* ---- Dark theme: hell-gebundene Flächen → semantische Tokens (`data-theme`, client-settings) ---- */
+html[data-theme="dark"] .topbar {
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  border-bottom-color: var(--line-strong);
+}
+/* Dark + mac overlay: legacy single-column topbar stays transparent; unified chrome uses sidebar canvas gradient. */
+html.tauri-macos-traffic[data-theme="dark"] .topbar.topbar--mac-traffic:not(.app-window-chrome) {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html.tauri-macos-traffic[data-theme="dark"] .app-shell.app-shell--mac-unified > .app-window-chrome {
+  background: linear-gradient(
+    105deg,
+    var(--surface-sidebar-canvas) 0%,
+    var(--surface-sidebar-canvas) 38%,
+    color-mix(in oklab, var(--bg) 90%, var(--surface-sidebar-canvas)) 62%,
+    color-mix(in oklab, var(--bg) 84%, var(--surface-sidebar-canvas)) 100%
+  );
+  border-bottom: 1px solid var(--line);
+}
+html.tauri-macos-traffic[data-theme="dark"] .app-window-chrome__brand,
+html.tauri-macos-traffic[data-theme="dark"] .app-window-chrome__toolbar {
+  background: transparent;
+}
+html[data-theme="dark"] .btn-subtle {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .btn-subtle:hover {
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+}
+html[data-theme="dark"] .btn-subtle.akte-zahl-toolbar__cta {
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 38%, var(--line-strong));
+  color: var(--fg);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 14%, transparent),
+    0 2px 16px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+html[data-theme="dark"] .btn-subtle.akte-zahl-toolbar__cta:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 48%, var(--line-strong));
+}
+html[data-theme="dark"] .btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="dark"] .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .input,
+html[data-theme="dark"] .input-edit {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+  color: var(--fg);
+}
+html[data-theme="dark"] .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .icon-btn .dot {
+  border-color: var(--bg);
+}
+html[data-theme="dark"] .pill.grey {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fg-2);
+}
+html[data-theme="dark"] .modal {
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+}
+html[data-theme="dark"] .modal--centered .modal-close-corner {
+  background: color-mix(in oklab, var(--bg-elev) 90%, var(--fg));
+  box-shadow: 0 0 0 1px var(--line);
+}
+html[data-theme="dark"] .menu-surface {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .menu-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .sidebar-account-popover__item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .cal-head,
+html[data-theme="dark"] .cal-cell {
+  background: var(--bg-elev);
+}
+html[data-theme="dark"] .week-day-slots {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1) 0,
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+}
+html[data-theme="dark"] .cal-evt.green {
+  color: color-mix(in oklab, var(--green) 48%, var(--fg));
+}
+html[data-theme="dark"] .cal-evt.blue {
+  color: color-mix(in oklab, var(--blue) 52%, var(--fg));
+}
+html[data-theme="dark"] .cal-evt.orange {
+  color: color-mix(in oklab, var(--orange) 48%, var(--fg));
+}
+html[data-theme="dark"] .cal-evt.purple {
+  color: color-mix(in oklab, var(--purple) 50%, var(--fg));
+}
+html[data-theme="dark"] .tbl thead th {
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+}
+html[data-theme="dark"] .glass-bright {
+  background: color-mix(in oklab, var(--bg-elev) 88%, transparent);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .settings-subcard {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .settings-nav-card {
+  background: var(--surface-sidebar-canvas);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .settings-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="dark"] .settings-nav-btn.active {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  color: var(--accent-ink);
+}
+html[data-theme="dark"] .settings-nav-btn.active svg {
+  color: var(--accent-ink);
+}
+html[data-theme="dark"] .settings-density-seg,
+html[data-theme="dark"] .settings-lang-seg {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+html[data-theme="dark"] .settings-density-seg__btn:not(.is-active),
+html[data-theme="dark"] .settings-lang-seg__btn:not(.is-active) {
+  color: rgba(255, 255, 255, 0.8);
+}
+html[data-theme="dark"] .settings-density-seg__btn:hover:not(.is-active),
+html[data-theme="dark"] .settings-lang-seg__btn:hover:not(.is-active) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .settings-lang-seg__btn.is-active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+    0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+}
+html[data-theme="dark"] .settings-switch:not(.settings-switch--on) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.11);
+}
+html[data-theme="dark"] .settings-switch:not(.settings-switch--on) .settings-switch__thumb {
+  background: #f3f4f6;
+  border-color: rgba(15, 18, 24, 0.35);
+  box-shadow: var(--shadow-thumb);
+}
+html[data-theme="dark"] .settings-switch--on {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+}
+/* Wenn die Haupt-Seitenleiste dunkel ist: Einstellungs-Unternavigation wie .glass .sb-item */
+html[data-sidebar-tone="dark"] .settings-nav-card {
+  background: var(--surface-sidebar-canvas);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.94);
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn.active {
+  background: color-mix(in oklab, var(--accent) 38%, rgba(255, 255, 255, 0.12));
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn.active svg {
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-muted {
+  color: rgba(255, 255, 255, 0.62);
+}
+html[data-sidebar-tone="dark"] .settings-nav-sep {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .settings-row,
+html[data-theme="dark"] .settings-subcard .card-head {
+  border-color: var(--line);
+}
+html[data-theme="dark"] .settings-row-clickable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+html[data-theme="dark"] .settings-row-clickable:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="dark"] .tab[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fg);
+}
+html[data-theme="dark"] .select-menu {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .select-option:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .kpi-delta.up {
+  color: color-mix(in oklab, var(--green) 52%, #f4fff8);
+}
+html[data-theme="dark"] .kpi-delta.down {
+  color: color-mix(in oklab, var(--red) 68%, #fff);
+}
+html[data-theme="dark"] .kpi-delta__trend--positive {
+  color: color-mix(in oklab, var(--green) 52%, #f4fff8);
+}
+html[data-theme="dark"] .kpi-delta__trend--negative {
+  color: color-mix(in oklab, var(--red) 68%, #fff);
+}
+html[data-theme="dark"] .finanzen-kpi__delta--up {
+  color: color-mix(in oklab, var(--green) 52%, #f4fff8);
+}
+html[data-theme="dark"] .finanzen-kpi__delta--down {
+  color: color-mix(in oklab, var(--red) 68%, #fff);
+}
+html[data-theme="dark"] .finanzen-amt--in {
+  color: color-mix(in oklab, var(--green) 52%, #f4fff8);
+}
+html[data-theme="dark"] .finanzen-amt--warn {
+  color: color-mix(in oklab, var(--orange) 58%, #fff);
 }

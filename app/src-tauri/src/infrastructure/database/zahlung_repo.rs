@@ -107,8 +107,8 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
 
     let mut betrag_erwartet = data.betrag_erwartet;
     if let Some(ref bid) = data.behandlung_id {
-        let row: Option<(Option<f64>,)> = sqlx::query_as(
-            "SELECT b.gesamtkosten FROM behandlung b
+        let row: Option<(Option<f64>, Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT b.gesamtkosten, b.freigegeben_von_arzt_id, b.freigegeben_am FROM behandlung b
              JOIN patientenakte a ON b.akte_id = a.id
              WHERE b.id = ?1 AND a.patient_id = ?2",
         )
@@ -116,15 +116,22 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .bind(&data.patient_id)
         .fetch_optional(pool)
         .await?;
-        if row.is_none() {
+        let Some((_, vid, vam)) = row else {
             return Err(AppError::Validation(
                 "Behandlung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
+            ));
+        };
+        let frei_ok = vid.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true)
+            && vam.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true);
+        if !frei_ok {
+            return Err(AppError::Validation(
+                "Behandlung ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05).".into(),
             ));
         }
     }
     if let Some(ref uid) = data.untersuchung_id {
-        let ok: Option<(String,)> = sqlx::query_as(
-            "SELECT u.id FROM untersuchung u
+        let ok: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT u.id, u.freigegeben_von_arzt_id, u.freigegeben_am FROM untersuchung u
              JOIN patientenakte a ON u.akte_id = a.id
              WHERE u.id = ?1 AND a.patient_id = ?2",
         )
@@ -132,9 +139,16 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .bind(&data.patient_id)
         .fetch_optional(pool)
         .await?;
-        if ok.is_none() {
+        let Some((_, vid, vam)) = ok else {
             return Err(AppError::Validation(
                 "Untersuchung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
+            ));
+        };
+        let frei_ok = vid.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true)
+            && vam.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true);
+        if !frei_ok {
+            return Err(AppError::Validation(
+                "Untersuchung ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05).".into(),
             ));
         }
     }

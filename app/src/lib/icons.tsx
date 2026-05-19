@@ -95,6 +95,25 @@ export const KeyRoundIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     </IconBase>
 );
 export const DownloadIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 19h14" /></IconBase>;
+/** Rahmenlos-Fenster: minimieren (Tauri-Desktop). */
+export const WindowChromeMinimizeIcon: FC<{ size?: number }> = ({ size = 12 }) => (
+    <IconBase size={size}>
+        <path d="M5 16h14" />
+    </IconBase>
+);
+/** Rahmenlos-Fenster: maximieren. */
+export const WindowChromeMaximizeIcon: FC<{ size?: number }> = ({ size = 12 }) => (
+    <IconBase size={size}>
+        <rect x="5" y="5" width="14" height="14" rx="1.5" />
+    </IconBase>
+);
+/** Rahmenlos-Fenster: wiederherstellen (maximiert). */
+export const WindowChromeRestoreIcon: FC<{ size?: number }> = ({ size = 12 }) => (
+    <IconBase size={size}>
+        <path d="M8 5v11h11V5H8z" />
+        <path d="M5 8h11v11H5V8z" />
+    </IconBase>
+);
 /** Emergency / Notfall — von Lucide „ambulance“ inspiriert. Lizenz: `third_party/LICENSES.md` (ISC, Lucide). */
 export const AmbulanceIcon: FC<IconProps> = ({ size = 20, ...props }) => (
     <IconBase size={size} {...props}>
@@ -127,7 +146,8 @@ export const ToothIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase siz
 export const ClipboardIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4.5h6" /></IconBase>;
 const ScrollIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M6 4h12v14a3 3 0 01-3 3H8a3 3 0 01-3-3V7a3 3 0 013-3z" /><path d="M9 9h6M9 13h6" /></IconBase>;
 export const SettingsIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" /></IconBase>;
-const ShieldIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /></IconBase>;
+/** Schild — Einstellungen › Sicherheit (Outline). */
+export const ShieldIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /></IconBase>;
 const LockIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></IconBase>;
 const TruckIcon: FC<{ size?: number }> = ({ size = 17 }) => (
     <IconBase size={size}>
@@ -157,6 +177,8 @@ export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
   "/": DashboardIcon,
   "/termine": CalendarIcon,
   "/patienten": UsersIcon,
+  "/akten/zu-validieren": ShieldCheckIcon,
+  "/tickets": ClipboardIcon,
   "/finanzen": WalletIcon,
   "/bilanz": ChartIcon,
   "/rezepte": PillIcon,

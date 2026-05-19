@@ -20,6 +20,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { useT } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
+import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 
 const PRUEF_PATIENT_CAP = 100;
 const DASHBOARD_BESTELLUNGEN_MAX = 10;
@@ -314,7 +315,7 @@ export function DashboardPage() {
                 setApproveBusyId(null);
             }
         },
-        [session?.user_id, t, toast],
+        [session, t, toast],
     );
 
     const handleOrderZusagen = useCallback(
@@ -414,7 +415,7 @@ export function DashboardPage() {
                         label={t("dashboard.kpi.patienten_gesamt")}
                         value={String(stats.patienten_gesamt)}
                         icon="Users"
-                        accent="#0EA07E"
+                        accent="var(--accent)"
                         sub={t("dashboard.kpi.patienten_gesamt_sub")}
                         trend="neutral"
                     />
@@ -830,18 +831,32 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon, accent, sub, trend = "neutral" }: StatCardProps) {
     const Ic = NAV_ICONS[icon] ?? NAV_ICONS["/"];
-    const subColor =
-        trend === "positive" ? "#5FAF8F" : trend === "negative" ? "#E57C7C" : "var(--fg-3)";
+    const iconChrome = kpiIconChrome(accent);
     return (
         <div className="card kpi">
             <div className="kpi-label">
-                <span style={{ width: 22, height: 22, borderRadius: 7, background: `${accent}20`, color: accent, display: "grid", placeItems: "center" }}>
+                <span style={{ width: 22, height: 22, borderRadius: 7, display: "grid", placeItems: "center", ...iconChrome }}>
                     <Ic size={13} />
                 </span>
                 {label}
             </div>
             <div className="kpi-val">{value}</div>
-            {sub ? <div className="kpi-delta"><span style={{ color: subColor }}>{sub}</span></div> : null}
+            {sub ? (
+                <div className="kpi-delta">
+                    <span
+                        className={
+                            trend === "positive"
+                                ? "kpi-delta__trend--positive"
+                                : trend === "negative"
+                                  ? "kpi-delta__trend--negative"
+                                  : ""
+                        }
+                        style={trend === "neutral" ? { color: "var(--fg-3)" } : undefined}
+                    >
+                        {sub}
+                    </span>
+                </div>
+            ) : null}
         </div>
     );
 }

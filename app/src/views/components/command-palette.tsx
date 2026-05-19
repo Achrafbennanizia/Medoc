@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import type { PaletteCommand } from "@/lib/command-palette-data";
 import { SearchIcon } from "@/lib/icons";
+import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT } from "@/lib/i18n";
 
@@ -28,10 +29,10 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
     }, [commands, query]);
 
     const fuzzyTitles = useMemo(() => commands.map((c) => c.titleDe), [commands]);
-    const suggestions = useMemo(
-        () => suggestSimilarTitles(query, fuzzyTitles, 2, 5),
-        [query, fuzzyTitles],
-    );
+    const suggestions = useMemo(() => {
+        const disableFuzzy = loadClientSettings().search?.autocompleteSuggestionsEnabled === false;
+        return suggestSimilarTitles(query, fuzzyTitles, 2, 5, { disabled: disableFuzzy });
+    }, [query, fuzzyTitles]);
 
     useEffect(() => {
         if (!open) return;
@@ -145,7 +146,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                                             fontWeight: 500,
                                             border: "none",
                                             borderBottom: "1px solid var(--line)",
-                                            background: isSel ? "color-mix(in oklab, var(--accent) 12%, transparent)" : "#fff",
+                                            background: isSel ? "color-mix(in oklab, var(--accent) 12%, transparent)" : "var(--bg-elev)",
                                             color: "var(--fg)",
                                             cursor: "pointer",
                                             transition: "background 80ms ease",

@@ -123,6 +123,27 @@ export const UpdatePersonalSchema = z
     })
     .strict();
 
+/** Eigenes Konto (Einstellungen) — mindestens ein Feld erforderlich. */
+export const UpdateOwnProfileSchema = z
+    .object({
+        name: z.string().min(1).max(120).optional(),
+        email: z.string().email("Ungültige E-Mail").optional(),
+        taetigkeitsbereich: optionalText,
+        fachrichtung: optionalText,
+        /** Leerstring löscht die gespeicherte Nummer (wie Backend). */
+        telefon: z.string().max(40).optional(),
+    })
+    .strict()
+    .refine(
+        (d) =>
+            d.name != null ||
+            d.email != null ||
+            d.taetigkeitsbereich != null ||
+            d.fachrichtung != null ||
+            d.telefon !== undefined,
+        { message: "Mindestens ein Feld zum Speichern ausfüllen" },
+    );
+
 export const ZahlungsartSchema = stringEnumConst(ZAHLUNGS_ART_VALUES);
 export const ZahlungStatusSchema = stringEnumConst(ZAHLUNGS_STATUS_VALUES);
 

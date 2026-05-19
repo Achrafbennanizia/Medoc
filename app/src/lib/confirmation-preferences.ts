@@ -62,6 +62,10 @@ export type PraxisPreferencesV1 = {
             defaultMode?: ConfirmationPresentMode;
             areas?: Partial<Record<ConfirmationAreaKey, AreaOverride>>;
         };
+        /** NFA-USE-10 — siehe `praxis-search-prefs-sync.ts` / client-settings `search`. */
+        search?: {
+            autocompleteSuggestionsEnabled?: boolean;
+        };
         [key: string]: unknown;
     };
     [key: string]: unknown;

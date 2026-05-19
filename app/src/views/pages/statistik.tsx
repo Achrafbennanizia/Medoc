@@ -25,6 +25,7 @@ import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ExportIcon, NAV_ICONS } from "@/lib/icons";
+import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 
 type Period = "6m" | "12m";
 
@@ -47,9 +48,9 @@ const PANELS: Section[] = [
     ...SECTIONS,
 ];
 
-// Apple-system-inspired palette aligned with the app accent colors.
+// Apple-system-inspired palette; erste Farbe folgt dem gewählten Theme-Akzent (`--accent`).
 const PALETTE = [
-    "#0EA07E", // accent
+    "var(--accent)",
     "#0A84FF", // blue
     "#FF9500", // orange
     "#AF52DE", // purple
@@ -58,8 +59,6 @@ const PALETTE = [
     "#FFCC00", // yellow
     "#5AC8FA", // light blue
 ];
-
-const ACCENT_BLUE = "#0A84FF";
 
 function formatMonth(month: string): string {
     // month = "YYYY-MM"
@@ -252,8 +251,7 @@ interface StatOverviewCardProps {
 
 function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }: StatOverviewCardProps) {
     const Ic = NAV_ICONS[icon] ?? NAV_ICONS["/"];
-    const subColor =
-        trend === "positive" ? "#5FAF8F" : trend === "negative" ? "#E57C7C" : "var(--fg-3)";
+    const iconChrome = kpiIconChrome(accent);
     return (
         <div className="card kpi">
             <div className="kpi-label">
@@ -262,10 +260,9 @@ function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }
                         width: 22,
                         height: 22,
                         borderRadius: 7,
-                        background: `${accent}20`,
-                        color: accent,
                         display: "grid",
                         placeItems: "center",
+                        ...iconChrome,
                     }}
                 >
                     <Ic size={13} />
@@ -275,7 +272,18 @@ function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }
             <div className="kpi-val">{value}</div>
             {sub ? (
                 <div className="kpi-delta">
-                    <span style={{ color: subColor }}>{sub}</span>
+                    <span
+                        className={
+                            trend === "positive"
+                                ? "kpi-delta__trend--positive"
+                                : trend === "negative"
+                                  ? "kpi-delta__trend--negative"
+                                  : ""
+                        }
+                        style={trend === "neutral" ? { color: "var(--fg-3)" } : undefined}
+                    >
+                        {sub}
+                    </span>
                 </div>
             ) : null}
         </div>
@@ -306,7 +314,7 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
                     tickFormatter={(v) => (Number(v) >= 1000 ? `${Math.round(Number(v) / 1000)}k` : String(v))}
                 />
                 <Tooltip
-                    cursor={{ fill: "rgba(10,132,255,0.06)" }}
+                    cursor={{ fill: "color-mix(in oklab, var(--accent) 9%, transparent)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
                     formatter={(v: number) => [formatCurrency(v), "Einnahmen"]}
                     labelFormatter={(label, payload) => {
@@ -319,8 +327,8 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
                     {formatted.map((_, i) => (
                         <Cell
                             key={i}
-                            fill={i === n - 1 ? ACCENT_BLUE : "rgba(10,132,255,0.14)"}
-                            stroke={i === n - 1 ? ACCENT_BLUE : ACCENT_BLUE}
+                            fill={i === n - 1 ? "var(--accent)" : "color-mix(in oklab, var(--accent) 18%, transparent)"}
+                            stroke={i === n - 1 ? "var(--accent)" : "var(--accent)"}
                             strokeWidth={i === n - 1 ? 0 : 1.5}
                             fillOpacity={i === n - 1 ? 1 : 1}
                         />
@@ -621,7 +629,7 @@ export function StatistikPage() {
                         label="Patienten gesamt"
                         value={stats.patienten_gesamt.toLocaleString("de-DE")}
                         icon="Users"
-                        accent="#0EA07E"
+                        accent="var(--accent)"
                         sub={patientDeltaPct}
                         trend={
                             dash.patientMomPct != null && dash.patientMomPct > 0
@@ -744,7 +752,7 @@ export function StatistikPage() {
                         label="Termintreue"
                         value={dash.treuePct != null ? `${dash.treuePct.toFixed(0)} %` : "—"}
                         icon="Sparkle"
-                        accent="#0EA07E"
+                        accent="var(--accent)"
                         sub={
                             dash.treuePct != null
                                 ? "Durchgeführt vs. nicht erschienen"
@@ -756,7 +764,7 @@ export function StatistikPage() {
                         label="Behandlungen (letzter Monat)"
                         value={Math.round(dash.behCur).toLocaleString("de-DE")}
                         icon="/leistungen"
-                        accent="#0EA07E"
+                        accent="var(--accent)"
                         sub={
                             dash.behMom != null && Number.isFinite(dash.behMom)
                                 ? `${dash.behMom >= 0 ? "+" : ""}${dash.behMom.toFixed(1).replace(".", ",")}% ggü. Vormonat`
@@ -780,7 +788,7 @@ export function StatistikPage() {
                         label={`Einnahmen (${periodLabel})`}
                         value={formatCurrency(trimmedEinn.reduce((s, m) => s + m.value, 0))}
                         icon="/finanzen"
-                        accent="#0EA07E"
+                        accent="var(--accent)"
                         sub="Summe bezahlter Zahlungen im gewählten Zeitraum"
                         trend="neutral"
                     />

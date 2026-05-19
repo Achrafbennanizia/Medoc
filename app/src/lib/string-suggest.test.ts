@@ -17,4 +17,8 @@ describe("suggestSimilarTitles", () => {
         const titles = ["Terminübersicht", "Patientenakten", "Finanzen"];
         expect(suggestSimilarTitles("terminübersict", titles, 2, 5)).toContain("Terminübersicht");
     });
+    it("returns empty when disabled (NFA-USE-10)", () => {
+        const titles = ["Terminübersicht", "Patientenakten"];
+        expect(suggestSimilarTitles("termin", titles, 2, 5, { disabled: true })).toEqual([]);
+    });
 });

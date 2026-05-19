@@ -23,7 +23,8 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { TrashIcon } from "@/lib/icons";
-import { ProduktFormFields, emptyForm, formValid, parseForm, type ProduktForm } from "../components/produkt-form-shared";
+import { ProduktFormFields } from "../components/produkt-form-shared";
+import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt-form-model";
 
 /**
  * Verwaltung: Stammdaten für Bestellungen — Lieferanten, Pharmaberater/Kontakte

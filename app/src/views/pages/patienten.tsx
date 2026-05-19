@@ -183,16 +183,16 @@ export function PatientenPage() {
         }
     };
 
-    const nameSuggestions = useMemo(
-        () =>
-            suggestSimilarTitles(
-                debouncedSearch,
-                allPatientNames.length > 0 ? allPatientNames : nameDirectory,
-                2,
-                5,
-            ),
-        [debouncedSearch, nameDirectory, allPatientNames],
-    );
+    const nameSuggestions = useMemo(() => {
+        const disableFuzzy = loadClientSettings().search?.autocompleteSuggestionsEnabled === false;
+        return suggestSimilarTitles(
+            debouncedSearch,
+            allPatientNames.length > 0 ? allPatientNames : nameDirectory,
+            2,
+            5,
+            { disabled: disableFuzzy },
+        );
+    }, [debouncedSearch, nameDirectory, allPatientNames]);
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
@@ -255,7 +255,8 @@ export function PatientenPage() {
                     { id: "ABGESCHLOSSEN", label: "Abgeschlossen" },
                 ].map((f) => (
                     <button key={f.id} aria-pressed={statusFilter === f.id} onClick={() => setStatusFilter(f.id as PatientStatusFilter)}>
-                        {f.label} <span style={{ color: "var(--fg-4)" }}>{filterCounts[f.id as PatientStatusFilter]}</span>
+                        {f.label}{" "}
+                        <span className="seg__count">{filterCounts[f.id as PatientStatusFilter]}</span>
                     </button>
                 ))}
             </div>

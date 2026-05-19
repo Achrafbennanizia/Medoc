@@ -2,8 +2,17 @@ import { tauriInvoke } from "../services/tauri.service";
 import { useAuthStore } from "../models/store/auth-store";
 import type { Session } from "../models/types";
 
-export async function login(email: string, passwort: string): Promise<Session> {
-    const session = await tauriInvoke<Session>("login", { email, passwort });
+export async function login(
+    email: string,
+    passwort: string,
+    opts?: { device_label?: string; user_agent?: string },
+): Promise<Session> {
+    const session = await tauriInvoke<Session>("login", {
+        email,
+        passwort,
+        device_label: opts?.device_label ?? null,
+        user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
+    });
     useAuthStore.getState().setSession(session);
     return session;
 }

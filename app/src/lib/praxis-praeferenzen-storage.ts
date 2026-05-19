@@ -93,6 +93,7 @@ export type PraxisPraeferenzen = {
     reminder: string;
     noShow: string;
     monthCalendarPatientLoad: MonthCalendarPatientLoadPrefs;
+    kalenderDragDropEnabled: boolean;
 };
 
 export const DEFAULT_PRAXIS_PRAEFERENZEN: PraxisPraeferenzen = {
@@ -101,6 +102,7 @@ export const DEFAULT_PRAXIS_PRAEFERENZEN: PraxisPraeferenzen = {
     reminder: "24",
     noShow: "warn",
     monthCalendarPatientLoad: { ...DEFAULT_MONTH_CAL_PATIENT_LOAD },
+    kalenderDragDropEnabled: true,
 };
 
 function clampNonNegativeIntString(raw: string | undefined, fallback: string): string {
@@ -129,6 +131,7 @@ function normalizePartial(p: Partial<PraxisPraeferenzen> | undefined): PraxisPra
         monthCalendarPatientLoad: normalizeMonthCalendarPatientLoad(
             p?.monthCalendarPatientLoad,
         ),
+        kalenderDragDropEnabled: p?.kalenderDragDropEnabled !== false,
     };
     return base;
 }

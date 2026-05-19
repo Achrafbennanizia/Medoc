@@ -43,6 +43,7 @@ import {
 } from "@/lib/document-template-schema";
 import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
+import { composeClinicalDocumentPdfBodyLines } from "@/lib/clinical-document-pdf";
 import { isTauriApp } from "@/lib/save-download";
 
 export type ExportPickerAkteProps = {
@@ -618,7 +619,8 @@ function HtmlDocumentExportPickerInner({
             void (async () => {
                 setPdfPreviewBusy(true);
                 try {
-                    const b64 = await previewDocumentPdf(templateKind, displayName, payload, bundle.pdfBodyLines);
+                    const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
+                    const b64 = await previewDocumentPdf(templateKind, displayName, payload, mergedPdfLines);
                     const bin = atob(b64);
                     const bytes = new Uint8Array(bin.length);
                     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -686,7 +688,8 @@ function HtmlDocumentExportPickerInner({
         setBusy(true);
         try {
             if (format === "pdf") {
-                const b64 = await previewDocumentPdf(templateKind, displayName, payload, bundle.pdfBodyLines);
+                const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
+                const b64 = await previewDocumentPdf(templateKind, displayName, payload, mergedPdfLines);
                 const bin = atob(b64);
                 const bytes = new Uint8Array(bin.length);
                 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);

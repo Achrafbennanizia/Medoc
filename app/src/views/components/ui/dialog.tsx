@@ -249,7 +249,7 @@ export function ConfirmDialog({
     message,
     confirmLabel = "Bestätigen",
     cancelLabel = "Abbrechen",
-    danger: _dangerUnused = false,
+    danger = false,
     loading = false,
 }: ConfirmDialogProps) {
     const confirmTitleId = useId();
@@ -277,6 +277,7 @@ export function ConfirmDialog({
                     onCancel={handleClose}
                     onConfirm={onConfirm}
                     loading={loading}
+                    destructive={danger}
                 />
             </div>
         </Dialog>

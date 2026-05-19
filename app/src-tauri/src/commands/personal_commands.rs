@@ -1,10 +1,12 @@
+use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::personal::{CreatePersonal, UpdatePersonal};
+use crate::domain::entities::personal::{CreatePersonal, UpdateOwnProfile, UpdatePersonal};
+use crate::application::auth_service::PermissionOverride;
 use crate::domain::entities::{AerztSummary, Personal};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::{audit_repo, personal_repo};
+use crate::infrastructure::database::{audit_repo, personal_permission_repo, personal_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -70,6 +72,47 @@ pub async fn create_personal(
     .await
     .ok();
     Ok(p)
+}
+
+/// Eigenes Profil lesen (ohne `personal.read` — jede Sitzung).
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn get_own_profile(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<OwnProfileDto, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    own_profile::get_own_profile(&pool, &session.user_id).await
+}
+
+/// Eigenes Profil aktualisieren (Name, E-Mail, Kontakt — keine Rollenänderung).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn update_own_profile(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: UpdateOwnProfile,
+) -> Result<OwnProfileDto, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let updated = own_profile::apply_own_profile_update(&pool, &session.user_id, &data).await?;
+    {
+        let mut guard = session_state.lock_session();
+        if let Some((sess, _)) = guard.as_mut() {
+            sess.name.clone_from(&updated.name);
+            sess.email.clone_from(&updated.email);
+        }
+    }
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE_OWN_PROFILE",
+        "Personal",
+        Some(&session.user_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(OwnProfileDto::from(&updated))
 }
 
 #[tauri::command]
@@ -189,6 +232,65 @@ pub async fn set_personal_password_by_admin(
         "Personal",
         Some(&id),
         None,
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
+/// FA-PERS-07: Overrides für ein Team-Mitglied (Lesen — gleiche Policy wie Personal-Stamm).
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn list_personal_permission_overrides(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    personal_id: String,
+) -> Result<Vec<PermissionOverride>, AppError> {
+    rbac::require(&session_state, "personal.read")?;
+    personal_permission_repo::list_for_personal(&pool, &personal_id).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn set_personal_permission_override(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    personal_id: String,
+    action: String,
+    effect: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "personal.write")?;
+    personal_permission_repo::upsert(&pool, &personal_id, &action, &effect).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "PERMISSION_OVERRIDE_SET",
+        "Personal",
+        Some(&personal_id),
+        Some(&format!("{}={}", action.trim(), effect.trim())),
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn delete_personal_permission_override(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    personal_id: String,
+    action: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "personal.write")?;
+    personal_permission_repo::delete_override(&pool, &personal_id, &action).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "PERMISSION_OVERRIDE_DELETE",
+        "Personal",
+        Some(&personal_id),
+        Some(action.trim()),
     )
     .await
     .ok();

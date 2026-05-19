@@ -150,6 +150,23 @@ function useDayTimelineLayout() {
     return { hostRef, layout };
 }
 
+/** Tag-Ansicht: unter dieser Höhe kompakte Seitenleiste (Scroll + verdichtete Karten). */
+const TERMIN_DAY_COMPACT_HEIGHT_PX = 680;
+
+function useTerminDayCompactChrome(hostRef: React.RefObject<HTMLDivElement | null>) {
+    const [compact, setCompact] = useState(false);
+    useLayoutEffect(() => {
+        const el = hostRef.current;
+        if (!el) return;
+        const apply = () => setCompact(el.clientHeight < TERMIN_DAY_COMPACT_HEIGHT_PX);
+        apply();
+        const ro = new ResizeObserver(apply);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [hostRef]);
+    return compact;
+}
+
 const ART_FILTER_OPTIONS = [{ value: "", label: "Alle Arten" }, ...terminArten];
 
 const STATUS_FILTER_OPTIONS = [
@@ -2031,8 +2048,94 @@ function TerminDaySplit({
     const hourGutterPhase: "drag" | "placed" | null =
         dragState != null ? "drag" : daySnapLabel != null ? "placed" : null;
 
+    const splitRef = useRef<HTMLDivElement>(null);
+    const compactChrome = useTerminDayCompactChrome(splitRef);
+
+    const miniMonthCard = (
+        <div className="card card-pad termin-mini-month-card">
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthOffsetChange((o) => o - 1)}>
+                    <ChevronLeftIcon size={16} />
+                </button>
+                <span className="termin-mini-month-title">{format(first, "MMMM yyyy", { locale: de })}</span>
+                <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthOffsetChange((o) => o + 1)}>
+                    <ChevronRightIcon size={16} />
+                </button>
+            </div>
+            <div className="termin-mini-cal">
+                {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d, i) => (
+                    <div key={`${d}-${i}`} className="termin-mini-cal-head">{d}</div>
+                ))}
+                {Array.from({ length: 42 }).map((_, idx) => {
+                    const dayN = idx - startOffset + 1;
+                    const inMonth = dayN > 0 && dayN <= daysInMonth;
+                    const date = inMonth ? new Date(y, m, dayN) : undefined;
+                    const cellIso = date ? format(date, "yyyy-MM-dd") : "";
+                    const isToday = Boolean(inMonth && cellIso === todayIso);
+                    const isSel = Boolean(inMonth && cellIso === selectedIso);
+                    return (
+                        <button
+                            key={idx}
+                            type="button"
+                            disabled={!inMonth}
+                            className={`termin-mini-cal-cell ${!inMonth ? "dim" : ""} ${isToday ? "today" : ""} ${isSel ? "selected" : ""}`}
+                            onClick={() => {
+                                if (!date) return;
+                                onJumpToDay(date);
+                                onMonthOffsetChange(calendarMonthOffsetFromToday(date));
+                            }}
+                        >
+                            {inMonth ? dayN : ""}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    const tagesuebersichtBlock = (
+        <>
+            <div className="termin-side-h3">Tagesübersicht</div>
+            <div className="termin-stat-big">{planned.length}</div>
+            <div className="termin-stat-big-label">Termine geplant</div>
+            <div className="termin-stat-row termin-stat-row--day">
+                <span>
+                    <span className="termin-stat-line-label">Auslastung</span>
+                    <b className="termin-stat-line-val">{auslastung}%</b>
+                </span>
+                <span>
+                    <span className="termin-stat-line-label">Eingecheckt</span>
+                    <b className="termin-stat-line-val">{termine.filter((t) => t.status === "BESTAETIGT").length}</b>
+                </span>
+                <span>
+                    <span className="termin-stat-line-label">Frei</span>
+                    <b className="termin-stat-line-val">{freiH}h</b>
+                </span>
+            </div>
+        </>
+    );
+
+    const naechsterTerminBlock = (
+        <>
+            <div className="termin-side-h3">Nächster Termin</div>
+            {nextAppt ? (
+                <>
+                    <div className="termin-next-time">{nextAppt.uhrzeit.slice(0, 5)}</div>
+                    <div className="termin-next-name">{patientNameById.get(nextAppt.patient_id) ?? "Patient"}</div>
+                    <div className="termin-next-meta">
+                        {terminArtLabelFromTermin(nextAppt)} · {aerzte.find((a) => a.id === nextAppt.arzt_id)?.name ?? ""}
+                    </div>
+                </>
+            ) : sortedToday.length > 0 ? (
+                <p className="termin-next-empty">Kein weiterer Termin ab der aktuellen Uhrzeit.</p>
+            ) : (
+                <p className="termin-next-empty">Heute sind keine Termine in der Liste.</p>
+            )}
+        </>
+    );
+
     return (
-        <div className="termin-day-split fade-up">
+        <div ref={splitRef} className={`termin-day-split fade-up${compactChrome ? " termin-day-split--compact" : ""}`}>
             <div className="card card-pad termin-day-main">
                 <div className="termin-day-split-head">
                     <div>
@@ -2097,82 +2200,22 @@ function TerminDaySplit({
                     </div>
                 )}
             </div>
-            <div className="termin-day-sidebar">
-                <div className="card card-pad termin-mini-month-card">
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                        <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthOffsetChange((o) => o - 1)}>
-                            <ChevronLeftIcon size={16} />
-                        </button>
-                        <span className="termin-mini-month-title">{format(first, "MMMM yyyy", { locale: de })}</span>
-                        <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthOffsetChange((o) => o + 1)}>
-                            <ChevronRightIcon size={16} />
-                        </button>
+            <aside className="termin-day-sidebar" aria-label="Kalender und Tagesübersicht">
+                {miniMonthCard}
+                {compactChrome ? (
+                    <div className="card card-pad termin-day-sidebar__summary termin-next-card">
+                        {tagesuebersichtBlock}
+                        <div className="termin-day-sidebar__next" style={{ marginTop: 12 }}>
+                            {naechsterTerminBlock}
+                        </div>
                     </div>
-                    <div className="termin-mini-cal">
-                        {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d, i) => (
-                            <div key={`${d}-${i}`} className="termin-mini-cal-head">{d}</div>
-                        ))}
-                        {Array.from({ length: 42 }).map((_, idx) => {
-                            const dayN = idx - startOffset + 1;
-                            const inMonth = dayN > 0 && dayN <= daysInMonth;
-                            const date = inMonth ? new Date(y, m, dayN) : undefined;
-                            const cellIso = date ? format(date, "yyyy-MM-dd") : "";
-                            const isToday = Boolean(inMonth && cellIso === todayIso);
-                            const isSel = Boolean(inMonth && cellIso === selectedIso);
-                            return (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    disabled={!inMonth}
-                                    className={`termin-mini-cal-cell ${!inMonth ? "dim" : ""} ${isToday ? "today" : ""} ${isSel ? "selected" : ""}`}
-                                    onClick={() => {
-                                        if (!date) return;
-                                        onJumpToDay(date);
-                                        onMonthOffsetChange(calendarMonthOffsetFromToday(date));
-                                    }}
-                                >
-                                    {inMonth ? dayN : ""}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-                <div className="card card-pad">
-                    <div className="termin-side-h3">Tagesübersicht</div>
-                    <div className="termin-stat-big">{planned.length}</div>
-                    <div className="termin-stat-big-label">Termine geplant</div>
-                    <div className="termin-stat-row termin-stat-row--day">
-                        <span>
-                            <span className="termin-stat-line-label">Auslastung</span>
-                            <b className="termin-stat-line-val">{auslastung}%</b>
-                        </span>
-                        <span>
-                            <span className="termin-stat-line-label">Eingecheckt</span>
-                            <b className="termin-stat-line-val">{termine.filter((t) => t.status === "BESTAETIGT").length}</b>
-                        </span>
-                        <span>
-                            <span className="termin-stat-line-label">Frei</span>
-                            <b className="termin-stat-line-val">{freiH}h</b>
-                        </span>
-                    </div>
-                </div>
-                <div className="card card-pad termin-next-card">
-                    <div className="termin-side-h3">Nächster Termin</div>
-                    {nextAppt ? (
-                        <>
-                            <div className="termin-next-time">{nextAppt.uhrzeit.slice(0, 5)}</div>
-                            <div className="termin-next-name">{patientNameById.get(nextAppt.patient_id) ?? "Patient"}</div>
-                            <div className="termin-next-meta">
-                                {terminArtLabelFromTermin(nextAppt)} · {aerzte.find((a) => a.id === nextAppt.arzt_id)?.name ?? ""}
-                            </div>
-                        </>
-                    ) : sortedToday.length > 0 ? (
-                        <p className="termin-next-empty">Kein weiterer Termin ab der aktuellen Uhrzeit.</p>
-                    ) : (
-                        <p className="termin-next-empty">Heute sind keine Termine in der Liste.</p>
-                    )}
-                </div>
-            </div>
+                ) : (
+                    <>
+                        <div className="card card-pad">{tagesuebersichtBlock}</div>
+                        <div className="card card-pad termin-next-card">{naechsterTerminBlock}</div>
+                    </>
+                )}
+            </aside>
         </div>
     );
 }

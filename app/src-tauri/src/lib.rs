@@ -18,6 +18,7 @@ pub fn run() {
         .manage(commands::break_glass_commands::BreakGlassStateExt(
             application::break_glass::BreakGlassState::new(),
         ))
+        .manage(commands::lan_commands::LanServerControl::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -71,6 +72,13 @@ pub fn run() {
                     app_handle.manage(pool.clone());
                     tracing::info!(target: "medoc::system", event = "DB_READY");
 
+                    let auto_pool = pool.clone();
+                    let auto_app = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                        commands::lan_commands::auto_start_if_enabled(auto_app, auto_pool).await;
+                    });
+
                     // NFA-SEC-05: daily automatic backup scheduler (24h interval).
                     let backup_pool = pool.clone();
                     tauri::async_runtime::spawn(async move {
@@ -100,6 +108,35 @@ pub fn run() {
                     return Err(format!("Datenbank-Initialisierung fehlgeschlagen: {e}").into());
                 }
             }
+
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::TitleBarStyle;
+                if let Some(w) = app_handle.get_webview_window("main") {
+                    if let Err(e) = w.set_decorations(true) {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "MAC_WINDOW_DECORATIONS",
+                            error = %e
+                        );
+                    }
+                    if let Err(e) = w.set_title_bar_style(TitleBarStyle::Overlay) {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "MAC_WINDOW_TITLE_BAR_OVERLAY",
+                            error = %e
+                        );
+                    }
+                    if let Err(e) = w.set_title("") {
+                        tracing::warn!(target: "medoc::system", event = "MAC_WINDOW_TITLE_CLEAR", error = %e);
+                    } else {
+                        tracing::info!(target: "medoc::system", event = "MAC_WINDOW_TRAFFIC_OVERLAY_OK");
+                    }
+                } else {
+                    tracing::warn!(target: "medoc::system", event = "MAC_WINDOW_MAIN_NOT_FOUND");
+                }
+            }
+
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -111,6 +148,8 @@ pub fn run() {
             commands::auth_commands::logout,
             commands::auth_commands::get_session,
             commands::auth_commands::touch_session,
+            commands::auth_commands::list_my_device_sessions,
+            commands::auth_commands::revoke_my_other_device_sessions,
             commands::export_commands::save_export_file,
             commands::export_commands::pick_export_directory,
             commands::export_commands::save_export_bytes_to_folder,
@@ -118,11 +157,16 @@ pub fn run() {
             commands::personal_commands::list_personal,
             commands::personal_commands::list_aerzte,
             commands::personal_commands::get_personal,
+            commands::personal_commands::get_own_profile,
+            commands::personal_commands::update_own_profile,
             commands::personal_commands::create_personal,
             commands::personal_commands::update_personal,
             commands::personal_commands::delete_personal,
             commands::personal_commands::change_password,
             commands::personal_commands::set_personal_password_by_admin,
+            commands::personal_commands::list_personal_permission_overrides,
+            commands::personal_commands::set_personal_permission_override,
+            commands::personal_commands::delete_personal_permission_override,
             // Praxis: Abwesenheit & Dokument-Vorlagen
             commands::praxis_commands::list_abwesenheiten,
             commands::praxis_commands::create_abwesenheit,
@@ -171,9 +215,12 @@ pub fn run() {
             commands::akte_commands::create_behandlung,
             commands::akte_commands::update_behandlung,
             commands::akte_commands::delete_behandlung,
+            commands::akte_commands::release_behandlung_for_billing,
+            commands::akte_commands::release_untersuchung_for_billing,
             commands::akte_commands::update_untersuchung,
             commands::akte_commands::delete_untersuchung,
             commands::akte_commands::export_akte_pdf,
+            commands::akte_commands::export_discharge_merkblatt_pdf,
             commands::akte_anlage_commands::list_akte_anlagen,
             commands::akte_anlage_commands::create_akte_anlage,
             commands::akte_anlage_commands::delete_akte_anlage,
@@ -185,6 +232,13 @@ pub fn run() {
             commands::akte_validation_commands::set_akte_section_validated,
             commands::akte_validation_commands::set_akte_item_validated,
             commands::akte_validation_commands::clear_akte_validation,
+            commands::akte_workflow_commands::list_akten_zu_validieren,
+            commands::akte_workflow_commands::validate_patientenakte,
+            commands::akte_workflow_commands::forward_akte_to_physicians,
+            commands::akte_workflow_commands::create_praxis_ticket,
+            commands::akte_workflow_commands::list_praxis_tickets_for_me,
+            commands::akte_workflow_commands::update_praxis_ticket_status,
+            commands::akte_workflow_commands::count_open_praxis_tickets_for_me,
             commands::akte_next_termin_commands::get_akte_next_termin_hint,
             commands::akte_next_termin_commands::list_akte_next_termin_hints_pending,
             commands::akte_next_termin_commands::set_akte_next_termin_hint,
@@ -239,6 +293,13 @@ pub fn run() {
             commands::system_commands::system_health_check,
             commands::system_commands::get_perf_threshold_ms,
             commands::system_commands::set_perf_threshold_ms,
+            // LAN host API (authenticated JWT sessions — NFA-NET)
+            commands::lan_commands::lan_server_get_config,
+            commands::lan_commands::lan_server_set_config,
+            commands::lan_commands::lan_server_status,
+            commands::lan_commands::lan_server_start,
+            commands::lan_commands::lan_server_stop,
+            commands::lan_commands::lan_server_scan,
             // DSGVO Verzeichnis
             commands::devices_commands::generate_vvt,
             commands::devices_commands::generate_dsfa,
@@ -290,6 +351,15 @@ pub fn run() {
             // Subscription / billing (FA-PAY)
             commands::subscription_commands::open_subscription_portal,
             commands::subscription_commands::attach_payment_method,
+            commands::company_portal_commands::get_company_portal_config,
+            commands::company_portal_commands::set_company_portal_config,
+            commands::company_portal_commands::company_portal_fetch_summary,
+            commands::company_portal_commands::company_portal_fetch_integrations,
+            commands::company_portal_commands::company_portal_fetch_feature_flags,
+            commands::company_portal_commands::company_portal_billing_portal_url,
+            commands::company_portal_commands::company_portal_attach_payment,
+            commands::company_portal_commands::company_portal_fetch_update_manifest,
+            commands::company_portal_commands::company_portal_ping,
             // Bestellungen (FA-INV-ORD)
             commands::bestellung_commands::list_bestellungen,
             commands::bestellung_commands::create_bestellung,

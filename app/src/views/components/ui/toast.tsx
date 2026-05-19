@@ -80,6 +80,7 @@ function ToastRow({
                 {toast.type === "success" && <CheckIcon aria-hidden />}
                 {toast.type === "error" && <XIcon aria-hidden />}
                 {toast.type === "info" && <span className="toast-info-dot" aria-hidden />}
+                {toast.type === "warning" && <span className="toast-warning-dot" aria-hidden />}
                 <span className="toast-message">{toast.message}</span>
                 {toast.onUndo ? (
                     <button type="button" className="toast-undo" onClick={handleUndo}>

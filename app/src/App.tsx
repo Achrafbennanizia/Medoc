@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { SessionGate } from "./views/components/session-gate";
+import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "./views/components/ui/page-status";
 
@@ -12,6 +13,12 @@ const TerminePage = lazy(async () => ({ default: (await import("./views/pages/te
 const TerminCreatePage = lazy(async () => ({ default: (await import("./views/pages/termin-create")).TerminCreatePage }));
 const PatientenPage = lazy(async () => ({ default: (await import("./views/pages/patienten")).PatientenPage }));
 const PatientDetailPage = lazy(async () => ({ default: (await import("./views/pages/patient-detail")).PatientDetailPage }));
+const AktenZuValidierenPage = lazy(async () => ({
+    default: (await import("./views/pages/akten-zu-validieren")).AktenZuValidierenPage,
+}));
+const PraxisTicketsPage = lazy(async () => ({
+    default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
+}));
 const FinanzenPage = lazy(async () => ({ default: (await import("./views/pages/finanzen")).FinanzenPage }));
 const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pages/zahlung-create")).ZahlungCreatePage }));
 const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
@@ -89,6 +96,7 @@ function RouteFallback() {
 export default function App() {
     return (
         <SessionGate>
+        <DesktopWindowFrame>
         <BrowserRouter>
             <Routes>
                 <Route
@@ -115,6 +123,15 @@ export default function App() {
                     <Route path="patienten/:id/rezept/neu" element={<RoleRoute routePath="patienten/:id/rezept/neu"><RezeptCreatePage /></RoleRoute>} />
                     <Route path="patienten/:id/rezept/:rezeptId" element={<RoleRoute routePath="patienten/:id/rezept/:rezeptId"><RezeptEditPage /></RoleRoute>} />
                     <Route path="patienten/:id" element={<RoleRoute routePath="patienten/:id"><PatientDetailPage /></RoleRoute>} />
+                    <Route
+                        path="akten/zu-validieren"
+                        element={(
+                            <RoleRoute routePath="akten/zu-validieren">
+                                <AktenZuValidierenPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route path="tickets" element={<RoleRoute routePath="tickets"><PraxisTicketsPage /></RoleRoute>} />
                     <Route path="finanzen" element={<RoleRoute routePath="finanzen"><FinanzenPage /></RoleRoute>} />
                     <Route path="finanzen/neu" element={<RoleRoute routePath="finanzen/neu"><ZahlungCreatePage /></RoleRoute>} />
                     <Route path="bestellungen" element={<RoleRoute routePath="bestellungen"><BestellungenPage /></RoleRoute>} />
@@ -226,6 +243,7 @@ export default function App() {
                 </Route>
             </Routes>
         </BrowserRouter>
+        </DesktopWindowFrame>
         </SessionGate>
     );
 }

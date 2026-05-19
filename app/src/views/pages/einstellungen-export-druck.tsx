@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/views/components/ui/button";
 import { Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -31,7 +32,7 @@ import {
     previewTemplatePdf,
     updateDokumentTemplate,
     type DokumentTemplateDto,
-} from "@/controllers/document-template.controller";
+} from "@/controllers/settings-page.controller";
 import { isTauriApp } from "@/lib/save-download";
 import { openExportPreview } from "@/models/store/export-preview-store";
 
@@ -330,6 +331,21 @@ export function EinstellungenExportDruckSection() {
                         ) : null}
                         <p className="text-body" style={{ margin: 0, fontSize: 13 }}>
                             <b>Aufgelöst:</b> {pathDescription}
+                        </p>
+                    </div>
+                </fieldset>
+
+                <fieldset style={{ border: "1px solid var(--line)", borderRadius: 10, margin: 0, padding: "14px 16px" }}>
+                    <legend className="text-label">Praxiszeilen in PDFs</legend>
+                    <div className="col" style={{ gap: 10 }}>
+                        <p className="text-body" style={{ margin: 0, fontSize: 13, lineHeight: 1.45 }}>
+                            Welche Kontakt- und Registerzeilen (Tel., E-Mail, KV-Nr. …) in Rechnungs-PDFs, im Tagesbericht
+                            und im Kopf von Attest, Rezept und Quittung gedruckt werden, steuern die Augen-Schalter in der
+                            Praxis-Vorschau. Layout: Vorlage liefert Struktur und Typografie, Stammdaten den Inhalt — getrennt
+                            von den fachlichen Body-Zeilen (Schichtung wie bei dokumentzentrierten Export-Pipelines).
+                        </p>
+                        <p className="card-sub" style={{ margin: 0 }}>
+                            <Link to="/einstellungen">Zu Einstellungen › Praxis (Vorschau Briefkopf) …</Link>
                         </p>
                     </div>
                 </fieldset>

@@ -142,14 +142,13 @@ export function UntersuchungComposer({
     return (
         <div className="col" style={{ gap: 16 }}>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div className="row" role="tablist" aria-label="Untersuchung Sektionen" style={{ gap: 4, flexWrap: "wrap" }}>
+                <div className="seg seg--wrap" role="tablist" aria-label="Untersuchung Sektionen">
                     {SECTIONS.map((s) => (
                         <button
                             key={s.id}
                             type="button"
                             role="tab"
                             aria-selected={section === s.id}
-                            className={`btn-chip ${section === s.id ? "is-active" : ""}`}
                             onClick={() => setSection(s.id)}
                         >
                             {s.label}
