@@ -3,18 +3,84 @@
 // Uses SQLite's built-in `VACUUM INTO` to produce a self-contained snapshot
 // that includes WAL contents and skips free pages. Snapshots are timestamped
 // and stored under `~/medoc-data/backups/`.
+//
+// Retention (TASK 2.6): all backups ≤30 days; one per ISO week for weeks 31–84;
+// one per calendar month for months 85–365; older than 12 months are removed.
+// Each `.db` file gets an HMAC sidecar `*.db.sig` using the audit-chain key.
 
-use chrono::Utc;
+use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Utc};
+use serde::Serialize;
 use sqlx::SqlitePool;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
+use crate::infrastructure::database::audit_repo;
 use crate::log_system;
 
+const DAILY_DAYS: i64 = 30;
+const WEEKLY_WEEKS: i64 = 12;
+const MONTHLY_MONTHS: i64 = 12;
+
+type WeekKey = (i32, u32);
+type MonthKey = (i32, u32);
+type DatedBackup = (PathBuf, DateTime<Utc>);
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupEntry {
+    pub path: PathBuf,
+    pub size_bytes: u64,
+    /// `None` = no `.sig` sidecar (legacy backup); `Some` = verification result.
+    pub signature_ok: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BackupRetentionReport {
+    pub scanned: usize,
+    pub kept: usize,
+    pub deleted: Vec<String>,
+    pub errors: Vec<String>,
+}
+
 pub fn backup_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("MEDOC_BACKUP_DIR") {
+        return PathBuf::from(dir);
+    }
     dirs::home_dir()
         .map(|h| h.join("medoc-data").join("backups"))
         .unwrap_or_else(|| PathBuf::from("./medoc-data/backups"))
+}
+
+fn sig_path(db_path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.sig", db_path.display()))
+}
+
+/// Parse `medoc-YYYYMMDDTHHMMSSZ.db` timestamp from a backup path (for tests / ops tooling).
+pub fn parse_backup_timestamp(path: &Path) -> Option<DateTime<Utc>> {
+    let stem = path.file_stem()?.to_str()?;
+    let ts = stem.strip_prefix("medoc-")?;
+    let naive = NaiveDateTime::parse_from_str(ts, "%Y%m%dT%H%M%SZ").ok()?;
+    Some(DateTime::from_naive_utc_and_offset(naive, Utc))
+}
+
+/// Sign a backup file (integration tests + manual repair).
+pub fn sign_file(db_path: &Path) -> Result<(), AppError> {
+    write_signature(db_path)
+}
+
+fn write_signature(db_path: &Path) -> Result<(), AppError> {
+    let hmac = audit_repo::hmac_file(db_path)?;
+    let sig = sig_path(db_path);
+    std::fs::write(&sig, format!("{hmac}\n"))
+        .map_err(|e| AppError::Internal(format!("Signatur schreiben: {e}")))?;
+    Ok(())
+}
+
+fn verify_signature(db_path: &Path) -> Option<bool> {
+    let sig = sig_path(db_path);
+    let expected = std::fs::read_to_string(&sig).ok()?;
+    audit_repo::verify_file_hmac(db_path, &expected).ok()
 }
 
 /// Create a timestamped backup of the live database.
@@ -27,7 +93,6 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
 
     log_system!(info, event = "BACKUP_START", target = %target.display());
 
-    // SQLite string literal: escape single quotes by doubling them (path injection hardening).
     let path_lit = target.display().to_string().replace('\'', "''");
     sqlx::query(&format!("VACUUM INTO '{path_lit}'"))
         .execute(pool)
@@ -37,29 +102,144 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
             AppError::Internal(format!("VACUUM INTO failed: {e}"))
         })?;
 
+    write_signature(&target)?;
+    let report = enforce_retention(&dir)?;
+    log_system!(
+        info,
+        event = "BACKUP_RETENTION",
+        kept = report.kept,
+        deleted = report.deleted.len(),
+    );
+
     let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
     log_system!(info, event = "BACKUP_COMPLETE", target = %target.display(), bytes = size);
 
     Ok(target)
 }
 
-/// List all backup files (newest first).
-pub fn list() -> Result<Vec<(PathBuf, u64)>, AppError> {
+/// List all backup files (newest first) with optional signature verification.
+pub fn list() -> Result<Vec<BackupEntry>, AppError> {
     let dir = backup_dir();
     if !dir.exists() {
         return Ok(Vec::new());
     }
-    let mut entries: Vec<(PathBuf, u64)> = std::fs::read_dir(&dir)
+    let mut entries: Vec<BackupEntry> = std::fs::read_dir(&dir)
         .map_err(|e| AppError::Internal(e.to_string()))?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("db"))
         .map(|e| {
-            let size = e.metadata().map(|m| m.len()).unwrap_or(0);
-            (e.path(), size)
+            let path = e.path();
+            let size_bytes = e.metadata().map(|m| m.len()).unwrap_or(0);
+            let signature_ok = if sig_path(&path).exists() {
+                verify_signature(&path)
+            } else {
+                None
+            };
+            BackupEntry {
+                path,
+                size_bytes,
+                signature_ok,
+            }
         })
         .collect();
-    entries.sort_by(|a, b| b.0.cmp(&a.0));
+    entries.sort_by(|a, b| b.path.cmp(&a.path));
     Ok(entries)
+}
+
+/// GFS-style retention: daily 30d, weekly 12w, monthly 12m.
+pub fn enforce_retention(dir: &Path) -> Result<BackupRetentionReport, AppError> {
+    enforce_retention_at(dir, Utc::now())
+}
+
+pub fn enforce_retention_at(
+    dir: &Path,
+    now: DateTime<Utc>,
+) -> Result<BackupRetentionReport, AppError> {
+    let daily_cutoff = now - Duration::days(DAILY_DAYS);
+    let weekly_cutoff = now - Duration::weeks(WEEKLY_WEEKS);
+    let monthly_cutoff = now - Duration::days(MONTHLY_MONTHS * 30);
+
+    let mut report = BackupRetentionReport {
+        scanned: 0,
+        kept: 0,
+        deleted: Vec::new(),
+        errors: Vec::new(),
+    };
+
+    let mut files: Vec<(PathBuf, DateTime<Utc>)> = Vec::new();
+    if dir.exists() {
+        for entry in std::fs::read_dir(dir).map_err(|e| AppError::Internal(e.to_string()))? {
+            let entry = entry.map_err(|e| AppError::Internal(e.to_string()))?;
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("db") {
+                continue;
+            }
+            report.scanned += 1;
+            let Some(ts) = parse_backup_timestamp(&path) else {
+                report.errors.push(format!("Zeitstempel nicht lesbar: {}", path.display()));
+                continue;
+            };
+            files.push((path, ts));
+        }
+    }
+
+    let mut keep: HashSet<PathBuf> = HashSet::new();
+
+    for (path, ts) in &files {
+        if *ts >= daily_cutoff {
+            keep.insert(path.clone());
+        }
+    }
+
+    let mut by_week: HashMap<WeekKey, Vec<DatedBackup>> = HashMap::new();
+    for (path, ts) in &files {
+        if *ts < daily_cutoff && *ts >= weekly_cutoff {
+            let iso = ts.date_naive().iso_week();
+            by_week
+                .entry((iso.year(), iso.week()))
+                .or_default()
+                .push((path.clone(), *ts));
+        }
+    }
+    for files_in_week in by_week.values_mut() {
+        files_in_week.sort_by_key(|(_, t)| *t);
+        if let Some((path, _)) = files_in_week.last() {
+            keep.insert(path.clone());
+        }
+    }
+
+    let mut by_month: HashMap<MonthKey, Vec<DatedBackup>> = HashMap::new();
+    for (path, ts) in &files {
+        if *ts < weekly_cutoff && *ts >= monthly_cutoff {
+            by_month
+                .entry((ts.year(), ts.month()))
+                .or_default()
+                .push((path.clone(), *ts));
+        }
+    }
+    for files_in_month in by_month.values_mut() {
+        files_in_month.sort_by_key(|(_, t)| *t);
+        if let Some((path, _)) = files_in_month.last() {
+            keep.insert(path.clone());
+        }
+    }
+
+    report.kept = keep.len();
+    for (path, _) in files {
+        if keep.contains(&path) {
+            continue;
+        }
+        for p in [path.clone(), sig_path(&path)] {
+            if p.exists() {
+                match std::fs::remove_file(&p) {
+                    Ok(()) => report.deleted.push(p.file_name().unwrap().to_string_lossy().into_owned()),
+                    Err(e) => report.errors.push(format!("{}: {e}", p.display())),
+                }
+            }
+        }
+    }
+
+    Ok(report)
 }
 
 /// Validate that a backup file looks like a SQLite database.

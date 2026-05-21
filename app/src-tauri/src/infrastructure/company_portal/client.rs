@@ -98,9 +98,15 @@ pub async fn fetch_feature_flags(cfg: &CompanyPortalConfig) -> Result<Value, App
     get_json(&base, "/v1/feature-flags", &c).await
 }
 
-pub async fn fetch_update_manifest(cfg: &CompanyPortalConfig, current: &str) -> Result<Value, AppError> {
+pub async fn fetch_update_manifest(
+    cfg: &CompanyPortalConfig,
+    current: &str,
+) -> Result<Value, AppError> {
     let (base, c) = require_callable(cfg)?;
-    let path = format!("/v1/updates/manifest?current={}", urlencoding::encode(current));
+    let path = format!(
+        "/v1/updates/manifest?current={}",
+        urlencoding::encode(current)
+    );
     get_json(&base, &path, &c).await
 }
 
@@ -113,7 +119,10 @@ pub async fn post_billing_portal_url(cfg: &CompanyPortalConfig) -> Result<String
         .ok_or_else(|| AppError::Internal("Hersteller-Portal: Antwort ohne url".into()))
 }
 
-pub async fn attach_payment_method_remote(cfg: &CompanyPortalConfig, provider_token: &str) -> Result<(), AppError> {
+pub async fn attach_payment_method_remote(
+    cfg: &CompanyPortalConfig,
+    provider_token: &str,
+) -> Result<(), AppError> {
     let (base, c) = require_callable(cfg)?;
     let _ = post_json(
         &base,

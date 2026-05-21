@@ -66,7 +66,9 @@ pub async fn apply_own_profile_update(
             return Err(AppError::Validation("Name darf nicht leer sein".into()));
         }
         if t.chars().count() > 120 {
-            return Err(AppError::Validation("Name zu lang (max. 120 Zeichen)".into()));
+            return Err(AppError::Validation(
+                "Name zu lang (max. 120 Zeichen)".into(),
+            ));
         }
     }
 
@@ -88,7 +90,10 @@ pub async fn apply_own_profile_update(
         name: data.name.as_ref().map(|s| s.trim().to_string()),
         email: data.email.as_ref().map(|s| s.trim().to_string()),
         rolle: None,
-        taetigkeitsbereich: data.taetigkeitsbereich.as_ref().map(|s| s.trim().to_string()),
+        taetigkeitsbereich: data
+            .taetigkeitsbereich
+            .as_ref()
+            .map(|s| s.trim().to_string()),
         fachrichtung: data.fachrichtung.as_ref().map(|s| s.trim().to_string()),
         telefon: data.telefon.as_ref().map(|s| s.trim().to_string()),
         verfuegbar: None,

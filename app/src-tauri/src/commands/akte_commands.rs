@@ -9,10 +9,10 @@ use crate::domain::entities::zahnbefund::CreateZahnbefund;
 use crate::domain::entities::{Anamnesebogen, Patientenakte, Zahnbefund};
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    akte_anlage_repo, akte_repo, attest_repo, audit_repo, patient_repo, rezept_repo, termin_repo,
-    zahlung_repo,
+    akte_anlage_repo, akte_repo, app_kv_repo, attest_repo, audit_repo, patient_repo, rezept_repo,
+    termin_repo, zahlung_repo,
 };
-use crate::infrastructure::pdf::{render_akte_blocks, AktePdfBlock, AktePdfTable};
+use crate::infrastructure::pdf::{render_akte_blocks, AkteHeaderContext, AktePdfBlock, AktePdfTable};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
@@ -35,6 +35,82 @@ fn redact_untersuchung_for_rezeption(mut u: Untersuchung) -> Untersuchung {
     u.ergebnisse = None;
     u.diagnose = None;
     u
+}
+
+async fn praxis_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String)> {
+    let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.praxis.v1").await else {
+        return Vec::new();
+    };
+    let Ok(j) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return Vec::new();
+    };
+    let get = |k: &str| {
+        j.get(k)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let mut kv = Vec::new();
+    if let Some(v) = get("name") {
+        kv.push(("Praxis".into(), v));
+    }
+    if let Some(v) = get("behandler_name") {
+        kv.push(("Behandler".into(), v));
+    }
+    if let Some(v) = get("bsnr") {
+        kv.push(("BSNR".into(), v));
+    }
+    if let Some(v) = get("zanr") {
+        kv.push(("ZANR".into(), v));
+    }
+    if let Some(v) = get("notfall_telefon") {
+        kv.push(("Notfall".into(), v));
+    }
+    kv
+}
+
+async fn akte_header_from_app_kv(
+    pool: &SqlitePool,
+    erstellt_von: &str,
+    dokument_id: &str,
+) -> Option<AkteHeaderContext> {
+    let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.praxis.v1").await else {
+        return None;
+    };
+    let Ok(j) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return None;
+    };
+    let get = |k: &str| {
+        j.get(k)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let name = get("name")?;
+    let mut praxis_lines = vec![name];
+    if let Some(addr) = get("addr") {
+        for ln in addr.lines() {
+            let t = ln.trim();
+            if !t.is_empty() {
+                praxis_lines.push(t.to_string());
+            }
+        }
+    }
+    if let Some(t) = get("telefon") {
+        praxis_lines.push(format!("Tel. {t}"));
+    }
+    if let Some(e) = get("email") {
+        praxis_lines.push(e);
+    }
+    Some(AkteHeaderContext {
+        praxis_lines,
+        behandler_name: get("behandler_name"),
+        berufsbezeichnung: get("berufsbezeichnung"),
+        bsnr: get("bsnr"),
+        zanr: get("zanr"),
+        erstellt_von: Some(erstellt_von.to_string()),
+        dokument_id: Some(dokument_id.to_string()),
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,10 +262,7 @@ pub async fn list_behandlungen(
     session_state: State<'_, SessionState>,
     akte_id: String,
 ) -> Result<Vec<Behandlung>, AppError> {
-    let session = rbac::require(
-        &session_state,
-        "patient.behandlungen_list_for_zahlung",
-    )?;
+    let session = rbac::require(&session_state, "patient.behandlungen_list_for_zahlung")?;
     let rows = akte_repo::list_behandlungen(&pool, &akte_id).await?;
     audit_repo::create(
         &pool,
@@ -202,7 +275,10 @@ pub async fn list_behandlungen(
     .await
     .ok();
     let out = match Role::parse(&session.rolle) {
-        Some(Role::Rezeption) => rows.into_iter().map(redact_behandlung_for_rezeption).collect(),
+        Some(Role::Rezeption) => rows
+            .into_iter()
+            .map(redact_behandlung_for_rezeption)
+            .collect(),
         _ => rows,
     };
     Ok(out)
@@ -215,10 +291,7 @@ pub async fn list_untersuchungen(
     session_state: State<'_, SessionState>,
     akte_id: String,
 ) -> Result<Vec<Untersuchung>, AppError> {
-    let session = rbac::require(
-        &session_state,
-        "patient.behandlungen_list_for_zahlung",
-    )?;
+    let session = rbac::require(&session_state, "patient.behandlungen_list_for_zahlung")?;
     let rows = akte_repo::list_untersuchungen(&pool, &akte_id).await?;
     audit_repo::create(
         &pool,
@@ -231,7 +304,10 @@ pub async fn list_untersuchungen(
     .await
     .ok();
     let out = match Role::parse(&session.rolle) {
-        Some(Role::Rezeption) => rows.into_iter().map(redact_untersuchung_for_rezeption).collect(),
+        Some(Role::Rezeption) => rows
+            .into_iter()
+            .map(redact_untersuchung_for_rezeption)
+            .collect(),
         _ => rows,
     };
     Ok(out)
@@ -246,7 +322,8 @@ pub async fn release_behandlung_for_billing(
     behandlung_id: String,
 ) -> Result<Behandlung, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    let b = akte_repo::release_behandlung_for_billing(&pool, &behandlung_id, &session.user_id).await?;
+    let b =
+        akte_repo::release_behandlung_for_billing(&pool, &behandlung_id, &session.user_id).await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -268,9 +345,8 @@ pub async fn release_untersuchung_for_billing(
     untersuchung_id: String,
 ) -> Result<Untersuchung, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    let u =
-        akte_repo::release_untersuchung_for_billing(&pool, &untersuchung_id, &session.user_id)
-            .await?;
+    let u = akte_repo::release_untersuchung_for_billing(&pool, &untersuchung_id, &session.user_id)
+        .await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -417,9 +493,16 @@ pub async fn delete_behandlung(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
     akte_repo::delete_behandlung(&pool, &id).await?;
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Behandlung", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Behandlung",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -454,9 +537,16 @@ pub async fn delete_untersuchung(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
     akte_repo::delete_untersuchung(&pool, &id).await?;
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Untersuchung", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Untersuchung",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -511,6 +601,19 @@ pub async fn export_akte_pdf(
     let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
     let mut blocks: Vec<AktePdfBlock> = Vec::new();
 
+    let praxis_kv = praxis_kv_pairs_from_app_kv(&pool).await;
+    if !praxis_kv.is_empty() {
+        blocks.insert(
+            0,
+            AktePdfBlock {
+                title: "Praxis".into(),
+                body_lines: vec![],
+                kv_pairs: praxis_kv,
+                table: None,
+            },
+        );
+    }
+
     if sec.patient {
         let mut kv = vec![
             ("Name".into(), patient.name.clone()),
@@ -549,14 +652,18 @@ pub async fn export_akte_pdf(
                 "Diagnose".into(),
                 akte_display
                     .diagnose
-                    .clone()
+                    .as_deref()
+                    .map(crate::infrastructure::clinical_text_format::plain_text_for_pdf)
+                    .filter(|s| !s.trim().is_empty())
                     .unwrap_or_else(|| "(keine Eintragung)".into()),
             ));
             kv.push((
                 "Befunde".into(),
                 akte_display
                     .befunde
-                    .clone()
+                    .as_deref()
+                    .map(crate::infrastructure::clinical_text_format::plain_text_for_pdf)
+                    .filter(|s| !s.trim().is_empty())
                     .unwrap_or_else(|| "(keine Eintragung)".into()),
             ));
         } else {
@@ -584,6 +691,7 @@ pub async fn export_akte_pdf(
                     "Notizen".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -604,6 +712,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -616,10 +725,14 @@ pub async fn export_akte_pdf(
 
     if sec.anamnese && medical {
         if let Some(am) = akte_repo::find_anamnesebogen(&pool, &patient_id).await? {
-            let mut lines = vec![format!("Unterschrieben: {}", am.unterschrieben)];
-            for chunk in am.antworten.lines() {
-                lines.push(chunk.to_string());
-            }
+            let signed = if am.unterschrieben {
+                "Ja"
+            } else {
+                "Nein"
+            };
+            let mut lines =
+                crate::infrastructure::clinical_text_format::format_anamnese_antworten(&am.antworten);
+            lines.insert(0, format!("Unterschrieben: {signed}"));
             blocks.push(AktePdfBlock {
                 title: "Anamnese / Fragebogen".into(),
                 body_lines: lines,
@@ -641,33 +754,35 @@ pub async fn export_akte_pdf(
                 headers: vec![
                     "Datum".into(),
                     "Nr.".into(),
-                    "Beschwerden".into(),
-                    "Ergebnisse".into(),
-                    "Diagnose".into(),
+                    "Untersuchungsbefund (vollständig)".into(),
                 ],
                 rows: vec![],
+                column_weights: Some(vec![2, 1, 12]),
             }
         } else {
             AktePdfTable {
                 headers: vec![
                     "Datum".into(),
                     "Nr.".into(),
-                    "Beschwerden".into(),
-                    "Ergebnisse".into(),
-                    "Diagnose".into(),
+                    "Untersuchungsbefund (vollständig)".into(),
                 ],
                 rows: rows_db
                     .into_iter()
                     .map(|u| {
+                        let befund =
+                            crate::infrastructure::clinical_text_format::format_untersuchung_for_akte_table(
+                                u.beschwerden.as_deref(),
+                                u.ergebnisse.as_deref(),
+                                u.diagnose.as_deref(),
+                            );
                         vec![
                             u.created_at.format("%Y-%m-%d").to_string(),
                             u.untersuchungsnummer.as_deref().unwrap_or("-").to_string(),
-                            u.beschwerden.as_deref().unwrap_or("-").to_string(),
-                            u.ergebnisse.as_deref().unwrap_or("-").to_string(),
-                            u.diagnose.as_deref().unwrap_or("-").to_string(),
+                            befund,
                         ]
                     })
                     .collect(),
+                column_weights: Some(vec![2, 1, 12]),
             }
         };
         blocks.push(AktePdfBlock {
@@ -693,6 +808,7 @@ pub async fn export_akte_pdf(
                     "Notizen".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -729,7 +845,9 @@ pub async fn export_akte_pdf(
                             date_part,
                             titel,
                             b.kategorie.as_deref().unwrap_or("-").to_string(),
-                            b.sitzung.map(|s| s.to_string()).unwrap_or_else(|| "-".into()),
+                            b.sitzung
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| "-".into()),
                             b.behandlungsnummer.as_deref().unwrap_or("-").to_string(),
                             b.behandlung_status.as_deref().unwrap_or("-").to_string(),
                             kosten,
@@ -737,6 +855,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -760,6 +879,7 @@ pub async fn export_akte_pdf(
                     "Wirkstoff".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -784,6 +904,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -797,7 +918,10 @@ pub async fn export_akte_pdf(
     if sec.attest && medical {
         let rows_db = attest_repo::find_for_patient(&pool, &patient_id).await?;
         if rows_db.is_empty() {
-            blocks.push(AktePdfBlock::body("Atteste", vec!["(keine Atteste)".into()]));
+            blocks.push(AktePdfBlock::body(
+                "Atteste",
+                vec!["(keine Atteste)".into()],
+            ));
         } else {
             let attest_rows: Vec<Vec<String>> = rows_db
                 .iter()
@@ -822,6 +946,7 @@ pub async fn export_akte_pdf(
                         "Ausgestellt".into(),
                     ],
                     rows: attest_rows,
+                    ..Default::default()
                 }),
             });
             for a in rows_db {
@@ -837,10 +962,7 @@ pub async fn export_akte_pdf(
                         });
                     }
                 }
-                blocks.push(AktePdfBlock::body(
-                    format!("Attest — {}", a.typ),
-                    lines,
-                ));
+                blocks.push(AktePdfBlock::body(format!("Attest — {}", a.typ), lines));
             }
         }
     }
@@ -857,6 +979,7 @@ pub async fn export_akte_pdf(
                     "Beschreibung".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -879,6 +1002,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -900,6 +1024,7 @@ pub async fn export_akte_pdf(
                     "Bytes".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -920,6 +1045,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -942,6 +1068,7 @@ pub async fn export_akte_pdf(
                     "Details".into(),
                 ],
                 rows: vec![],
+                ..Default::default()
             }
         } else {
             AktePdfTable {
@@ -964,6 +1091,7 @@ pub async fn export_akte_pdf(
                         ]
                     })
                     .collect(),
+                ..Default::default()
             }
         };
         blocks.push(AktePdfBlock {
@@ -974,11 +1102,26 @@ pub async fn export_akte_pdf(
         });
     }
 
+    let dokument_id = uuid::Uuid::new_v4().to_string();
+    let erstellt_von = format!("{} ({})", session.name, session.rolle);
+    let header = akte_header_from_app_kv(&pool, &erstellt_von, &dokument_id).await;
+
+    blocks.push(AktePdfBlock::body(
+        "Hinweise",
+        vec![
+            format!("Erstellt von: {erstellt_von}"),
+            format!("Dokument-ID: {dokument_id}"),
+            "Dieses Dokument enthält vertrauliche Patientendaten (§ 630f BGB).".into(),
+            "Weitergabe nur mit ausdrücklicher Einwilligung des Patienten.".into(),
+        ],
+    ));
+
     let bytes = render_akte_blocks(
         "Patientenakte - Export",
         &generated,
         &format!("Patientenakte {}", patient.name),
         &blocks,
+        header.as_ref(),
     )?;
 
     audit_repo::create(
@@ -1016,6 +1159,19 @@ pub async fn export_discharge_merkblatt_pdf(
     let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
     let mut blocks: Vec<AktePdfBlock> = Vec::new();
 
+    let praxis_kv = praxis_kv_pairs_from_app_kv(&pool).await;
+    if !praxis_kv.is_empty() {
+        blocks.insert(
+            0,
+            AktePdfBlock {
+                title: "Praxis".into(),
+                body_lines: vec![],
+                kv_pairs: praxis_kv,
+                table: None,
+            },
+        );
+    }
+
     let mut stamm_kv = vec![
         ("Name".into(), patient.name.clone()),
         ("Geburtsdatum".into(), patient.geburtsdatum.to_string()),
@@ -1043,7 +1199,12 @@ pub async fn export_discharge_merkblatt_pdf(
 
     if let Some(b) = latest_bh {
         let mut lines: Vec<String> = Vec::new();
-        lines.push(format!("Datum: {}", b.behandlung_datum.clone().unwrap_or_else(|| "(ohne Datum)".into())));
+        lines.push(format!(
+            "Datum: {}",
+            b.behandlung_datum
+                .clone()
+                .unwrap_or_else(|| "(ohne Datum)".into())
+        ));
         lines.push(format!("Art: {}", b.art));
         if let Some(k) = &b.kategorie {
             if !k.trim().is_empty() {
@@ -1054,7 +1215,11 @@ pub async fn export_discharge_merkblatt_pdf(
             if !desc.trim().is_empty() {
                 lines.push("Beschreibung:".into());
                 for ln in desc.lines() {
-                    lines.push(if ln.is_empty() { " ".into() } else { ln.to_string() });
+                    lines.push(if ln.is_empty() {
+                        " ".into()
+                    } else {
+                        ln.to_string()
+                    });
                 }
             }
         }
@@ -1062,7 +1227,11 @@ pub async fn export_discharge_merkblatt_pdf(
             if !n.trim().is_empty() {
                 lines.push("Notizen:".into());
                 for ln in n.lines() {
-                    lines.push(if ln.is_empty() { " ".into() } else { ln.to_string() });
+                    lines.push(if ln.is_empty() {
+                        " ".into()
+                    } else {
+                        ln.to_string()
+                    });
                 }
             }
         }
@@ -1102,6 +1271,7 @@ pub async fn export_discharge_merkblatt_pdf(
                     ]
                 })
                 .collect(),
+            ..Default::default()
         };
         blocks.push(AktePdfBlock {
             title: "Medikation (Rezepte, Auszug)".into(),
@@ -1118,10 +1288,7 @@ pub async fn export_discharge_merkblatt_pdf(
                 vec![
                     format!("Datum: {} {}", t.datum, t.uhrzeit),
                     format!("Art: {}", t.art),
-                    format!(
-                        "Status: {}",
-                        t.status
-                    ),
+                    format!("Status: {}", t.status),
                     t.notizen
                         .filter(|s| !s.trim().is_empty())
                         .map(|s| format!("Notizen: {}", s))
@@ -1151,7 +1318,10 @@ pub async fn export_discharge_merkblatt_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(AktePdfBlock::body("Überweisung / weiterführende Versorgung", lines));
+        blocks.push(AktePdfBlock::body(
+            "Überweisung / weiterführende Versorgung",
+            lines,
+        ));
     }
 
     if let Some(txt) = args
@@ -1168,12 +1338,53 @@ pub async fn export_discharge_merkblatt_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(AktePdfBlock::body("Zusätzliche Hinweise / Nachsorge", lines));
+        blocks.push(AktePdfBlock::body(
+            "Zusätzliche Hinweise / Nachsorge",
+            lines,
+        ));
     }
+
+    if let Ok(Some(raw)) = app_kv_repo::get(&pool, "invoice.praxis.v1").await {
+        if let Ok(j) = serde_json::from_str::<serde_json::Value>(&raw) {
+            let bh = j
+                .get("behandler_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            let beruf = j
+                .get("berufsbezeichnung")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            if !bh.is_empty() {
+                let mut sig = vec![
+                    String::new(),
+                    "____________________________".into(),
+                    bh.to_string(),
+                ];
+                if !beruf.is_empty() {
+                    sig.push(beruf.to_string());
+                }
+                let zanr = j.get("zanr").and_then(|v| v.as_str()).unwrap_or("").trim();
+                let bsnr = j.get("bsnr").and_then(|v| v.as_str()).unwrap_or("").trim();
+                if !zanr.is_empty() || !bsnr.is_empty() {
+                    sig.push(format!("ZANR: {zanr} · BSNR: {bsnr}"));
+                }
+                sig.push("(Stempel)".into());
+                blocks.push(AktePdfBlock::body("Behandler / Unterschrift", sig));
+            }
+        }
+    }
+
+    let dokument_id = uuid::Uuid::new_v4().to_string();
+    let erstellt_von = format!("{} ({})", session.name, session.rolle);
+    let header = akte_header_from_app_kv(&pool, &erstellt_von, &dokument_id).await;
 
     blocks.push(AktePdfBlock::body(
         "Hinweis",
         vec![
+            format!("Erstellt von: {erstellt_von}"),
+            format!("Dokument-ID: {dokument_id}"),
             "Dieses Merkblatt fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung.".into(),
             "Bitte bringen Sie dieses Blatt zu Folgeterminen mit, wenn es Ihnen ausgehändigt wurde.".into(),
         ],
@@ -1184,6 +1395,7 @@ pub async fn export_discharge_merkblatt_pdf(
         &generated,
         &format!("Entlassungs-Merkblatt — {}", patient.name),
         &blocks,
+        header.as_ref(),
     )?;
 
     audit_repo::create(
@@ -1197,6 +1409,30 @@ pub async fn export_discharge_merkblatt_pdf(
     .await
     .ok();
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_akte_commands {
+    () => {
+        $crate::commands::akte_commands::get_akte,
+        $crate::commands::akte_commands::update_zahnbefund,
+        $crate::commands::akte_commands::list_zahnbefunde,
+        $crate::commands::akte_commands::list_behandlungen,
+        $crate::commands::akte_commands::list_untersuchungen,
+        $crate::commands::akte_commands::save_anamnesebogen,
+        $crate::commands::akte_commands::get_anamnesebogen,
+        $crate::commands::akte_commands::create_untersuchung,
+        $crate::commands::akte_commands::create_behandlung,
+        $crate::commands::akte_commands::update_behandlung,
+        $crate::commands::akte_commands::delete_behandlung,
+        $crate::commands::akte_commands::release_behandlung_for_billing,
+        $crate::commands::akte_commands::release_untersuchung_for_billing,
+        $crate::commands::akte_commands::update_untersuchung,
+        $crate::commands::akte_commands::delete_untersuchung,
+        $crate::commands::akte_commands::export_akte_pdf,
+        $crate::commands::akte_commands::export_discharge_merkblatt_pdf,
+    };
 }
 
 #[cfg(test)]

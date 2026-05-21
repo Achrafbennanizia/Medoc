@@ -140,3 +140,46 @@ pub async fn update_password_hash(pool: &SqlitePool, id: &str, hash: &str) -> Re
         .await?;
     Ok(())
 }
+
+pub async fn set_totp_pending_secret(
+    pool: &SqlitePool,
+    id: &str,
+    secret_base32: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE personal SET totp_secret = ?1, totp_enrolled_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+    )
+    .bind(secret_base32)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn confirm_totp_enrollment(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE personal SET totp_enrolled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn clear_totp(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE personal SET totp_secret = NULL, totp_enrolled_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub fn is_totp_enrolled(user: &Personal) -> bool {
+    user.totp_enrolled_at.is_some() && user.totp_secret.as_ref().is_some_and(|s| !s.is_empty())
+}
+
+pub fn totp_required_for_role(rolle: &str) -> bool {
+    rolle.eq_ignore_ascii_case("ARZT")
+}

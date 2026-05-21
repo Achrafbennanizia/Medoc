@@ -31,7 +31,9 @@ pub async fn list_audit_logs_paged(
     let limit = p.limit();
     let offset = p.offset();
     let sort_dir = p.sort_dir_or(SortDir::Desc).sql();
-    let (items, total) = audit_repo::find_paginated(&pool, limit, offset, sort_dir).await?;
+    let break_glass_only = p.filter_bool("breakGlassOnly").unwrap_or(false);
+    let (items, total) =
+        audit_repo::find_paginated(&pool, limit, offset, sort_dir, break_glass_only).await?;
     Ok(ListResponse {
         items,
         total,
@@ -50,7 +52,7 @@ pub async fn export_audit_csv(
     rbac::require(&session_state, "audit.read")?;
     let rows = audit_repo::find_all(&pool, i64::MAX).await?;
     let mut out = String::new();
-    out.push_str("id,created_at,user_id,action,entity,entity_id,details,hmac\n");
+    out.push_str("id,created_at,user_id,action,entity,entity_id,details,under_break_glass,break_glass_reason,hmac\n");
     let esc = |s: &str| -> String {
         if s.contains(',') || s.contains('"') || s.contains('\n') {
             format!("\"{}\"", s.replace('"', "\"\""))
@@ -60,7 +62,7 @@ pub async fn export_audit_csv(
     };
     for r in rows {
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{}\n",
             esc(&r.id),
             r.created_at,
             esc(&r.user_id),
@@ -68,8 +70,20 @@ pub async fn export_audit_csv(
             esc(&r.entity),
             esc(r.entity_id.as_deref().unwrap_or("")),
             esc(r.details.as_deref().unwrap_or("")),
+            if r.under_break_glass { "1" } else { "0" },
+            esc(r.break_glass_reason.as_deref().unwrap_or("")),
             esc(&r.hmac),
         ));
     }
     Ok(out.into_bytes())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_audit_commands {
+    () => {
+        $crate::commands::audit_commands::list_audit_logs,
+        $crate::commands::audit_commands::list_audit_logs_paged,
+        $crate::commands::audit_commands::export_audit_csv,
+    };
 }

@@ -1,0 +1,127 @@
+# MeDoc domain enums — single source of truth (TASK 3.5).
+# Edit this file only; run `cargo build` to regenerate Rust, TypeScript, Zod, and SQL CHECK fragments.
+version: 1
+
+enums:
+  Rolle:
+    ts_const: ROLLE_VALUES
+    zod_schema: RolleSchema
+    sql_column: personal.rolle
+    variants:
+      - { rust: Arzt, wire: ARZT }
+      - { rust: Rezeption, wire: REZEPTION }
+      - { rust: Steuerberater, wire: STEUERBERATER }
+      - { rust: Pharmaberater, wire: PHARMABERATER }
+
+  Geschlecht:
+    ts_const: GESCHLECHT_VALUES
+    zod_schema: GeschlechtSchema
+    sql_column: patient.geschlecht
+    variants:
+      - { rust: Maennlich, wire: MAENNLICH }
+      - { rust: Weiblich, wire: WEIBLICH }
+      - { rust: Divers, wire: DIVERS }
+
+  TerminArt:
+    ts_const: TERMIN_ART_VALUES
+    zod_schema: TerminArtSchema
+    sql_column: termin.art
+    variants:
+      - { rust: Erstbesuch, wire: ERSTBESUCH }
+      - { rust: Untersuchung, wire: UNTERSUCHUNG }
+      - { rust: Behandlung, wire: BEHANDLUNG }
+      - { rust: Kontrolle, wire: KONTROLLE }
+      - { rust: Beratung, wire: BERATUNG }
+
+  TerminStatus:
+    ts_const: TERMIN_STATUS_VALUES
+    zod_schema: TerminStatusSchema
+    sql_column: termin.status
+    variants:
+      - { rust: Geplant, wire: GEPLANT }
+      - { rust: Bestaetigt, wire: BESTAETIGT }
+      - { rust: Durchgefuehrt, wire: DURCHGEFUEHRT }
+      - { rust: NichtErschienen, wire: NICHT_ERSCHIENEN }
+      - { rust: Abgesagt, wire: ABGESAGT }
+
+  PatientStatus:
+    ts_const: PATIENT_STATUS_VALUES
+    zod_schema: PatientStatusSchema
+    sql_column: patient.status
+    variants:
+      - { rust: Neu, wire: NEU }
+      - { rust: Aktiv, wire: AKTIV }
+      - { rust: Validiert, wire: VALIDIERT }
+      - { rust: Readonly, wire: READONLY }
+
+  AktenStatus:
+    ts_const: AKTEN_STATUS_VALUES
+    zod_schema: AktenStatusSchema
+    sql_column: patientenakte.status
+    variants:
+      - { rust: Entwurf, wire: ENTWURF }
+      - { rust: InBearbeitung, wire: IN_BEARBEITUNG }
+      - { rust: Validiert, wire: VALIDIERT }
+      - { rust: Readonly, wire: READONLY }
+
+  ZahlungsArt:
+    ts_const: ZAHLUNGS_ART_VALUES
+    zod_schema: ZahlungsartSchema
+    sql_column: zahlung.zahlungsart
+    variants:
+      - { rust: Bar, wire: BAR }
+      - { rust: Karte, wire: KARTE }
+      - { rust: Ueberweisung, wire: UEBERWEISUNG }
+      - { rust: Rechnung, wire: RECHNUNG }
+
+  ZahlungsStatus:
+    ts_const: ZAHLUNGS_STATUS_VALUES
+    zod_schema: ZahlungStatusSchema
+    sql_column: zahlung.status
+    variants:
+      - { rust: Ausstehend, wire: AUSSTEHEND }
+      - { rust: Bezahlt, wire: BEZAHLT }
+      - { rust: Teilbezahlt, wire: TEILBEZAHLT }
+      - { rust: Storniert, wire: STORNIERT }
+
+  AuditAction:
+    generate_ts: false
+    generate_zod: false
+    variants:
+      - { rust: Create, wire: CREATE }
+      - { rust: Update, wire: UPDATE }
+      - { rust: Delete, wire: DELETE }
+      - { rust: Login, wire: LOGIN }
+      - { rust: Logout, wire: LOGOUT }
+
+  BestellStatus:
+    generate_rust: false
+    generate_zod: false
+    ts_const: BESTELL_STATUS_VALUES
+    sql_column: bestellung.status
+    variants:
+      - { wire: OFFEN }
+      - { wire: UNTERWEGS }
+      - { wire: GELIEFERT }
+      - { wire: STORNIERT }
+
+  FeedbackKategorie:
+    generate_rust: false
+    ts_const: FEEDBACK_KATEGORIE_VALUES
+    zod_schema: FeedbackKategorieSchema
+    serde_rename_all: lowercase
+    sql_column: feedback.kategorie
+    variants:
+      - { wire: feedback }
+      - { wire: vigilance }
+      - { wire: technical }
+
+  FeedbackStatus:
+    generate_rust: false
+    generate_zod: false
+    ts_const: FEEDBACK_STATUS_VALUES
+    sql_column: feedback.status
+    variants:
+      - { wire: OFFEN }
+      - { wire: BEARBEITUNG }
+      - { wire: ERLEDIGT }

@@ -16,7 +16,10 @@ pub struct RechnungDocumentRow {
 
 const LIST_LIMIT_CAP: i64 = 500;
 
-pub async fn list_recent(pool: &SqlitePool, limit: i64) -> Result<Vec<RechnungDocumentRow>, AppError> {
+pub async fn list_recent(
+    pool: &SqlitePool,
+    limit: i64,
+) -> Result<Vec<RechnungDocumentRow>, AppError> {
     let lim = limit.clamp(1, LIST_LIMIT_CAP);
     let rows = sqlx::query_as::<_, RechnungDocumentRow>(
         "SELECT id, patient_id, document_number, payload_json, total_cents, created_at, created_by

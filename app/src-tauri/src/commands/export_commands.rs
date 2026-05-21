@@ -25,15 +25,16 @@ pub fn save_export_file(
     let Some(path) = path else {
         return Ok(None);
     };
-    std::fs::write(&path, raw)
-        .map_err(|e| AppError::Internal(format!("Datei schreiben: {e}")))?;
+    std::fs::write(&path, raw).map_err(|e| AppError::Internal(format!("Datei schreiben: {e}")))?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 /// Ordner für Standard-Exporte wählen (Settings → Export).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
-pub fn pick_export_directory(session_state: State<'_, SessionState>) -> Result<Option<String>, AppError> {
+pub fn pick_export_directory(
+    session_state: State<'_, SessionState>,
+) -> Result<Option<String>, AppError> {
     rbac::require_authenticated(&session_state)?;
     let path = rfd::FileDialog::new().pick_folder();
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
@@ -67,4 +68,14 @@ pub fn save_export_bytes_to_folder(
     }
     std::fs::write(&full, raw).map_err(|e| AppError::Internal(format!("Datei schreiben: {e}")))?;
     Ok(full.to_string_lossy().into_owned())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_export_commands {
+    () => {
+        $crate::commands::export_commands::save_export_file,
+        $crate::commands::export_commands::pick_export_directory,
+        $crate::commands::export_commands::save_export_bytes_to_folder,
+    };
 }

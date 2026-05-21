@@ -39,7 +39,7 @@ import {
 
 /**
  * Rezeptverwaltung (FA-REZ-01..05).
- * Export wie unter „Einstellungen › Export & Druck“ (Format, Pfad, strukturierte Vorlage).
+ * Export über strukturierte Vorlage (Format, Pfad aus Export-Einstellungen).
  */
 export function RezeptePage() {
     const session = useAuthStore((s) => s.session);
@@ -426,13 +426,15 @@ export function RezeptePage() {
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Medikament</th><th>Dosierung</th><th>Dauer</th><th>Datum</th><th>Status</th><th>Aktionen</th>
+                                <th>Medikament</th><th>PZN</th><th>Typ</th><th>Dosierung</th><th>Dauer</th><th>Datum</th><th>Status</th><th>Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredRezepte.map((r) => (
                                 <tr key={r.id}>
                                     <td>{r.medikament}</td>
+                                    <td>{r.pzn?.trim() || "—"}</td>
+                                    <td>{r.rezept_typ?.trim() || "—"}</td>
                                     <td>{r.dosierung}</td>
                                     <td>{r.dauer}</td>
                                     <td>{formatDate(r.ausgestellt_am)}</td>

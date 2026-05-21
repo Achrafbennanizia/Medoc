@@ -6,7 +6,6 @@ This file is the **single place for project-wide “master commands”** you add
 
 1. **`.cursor/rules/`** — Rule files with `alwaysApply: true` are injected automatically (evidence, workflow, editing discipline).
 2. **`AGENTS.md` (this file)** — Add **Master commands** here; keep them explicit and ordered. Update this file when you issue new master directives.
-3. **`src/AGENTS.md`** — Only applies context for the Next.js app under `src/` (framework-specific). Use alongside this file when working in `src/`.
 
 ---
 

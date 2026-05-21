@@ -45,6 +45,9 @@ import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { composeClinicalDocumentPdfBodyLines } from "@/lib/clinical-document-pdf";
 import { isTauriApp } from "@/lib/save-download";
+import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
+import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
+import { PraxisReadinessDialog } from "./praxis-readiness-dialog";
 
 export type ExportPickerAkteProps = {
     open: boolean;
@@ -90,6 +93,8 @@ function AkteExportPickerInner({
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewBusy, setPreviewBusy] = useState(false);
     const previewUrlRef = useRef<string | null>(null);
+    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
+    const praxisReadiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), "akte");
 
     const builtins = BUILTIN_TEMPLATES_BY_KIND.akte;
 
@@ -228,6 +233,10 @@ function AkteExportPickerInner({
         }
         if (!anySelected) {
             toast("Bitte mindestens einen Export-Bereich auswählen.", "info");
+            return;
+        }
+        if (format === "pdf" && !praxisReadiness.ready) {
+            setPraxisGuardOpen(true);
             return;
         }
 
@@ -449,13 +458,18 @@ function AkteExportPickerInner({
                     </div>
                 </div>
             </div>
+            <PraxisReadinessDialog
+                open={praxisGuardOpen}
+                documentKind="akte"
+                result={praxisReadiness}
+                onClose={() => setPraxisGuardOpen(false)}
+            />
         </Dialog>
     );
 }
 
 export type HtmlExportDocumentKind = Extract<DocumentKind, "attest" | "rezept" | "quittung">;
 
-/** Entspricht den Optionen unter „Einstellungen › Export & Druck › Standardformat“. */
 const CLINICAL_EXPORT_FORMAT_OPTS: { value: ExportFileFormat; label: string }[] = [
     { value: "pdf", label: "PDF" },
     { value: "csv", label: "CSV" },
@@ -501,7 +515,7 @@ export type HtmlDocumentExportPickerProps = {
     hint?: string;
 };
 
-/** UX wie „Einstellungen › Export & Druck“: Standardpfad, Standardformat pro Dokumentart, strukturierte Vorlage, PDF ohne Roh-HTML. */
+/** Strukturierte Vorlage, Standardpfad/-format aus App-KV, PDF ohne Roh-HTML. */
 export function HtmlDocumentExportPickerDialog(props: HtmlDocumentExportPickerProps) {
     return <HtmlDocumentExportPickerInner {...props} />;
 }
@@ -527,6 +541,8 @@ function HtmlDocumentExportPickerInner({
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewBusy, setPdfPreviewBusy] = useState(false);
     const pdfPreviewUrlRef = useRef<string | null>(null);
+    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
+    const praxisReadiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), templateKind);
 
     const builtins = BUILTIN_TEMPLATES_BY_KIND[templateKind];
 
@@ -620,7 +636,13 @@ function HtmlDocumentExportPickerInner({
                 setPdfPreviewBusy(true);
                 try {
                     const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
-                    const b64 = await previewDocumentPdf(templateKind, displayName, payload, mergedPdfLines);
+                    const b64 = await previewDocumentPdf(
+                        templateKind,
+                        displayName,
+                        payload,
+                        mergedPdfLines,
+                        JSON.stringify(bundle.pdfLayout),
+                    );
                     const bin = atob(b64);
                     const bytes = new Uint8Array(bin.length);
                     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -639,7 +661,7 @@ function HtmlDocumentExportPickerInner({
         return () => {
             window.clearTimeout(t);
         };
-    }, [open, format, templateKind, bundle.pdfBodyLines, resolvedTpl, toast, revokePdfPreview]);
+    }, [open, format, templateKind, bundle.pdfBodyLines, bundle.pdfLayout, resolvedTpl, toast, revokePdfPreview]);
 
     useEffect(() => {
         if (!open) revokePdfPreview();
@@ -680,6 +702,10 @@ function HtmlDocumentExportPickerInner({
             toast("Kein Dokumentinhalt.", "error");
             return;
         }
+        if (format === "pdf" && !praxisReadiness.ready) {
+            setPraxisGuardOpen(true);
+            return;
+        }
         const baseNoExt = clinicalFilenameBase(fileName, suggestedBasename);
         const finalName = clinicalFilenameWithExtension(baseNoExt, format);
         const destFolder = folderOnce?.trim() || null;
@@ -689,7 +715,13 @@ function HtmlDocumentExportPickerInner({
         try {
             if (format === "pdf") {
                 const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
-                const b64 = await previewDocumentPdf(templateKind, displayName, payload, mergedPdfLines);
+                const b64 = await previewDocumentPdf(
+                    templateKind,
+                    displayName,
+                    payload,
+                    mergedPdfLines,
+                    JSON.stringify(bundle.pdfLayout),
+                );
                 const bin = atob(b64);
                 const bytes = new Uint8Array(bin.length);
                 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -769,8 +801,8 @@ function HtmlDocumentExportPickerInner({
             <div className="akte-export-dialog-layout">
                 <div className="akte-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        Entspricht <strong>Einstellungen › Export &amp; Druck</strong>: Standardpfad, Format pro Dokumentart und
-                        strukturierte Dokumentvorlage (kein Freitext-HTML). Änderungen der Standards erfolgen dort.
+                        Standardpfad und Format pro Dokumentart aus den Export-Einstellungen (falls gesetzt), sonst PDF und
+                        Dokumente-Ordner. Strukturierte Vorlage, kein Freitext-HTML.
                     </p>
                     <Select
                         id="export-picker-clinical-format"
@@ -861,6 +893,12 @@ function HtmlDocumentExportPickerInner({
                     </div>
                 </div>
             </div>
+            <PraxisReadinessDialog
+                open={praxisGuardOpen}
+                documentKind={templateKind}
+                result={praxisReadiness}
+                onClose={() => setPraxisGuardOpen(false)}
+            />
         </Dialog>
     );
 }

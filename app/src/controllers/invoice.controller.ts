@@ -36,7 +36,11 @@ export interface InvoiceInput {
     ust_hinweis?: string | null;
 }
 
-export type InvoiceDocKind = "RE" | "BR";
+export type InvoiceDocKind = "RE" | "BR" | "QU";
+
+export async function allocateQuittungNummer(ymd: string): Promise<string> {
+    return allocateInvoiceDocumentNumber("QU", ymd);
+}
 
 /** Fortlaufende Nummer aus SQLite (`BEGIN IMMEDIATE`); Offline/Fehler → clientseitiger Fallback. */
 export async function allocateInvoiceDocumentNumber(kind: InvoiceDocKind, ymd: string): Promise<string> {

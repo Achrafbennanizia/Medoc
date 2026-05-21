@@ -18,7 +18,11 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Patient>, 
     Ok(row)
 }
 
-pub async fn search(pool: &SqlitePool, query: &str, include_versicherungsnummer: bool) -> Result<Vec<Patient>, AppError> {
+pub async fn search(
+    pool: &SqlitePool,
+    query: &str,
+    include_versicherungsnummer: bool,
+) -> Result<Vec<Patient>, AppError> {
     let pattern = format!("%{}%", query);
     let sql = if include_versicherungsnummer {
         "SELECT * FROM patient WHERE name LIKE ?1 OR versicherungsnummer LIKE ?1 ORDER BY name"

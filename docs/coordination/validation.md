@@ -1,8 +1,63 @@
 # Validation ledger
 
-**Last updated:** 2026-04-26 (Statistiken: merged nav + `activePanel` workspace)
+**Last updated:** 2026-05-19 (Phase 3.7b — patient-detail rezept logic extraction validated)
 
 ## Verified (commands run, outcomes recorded)
+
+| Check | Command | Result | Date | Notes |
+| ----- | ------- | ------ | ---- | ----- |
+| Phase 3.7b — patient-detail rezept hook + panel | `npm run lint && npm test && npm run build` + `cargo test --tests` | **PASS** | 2026-05-19 | Shell `patient-detail.tsx` ~2126 lines; `use-patient-detail-rezept-tab.ts` (~638); `patient-detail-rezept-tab-panel.tsx` (~1116); `patient-detail-rezept-tab.tsx` (22); `patient-detail-rezept-actions.ts` (196); restored `handlePrintQuittung*` in shell; fixed `updateRezept` import |
+| Phase 3.7b — patient-detail all tabs | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | 7 tab modules + rezept hook/panel; shell was ~2815 before rezept logic move |
+| Phase 3.7b — patient-detail rezept tab | npm lint/test/build | **PASS** | 2026-05-19 | JSX panel extracted; logic in hook (supersedes monolithic tab file) |
+| Phase 3.7b — patient-detail zahl tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | `patient-detail-zahl-tab.tsx` (~938 lines) |
+| Phase 3.7b — patient-detail unter tab | npm lint/test/build | **PASS** | 2026-05-19 | `patient-detail-unter-tab.tsx` (~359 lines) |
+| Phase 3.7b — patient-detail behand tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | `patient-detail-behand-tab.tsx` (~207 lines); recreated after missing file broke build |
+| Phase 3.7b — patient-detail anam + anlage tabs | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `patient-detail-anam-tab.tsx`, `patient-detail-anlage-tab.tsx` |
+| Phase 3.7b — patient-detail stamm tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `patient-detail-stamm-tab.tsx`; `patient-detail.tsx` reduced |
+| Phase 3.7b — einstellungen praxis + shell rebuild | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-praxis-section.tsx`; shell `einstellungen.tsx` ~500 lines (all 13 sections wired) |
+| Phase 3.7b — einstellungen lizenz + integrationen | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-lizenz-section.tsx`, `einstellungen-integrationen-section.tsx`; shell `einstellungen.tsx` ~1218 lines (−58% vs 2874) |
+| Phase 3.7b — einstellungen migration + ueber | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-migration-section.tsx`, `einstellungen-ueber-section.tsx`; shell `einstellungen.tsx` ~1465 lines (−44% vs 2874) |
+| Phase 3.7b — einstellungen system section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-system-section.tsx`; health/perf/backup/ops embed; `einstellungen.tsx` ~1601 lines |
+| Phase 3.7b — einstellungen sicherheit section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-sicherheit-section.tsx`; device sessions + portal flags internal |
+| Phase 3.7b — einstellungen konto section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-konto-section.tsx`; profile load/save self-contained |
+| Phase 3.7b — einstellungen arbeitsablaeufe section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-arbeitsablaeufe-section.tsx`; confirmation prefs colocated |
+| Phase 3.7b — einstellungen darstellung section | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-darstellung-section.tsx`; `einstellungen.tsx` ~2589 lines |
+| Phase 3.7b — einstellungen benachrichtigungen section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-benachrichtigungen-section.tsx`, shared `settings-switch.tsx` |
+| Phase 3.7b — termin week/day grid extracted | npm lint/test/build + clippy | **PASS** | 2026-05-20 | `termin-week-day-grid.tsx` (~748 lines); `termine.tsx` ~1295 lines |
+| Phase 3.7b — termin month cal + legend wired | `cargo test --tests` + clippy + npm lint/test/build | **PASS** | 2026-05-20 | `termin-month-calendar.tsx`, `termin-doctor-legend.tsx`; no duplicate `MonthCalendar`/`DoctorLegend` |
+| Phase 3.7b — termin drawer/context | npm lint/test/build | **PASS** | 2026-05-20 | `termin-detail-drawer.tsx`, `termin-context-menu.tsx` |
+| Phase 3.7 — page utils split | `cargo clippy` + npm lint/test (114 vitest) | **PASS** | 2026-05-20 | `patient-detail-utils.ts`, `termin-calendar-ui.ts`, `settings-format.ts` |
+| Phase 3.6 — patient localStorage → DB | `cargo test --tests` + clippy + npm lint/test (110 vitest) | **PASS** | 2026-05-20 | Termin drafts → `app_kv` `termin.draft.v1.{uuid}`; validation/plan/invoice already on SQLite |
+| Phase 3.5 — enum codegen | `cargo test --tests` + `enums_codegen_tests` + clippy + npm lint/test/build | **PASS** | 2026-05-20 | `config/enums.yaml`; `enums.generated.ts`; `schemas.enums.generated.ts`; PDF tests adjusted (BSNR line UTF-16) |
+| Phase 3.4 — RBAC codegen | `cargo build` + `rbac_tests` + `rbac_codegen_tests` + npm test | **PASS** | 2026-05-20 | `config/rbac.yaml`; `build/rbac_codegen.rs`; `rbac.generated.ts` |
+| Phase 3.3 — IPC registration | `cargo test --test invoke_registration_tests` + full suite + clippy | **PASS** | 2026-05-20 | `commands/register.rs` + 42× `register_*!()` macros; `lib.rs` uses `register_invoke_handler` |
+| Phase 3.2 — domain services | `cargo test --test domain_services_tests` + full `cargo test --tests` | **PASS** | 2026-05-19 | `domain/services/{konflikt,pricing,workflow_transitions}.rs`; wired termin/zahlung/akte/bestellung |
+| Phase 3.1 — sqlx migrations | `MEDOC_* env cargo test --tests` + `fresh_db_records_sqlx_migration` | **PASS** | 2026-05-19 | `0001_initial_schema.sql` deduped; legacy path for existing DBs; demo seed via `should_run_demo_seed` |
+| Phase 3.1–3.2 — full stack | `cargo test --tests && clippy -D warnings && npm lint/test/build` | **PASS** | 2026-05-19 | 107 vitest; all integration suites green |
+| PDF professional layout — full stack | `MEDOC_DB_KEY` + `MEDOC_VENDOR_PUBKEY` → `cargo test --tests` + clippy + npm | **PASS** | 2026-05-19 | `clinical_pdf_layout`; `pdf_document_tests` 5/5; 107 vitest; `sqlcipher_tests` flake fixed |
+| Document Phases C–E — Frontend | `cd app && npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | 105 vitest tests; praxis guards + GOZ PDF UI |
+| Document Phases C–E — Rust PDF | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-19 | GOZ markers (`GOZ`, `Fak`, `IBAN`, …) |
+| Document Phases C–E — Rust full | `cargo test --tests && clippy -D warnings` | **PASS** | 2026-05-19 | `db_migrations_tests` +4 (rezept/attest round-trip); `sqlcipher_tests` hardened |
+| Document Phases C–E — Frontend | `npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | `rezept-edit.tsx` AMVV fields |
+| Phase 0 — Rust | `MEDOC_VENDOR_PUBKEY=… cargo check && cargo test --tests && cargo clippy -D warnings` | **PASS** | 2026-05-19 | `update_signature_tests` 4/4 |
+| Phase 0 — Frontend | `npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | 101 vitest tests |
+| Phase 1.4 — CORS tests | `cargo test --test cors_policy_tests` | **PASS** | 2026-05-19 | LAN 403 on evil origin; company rejects Origin |
+| Full stack (post 1.4) | `cargo test --tests && clippy -D warnings && npm lint/test/build` | **PASS** | 2026-05-19 | All integration tests green |
+| Phase 1.5 — SQLCipher | `cargo test --test sqlcipher_tests` + full suite with `MEDOC_DB_KEY` | **PASS** | 2026-05-19 | Wrong key / no-key rejected on file DB after migrate |
+| Full stack (post 1.5) | `MEDOC_DB_KEY=… cargo test --tests && clippy && npm lint/test/build` | **PASS** | 2026-05-19 | 105 vitest tests |
+| Phase 1.6 — audit chain | `cargo test --test audit_chain_tests` | **PASS** | 2026-05-19 | 50 concurrent inserts; `BEGIN IMMEDIATE` |
+| Phase 1.7 — brute-force | `cargo test --test brute_force_tests` | **PASS** | 2026-05-19 | 6 tests: IP+subject keys, hydrate, admin clear |
+| Full stack (post 1.7) | `MEDOC_* env cargo test --tests && clippy -D warnings && npm lint/test/build` | **PASS** | 2026-05-19 | All integration tests green; 105 vitest |
+| Phase 2.1–2.2 | `crypto_tests` (5) + `npm test` (107) + build | **PASS** | 2026-05-19 | Policy + login rehash; fixed `pdf_hline` arity |
+| Phase 2.3 — TOTP | `totp_tests` (5) + full `cargo test --tests` + npm lint/test/build | **PASS** | 2026-05-19 | ARZT enroll/verify login flow |
+| Phase 2.4 — break-glass audit | `audit_break_glass_tests` (1) + full suite + npm lint/test/build | **PASS** | 2026-05-19 | `under_break_glass` / filter on audit page |
+| Phase 2.5 — audit chain gate | `audit_chain_guard` unit test + full suite + npm lint/test/build | **PASS** | 2026-05-19 | Startup `verify_chain`; `ops.*` blocked until ack |
+| Phase 2.6 — backup retention + sig | `backup_tests` (2) + full suite + npm lint/test/build | **PASS** | 2026-05-19 | GFS 30d/12w/12m; `.db.sig` HMAC; `signature_ok` in list |
+| Phase 2.7 — DSGVO backups + logs | `dsgvo_erasure_tests` (2) + full suite + npm lint/test/build | **PASS** | 2026-05-19 | Backup redact + `MEDOC_LOG_DIR` log scrub |
+| `cargo fmt --check` | after `cargo fmt` | **PASS** | 2026-05-19 | Large repo-wide format sync |
+| Phase 1.1 — LAN TLS test | `cargo test --test lan_tls_tests` | **PASS** | 2026-05-19 | HTTPS `/health` via self-signed cert |
+| Build fails without vendor key | `cargo check` (no env) | **FAIL** (expected) | 2026-05-19 | `MEDOC_VENDOR_PUBKEY must be set` |
+| `cargo audit` | `cargo audit` | **NOT RUN** | 2026-05-19 | Binary not installed locally; CI has `cargo-audit` step |
 
 | Check | Command | Result | Date | Notes |
 | ----- | ------- | ------ | ---- | ----- |

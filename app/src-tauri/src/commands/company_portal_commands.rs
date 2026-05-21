@@ -118,10 +118,34 @@ pub async fn company_portal_ping(
             let url = format!("{base}/v1/health");
             let res = c.get(&url).send().await;
             match res {
-                Ok(r) if r.status().is_success() => Ok(json!({ "ok": true, "http": r.status().as_u16() })),
+                Ok(r) if r.status().is_success() => {
+                    let http = r.status().as_u16();
+                    let body: Value = r.json().await.unwrap_or_else(|_| json!({}));
+                    let mut out = json!({ "ok": true, "http": http });
+                    if let Some(demo) = body.get("_demo") {
+                        out["_demo"] = demo.clone();
+                    }
+                    Ok(out)
+                }
                 Ok(r) => Ok(json!({ "ok": false, "http": r.status().as_u16() })),
                 Err(e) => Ok(json!({ "ok": false, "error": e.to_string() })),
             }
         }
     }
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_company_portal_commands {
+    () => {
+        $crate::commands::company_portal_commands::get_company_portal_config,
+        $crate::commands::company_portal_commands::set_company_portal_config,
+        $crate::commands::company_portal_commands::company_portal_fetch_summary,
+        $crate::commands::company_portal_commands::company_portal_fetch_integrations,
+        $crate::commands::company_portal_commands::company_portal_fetch_feature_flags,
+        $crate::commands::company_portal_commands::company_portal_billing_portal_url,
+        $crate::commands::company_portal_commands::company_portal_attach_payment,
+        $crate::commands::company_portal_commands::company_portal_fetch_update_manifest,
+        $crate::commands::company_portal_commands::company_portal_ping,
+    };
 }

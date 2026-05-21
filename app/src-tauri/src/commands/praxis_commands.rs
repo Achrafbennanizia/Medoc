@@ -391,3 +391,31 @@ pub async fn delete_lieferant_pharma_vorlage(
     .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_praxis_commands {
+    () => {
+        $crate::commands::praxis_commands::list_abwesenheiten,
+        $crate::commands::praxis_commands::create_abwesenheit,
+        $crate::commands::praxis_commands::update_abwesenheit,
+        $crate::commands::praxis_commands::delete_abwesenheit,
+        $crate::commands::praxis_commands::list_dokument_vorlagen,
+        $crate::commands::praxis_commands::create_dokument_vorlage,
+        $crate::commands::praxis_commands::update_dokument_vorlage,
+        $crate::commands::praxis_commands::delete_dokument_vorlage,
+        $crate::commands::praxis_commands::list_behandlungs_katalog,
+        $crate::commands::praxis_commands::create_behandlungs_katalog_item,
+        $crate::commands::praxis_commands::update_behandlungs_katalog_item,
+        $crate::commands::praxis_commands::delete_behandlungs_katalog_item,
+        $crate::commands::praxis_commands::list_lieferant_stamm,
+        $crate::commands::praxis_commands::create_lieferant_stamm,
+        $crate::commands::praxis_commands::delete_lieferant_stamm,
+        $crate::commands::praxis_commands::list_pharmaberater_stamm,
+        $crate::commands::praxis_commands::create_pharmaberater_stamm,
+        $crate::commands::praxis_commands::delete_pharmaberater_stamm,
+        $crate::commands::praxis_commands::list_lieferant_pharma_vorlagen,
+        $crate::commands::praxis_commands::create_lieferant_pharma_vorlage,
+        $crate::commands::praxis_commands::delete_lieferant_pharma_vorlage,
+    };
+}

@@ -1,10 +1,10 @@
 pub mod anamnesebogen;
 pub mod attest;
 pub mod audit_log;
-pub mod dokument_template_user;
 pub mod behandlung;
 pub mod bestellung;
 pub mod bilanz_snapshot;
+pub mod dokument_template_user;
 pub mod leistung;
 pub mod patient;
 pub mod patientenakte;

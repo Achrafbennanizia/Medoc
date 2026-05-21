@@ -1,12 +1,23 @@
 import type { Attest } from "@/controllers/attest.controller";
 import type { Rezept } from "@/controllers/rezept.controller";
-import { escapeHtml, formatDate } from "@/lib/utils";
+import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
 import type { Patient, Behandlung, Untersuchung, Zahlung } from "@/models/types";
+import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
+import { buildClinicalTemplateKopfLines } from "@/lib/clinical-document-pdf";
+import { emptyDocumentTemplatePayloadV1, type PraxisFieldKey } from "@/lib/document-template-schema";
+import { loadPraxisHeaderPrivacy } from "@/lib/praxis-header-privacy";
 import {
     formatZahlungBezugLine,
     zahlStatusDisplay,
     zahlungsartLabel,
 } from "@/lib/zahlung-buchung";
+import {
+    buildAttestPdfLayout,
+    buildQuittungPdfLayout,
+    buildRezeptComboPdfLayout,
+    buildRezeptPdfLayout,
+    type ClinicalPdfLayout,
+} from "@/lib/clinical-pdf-layout";
 
 function rezeptStatusLabel(status: string): string {
     const s = status.trim();
@@ -26,10 +37,57 @@ function csvRow(cells: string[]): string {
     return cells.map(csvCell).join(";");
 }
 
-/** Datenpaket für Export gemäß Einstellungen › Export & Druck (PDF/CSV/JSON/XML). */
+const CLINICAL_KOPF_FIELDS: PraxisFieldKey[] = [
+    "name",
+    "address",
+    "phone",
+    "fax",
+    "email",
+    "behandler",
+    "zanr",
+    "bsnr",
+    "bank",
+    "kammer",
+    "kzv",
+    "ust_hinweis",
+    "notfall_tel",
+];
+
+function praxisKopfLinesForExport(): string[] {
+    const praxis = getInvoicePraxisFromStorage();
+    const tpl = emptyDocumentTemplatePayloadV1();
+    tpl.kopf.fieldsToShow = CLINICAL_KOPF_FIELDS;
+    return buildClinicalTemplateKopfLines(tpl, praxis, loadPraxisHeaderPrivacy());
+}
+
+function formatVerordnungsdatumDe(iso: string): string {
+    const d = iso.trim().slice(0, 10);
+    if (d.length >= 10 && d[4] === "-") {
+        return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
+    }
+    return formatDate(iso);
+}
+
+function behandlerSignaturBlock(): string[] {
+    const p = getInvoicePraxisFromStorage();
+    const bh = (p.behandler_name ?? "").trim();
+    const beruf = (p.berufsbezeichnung ?? "").trim();
+    const zanr = (p.zanr ?? "").trim();
+    const bsnr = (p.bsnr ?? "").trim();
+    if (!bh) return [];
+    const lines = ["", "____________________________", bh];
+    if (beruf) lines.push(beruf);
+    if (zanr || bsnr) lines.push(`ZANR: ${zanr || "—"} · BSNR: ${bsnr || "—"}`);
+    lines.push("(Stempel)");
+    return lines;
+}
+
+/** Datenpaket für klinischen Dokument-Export (PDF/CSV/JSON/XML). */
 export type ClinicalDocumentExportBundle = {
     /** Zeilen für PDF-Renderer (`preview_document_pdf`). */
     pdfBodyLines: string[];
+    /** Strukturiertes Layout (Rust); bevorzugt gegenüber `pdfBodyLines`. */
+    pdfLayout: ClinicalPdfLayout;
     csvText: string;
     jsonText: string;
     xmlText: string;
@@ -80,30 +138,49 @@ export function suggestQuittungHtmlFilename(z: Zahlung): string {
 }
 
 function attestPdfLines(a: Attest, patient: Patient | null): string[] {
+    const von = formatDate(a.gueltig_von);
+    const bis = formatDate(a.gueltig_bis);
+    const ausgestellt = formatDate(a.ausgestellt_am);
+    const t0 = new Date(`${a.gueltig_von.slice(0, 10)}T12:00:00`);
+    const t1 = new Date(`${a.gueltig_bis.slice(0, 10)}T12:00:00`);
+    const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
+    const erstFolge =
+        (a.erst_oder_folge ?? "ERST") === "FOLGE" ? "Folgebescheinigung" : "Erstbescheinigung";
+    const pname = patient?.name ?? a.patient_id;
+    const geb = patient ? formatDate(patient.geburtsdatum) : "—";
+    const icd = (a.icd10_code ?? "").trim() || "—";
     const lines: string[] = [
-        a.typ,
+        ...praxisKopfLinesForExport(),
         "",
-        `Patient: ${patient?.name ?? a.patient_id}`,
-        patient ? `Geburtsdatum: ${formatDate(patient.geburtsdatum)}` : "",
-        `Gültig: ${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}`,
-        `Ausgestellt: ${formatDate(a.ausgestellt_am)}`,
+        "ÄRZTLICHES ATTEST",
+        `Art: ${a.typ} (${erstFolge})`,
         "",
-        "---",
+        `Hiermit wird bescheinigt, dass ${pname}${patient ? ` (Geburtsdatum: ${geb})` : ""} sich in ärztlicher Behandlung befindet.`,
         "",
-        ...a.inhalt.split(/\r?\n/),
-        "",
-        "---",
-        "",
-        "Unterschrift Ärztin/Arzt",
+        `Gültigkeitszeitraum: ${von} bis ${bis} (${days} Kalendertag${days === 1 ? "" : "e"})`,
+        `Ausstellungsdatum: ${ausgestellt}`,
     ];
+    if (a.typ.toLowerCase().includes("arbeitsunfähig") && (a.arbeitgeber ?? "").trim()) {
+        lines.push(`Arbeitgeber: ${a.arbeitgeber!.trim()}`);
+    }
+    lines.push(
+        `Diagnose (ICD-10): ${icd}`,
+        "",
+        "Befund / Angaben:",
+        ...a.inhalt.split(/\r?\n/).map((s) => s.trimEnd()),
+        "",
+        "Ort, Datum: _________________________",
+        ...behandlerSignaturBlock(),
+    );
     return lines.map((s) => s.trimEnd());
 }
 
 export function bundleAttestExport(a: Attest, patient: Patient | null): ClinicalDocumentExportBundle {
+    const pdfLayout = buildAttestPdfLayout(a, patient);
     const pdfBodyLines = attestPdfLines(a, patient);
     const geb = patient ? formatDate(patient.geburtsdatum) : "";
     const csvText =
-        `${csvRow(["Typ", "PatientId", "PatientName", "Geburtsdatum", "GueltigVon", "GueltigBis", "Ausgestellt", "Inhalt"])}\n`
+        `${csvRow(["Typ", "PatientId", "PatientName", "Geburtsdatum", "GueltigVon", "GueltigBis", "Ausgestellt", "ICD10", "ErstFolge", "Arbeitgeber", "Inhalt"])}\n`
         + `${csvRow([
             a.typ,
             a.patient_id,
@@ -112,6 +189,9 @@ export function bundleAttestExport(a: Attest, patient: Patient | null): Clinical
             formatDate(a.gueltig_von),
             formatDate(a.gueltig_bis),
             formatDate(a.ausgestellt_am),
+            (a.icd10_code ?? "").trim(),
+            a.erst_oder_folge ?? "",
+            (a.arbeitgeber ?? "").trim(),
             a.inhalt,
         ])}\n`;
     const jsonObj = {
@@ -124,6 +204,9 @@ export function bundleAttestExport(a: Attest, patient: Patient | null): Clinical
             gueltig_von: a.gueltig_von,
             gueltig_bis: a.gueltig_bis,
             ausgestellt_am: a.ausgestellt_am,
+            icd10_code: a.icd10_code,
+            erst_oder_folge: a.erst_oder_folge,
+            arbeitgeber: a.arbeitgeber,
         },
         patient: patient
             ? { id: patient.id, name: patient.name, geburtsdatum: patient.geburtsdatum }
@@ -140,31 +223,44 @@ export function bundleAttestExport(a: Attest, patient: Patient | null): Clinical
         + `    <ausgestellt>${escapeHtml(formatDate(a.ausgestellt_am))}</ausgestellt>\n`
         + `    <inhalt>${escapeHtml(a.inhalt)}</inhalt>\n`
         + `  </attest>\n</attestExport>\n`;
-    return { pdfBodyLines, csvText, jsonText, xmlText };
+    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
 function rezeptPdfLinesSingle(r: Rezept, patient: Patient | null): string[] {
+    const typ = (r.rezept_typ ?? "PRIVAT").trim() || "PRIVAT";
+    const autIdem = r.aut_idem !== false;
     return [
-        "Rezept",
+        ...praxisKopfLinesForExport(),
         "",
-        `Patient: ${patient?.name ?? ""}`,
+        `REZEPT (${typ})`,
+        `Rezeptnummer: ${r.id.slice(0, 8).toUpperCase()}`,
+        `Datum der Verschreibung: ${formatVerordnungsdatumDe(r.ausgestellt_am)}`,
+        "",
+        "Patienteninformation:",
+        `Name: ${patient?.name ?? "—"}`,
         patient ? `Geburtsdatum: ${formatDate(patient.geburtsdatum)}` : "",
-        `Ausgestellt: ${formatDate(r.ausgestellt_am)}`,
-        `Status: ${rezeptStatusLabel(r.status)}`,
+        patient?.adresse?.trim() ? `Adresse: ${patient.adresse.trim().replace(/\n/g, ", ")}` : "",
+        patient?.versicherungsnummer ? `Versicherungsnummer: ${patient.versicherungsnummer}` : "",
         "",
-        `Medikament: ${r.medikament}`,
+        "Rp.",
+        r.medikament,
         `Wirkstoff: ${(r.wirkstoff ?? "").trim() || "—"}`,
+        `Darreichungsform: ${(r.darreichungsform ?? "").trim() || "—"}`,
         `Dosierung: ${r.dosierung}`,
-        `Dauer: ${r.dauer}`,
-        `Hinweise: ${(r.hinweise ?? "").trim() || "—"}`,
+        `Dauer der Anwendung: ${r.dauer}`,
+        `Packungsgröße: ${(r.packungsgroesse ?? "").trim() || "—"}`,
+        r.menge != null ? `Menge: ${r.menge}` : "",
+        `PZN: ${(r.pzn ?? "").trim() || "—"}`,
+        autIdem ? "Aut-idem (kein Austausch)" : "Substitution nicht ausgeschlossen",
         "",
-        "---",
+        `Hinweise zur Anwendung: ${(r.hinweise ?? "").trim() || "—"}`,
         "",
-        "Unterschrift Ärztin/Arzt",
-    ];
+        ...behandlerSignaturBlock(),
+    ].filter((line) => line !== "");
 }
 
 export function bundleRezeptExport(r: Rezept, patient: Patient | null): ClinicalDocumentExportBundle {
+    const pdfLayout = buildRezeptPdfLayout(r, patient);
     const pdfBodyLines = rezeptPdfLinesSingle(r, patient);
     const csvText =
         `${csvRow(["Medikament", "Wirkstoff", "Dosierung", "Dauer", "Hinweise", "Ausgestellt", "Status", "Patient", "Geburtsdatum"])}\n`
@@ -206,36 +302,44 @@ export function bundleRezeptExport(r: Rezept, patient: Patient | null): Clinical
         + `    <dosierung>${escapeHtml(r.dosierung)}</dosierung>\n`
         + `    <dauer>${escapeHtml(r.dauer)}</dauer>\n`
         + `  </rezept>\n</rezeptExport>\n`;
-    return { pdfBodyLines, csvText, jsonText, xmlText };
+    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
 function rezeptPdfLinesCombo(items: Rezept[], patient: Patient | null): string[] {
     if (items.length === 0) return ["Keine Rezeptdaten."];
     const first = items[0]!;
-    const title = items.length === 1 ? "Rezept" : `Kombinationsrezept (${items.length})`;
+    const title =
+        items.length === 1 ? "REZEPT" : `KOMBINATIONSREZEPT (${items.length} Positionen)`;
     const lines: string[] = [
+        ...praxisKopfLinesForExport(),
+        "",
         title,
+        `Datum der Verschreibung: ${formatVerordnungsdatumDe(first.ausgestellt_am)}`,
         "",
-        `Patient: ${patient?.name ?? ""}`,
+        "Patienteninformation:",
+        `Name: ${patient?.name ?? "—"}`,
         patient ? `Geburtsdatum: ${formatDate(patient.geburtsdatum)}` : "",
-        `Datum: ${formatDate(first.ausgestellt_am)}`,
         "",
-        "---",
+        "Verschriebene Medikamente:",
         "",
     ];
     for (let i = 0; i < items.length; i++) {
         const r = items[i]!;
-        lines.push(`Position ${i + 1}`, "");
-        lines.push(`Medikament: ${r.medikament}`, `Dosierung: ${r.dosierung}`, `Dauer: ${r.dauer}`);
+        lines.push(
+            `Position ${i + 1}: ${r.medikament}`,
+            `Dosierung: ${r.dosierung} · Dauer: ${r.dauer}`,
+        );
         if ((r.wirkstoff ?? "").trim()) lines.push(`Wirkstoff: ${r.wirkstoff}`);
+        if ((r.pzn ?? "").trim()) lines.push(`PZN: ${r.pzn}`);
         if ((r.hinweise ?? "").trim()) lines.push(`Hinweise: ${r.hinweise}`);
         lines.push("");
     }
-    lines.push("---", "", "Unterschrift Ärztin/Arzt");
+    lines.push(...behandlerSignaturBlock());
     return lines;
 }
 
 export function bundleRezepteComboExport(items: Rezept[], patient: Patient | null): ClinicalDocumentExportBundle {
+    const pdfLayout = buildRezeptComboPdfLayout(items, patient);
     const pdfBodyLines = rezeptPdfLinesCombo(items, patient);
     const header = csvRow(["Pos", "Medikament", "Wirkstoff", "Dosierung", "Dauer", "Hinweise", "Ausgestellt", "Status"]);
     const bodyRows =
@@ -277,25 +381,56 @@ export function bundleRezepteComboExport(items: Rezept[], patient: Patient | nul
         `<?xml version="1.0" encoding="UTF-8"?>\n<rezeptComboExport xmlns="urn:medoc:export:clinical-doc:1" count="${items.length}">\n`
         + `${items.map((r, i) => `  <item index="${i + 1}"><med>${escapeHtml(r.medikament)}</med></item>`).join("\n")}\n`
         + `</rezeptComboExport>\n`;
-    return { pdfBodyLines, csvText, jsonText, xmlText };
+    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
-function quittungPdfLines(z: Zahlung, patient: Patient, behandlungen: Behandlung[], untersuchungen: Untersuchung[]): string[] {
+function quittungPdfLines(
+    z: Zahlung,
+    patient: Patient,
+    behandlungen: Behandlung[],
+    untersuchungen: Untersuchung[],
+    receiptNumber: string,
+): string[] {
     const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
+    const praxis = getInvoicePraxisFromStorage();
+    const ust = (praxis.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
+    const bankLines: string[] = [];
+    const iban = (praxis.bankverbindung_iban ?? "").trim();
+    if (iban) {
+        const bic = (praxis.bankverbindung_bic ?? "").trim();
+        const bank = (praxis.bankverbindung_bank ?? "").trim();
+        bankLines.push(`Bankverbindung: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bank ? ` · ${bank}` : ""}`);
+        const inh = (praxis.bankverbindung_inhaber ?? "").trim();
+        if (inh) bankLines.push(`Kontoinhaber: ${inh}`);
+    }
+    const received =
+        z.zahlungsart === "BAR" || z.zahlungsart === "KARTE" ? "Betrag dankend erhalten." : "";
+    const zahlDatum = formatDate(z.created_at);
     return [
-        "Zahlungsbeleg / Quittung",
+        ...praxisKopfLinesForExport(),
+        "",
+        "PATIENTENQUITTUNG",
+        `Quittung-Nr.: ${receiptNumber}`,
         "",
         `Patient: ${patient.name}`,
         `Geburtsdatum: ${formatDate(patient.geburtsdatum)}`,
-        `Zahlungsdatum: ${formatDate(z.created_at)}`,
-        `Betrag: ${z.betrag.toFixed(2)} EUR`,
+        patient.versicherungsnummer ? `Versicherungsnummer: ${patient.versicherungsnummer}` : "",
+        "",
+        `Zahlungsdatum: ${zahlDatum}`,
+        `Betrag: ${formatCurrency(z.betrag)}`,
         `Zahlungsart: ${zahlungsartLabel(z.zahlungsart)}`,
         `Status: ${zahlStatusDisplay(z.status).label}`,
-        `Zuordnung: ${bezugLine}`,
+        "",
+        "Leistungszuordnung:",
+        bezugLine,
         `Beschreibung: ${(z.beschreibung ?? "").trim() || "—"}`,
         "",
-        "Aus MeDoc exportiert.",
-    ];
+        ust,
+        received,
+        ...bankLines,
+        "",
+        ...behandlerSignaturBlock(),
+    ].filter((line) => line !== "");
 }
 
 export function bundleQuittungExport(
@@ -303,8 +438,10 @@ export function bundleQuittungExport(
     patient: Patient,
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
+    receiptNumber: string,
 ): ClinicalDocumentExportBundle {
-    const pdfBodyLines = quittungPdfLines(z, patient, behandlungen, untersuchungen);
+    const pdfLayout = buildQuittungPdfLayout(z, patient, behandlungen, untersuchungen, receiptNumber);
+    const pdfBodyLines = quittungPdfLines(z, patient, behandlungen, untersuchungen, receiptNumber);
     const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
     const csvText =
         `${csvRow(["Patient", "Geburtsdatum", "Zahlungsdatum", "BetragEUR", "Zahlungsart", "Status", "Zuordnung", "Beschreibung"])}\n`
@@ -337,7 +474,7 @@ export function bundleQuittungExport(
         + `  <betrag>${escapeHtml(z.betrag.toFixed(2))}</betrag>\n`
         + `  <zuordnung>${escapeHtml(bezugLine)}</zuordnung>\n`
         + `</quittungExport>\n`;
-    return { pdfBodyLines, csvText, jsonText, xmlText };
+    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
 export function buildAttestPrintHtml(a: Attest, patient: Patient | null): string {

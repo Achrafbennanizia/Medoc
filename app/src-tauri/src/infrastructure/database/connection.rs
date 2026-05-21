@@ -1,12 +1,11 @@
-//! Local SQLite (`medoc.db`, WAL). **SQLCipher / PRAGMA key is not wired** — NFA-SEC-08
-//! (encryption at rest for the DB file) remains backlog; rely on OS full-disk encryption
-//! in production environments until implemented.
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
-use std::str::FromStr;
+//! Local SQLite (`medoc.db`, WAL) via **SQLCipher** (NFA-SEC-08).
+use sqlx::sqlite::SqlitePool;
 use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::db_key;
+use crate::infrastructure::database::sqlcipher;
 
 pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, AppError> {
     let app_dir = app
@@ -25,22 +24,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, AppError> {
         ))
     })?;
 
-    let db_path = app_dir.join("medoc.db");
-    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
-
-    let options = SqliteConnectOptions::from_str(&db_url)
-        .map_err(AppError::Database)?
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .create_if_missing(true);
-
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect_with(options)
-        .await
-        .map_err(AppError::Database)?;
-
-    run_migrations(&pool).await?;
-    Ok(pool)
+    open_pool_with_migrations(&app_dir).await
 }
 
 /// Initialise the same SQLite store as [`init_db`], but without a Tauri [`AppHandle`].
@@ -59,27 +43,189 @@ pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePo
         ))
     })?;
 
-    let db_path = app_data_dir.join("medoc.db");
-    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
+    open_pool_with_migrations(app_data_dir).await
+}
 
-    let options = SqliteConnectOptions::from_str(&db_url)
-        .map_err(AppError::Database)?
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .create_if_missing(true);
-
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect_with(options)
-        .await
-        .map_err(AppError::Database)?;
-
+async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
+    let db_path = app_dir.join("medoc.db");
+    maybe_migrate_plaintext_db(app_dir, &db_path).await?;
+    let key = resolve_sqlcipher_key(app_dir)?;
+    let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;
     run_migrations(&pool).await?;
-    Ok(pool)
+    pool.close().await;
+    if sqlcipher::is_plaintext_sqlite_file(&db_path) {
+        sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
+    }
+    sqlcipher::open_encrypted_pool(&db_path, key, true).await
+}
+
+async fn maybe_migrate_plaintext_db(
+    app_dir: &std::path::Path,
+    db_path: &std::path::Path,
+) -> Result<(), AppError> {
+    if !db_path.exists() || !sqlcipher::is_plaintext_sqlite_file(db_path) {
+        return Ok(());
+    }
+    let key = resolve_sqlcipher_key(app_dir)?;
+    sqlcipher::migrate_plaintext_to_sqlcipher(db_path, &key).await
+}
+
+fn resolve_sqlcipher_key(
+    app_dir: &std::path::Path,
+) -> Result<zeroize::Zeroizing<Vec<u8>>, AppError> {
+    if db_key::wrap_path(app_dir).exists()
+        && db_key::env_override_key().is_none()
+        && db_key::try_keyring_key().is_none()
+    {
+        return Err(AppError::Validation(
+            "Datenbank ist gesperrt — Passphrase zum Entsperren eingeben.".into(),
+        ));
+    }
+    db_key::ensure_sqlcipher_key(app_dir, true)
+}
+
+/// Encrypted in-memory pool for integration tests (`MEDOC_DB_KEY` or fixed test key).
+pub async fn test_memory_pool() -> Result<SqlitePool, AppError> {
+    let key = db_key::env_override_key()
+        .map(zeroize::Zeroizing::new)
+        .unwrap_or_else(|| zeroize::Zeroizing::new(db_key::TEST_SQLCIPHER_KEY.to_vec()));
+    sqlcipher::open_memory_pool(&key).await
 }
 
 /// Applies full schema DDL, forward `ALTER`s, and default seed staff when `personal` is empty.
 /// Public for integration tests (`cargo test`) and tooling; production callers use [`init_db`].
 pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
+    let existing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='patient'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    if existing > 0 {
+        return run_legacy_embedded_migrations(pool).await;
+    }
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .map_err(|e| AppError::Internal(format!("SQL-Migration: {e}")))?;
+    run_rust_only_migrations(pool).await?;
+    run_post_migration_seed(pool).await?;
+    Ok(())
+}
+
+fn should_run_demo_seed() -> bool {
+    cfg!(test)
+        || std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1")
+        || std::env::args().any(|a| a == "--dev-seed")
+}
+
+async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> {
+    crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
+    if should_run_demo_seed() {
+        seed_demo_data(pool).await?;
+    }
+    Ok(())
+}
+
+/// Rust-only steps that are awkward in plain SQL (conditional rebuilds, bcrypt binds).
+async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError> {
+    let produkt_id_col: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('lieferant_pharma_vorlage') WHERE name = 'produkt_id'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if produkt_id_col == 0 {
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("DROP TABLE IF EXISTS lieferant_pharma_vorlage")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE TABLE lieferant_pharma_vorlage (
+            id TEXT PRIMARY KEY,
+            lieferant_id TEXT NOT NULL REFERENCES lieferant_stamm(id),
+            pharmaberater_id TEXT NOT NULL REFERENCES pharmaberater_stamm(id),
+            produkt_id TEXT NOT NULL REFERENCES produkt(id),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            aktiv INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(lieferant_id, pharmaberater_id, produkt_id)
+        )",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    }
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM personal")
+        .fetch_one(pool)
+        .await?;
+    if count.0 == 0 {
+        let hash = bcrypt::hash("passwort123", 12)
+            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+        sqlx::query(
+            "INSERT INTO personal (id, name, email, passwort_hash, rolle, fachrichtung)
+             VALUES ('seed-arzt-001', 'Dr. Ahmed R.', 'ahmed@praxis.de', ?1, 'ARZT', 'Zahnmedizin')",
+        )
+        .bind(&hash)
+        .execute(pool)
+        .await?;
+        let hash2 = bcrypt::hash("passwort123", 12)
+            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+        sqlx::query(
+            "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+             VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION')",
+        )
+        .bind(&hash2)
+        .execute(pool)
+        .await?;
+    }
+
+    let ins = sqlx::query(
+        "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.billing_freigabe_legacy_v1', '1')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if ins.rows_affected() > 0 {
+        let _ = sqlx::query(
+            r#"UPDATE behandlung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(
+                   freigegeben_am,
+                   COALESCE(NULLIF(TRIM(behandlung_datum), ''), datetime(created_at))
+                 )
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+        let _ = sqlx::query(
+            r#"UPDATE untersuchung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(freigegeben_am, datetime(created_at))
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+    }
+    Ok(())
+}
+
+async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS personal (
             id TEXT PRIMARY KEY,
@@ -793,6 +939,38 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         }
     }
 
+    for (sql, col) in [
+        (
+            "ALTER TABLE audit_log ADD COLUMN under_break_glass INTEGER NOT NULL DEFAULT 0",
+            "under_break_glass",
+        ),
+        (
+            "ALTER TABLE audit_log ADD COLUMN break_glass_reason TEXT",
+            "break_glass_reason",
+        ),
+        ("ALTER TABLE personal ADD COLUMN totp_secret TEXT", "totp_secret"),
+        (
+            "ALTER TABLE personal ADD COLUMN totp_enrolled_at TEXT",
+            "totp_enrolled_at",
+        ),
+    ] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
+
     // Forward migration for installs that pre-date the HMAC chain.
     for (sql, col) in [
         (
@@ -1078,7 +1256,10 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(pool)
     .await?;
 
-    seed_demo_data(pool).await?;
+    crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
+    if should_run_demo_seed() {
+        seed_demo_data(pool).await?;
+    }
 
     Ok(())
 }

@@ -10,6 +10,8 @@ import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavIt
 import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
+import { shouldShowPraxisSetupWizard } from "@/lib/praxis-completeness";
+import { PraxisSetupWizard } from "../components/praxis-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useToastStore } from "../components/ui/toast-store";
 import { ToastContainer } from "../components/ui/toast";
@@ -24,7 +26,9 @@ import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
+import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
+import { allowed } from "@/lib/rbac";
 import { PageLoading } from "../components/ui/page-status";
 import { loadClientSettings } from "../../lib/client-settings";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
@@ -215,6 +219,7 @@ export function AppLayout() {
     );
     /** Hilfe-Texte aus dem nativen Menü (Windows/Linux-Menüleiste bzw. macOS-Menü). */
     const [nativeHelpTopic, setNativeHelpTopic] = useState<null | "calendar" | "shortcuts">(null);
+    const [praxisSetupOpen, setPraxisSetupOpen] = useState(() => shouldShowPraxisSetupWizard());
     const [aboutOpen, setAboutOpen] = useState(false);
     const [aboutVersion, setAboutVersion] = useState("");
     const [uiZoom, setUiZoom] = useState(readStoredUiZoom);
@@ -935,6 +940,12 @@ export function AppLayout() {
                 {t("a11y.skip_to_main")}
             </a>
 
+            <AuditChainBanner
+                canAcknowledge={
+                    !!session &&
+                    allowed("ops.audit_chain_ack", session.rolle, session.permission_overrides)
+                }
+            />
             <BreakGlassBanner userId={session?.user_id} />
 
             <div className={`app-shell${isMacUnifiedChrome ? " app-shell--mac-unified" : ""}`}>
@@ -1091,6 +1102,7 @@ export function AppLayout() {
 
             <ToastContainer />
             <ExportPreviewHost />
+            <PraxisSetupWizard open={praxisSetupOpen} onClose={() => setPraxisSetupOpen(false)} />
 
             <Dialog
                 open={nativeHelpTopic === "calendar"}

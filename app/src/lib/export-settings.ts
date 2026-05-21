@@ -1,4 +1,4 @@
-import { getAppKv, setAppKv, type AppKvKey } from "@/controllers/app-kv.controller";
+import { getAppKv, type AppKvKey } from "@/controllers/app-kv.controller";
 import { isTauriApp } from "@/lib/save-download";
 import type { DocumentKind } from "@/lib/document-template-schema";
 
@@ -45,10 +45,6 @@ export function parseExportPathJson(raw: string | null): ExportPathConfigV1 {
     }
 }
 
-export function serializeExportPathConfig(c: ExportPathConfigV1): string {
-    return JSON.stringify(c);
-}
-
 export function parseExportFormatsJson(raw: string | null): ExportFormatsConfigV1 {
     if (!raw?.trim()) return structuredClone(DEFAULT_FORMATS);
     try {
@@ -60,10 +56,6 @@ export function parseExportFormatsJson(raw: string | null): ExportFormatsConfigV
     } catch {
         return structuredClone(DEFAULT_FORMATS);
     }
-}
-
-export function serializeExportFormatsConfig(c: ExportFormatsConfigV1): string {
-    return JSON.stringify(c);
 }
 
 /** Resolved directory for display (best effort; browser: „Download“). */
@@ -80,17 +72,9 @@ export async function loadExportPathConfig(): Promise<ExportPathConfigV1> {
     return parseExportPathJson(raw);
 }
 
-export async function saveExportPathConfig(c: ExportPathConfigV1): Promise<void> {
-    await setAppKv(KEY_PATH, serializeExportPathConfig(c));
-}
-
 export async function loadExportFormatsConfig(): Promise<ExportFormatsConfigV1> {
     const raw = await getAppKv(KEY_FORMATS);
     return parseExportFormatsJson(raw);
-}
-
-export async function saveExportFormatsConfig(c: ExportFormatsConfigV1): Promise<void> {
-    await setAppKv(KEY_FORMATS, serializeExportFormatsConfig(c));
 }
 
 export function defaultFormatForKind(formats: ExportFormatsConfigV1, kind: DocumentKind): ExportFileFormat {

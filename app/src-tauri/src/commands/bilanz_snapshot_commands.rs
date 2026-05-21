@@ -74,3 +74,14 @@ pub async fn delete_bilanz_snapshot(
     .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_bilanz_snapshot_commands {
+    () => {
+        $crate::commands::bilanz_snapshot_commands::list_bilanz_snapshots,
+        $crate::commands::bilanz_snapshot_commands::get_bilanz_snapshot,
+        $crate::commands::bilanz_snapshot_commands::create_bilanz_snapshot,
+        $crate::commands::bilanz_snapshot_commands::delete_bilanz_snapshot,
+    };
+}

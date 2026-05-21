@@ -51,3 +51,13 @@ pub async fn delete_app_kv(
     rbac::require(&session_state, perm)?;
     app_kv_repo::delete(&pool, &key).await
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_app_kv_commands {
+    () => {
+        $crate::commands::app_kv_commands::get_app_kv,
+        $crate::commands::app_kv_commands::set_app_kv,
+        $crate::commands::app_kv_commands::delete_app_kv,
+    };
+}

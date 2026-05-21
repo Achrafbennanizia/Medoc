@@ -3,36 +3,11 @@ use crate::application::termin_hint_fulfillment;
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::termin::{CreateTermin, UpdateTermin};
 use crate::domain::entities::Termin;
+use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, termin_repo};
 use sqlx::SqlitePool;
 use tauri::State;
-
-/// FA-TERM-01: Status workflow.
-/// GEPLANT → BESTAETIGT → DURCHGEFUEHRT (forward path)
-/// GEPLANT/BESTAETIGT → ABGESAGT or NICHT_ERSCHIENEN (terminal aborts)
-/// Reaching DURCHGEFUEHRT, ABGESAGT, NICHT_ERSCHIENEN is terminal: no further
-/// transitions allowed.
-fn validate_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    if current == next {
-        return Ok(());
-    }
-    let allowed = match current {
-        "GEPLANT" => &["BESTAETIGT", "DURCHGEFUEHRT", "ABGESAGT", "NICHT_ERSCHIENEN"][..],
-        "BESTAETIGT" => &["DURCHGEFUEHRT", "ABGESAGT", "NICHT_ERSCHIENEN"][..],
-        // Terminal states (legacy rows may still carry `NICHTERSCHIENEN` from older serde)
-        "DURCHGEFUEHRT" | "ABGESAGT" | "NICHT_ERSCHIENEN" | "NICHTERSCHIENEN" => &[][..],
-        // Unknown source state — be permissive to keep migrations forward-compatible
-        _ => return Ok(()),
-    };
-    if allowed.iter().any(|s| s.eq_ignore_ascii_case(next)) {
-        Ok(())
-    } else {
-        Err(AppError::Validation(format!(
-            "Termin-Status-Übergang {current}→{next} ist nicht erlaubt"
-        )))
-    }
-}
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -96,7 +71,7 @@ pub async fn update_termin(
         let new_str = serde_json::to_string(new_status)
             .map(|s| s.trim_matches('"').to_uppercase())
             .unwrap_or_default();
-        validate_status_transition(&current.status, &new_str)?;
+        workflow_transitions::termin_status_transition(&current.status, &new_str)?;
     }
     let t = termin_repo::update(&pool, &id, &data).await?;
     audit_repo::create(&pool, &session.user_id, "UPDATE", "Termin", Some(&id), None)
@@ -129,4 +104,17 @@ pub async fn list_termine_by_date(
 ) -> Result<Vec<Termin>, AppError> {
     rbac::require(&session_state, "termin.read")?;
     termin_repo::find_by_date(&pool, &datum).await
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_termin_commands {
+    () => {
+        $crate::commands::termin_commands::list_termine,
+        $crate::commands::termin_commands::get_termin,
+        $crate::commands::termin_commands::create_termin,
+        $crate::commands::termin_commands::update_termin,
+        $crate::commands::termin_commands::delete_termin,
+        $crate::commands::termin_commands::list_termine_by_date,
+    };
 }

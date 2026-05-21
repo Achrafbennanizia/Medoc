@@ -21,7 +21,9 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Bestellung>, AppError> {
             CASE status WHEN 'OFFEN' THEN 0 WHEN 'UNTERWEGS' THEN 1 WHEN 'GELIEFERT' THEN 2 ELSE 3 END,
             COALESCE(erwartet_am, created_at) DESC"
     );
-    let rows = sqlx::query_as::<_, Bestellung>(&sql).fetch_all(pool).await?;
+    let rows = sqlx::query_as::<_, Bestellung>(&sql)
+        .fetch_all(pool)
+        .await?;
     Ok(rows)
 }
 
@@ -32,12 +34,11 @@ async fn next_bestellnummer(pool: &SqlitePool) -> Result<String, AppError> {
     let now = chrono::Local::now().date_naive();
     let prefix = format!("B-{:04}-{:02}-", now.year(), now.month());
     let pattern = format!("{prefix}%");
-    let max_seq: Option<String> = sqlx::query_scalar(
-        "SELECT MAX(bestellnummer) FROM bestellung WHERE bestellnummer LIKE ?1",
-    )
-    .bind(&pattern)
-    .fetch_one(pool)
-    .await?;
+    let max_seq: Option<String> =
+        sqlx::query_scalar("SELECT MAX(bestellnummer) FROM bestellung WHERE bestellnummer LIKE ?1")
+            .bind(&pattern)
+            .fetch_one(pool)
+            .await?;
     let next = match max_seq.as_deref() {
         Some(prev) => prev
             .rsplit('-')
@@ -83,13 +84,28 @@ pub async fn create(
     .bind(&id)
     .bind(&bestellnummer)
     .bind(data.lieferant.trim())
-    .bind(data.pharmaberater.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        data.pharmaberater
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(data.artikel.trim())
     .bind(STATUS_OFFEN)
     .bind(data.erwartet_am.as_deref())
     .bind(data.menge)
-    .bind(data.einheit.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(data.bemerkung.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        data.einheit
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        data.bemerkung
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(data.gesamtbetrag)
     .bind(created_by)
     .execute(pool)
@@ -104,8 +120,15 @@ pub async fn update_status(
     status: &str,
 ) -> Result<Bestellung, AppError> {
     if !is_valid_status(status) {
-        return Err(AppError::Validation(format!("Unbekannter Status: {status}")));
+        return Err(AppError::Validation(format!(
+            "Unbekannter Status: {status}"
+        )));
     }
+    let cur = fetch_by_id(pool, id).await?;
+    crate::domain::services::workflow_transitions::bestellung_status_transition(
+        &cur.status,
+        status,
+    )?;
     let geliefert = if status == STATUS_GELIEFERT {
         Some(chrono::Utc::now().date_naive().to_string())
     } else {
@@ -168,7 +191,11 @@ pub async fn update(
     }
     if let Some(opt) = &data.einheit {
         sets.push("einheit = ?");
-        binds.push(opt.as_ref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        binds.push(
+            opt.as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
     }
     if let Some(opt) = &data.erwartet_am {
         sets.push("erwartet_am = ?");
@@ -176,15 +203,27 @@ pub async fn update(
     }
     if let Some(opt) = &data.bemerkung {
         sets.push("bemerkung = ?");
-        binds.push(opt.as_ref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        binds.push(
+            opt.as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
     }
     if let Some(opt) = &data.bestellnummer {
         sets.push("bestellnummer = ?");
-        binds.push(opt.as_ref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        binds.push(
+            opt.as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
     }
     if let Some(opt) = &data.pharmaberater {
         sets.push("pharmaberater = ?");
-        binds.push(opt.as_ref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        binds.push(
+            opt.as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
     }
 
     if sets.is_empty() {

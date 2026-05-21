@@ -25,6 +25,8 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { EditIcon } from "@/lib/icons";
+import { passwordPolicyError } from "@/lib/password-policy";
+import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Rolle } from "@/models/types";
 
 function initialsFromName(name: string) {
@@ -206,8 +208,9 @@ export function PersonalPage() {
             setResetPwError("Bitte neues Passwort eingeben.");
             return;
         }
-        if (resetPw.length < 8) {
-            setResetPwError("Mindestens 8 Zeichen erforderlich.");
+        const policyErr = passwordPolicyError(resetPw);
+        if (policyErr) {
+            setResetPwError(policyErr);
             return;
         }
         if (resetPw !== resetPw2) {
@@ -265,8 +268,9 @@ export function PersonalPage() {
         }
         if (!createForm.passwort) {
             next.passwort = "Bitte Passwort eingeben";
-        } else if (createForm.passwort.length < 8) {
-            next.passwort = "Mindestens 8 Zeichen erforderlich";
+        } else {
+            const policyErr = passwordPolicyError(createForm.passwort);
+            if (policyErr) next.passwort = policyErr;
         }
         setCreateErrors(next);
         return Object.keys(next).length === 0;
@@ -363,7 +367,7 @@ export function PersonalPage() {
                         <Input
                             id="pers-new-pw"
                             type="password"
-                            label="Passwort * (min. 8 Zeichen)"
+                            label="Passwort *"
                             value={createForm.passwort}
                             error={createErrors.passwort}
                             onChange={(e) => {
@@ -371,6 +375,7 @@ export function PersonalPage() {
                                 if (createErrors.passwort) setCreateErrors((x) => ({ ...x, passwort: undefined }));
                             }}
                         />
+                        <PasswordPolicyHints password={createForm.passwort} idPrefix="pers-new" />
                         <Select
                             id="pers-new-rolle"
                             label="Rolle"
@@ -576,7 +581,7 @@ export function PersonalPage() {
                                 id="pers-ed-pw1"
                                 type="password"
                                 autoComplete="new-password"
-                                label="Neues Passwort (min. 8 Zeichen)"
+                                label="Neues Passwort"
                                 value={resetPw}
                                 error={resetPwError}
                                 onChange={(e) => {
@@ -584,6 +589,7 @@ export function PersonalPage() {
                                     if (resetPwError) setResetPwError(undefined);
                                 }}
                             />
+                            <PasswordPolicyHints password={resetPw} idPrefix="pers-ed" />
                             <Input
                                 id="pers-ed-pw2"
                                 type="password"

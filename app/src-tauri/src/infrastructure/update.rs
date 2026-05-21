@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::infrastructure::license::VENDOR_PUBKEY;
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UpdateInfo {
     pub version: String,
@@ -42,7 +44,26 @@ pub fn version_newer(candidate: &str, current: &str) -> bool {
     a.len() > b.len()
 }
 
+fn verify_signature(info: &UpdateInfo) -> Result<(), crate::error::AppError> {
+    let payload = format!("{}|{}|{}", info.version, info.url, info.min_supported);
+    crate::infrastructure::crypto::sig::verify_ed25519(
+        &VENDOR_PUBKEY,
+        payload.as_bytes(),
+        &info.signature,
+    )
+}
+
 pub fn evaluate(payload: UpdateInfo) -> UpdateStatus {
+    if let Err(e) = verify_signature(&payload) {
+        return UpdateStatus::Error {
+            message: if matches!(e, crate::error::AppError::Validation(_)) {
+                "Signatur ungültig".into()
+            } else {
+                e.to_string()
+            },
+        };
+    }
+
     let current = current_version().to_string();
     if version_newer(&payload.version, &current) {
         UpdateStatus::Available {

@@ -51,10 +51,14 @@ pub async fn submit_feedback(
     let betreff = data.betreff.trim();
     let nachricht = data.nachricht.trim();
     if betreff.len() < 3 {
-        return Err(AppError::Validation("Betreff zu kurz (min. 3 Zeichen)".into()));
+        return Err(AppError::Validation(
+            "Betreff zu kurz (min. 3 Zeichen)".into(),
+        ));
     }
     if nachricht.len() < 10 {
-        return Err(AppError::Validation("Nachricht zu kurz (min. 10 Zeichen)".into()));
+        return Err(AppError::Validation(
+            "Nachricht zu kurz (min. 10 Zeichen)".into(),
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -66,7 +70,12 @@ pub async fn submit_feedback(
     .bind(&data.kategorie)
     .bind(betreff)
     .bind(nachricht)
-    .bind(data.referenz.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        data.referenz
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .execute(&*pool)
     .await?;
     sqlx::query_as::<_, FeedbackEntry>("SELECT * FROM feedback WHERE id = ?1")
@@ -83,10 +92,18 @@ pub async fn list_feedback(
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<FeedbackEntry>, AppError> {
     rbac::require(&session_state, "audit.read")?;
-    let rows = sqlx::query_as::<_, FeedbackEntry>(
-        "SELECT * FROM feedback ORDER BY created_at DESC",
-    )
-    .fetch_all(&*pool)
-    .await?;
+    let rows =
+        sqlx::query_as::<_, FeedbackEntry>("SELECT * FROM feedback ORDER BY created_at DESC")
+            .fetch_all(&*pool)
+            .await?;
     Ok(rows)
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_feedback_commands {
+    () => {
+        $crate::commands::feedback_commands::submit_feedback,
+        $crate::commands::feedback_commands::list_feedback,
+    };
 }

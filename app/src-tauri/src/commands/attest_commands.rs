@@ -74,3 +74,13 @@ pub async fn delete_attest(
         .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_attest_commands {
+    () => {
+        $crate::commands::attest_commands::list_atteste,
+        $crate::commands::attest_commands::create_attest,
+        $crate::commands::attest_commands::delete_attest,
+    };
+}

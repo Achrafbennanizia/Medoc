@@ -7,6 +7,7 @@ import {
     buildInvoiceHeaderAddressLinesForExport,
     getInvoicePraxisFromStorage,
 } from "@/lib/invoice-leistung";
+import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
 import { openExportPreview } from "@/models/store/export-preview-store";
 import type { Patient, Zahlung } from "@/models/types";
 
@@ -66,7 +67,21 @@ export async function downloadTagesabschlussBerichtPdf(
     }
 
     const praxis = getInvoicePraxisFromStorage();
+    const readiness = checkPraxisDocumentReadiness(praxis, "tagesbericht");
+    if (!readiness.ready) {
+        const labels = readiness.missingFields.map((m) => m.label).join(", ");
+        throw new Error(`Praxis-Stammdaten unvollständig (${labels}). Bitte unter Einstellungen › Praxis ausfüllen.`);
+    }
     const num = await allocateBerichtNummer(stichtag);
+    const bankLines: string[] = [];
+    const iban = (praxis.bankverbindung_iban ?? "").trim();
+    if (iban) {
+        const bic = (praxis.bankverbindung_bic ?? "").trim();
+        const bankName = (praxis.bankverbindung_bank ?? "").trim();
+        bankLines.push(
+            `Bankverbindung: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
+        );
+    }
     const note = [
         `Gesamttagesbericht zu Tagesabschluss ${stichtag} · nicht an eine Einzelperson adressiert`,
         `Bargeld laut System: ${row.bar_laut_system_eur} €`,
@@ -85,6 +100,12 @@ export async function downloadTagesabschlussBerichtPdf(
         practice_address: buildInvoiceHeaderAddressLinesForExport(praxis),
         lines: aggregated,
         note: note || null,
+        behandler_name: praxis.behandler_name?.trim() || null,
+        behandler_zanr: praxis.zanr?.trim() || null,
+        praxis_bsnr: praxis.bsnr?.trim() || null,
+        bankverbindung: bankLines.length > 0 ? bankLines : null,
+        zahlungsziel_text: null,
+        ust_hinweis: praxis.ust_befreiung_hinweis?.trim() || null,
     });
     openExportPreview({
         format: "pdf",

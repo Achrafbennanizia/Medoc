@@ -2,14 +2,21 @@ import { tauriInvoke } from "../services/tauri.service";
 import { useAuthStore } from "../models/store/auth-store";
 import type { Session } from "../models/types";
 
+export type LoginOpts = {
+    device_label?: string;
+    user_agent?: string;
+    totp_code?: string;
+};
+
 export async function login(
     email: string,
     passwort: string,
-    opts?: { device_label?: string; user_agent?: string },
+    opts?: LoginOpts,
 ): Promise<Session> {
     const session = await tauriInvoke<Session>("login", {
         email,
         passwort,
+        totp_code: opts?.totp_code ?? null,
         device_label: opts?.device_label ?? null,
         user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
     });

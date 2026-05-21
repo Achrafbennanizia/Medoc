@@ -34,14 +34,20 @@ fn parse_args() -> Result<Args, String> {
         match a.as_str() {
             "--help" | "-h" => return Err(usage().into()),
             "--data-dir" => {
-                let v = args.next().ok_or_else(|| "--data-dir requires a path".to_string())?;
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--data-dir requires a path".to_string())?;
                 data_dir = Some(PathBuf::from(v));
             }
             "--http-bind" => {
-                http_bind = args.next().ok_or_else(|| "--http-bind requires ADDR".to_string())?;
+                http_bind = args
+                    .next()
+                    .ok_or_else(|| "--http-bind requires ADDR".to_string())?;
             }
             "--http-port" => {
-                let v = args.next().ok_or_else(|| "--http-port requires PORT".to_string())?;
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--http-port requires PORT".to_string())?;
                 http_port = v.parse().map_err(|_| "invalid http port".to_string())?;
             }
             _ => return Err(format!("Unknown argument: {a}\n{}", usage())),
@@ -73,14 +79,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     std::fs::create_dir_all(&args.data_dir)?;
+    medoc_lib::infrastructure::database::audit_repo::init_audit_hmac_key(&args.data_dir)?;
     let db_path = args.data_dir.join("company.db");
     let pool = medoc_lib::infrastructure::company_host::db::init_company_db(&db_path).await?;
-    let router = medoc_lib::infrastructure::company_host::http::build_company_router(pool);
+    let router = medoc_lib::infrastructure::company_host::http::build_company_router(pool).await;
     let addr: SocketAddr = format!("{}:{}", args.http_bind, args.http_port)
         .parse()
         .map_err(|e| format!("bind: {e}"))?;
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(target = "medoc::company", event = "LISTEN_HTTP", %addr, db = %db_path.display());
-    axum::serve(listener, router).await?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

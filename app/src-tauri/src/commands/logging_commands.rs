@@ -55,3 +55,15 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     rbac::require(&session_state, "ops.logs")?;
     Ok(logging::log_dir()?.display().to_string())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_logging_commands {
+    () => {
+        $crate::commands::logging_commands::get_log_level,
+        $crate::commands::logging_commands::set_log_level,
+        $crate::commands::logging_commands::export_logs,
+        $crate::commands::logging_commands::verify_audit_chain,
+        $crate::commands::logging_commands::log_dir,
+    };
+}

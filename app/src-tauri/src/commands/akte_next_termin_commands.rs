@@ -99,3 +99,13 @@ pub async fn set_akte_next_termin_hint(
     .await?;
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_akte_next_termin_commands {
+    () => {
+        $crate::commands::akte_next_termin_commands::get_akte_next_termin_hint,
+        $crate::commands::akte_next_termin_commands::list_akte_next_termin_hints_pending,
+        $crate::commands::akte_next_termin_commands::set_akte_next_termin_hint,
+    };
+}

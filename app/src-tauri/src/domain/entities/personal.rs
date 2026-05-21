@@ -21,6 +21,9 @@ pub struct Personal {
     pub fachrichtung: Option<String>,
     pub telefon: Option<String>,
     pub verfuegbar: bool,
+    #[serde(skip_serializing)]
+    pub totp_secret: Option<String>,
+    pub totp_enrolled_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }

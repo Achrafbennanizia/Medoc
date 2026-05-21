@@ -30,7 +30,10 @@ pub async fn load_company_portal_config(pool: &SqlitePool) -> CompanyPortalConfi
 
 /// Effektive Basis-URL: `MEDOC_COMPANY_API_BASE` überschreibt app_kv (Betrieb / CI).
 pub fn effective_base_url(cfg: &CompanyPortalConfig) -> Option<String> {
-    let env = std::env::var("MEDOC_COMPANY_API_BASE").unwrap_or_default().trim().to_string();
+    let env = std::env::var("MEDOC_COMPANY_API_BASE")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     if !env.is_empty() {
         return Some(env.trim_end_matches('/').to_string());
     }
@@ -42,7 +45,9 @@ pub fn effective_base_url(cfg: &CompanyPortalConfig) -> Option<String> {
     }
 }
 
-pub fn require_callable(cfg: &CompanyPortalConfig) -> Result<(String, CompanyPortalConfig), AppError> {
+pub fn require_callable(
+    cfg: &CompanyPortalConfig,
+) -> Result<(String, CompanyPortalConfig), AppError> {
     let base = effective_base_url(cfg).ok_or_else(|| {
         AppError::Validation(
             "Hersteller-Portal nicht konfiguriert — Basis-URL in Einstellungen oder MEDOC_COMPANY_API_BASE setzen."
@@ -51,7 +56,8 @@ pub fn require_callable(cfg: &CompanyPortalConfig) -> Result<(String, CompanyPor
     })?;
     if effective_api_key(cfg).trim().is_empty() {
         return Err(AppError::Validation(
-            "Hersteller-Portal: API-Schlüssel fehlt (Konfiguration oder MEDOC_COMPANY_API_KEY).".into(),
+            "Hersteller-Portal: API-Schlüssel fehlt (Konfiguration oder MEDOC_COMPANY_API_KEY)."
+                .into(),
         ));
     }
     if cfg.practice_slug.trim().is_empty() {

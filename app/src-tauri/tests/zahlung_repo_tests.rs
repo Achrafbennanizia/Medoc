@@ -3,16 +3,11 @@
 use medoc_lib::domain::entities::zahlung::{CreateZahlung, UpdateZahlung};
 use medoc_lib::domain::enums::ZahlungsArt;
 use medoc_lib::error::AppError;
-use medoc_lib::infrastructure::database::connection::run_migrations;
+use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use medoc_lib::infrastructure::database::zahlung_repo;
-use sqlx::sqlite::SqlitePoolOptions;
 
 async fn migrated_pool() -> sqlx::SqlitePool {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(2)
-        .connect("sqlite::memory:")
-        .await
-        .expect("pool");
+    let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");
     pool
 }
@@ -31,14 +26,12 @@ async fn seed_patient_behandlung_100(pool: &sqlx::SqlitePool) -> (String, String
     .await
     .expect("insert patient");
 
-    sqlx::query(
-        "INSERT INTO patientenakte (id, patient_id, status) VALUES (?1, ?2, 'ENTWURF')",
-    )
-    .bind(&akte_id)
-    .bind(&patient_id)
-    .execute(pool)
-    .await
-    .expect("insert akte");
+    sqlx::query("INSERT INTO patientenakte (id, patient_id, status) VALUES (?1, ?2, 'ENTWURF')")
+        .bind(&akte_id)
+        .bind(&patient_id)
+        .execute(pool)
+        .await
+        .expect("insert akte");
 
     sqlx::query(
         "INSERT INTO behandlung (
@@ -135,7 +128,9 @@ async fn update_fields_caps_replacement_betrag_against_other_rows() {
         leistung_id: None,
         beschreibung: None,
     };
-    let err = zahlung_repo::update_fields(&pool, &bad).await.expect_err("too high");
+    let err = zahlung_repo::update_fields(&pool, &bad)
+        .await
+        .expect_err("too high");
     match err {
         AppError::Validation(msg) => assert!(
             msg.contains("übersteigt") || msg.contains("Rahmen"),
@@ -151,5 +146,7 @@ async fn update_fields_caps_replacement_betrag_against_other_rows() {
         leistung_id: None,
         beschreibung: None,
     };
-    zahlung_repo::update_fields(&pool, &ok).await.expect("within cap");
+    zahlung_repo::update_fields(&pool, &ok)
+        .await
+        .expect("within cap");
 }

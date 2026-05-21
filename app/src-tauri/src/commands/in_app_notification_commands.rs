@@ -53,3 +53,14 @@ pub async fn mark_all_in_app_notifications_read(
     in_app_notification_repo::mark_all_read(&pool, &session.user_id).await?;
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_in_app_notification_commands {
+    () => {
+        $crate::commands::in_app_notification_commands::list_in_app_notifications,
+        $crate::commands::in_app_notification_commands::count_unread_in_app_notifications,
+        $crate::commands::in_app_notification_commands::mark_in_app_notification_read,
+        $crate::commands::in_app_notification_commands::mark_all_in_app_notifications_read,
+    };
+}

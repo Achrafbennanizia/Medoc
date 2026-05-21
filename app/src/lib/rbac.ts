@@ -1,8 +1,9 @@
 /**
  * Client-side RBAC for navigation and UI gating.
- * Must stay aligned with `app/src-tauri/src/application/rbac.rs` (`allowed` / `effective_allowed`).
+ * Matrix: `config/rbac.yaml` → `rbac.generated.ts` (run `cargo build` to refresh).
  */
 
+import { baseAllowedGenerated } from "./rbac.generated";
 import type { PermissionOverride } from "../models/types";
 
 export type { PermissionOverride };
@@ -16,78 +17,9 @@ export function parseRole(s: string | undefined): Role | null {
     return null;
 }
 
-/** Rollenmatrix ohne Overrides — wie `rbac::allowed` in Rust. */
+/** Rollenmatrix ohne Overrides — generated from `config/rbac.yaml`. */
 function baseAllowed(action: string, role: Role): boolean {
-    switch (action) {
-        case "patient.read_medical":
-        case "patient.write_medical":
-            return role === "ARZT";
-        /** Rezept-/Attest-Liste Druck / Frontdesk — mirrors Rust `patient.read_documents`. */
-        case "patient.read_documents":
-            return role === "ARZT" || role === "REZEPTION";
-        /** List Behandlung/Untersuchung rows for payment booking — mirrors Rust `patient.behandlungen_list_for_zahlung`. */
-        case "patient.behandlungen_list_for_zahlung":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "patient.read":
-        case "patient.write":
-            return role === "ARZT" || role === "REZEPTION";
-        case "termin.read":
-        case "termin.write":
-        case "termin.list_aerzte":
-            return role === "ARZT" || role === "REZEPTION";
-        case "finanzen.read":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "finanzen.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        /** Mirrors Rust `bestellung.read` (any authenticated role). */
-        case "bestellung.read":
-            return true;
-        /** Mirrors Rust `bestellung.write` — not Steuerberater. */
-        case "bestellung.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
-        case "verwaltung.read":
-            return true;
-        case "verwaltung.lager.read":
-            return true;
-        case "verwaltung.lager.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
-        case "verwaltung.vertraege.read":
-            return true;
-        case "verwaltung.vertraege.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
-        case "verwaltung.kataloge.read":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "verwaltung.kataloge.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "verwaltung.vorlagen.read":
-        case "verwaltung.vorlagen.write":
-            return role === "ARZT";
-        case "finanzen.tagesabschluss.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "dashboard.read":
-            return true;
-        case "produkt.read":
-            return true;
-        case "produkt.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
-        case "personal.read":
-        case "personal.write":
-            return role === "ARZT";
-        /** Rezept-/Attest-Stammdaten-Vorlagen (Dokumentvorlagen) — wie Personal nur Praxisinhaber:in. */
-        case "vorlagen.read":
-        case "vorlagen.write":
-            return role === "ARZT";
-        case "audit.read":
-            return role === "ARZT";
-        case "ops.backup":
-        case "ops.dsgvo":
-        case "ops.migration":
-        case "ops.system":
-        case "ops.logs":
-            return role === "ARZT";
-        default:
-            return false;
-    }
+    return baseAllowedGenerated(action, role);
 }
 
 /** Mirrors Rust `effective_allowed` (FA-PERS-07): Overrides schlagen die Rollenmatrix. */

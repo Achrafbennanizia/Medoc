@@ -26,7 +26,7 @@ fn compute_payment_status(betrag: f64, erwartet: Option<f64>) -> &'static str {
         match exp_positive {
             Some(_) => return "AUSSTEHEND",
             None => {
-                if matches!(erwartet, Some(e) if e.is_finite() && e <= EPS && e >= -EPS) {
+                if matches!(erwartet, Some(e) if e.is_finite() && (-EPS..=EPS).contains(&e)) {
                     return "BEZAHLT";
                 }
                 return "AUSSTEHEND";
@@ -70,7 +70,10 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Zahlung>, AppError> {
     Ok(rows)
 }
 
-pub async fn find_by_patient_id(pool: &SqlitePool, patient_id: &str) -> Result<Vec<Zahlung>, AppError> {
+pub async fn find_by_patient_id(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Vec<Zahlung>, AppError> {
     let rows = sqlx::query_as::<_, Zahlung>(
         "SELECT * FROM zahlung WHERE patient_id = ?1 ORDER BY created_at DESC",
     )
@@ -121,13 +124,11 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
                 "Behandlung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
             ));
         };
-        let frei_ok = vid.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true)
-            && vam.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true);
-        if !frei_ok {
-            return Err(AppError::Validation(
-                "Behandlung ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05).".into(),
-            ));
-        }
+        crate::domain::services::pricing::require_released_for_billing(
+            vid.as_deref(),
+            vam.as_deref(),
+            "Behandlung",
+        )?;
     }
     if let Some(ref uid) = data.untersuchung_id {
         let ok: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
@@ -144,13 +145,11 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
                 "Untersuchung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
             ));
         };
-        let frei_ok = vid.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true)
-            && vam.as_deref().map(str::trim).map(|s| !s.is_empty()) == Some(true);
-        if !frei_ok {
-            return Err(AppError::Validation(
-                "Untersuchung ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05).".into(),
-            ));
-        }
+        crate::domain::services::pricing::require_released_for_billing(
+            vid.as_deref(),
+            vam.as_deref(),
+            "Untersuchung",
+        )?;
     }
 
     const EPS: f64 = 1e-6;
@@ -158,12 +157,10 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
     if data.betrag < -EPS {
         return Err(AppError::Validation("Betrag ungültig.".into()));
     }
-    if is_placeholder {
-        if data.leistung_id.is_some() {
-            return Err(AppError::Validation(
-                "Mit Leistungspreisbuchung ist ein positiver Zahlbetrag erforderlich.".into(),
-            ));
-        }
+    if is_placeholder && data.leistung_id.is_some() {
+        return Err(AppError::Validation(
+            "Mit Leistungspreisbuchung ist ein positiver Zahlbetrag erforderlich.".into(),
+        ));
     }
 
     // Wenn positiver Betrag: optional Preis aus `leistung` übernehmen.
@@ -278,9 +275,7 @@ pub async fn ensure_placeholder_for_behandlung(
             betrag: 0.0,
             zahlungsart: ZahlungsArt::Rechnung,
             leistung_id: None,
-            beschreibung: Some(
-                "Automatisch beim Anlegen: offene Abrechnung (Behandlung).".into(),
-            ),
+            beschreibung: Some("Automatisch beim Anlegen: offene Abrechnung (Behandlung).".into()),
             behandlung_id: Some(behandlung_id.to_string()),
             untersuchung_id: None,
             betrag_erwartet: None,
@@ -338,12 +333,11 @@ pub async fn ensure_placeholder_for_untersuchung(
 }
 
 pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Zahlung, AppError> {
-    let row: Option<(String, Option<String>, String)> = sqlx::query_as(
-        "SELECT status, behandlung_id, patient_id FROM zahlung WHERE id = ?1",
-    )
-    .bind(&data.id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String, Option<String>, String)> =
+        sqlx::query_as("SELECT status, behandlung_id, patient_id FROM zahlung WHERE id = ?1")
+            .bind(&data.id)
+            .fetch_optional(pool)
+            .await?;
     let Some((st, behandlung_id, patient_id)) = row else {
         return Err(AppError::NotFound("Zahlung".into()));
     };
@@ -414,11 +408,10 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
 }
 
 pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT status FROM zahlung WHERE id = ?1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM zahlung WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
     let st = row.ok_or(AppError::NotFound("Zahlung".into()))?.0;
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
         return Err(AppError::Validation(

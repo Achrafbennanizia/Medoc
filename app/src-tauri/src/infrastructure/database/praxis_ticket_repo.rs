@@ -48,7 +48,11 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<PraxisTick
 }
 
 /// Tickets an den eingeloggten Arzt (offen + in Bearbeitung zuerst).
-pub async fn list_for_arzt(pool: &SqlitePool, arzt_id: &str, limit: i64) -> Result<Vec<PraxisTicket>, AppError> {
+pub async fn list_for_arzt(
+    pool: &SqlitePool,
+    arzt_id: &str,
+    limit: i64,
+) -> Result<Vec<PraxisTicket>, AppError> {
     let rows = sqlx::query_as::<_, PraxisTicket>(
         "SELECT * FROM praxis_ticket
          WHERE to_arzt_id = ?1
@@ -65,7 +69,11 @@ pub async fn list_for_arzt(pool: &SqlitePool, arzt_id: &str, limit: i64) -> Resu
 }
 
 /// Von der Rezeption erstellte Tickets (Übersicht).
-pub async fn list_created_by(pool: &SqlitePool, from_user_id: &str, limit: i64) -> Result<Vec<PraxisTicket>, AppError> {
+pub async fn list_created_by(
+    pool: &SqlitePool,
+    from_user_id: &str,
+    limit: i64,
+) -> Result<Vec<PraxisTicket>, AppError> {
     let rows = sqlx::query_as::<_, PraxisTicket>(
         "SELECT * FROM praxis_ticket
          WHERE from_user_id = ?1

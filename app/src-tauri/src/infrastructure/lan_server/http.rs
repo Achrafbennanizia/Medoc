@@ -1,4 +1,4 @@
-//! Axum HTTP API — authenticated LAN access (JWT HS256, TLS not yet wired — rely on LAN firewall).
+//! Axum HTTPS API — authenticated LAN access (JWT HS256, TLS via `lan_server::tls`).
 //!
 //! **Background / Betrieb:** Der eingebettete Host läuft in eigenen Tokio-Tasks (`lan_commands`), blockiert die
 //! Tauri-UI nicht. Headless: Binary `medoc-server`. **Timeouts** verhindern hängende LAN-Anfragen.
@@ -17,7 +17,6 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
-use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
@@ -28,19 +27,24 @@ use crate::application::rbac::{self, Role};
 use crate::domain::entities::personal::UpdateOwnProfile;
 use crate::domain::entities::{Patient, Termin};
 use crate::error::AppError;
-use crate::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
-use crate::infrastructure::logging::brute_force::{BruteForceTracker, CheckResult};
 use crate::infrastructure::company_portal::{
     fetch_feature_flags, fetch_integration_statuses, fetch_subscription_summary,
     load_company_portal_config, post_billing_portal_url,
 };
+use crate::infrastructure::cors_policy::{self, CorsGate};
+use crate::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
+use crate::infrastructure::lan_server::discovery::LanBeaconPayload;
 use crate::infrastructure::lan_server::jwt;
+use crate::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
 
 #[derive(Clone)]
 pub struct LanHttpState {
     pub pool: SqlitePool,
     pub jwt_secret: Arc<[u8; 32]>,
     pub brute: Arc<BruteForceTracker>,
+    pub http_port: u16,
+    pub extra_cors_origins: Arc<Vec<String>>,
+    pub discovery_peers: Arc<Vec<(SocketAddr, LanBeaconPayload)>>,
 }
 
 struct ApiError(AppError);
@@ -54,6 +58,7 @@ impl IntoResponse for ApiError {
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
+            AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let msg = self.0.to_string();
@@ -73,6 +78,8 @@ pub struct LoginBody {
     pub email: String,
     #[serde(alias = "password")]
     pub passwort: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -131,8 +138,11 @@ async fn jwt_auth_middleware(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| unauthorized("Authorization header required"))?;
-    let raw = auth.strip_prefix("Bearer ").ok_or_else(|| unauthorized("Bearer token required"))?;
-    let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw).map_err(|_| unauthorized("Invalid token"))?;
+    let raw = auth
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| unauthorized("Bearer token required"))?;
+    let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw)
+        .map_err(|_| unauthorized("Invalid token"))?;
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }
@@ -146,6 +156,17 @@ fn require_ops_system_claims(claims: &jwt::LanClaims) -> Result<(), AppError> {
 }
 
 pub fn build_router(state: LanHttpState) -> Router {
+    let allowed = cors_policy::lan_allowed_origin_strings(
+        state.http_port,
+        &state.extra_cors_origins,
+        &state.discovery_peers,
+    );
+    let cors_gate = CorsGate::lan(
+        state.http_port,
+        &state.extra_cors_origins,
+        &state.discovery_peers,
+    );
+
     let public = Router::new()
         .route("/ping", get(ping))
         .route("/auth/login", post(login))
@@ -169,7 +190,10 @@ pub fn build_router(state: LanHttpState) -> Router {
             "/company/billing/portal-session",
             post(company_billing_portal_post),
         )
-        .layer(middleware::from_fn_with_state(state.clone(), jwt_auth_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            jwt_auth_middleware,
+        ))
         .with_state(state.clone());
 
     Router::new()
@@ -180,23 +204,11 @@ pub fn build_router(state: LanHttpState) -> Router {
             Duration::from_secs(120),
         ))
         .layer(RequestBodyLimitLayer::new(16 * 1024))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::PUT,
-                    axum::http::Method::PATCH,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::OPTIONS,
-                ])
-                .allow_headers([
-                    header::AUTHORIZATION,
-                    header::CONTENT_TYPE,
-                    header::ACCEPT,
-                ]),
-        )
+        .layer(cors_policy::lan_cors_layer(&allowed))
+        .layer(middleware::from_fn_with_state(
+            cors_gate,
+            cors_policy::cors_origin_gate_middleware,
+        ))
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -217,15 +229,19 @@ async fn login(
     Json(body): Json<LoginBody>,
 ) -> Result<Json<LoginResponse>, Response> {
     let peer_ip = addr.ip().to_string();
-    match state.brute.check(&peer_ip) {
+    let brute_key = BruteKey::from_subject(&body.email, &peer_ip)
+        .map_err(|e| ApiError(e).into_response())?;
+    match state
+        .brute
+        .check(Some(&state.pool), &brute_key)
+        .await
+    {
         CheckResult::Locked { remaining_secs } => {
-            return Err(
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    Json(json!({ "error": format!("Zu viele Fehlversuche — {remaining_secs}s") })),
-                )
-                    .into_response(),
-            );
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({ "error": format!("Zu viele Fehlversuche — {remaining_secs}s") })),
+            )
+                .into_response());
         }
         CheckResult::Allowed => {}
     }
@@ -233,12 +249,16 @@ async fn login(
     let req = LoginRequest {
         email: body.email.clone(),
         passwort: body.passwort,
+        totp_code: body.totp_code.clone(),
     };
 
     let session = match auth_service::authenticate(&state.pool, &req).await {
         Ok(s) => s,
         Err(e) => {
-            let locked = state.brute.record_failure(&peer_ip);
+            let locked = state
+                .brute
+                .record_failure(Some(&state.pool), &brute_key)
+                .await;
             if locked {
                 tracing::warn!(target: "medoc::lan", event = "LAN_LOGIN_LOCKOUT", ip = %peer_ip);
             }
@@ -246,7 +266,10 @@ async fn login(
         }
     };
 
-    state.brute.record_success(&peer_ip);
+    state
+        .brute
+        .record_success(Some(&state.pool), &brute_key)
+        .await;
 
     let token = jwt::issue_token(
         state.jwt_secret.as_ref(),
@@ -319,7 +342,9 @@ async fn list_termine(
     if !rbac::allowed("termin.read", role) {
         return Err(AppError::Forbidden.into());
     }
-    let datum = q.datum.unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
+    let datum = q
+        .datum
+        .unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
     let rows = termin_repo::find_by_date(&state.pool, &datum).await?;
     Ok(Json(rows))
 }

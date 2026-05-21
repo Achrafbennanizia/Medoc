@@ -146,7 +146,15 @@ pub async fn delete_vertrag(
     if n == 0 {
         return Err(AppError::NotFound("Vertrag".into()));
     }
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Vertrag", Some(&id), None).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Vertrag",
+        Some(&id),
+        None,
+    )
+    .await?;
     Ok(())
 }
 
@@ -181,4 +189,15 @@ pub async fn open_vertrag_dokument(
     .await
     .ok();
     Ok(())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_vertrag_commands {
+    () => {
+        $crate::commands::vertrag_commands::list_vertraege,
+        $crate::commands::vertrag_commands::upsert_vertrag,
+        $crate::commands::vertrag_commands::delete_vertrag,
+        $crate::commands::vertrag_commands::open_vertrag_dokument,
+    };
 }

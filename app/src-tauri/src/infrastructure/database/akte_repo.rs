@@ -9,7 +9,10 @@ use crate::error::AppError;
 use sqlx::SqlitePool;
 
 /// Nächste `U-{Jahr}-{nnn}`-Nummer je Akte (Fortlaufend pro Jahr).
-pub async fn next_untersuchungsnummer(pool: &SqlitePool, akte_id: &str) -> Result<String, AppError> {
+pub async fn next_untersuchungsnummer(
+    pool: &SqlitePool,
+    akte_id: &str,
+) -> Result<String, AppError> {
     let year = chrono::Utc::now().format("%Y").to_string();
     let prefix = format!("U-{year}-");
     let rows: Vec<(Option<String>,)> = sqlx::query_as(
@@ -246,15 +249,14 @@ pub async fn create_behandlung(
     data: &CreateBehandlung,
 ) -> Result<Behandlung, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
-    let kat = data
-        .kategorie
-        .clone()
-        .unwrap_or_else(|| data.art.clone());
+    let kat = data.kategorie.clone().unwrap_or_else(|| data.art.clone());
     let leist = data
         .leistungsname
         .clone()
         .or_else(|| data.beschreibung.clone());
-    let termin = data.termin_erforderlich.map(|b| if b { 1i64 } else { 0i64 });
+    let termin = data
+        .termin_erforderlich
+        .map(|b| if b { 1i64 } else { 0i64 });
     sqlx::query(
         "INSERT INTO behandlung (id, akte_id, art, beschreibung, zaehne, material, notizen,
          kategorie, leistungsname, behandlungsnummer, sitzung, behandlung_status, gesamtkosten, termin_erforderlich, behandlung_datum)
@@ -304,15 +306,14 @@ pub async fn update_behandlung(
     let existing = find_behandlung_by_id(pool, &data.id)
         .await?
         .ok_or(AppError::NotFound("Behandlung".into()))?;
-    let kat = data
-        .kategorie
-        .clone()
-        .unwrap_or_else(|| data.art.clone());
+    let kat = data.kategorie.clone().unwrap_or_else(|| data.art.clone());
     let leist = data
         .leistungsname
         .clone()
         .or_else(|| data.beschreibung.clone());
-    let termin = data.termin_erforderlich.map(|b| if b { 1i64 } else { 0i64 });
+    let termin = data
+        .termin_erforderlich
+        .map(|b| if b { 1i64 } else { 0i64 });
     sqlx::query(
         "UPDATE behandlung SET art = ?1, beschreibung = ?2, zaehne = ?3, material = ?4, notizen = ?5,
          kategorie = ?6, leistungsname = ?7, behandlungsnummer = ?8, sitzung = ?9,
@@ -450,7 +451,9 @@ pub struct AkteZuValidierenRow {
     pub updated_at: chrono::NaiveDateTime,
 }
 
-pub async fn list_akten_zu_validieren(pool: &SqlitePool) -> Result<Vec<AkteZuValidierenRow>, AppError> {
+pub async fn list_akten_zu_validieren(
+    pool: &SqlitePool,
+) -> Result<Vec<AkteZuValidierenRow>, AppError> {
     let rows = sqlx::query_as::<_, AkteZuValidierenRow>(
         "SELECT p.id AS patient_id, p.name AS patient_name, pa.id AS akte_id, pa.status AS akte_status, pa.updated_at
          FROM patientenakte pa
@@ -471,17 +474,9 @@ pub async fn validate_patientenakte_status(
     let cur = find_akte_by_patient(pool, patient_id)
         .await?
         .ok_or(AppError::NotFound("Patientenakte".into()))?;
-    let s = cur.status.as_str();
-    if s == "VALIDIERT" || s == "READONLY" {
-        return Err(AppError::Validation(
-            "Akte ist bereits validiert oder archiviert.".into(),
-        ));
-    }
-    if s != "ENTWURF" && s != "IN_BEARBEITUNG" {
-        return Err(AppError::Validation(format!(
-            "Akten-Status {s} kann nicht validiert werden"
-        )));
-    }
+    crate::domain::services::workflow_transitions::patientenakte_validate_transition(
+        &cur.status,
+    )?;
     sqlx::query(
         "UPDATE patientenakte SET status = 'VALIDIERT', updated_at = CURRENT_TIMESTAMP
          WHERE patient_id = ?1",

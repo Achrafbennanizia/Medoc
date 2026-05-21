@@ -23,6 +23,7 @@ export function EinstellungenCompanyPortalSection() {
     const [pingBusy, setPingBusy] = useState(false);
     const [billingBusy, setBillingBusy] = useState(false);
     const [showKey, setShowKey] = useState(false);
+    const [demoMode, setDemoMode] = useState(false);
 
     const refresh = useCallback(async () => {
         try {
@@ -58,6 +59,7 @@ export function EinstellungenCompanyPortalSection() {
         setPingBusy(true);
         try {
             const j = await companyPortalPing();
+            setDemoMode(j._demo === true);
             toast(`Ping OK — ${JSON.stringify(j).slice(0, 120)}`, "success");
         } catch (e) {
             toast(`Ping: ${e instanceof Error ? e.message : String(e)}`, "error");
@@ -80,6 +82,22 @@ export function EinstellungenCompanyPortalSection() {
 
     return (
         <>
+            {demoMode ? (
+                <div
+                    role="status"
+                    className="card-pad"
+                    style={{
+                        marginTop: 12,
+                        background: "var(--warning-bg, #fef9c3)",
+                        border: "1px solid var(--warning-border, #eab308)",
+                        borderRadius: 8,
+                        color: "var(--warning-fg, #713f12)",
+                        fontWeight: 600,
+                    }}
+                >
+                    Demo-Modus — Antworten vom Hersteller-Server sind Stub-Daten (<code>_demo</code>).
+                </div>
+            ) : null}
             <div className="card-head" style={{ marginTop: 12 }}>
                 <div>
                     <div className="card-title">Hersteller-Portal</div>

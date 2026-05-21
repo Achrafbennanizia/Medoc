@@ -67,5 +67,8 @@ pub const STATUS_GELIEFERT: &str = "GELIEFERT";
 pub const STATUS_STORNIERT: &str = "STORNIERT";
 
 pub fn is_valid_status(s: &str) -> bool {
-    matches!(s, STATUS_OFFEN | STATUS_UNTERWEGS | STATUS_GELIEFERT | STATUS_STORNIERT)
+    matches!(
+        s,
+        STATUS_OFFEN | STATUS_UNTERWEGS | STATUS_GELIEFERT | STATUS_STORNIERT
+    )
 }

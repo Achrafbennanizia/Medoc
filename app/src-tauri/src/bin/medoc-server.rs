@@ -7,10 +7,10 @@
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::net::TcpListener;
 use tokio::signal;
 
 #[derive(Debug)]
@@ -24,7 +24,8 @@ struct Args {
 
 fn usage() -> &'static str {
     "Usage:\n  medoc-server --data-dir <PATH> [--http-bind ADDR] [--http-port PORT] [--discovery-port PORT] [--label NAME]\n\n\
-     ADDR defaults to 0.0.0.0; PORT defaults to 8787; discovery UDP defaults to 47830.\n"
+     ADDR defaults to 0.0.0.0; PORT defaults to 8787; discovery UDP defaults to 47830.\n\
+     The API is served over HTTPS only (self-signed certificate in the data directory).\n"
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -38,22 +39,34 @@ fn parse_args() -> Result<Args, String> {
         match a.as_str() {
             "--help" | "-h" => return Err(usage().into()),
             "--data-dir" => {
-                let v = args.next().ok_or_else(|| "--data-dir requires a path".to_string())?;
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--data-dir requires a path".to_string())?;
                 data_dir = Some(PathBuf::from(v));
             }
             "--http-bind" => {
-                http_bind = args.next().ok_or_else(|| "--http-bind requires ADDR".to_string())?;
+                http_bind = args
+                    .next()
+                    .ok_or_else(|| "--http-bind requires ADDR".to_string())?;
             }
             "--http-port" => {
-                let v = args.next().ok_or_else(|| "--http-port requires PORT".to_string())?;
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--http-port requires PORT".to_string())?;
                 http_port = v.parse().map_err(|_| "invalid http port".to_string())?;
             }
             "--discovery-port" => {
-                let v = args.next().ok_or_else(|| "--discovery-port requires PORT".to_string())?;
-                discovery_port = v.parse().map_err(|_| "invalid discovery port".to_string())?;
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--discovery-port requires PORT".to_string())?;
+                discovery_port = v
+                    .parse()
+                    .map_err(|_| "invalid discovery port".to_string())?;
             }
             "--label" => {
-                label = args.next().ok_or_else(|| "--label requires NAME".to_string())?;
+                label = args
+                    .next()
+                    .ok_or_else(|| "--label requires NAME".to_string())?;
             }
             _ => return Err(format!("Unknown argument: {a}\n{}", usage())),
         }
@@ -85,17 +98,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let pool = medoc_lib::infrastructure::database::connection::init_db_headless(&args.data_dir).await?;
-    let jwt_raw = medoc_lib::infrastructure::lan_server::secrets::ensure_jwt_secret_bytes(&args.data_dir)?;
+    let pool =
+        medoc_lib::infrastructure::database::connection::init_db_headless(&args.data_dir).await?;
+    let jwt_raw =
+        medoc_lib::infrastructure::lan_server::secrets::ensure_jwt_secret_bytes(&args.data_dir)?;
     let jwt_secret = Arc::new(jwt_raw);
     let instance_id =
         medoc_lib::infrastructure::lan_server::secrets::ensure_instance_id(&args.data_dir)?;
+    let tls_identity =
+        medoc_lib::infrastructure::lan_server::tls::ensure_lan_tls_identity(&args.data_dir)?;
 
     let brute = Arc::new(medoc_lib::infrastructure::logging::brute_force::BruteForceTracker::new());
+    brute
+        .hydrate_from_db(&pool)
+        .await
+        .map_err(|e| format!("brute-force hydrate: {e}"))?;
     let state = medoc_lib::infrastructure::lan_server::http::LanHttpState {
         pool: pool.clone(),
         jwt_secret,
         brute,
+        http_port: args.http_port,
+        extra_cors_origins: Arc::new(vec![]),
+        discovery_peers: Arc::new(vec![]),
     };
 
     let router = medoc_lib::infrastructure::lan_server::http::build_router(state);
@@ -109,39 +133,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         http_port: args.http_port,
         instance_id,
         label: args.label,
+        tls: true,
+        cert_sha256: tls_identity.sha256_fingerprint.clone(),
     }
     .to_json_line();
 
-    let shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let shutdown = Arc::new(AtomicBool::new(false));
     let sd_udp = shutdown.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            medoc_lib::infrastructure::lan_server::discovery::run_discovery_responder(args.discovery_port, beacon, sd_udp).await
+        if let Err(e) = medoc_lib::infrastructure::lan_server::discovery::run_discovery_responder(
+            args.discovery_port,
+            beacon,
+            sd_udp,
+        )
+        .await
         {
             tracing::error!(target: "medoc::lan", event = "DISCOVERY_FAIL", error = %e);
         }
     });
 
-    let listener = TcpListener::bind(addr).await?;
     tracing::info!(
         target: "medoc::lan",
-        event = "LISTEN_HTTP",
+        event = "LISTEN_HTTPS",
         addr = %addr,
         discovery_udp = args.discovery_port,
+        tls_fingerprint = %tls_identity.sha256_fingerprint,
     );
+
+    let sd_http = shutdown.clone();
+    let tls_id = tls_identity.clone();
+    let https_task = tokio::spawn(async move {
+        medoc_lib::infrastructure::lan_server::tls::serve_tls_router(addr, &tls_id, router, sd_http)
+            .await
+    });
 
     let graceful = async move {
         let _ = signal::ctrl_c().await;
-        shutdown.store(true, std::sync::atomic::Ordering::SeqCst);
+        shutdown.store(true, Ordering::SeqCst);
         tracing::info!(target: "medoc::lan", event = "SHUTDOWN");
     };
 
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(graceful)
-    .await?;
+    tokio::select! {
+        r = https_task => {
+            if let Err(e) = r? {
+                tracing::error!(target: "medoc::lan", event = "HTTPS_TASK_JOIN", error = %e);
+            }
+        }
+        _ = graceful => {}
+    }
 
     tokio::time::sleep(Duration::from_millis(200)).await;
     Ok(())

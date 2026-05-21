@@ -84,3 +84,11 @@ pub fn render_invoice_pdf(
     log_system!(info, event = "INVOICE_PDF", number = %model.number, total_cents = model.total_cents());
     render(&model)
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_invoice_commands {
+    () => {
+        $crate::commands::invoice_commands::render_invoice_pdf,
+    };
+}

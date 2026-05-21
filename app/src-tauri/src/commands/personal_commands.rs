@@ -1,12 +1,14 @@
+use crate::application::auth_service::PermissionOverride;
 use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::auth_commands::{BruteForceState, SessionState};
 use crate::domain::entities::personal::{CreatePersonal, UpdateOwnProfile, UpdatePersonal};
-use crate::application::auth_service::PermissionOverride;
 use crate::domain::entities::{AerztSummary, Personal};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::{audit_repo, personal_permission_repo, personal_repo};
+use crate::infrastructure::logging::brute_force;
+use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -58,6 +60,7 @@ pub async fn create_personal(
     {
         return Err(AppError::Conflict("E-Mail bereits vergeben".into()));
     }
+    crypto::validate_password_policy(&data.passwort)?;
     let hash =
         crypto::hash_password(&data.passwort).map_err(|e| AppError::Internal(e.to_string()))?;
     let p = personal_repo::create(&pool, &data, &hash).await?;
@@ -175,11 +178,7 @@ pub async fn change_password(
         let (s, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
         s.clone()
     };
-    if new_password.chars().count() < 8 {
-        return Err(AppError::Validation(
-            "Passwort muss mindestens 8 Zeichen lang sein".into(),
-        ));
-    }
+    crypto::validate_password_policy(&new_password)?;
     let me = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
         .ok_or(AppError::NotFound("Personal".into()))?;
@@ -214,11 +213,7 @@ pub async fn set_personal_password_by_admin(
     new_password: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "personal.write")?;
-    if new_password.chars().count() < 8 {
-        return Err(AppError::Validation(
-            "Passwort muss mindestens 8 Zeichen lang sein".into(),
-        ));
-    }
+    crypto::validate_password_policy(&new_password)?;
     if personal_repo::find_by_id(&pool, &id).await?.is_none() {
         return Err(AppError::NotFound("Personal".into()));
     }
@@ -295,4 +290,139 @@ pub async fn delete_personal_permission_override(
     .await
     .ok();
     Ok(())
+}
+
+/// Live password-policy evaluation for UI hints (no persistence).
+#[tauri::command]
+pub fn evaluate_password_policy(password: String) -> crypto::PasswordPolicyStatus {
+    crypto::evaluate_password_policy(&password)
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct TotpStatusDto {
+    pub required: bool,
+    pub enrolled: bool,
+    pub pending: bool,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(pool, session_state))]
+pub async fn get_totp_status(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<TotpStatusDto, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let user = personal_repo::find_by_id(&pool, &session.user_id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+    let enrolled = personal_repo::is_totp_enrolled(&user);
+    let pending = user.totp_secret.is_some() && !enrolled;
+    Ok(TotpStatusDto {
+        required: personal_repo::totp_required_for_role(&user.rolle),
+        enrolled,
+        pending,
+    })
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn start_totp_enrollment(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<TotpEnrollmentDto, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let user = personal_repo::find_by_id(&pool, &session.user_id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+    if personal_repo::is_totp_enrolled(&user) {
+        return Err(AppError::Conflict("Zwei-Faktor ist bereits aktiv".into()));
+    }
+    let (secret, dto) = totp::generate_enrollment(&user.email)?;
+    personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
+    Ok(dto)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn confirm_totp_enrollment(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    code: String,
+) -> Result<(), AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let user = personal_repo::find_by_id(&pool, &session.user_id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+    let secret = user
+        .totp_secret
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
+    if !totp::verify_code(secret, &code)? {
+        return Err(AppError::Validation("Ungültiger Code — bitte erneut versuchen".into()));
+    }
+    personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "TOTP_ENROLL",
+        "Personal",
+        Some(&session.user_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
+/// Clears brute-force lockouts for `target_email` (all peer IPs). Requires `personal.write`.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, brute_force), fields(target = %target_email))]
+pub async fn admin_unlock_brute_force(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    brute_force: State<'_, BruteForceState>,
+    target_email: String,
+) -> Result<u64, AppError> {
+    let session = rbac::require(&session_state, "personal.write")?;
+    let hashed = brute_force::hash_subject(target_email.trim())?;
+    let removed = brute_force
+        .0
+        .admin_clear_subject(&pool, &hashed)
+        .await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "BRUTE_FORCE_ADMIN_UNLOCK",
+        "Personal",
+        None,
+        Some("subject_hmac_cleared"),
+    )
+    .await
+    .ok();
+    Ok(removed)
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_personal_commands {
+    () => {
+        $crate::commands::personal_commands::list_personal,
+        $crate::commands::personal_commands::list_aerzte,
+        $crate::commands::personal_commands::get_personal,
+        $crate::commands::personal_commands::get_own_profile,
+        $crate::commands::personal_commands::update_own_profile,
+        $crate::commands::personal_commands::create_personal,
+        $crate::commands::personal_commands::update_personal,
+        $crate::commands::personal_commands::delete_personal,
+        $crate::commands::personal_commands::change_password,
+        $crate::commands::personal_commands::set_personal_password_by_admin,
+        $crate::commands::personal_commands::list_personal_permission_overrides,
+        $crate::commands::personal_commands::set_personal_permission_override,
+        $crate::commands::personal_commands::delete_personal_permission_override,
+        $crate::commands::personal_commands::admin_unlock_brute_force,
+        $crate::commands::personal_commands::evaluate_password_policy,
+        $crate::commands::personal_commands::get_totp_status,
+        $crate::commands::personal_commands::start_totp_enrollment,
+        $crate::commands::personal_commands::confirm_totp_enrollment,
+    };
 }

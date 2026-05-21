@@ -129,3 +129,14 @@ pub async fn clear_akte_validation(
     .await?;
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_akte_validation_commands {
+    () => {
+        $crate::commands::akte_validation_commands::list_akte_validation,
+        $crate::commands::akte_validation_commands::set_akte_section_validated,
+        $crate::commands::akte_validation_commands::set_akte_item_validated,
+        $crate::commands::akte_validation_commands::clear_akte_validation,
+    };
+}

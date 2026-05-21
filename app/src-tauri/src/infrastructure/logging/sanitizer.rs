@@ -4,7 +4,11 @@
 // the codebase from having to remember which fields are sensitive.
 
 use regex::Regex;
+use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::OnceLock;
+
+use crate::error::AppError;
 
 fn token_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
@@ -33,6 +37,81 @@ pub fn sanitize(input: &str) -> String {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct LogRedactionReport {
+    pub scanned: usize,
+    pub redacted_files: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+fn log_dir_candidates() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(raw) = std::env::var("MEDOC_LOG_DIR") {
+        dirs.push(PathBuf::from(raw));
+    }
+    if let Ok(d) = crate::infrastructure::logging::log_dir() {
+        dirs.push(d.to_path_buf());
+    }
+    if let Some(home) = dirs::home_dir() {
+        dirs.push(home.join("medoc-data").join("logs"));
+    }
+    dirs.push(PathBuf::from("./medoc-data/logs"));
+    dirs
+}
+
+/// Replace a patient id in rolling log files (best-effort; skips unreadable files).
+pub fn redact_patient_id_in_logs(patient_id: &str) -> Result<LogRedactionReport, AppError> {
+    if patient_id.trim().is_empty() {
+        return Err(AppError::Validation("patient_id fehlt".into()));
+    }
+    let replacement = format!(
+        "[REDACTED-patient-{}]",
+        &patient_id[..patient_id.len().min(8)]
+    );
+    let mut report = LogRedactionReport {
+        scanned: 0,
+        redacted_files: Vec::new(),
+        errors: Vec::new(),
+    };
+    let mut seen = std::collections::HashSet::new();
+    for log_dir in log_dir_candidates() {
+        if !log_dir.is_dir() {
+            continue;
+        }
+        let entries = match std::fs::read_dir(&log_dir) {
+            Ok(e) => e,
+            Err(e) => {
+                report.errors.push(format!("{}: {e}", log_dir.display()));
+                continue;
+            }
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            if !seen.insert(path.clone()) {
+                continue;
+            }
+            report.scanned += 1;
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                report.errors.push(format!("Lesen fehlgeschlagen: {}", path.display()));
+                continue;
+            };
+            if !content.contains(patient_id) {
+                continue;
+            }
+            let redacted = content.replace(patient_id, &replacement);
+            if let Err(e) = std::fs::write(&path, redacted) {
+                report.errors.push(format!("{}: {e}", path.display()));
+            } else if let Some(name) = path.file_name() {
+                report.redacted_files.push(name.to_string_lossy().into_owned());
+            }
+        }
+    }
+    Ok(report)
 }
 
 /// Mask a token-like value so only the prefix remains.

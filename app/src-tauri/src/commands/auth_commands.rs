@@ -1,8 +1,12 @@
-use crate::application::rbac;
 use crate::application::auth_service::{self, LoginRequest, Session};
+use crate::application::rbac;
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, device_session_repo, personal_permission_repo};
-use crate::infrastructure::logging::brute_force::{BruteForceTracker, CheckResult};
+use crate::infrastructure::database::personal_repo;
+use crate::infrastructure::logging::brute_force::{
+    BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
+};
+use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use crate::log_security;
 use sqlx::SqlitePool;
 use std::sync::Mutex;
@@ -43,6 +47,7 @@ fn redact_login_identifier(raw: &str) -> String {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(level = "info", skip(pool, session_state, brute_force, passwort), fields(subject = %redact_login_identifier(&email)))]
 pub async fn login(
     pool: State<'_, SqlitePool>,
@@ -50,11 +55,13 @@ pub async fn login(
     brute_force: State<'_, BruteForceState>,
     email: String,
     passwort: String,
+    totp_code: Option<String>,
     device_label: Option<String>,
     user_agent: Option<String>,
 ) -> Result<Session, AppError> {
-    // Use email as the brute-force key for desktop (no real client IP).
-    match brute_force.0.check(&email) {
+    let brute_key = BruteKey::from_subject(&email, DESKTOP_PEER_IP)?;
+    let pool_ref: &SqlitePool = &pool;
+    match brute_force.0.check(Some(pool_ref), &brute_key).await {
         CheckResult::Locked { remaining_secs } => {
             log_security!(warn,
                 event = "LOGIN_BLOCKED_LOCKED",
@@ -69,11 +76,15 @@ pub async fn login(
     let req = LoginRequest {
         email: email.clone(),
         passwort,
+        totp_code,
     };
     let mut session = match auth_service::authenticate(&pool, &req).await {
         Ok(s) => s,
         Err(e) => {
-            let locked = brute_force.0.record_failure(&email);
+            let locked = brute_force
+                .0
+                .record_failure(Some(pool_ref), &brute_key)
+                .await;
             log_security!(warn,
                 event = "LOGIN_FAILED",
                 subject = %redact_login_identifier(&email),
@@ -89,7 +100,10 @@ pub async fn login(
             return Err(e);
         }
     };
-    brute_force.0.record_success(&email);
+    brute_force
+        .0
+        .record_success(Some(pool_ref), &brute_key)
+        .await;
     log_security!(info,
         event = "LOGIN_SUCCESS",
         user_id = %session.user_id,
@@ -237,4 +251,68 @@ pub async fn revoke_my_other_device_sessions(
         .as_deref()
         .ok_or_else(|| AppError::Validation("Keine Geräte-Sitzungs-ID".into()))?;
     device_session_repo::end_other_than(&pool, &session.user_id, keep).await
+}
+
+/// Start TOTP enrollment before a session exists (ARZT first login).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, passwort), fields(email = %redact_login_identifier(&email)))]
+pub async fn start_totp_enrollment_login(
+    pool: State<'_, SqlitePool>,
+    email: String,
+    passwort: String,
+) -> Result<TotpEnrollmentDto, AppError> {
+    auth_service::verify_credentials(&pool, &email, &passwort).await?;
+    let user = personal_repo::find_by_email(&pool, &email)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+    if !personal_repo::totp_required_for_role(&user.rolle) {
+        return Err(AppError::Validation(
+            "Zwei-Faktor ist für diese Rolle optional — bitte nach Anmeldung einrichten".into(),
+        ));
+    }
+    if personal_repo::is_totp_enrolled(&user) {
+        return Err(AppError::Conflict("Zwei-Faktor ist bereits aktiv".into()));
+    }
+    let (secret, dto) = totp::generate_enrollment(&user.email)?;
+    personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
+    Ok(dto)
+}
+
+/// Confirm TOTP enrollment before a session exists; completes ARZT onboarding.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, passwort, code), fields(email = %redact_login_identifier(&email)))]
+pub async fn confirm_totp_enrollment_login(
+    pool: State<'_, SqlitePool>,
+    email: String,
+    passwort: String,
+    code: String,
+) -> Result<(), AppError> {
+    auth_service::verify_credentials(&pool, &email, &passwort).await?;
+    let user = personal_repo::find_by_email(&pool, &email)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+    let secret = user
+        .totp_secret
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
+    if !totp::verify_code(secret, &code)? {
+        return Err(AppError::Validation("Ungültiger Code — bitte erneut versuchen".into()));
+    }
+    personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
+    Ok(())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_auth_commands {
+    () => {
+        $crate::commands::auth_commands::login,
+        $crate::commands::auth_commands::logout,
+        $crate::commands::auth_commands::get_session,
+        $crate::commands::auth_commands::touch_session,
+        $crate::commands::auth_commands::list_my_device_sessions,
+        $crate::commands::auth_commands::revoke_my_other_device_sessions,
+        $crate::commands::auth_commands::start_totp_enrollment_login,
+        $crate::commands::auth_commands::confirm_totp_enrollment_login,
+    };
 }

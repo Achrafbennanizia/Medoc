@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../controllers/auth.controller";
+import {
+    confirmTotpEnrollmentLogin,
+    startTotpEnrollmentLogin,
+    type TotpEnrollment,
+} from "../../controllers/totp.controller";
+import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
 import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
@@ -77,9 +83,24 @@ export function LoginPage() {
     const [capsOn, setCapsOn] = useState(false);
     const navigate = useNavigate();
     const [showPw, setShowPw] = useState(false);
+    const [step, setStep] = useState<"credentials" | "totp" | "enroll">("credentials");
+    const [totpCode, setTotpCode] = useState("");
+    const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
+    const [enrollCode, setEnrollCode] = useState("");
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
     const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
+
+    const deviceOpts = {
+        device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
+        user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    };
+
+    const finishLogin = async (totp?: string) => {
+        await login(email, passwort, { ...deviceOpts, totp_code: totp });
+        persistRememberMe(rememberMe, email);
+        navigate("/");
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,12 +108,45 @@ export function LoginPage() {
         setHelperMsg("");
         setLoading(true);
         try {
-            await login(email, passwort, {
-                device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
-                user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-            });
-            persistRememberMe(rememberMe, email);
-            navigate("/");
+            if (step === "totp") {
+                await finishLogin(totpCode.trim());
+                return;
+            }
+            if (step === "enroll") {
+                await confirmTotpEnrollmentLogin(email, passwort, enrollCode.trim());
+                await finishLogin(enrollCode.trim());
+                return;
+            }
+            try {
+                await finishLogin();
+            } catch (err) {
+                if (isTotpEnrollError(err)) {
+                    const dto = await startTotpEnrollmentLogin(email, passwort);
+                    setEnrollment(dto);
+                    setStep("enroll");
+                    setError("");
+                    return;
+                }
+                if (isTotpVerifyError(err)) {
+                    setStep("totp");
+                    setError("");
+                    return;
+                }
+                throw err;
+            }
+        } catch (err) {
+            setError(formatLoginError(err, t("login.rate_limited")));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleStartEnroll = async () => {
+        setError("");
+        setLoading(true);
+        try {
+            const dto = await startTotpEnrollmentLogin(email, passwort);
+            setEnrollment(dto);
         } catch (err) {
             setError(formatLoginError(err, t("login.rate_limited")));
         } finally {
@@ -179,6 +233,93 @@ export function LoginPage() {
                             {error}
                         </div>
                     )}
+                    {step === "enroll" ? (
+                        <>
+                            <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
+                                Als Arzt ist die Zwei-Faktor-Authentifizierung Pflicht. Scannen Sie den Schlüssel in Ihrer
+                                Authenticator-App (z. B. FreeOTP, Google Authenticator).
+                            </p>
+                            {!enrollment ? (
+                                <button type="button" className="btn btn-secondary" disabled={loading} onClick={() => void handleStartEnroll()}>
+                                    Einrichtung starten
+                                </button>
+                            ) : (
+                                <>
+                                    <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
+                                        Manueller Schlüssel: <code>{enrollment.secret_base32}</code>
+                                    </p>
+                                    <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
+                                        <a href={enrollment.provisioning_uri}>otpauth://-Link öffnen</a>
+                                    </p>
+                                    <label htmlFor="enroll-code" className="form-label">Bestätigungscode</label>
+                                    {import.meta.env.DEV ? (
+                                        <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
+                                            Dev-Build: <code>1234</code> reicht — kein Authenticator nötig.
+                                        </p>
+                                    ) : null}
+                                    <input
+                                        id="enroll-code"
+                                        className="input-edit"
+                                        inputMode="numeric"
+                                        pattern={import.meta.env.DEV ? "[0-9]{4,6}" : "[0-9]{6}"}
+                                        maxLength={6}
+                                        value={enrollCode}
+                                        onChange={(e) => setEnrollCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                        required
+                                        style={{ marginBottom: 16 }}
+                                    />
+                                </>
+                            )}
+                            <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ marginBottom: 12 }}
+                                onClick={() => {
+                                    setStep("credentials");
+                                    setEnrollment(null);
+                                    setEnrollCode("");
+                                }}
+                            >
+                                Zurück
+                            </button>
+                        </>
+                    ) : null}
+                    {step === "totp" ? (
+                        <>
+                            <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
+                                Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.
+                                {import.meta.env.DEV ? (
+                                    <> Dev-Build: alternativ <code>1234</code> eingeben.</>
+                                ) : null}
+                            </p>
+                            <label htmlFor="totp-code" className="form-label">Authenticator-Code</label>
+                            <input
+                                id="totp-code"
+                                className="input-edit"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                pattern={import.meta.env.DEV ? "[0-9]{4,6}" : "[0-9]{6}"}
+                                maxLength={6}
+                                value={totpCode}
+                                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                required
+                                style={{ marginBottom: 16, letterSpacing: "0.2em", fontSize: 18 }}
+                            />
+                            <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ marginBottom: 12 }}
+                                onClick={() => {
+                                    setStep("credentials");
+                                    setTotpCode("");
+                                }}
+                            >
+                                Zurück
+                            </button>
+                        </>
+                    ) : null}
+                    {step === "credentials" ? (
+                    <>
                     <label htmlFor="email" className="form-label">E-Mail</label>
                     <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
@@ -226,9 +367,26 @@ export function LoginPage() {
                             E-Mail auf diesem Gerät merken (nur lokal, für die nächste Anmeldung vorbefüllen)
                         </label>
                     </div>
-                    <button type="submit" className="login-submit" disabled={loading}>
-                        {loading ? <span className="animate-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.5)", borderTopColor: "#fff", borderRadius: "50%" }} /> : null}
-                        Anmelden
+                    </>
+                    ) : null}
+                    <button
+                        type="submit"
+                        className="login-submit"
+                        disabled={loading || (step === "enroll" && !enrollment)}
+                    >
+                        {loading ? (
+                            <span
+                                className="animate-spin"
+                                style={{
+                                    width: 14,
+                                    height: 14,
+                                    border: "2px solid rgba(255,255,255,0.5)",
+                                    borderTopColor: "#fff",
+                                    borderRadius: "50%",
+                                }}
+                            />
+                        ) : null}
+                        {step === "totp" ? "Code prüfen" : step === "enroll" ? "Einrichtung abschließen" : "Anmelden"}
                     </button>
                     <p id="login-teaser-hint" className="sr-only">
                         Zertifizierungs- und Infrastruktur-Claims erscheinen nur, wenn sie produktiv hinterlegt sind.

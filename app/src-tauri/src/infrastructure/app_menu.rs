@@ -4,7 +4,10 @@
 //! Menu contents are driven by the frontend (`sync_native_menu`) so RBAC matches the UI.
 
 use serde_json::json;
-use tauri::menu::{Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
+use tauri::menu::{
+    Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu,
+    SubmenuBuilder,
+};
 use tauri::{App, AppHandle, Emitter, Manager, PackageInfo, Runtime};
 
 /// Sentinel path in go-items: inserts a separator in „Gehe zu“.
@@ -16,7 +19,7 @@ pub struct NativeGoMenuItem {
     pub label: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeFileNewGate {
     pub termin: bool,
@@ -25,19 +28,6 @@ pub struct NativeFileNewGate {
     pub bestellung: bool,
     pub leistung: bool,
     pub bilanz: bool,
-}
-
-impl Default for NativeFileNewGate {
-    fn default() -> Self {
-        Self {
-            termin: false,
-            patient: false,
-            zahlung: false,
-            bestellung: false,
-            leistung: false,
-            bilanz: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -137,19 +127,26 @@ fn build_datei_submenu<R: Runtime, M: Manager<R>>(
         );
     }
     if gates.patient {
-        new_items.push(MenuItemBuilder::with_id("menu_new_patient", "Neuer Patient …").build(manager)?);
+        new_items
+            .push(MenuItemBuilder::with_id("menu_new_patient", "Neuer Patient …").build(manager)?);
     }
     if gates.zahlung {
-        new_items.push(MenuItemBuilder::with_id("menu_new_zahlung", "Neue Zahlung …").build(manager)?);
+        new_items
+            .push(MenuItemBuilder::with_id("menu_new_zahlung", "Neue Zahlung …").build(manager)?);
     }
     if gates.bestellung {
-        new_items.push(MenuItemBuilder::with_id("menu_new_bestellung", "Neue Bestellung …").build(manager)?);
+        new_items.push(
+            MenuItemBuilder::with_id("menu_new_bestellung", "Neue Bestellung …").build(manager)?,
+        );
     }
     if gates.leistung {
-        new_items.push(MenuItemBuilder::with_id("menu_new_leistung", "Neue Leistung …").build(manager)?);
+        new_items
+            .push(MenuItemBuilder::with_id("menu_new_leistung", "Neue Leistung …").build(manager)?);
     }
     if gates.bilanz {
-        new_items.push(MenuItemBuilder::with_id("menu_new_bilanz", "Neuer Bilanz-Eintrag …").build(manager)?);
+        new_items.push(
+            MenuItemBuilder::with_id("menu_new_bilanz", "Neuer Bilanz-Eintrag …").build(manager)?,
+        );
     }
 
     let print_item = MenuItemBuilder::with_id("menu_file_print", "Drucken …")
@@ -159,9 +156,12 @@ fn build_datei_submenu<R: Runtime, M: Manager<R>>(
     #[cfg(target_os = "macos")]
     let role_placeholder: Option<MenuItem<R>> = if new_items.is_empty() {
         Some(
-            MenuItemBuilder::with_id("menu_file_placeholder", "(Keine neuen Einträge für diese Rolle)")
-                .enabled(false)
-                .build(manager)?,
+            MenuItemBuilder::with_id(
+                "menu_file_placeholder",
+                "(Keine neuen Einträge für diese Rolle)",
+            )
+            .enabled(false)
+            .build(manager)?,
         )
     } else {
         None
@@ -202,12 +202,18 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
     let go_menu = build_go_submenu(manager, &payload.go_items)?;
     let file_menu = build_datei_submenu(manager, &payload.file_new)?;
 
-    let termin_tag = MenuItemBuilder::with_id("menu_termin_view_tag", "Kalender: Tag").build(manager)?;
-    let termin_woche = MenuItemBuilder::with_id("menu_termin_view_woche", "Kalender: Woche").build(manager)?;
-    let termin_monat = MenuItemBuilder::with_id("menu_termin_view_monat", "Kalender: Monat").build(manager)?;
-    let termin_heute = MenuItemBuilder::with_id("menu_termin_today", "Kalender: Heute").build(manager)?;
-    let termin_prev = MenuItemBuilder::with_id("menu_termin_nav_prev", "Kalender: Zeitraum zurück").build(manager)?;
-    let termin_next = MenuItemBuilder::with_id("menu_termin_nav_next", "Kalender: Zeitraum vor").build(manager)?;
+    let termin_tag =
+        MenuItemBuilder::with_id("menu_termin_view_tag", "Kalender: Tag").build(manager)?;
+    let termin_woche =
+        MenuItemBuilder::with_id("menu_termin_view_woche", "Kalender: Woche").build(manager)?;
+    let termin_monat =
+        MenuItemBuilder::with_id("menu_termin_view_monat", "Kalender: Monat").build(manager)?;
+    let termin_heute =
+        MenuItemBuilder::with_id("menu_termin_today", "Kalender: Heute").build(manager)?;
+    let termin_prev = MenuItemBuilder::with_id("menu_termin_nav_prev", "Kalender: Zeitraum zurück")
+        .build(manager)?;
+    let termin_next = MenuItemBuilder::with_id("menu_termin_nav_next", "Kalender: Zeitraum vor")
+        .build(manager)?;
 
     let palette = MenuItemBuilder::with_id("menu_app_command_palette", "Befehlspalette …")
         .accelerator("CmdOrCtrl+K")
@@ -268,15 +274,17 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
         .item(&win_close)
         .build()?;
 
-    let help_shortcuts = MenuItemBuilder::with_id("menu_help_shortcuts", "Hilfe & Kurzbefehle …").build(manager)?;
-    let help_calendar = MenuItemBuilder::with_id(
-        "menu_help_calendar",
-        "Kalender: Bedienung & Mausgesten …",
-    )
-    .build(manager)?;
-    let help_page = MenuItemBuilder::with_id("menu_help_open_page", "Hilfe-Themen im Browser …").build(manager)?;
-    let help_feedback = MenuItemBuilder::with_id("menu_help_feedback", "Feedback …").build(manager)?;
-    let help_privacy = MenuItemBuilder::with_id("menu_help_privacy", "Datenschutz …").build(manager)?;
+    let help_shortcuts =
+        MenuItemBuilder::with_id("menu_help_shortcuts", "Hilfe & Kurzbefehle …").build(manager)?;
+    let help_calendar =
+        MenuItemBuilder::with_id("menu_help_calendar", "Kalender: Bedienung & Mausgesten …")
+            .build(manager)?;
+    let help_page = MenuItemBuilder::with_id("menu_help_open_page", "Hilfe-Themen im Browser …")
+        .build(manager)?;
+    let help_feedback =
+        MenuItemBuilder::with_id("menu_help_feedback", "Feedback …").build(manager)?;
+    let help_privacy =
+        MenuItemBuilder::with_id("menu_help_privacy", "Datenschutz …").build(manager)?;
     let help_about = MenuItemBuilder::with_id("menu_help_about", "Über MeDoc").build(manager)?;
 
     let mut help_b = SubmenuBuilder::new(manager, "Hilfe").item(&help_shortcuts);
@@ -285,7 +293,11 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
     }
     help_b = help_b.separator().item(&help_page).item(&help_feedback);
     let help_menu = if payload.help_show_datenschutz {
-        help_b.item(&help_privacy).separator().item(&help_about).build()?
+        help_b
+            .item(&help_privacy)
+            .separator()
+            .item(&help_about)
+            .build()?
     } else {
         help_b.separator().item(&help_about).build()?
     };
@@ -331,7 +343,14 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
 
     #[cfg(not(target_os = "macos"))]
     let menu = MenuBuilder::new(manager)
-        .items(&[&file_menu, &edit_menu, &go_menu, &view_menu, &window_menu, &help_menu])
+        .items(&[
+            &file_menu,
+            &edit_menu,
+            &go_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ])
         .build()?;
 
     Ok(menu)
@@ -340,15 +359,18 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
 /// Build and attach the application menu. Safe to call once during setup.
 pub fn install_native_menu(app: &mut App) -> tauri::Result<()> {
     let pkg = app.package_info();
-    let menu = build_full_menu(app, &pkg, &SyncNativeMenuPayload::default())?;
+    let menu = build_full_menu(app, pkg, &SyncNativeMenuPayload::default())?;
     let _ = app.set_menu(menu)?;
     Ok(())
 }
 
 /// Rebuild the full menu bar from a frontend payload (RBAC-aligned).
-pub fn set_native_menu<R: Runtime>(app: &AppHandle<R>, payload: SyncNativeMenuPayload) -> tauri::Result<()> {
+pub fn set_native_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    payload: SyncNativeMenuPayload,
+) -> tauri::Result<()> {
     let pkg = app.package_info();
-    let menu = build_full_menu(app, &pkg, &payload)?;
+    let menu = build_full_menu(app, pkg, &payload)?;
     let _ = app.set_menu(menu)?;
     Ok(())
 }
@@ -364,22 +386,38 @@ pub fn handle_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &MenuEven
 
     match id {
         "menu_new_termin" => emit_menu(app, json!({ "kind": "navigate", "path": "/termine/neu" })),
-        "menu_new_patient" => emit_menu(app, json!({ "kind": "navigate", "path": "/patienten/neu" })),
-        "menu_new_zahlung" => emit_menu(app, json!({ "kind": "navigate", "path": "/finanzen/neu" })),
-        "menu_new_bestellung" => emit_menu(app, json!({ "kind": "navigate", "path": "/bestellungen/neu" })),
-        "menu_new_leistung" => emit_menu(app, json!({ "kind": "navigate", "path": "/leistungen/neu" })),
+        "menu_new_patient" => {
+            emit_menu(app, json!({ "kind": "navigate", "path": "/patienten/neu" }))
+        }
+        "menu_new_zahlung" => {
+            emit_menu(app, json!({ "kind": "navigate", "path": "/finanzen/neu" }))
+        }
+        "menu_new_bestellung" => emit_menu(
+            app,
+            json!({ "kind": "navigate", "path": "/bestellungen/neu" }),
+        ),
+        "menu_new_leistung" => emit_menu(
+            app,
+            json!({ "kind": "navigate", "path": "/leistungen/neu" }),
+        ),
         "menu_new_bilanz" => emit_menu(app, json!({ "kind": "navigate", "path": "/bilanz/neu" })),
 
         "menu_file_print" => emit_menu(app, json!({ "kind": "app", "action": "print" })),
 
         "menu_termin_view_tag" => emit_menu(app, json!({ "kind": "termin", "action": "view_tag" })),
-        "menu_termin_view_woche" => emit_menu(app, json!({ "kind": "termin", "action": "view_woche" })),
-        "menu_termin_view_monat" => emit_menu(app, json!({ "kind": "termin", "action": "view_monat" })),
+        "menu_termin_view_woche" => {
+            emit_menu(app, json!({ "kind": "termin", "action": "view_woche" }))
+        }
+        "menu_termin_view_monat" => {
+            emit_menu(app, json!({ "kind": "termin", "action": "view_monat" }))
+        }
         "menu_termin_today" => emit_menu(app, json!({ "kind": "termin", "action": "today" })),
         "menu_termin_nav_prev" => emit_menu(app, json!({ "kind": "termin", "action": "nav_prev" })),
         "menu_termin_nav_next" => emit_menu(app, json!({ "kind": "termin", "action": "nav_next" })),
 
-        "menu_app_command_palette" => emit_menu(app, json!({ "kind": "app", "action": "command_palette" })),
+        "menu_app_command_palette" => {
+            emit_menu(app, json!({ "kind": "app", "action": "command_palette" }))
+        }
         "menu_app_zoom_in" => emit_menu(app, json!({ "kind": "app", "action": "zoom_in" })),
         "menu_app_zoom_out" => emit_menu(app, json!({ "kind": "app", "action": "zoom_out" })),
         "menu_app_zoom_reset" => emit_menu(app, json!({ "kind": "app", "action": "zoom_reset" })),
@@ -389,8 +427,13 @@ pub fn handle_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &MenuEven
         "menu_help_calendar" => emit_menu(app, json!({ "kind": "help", "topic": "calendar" })),
         "menu_help_open_page" => emit_menu(app, json!({ "kind": "navigate", "path": "/hilfe" })),
         "menu_help_feedback" => emit_menu(app, json!({ "kind": "navigate", "path": "/feedback" })),
-        "menu_help_privacy" => emit_menu(app, json!({ "kind": "navigate", "path": "/datenschutz" })),
-        "menu_help_about" => emit_menu(app, json!({ "kind": "help", "topic": "about", "version": ver })),
+        "menu_help_privacy" => {
+            emit_menu(app, json!({ "kind": "navigate", "path": "/datenschutz" }))
+        }
+        "menu_help_about" => emit_menu(
+            app,
+            json!({ "kind": "help", "topic": "about", "version": ver }),
+        ),
 
         "menu_quit" => std::process::exit(0),
         _ => {}

@@ -115,9 +115,16 @@ pub async fn delete_zahlung(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "finanzen.write")?;
     zahlung_repo::delete_if_pending(&pool, &id).await?;
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Zahlung", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Zahlung",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -155,4 +162,20 @@ pub async fn set_zahlungen_kasse_geprueft(
     .await
     .ok();
     Ok(n)
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_zahlung_commands {
+    () => {
+        $crate::commands::zahlung_commands::list_zahlungen,
+        $crate::commands::zahlung_commands::list_zahlungen_for_patient,
+        $crate::commands::zahlung_commands::list_patient_ids_open_invoice,
+        $crate::commands::zahlung_commands::create_zahlung,
+        $crate::commands::zahlung_commands::update_zahlung,
+        $crate::commands::zahlung_commands::delete_zahlung,
+        $crate::commands::zahlung_commands::update_zahlung_status,
+        $crate::commands::zahlung_commands::get_bilanz,
+        $crate::commands::zahlung_commands::set_zahlungen_kasse_geprueft,
+    };
 }

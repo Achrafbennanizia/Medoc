@@ -48,3 +48,14 @@ pub fn send_kim_message(
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::kim_send(&msg)
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_integration_commands {
+    () => {
+        $crate::commands::integration_commands::list_upcoming_appointments,
+        $crate::commands::integration_commands::validate_eprescription,
+        $crate::commands::integration_commands::submit_eprescription,
+        $crate::commands::integration_commands::send_kim_message,
+    };
+}

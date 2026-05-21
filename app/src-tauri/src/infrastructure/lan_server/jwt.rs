@@ -18,7 +18,12 @@ pub struct LanClaims {
     pub exp: i64,
 }
 
-pub fn issue_token(secret: &[u8], user_id: &str, email: &str, role: &str) -> Result<String, AppError> {
+pub fn issue_token(
+    secret: &[u8],
+    user_id: &str,
+    email: &str,
+    role: &str,
+) -> Result<String, AppError> {
     let exp = Utc::now().timestamp() + TOKEN_TTL_SECS;
     let claims = LanClaims {
         iss: JWT_ISS.into(),
@@ -29,12 +34,8 @@ pub fn issue_token(secret: &[u8], user_id: &str, email: &str, role: &str) -> Res
     };
     let mut header = Header::new(Algorithm::HS256);
     header.typ = Some("JWT".into());
-    encode(
-        &header,
-        &claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("JWT encode: {e}")))
+    encode(&header, &claims, &EncodingKey::from_secret(secret))
+        .map_err(|e| AppError::Internal(format!("JWT encode: {e}")))
 }
 
 pub fn verify_token(secret: &[u8], token: &str) -> Result<LanClaims, AppError> {
