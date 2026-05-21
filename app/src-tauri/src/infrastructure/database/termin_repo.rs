@@ -1,5 +1,6 @@
 use crate::domain::entities::termin::{CreateTermin, UpdateTermin};
 use crate::domain::entities::Termin;
+use crate::domain::services::konflikt::{self, ArztSlotConflictQuery};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
@@ -34,28 +35,24 @@ pub async fn check_conflict(
     arzt_id: &str,
     exclude_id: Option<&str>,
 ) -> Result<bool, AppError> {
-    let row: (i64,) = if let Some(eid) = exclude_id {
-        sqlx::query_as(
-            "SELECT COUNT(*) FROM termin WHERE datum = ?1 AND uhrzeit = ?2 AND arzt_id = ?3 AND id != ?4 AND status NOT IN ('ABGESAGT')"
-        )
-        .bind(datum).bind(uhrzeit).bind(arzt_id).bind(eid)
-        .fetch_one(pool).await?
-    } else {
-        sqlx::query_as(
-            "SELECT COUNT(*) FROM termin WHERE datum = ?1 AND uhrzeit = ?2 AND arzt_id = ?3 AND status NOT IN ('ABGESAGT')"
-        )
-        .bind(datum).bind(uhrzeit).bind(arzt_id)
-        .fetch_one(pool).await?
-    };
-    Ok(row.0 > 0)
+    konflikt::has_arzt_slot_conflict(
+        pool,
+        ArztSlotConflictQuery {
+            datum,
+            uhrzeit,
+            arzt_id,
+            exclude_termin_id: exclude_id,
+        },
+    )
+    .await
 }
 
 pub async fn create(pool: &SqlitePool, data: &CreateTermin) -> Result<Termin, AppError> {
     // Check for time conflict
     if check_conflict(pool, &data.datum, &data.uhrzeit, &data.arzt_id, None).await? {
-        return Err(AppError::Conflict(format!(
-            "Arzt hat bereits einen Termin am {} um {}",
-            data.datum, data.uhrzeit
+        return Err(AppError::Conflict(konflikt::arzt_slot_conflict_message(
+            &data.datum,
+            &data.uhrzeit,
         )));
     }
 
@@ -98,7 +95,9 @@ pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateTermin) -> Result<
     if (datum != existing.datum || uhrzeit != existing.uhrzeit || arzt_id != existing.arzt_id)
         && check_conflict(pool, datum, uhrzeit, arzt_id, Some(id)).await?
     {
-        return Err(AppError::Conflict("Terminkonflikt".into()));
+        return Err(AppError::Conflict(
+            konflikt::terminkonflikt_short_message().into(),
+        ));
     }
 
     let art = match data.art.as_ref() {

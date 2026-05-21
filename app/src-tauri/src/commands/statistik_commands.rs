@@ -218,12 +218,11 @@ pub async fn get_statistik_overview(
             let mut buckets = Vec::with_capacity(months_12.len());
             for m in &months_12 {
                 let end = format!("{}-31 23:59:59", m);
-                let row: (i64,) = sqlx::query_as(
-                    "SELECT COUNT(*) FROM patient WHERE created_at <= ?1",
-                )
-                .bind(&end)
-                .fetch_one(pool.inner())
-                .await?;
+                let row: (i64,) =
+                    sqlx::query_as("SELECT COUNT(*) FROM patient WHERE created_at <= ?1")
+                        .bind(&end)
+                        .fetch_one(pool.inner())
+                        .await?;
                 buckets.push(MonthBucket {
                     month: m.clone(),
                     value: row.0 as f64,
@@ -273,11 +272,10 @@ pub async fn get_statistik_overview(
             .collect();
 
         // Patient-Status (NEU / AKTIV / VALIDIERT / READONLY)
-        let pstatus: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) FROM patient GROUP BY status ORDER BY status",
-        )
-        .fetch_all(pool.inner())
-        .await?;
+        let pstatus: Vec<(String, i64)> =
+            sqlx::query_as("SELECT status, COUNT(*) FROM patient GROUP BY status ORDER BY status")
+                .fetch_all(pool.inner())
+                .await?;
         out.patient_status = group_label_value(pstatus);
     }
 
@@ -306,8 +304,10 @@ pub async fn get_statistik_overview(
         .bind(&earliest_start)
         .fetch_all(pool.inner())
         .await?;
-        let beh_mon_f: Vec<(String, f64)> =
-            beh_mon.iter().map(|(m, c)| (m.clone(), *c as f64)).collect();
+        let beh_mon_f: Vec<(String, f64)> = beh_mon
+            .iter()
+            .map(|(m, c)| (m.clone(), *c as f64))
+            .collect();
         out.behandlungen_pro_monat = align_months(beh_mon_f, &months_12);
 
         // top medikamente by wirkstoff
@@ -335,15 +335,16 @@ pub async fn get_statistik_overview(
         .bind(&earliest_start)
         .fetch_all(pool.inner())
         .await?;
-        let ter_mon_f: Vec<(String, f64)> =
-            ter_mon.iter().map(|(m, c)| (m.clone(), *c as f64)).collect();
+        let ter_mon_f: Vec<(String, f64)> = ter_mon
+            .iter()
+            .map(|(m, c)| (m.clone(), *c as f64))
+            .collect();
         out.termine_pro_monat = align_months(ter_mon_f, &months_12);
 
-        let ter_st: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) FROM termin GROUP BY status ORDER BY status",
-        )
-        .fetch_all(pool.inner())
-        .await?;
+        let ter_st: Vec<(String, i64)> =
+            sqlx::query_as("SELECT status, COUNT(*) FROM termin GROUP BY status ORDER BY status")
+                .fetch_all(pool.inner())
+                .await?;
         out.termin_status = group_label_value(ter_st)
             .into_iter()
             .map(|lv| LabelValue {
@@ -359,11 +360,10 @@ pub async fn get_statistik_overview(
             })
             .collect();
 
-        let ter_art: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT art, COUNT(*) FROM termin GROUP BY art ORDER BY art",
-        )
-        .fetch_all(pool.inner())
-        .await?;
+        let ter_art: Vec<(String, i64)> =
+            sqlx::query_as("SELECT art, COUNT(*) FROM termin GROUP BY art ORDER BY art")
+                .fetch_all(pool.inner())
+                .await?;
         out.termin_art = group_label_value(ter_art)
             .into_iter()
             .map(|lv| LabelValue {
@@ -458,8 +458,10 @@ pub async fn get_statistik_overview(
         .bind(&earliest_start)
         .fetch_all(pool.inner())
         .await?;
-        let best_mon_f: Vec<(String, f64)> =
-            best_mon.iter().map(|(m, c)| (m.clone(), *c as f64)).collect();
+        let best_mon_f: Vec<(String, f64)> = best_mon
+            .iter()
+            .map(|(m, c)| (m.clone(), *c as f64))
+            .collect();
         out.bestellungen_pro_monat = align_months(best_mon_f, &months_12);
     }
 
@@ -473,4 +475,13 @@ pub async fn get_statistik_overview(
     }
 
     Ok(out)
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_statistik_commands {
+    () => {
+        $crate::commands::statistik_commands::get_dashboard_stats,
+        $crate::commands::statistik_commands::get_statistik_overview,
+    };
 }

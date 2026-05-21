@@ -12,7 +12,12 @@ pub struct DetectedPhotoViewerApp {
     pub rank: u32,
 }
 
-fn push_if_exists(out: &mut Vec<DetectedPhotoViewerApp>, rank: u32, display_name: &str, path: PathBuf) {
+fn push_if_exists(
+    out: &mut Vec<DetectedPhotoViewerApp>,
+    rank: u32,
+    display_name: &str,
+    path: PathBuf,
+) {
     if path.is_file() || path.is_dir() {
         out.push(DetectedPhotoViewerApp {
             display_name: display_name.to_string(),
@@ -25,7 +30,6 @@ fn push_if_exists(out: &mut Vec<DetectedPhotoViewerApp>, rank: u32, display_name
 #[cfg(target_os = "macos")]
 fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
     let mut out = Vec::new();
-    let mut r: u32 = 0;
     // Reihenfolge = typische Popularität / sinnvoller Default (ca. 90 Einträge).
     const NAMES_PATHS: &[(&str, &str)] = &[
         ("Apple Preview", "/System/Applications/Preview.app"),
@@ -50,8 +54,14 @@ fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
         ("darktable", "/Applications/darktable.app"),
         ("RawTherapee", "/Applications/RawTherapee.app"),
         ("Lightroom", "/Applications/Adobe Lightroom.app"),
-        ("Adobe Bridge", "/Applications/Adobe Bridge 2024/Adobe Bridge 2024.app"),
-        ("Adobe Illustrator", "/Applications/Adobe Illustrator 2024/Adobe Illustrator.app"),
+        (
+            "Adobe Bridge",
+            "/Applications/Adobe Bridge 2024/Adobe Bridge 2024.app",
+        ),
+        (
+            "Adobe Illustrator",
+            "/Applications/Adobe Illustrator 2024/Adobe Illustrator.app",
+        ),
         ("Inkscape", "/Applications/Inkscape.app"),
         ("Krita", "/Applications/krita.app"),
         ("Skim", "/Applications/Skim.app"),
@@ -82,7 +92,10 @@ fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
         ("iPhoto (alt)", "/Applications/iPhoto.app"),
         ("Aperture (alt)", "/Applications/Aperture.app"),
         ("GraphicConverter", "/Applications/GraphicConverter.app"),
-        ("GraphicConverter 12", "/Applications/GraphicConverter 12.app"),
+        (
+            "GraphicConverter 12",
+            "/Applications/GraphicConverter 12.app",
+        ),
         ("Luminar Neo", "/Applications/Luminar Neo.app"),
         ("Luminar AI", "/Applications/Luminar AI.app"),
         ("ON1 Photo RAW", "/Applications/ON1 Photo RAW 2024.app"),
@@ -97,20 +110,44 @@ fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
         ("PhotoBulk", "/Applications/PhotoBulk.app"),
         ("Retrobatch", "/Applications/Retrobatch.app"),
         ("BatchPhoto", "/Applications/BatchPhoto.app"),
-        ("PhotoBulk Watermark", "/Applications/PhotoBulk Watermark.app"),
+        (
+            "PhotoBulk Watermark",
+            "/Applications/PhotoBulk Watermark.app",
+        ),
         ("Hazel", "/Applications/Hazel.app"),
         ("Permute", "/Applications/Permute.app"),
         ("HandBrake", "/Applications/HandBrake.app"),
         ("VLC", "/Applications/VLC.app"),
         ("IINA", "/Applications/IINA.app"),
         ("mpv", "/Applications/mpv.app"),
-        ("Adobe Photoshop 2025", "/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app"),
-        ("Adobe Photoshop 2024", "/Applications/Adobe Photoshop 2024/Adobe Photoshop 2024.app"),
-        ("Adobe Photoshop 2023", "/Applications/Adobe Photoshop 2023/Adobe Photoshop 2023.app"),
-        ("Adobe Photoshop 2022", "/Applications/Adobe Photoshop 2022/Adobe Photoshop 2022.app"),
-        ("Adobe Photoshop CC", "/Applications/Adobe Photoshop CC/Adobe Photoshop CC.app"),
-        ("Adobe Photoshop Elements", "/Applications/Adobe Photoshop Elements 2024/Adobe Photoshop Elements 2024 Editor.app"),
-        ("Adobe Lightroom Classic", "/Applications/Adobe Lightroom Classic/Adobe Lightroom Classic.app"),
+        (
+            "Adobe Photoshop 2025",
+            "/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app",
+        ),
+        (
+            "Adobe Photoshop 2024",
+            "/Applications/Adobe Photoshop 2024/Adobe Photoshop 2024.app",
+        ),
+        (
+            "Adobe Photoshop 2023",
+            "/Applications/Adobe Photoshop 2023/Adobe Photoshop 2023.app",
+        ),
+        (
+            "Adobe Photoshop 2022",
+            "/Applications/Adobe Photoshop 2022/Adobe Photoshop 2022.app",
+        ),
+        (
+            "Adobe Photoshop CC",
+            "/Applications/Adobe Photoshop CC/Adobe Photoshop CC.app",
+        ),
+        (
+            "Adobe Photoshop Elements",
+            "/Applications/Adobe Photoshop Elements 2024/Adobe Photoshop Elements 2024 Editor.app",
+        ),
+        (
+            "Adobe Lightroom Classic",
+            "/Applications/Adobe Lightroom Classic/Adobe Lightroom Classic.app",
+        ),
         ("CorelDRAW", "/Applications/CorelDRAW.app"),
         ("Paint.NET (Wine/Wineskin)", "/Applications/Paint.NET.app"),
         ("ImageJ", "/Applications/ImageJ.app"),
@@ -129,13 +166,15 @@ fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
         ("Photomatix Pro", "/Applications/Photomatix Pro.app"),
         ("Hugin", "/Applications/Hugin.app"),
         ("PTGui", "/Applications/PTGui Pro.app"),
-        ("Capture One Express", "/Applications/Capture One Express.app"),
+        (
+            "Capture One Express",
+            "/Applications/Capture One Express.app",
+        ),
         ("AfterShot Pro", "/Applications/AfterShot Pro.app"),
     ];
 
-    for (name, p) in NAMES_PATHS {
+    for (r, (name, p)) in (0_u32..).zip(NAMES_PATHS.iter()) {
         push_if_exists(&mut out, r, name, PathBuf::from(p));
-        r += 1;
     }
 
     out.sort_by_key(|e| e.rank);
@@ -147,7 +186,8 @@ fn scan_windows() -> Vec<DetectedPhotoViewerApp> {
     let mut out = Vec::new();
     let mut r: u32 = 0;
     let pf = std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
-    let pf86 = std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
+    let pf86 = std::env::var("ProgramFiles(x86)")
+        .unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
     let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
 
     let mut add = |name: &str, pb: PathBuf| {
@@ -466,10 +506,22 @@ fn scan_unix() -> Vec<DetectedPhotoViewerApp> {
         ("eog (lokal)", "/usr/local/bin/eog"),
         ("feh (lokal)", "/usr/local/bin/feh"),
         ("sxiv (lokal)", "/usr/local/bin/sxiv"),
-        ("gimp (flatpak run)", "/var/lib/flatpak/exports/bin/org.gimp.GIMP"),
-        ("krita (flatpak)", "/var/lib/flatpak/exports/bin/org.kde.krita"),
-        ("Inkscape (flatpak)", "/var/lib/flatpak/exports/bin/org.inkscape.Inkscape"),
-        ("GThumb flatpak", "/var/lib/flatpak/exports/bin/org.gnome.gThumb"),
+        (
+            "gimp (flatpak run)",
+            "/var/lib/flatpak/exports/bin/org.gimp.GIMP",
+        ),
+        (
+            "krita (flatpak)",
+            "/var/lib/flatpak/exports/bin/org.kde.krita",
+        ),
+        (
+            "Inkscape (flatpak)",
+            "/var/lib/flatpak/exports/bin/org.inkscape.Inkscape",
+        ),
+        (
+            "GThumb flatpak",
+            "/var/lib/flatpak/exports/bin/org.gnome.gThumb",
+        ),
         ("Loupe (GNOME)", "/usr/bin/loupe"),
         ("decoder (Cosmic)", "/usr/bin/com.system76.CosmicViewer"),
         ("qview", "/usr/bin/qview"),

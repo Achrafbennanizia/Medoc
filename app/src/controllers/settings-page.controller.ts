@@ -1,6 +1,6 @@
 /**
  * Zentrale IPC-Funktionen für die Einstellungen-Seite sowie eingebettete Bereiche
- * (Export & Druck, LAN-Host).
+ * (LAN-Host, eingebettete Bereiche).
  *
  * **`medoc-server` (LAN)** — dieselben Praxis-KV-Schlüssel wie Tauri `get_app_kv` / `set_app_kv`:
  * `GET /api/v1/app-kv?key=…`, `PUT /api/v1/app-kv` mit `{ key, value }`, `DELETE /api/v1/app-kv?key=…`
@@ -54,12 +54,8 @@ export { deleteAppKv, getAppKv, setAppKv, type AppKvKey } from "./app-kv.control
 export * from "./lan-server.controller";
 
 export {
-    createDokumentTemplate,
-    deleteDokumentTemplate,
     listDokumentTemplatesForKind,
     pickExportDirectory,
     previewDocumentPdf,
-    previewTemplatePdf,
-    updateDokumentTemplate,
     type DokumentTemplateDto,
 } from "./document-template.controller";

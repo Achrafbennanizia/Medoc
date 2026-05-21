@@ -8,7 +8,11 @@ use crate::infrastructure::database::{
 };
 use sqlx::SqlitePool;
 
-pub async fn after_termin_created_best_effort(pool: &SqlitePool, session_user_id: &str, termin: &Termin) {
+pub async fn after_termin_created_best_effort(
+    pool: &SqlitePool,
+    session_user_id: &str,
+    termin: &Termin,
+) {
     if let Err(e) = try_fulfill_plan_hint(pool, session_user_id, termin).await {
         tracing::warn!(
             target: "medoc::system",
@@ -53,7 +57,10 @@ async fn try_fulfill_plan_hint(
     let time_short = termin.uhrzeit.chars().take(5).collect::<String>();
 
     let title = "Termin-Hinweis erfüllt";
-    let body = format!("{patient_name}: Termin am {} um {}", termin.datum, time_short);
+    let body = format!(
+        "{patient_name}: Termin am {} um {}",
+        termin.datum, time_short
+    );
 
     let payload = serde_json::json!({
         "termin_id": termin.id,

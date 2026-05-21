@@ -24,7 +24,7 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
             platform = "macos",
             app = "Image Capture"
         );
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
@@ -34,8 +34,13 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
             .args(["/C", "start", "", "ms-scan:"])
             .spawn()
             .map_err(|e| AppError::Internal(format!("Scanner-Programm starten: {e}")))?;
-        log_device!(info, event = "HOST_SCAN_UI_OPENED", platform = "windows", app = "ms-scan");
-        return Ok(());
+        log_device!(
+            info,
+            event = "HOST_SCAN_UI_OPENED",
+            platform = "windows",
+            app = "ms-scan"
+        );
+        Ok(())
     }
 
     #[cfg(target_os = "linux")]
@@ -55,9 +60,9 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
                 Err(e) => return Err(AppError::Internal(format!("{app}: {e}"))),
             }
         }
-        return Err(AppError::Validation(
+        Err(AppError::Validation(
             "Kein kompatibles Scan-Programm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen.".into(),
-        ));
+        ))
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

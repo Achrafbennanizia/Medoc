@@ -115,3 +115,15 @@ pub async fn delete_bestellung(
     .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_bestellung_commands {
+    () => {
+        $crate::commands::bestellung_commands::list_bestellungen,
+        $crate::commands::bestellung_commands::create_bestellung,
+        $crate::commands::bestellung_commands::update_bestellung_status,
+        $crate::commands::bestellung_commands::update_bestellung,
+        $crate::commands::bestellung_commands::delete_bestellung,
+    };
+}

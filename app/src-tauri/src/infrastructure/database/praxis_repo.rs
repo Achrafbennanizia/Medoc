@@ -38,18 +38,25 @@ pub struct UpdateAbwesenheit {
 }
 
 pub async fn list_abwesenheiten(pool: &SqlitePool) -> Result<Vec<Abwesenheit>, AppError> {
-    let rows = sqlx::query_as::<_, Abwesenheit>("SELECT * FROM abwesenheit ORDER BY von_tag DESC, created_at DESC")
-        .fetch_all(pool)
-        .await?;
+    let rows = sqlx::query_as::<_, Abwesenheit>(
+        "SELECT * FROM abwesenheit ORDER BY von_tag DESC, created_at DESC",
+    )
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
 
-pub async fn create_abwesenheit(pool: &SqlitePool, data: &CreateAbwesenheit) -> Result<Abwesenheit, AppError> {
+pub async fn create_abwesenheit(
+    pool: &SqlitePool,
+    data: &CreateAbwesenheit,
+) -> Result<Abwesenheit, AppError> {
     if data.typ.trim().is_empty() {
         return Err(AppError::Validation("Typ darf nicht leer sein".into()));
     }
     if data.von_tag.trim().is_empty() || data.bis_tag.trim().is_empty() {
-        return Err(AppError::Validation("Von- und Bis-Datum erforderlich".into()));
+        return Err(AppError::Validation(
+            "Von- und Bis-Datum erforderlich".into(),
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -58,11 +65,26 @@ pub async fn create_abwesenheit(pool: &SqlitePool, data: &CreateAbwesenheit) -> 
     )
     .bind(&id)
     .bind(data.typ.trim())
-    .bind(data.kommentar.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()))
+    .bind(
+        data.kommentar
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty()),
+    )
     .bind(data.von_tag.trim())
     .bind(data.bis_tag.trim())
-    .bind(data.von_uhrzeit.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()))
-    .bind(data.bis_uhrzeit.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()))
+    .bind(
+        data.von_uhrzeit
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        data.bis_uhrzeit
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty()),
+    )
     .execute(pool)
     .await?;
     find_abwesenheit_by_id(pool, &id).await
@@ -76,9 +98,18 @@ pub async fn find_abwesenheit_by_id(pool: &SqlitePool, id: &str) -> Result<Abwes
         .ok_or_else(|| AppError::NotFound("Abwesenheit".into()))
 }
 
-pub async fn update_abwesenheit(pool: &SqlitePool, id: &str, data: &UpdateAbwesenheit) -> Result<Abwesenheit, AppError> {
+pub async fn update_abwesenheit(
+    pool: &SqlitePool,
+    id: &str,
+    data: &UpdateAbwesenheit,
+) -> Result<Abwesenheit, AppError> {
     let existing = find_abwesenheit_by_id(pool, id).await?;
-    let typ = data.typ.as_deref().unwrap_or(&existing.typ).trim().to_string();
+    let typ = data
+        .typ
+        .as_deref()
+        .unwrap_or(&existing.typ)
+        .trim()
+        .to_string();
     if typ.is_empty() {
         return Err(AppError::Validation("Typ darf nicht leer sein".into()));
     }
@@ -93,10 +124,22 @@ pub async fn update_abwesenheit(pool: &SqlitePool, id: &str, data: &UpdateAbwese
             }
         }
     };
-    let von_tag = data.von_tag.as_deref().unwrap_or(&existing.von_tag).trim().to_string();
-    let bis_tag = data.bis_tag.as_deref().unwrap_or(&existing.bis_tag).trim().to_string();
+    let von_tag = data
+        .von_tag
+        .as_deref()
+        .unwrap_or(&existing.von_tag)
+        .trim()
+        .to_string();
+    let bis_tag = data
+        .bis_tag
+        .as_deref()
+        .unwrap_or(&existing.bis_tag)
+        .trim()
+        .to_string();
     if von_tag.is_empty() || bis_tag.is_empty() {
-        return Err(AppError::Validation("Von- und Bis-Datum erforderlich".into()));
+        return Err(AppError::Validation(
+            "Von- und Bis-Datum erforderlich".into(),
+        ));
     }
     let von_uhrzeit = match &data.von_uhrzeit {
         None => existing.von_uhrzeit.clone(),
@@ -138,7 +181,10 @@ pub async fn update_abwesenheit(pool: &SqlitePool, id: &str, data: &UpdateAbwese
 }
 
 pub async fn delete_abwesenheit(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let r = sqlx::query("DELETE FROM abwesenheit WHERE id = ?1").bind(id).execute(pool).await?;
+    let r = sqlx::query("DELETE FROM abwesenheit WHERE id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("Abwesenheit".into()));
     }
@@ -169,35 +215,43 @@ pub struct UpdateDokumentVorlage {
 }
 
 pub async fn list_dokument_vorlagen(pool: &SqlitePool) -> Result<Vec<DokumentVorlage>, AppError> {
-    let rows = sqlx::query_as::<_, DokumentVorlage>("SELECT * FROM dokument_vorlage ORDER BY kind, titel")
-        .fetch_all(pool)
-        .await?;
+    let rows =
+        sqlx::query_as::<_, DokumentVorlage>("SELECT * FROM dokument_vorlage ORDER BY kind, titel")
+            .fetch_all(pool)
+            .await?;
     Ok(rows)
 }
 
-pub async fn create_dokument_vorlage(pool: &SqlitePool, data: &CreateDokumentVorlage) -> Result<DokumentVorlage, AppError> {
+pub async fn create_dokument_vorlage(
+    pool: &SqlitePool,
+    data: &CreateDokumentVorlage,
+) -> Result<DokumentVorlage, AppError> {
     let kind = data.kind.trim().to_uppercase();
     if kind != "REZEPT" && kind != "ATTEST" {
-        return Err(AppError::Validation("kind muss REZEPT oder ATTEST sein".into()));
+        return Err(AppError::Validation(
+            "kind muss REZEPT oder ATTEST sein".into(),
+        ));
     }
     if data.titel.trim().is_empty() {
         return Err(AppError::Validation("Titel erforderlich".into()));
     }
-    let payload_str = serde_json::to_string(&data.payload).map_err(|e| AppError::Internal(e.to_string()))?;
+    let payload_str =
+        serde_json::to_string(&data.payload).map_err(|e| AppError::Internal(e.to_string()))?;
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO dokument_vorlage (id, kind, titel, payload) VALUES (?1, ?2, ?3, ?4)",
-    )
-    .bind(&id)
-    .bind(&kind)
-    .bind(data.titel.trim())
-    .bind(&payload_str)
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO dokument_vorlage (id, kind, titel, payload) VALUES (?1, ?2, ?3, ?4)")
+        .bind(&id)
+        .bind(&kind)
+        .bind(data.titel.trim())
+        .bind(&payload_str)
+        .execute(pool)
+        .await?;
     find_dokument_vorlage_by_id(pool, &id).await
 }
 
-pub async fn find_dokument_vorlage_by_id(pool: &SqlitePool, id: &str) -> Result<DokumentVorlage, AppError> {
+pub async fn find_dokument_vorlage_by_id(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<DokumentVorlage, AppError> {
     sqlx::query_as::<_, DokumentVorlage>("SELECT * FROM dokument_vorlage WHERE id = ?1")
         .bind(id)
         .fetch_optional(pool)
@@ -205,9 +259,18 @@ pub async fn find_dokument_vorlage_by_id(pool: &SqlitePool, id: &str) -> Result<
         .ok_or_else(|| AppError::NotFound("DokumentVorlage".into()))
 }
 
-pub async fn update_dokument_vorlage(pool: &SqlitePool, id: &str, data: &UpdateDokumentVorlage) -> Result<DokumentVorlage, AppError> {
+pub async fn update_dokument_vorlage(
+    pool: &SqlitePool,
+    id: &str,
+    data: &UpdateDokumentVorlage,
+) -> Result<DokumentVorlage, AppError> {
     let existing = find_dokument_vorlage_by_id(pool, id).await?;
-    let titel = data.titel.as_deref().unwrap_or(&existing.titel).trim().to_string();
+    let titel = data
+        .titel
+        .as_deref()
+        .unwrap_or(&existing.titel)
+        .trim()
+        .to_string();
     if titel.is_empty() {
         return Err(AppError::Validation("Titel erforderlich".into()));
     }
@@ -269,7 +332,9 @@ pub struct UpdateBehandlungsKatalogItem {
     pub sort_order: Option<i64>,
 }
 
-pub async fn list_behandlungs_katalog(pool: &SqlitePool) -> Result<Vec<BehandlungsKatalogItem>, AppError> {
+pub async fn list_behandlungs_katalog(
+    pool: &SqlitePool,
+) -> Result<Vec<BehandlungsKatalogItem>, AppError> {
     let rows = sqlx::query_as::<_, BehandlungsKatalogItem>(
         "SELECT * FROM behandlungs_katalog WHERE aktiv = 1 ORDER BY kategorie, sort_order, name",
     )
@@ -283,7 +348,9 @@ pub async fn create_behandlungs_katalog_item(
     data: &CreateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::Validation("Kategorie und Name erforderlich".into()));
+        return Err(AppError::Validation(
+            "Kategorie und Name erforderlich".into(),
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -311,7 +378,9 @@ pub async fn update_behandlungs_katalog_item(
     data: &UpdateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::Validation("Kategorie und Name erforderlich".into()));
+        return Err(AppError::Validation(
+            "Kategorie und Name erforderlich".into(),
+        ));
     }
     let sort = data.sort_order.unwrap_or(0);
     let r = sqlx::query(
@@ -424,14 +493,12 @@ pub async fn create_lieferant_stamm(
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
-    sqlx::query(
-        "INSERT INTO lieferant_stamm (id, name, sort_order, aktiv) VALUES (?1, ?2, ?3, 1)",
-    )
-    .bind(&id)
-    .bind(name)
-    .bind(sort)
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO lieferant_stamm (id, name, sort_order, aktiv) VALUES (?1, ?2, ?3, 1)")
+        .bind(&id)
+        .bind(name)
+        .bind(sort)
+        .execute(pool)
+        .await?;
     sqlx::query_as::<_, LieferantStammRow>("SELECT * FROM lieferant_stamm WHERE id = ?1")
         .bind(&id)
         .fetch_one(pool)
@@ -454,7 +521,9 @@ pub async fn delete_lieferant_stamm(pool: &SqlitePool, id: &str) -> Result<(), A
     Ok(())
 }
 
-pub async fn list_pharmaberater_stamm(pool: &SqlitePool) -> Result<Vec<PharmaberaterStammRow>, AppError> {
+pub async fn list_pharmaberater_stamm(
+    pool: &SqlitePool,
+) -> Result<Vec<PharmaberaterStammRow>, AppError> {
     sqlx::query_as::<_, PharmaberaterStammRow>(
         "SELECT * FROM pharmaberater_stamm WHERE aktiv = 1 ORDER BY sort_order, name",
     )
@@ -573,21 +642,25 @@ pub async fn create_lieferant_pharma_vorlage(
     let pid = data.pharmaberater_id.trim();
     let prid = data.produkt_id.trim();
     if lid.is_empty() || pid.is_empty() || prid.is_empty() {
-        return Err(AppError::Validation("Lieferant, Kontakt und Produkt wählen".into()));
+        return Err(AppError::Validation(
+            "Lieferant, Kontakt und Produkt wählen".into(),
+        ));
     }
-    let l_ok: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM lieferant_stamm WHERE id = ?1 AND aktiv = 1")
-        .bind(lid)
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)?;
+    let l_ok: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM lieferant_stamm WHERE id = ?1 AND aktiv = 1")
+            .bind(lid)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::from)?;
     if l_ok.0 == 0 {
         return Err(AppError::Validation("Ungültiger Lieferant".into()));
     }
-    let p_ok: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM pharmaberater_stamm WHERE id = ?1 AND aktiv = 1")
-        .bind(pid)
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)?;
+    let p_ok: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM pharmaberater_stamm WHERE id = ?1 AND aktiv = 1")
+            .bind(pid)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::from)?;
     if p_ok.0 == 0 {
         return Err(AppError::Validation("Ungültiger Kontakt".into()));
     }
@@ -597,7 +670,9 @@ pub async fn create_lieferant_pharma_vorlage(
         .await
         .map_err(AppError::from)?;
     if pr_ok.0 == 0 {
-        return Err(AppError::Validation("Ungültiges oder inaktives Produkt".into()));
+        return Err(AppError::Validation(
+            "Ungültiges oder inaktives Produkt".into(),
+        ));
     }
     // Existing triple (incl. soft-deleted): reactivate or return
     let existing: Option<(String, i64)> = sqlx::query_as(
@@ -611,11 +686,13 @@ pub async fn create_lieferant_pharma_vorlage(
     .map_err(AppError::from)?;
     if let Some((eid, aktiv)) = existing {
         if aktiv == 0 {
-            sqlx::query("UPDATE lieferant_pharma_vorlage SET aktiv = 1, sort_order = ?2 WHERE id = ?1")
-                .bind(&eid)
-                .bind(data.sort_order.unwrap_or(0))
-                .execute(pool)
-                .await?;
+            sqlx::query(
+                "UPDATE lieferant_pharma_vorlage SET aktiv = 1, sort_order = ?2 WHERE id = ?1",
+            )
+            .bind(&eid)
+            .bind(data.sort_order.unwrap_or(0))
+            .execute(pool)
+            .await?;
         }
         return fetch_vorlage_row(pool, &eid).await;
     }

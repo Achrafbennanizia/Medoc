@@ -150,9 +150,13 @@ pub fn scanner_attach_vertrag(
 /// Native PDF file picker for Vertragsdokument — copy via [`scanner_attach_vertrag_app_data`] or [`scanner_attach_vertrag`].
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
-pub fn pick_vertrag_pdf_file(session_state: State<'_, SessionState>) -> Result<Option<String>, AppError> {
+pub fn pick_vertrag_pdf_file(
+    session_state: State<'_, SessionState>,
+) -> Result<Option<String>, AppError> {
     rbac::require(&session_state, "verwaltung.vertraege.write")?;
-    let path = rfd::FileDialog::new().add_filter("PDF", &["pdf"]).pick_file();
+    let path = rfd::FileDialog::new()
+        .add_filter("PDF", &["pdf"])
+        .pick_file();
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
@@ -178,7 +182,30 @@ pub fn evaluate_update_payload(
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
-pub fn current_app_version(session_state: State<'_, SessionState>) -> Result<&'static str, AppError> {
+pub fn current_app_version(
+    session_state: State<'_, SessionState>,
+) -> Result<&'static str, AppError> {
     rbac::require_authenticated(&session_state)?;
     Ok(update::current_version())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_devices_commands {
+    () => {
+        $crate::commands::devices_commands::generate_vvt,
+        $crate::commands::devices_commands::generate_dsfa,
+        $crate::commands::devices_commands::parse_gdt_file,
+        $crate::commands::devices_commands::inspect_dicom_file,
+        $crate::commands::devices_commands::scanner_list_recent,
+        $crate::commands::devices_commands::open_system_scan_utility,
+        $crate::commands::devices_commands::open_native_print_dialog,
+        $crate::commands::devices_commands::scanner_attach,
+        $crate::commands::devices_commands::scanner_attach_vertrag,
+        $crate::commands::devices_commands::scanner_attach_vertrag_app_data,
+        $crate::commands::devices_commands::pick_vertrag_pdf_file,
+        $crate::commands::devices_commands::process_payment,
+        $crate::commands::devices_commands::evaluate_update_payload,
+        $crate::commands::devices_commands::current_app_version,
+    };
 }

@@ -16,6 +16,9 @@ pub struct LanServerConfigV1 {
     pub instance_label: String,
     /// Start the LAN listener automatically when the desktop app launches (after DB init).
     pub auto_start_with_app: bool,
+    /// Extra browser origins allowed for CORS (full URL, e.g. `http://192.168.1.20:1420`).
+    #[serde(default)]
+    pub extra_cors_origins: Vec<String>,
 }
 
 impl Default for LanServerConfigV1 {
@@ -27,6 +30,7 @@ impl Default for LanServerConfigV1 {
             udp_discovery_port: 47_830,
             instance_label: "MeDoc Praxis".into(),
             auto_start_with_app: false,
+            extra_cors_origins: vec![],
         }
     }
 }

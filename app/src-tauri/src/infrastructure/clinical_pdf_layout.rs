@@ -1,0 +1,1127 @@
+//! Klinische Dokument-PDFs — Attest, Rezept, Quittung.
+//!
+//! Diese Renderer nutzen das gemeinsame [`super::pdf_core`] / [`super::pdf_letterhead`]
+//! Layout-System, damit alle MeDoc-PDFs (Rechnung, Akte, Attest, Rezept,
+//! Quittung) **identische Ränder, Schriften, Encoding und Seitenzahlen** haben.
+//!
+//! Jeder Dokumenttyp hat eine eigene Render-Funktion, die das gemeinsame
+//! [`ClinicalPdfLayout`] Eingabe-Schema interpretiert.
+//!
+//! Eingabe = strukturiertes JSON (von der Frontend-Seite generiert).
+//! Ausgabe = PDF-Bytes mit DIN-5008 Briefkopf, Unterschriftsblock und
+//! Datenschutzhinweis am Fuß.
+
+use crate::error::AppError;
+use serde::Deserialize;
+
+use super::pdf_core::{
+    emit_multipage_pdf, wrap_de, wrap_soft, PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+};
+use super::pdf_letterhead::{
+    emit_continuation_header, emit_letterhead, emit_signature_block, Letterhead, MetaRow,
+};
+
+// ===========================================================================
+// Eingabe-Schemata
+// ===========================================================================
+
+/// Eine "Bezeichnung: Wert" Zeile (z. B. "Vers.-Nr.: A123…").
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabelValue {
+    pub label: String,
+    pub value: String,
+}
+
+/// Spaltenlayout für Tabellen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TableColumnLayout {
+    /// Quittung: Datum (breit), Beschreibung (breit), Betrag (schmal rechts).
+    Quittung,
+    /// Rezept (Einzel): Med · Stärke · Dos · Dauer · PZN
+    Rezept,
+    /// Rezept (Kombi): Pos · Med · Dos · Dauer · Hinweise
+    RezeptCombo,
+    /// Gleichmäßige Verteilung (Default).
+    #[default]
+    Even,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PdfTableSpec {
+    pub title: Option<String>,
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    #[serde(default)]
+    pub column_layout: TableColumnLayout,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailRecord {
+    pub art: String,
+    pub zeitraum: String,
+    pub details: Vec<String>,
+}
+
+/// Zwei-Spalten-Box (z. B. Patientendaten links + Krankenkasse rechts).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TwoColumnBlock {
+    pub left_title: Option<String>,
+    pub left_lines: Vec<String>,
+    pub right_title: Option<String>,
+    pub right_lines: Vec<String>,
+}
+
+/// Vollständige Eingabe für einen klinischen Dokument-Rendering-Aufruf.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClinicalPdfLayout {
+    /// "attest" | "rezept" | "quittung" | sonst Default
+    pub kind: String,
+
+    /// Praxis-Briefkopf (1. Zeile fett = Name).
+    pub praxis_lines: Vec<String>,
+
+    /// Rechte Spalte oben — nur wenn `meta_lines` leer.
+    #[serde(default)]
+    pub header_right_lines: Vec<String>,
+
+    /// Strukturierter Meta-Block (Rechnung-Nr., Datum, …).
+    #[serde(default)]
+    pub meta_lines: Vec<LabelValue>,
+
+    /// Anschriftfeld (Empfänger).
+    #[serde(default)]
+    pub address_lines: Vec<String>,
+
+    pub document_title: String,
+    #[serde(default)]
+    pub document_subtitle: Option<String>,
+
+    /// Einleitende Absätze.
+    #[serde(default)]
+    pub intro_paragraphs: Vec<String>,
+
+    /// Strukturierte Felder ("Label: Wert" — kompakt einzeilig wenn möglich).
+    #[serde(default)]
+    pub label_value_rows: Vec<LabelValue>,
+
+    /// Patientenpanel (links Patient, rechts Krankenkasse o. ä.).
+    #[serde(default)]
+    pub two_column: Option<TwoColumnBlock>,
+
+    #[serde(default)]
+    pub tables: Vec<PdfTableSpec>,
+
+    /// Detailblöcke (z. B. AU-Zeitraum pro Diagnose).
+    #[serde(default)]
+    pub detail_records: Vec<DetailRecord>,
+
+    /// Summenzeilen (für Quittung / Rechnung).
+    #[serde(default)]
+    pub totals: Vec<LabelValue>,
+
+    /// Schließende Absätze (z. B. Belehrung, Hinweise).
+    #[serde(default)]
+    pub closing_paragraphs: Vec<String>,
+
+    /// Unterschriftsblock — Zeile 1 = Name, danach Berufsbezeichnung, ZANR, BSNR.
+    #[serde(default)]
+    pub signature_lines: Vec<String>,
+
+    /// Fußzeile rechts (Ausstellungsdatum, Ort).
+    #[serde(default)]
+    pub footer_meta_lines: Vec<LabelValue>,
+
+    /// Behandler-Berufsbezeichnung für den Standard-Unterschriftsblock.
+    #[serde(default)]
+    pub behandler_berufsbezeichnung: Option<String>,
+    #[serde(default)]
+    pub behandler_zanr: Option<String>,
+    #[serde(default)]
+    pub behandler_bsnr: Option<String>,
+}
+
+// ===========================================================================
+// Spalten-Layouts pro Dokumenttyp
+// ===========================================================================
+
+/// Liefert die X-Startpositionen pro Spalte für ein gegebenes Layout.
+fn table_column_xs(layout: TableColumnLayout, ncol: usize) -> Vec<i32> {
+    let ncol = ncol.max(1);
+    match layout {
+        // Tag schmal · Position mittel · Kurzbeschreibung breit (Rest bis rechts)
+        TableColumnLayout::Quittung if ncol >= 3 => {
+            vec![M_LEFT, M_LEFT + 72, M_LEFT + 198]
+        }
+        TableColumnLayout::Rezept if ncol >= 5 => vec![
+            M_LEFT,
+            M_LEFT + 130,
+            M_LEFT + 220,
+            M_LEFT + 295,
+            M_LEFT + 365,
+        ],
+        TableColumnLayout::RezeptCombo if ncol >= 5 => vec![
+            M_LEFT,
+            M_LEFT + 38,
+            M_LEFT + 170,
+            M_LEFT + 290,
+            M_LEFT + 365,
+        ],
+        _ => {
+            let step = CONTENT_WIDTH / ncol as i32;
+            (0..ncol).map(|i| M_LEFT + i as i32 * step).collect()
+        }
+    }
+}
+
+/// Berechnet die maximale Zeichenanzahl pro Spalte aus den X-Positionen.
+fn column_char_widths(xs: &[i32]) -> Vec<usize> {
+    let mut w = Vec::with_capacity(xs.len());
+    for i in 0..xs.len() {
+        let next = xs.get(i + 1).copied().unwrap_or(M_RIGHT);
+        let width_pt = (next - xs[i]).max(20);
+        // Bei 9 pt Helvetica: ~5 pt pro Zeichen
+        w.push(((width_pt / 5).max(6)) as usize);
+    }
+    w
+}
+
+// ===========================================================================
+// Render-Funktion
+// ===========================================================================
+
+/// `LabelValue` → `MetaRow`-Konvertierung für den Briefkopf.
+fn to_meta_rows(items: &[LabelValue]) -> Vec<MetaRow> {
+    items
+        .iter()
+        .map(|x| MetaRow::new(&x.label, &x.value))
+        .collect()
+}
+
+/// Hauptfunktion: rendert ein klinisches PDF.
+pub fn render_clinical_layout(doc: &ClinicalPdfLayout) -> Result<Vec<u8>, AppError> {
+    let mut pb = PageBuilder::new();
+
+    match doc.kind.as_str() {
+        "attest" => render_attest(&mut pb, doc),
+        "rezept" => render_rezept(&mut pb, doc),
+        "quittung" => render_quittung(&mut pb, doc),
+        _ => render_generic(&mut pb, doc),
+    }
+
+    // Datenschutz-Footer auf der letzten Seite (außer für Quittung — die ist
+    // ein steuerlicher Beleg, kein Behandlungsdokument)
+    if doc.kind != "quittung" {
+        pb.ensure_space(40);
+        pb.advance(12);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(10);
+        pb.text(M_LEFT, 7, false,
+            "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an Berechtigte.");
+    }
+
+    let pages = pb.finish();
+    emit_multipage_pdf(&pages, &format!("{} {}", doc.kind, doc.document_title))
+}
+
+// ---------------------------------------------------------------------------
+// ATTEST  (Muster-1-Stil)
+// ---------------------------------------------------------------------------
+
+fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+    // Briefkopf — Attest geht meist an den Patienten direkt, daher
+    // address_lines beachten
+    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let lh = Letterhead {
+        praxis_lines: &doc.praxis_lines,
+        meta_rows: &meta_rows,
+        address_lines: &doc.address_lines,
+        header_right_lines: &doc.header_right_lines,
+        show_sender_hint: !doc.address_lines.is_empty(),
+    };
+    emit_letterhead(pb, &lh);
+
+    // Titel zentriert
+    pb.text_center(17, true, &doc.document_title);
+    pb.advance(22);
+    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.text_center(10, false, sub);
+        pb.advance(14);
+    }
+
+    pb.hline(M_LEFT + 100, M_RIGHT - 100);
+    pb.advance(16);
+
+    render_intro(pb, &doc.intro_paragraphs);
+    emit_label_value_rows(pb, &doc.label_value_rows);
+
+    for table in &doc.tables {
+        emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+    }
+
+    emit_detail_records(pb, &doc.detail_records);
+
+    for p in &doc.closing_paragraphs {
+        if !p.trim().is_empty() {
+            pb.paragraph(p, 10, 84, 0);
+        }
+    }
+
+    emit_default_or_custom_signature(pb, doc);
+}
+
+// ---------------------------------------------------------------------------
+// REZEPT  (Muster-16-Stil — Privatrezept)
+// ---------------------------------------------------------------------------
+
+fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let lh = Letterhead {
+        praxis_lines: &doc.praxis_lines,
+        meta_rows: &meta_rows,
+        address_lines: &[],
+        header_right_lines: &[],
+        show_sender_hint: false,
+    };
+    emit_letterhead(pb, &lh);
+
+    // Großer "Rezept"-Titel links, ggf. Untertitel (Privatrezept / Kassenrezept / BtM)
+    pb.text(M_LEFT, 18, true, &doc.document_title);
+    pb.advance(22);
+    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.text(M_LEFT, 10, false, sub);
+        pb.advance(14);
+    }
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(18);
+
+    // Patientenpanel (zwei Spalten)
+    if let Some(ref tc) = doc.two_column {
+        emit_two_column_panel(pb, tc);
+    }
+
+    emit_label_value_rows(pb, &doc.label_value_rows);
+
+    // "Rp."-Marker dann Tabellen
+    if !doc.tables.is_empty() {
+        pb.advance(6);
+        pb.text(M_LEFT, 14, true, "Rp.");
+        pb.advance(16);
+        for table in &doc.tables {
+            emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+        }
+    }
+
+    render_intro(pb, &doc.intro_paragraphs);
+
+    for p in &doc.closing_paragraphs {
+        if !p.trim().is_empty() {
+            pb.paragraph(p, 10, 84, 0);
+        }
+    }
+
+    emit_default_or_custom_signature(pb, doc);
+}
+
+// ---------------------------------------------------------------------------
+// QUITTUNG  (GoBD-konform)
+// ---------------------------------------------------------------------------
+
+fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let lh = Letterhead {
+        praxis_lines: &doc.praxis_lines,
+        meta_rows: &meta_rows,
+        address_lines: &doc.address_lines,
+        header_right_lines: &[],
+        show_sender_hint: !doc.address_lines.is_empty(),
+    };
+    emit_letterhead(pb, &lh);
+
+    pb.text_center(15, true, &doc.document_title);
+    pb.advance(20);
+    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.text_center(11, false, sub);
+        pb.advance(14);
+    }
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(14);
+
+    render_intro(pb, &doc.intro_paragraphs);
+    emit_label_value_rows(pb, &doc.label_value_rows);
+
+    // Summen + Leistungstabelle als ein zusammenhängender Block (einheitliche Graustufe)
+    if let Some(table) = doc.tables.first() {
+        let cont = (
+            doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"),
+            doc.document_title.as_str(),
+        );
+        emit_quittung_totals_and_table(pb, &doc.totals, table, cont);
+        for extra in doc.tables.iter().skip(1) {
+            emit_table(pb, extra, cont);
+        }
+    } else {
+        emit_quittung_totals(pb, &doc.totals);
+    }
+
+    for p in &doc.closing_paragraphs {
+        if !p.trim().is_empty() {
+            pb.paragraph(p, 9, 90, 0);
+        }
+    }
+
+    emit_default_or_custom_signature(pb, doc);
+}
+
+// ---------------------------------------------------------------------------
+// GENERIC  (Fallback für unbekannten kind)
+// ---------------------------------------------------------------------------
+
+fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let lh = Letterhead {
+        praxis_lines: &doc.praxis_lines,
+        meta_rows: &meta_rows,
+        address_lines: &doc.address_lines,
+        header_right_lines: &doc.header_right_lines,
+        show_sender_hint: !doc.address_lines.is_empty(),
+    };
+    emit_letterhead(pb, &lh);
+
+    pb.text(M_LEFT, 14, true, &doc.document_title);
+    pb.advance(18);
+    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.text(M_LEFT, 10, false, sub);
+        pb.advance(14);
+    }
+
+    render_intro(pb, &doc.intro_paragraphs);
+    emit_label_value_rows(pb, &doc.label_value_rows);
+
+    if let Some(ref tc) = doc.two_column {
+        emit_two_column_panel(pb, tc);
+    }
+
+    for table in &doc.tables {
+        emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+    }
+
+    emit_detail_records(pb, &doc.detail_records);
+    emit_totals_block(pb, &doc.totals);
+
+    for p in &doc.closing_paragraphs {
+        if !p.trim().is_empty() {
+            pb.paragraph(p, 10, 84, 0);
+        }
+    }
+
+    emit_default_or_custom_signature(pb, doc);
+}
+
+// ===========================================================================
+// Bausteine
+// ===========================================================================
+
+fn render_intro(pb: &mut PageBuilder, paragraphs: &[String]) {
+    for p in paragraphs {
+        if p.trim().is_empty() {
+            pb.advance(6);
+            continue;
+        }
+        // Heuristik: Wenn das Element ein Doppelpunkt-Headline ist
+        // ("Hinweise:", "Diagnose:") UND kurz UND keine weiteren Doppelpunkte
+        // enthält, behandle es als Abschnittstitel.
+        let trimmed = p.trim_end();
+        let is_heading = trimmed.ends_with(':')
+            && trimmed.len() <= 40
+            && trimmed[..trimmed.len() - 1].chars().filter(|c| *c == ':').count() == 0;
+
+        if is_heading {
+            pb.ensure_space(40);
+            pb.advance(6);
+            pb.text(M_LEFT, 11, true, &trimmed[..trimmed.len() - 1]);
+            pb.advance(14);
+        } else {
+            pb.paragraph(p, 10, 84, 0);
+            pb.advance(3);
+        }
+    }
+}
+
+fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
+    for row in rows {
+        pb.ensure_space(36);
+        let multiline = row.value.contains('\n');
+        let compact = !multiline && row.value.chars().count() <= 70;
+
+        if compact {
+            pb.text(M_LEFT, 9, true, &format!("{}:", row.label));
+            pb.text(M_LEFT + 145, 10, false, row.value.trim());
+            pb.advance(14);
+        } else {
+            pb.text(M_LEFT, 9, true, &row.label);
+            pb.advance(12);
+            // Mehrzeilen-Werte: jede Zeile einzeln umbrechen, damit Zeilenstruktur
+            // erhalten bleibt
+            for raw in row.value.split('\n') {
+                if raw.trim().is_empty() {
+                    pb.advance(6);
+                    continue;
+                }
+                for chunk in wrap_de(raw, 84) {
+                    pb.ensure_space(30);
+                    pb.text(M_LEFT + 4, 10, false, &chunk);
+                    pb.advance(12);
+                }
+            }
+            pb.advance(6);
+        }
+    }
+}
+
+fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
+    pb.ensure_space(110);
+    let panel_h = 80;
+    let panel_bottom = pb.y - panel_h + 4;
+    let title_band_y = pb.y - 12;
+
+    // Rahmen
+    pb.stroke_rect(M_LEFT, panel_bottom, CONTENT_WIDTH, panel_h);
+    // Heller Titel-Streifen oben
+    pb.fill_rect(M_LEFT + 1, title_band_y, CONTENT_WIDTH - 2, 13, 0.94);
+
+    let mid_x = M_LEFT + CONTENT_WIDTH / 2;
+    let title_y = pb.y - 8;
+
+    // Titel
+    let prev_y = pb.y;
+    pb.y = title_y;
+    pb.text(M_LEFT + 8, 9, true, block.left_title.as_deref().unwrap_or("Patient:in"));
+    if let Some(t) = block.right_title.as_deref() {
+        pb.text(mid_x + 4, 9, true, t);
+    }
+    pb.y = prev_y;
+
+    // Linke Spalte
+    let mut yl = title_y - 14;
+    for line in &block.left_lines {
+        for chunk in wrap_soft(line, 36) {
+            pb.y = yl;
+            pb.text(M_LEFT + 10, 9, false, &chunk);
+            yl -= 11;
+        }
+    }
+
+    // Rechte Spalte
+    let mut yr = title_y - 14;
+    for line in &block.right_lines {
+        for chunk in wrap_soft(line, 36) {
+            pb.y = yr;
+            pb.text(mid_x + 6, 9, false, &chunk);
+            yr -= 11;
+        }
+    }
+
+    pb.y = panel_bottom - 12;
+}
+
+fn emit_table(pb: &mut PageBuilder, table: &PdfTableSpec, continuation: (&str, &str)) {
+    let ncol = table
+        .headers
+        .len()
+        .max(table.rows.iter().map(|r| r.len()).max().unwrap_or(0))
+        .max(1);
+    let col_xs = table_column_xs(table.column_layout, ncol);
+    let col_chars = column_char_widths(&col_xs);
+
+    if let Some(t) = table.title.as_deref().filter(|s| !s.is_empty()) {
+        pb.ensure_space(80);
+        pb.advance(4);
+        pb.text(M_LEFT, 11, true, t);
+        pb.advance(14);
+    }
+
+    pb.ensure_space(70);
+
+    // Tabellenkopf
+    pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
+    for (ci, h) in table.headers.iter().enumerate() {
+        let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+        pb.text(x + 2, 9, true, h);
+    }
+    pb.advance(13);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(10);
+
+    emit_table_data_rows(pb, table, &col_xs, &col_chars, continuation);
+}
+
+fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
+    for rec in records {
+        let detail_lines: usize = rec
+            .details
+            .iter()
+            .map(|d| wrap_soft(d, 80).len().max(1))
+            .sum();
+        let total_h = 14 + 24 + 14 + (detail_lines as i32 * 11) + 12;
+        pb.ensure_space(total_h);
+
+        let box_bottom = pb.y - total_h + 8;
+        pb.fill_rect(M_LEFT, box_bottom, CONTENT_WIDTH, total_h - 8, 0.97);
+
+        pb.advance(2);
+        pb.text(M_LEFT + 6, 9, true, "Art");
+        pb.advance(12);
+        for chunk in wrap_soft(&rec.art, 80) {
+            pb.text(M_LEFT + 6, 9, false, &chunk);
+            pb.advance(11);
+        }
+        pb.advance(2);
+
+        pb.text(M_LEFT + 6, 9, true, "Zeitraum");
+        pb.advance(12);
+        for chunk in wrap_soft(&rec.zeitraum, 80) {
+            pb.text(M_LEFT + 6, 9, false, &chunk);
+            pb.advance(11);
+        }
+        pb.advance(2);
+
+        pb.text(M_LEFT + 6, 9, true, "Details");
+        pb.advance(12);
+        for detail in &rec.details {
+            for chunk in wrap_soft(detail, 80) {
+                pb.text(M_LEFT + 6, 9, false, &chunk);
+                pb.advance(11);
+            }
+        }
+        pb.advance(8);
+    }
+}
+
+/// Einheitlicher Innenabstand in Quittungs-Tabellen (Summen + Kopf + Zeilen).
+const QUITTUNG_PAD: i32 = 10;
+const QUITTUNG_ROW_H: i32 = 14;
+const QUITTUNG_HEADER_H: i32 = 18;
+const QUITTUNG_BAND_GRAY: f64 = 0.93;
+
+fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
+    if totals.is_empty() {
+        return;
+    }
+    pb.ensure_space(60);
+    pb.advance(4);
+    let n = totals.len() as i32;
+    let band_h = n * QUITTUNG_ROW_H + 8;
+    let band_bottom = pb.y - band_h;
+    pb.fill_rect(M_LEFT, band_bottom, CONTENT_WIDTH, band_h, QUITTUNG_BAND_GRAY);
+    let mut y = pb.y - 4;
+    for (i, row) in totals.iter().enumerate() {
+        let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+        pb.y = y;
+        pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
+        pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
+        if i + 1 < totals.len() {
+            y -= QUITTUNG_ROW_H;
+        }
+    }
+    pb.y = band_bottom - 6;
+}
+
+/// Summenblock + Tabellenkopf in **einem** grauen Band (keine weiße Lücke dazwischen).
+fn emit_quittung_totals_and_table(
+    pb: &mut PageBuilder,
+    totals: &[LabelValue],
+    table: &PdfTableSpec,
+    continuation: (&str, &str),
+) {
+    let ncol = table
+        .headers
+        .len()
+        .max(table.rows.iter().map(|r| r.len()).max().unwrap_or(0))
+        .max(1);
+    let col_xs = table_column_xs(table.column_layout, ncol);
+    let col_chars = column_char_widths(&col_xs);
+
+    pb.ensure_space(90);
+
+    let totals_rows = totals.len() as i32;
+    let totals_h = if totals.is_empty() {
+        0
+    } else {
+        totals_rows * QUITTUNG_ROW_H + 8
+    };
+    let combined_h = totals_h + QUITTUNG_HEADER_H;
+
+    if !totals.is_empty() {
+        pb.advance(4);
+    }
+    let band_bottom = pb.y - combined_h;
+    pb.fill_rect(M_LEFT, band_bottom, CONTENT_WIDTH, combined_h, QUITTUNG_BAND_GRAY);
+
+    let mut y = pb.y - 4;
+    if !totals.is_empty() {
+        for (i, row) in totals.iter().enumerate() {
+            let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+            pb.y = y;
+            pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
+            pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
+            if i + 1 < totals.len() {
+                y -= QUITTUNG_ROW_H;
+            }
+        }
+    }
+
+    let header_baseline = if totals.is_empty() {
+        pb.y - 6
+    } else {
+        band_bottom + QUITTUNG_HEADER_H - 6
+    };
+    for (ci, h) in table.headers.iter().enumerate() {
+        let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+        pb.y = header_baseline;
+        pb.text(x + QUITTUNG_PAD, 9, true, h);
+    }
+
+    pb.y = band_bottom;
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(10);
+
+    emit_table_data_rows(pb, table, &col_xs, &col_chars, continuation);
+}
+
+/// Tabellenzeilen ohne erneutes Kopfband (nach [`emit_quittung_totals_and_table`]).
+fn emit_table_data_rows(
+    pb: &mut PageBuilder,
+    table: &PdfTableSpec,
+    col_xs: &[i32],
+    col_chars: &[usize],
+    continuation: (&str, &str),
+) {
+    let ncol = table
+        .headers
+        .len()
+        .max(table.rows.iter().map(|r| r.len()).max().unwrap_or(0))
+        .max(1);
+
+    for (ri, row) in table.rows.iter().enumerate() {
+        let mut wrapped: Vec<Vec<String>> = Vec::with_capacity(ncol);
+        let mut row_lines = 1usize;
+        for ci in 0..ncol {
+            let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
+            let max_chars = col_chars.get(ci).copied().unwrap_or(20);
+            let w = wrap_soft(cell, max_chars);
+            row_lines = row_lines.max(w.len().max(1));
+            wrapped.push(w);
+        }
+
+        let row_height = row_lines as i32 * 11 + 4;
+        if pb.y < M_BOTTOM + row_height + 20 {
+            pb.break_page();
+            emit_continuation_header(pb, continuation.0, continuation.1);
+            pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
+            for (ci, h) in table.headers.iter().enumerate() {
+                let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+                pb.text(x + QUITTUNG_PAD, 9, true, h);
+            }
+            pb.advance(13);
+            pb.hline(M_LEFT, M_RIGHT);
+            pb.advance(10);
+        }
+
+        if ri % 2 == 1 {
+            pb.fill_rect(M_LEFT, pb.y - row_height + 8, CONTENT_WIDTH, row_height, 0.97);
+        }
+
+        let base_y = pb.y;
+        for li in 0..row_lines {
+            for ci in 0..ncol {
+                let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+                let chunk = wrapped
+                    .get(ci)
+                    .and_then(|w| w.get(li))
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                if !chunk.is_empty() {
+                    let prev = pb.y;
+                    pb.y = base_y - li as i32 * 11;
+                    pb.text(x + QUITTUNG_PAD, 9, false, chunk);
+                    pb.y = prev;
+                }
+            }
+        }
+        pb.advance(row_height);
+    }
+    pb.advance(8);
+}
+
+fn emit_totals_block(pb: &mut PageBuilder, totals: &[LabelValue]) {
+    if totals.is_empty() {
+        return;
+    }
+    pb.ensure_space(40 + totals.len() as i32 * 14);
+    pb.advance(8);
+    pb.hline(300, M_RIGHT);
+    pb.advance(3);
+    pb.hline(300, M_RIGHT);
+    pb.advance(14);
+    for row in totals {
+        let bold = row.label.contains("Endbetrag") || row.label.contains("Gesamt");
+        pb.text_right(380, 10, bold, &format!("{}:", row.label));
+        pb.text_right(M_RIGHT, 10, bold, &row.value);
+        pb.advance(14);
+    }
+    pb.advance(8);
+}
+
+/// Wenn `signature_lines` befüllt sind, nutze diese Zeilen direkt;
+/// sonst nutze den Standard-Unterschriftsblock aus `behandler_*`-Feldern.
+fn emit_default_or_custom_signature(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+    if doc.signature_lines.is_empty() {
+        // Kein Custom-Block — Standard-Unterschriftsblock. Der Behandler-Name
+        // steht in diesem Pfad nicht separat zur Verfügung; nur Berufs-
+        // bezeichnung, ZANR und BSNR werden ausgegeben.
+        emit_signature_block(
+            pb,
+            None,
+            doc.behandler_berufsbezeichnung.as_deref(),
+            doc.behandler_zanr.as_deref(),
+            doc.behandler_bsnr.as_deref(),
+            true,
+        );
+        emit_footer_meta(pb, &doc.footer_meta_lines);
+        return;
+    }
+
+    // Custom signature lines
+    pb.ensure_space(80);
+    pb.advance(20);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(20);
+    pb.hline_at(M_LEFT, pb.y, M_LEFT + 180);
+    pb.advance(14);
+    for (i, line) in doc.signature_lines.iter().enumerate() {
+        let bold = i == 0;
+        let size = if i == 0 { 10 } else { 9 };
+        pb.text(M_LEFT, size, bold, line);
+        pb.advance(size + 2);
+    }
+    pb.advance(4);
+    pb.text(M_LEFT, 8, false, "(Praxisstempel)");
+
+    emit_footer_meta(pb, &doc.footer_meta_lines);
+}
+
+fn emit_footer_meta(pb: &mut PageBuilder, meta: &[LabelValue]) {
+    if meta.is_empty() {
+        return;
+    }
+    // Stelle sicher, dass die Meta-Zeilen unter den Unterschriftsblock kommen
+    pb.advance(10);
+    for row in meta {
+        pb.text(M_LEFT, 8, false, &row.label);
+        pb.text_right(M_RIGHT, 9, false, &row.value);
+        pb.advance(12);
+    }
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn praxis() -> Vec<String> {
+        vec![
+            "Zahnarztpraxis Dr. Test".into(),
+            "Teststraße 1".into(),
+            "10115 Berlin".into(),
+            "Tel: 030/12345".into(),
+        ]
+    }
+
+    fn meta() -> Vec<LabelValue> {
+        vec![
+            LabelValue { label: "Datum".into(), value: "19.04.2026".into() },
+            LabelValue { label: "Dokument-Nr.".into(), value: "AT-001".into() },
+        ]
+    }
+
+    #[test]
+    fn renders_attest() {
+        let doc = ClinicalPdfLayout {
+            kind: "attest".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: meta(),
+            address_lines: vec!["Max Mustermann".into(), "Musterstr. 1".into()],
+            document_title: "ÄRZTLICHES ATTEST".into(),
+            document_subtitle: Some("Arbeitsunfähigkeitsbescheinigung".into()),
+            intro_paragraphs: vec![
+                "Hiermit wird bescheinigt, dass die unten genannte Person …".into(),
+            ],
+            label_value_rows: vec![
+                LabelValue { label: "Patient:in".into(), value: "Max Mustermann".into() },
+                LabelValue { label: "Geburtsdatum".into(), value: "01.01.1980".into() },
+                LabelValue { label: "ICD-10".into(), value: "K02.1 — Karies des Dentins".into() },
+            ],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec!["Ort, Datum: Berlin, 19.04.2026".into()],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: Some("Zahnärztin".into()),
+            behandler_zanr: Some("987654321".into()),
+            behandler_bsnr: Some("123456789".into()),
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        assert!(pdf.ends_with(b"%%EOF\n"));
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("ATTEST") || text.contains("\\304"));
+    }
+
+    #[test]
+    fn renders_rezept_with_two_column_panel() {
+        let doc = ClinicalPdfLayout {
+            kind: "rezept".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: meta(),
+            address_lines: vec![],
+            document_title: "Rezept".into(),
+            document_subtitle: Some("Privatrezept".into()),
+            intro_paragraphs: vec![],
+            label_value_rows: vec![
+                LabelValue { label: "Verordnungsdatum".into(), value: "19.04.2026".into() },
+            ],
+            two_column: Some(TwoColumnBlock {
+                left_title: Some("Patient:in".into()),
+                left_lines: vec![
+                    "Max Mustermann".into(),
+                    "geb. 01.01.1980".into(),
+                    "Musterstr. 1, 10115 Berlin".into(),
+                ],
+                right_title: Some("Krankenkasse".into()),
+                right_lines: vec!["AOK Nordost".into(), "IK 109 519 005".into()],
+            }),
+            tables: vec![PdfTableSpec {
+                title: None,
+                headers: vec![
+                    "Medikament".into(),
+                    "Dosierung".into(),
+                    "Dauer".into(),
+                    "PZN".into(),
+                    "Hinweis".into(),
+                ],
+                rows: vec![vec![
+                    "Ibuprofen 600".into(),
+                    "1-1-1".into(),
+                    "5 Tage".into(),
+                    "12345678".into(),
+                    "aut idem".into(),
+                ]],
+                column_layout: TableColumnLayout::Rezept,
+            }],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: Some("Zahnarzt".into()),
+            behandler_zanr: Some("987654321".into()),
+            behandler_bsnr: Some("123456789".into()),
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn renders_quittung() {
+        let doc = ClinicalPdfLayout {
+            kind: "quittung".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: vec![
+                LabelValue { label: "Quittung-Nr.".into(), value: "QU-2026-0001".into() },
+                LabelValue { label: "Datum".into(), value: "19.04.2026".into() },
+            ],
+            address_lines: vec!["Max Mustermann".into()],
+            document_title: "QUITTUNG".into(),
+            document_subtitle: Some("Zahlungsbeleg".into()),
+            intro_paragraphs: vec![
+                "Hiermit bestätigen wir den Erhalt des unten ausgewiesenen Betrages.".into(),
+            ],
+            label_value_rows: vec![
+                LabelValue { label: "Zahlungsart".into(), value: "Barzahlung".into() },
+                LabelValue { label: "Leistung".into(), value: "Kontrolluntersuchung".into() },
+            ],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![],
+            totals: vec![
+                LabelValue { label: "Gesamtbetrag".into(), value: "45,00 €".into() },
+            ],
+            closing_paragraphs: vec![
+                "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG.".into(),
+                "Betrag dankend erhalten.".into(),
+            ],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: None,
+            behandler_zanr: None,
+            behandler_bsnr: None,
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("QUITTUNG") || text.contains("Quittung") || text.contains("\\321"));
+    }
+
+    #[test]
+    fn unknown_kind_falls_back_to_generic() {
+        let doc = ClinicalPdfLayout {
+            kind: "unknown_type".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: vec![],
+            address_lines: vec![],
+            document_title: "Sonstiges Dokument".into(),
+            document_subtitle: None,
+            intro_paragraphs: vec!["Inhalt".into()],
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: None,
+            behandler_zanr: None,
+            behandler_bsnr: None,
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn table_with_long_cells_wraps_within_columns() {
+        let doc = ClinicalPdfLayout {
+            kind: "attest".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: vec![],
+            address_lines: vec![],
+            document_title: "Test".into(),
+            document_subtitle: None,
+            intro_paragraphs: vec![],
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![PdfTableSpec {
+                title: Some("Befunde".into()),
+                headers: vec!["Zahn".into(), "Befund".into(), "Notiz".into()],
+                rows: vec![vec![
+                    "21".into(),
+                    "Erhebliche Karies an der mesialen Approximalfläche \
+                     mit vermutlich pulpennaher Tiefe".into(),
+                    "Röntgen empfohlen".into(),
+                ]],
+                column_layout: TableColumnLayout::Even,
+            }],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: None,
+            behandler_zanr: None,
+            behandler_bsnr: None,
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn detail_records_box_sizes_to_content() {
+        let doc = ClinicalPdfLayout {
+            kind: "attest".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: vec![],
+            address_lines: vec![],
+            document_title: "Test".into(),
+            document_subtitle: None,
+            intro_paragraphs: vec![],
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![DetailRecord {
+                art: "Arbeitsunfähigkeit".into(),
+                zeitraum: "19.04.2026 – 23.04.2026".into(),
+                details: vec![
+                    "Postoperative Wundheilung nach Weisheitszahn-Operation 38".into(),
+                    "Körperliche Schonung empfohlen".into(),
+                ],
+            }],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: None,
+            behandler_zanr: None,
+            behandler_bsnr: None,
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn multi_page_quittung_renders() {
+        // Erzeuge viele intro_paragraphs, um Seitenumbruch zu erzwingen
+        let mut intros = Vec::new();
+        for i in 0..40 {
+            intros.push(format!(
+                "Absatz Nummer {i}: lorem ipsum dolor sit amet, consectetur \
+                 adipiscing elit. Sed do eiusmod tempor incididunt ut labore et \
+                 dolore magna aliqua."
+            ));
+        }
+        let doc = ClinicalPdfLayout {
+            kind: "quittung".into(),
+            praxis_lines: praxis(),
+            header_right_lines: vec![],
+            meta_lines: meta(),
+            address_lines: vec!["Empfänger".into()],
+            document_title: "QUITTUNG".into(),
+            document_subtitle: None,
+            intro_paragraphs: intros,
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![],
+            totals: vec![
+                LabelValue { label: "Gesamt".into(), value: "100,00 €".into() },
+            ],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            behandler_berufsbezeichnung: None,
+            behandler_zanr: None,
+            behandler_bsnr: None,
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        // Sollte mehrere /Page-Objekte enthalten
+        let page_objs = text.matches("/Type /Page ").count();
+        assert!(page_objs >= 2, "expected multi-page PDF, got {} pages", page_objs);
+    }
+}

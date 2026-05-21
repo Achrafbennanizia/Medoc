@@ -11,6 +11,12 @@ export function uhrzeitToMinutes(u: string): number {
     return h * 60 + m;
 }
 
+export function minutesToUhrzeit(min: number): string {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 function hmStringToMinutes(s: string | null | undefined): number | null {
     if (!s?.trim()) return null;
     const t = s.trim();

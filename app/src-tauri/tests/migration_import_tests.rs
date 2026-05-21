@@ -1,9 +1,8 @@
 // CSV patient import (FA-MIG-01): validation, dates, duplicates, dry-run.
 
 use medoc_lib::error::AppError;
-use medoc_lib::infrastructure::database::connection::run_migrations;
+use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use medoc_lib::infrastructure::migration::import_patients;
-use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 
 fn temp_csv(contents: &str) -> PathBuf {
@@ -17,11 +16,7 @@ fn temp_csv(contents: &str) -> PathBuf {
 }
 
 async fn migrated_pool() -> sqlx::SqlitePool {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(2)
-        .connect("sqlite::memory:")
-        .await
-        .expect("pool");
+    let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");
     pool
 }

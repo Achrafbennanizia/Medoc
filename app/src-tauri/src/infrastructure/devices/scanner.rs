@@ -105,7 +105,8 @@ pub fn attach_to_vertrag(
         stem,
     );
     let target = target_dir.join(unique);
-    std::fs::copy(src, &target).map_err(|e| AppError::Internal(format!("vertrag-doc copy: {e}")))?;
+    std::fs::copy(src, &target)
+        .map_err(|e| AppError::Internal(format!("vertrag-doc copy: {e}")))?;
     log_device!(info, event = "VERTRAG_DOC_ATTACHED", vertrag_id = %vertrag_id, path = %target.display());
     Ok(target)
 }

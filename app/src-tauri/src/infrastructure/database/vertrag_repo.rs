@@ -37,10 +37,7 @@ pub async fn list_all(pool: &SqlitePool) -> Result<Vec<VertragRow>, AppError> {
     Ok(rows)
 }
 
-pub async fn upsert(
-    pool: &SqlitePool,
-    row: &VertragRow,
-) -> Result<(), AppError> {
+pub async fn upsert(pool: &SqlitePool, row: &VertragRow) -> Result<(), AppError> {
     sqlx::query(
         "INSERT INTO vertrag (id, bezeichnung, partner, betrag, intervall, unbefristet, periode_von, periode_bis, created_at, dokument_pfad)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)

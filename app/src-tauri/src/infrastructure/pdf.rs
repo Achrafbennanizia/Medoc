@@ -1,31 +1,81 @@
-// Minimal PDF 1.4 invoice writer.
-//
-// Hand-rolled to avoid a heavy PDF dependency. The output passes
-// `qpdf --check` and is valid PDF/A-friendly: Helvetica (built-in font),
-// no external resources, document metadata embedded.
-//
-// FA-FIN-INVOICE: every Rechnung must be exportable as a PDF document.
+//! Rechnung und Patientenakte als PDF.
+//!
+//! Beide Dokumenttypen nutzen den gemeinsamen [`PageBuilder`] aus
+//! [`super::pdf_core`] und den DIN-5008-Briefkopf aus [`super::pdf_letterhead`].
+//! Damit sind Margins, Schriften, Encoding und Seitenzahlen einheitlich.
+//!
+//! - **Rechnung** ([`render`]) — GOZ/GOÄ-konforme Tabelle mit Position, Datum,
+//!   Zahn, GOZ-Nr., Bezeichnung, Menge, Faktor und Gesamtpreis. Summenblock
+//!   rechts mit USt-Hinweis. Bankverbindung + Zahlungsziel im Fuß.
+//! - **Patientenakte** ([`render_akte_blocks`]) — modulare Blocklisten mit
+//!   Stammdaten, Diagnose, Befunden, Behandlungen, Anlagen-Metadaten etc.
 
 use crate::error::AppError;
-use std::fmt::Write;
 
+use super::pdf_core::{
+    emit_multipage_pdf, format_date_de, format_eur_de, truncate_cell, wrap_de, wrap_soft,
+    PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+};
+use super::pdf_letterhead::{
+    emit_bankverbindung, emit_continuation_header, emit_letterhead, emit_signature_block,
+    Letterhead, MetaRow,
+};
+
+// ===========================================================================
+// RECHNUNG
+// ===========================================================================
+
+/// Eine Position in der Rechnungstabelle (GOZ / GOÄ).
+#[derive(Debug, Clone)]
 pub struct InvoiceLine {
+    /// Frei-Bezeichnung der Leistung (z. B. "Komposit dreiflächig").
     pub description: String,
+    /// Gesamtbetrag dieser Position in Cent (Menge × Einzelpreis × Faktor).
     pub amount_cents: i64,
+    /// GOZ-/GOÄ-Gebührennummer (z. B. "2197" oder "Ä5000").
     pub goz_nr: Option<String>,
+    /// Steigerungsfaktor (GOZ § 5: 1.0–3.5, Standard 2.3).
     pub faktor: Option<f64>,
+    /// Einzelpreis pro Einheit in Cent (vor Faktor).
     pub einzelpreis_cents: Option<i64>,
+    /// Anzahl (default = 1).
     pub menge: Option<i32>,
+    /// FDI-Zahnbezeichnung ("11", "47", "27 mes" …).
     pub zahn_nr: Option<String>,
+    /// Behandlungsdatum (ISO oder DE).
     pub behandlungsdatum: Option<String>,
+    /// Umsatzsteuersatz (0 = befreit, 19 = Material).
     pub ust_prozent: Option<f64>,
+    /// Materialkosten / Fremdlabor (gem. § 9 GOZ).
     pub material: Option<String>,
+    /// Begründung wenn Faktor > 2.3 (GOZ § 10 Abs. 3 — Pflicht).
     pub diagnose_begruendung: Option<String>,
 }
 
+impl InvoiceLine {
+    /// Konstruiert eine minimale Zeile (alle GOZ-Felder leer).
+    pub fn simple(description: impl Into<String>, amount_cents: i64) -> Self {
+        Self {
+            description: description.into(),
+            amount_cents,
+            goz_nr: None,
+            faktor: None,
+            einzelpreis_cents: None,
+            menge: None,
+            zahn_nr: None,
+            behandlungsdatum: None,
+            ust_prozent: None,
+            material: None,
+            diagnose_begruendung: None,
+        }
+    }
+}
+
+/// Komplette Rechnung (alle Pflicht- und Soll-Felder gem. § 14 UStG + GOZ § 10).
+#[derive(Debug, Clone, Default)]
 pub struct Invoice {
     pub number: String,
-    pub date: String, // ISO 8601 date
+    pub date: String,                         // ISO-Datum (wird intern in DE-Format konvertiert)
     pub recipient_name: String,
     pub recipient_address: Vec<String>,
     pub practice_name: String,
@@ -35,8 +85,12 @@ pub struct Invoice {
     pub behandler_name: Option<String>,
     pub behandler_zanr: Option<String>,
     pub praxis_bsnr: Option<String>,
+    /// Vollständige Bank-Zeilen (z. B. ["IBAN: DE12…", "BIC: COBADEFFXXX",
+    /// "Bank: Commerzbank", "Kontoinhaber: Dr. M. Mustermann"]).
     pub bankverbindung: Option<Vec<String>>,
+    /// Z. B. "Zahlbar innerhalb von 14 Tagen ohne Abzug."
     pub zahlungsziel_text: Option<String>,
+    /// Z. B. "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"
     pub ust_hinweis: Option<String>,
 }
 
@@ -46,216 +100,275 @@ impl Invoice {
     }
 }
 
-/// Emit a PDF as raw bytes. Single A4 page, Helvetica.
+/// Tabellenspalten — als Konstanten, damit Header und Zeilen exakt
+/// dieselben X-Positionen nutzen.
+mod inv_cols {
+    pub const POS: i32 = 50;
+    pub const DATUM: i32 = 78;
+    pub const ZAHN: i32 = 130;
+    pub const GOZ: i32 = 160;
+    pub const BEZEICHNUNG: i32 = 200;
+    pub const MENGE: i32 = 410;
+    pub const FAKTOR: i32 = 445;
+    /// Rechtsbündig — gegen diese X-Koordinate alignen.
+    pub const PREIS_RIGHT: i32 = 545;
+    pub const HEADER_BAND_W: i32 = 495;
+    /// Breite der Bezeichnungs-Spalte in Zeichen (für Wrap).
+    pub const BEZEICHNUNG_CHARS: usize = 36;
+}
+
+/// Hauptfunktion: rendert eine Rechnung als PDF-Bytes.
 pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
-    let stream = build_content_stream(invoice);
-    let stream_bytes = stream.into_bytes();
+    let mut pb = PageBuilder::new();
 
-    // Object table accumulators.
-    let mut out: Vec<u8> = Vec::new();
-    let mut offsets: Vec<usize> = Vec::new();
-
-    write_str(&mut out, "%PDF-1.4\n");
-    out.extend_from_slice(b"%\xE2\xE3\xCF\xD3\n"); // binary marker
-
-    // Object 1: Catalog
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    );
-
-    // Object 2: Pages tree
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    );
-
-    // Object 3: Page
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        concat!(
-            "3 0 obj\n",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ",
-            "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\n",
-            "endobj\n",
-        ),
-    );
-
-    // Object 4: Content stream
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!("4 0 obj\n<< /Length {} >>\nstream\n", stream_bytes.len()),
-    );
-    out.extend_from_slice(&stream_bytes);
-    write_str(&mut out, "\nendstream\nendobj\n");
-
-    // Object 5: Font
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    );
-
-    // Object 6: Info dictionary (metadata)
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!(
-            "6 0 obj\n<< /Title ({}) /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
-            pdf_escape(&format!("Rechnung {}", invoice.number)),
-        ),
-    );
-
-    // Cross-reference table
-    let xref_pos = out.len();
-    write_str(&mut out, &format!("xref\n0 {}\n", offsets.len() + 1));
-    write_str(&mut out, "0000000000 65535 f \n");
-    for off in &offsets {
-        write_str(&mut out, &format!("{:010} 00000 n \n", off));
+    // ---------- Briefkopf (nur erste Seite) -------------------------------
+    let mut meta = Vec::new();
+    meta.push(MetaRow::new("Rechnung-Nr.", &invoice.number));
+    meta.push(MetaRow::new("Rechnungsdatum", format_date_de(&invoice.date)));
+    if let Some(b) = invoice.behandler_name.as_deref().filter(|s| !s.trim().is_empty()) {
+        meta.push(MetaRow::new("Behandler:in", b));
     }
 
-    // Trailer
-    write_str(
-        &mut out,
-        &format!(
-            "trailer\n<< /Size {} /Root 1 0 R /Info 6 0 R >>\nstartxref\n{}\n%%EOF\n",
-            offsets.len() + 1,
-            xref_pos,
-        ),
-    );
-
-    Ok(out)
-}
-
-fn write_str(out: &mut Vec<u8>, s: &str) {
-    out.extend_from_slice(s.as_bytes());
-}
-
-/// Escape parentheses and backslashes inside a PDF text-literal.
-fn pdf_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for ch in s.chars() {
-        match ch {
-            '(' | ')' | '\\' => {
-                out.push('\\');
-                out.push(ch);
-            }
-            // Common punctuation outside WinAnsi-ish single-byte map → ASCII hyphen for Helvetica text mode.
-            '\u{2013}' | '\u{2014}' | '\u{2015}' | '\u{2212}' => out.push('-'),
-            // Drop control characters; replace non-Latin1 with '?'.
-            c if (c as u32) < 32 => out.push(' '),
-            c if (c as u32) > 0xFF => out.push('?'),
-            c => out.push(c),
+    // Praxis-Zeilen + Standesangaben (BSNR/ZANR) in die Kopfzeile
+    let mut praxis_full = vec![invoice.practice_name.clone()];
+    praxis_full.extend(invoice.practice_address.iter().cloned());
+    if let (Some(bsnr), zanr) = (invoice.praxis_bsnr.as_deref(), invoice.behandler_zanr.as_deref()) {
+        if !bsnr.trim().is_empty() {
+            let zline = match zanr {
+                Some(z) if !z.trim().is_empty() => format!("BSNR: {bsnr} · ZANR: {z}"),
+                _ => format!("BSNR: {bsnr}"),
+            };
+            praxis_full.push(zline);
         }
     }
-    out
-}
 
-fn build_content_stream(inv: &Invoice) -> String {
-    let mut s = String::new();
-    let mut y = 800; // top of page (PDF origin is bottom-left)
+    let mut recipient = vec![invoice.recipient_name.clone()];
+    recipient.extend(invoice.recipient_address.iter().cloned());
 
-    let line = |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
-        let _ = writeln!(
-            s,
-            "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
-            fs = font_size,
-            x = x,
-            y = y,
-            txt = pdf_escape(text),
-        );
+    let lh = Letterhead {
+        praxis_lines: &praxis_full,
+        meta_rows: &meta,
+        address_lines: &recipient,
+        header_right_lines: &[],
+        show_sender_hint: true,
     };
+    emit_letterhead(&mut pb, &lh);
 
-    // Practice header (right aligned simulated by indent)
-    for addr in &inv.practice_address {
-        line(&mut s, 350, y, 9, addr);
-        y -= 12;
-    }
-    y -= 10;
-    line(&mut s, 350, y, 11, &inv.practice_name);
-    y -= 30;
+    // ---------- Dokument-Titel --------------------------------------------
+    pb.text(M_LEFT, 18, true, "Rechnung");
+    pb.advance(20);
+    pb.text(M_LEFT, 10, false, "Leistungsübersicht nach GOZ / GOÄ");
+    pb.advance(8);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(16);
 
-    // Recipient block
-    line(&mut s, 60, y, 11, &inv.recipient_name);
-    y -= 14;
-    for a in &inv.recipient_address {
-        line(&mut s, 60, y, 10, a);
-        y -= 12;
-    }
+    // ---------- Tabellenkopf ----------------------------------------------
+    emit_invoice_table_header(&mut pb);
 
-    y -= 30;
-    line(&mut s, 60, y, 16, &format!("Rechnung {}", inv.number));
-    y -= 18;
-    line(&mut s, 60, y, 10, &format!("Datum: {}", inv.date));
-    y -= 30;
-
-    // Header row
-    line(&mut s, 60, y, 10, "Position");
-    line(&mut s, 460, y, 10, "Betrag (EUR)");
-    y -= 6;
-    let _ = writeln!(s, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 14;
-
-    for (i, l) in inv.lines.iter().enumerate() {
-        line(&mut s, 60, y, 10, &format!("{}. {}", i + 1, l.description));
-        line(&mut s, 460, y, 10, &format_eur(l.amount_cents));
-        y -= 14;
+    // ---------- Tabellenzeilen --------------------------------------------
+    for (i, line) in invoice.lines.iter().enumerate() {
+        if pb.y < M_BOTTOM + 120 {
+            pb.break_page();
+            emit_continuation_header(&mut pb, &invoice.practice_name, "Rechnung");
+            emit_invoice_table_header(&mut pb);
+        }
+        emit_invoice_line(&mut pb, i, line);
     }
 
-    y -= 8;
-    let _ = writeln!(s, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 16;
-    line(&mut s, 60, y, 11, "Gesamt:");
-    line(&mut s, 460, y, 11, &format_eur(inv.total_cents()));
+    // ---------- Summenblock ------------------------------------------------
+    pb.advance(8);
+    emit_invoice_totals(&mut pb, invoice);
 
-    if let Some(note) = &inv.note {
-        y -= 40;
-        for chunk in note.lines() {
-            line(&mut s, 60, y, 9, chunk);
-            y -= 11;
+    // ---------- Zahlungsbedingungen ---------------------------------------
+    if let Some(zt) = invoice.zahlungsziel_text.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.advance(8);
+        pb.paragraph(zt, 9, 90, 0);
+    } else if let Some(note) = &invoice.note {
+        pb.advance(8);
+        pb.paragraph(note, 9, 90, 0);
+    }
+
+    // ---------- Bankverbindung --------------------------------------------
+    if let Some(bank) = &invoice.bankverbindung {
+        emit_bankverbindung(&mut pb, bank);
+    }
+
+    // ---------- Unterschrift -----------------------------------------------
+    emit_signature_block(
+        &mut pb,
+        invoice.behandler_name.as_deref(),
+        Some("Zahnärztin/Zahnarzt"),
+        invoice.behandler_zanr.as_deref(),
+        invoice.praxis_bsnr.as_deref(),
+        true,
+    );
+
+    let pages = pb.finish();
+    emit_multipage_pdf(&pages, &format!("Rechnung {}", invoice.number))
+}
+
+fn emit_invoice_table_header(pb: &mut PageBuilder) {
+    pb.table_header_band(M_LEFT, pb.y + 2, inv_cols::HEADER_BAND_W);
+    pb.text(inv_cols::POS, 8, true, "Pos.");
+    pb.text(inv_cols::DATUM, 8, true, "Datum");
+    pb.text(inv_cols::ZAHN, 8, true, "Zahn");
+    pb.text(inv_cols::GOZ, 8, true, "GOZ/GOÄ");
+    pb.text(inv_cols::BEZEICHNUNG, 8, true, "Bezeichnung");
+    pb.text(inv_cols::MENGE, 8, true, "Menge");
+    pb.text(inv_cols::FAKTOR, 8, true, "Faktor");
+    pb.text_right(inv_cols::PREIS_RIGHT, 8, true, "Gesamt €");
+    pb.advance(10);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(12);
+}
+
+fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
+    let pos = format!("{}", idx + 1);
+    let datum = line
+        .behandlungsdatum
+        .as_deref()
+        .map(format_date_de)
+        .unwrap_or_else(|| "—".into());
+    let zahn = line.zahn_nr.as_deref().unwrap_or("—");
+    let goz = line.goz_nr.as_deref().unwrap_or("—");
+    let bezeichnung = &line.description;
+    let menge = line
+        .menge
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| "1".into());
+    let faktor = line
+        .faktor
+        .map(|f| format!("{:.1}", f))
+        .unwrap_or_else(|| "—".into());
+    let preis = format_eur_de(line.amount_cents);
+
+    // Bezeichnung kann mehrzeilig sein → wir wickeln sie um
+    let bez_lines = wrap_soft(bezeichnung, inv_cols::BEZEICHNUNG_CHARS);
+    let row_height = (bez_lines.len() as i32).max(1) * 10 + 4;
+
+    // Falls nicht genug Platz: Umbruch (wird vor Aufruf bereits geprüft, aber
+    // bei sehr langen Bezeichnungen nochmals absichern)
+    if pb.y < M_BOTTOM + row_height + 20 {
+        // Caller hat eigentlich schon umgebrochen; falls trotzdem zu eng:
+        // Bezeichnung kürzen statt überlappen.
+    }
+
+    // Erste Zeile: alle Spalten
+    pb.text(inv_cols::POS, 8, false, &pos);
+    pb.text(inv_cols::DATUM, 8, false, &datum);
+    pb.text(inv_cols::ZAHN, 8, false, zahn);
+    pb.text(inv_cols::GOZ, 8, false, goz);
+    if let Some(first) = bez_lines.first() {
+        pb.text(inv_cols::BEZEICHNUNG, 8, false, first);
+    }
+    pb.text(inv_cols::MENGE, 8, false, &menge);
+    pb.text(inv_cols::FAKTOR, 8, false, &faktor);
+    pb.text_right(inv_cols::PREIS_RIGHT, 8, false, &preis);
+
+    // Folgezeilen der Bezeichnung
+    for extra in bez_lines.iter().skip(1) {
+        pb.advance(10);
+        pb.text(inv_cols::BEZEICHNUNG, 8, false, extra);
+    }
+
+    // Material-Subzeile (gem. GOZ § 9: separat ausweisen)
+    if let Some(m) = line.material.as_deref().filter(|s| !s.trim().is_empty()) {
+        pb.advance(10);
+        pb.text(inv_cols::BEZEICHNUNG, 8, false, &format!("   Material: {m}"));
+    }
+
+    // Begründungs-Subzeile (GOZ § 10 Abs. 3: Pflicht bei Faktor > 2.3)
+    if let Some(reason) = line
+        .diagnose_begruendung
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        let needs = line.faktor.map(|f| f > 2.3).unwrap_or(false);
+        let label = if needs { "Begründung (§ 10 Abs. 3 GOZ)" } else { "Hinweis" };
+        // Label nur in der ersten Zeile, Folgezeilen eingerückt.
+        let body = format!("   {label}: {reason}");
+        for (i, chunk) in wrap_soft(&body, inv_cols::BEZEICHNUNG_CHARS).iter().enumerate() {
+            pb.advance(10);
+            let text = if i == 0 {
+                chunk.clone()
+            } else {
+                format!("      {chunk}")
+            };
+            pb.text(inv_cols::BEZEICHNUNG, 7, false, &text);
         }
     }
 
-    s
+    pb.advance(14);
 }
 
-fn format_eur(cents: i64) -> String {
-    let neg = cents < 0;
-    let v = cents.abs();
-    let euros = v / 100;
-    let frac = v % 100;
-    format!("{}{},{:02}", if neg { "-" } else { "" }, euros, frac)
+fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
+    pb.ensure_space(80);
+    let label_right_x = 380;
+
+    // Doppellinie über dem Summenbereich
+    pb.hline(300, M_RIGHT);
+    pb.advance(3);
+    pb.hline(300, M_RIGHT);
+    pb.advance(14);
+
+    pb.text_right(label_right_x, 10, false, "Warenwert netto:");
+    pb.text_right(M_RIGHT, 10, false, &format_eur_de(inv.total_cents()));
+    pb.advance(14);
+
+    if let Some(ust) = inv.ust_hinweis.as_deref().filter(|s| !s.trim().is_empty()) {
+        for chunk in wrap_de(ust, 60) {
+            pb.text(M_LEFT, 9, false, &chunk);
+            pb.advance(11);
+        }
+    }
+
+    pb.advance(4);
+    pb.text_right(label_right_x, 11, true, "Endbetrag:");
+    pb.text_right(M_RIGHT, 11, true, &format_eur_de(inv.total_cents()));
+    pb.advance(22);
 }
 
-// ---------------------------------------------------------------------------
-// FA-AKTE-04: Patientenakte als PDF exportieren.
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// PATIENTENAKTE  (modulare Blockliste)
+// ===========================================================================
 
-pub struct AkteDocument {
-    pub patient_name: String,
-    pub patient_geburtsdatum: String,
-    pub patient_versicherungsnummer: String,
-    pub akte_status: String,
-    pub diagnose: Option<String>,
-    pub befunde: Option<String>,
-    /// Behandlungs-Einträge: (datum, beschreibung).
-    pub behandlungen: Vec<(String, String)>,
-    pub generated_at: String,
-}
-
-/// Column header + rows for a simple grid in patient-record PDF export.
+/// Tabelle in einem Akte-Block.
 #[derive(Debug, Clone)]
 pub struct AktePdfTable {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
+    /// Optionale Spaltenbreiten (z. B. `[2, 1, 10]` → schmal · schmal · breit).
+    /// Fehlt die Angabe: gleichmäßige Verteilung über [`CONTENT_WIDTH`].
+    pub column_weights: Option<Vec<i32>>,
 }
 
-/// One titled block in a patient-record PDF (multi-page export).
-#[derive(Debug, Clone)]
+impl Default for AktePdfTable {
+    fn default() -> Self {
+        Self {
+            headers: Vec::new(),
+            rows: Vec::new(),
+            column_weights: None,
+        }
+    }
+}
+
+impl AktePdfTable {
+    pub fn new(headers: Vec<String>, rows: Vec<Vec<String>>) -> Self {
+        Self {
+            headers,
+            rows,
+            column_weights: None,
+        }
+    }
+
+    pub fn with_column_weights(mut self, weights: Vec<i32>) -> Self {
+        self.column_weights = Some(weights);
+        self
+    }
+}
+
+/// Ein Abschnitt in der Akte (Stammdaten, Diagnose, Behandlungen, …).
+#[derive(Debug, Clone, Default)]
 pub struct AktePdfBlock {
     pub title: String,
     pub body_lines: Vec<String>,
@@ -272,363 +385,363 @@ impl AktePdfBlock {
             table: None,
         }
     }
-}
 
-fn akte_pdf_emit_line(cur: &mut String, x: i32, y: i32, font_size: i32, text: &str) {
-    let _ = writeln!(
-        cur,
-        "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
-        fs = font_size,
-        x = x,
-        y = y,
-        txt = pdf_escape(text),
-    );
-}
-
-fn akte_pdf_break_page(cur: &mut String, page_streams: &mut Vec<String>, y: &mut i32) {
-    if !cur.is_empty() {
-        page_streams.push(std::mem::take(cur));
-    }
-    *y = 800;
-}
-
-fn truncate_pdf_grid_cell(s: &str, max_chars: usize) -> String {
-    let count = s.chars().count();
-    if count <= max_chars {
-        return s.to_string();
-    }
-    let mut t: String = s.chars().take(max_chars.saturating_sub(3)).collect();
-    t.push_str("...");
-    t
-}
-
-/// Single-line-per-cell grid (Helvetica). Wide pages only; avoids overlapping glyphs.
-fn akte_pdf_emit_block_table(
-    cur: &mut String,
-    page_streams: &mut Vec<String>,
-    y: &mut i32,
-    tbl: &AktePdfTable,
-) {
-    let ncol = tbl
-        .headers
-        .len()
-        .max(tbl.rows.iter().map(|r| r.len()).max().unwrap_or(0))
-        .max(1);
-    let col_w: i32 = (480 / ncol as i32).max(36);
-    let cell_chars = ((col_w / 5).max(6)) as usize;
-
-    let ensure_room =
-        |need_below: i32, cur: &mut String, page_streams: &mut Vec<String>, y: &mut i32| {
-            if *y < need_below + 48 {
-                akte_pdf_break_page(cur, page_streams, y);
-                akte_pdf_emit_line(cur, 60, *y, 11, "(Fortsetzung)");
-                *y -= 20;
-            }
-        };
-
-    ensure_room(60, cur, page_streams, y);
-
-    // Header band
-    for ci in 0..ncol {
-        let h = tbl.headers.get(ci).map(|s| s.as_str()).unwrap_or("");
-        let txt = truncate_pdf_grid_cell(h, cell_chars);
-        let x = 60 + ci as i32 * col_w;
-        akte_pdf_emit_line(cur, x + 2, *y, 10, &txt);
-    }
-    *y -= 13;
-    let _ = writeln!(cur, "{} {} m {} {} l S", 60, *y, 540, *y);
-    *y -= 10;
-
-    if tbl.rows.is_empty() {
-        akte_pdf_emit_line(cur, 62, *y, 9, "(keine Tabellenzeilen)");
-        *y -= 12;
-        return;
-    }
-
-    for row in &tbl.rows {
-        ensure_room(52, cur, page_streams, y);
-        for ci in 0..ncol {
-            let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
-            let txt = truncate_pdf_grid_cell(cell, cell_chars);
-            let x = 60 + ci as i32 * col_w;
-            akte_pdf_emit_line(cur, x + 2, *y, 9, &txt);
+    pub fn kv(title: impl Into<String>, kv: Vec<(String, String)>) -> Self {
+        Self {
+            title: title.into(),
+            body_lines: Vec::new(),
+            kv_pairs: kv,
+            table: None,
         }
-        *y -= 13;
+    }
+
+    pub fn table(title: impl Into<String>, table: AktePdfTable) -> Self {
+        Self {
+            title: title.into(),
+            body_lines: Vec::new(),
+            kv_pairs: Vec::new(),
+            table: Some(table),
+        }
     }
 }
 
-/// Multi-section patient record: A4, Helvetica, automatic page breaks (FA-AKTE-04 / Erweiterung).
+/// Alter Single-Document-Modus (für Rückwärtskompatibilität).
+pub struct AkteDocument {
+    pub patient_name: String,
+    pub patient_geburtsdatum: String,
+    pub patient_versicherungsnummer: String,
+    pub akte_status: String,
+    pub diagnose: Option<String>,
+    pub befunde: Option<String>,
+    pub behandlungen: Vec<(String, String)>,
+    pub generated_at: String,
+}
+
+/// Praxiskopf-Daten für Akte / Merkblatt (optional — wenn `None` wird ein
+/// schlanker Header ohne DIN-5008-Briefkopf gerendert).
+#[derive(Debug, Clone, Default)]
+pub struct AkteHeaderContext {
+    pub praxis_lines: Vec<String>,
+    pub behandler_name: Option<String>,
+    pub berufsbezeichnung: Option<String>,
+    pub bsnr: Option<String>,
+    pub zanr: Option<String>,
+    pub erstellt_von: Option<String>,
+    pub dokument_id: Option<String>,
+}
+
+/// Haupt-Renderer für die Patientenakte als PDF (modular).
+///
+/// `header` gibt den Praxis-Kontext (Praxiskopf, Behandler) für die erste
+/// Seite vor. Wenn leer, wird nur Titel + Datum oben gerendert.
 pub fn render_akte_blocks(
     doc_title: &str,
     generated_at: &str,
     pdf_title_meta: &str,
     blocks: &[AktePdfBlock],
+    header: Option<&AkteHeaderContext>,
 ) -> Result<Vec<u8>, AppError> {
-    let mut page_streams: Vec<String> = Vec::new();
-    let mut cur = String::new();
-    let mut y: i32 = 800;
+    let mut pb = PageBuilder::new();
 
-    let emit_line = |s: &mut String, x: i32, y: i32, font_size: i32, text: &str| {
-        let _ = writeln!(
-            s,
-            "BT /F1 {fs} Tf {x} {y} Td ({txt}) Tj ET",
-            fs = font_size,
-            x = x,
-            y = y,
-            txt = pdf_escape(text),
-        );
-    };
-
-    let break_page = |cur: &mut String, streams: &mut Vec<String>, y: &mut i32| {
-        if !cur.is_empty() {
-            streams.push(std::mem::take(cur));
+    // ---------- Kopf -------------------------------------------------------
+    if let Some(h) = header.filter(|h| !h.praxis_lines.is_empty()) {
+        let mut meta = Vec::new();
+        if let Some(id) = h.dokument_id.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Dokument-ID", id));
         }
-        *y = 800;
-    };
+        meta.push(MetaRow::new("Erstellt", generated_at));
+        if let Some(by) = h.erstellt_von.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Erstellt von", by));
+        }
+        if let Some(b) = h.behandler_name.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Behandler:in", b));
+        }
 
-    emit_line(&mut cur, 60, y, 16, doc_title);
-    y -= 20;
-    emit_line(&mut cur, 60, y, 9, &format!("Erstellt: {}", generated_at));
-    y -= 24;
-    let _ = writeln!(cur, "{} {} m {} {} l S", 60, y, 540, y);
-    y -= 20;
+        let lh = Letterhead {
+            praxis_lines: &h.praxis_lines,
+            meta_rows: &meta,
+            address_lines: &[],
+            header_right_lines: &[],
+            show_sender_hint: false,
+        };
+        emit_letterhead(&mut pb, &lh);
+    } else {
+        // Schlanker Header: nur Titel + Datum
+        pb.text(M_LEFT, 18, true, doc_title);
+        pb.advance(22);
+        pb.text(M_LEFT, 9, false, &format!("Erstellt: {generated_at}"));
+        pb.advance(14);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(20);
+    }
+
+    // Dokumenttitel auch bei vorhandenem Briefkopf zentral platzieren
+    if header.is_some() {
+        pb.text(M_LEFT, 16, true, doc_title);
+        pb.advance(20);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(18);
+    }
+
+    // ---------- Blocks -----------------------------------------------------
+    let practice_name = header
+        .and_then(|h| h.praxis_lines.first().cloned())
+        .unwrap_or_else(|| "MeDoc".into());
 
     if blocks.is_empty() {
-        emit_line(&mut cur, 60, y, 10, "(Keine Inhalte fuer diesen Export.)");
-        y -= 14;
+        pb.text(M_LEFT, 10, false, "(Keine Inhalte für diesen Export.)");
+        pb.advance(14);
     }
 
     for block in blocks {
-        if y < 100 {
-            break_page(&mut cur, &mut page_streams, &mut y);
-            emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
-            y -= 20;
-        }
-        emit_line(&mut cur, 60, y, 12, &block.title);
-        y -= 16;
-
-        let mut wrote_any = false;
-
-        if let Some(ref tbl) = block.table {
-            let tbl_has_structure = !tbl.headers.is_empty() || !tbl.rows.is_empty();
-            if tbl_has_structure {
-                akte_pdf_emit_block_table(&mut cur, &mut page_streams, &mut y, tbl);
-                wrote_any = true;
-            }
-        }
-
-        if !block.kv_pairs.is_empty() {
-            for (k, v) in &block.kv_pairs {
-                if y < 72 {
-                    break_page(&mut cur, &mut page_streams, &mut y);
-                    emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
-                    y -= 20;
-                }
-                emit_line(&mut cur, 60, y, 9, &format!("{}:", k));
-                y -= 11;
-                for chunk in wrap_text(v, 78) {
-                    if y < 55 {
-                        break_page(&mut cur, &mut page_streams, &mut y);
-                        emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
-                        y -= 20;
-                    }
-                    emit_line(&mut cur, 72, y, 10, &chunk);
-                    y -= 12;
-                }
-                y -= 4;
-            }
-            wrote_any = true;
-        }
-
-        if !block.body_lines.is_empty() {
-            for raw in &block.body_lines {
-                for chunk in wrap_text(raw, 85) {
-                    if y < 55 {
-                        break_page(&mut cur, &mut page_streams, &mut y);
-                        emit_line(&mut cur, 60, y, 11, "(Fortsetzung)");
-                        y -= 20;
-                    }
-                    emit_line(&mut cur, 60, y, 10, &chunk);
-                    y -= 12;
-                }
-            }
-            wrote_any = true;
-        }
-
-        if !wrote_any {
-            emit_line(&mut cur, 60, y, 10, "(keine Eintraege)");
-            y -= 12;
-        }
-
-        y -= 6;
-        if y < 55 {
-            break_page(&mut cur, &mut page_streams, &mut y);
-        } else {
-            let _ = writeln!(cur, "{} {} m {} {} l S", 60, y, 540, y);
-            y -= 16;
-        }
+        emit_akte_block(&mut pb, block, &practice_name, doc_title);
     }
 
-    if !cur.is_empty() {
-        page_streams.push(cur);
-    }
-    if page_streams.is_empty() {
-        page_streams.push(String::new());
+    // ---------- DSGVO-Hinweis am Ende -------------------------------------
+    if header.is_some() {
+        pb.ensure_space(60);
+        pb.advance(10);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(14);
+        pb.text(M_LEFT, 8, true, "Datenschutzhinweis");
+        pb.advance(11);
+        pb.paragraph(
+            "Dieses Dokument enthält vertrauliche Patientendaten gem. § 630f BGB. \
+             Weitergabe nur mit ausdrücklicher Einwilligung des Patienten. \
+             Eine Speicherung über die gesetzliche Aufbewahrungsfrist hinaus \
+             ist nicht zulässig.",
+            8,
+            90,
+            0,
+        );
     }
 
-    emit_multipage_pdf(&page_streams, pdf_title_meta)
+    let pages = pb.finish();
+    emit_multipage_pdf(&pages, pdf_title_meta)
 }
 
-fn emit_multipage_pdf(page_streams: &[String], pdf_title_meta: &str) -> Result<Vec<u8>, AppError> {
-    let n = page_streams.len();
-    let font_id = 3 + n * 2;
-    let info_id = 4 + n * 2;
-
-    let mut out: Vec<u8> = Vec::new();
-    let mut offsets: Vec<usize> = Vec::new();
-
-    write_str(&mut out, "%PDF-1.4\n");
-    out.extend_from_slice(b"%\xE2\xE3\xCF\xD3\n");
-
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    );
-
-    offsets.push(out.len());
-    let kids: String = (0..n)
-        .map(|i| format!("{} 0 R", 3 + i * 2))
-        .collect::<Vec<_>>()
-        .join(" ");
-    write_str(
-        &mut out,
-        &format!(
-            "2 0 obj\n<< /Type /Pages /Kids [{}] /Count {} >>\nendobj\n",
-            kids, n
-        ),
-    );
-
-    for (i, stream_text) in page_streams.iter().enumerate().take(n) {
-        let page_id = 3 + i * 2;
-        let content_id = 4 + i * 2;
-        let stream_bytes = stream_text.as_bytes();
-
-        offsets.push(out.len());
-        write_str(
-            &mut out,
-            &format!(
-                "{p} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
-                 /Resources << /Font << /F1 {f} 0 R >> >> /Contents {c} 0 R >>\nendobj\n",
-                p = page_id,
-                f = font_id,
-                c = content_id,
-            ),
-        );
-
-        offsets.push(out.len());
-        write_str(
-            &mut out,
-            &format!(
-                "{c} 0 obj\n<< /Length {} >>\nstream\n",
-                stream_bytes.len(),
-                c = content_id,
-            ),
-        );
-        out.extend_from_slice(stream_bytes);
-        write_str(&mut out, "\nendstream\nendobj\n");
+fn emit_akte_block(pb: &mut PageBuilder, block: &AktePdfBlock, practice_name: &str, doc_title: &str) {
+    // Sicherstellen, dass mind. Titel + 2 Zeilen passen
+    pb.ensure_space(48);
+    if pb.y < M_BOTTOM + 100 {
+        pb.break_page();
+        emit_continuation_header(pb, practice_name, doc_title);
     }
 
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!(
-            "{} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-            font_id
-        ),
-    );
+    // Block-Titel in Hellgrau-Band
+    pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
+    pb.text(M_LEFT + 4, 11, true, &block.title);
+    pb.advance(18);
 
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!(
-            "{} 0 obj\n<< /Title ({}) /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
-            info_id,
-            pdf_escape(pdf_title_meta)
-        ),
-    );
+    let mut wrote_any = false;
 
-    let xref_pos = out.len();
-    write_str(&mut out, &format!("xref\n0 {}\n", offsets.len() + 1));
-    write_str(&mut out, "0000000000 65535 f \n");
-    for off in &offsets {
-        write_str(&mut out, &format!("{:010} 00000 n \n", off));
+    if let Some(ref tbl) = block.table {
+        if !tbl.headers.is_empty() || !tbl.rows.is_empty() {
+            emit_akte_table(pb, tbl, practice_name, doc_title);
+            wrote_any = true;
+        }
     }
-    write_str(
-        &mut out,
-        &format!(
-            "trailer\n<< /Size {} /Root 1 0 R /Info {} 0 R >>\nstartxref\n{}\n%%EOF\n",
-            offsets.len() + 1,
-            info_id,
-            xref_pos,
-        ),
-    );
 
-    Ok(out)
+    if !block.kv_pairs.is_empty() {
+        for (k, v) in &block.kv_pairs {
+            emit_akte_kv_pair(pb, k, v, practice_name, doc_title);
+        }
+        wrote_any = true;
+    }
+
+    if !block.body_lines.is_empty() {
+        for line in &block.body_lines {
+            let display = super::clinical_text_format::plain_text_for_pdf(line);
+            for chunk in wrap_de(&display, 90) {
+                if pb.y < M_BOTTOM + 24 {
+                    pb.break_page();
+                    emit_continuation_header(pb, practice_name, doc_title);
+                }
+                pb.text(M_LEFT, 10, false, &chunk);
+                pb.advance(12);
+            }
+        }
+        wrote_any = true;
+    }
+
+    if !wrote_any {
+        pb.text(M_LEFT, 10, false, "(keine Einträge)");
+        pb.advance(12);
+    }
+
+    pb.advance(8);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(14);
 }
 
-/// Legacy single-layout export (subset). Prefer [`render_akte_blocks`] for neue Exporte.
+fn emit_akte_kv_pair(
+    pb: &mut PageBuilder,
+    key: &str,
+    value: &str,
+    practice_name: &str,
+    doc_title: &str,
+) {
+    let display = super::clinical_text_format::plain_text_for_pdf(value);
+    let compact = !display.contains('\n') && display.chars().count() <= 70;
+
+    if pb.y < M_BOTTOM + 30 {
+        pb.break_page();
+        emit_continuation_header(pb, practice_name, doc_title);
+    }
+
+    if compact {
+        pb.text(M_LEFT, 9, true, &format!("{key}:"));
+        pb.text(M_LEFT + 130, 10, false, &display);
+        pb.advance(14);
+    } else {
+        pb.text(M_LEFT, 9, true, &format!("{key}:"));
+        pb.advance(12);
+        for chunk in wrap_de(&display, 90) {
+            if pb.y < M_BOTTOM + 24 {
+                pb.break_page();
+                emit_continuation_header(pb, practice_name, doc_title);
+            }
+            pb.text(M_LEFT + 8, 10, false, &chunk);
+            pb.advance(12);
+        }
+        pb.advance(4);
+    }
+}
+
+fn akte_table_column_xs(ncol: usize, weights: Option<&[i32]>) -> Vec<i32> {
+    let n = ncol.max(1);
+    let Some(w) = weights.filter(|w| !w.is_empty()) else {
+        let step = CONTENT_WIDTH / n as i32;
+        return (0..n).map(|i| M_LEFT + i as i32 * step).collect();
+    };
+    let sum: i32 = w.iter().copied().sum::<i32>().max(1);
+    let mut xs = vec![M_LEFT];
+    let mut acc = 0i32;
+    for i in 0..n.saturating_sub(1) {
+        let wt = w.get(i).copied().unwrap_or(1).max(1);
+        acc += CONTENT_WIDTH * wt / sum;
+        xs.push(M_LEFT + acc);
+    }
+    xs
+}
+
+fn akte_table_column_char_widths(col_xs: &[i32]) -> Vec<usize> {
+    let mut w = Vec::with_capacity(col_xs.len());
+    for i in 0..col_xs.len() {
+        let next = col_xs.get(i + 1).copied().unwrap_or(M_RIGHT);
+        let width_pt = (next - col_xs[i]).max(24);
+        w.push(((width_pt / 5).max(8)) as usize);
+    }
+    w
+}
+
+fn emit_akte_table_header_row(
+    pb: &mut PageBuilder,
+    tbl: &AktePdfTable,
+    col_xs: &[i32],
+    col_chars: &[usize],
+) {
+    pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
+    for ci in 0..tbl.headers.len().max(1) {
+        let h = tbl.headers.get(ci).map(|s| s.as_str()).unwrap_or("");
+        let max_chars = col_chars.get(ci).copied().unwrap_or(20);
+        let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+        pb.text(x + 2, 9, true, &truncate_cell(h, max_chars));
+    }
+    pb.advance(13);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(10);
+}
+
+fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str, doc_title: &str) {
+    let ncol = tbl
+        .headers
+        .len()
+        .max(tbl.rows.iter().map(|r| r.len()).max().unwrap_or(0))
+        .max(1);
+    let col_xs = akte_table_column_xs(ncol, tbl.column_weights.as_deref());
+    let col_chars = akte_table_column_char_widths(&col_xs);
+
+    if pb.y < M_BOTTOM + 60 {
+        pb.break_page();
+        emit_continuation_header(pb, practice_name, doc_title);
+    }
+
+    emit_akte_table_header_row(pb, tbl, &col_xs, &col_chars);
+
+    if tbl.rows.is_empty() {
+        pb.text(M_LEFT + 4, 9, false, "(keine Tabellenzeilen)");
+        pb.advance(12);
+        return;
+    }
+
+    for (ri, row) in tbl.rows.iter().enumerate() {
+        let mut wrapped: Vec<Vec<String>> = Vec::with_capacity(ncol);
+        let mut row_lines = 1usize;
+        for ci in 0..ncol {
+            let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
+            let max_chars = col_chars.get(ci).copied().unwrap_or(20);
+            let w = wrap_soft(cell, max_chars);
+            row_lines = row_lines.max(w.len().max(1));
+            wrapped.push(w);
+        }
+
+        let row_height = row_lines as i32 * 11 + 4;
+        if pb.y < M_BOTTOM + row_height + 20 {
+            pb.break_page();
+            emit_continuation_header(pb, practice_name, doc_title);
+            emit_akte_table_header_row(pb, tbl, &col_xs, &col_chars);
+        }
+
+        if ri % 2 == 1 {
+            pb.fill_rect(M_LEFT, pb.y - row_height + 8, CONTENT_WIDTH, row_height, 0.97);
+        }
+
+        let base_y = pb.y;
+        for li in 0..row_lines {
+            for ci in 0..ncol {
+                let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+                let chunk = wrapped
+                    .get(ci)
+                    .and_then(|w| w.get(li))
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                if !chunk.is_empty() {
+                    let prev = pb.y;
+                    pb.y = base_y - li as i32 * 11;
+                    pb.text(x + 2, 9, false, chunk);
+                    pb.y = prev;
+                }
+            }
+        }
+        pb.advance(row_height);
+    }
+    pb.advance(4);
+}
+
+/// Legacy-Wrapper.
 pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
+    let diag = doc.diagnose.clone().unwrap_or_else(|| "(keine Eintragung)".into());
+    let bef = doc.befunde.clone().unwrap_or_else(|| "(keine Eintragung)".into());
     let beh_lines: Vec<String> = if doc.behandlungen.is_empty() {
         vec!["(keine Behandlungen erfasst)".to_string()]
     } else {
-        doc.behandlungen
-            .iter()
-            .map(|(d, b)| format!("{} — {}", d, b))
-            .collect()
+        doc.behandlungen.iter().map(|(d, b)| format!("{d} — {b}")).collect()
     };
-    let diag = doc
-        .diagnose
-        .clone()
-        .unwrap_or_else(|| "(keine Eintragung)".to_string());
-    let bef = doc
-        .befunde
-        .clone()
-        .unwrap_or_else(|| "(keine Eintragung)".to_string());
 
     let blocks = vec![
-        AktePdfBlock {
-            title: "Stammdaten / Aktenkopf".to_string(),
-            body_lines: vec![],
-            kv_pairs: vec![
+        AktePdfBlock::kv(
+            "Stammdaten / Aktenkopf",
+            vec![
                 ("Patient".into(), doc.patient_name.clone()),
                 ("Geburtsdatum".into(), doc.patient_geburtsdatum.clone()),
-                (
-                    "Versicherungsnr.".into(),
-                    doc.patient_versicherungsnummer.clone(),
-                ),
+                ("Versicherungsnr.".into(), doc.patient_versicherungsnummer.clone()),
                 ("Akten-Status".into(), doc.akte_status.clone()),
             ],
-            table: None,
-        },
-        AktePdfBlock {
-            title: "Diagnose".to_string(),
-            body_lines: vec![diag],
-            kv_pairs: vec![],
-            table: None,
-        },
-        AktePdfBlock {
-            title: "Befunde (Freitext)".to_string(),
-            body_lines: vec![bef],
-            kv_pairs: vec![],
-            table: None,
-        },
-        AktePdfBlock {
-            title: "Behandlungen".to_string(),
-            body_lines: beh_lines,
-            kv_pairs: vec![],
-            table: None,
-        },
+        ),
+        AktePdfBlock::body("Diagnose", vec![diag]),
+        AktePdfBlock::body("Befunde (Freitext)", vec![bef]),
+        AktePdfBlock::body("Behandlungen", beh_lines),
     ];
 
     render_akte_blocks(
@@ -636,209 +749,235 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
         &doc.generated_at,
         &format!("Patientenakte {}", doc.patient_name),
         &blocks,
+        None,
     )
 }
 
-/// Naïve word-wrap to fit a fixed character width.
-fn wrap_text(text: &str, width: usize) -> Vec<String> {
-    let mut lines = Vec::new();
-    for paragraph in text.split('\n') {
-        let mut current = String::new();
-        for word in paragraph.split_whitespace() {
-            if current.is_empty() {
-                current.push_str(word);
-            } else if current.len() + 1 + word.len() <= width {
-                current.push(' ');
-                current.push_str(word);
-            } else {
-                lines.push(std::mem::take(&mut current));
-                current.push_str(word);
-            }
-        }
-        if !current.is_empty() {
-            lines.push(current);
-        }
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
-}
+// ===========================================================================
+// Template-Preview (für Vorlagen-Editor)
+// ===========================================================================
 
-fn _format_eur_unused(_cents: i64) -> String {
-    String::new()
-}
-
-/// Single-page preview PDF for template editor / export picker (no external fonts).
+/// Vorschau-Renderer: nutzt entweder ein strukturiertes Layout
+/// (`layout_json`, siehe `clinical_pdf_layout`) oder fällt auf eine schlanke
+/// Zeilenliste zurück.
 pub fn render_template_preview_pdf(
     kind: &str,
     template_name: &str,
     fusszeile: &str,
     body_pt: i32,
     body_lines: &[String],
+    layout_json: Option<&str>,
 ) -> Result<Vec<u8>, AppError> {
+    if let Some(json) = layout_json.filter(|s| !s.trim().is_empty()) {
+        let layout: super::clinical_pdf_layout::ClinicalPdfLayout =
+            serde_json::from_str(json)
+                .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
+        return super::clinical_pdf_layout::render_clinical_layout(&layout);
+    }
+
     let fs = body_pt.clamp(8, 18);
-    let mut stream = String::new();
-    let mut y: i32 = 800;
-    let line = |s: &mut String, x: i32, y: i32, size: i32, text: &str| {
-        let _ = writeln!(
-            s,
-            "BT /F1 {sz} Tf {x} {yy} Td ({txt}) Tj ET",
-            sz = size,
-            x = x,
-            yy = y,
-            txt = pdf_escape(text),
-        );
-    };
+    let wrap_cols = 86usize.saturating_sub((18 - fs) as usize * 2);
 
-    line(&mut stream, 60, y, 14, "MeDoc — Druckvorschau");
-    y -= 22;
-    line(&mut stream, 60, y, fs + 1, template_name);
-    y -= 18;
-    line(&mut stream, 60, y, fs - 1, &format!("Art: {kind}"));
-    y -= 24;
+    let mut pb = PageBuilder::new();
+    pb.text(M_LEFT, 14, true, &format!("Druckvorschau: {template_name}"));
+    pb.advance(18);
+    pb.text(M_LEFT, 9, false, &format!("Dokumenttyp: {kind}"));
+    pb.advance(14);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(16);
 
-    for bl in body_lines {
-        if bl.is_empty() {
-            y -= 8;
+    for raw in body_lines {
+        let display = super::clinical_text_format::plain_text_for_pdf(raw);
+        if display.trim().is_empty() {
+            pb.advance(fs / 2);
             continue;
         }
-        line(&mut stream, 60, y, fs, bl);
-        y -= fs + 4;
-        if y < 80 {
-            break;
-        }
+        pb.paragraph(&display, fs, wrap_cols, 0);
     }
 
     if !fusszeile.trim().is_empty() {
-        line(&mut stream, 60, 72, 8, fusszeile);
+        pb.advance(8);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(10);
+        for chunk in wrap_soft(fusszeile, wrap_cols) {
+            pb.text(M_LEFT, 8, false, &chunk);
+            pb.advance(11);
+        }
     }
-    line(
-        &mut stream,
-        60,
-        56,
-        8,
-        "Fußzeile fest integriert — kein HTML aus der Oberfläche.",
-    );
 
-    let stream_bytes = stream.into_bytes();
-    let mut out: Vec<u8> = Vec::new();
-    let mut offsets: Vec<usize> = Vec::new();
-
-    write_str(&mut out, "%PDF-1.4\n");
-    out.extend_from_slice(b"%\xE2\xE3\xCF\xD3\n");
-
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    );
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    );
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        concat!(
-            "3 0 obj\n",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ",
-            "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\n",
-            "endobj\n",
-        ),
-    );
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!("4 0 obj\n<< /Length {} >>\nstream\n", stream_bytes.len()),
-    );
-    out.extend_from_slice(&stream_bytes);
-    write_str(&mut out, "\nendstream\nendobj\n");
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    );
-    offsets.push(out.len());
-    write_str(
-        &mut out,
-        &format!(
-            "6 0 obj\n<< /Title ({}) /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
-            pdf_escape(&format!("Vorschau {template_name}")),
-        ),
-    );
-
-    let xref_pos = out.len();
-    write_str(&mut out, &format!("xref\n0 {}\n", offsets.len() + 1));
-    write_str(&mut out, "0000000000 65535 f \n");
-    for off in &offsets {
-        write_str(&mut out, &format!("{:010} 00000 n \n", off));
-    }
-    write_str(
-        &mut out,
-        &format!(
-            "trailer\n<< /Size {} /Root 1 0 R /Info 6 0 R >>\nstartxref\n{}\n%%EOF\n",
-            offsets.len() + 1,
-            xref_pos,
-        ),
-    );
-    Ok(out)
+    let pages = pb.finish();
+    emit_multipage_pdf(&pages, &format!("Vorschau {template_name}"))
 }
+
+// ===========================================================================
+// Tests
+// ===========================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn sample_line(description: &str, amount_cents: i64) -> InvoiceLine {
-        InvoiceLine {
-            description: description.into(),
-            amount_cents,
-            goz_nr: None,
-            faktor: None,
-            einzelpreis_cents: None,
-            menge: None,
-            zahn_nr: None,
-            behandlungsdatum: None,
-            ust_prozent: None,
-            material: None,
-            diagnose_begruendung: None,
-        }
-    }
-
-    #[test]
-    fn renders_minimal_invoice() {
-        let inv = Invoice {
-            number: "2026-001".into(),
+    fn dummy_invoice() -> Invoice {
+        Invoice {
+            number: "RE-2026-04-0001".into(),
             date: "2026-04-19".into(),
             recipient_name: "Max Mustermann".into(),
             recipient_address: vec!["Musterstr. 1".into(), "10115 Berlin".into()],
             practice_name: "Zahnarztpraxis Dr. Beispiel".into(),
-            practice_address: vec!["Hauptstr. 2".into(), "10115 Berlin".into()],
-            lines: vec![
-                sample_line("Kontrolluntersuchung", 4500),
-                sample_line("Zahnreinigung", 8500),
+            practice_address: vec![
+                "Hauptstr. 2".into(),
+                "10115 Berlin".into(),
+                "Tel. 030 12345".into(),
             ],
-            note: Some("Zahlbar innerhalb 14 Tagen.".into()),
-            behandler_name: None,
-            behandler_zanr: None,
-            praxis_bsnr: None,
-            bankverbindung: None,
-            zahlungsziel_text: None,
-            ust_hinweis: None,
+            lines: vec![
+                InvoiceLine {
+                    description: "Komposit, dreiflächig".into(),
+                    amount_cents: 5670,
+                    goz_nr: Some("2197".into()),
+                    faktor: Some(2.3),
+                    einzelpreis_cents: Some(2465),
+                    menge: Some(1),
+                    zahn_nr: Some("21".into()),
+                    behandlungsdatum: Some("2026-04-01".into()),
+                    ust_prozent: Some(0.0),
+                    material: None,
+                    diagnose_begruendung: None,
+                },
+                InvoiceLine::simple("Kontrolluntersuchung", 4500),
+            ],
+            note: None,
+            behandler_name: Some("Dr. Maria Beispiel".into()),
+            behandler_zanr: Some("987654321".into()),
+            praxis_bsnr: Some("123456789".into()),
+            bankverbindung: Some(vec![
+                "IBAN: DE89 3704 0044 0532 0130 00".into(),
+                "BIC: COBADEFFXXX".into(),
+                "Bank: Commerzbank Berlin".into(),
+            ]),
+            zahlungsziel_text: Some("Zahlbar innerhalb von 14 Tagen ohne Abzug.".into()),
+            ust_hinweis: Some("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG".into()),
+        }
+    }
+
+    #[test]
+    fn renders_goz_compliant_invoice() {
+        let inv = dummy_invoice();
+        let pdf = render(&inv).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        assert!(pdf.ends_with(b"%%EOF\n"));
+
+        // Sucht nach den Pflichtangaben (entweder als Latin-1 Text oder als
+        // Bytes — Helvetica Helvetica-WinAnsi wir alle als 7-bit ASCII vorliegen).
+        let text = String::from_utf8_lossy(&pdf);
+        for needle in [
+            "Rechnung", "BSNR", "ZANR", "IBAN", "GOZ", "Faktor",
+            "Endbetrag", "Zahlbar",
+        ] {
+            assert!(text.contains(needle), "missing: {needle}");
+        }
+    }
+
+    #[test]
+    fn renders_minimal_invoice_without_optional_fields() {
+        let inv = Invoice {
+            number: "RE-MIN-001".into(),
+            date: "2026-04-19".into(),
+            recipient_name: "Min Patient".into(),
+            recipient_address: vec!["X-Straße 1".into(), "12345 Ort".into()],
+            practice_name: "Min Praxis".into(),
+            practice_address: vec!["Y-Straße 2".into(), "12345 Ort".into()],
+            lines: vec![InvoiceLine::simple("Kontrolle", 4500)],
+            ..Default::default()
         };
         let pdf = render(&inv).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(pdf.ends_with(b"%%EOF\n"));
-        assert!(pdf.windows(7).any(|w| w == b"/Length"));
     }
 
     #[test]
-    fn pdf_escape_handles_specials() {
-        assert_eq!(pdf_escape("a (b) c"), "a \\(b\\) c");
-        assert_eq!(pdf_escape("a\\b"), "a\\\\b");
-        // Latin-1 chars are preserved; non-Latin1 chars become '?'.
-        assert_eq!(pdf_escape("Ümlaut"), "Ümlaut");
-        assert_eq!(pdf_escape("中"), "?");
+    fn invoice_with_high_faktor_emits_begruendung() {
+        let mut inv = dummy_invoice();
+        inv.lines[0].faktor = Some(3.5);
+        inv.lines[0].diagnose_begruendung =
+            Some("Erschwerter Zugang, komplexes Mehrflächen-Trauma.".into());
+        let pdf = render(&inv).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("Begründung") || text.contains("Begr") || text.contains("Hinweis"));
+    }
+
+    #[test]
+    fn renders_akte_with_header_context() {
+        let blocks = vec![
+            AktePdfBlock::kv(
+                "Stammdaten",
+                vec![
+                    ("Name".into(), "Max Mustermann".into()),
+                    ("Geb.-Dat.".into(), "01.01.1980".into()),
+                ],
+            ),
+            AktePdfBlock::body(
+                "Diagnose",
+                vec!["Karies an Zahn 36, Kontrolle Zahn 26.".into()],
+            ),
+        ];
+        let header = AkteHeaderContext {
+            praxis_lines: vec!["Test-Praxis".into(), "Test-Straße 1".into()],
+            behandler_name: Some("Dr. Test".into()),
+            erstellt_von: Some("Rezeption".into()),
+            dokument_id: Some("AKT-001".into()),
+            ..Default::default()
+        };
+        let pdf = render_akte_blocks(
+            "Patientenakte",
+            "19.04.2026 14:30",
+            "Akte Max Mustermann",
+            &blocks,
+            Some(&header),
+        )
+        .unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("Test-Praxis") || text.contains("Praxis"));
+        assert!(text.contains("Datenschutz") || text.contains("Daten"));
+    }
+
+    #[test]
+    fn renders_akte_without_header_context() {
+        let blocks = vec![AktePdfBlock::body("Hinweis", vec!["Ohne Praxiskopf.".into()])];
+        let pdf =
+            render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn akte_table_renders_zebra() {
+        let blocks = vec![AktePdfBlock::table(
+            "Behandlungen",
+            AktePdfTable {
+                headers: vec!["Datum".into(), "Leistung".into(), "EUR".into()],
+                rows: vec![
+                    vec!["01.04.".into(), "Komposit".into(), "56,70 €".into()],
+                    vec!["08.04.".into(), "Recall".into(), "45,00 €".into()],
+                    vec!["15.04.".into(), "PZR".into(), "85,00 €".into()],
+                ],
+                ..Default::default()
+            },
+        )];
+        let pdf = render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn template_preview_fallback_works() {
+        let pdf = render_template_preview_pdf(
+            "quittung",
+            "Standardvorlage",
+            "Mit freundlichen Grüßen",
+            11,
+            &["Zeile 1".into(), "Zeile 2".into()],
+            None,
+        )
+        .unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 }

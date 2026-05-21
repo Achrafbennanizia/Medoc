@@ -83,3 +83,14 @@ pub async fn delete_leistung(
     .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_leistung_commands {
+    () => {
+        $crate::commands::leistung_commands::list_leistungen,
+        $crate::commands::leistung_commands::create_leistung,
+        $crate::commands::leistung_commands::update_leistung,
+        $crate::commands::leistung_commands::delete_leistung,
+    };
+}

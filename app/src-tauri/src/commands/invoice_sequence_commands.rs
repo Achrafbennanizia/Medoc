@@ -29,15 +29,17 @@ struct DayCounts {
     re: u32,
     #[serde(default)]
     br: u32,
+    #[serde(default)]
+    qu: u32,
 }
 
 fn normalize_ymd(ymd: &str) -> Result<String, AppError> {
-    let head = ymd.trim().get(..10).ok_or_else(|| {
-        AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into())
-    })?;
-    NaiveDate::parse_from_str(head, "%Y-%m-%d").map_err(|_| {
-        AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into())
-    })?;
+    let head = ymd
+        .trim()
+        .get(..10)
+        .ok_or_else(|| AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into()))?;
+    NaiveDate::parse_from_str(head, "%Y-%m-%d")
+        .map_err(|_| AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into()))?;
     Ok(head.to_string())
 }
 
@@ -60,24 +62,21 @@ pub async fn allocate_invoice_document_number(
 
     let day_key = normalize_ymd(&ymd)?;
     let k = kind.to_uppercase();
-    if k != "RE" && k != "BR" {
+    if k != "RE" && k != "BR" && k != "QU" {
         return Err(AppError::Validation(
-            "kind muss „RE“ oder „BR“ sein".into(),
+            "kind muss „RE“, „BR“ oder „QU“ sein".into(),
         ));
     }
 
     let mut conn = pool.acquire().await?;
 
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *conn)
-        .await?;
+    sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
     let inner: Result<String, AppError> = async {
-        let raw: Option<(String,)> =
-            sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
-                .bind(KV_KEY)
-                .fetch_optional(&mut *conn)
-                .await?;
+        let raw: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
+            .bind(KV_KEY)
+            .fetch_optional(&mut *conn)
+            .await?;
 
         let mut doc: CountersV1 = raw
             .and_then(|(v,)| serde_json::from_str(&v).ok())
@@ -88,13 +87,15 @@ pub async fn allocate_invoice_document_number(
         let seq = if k == "RE" {
             entry.re += 1;
             entry.re
-        } else {
+        } else if k == "BR" {
             entry.br += 1;
             entry.br
+        } else {
+            entry.qu += 1;
+            entry.qu
         };
 
-        let json =
-            serde_json::to_string(&doc).map_err(|e| AppError::Internal(e.to_string()))?;
+        let json = serde_json::to_string(&doc).map_err(|e| AppError::Internal(e.to_string()))?;
 
         sqlx::query(
             "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
@@ -127,4 +128,12 @@ pub async fn allocate_invoice_document_number(
     }
 
     inner
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_invoice_sequence_commands {
+    () => {
+        $crate::commands::invoice_sequence_commands::allocate_invoice_document_number,
+    };
 }

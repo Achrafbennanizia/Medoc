@@ -362,3 +362,17 @@ pub async fn duplicate_akte_anlage(
     .ok();
     Ok(row_to_dto(&app_dir, row))
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_akte_anlage_commands {
+    () => {
+        $crate::commands::akte_anlage_commands::list_akte_anlagen,
+        $crate::commands::akte_anlage_commands::create_akte_anlage,
+        $crate::commands::akte_anlage_commands::delete_akte_anlage,
+        $crate::commands::akte_anlage_commands::rename_akte_anlage,
+        $crate::commands::akte_anlage_commands::set_akte_anlage_document_kind,
+        $crate::commands::akte_anlage_commands::open_akte_anlage_externally,
+        $crate::commands::akte_anlage_commands::duplicate_akte_anlage,
+    };
+}

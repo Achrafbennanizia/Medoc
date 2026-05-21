@@ -62,7 +62,9 @@ pub async fn append_rechnung_document(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "finanzen.write")?;
     if input.id.trim().is_empty() || input.patient_id.trim().is_empty() {
-        return Err(AppError::Validation("id und patient_id erforderlich".into()));
+        return Err(AppError::Validation(
+            "id und patient_id erforderlich".into(),
+        ));
     }
     let doc_id = input.id.clone();
     let created_at = chrono::Utc::now().to_rfc3339();
@@ -90,4 +92,13 @@ pub async fn append_rechnung_document(
     )
     .await?;
     Ok(())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_rechnung_document_commands {
+    () => {
+        $crate::commands::rechnung_document_commands::list_rechnung_documents,
+        $crate::commands::rechnung_document_commands::append_rechnung_document,
+    };
 }

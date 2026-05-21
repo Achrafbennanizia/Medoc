@@ -7,14 +7,15 @@ use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
-use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
-use crate::infrastructure::lan_server::{discovery, http, secrets, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY};
+use crate::infrastructure::lan_server::{
+    discovery, http, secrets, tls, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY,
+};
 use crate::infrastructure::logging::brute_force::BruteForceTracker;
 use sqlx::SqlitePool;
 
@@ -31,6 +32,7 @@ pub struct LanRuntime {
     pub http_task: JoinHandle<Result<(), std::io::Error>>,
     pub udp_task: JoinHandle<Result<(), std::io::Error>>,
     pub cfg: LanServerConfigV1,
+    pub tls_cert_sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -41,8 +43,10 @@ pub struct LanServerStatusPayload {
     pub http_port: Option<u16>,
     pub discovery_port: Option<u16>,
     pub instance_label: Option<String>,
-    /** Example URLs for clients on this subnet (`http://192.168.x.x:port`). */
+    /** Example URLs for clients on this subnet (`https://192.168.x.x:port`). */
     pub suggested_base_urls: Vec<String>,
+    /// SHA-256 fingerprint of the self-signed LAN certificate (pin on clients).
+    pub tls_cert_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,29 +57,34 @@ pub struct LanDiscoveryHitDto {
     pub instance_id: String,
     pub label: String,
     pub version: String,
+    pub tls: bool,
+    pub cert_sha256: String,
 }
 
 async fn load_or_default_config(pool: &SqlitePool) -> Result<LanServerConfigV1, AppError> {
     let raw = app_kv_repo::get(pool, APP_KV_KEY).await?;
     match raw {
-        Some(s) => serde_json::from_str(&s).map_err(|e| AppError::Validation(format!("LAN-Config: {e}"))),
+        Some(s) => {
+            serde_json::from_str(&s).map_err(|e| AppError::Validation(format!("LAN-Config: {e}")))
+        }
         None => Ok(LanServerConfigV1::default()),
     }
 }
 
 async fn save_config(pool: &SqlitePool, cfg: &LanServerConfigV1) -> Result<(), AppError> {
-    let s = serde_json::to_string(cfg).map_err(|e| AppError::Internal(format!("LAN config serialise: {e}")))?;
+    let s = serde_json::to_string(cfg)
+        .map_err(|e| AppError::Internal(format!("LAN config serialise: {e}")))?;
     app_kv_repo::set(pool, APP_KV_KEY, &s).await
 }
 
 fn local_ipv4_urls(http_port: u16) -> Vec<String> {
-    let mut out = vec![format!("http://127.0.0.1:{http_port}")];
+    let mut out = vec![format!("https://127.0.0.1:{http_port}")];
     for iface in if_addrs::get_if_addrs().unwrap_or_default() {
         if let if_addrs::IfAddr::V4(v4) = iface.addr {
             if v4.ip.is_loopback() {
                 continue;
             }
-            out.push(format!("http://{}:{http_port}", v4.ip));
+            out.push(format!("https://{}:{http_port}", v4.ip));
         }
     }
     out.sort();
@@ -123,6 +132,7 @@ pub fn lan_server_status(
             discovery_port: None,
             instance_label: None,
             suggested_base_urls: vec![],
+            tls_cert_sha256: None,
         });
     };
     let urls = local_ipv4_urls(rt.cfg.http_port);
@@ -133,6 +143,7 @@ pub fn lan_server_status(
         discovery_port: Some(rt.cfg.udp_discovery_port),
         instance_label: Some(rt.cfg.instance_label.clone()),
         suggested_base_urls: urls,
+        tls_cert_sha256: Some(rt.tls_cert_sha256.clone()),
     })
 }
 
@@ -158,12 +169,20 @@ pub async fn start_lan_embedded(
     let jwt_arr = secrets::ensure_jwt_secret_bytes(&app_dir)?;
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);
     let instance_id = secrets::ensure_instance_id(&app_dir)?;
+    let tls_identity = tls::ensure_lan_tls_identity(&app_dir)?;
 
     let brute = Arc::new(BruteForceTracker::new());
+    brute
+        .hydrate_from_db(&pool)
+        .await
+        .map_err(|e| AppError::Internal(format!("Brute-Force-Lockouts: {e}")))?;
     let http_state = http::LanHttpState {
         pool,
         jwt_secret: jwt_secret.clone(),
         brute,
+        http_port: cfg.http_port,
+        extra_cors_origins: Arc::new(cfg.extra_cors_origins.clone()),
+        discovery_peers: Arc::new(vec![]),
     };
     let router = http::build_router(http_state);
 
@@ -171,36 +190,24 @@ pub async fn start_lan_embedded(
         .parse()
         .map_err(|_| AppError::Validation("Ungültige Kombination bind_addr/http_port.".into()))?;
 
-    let listener = TcpListener::bind(addr)
-        .await
-        .map_err(|e| AppError::Internal(format!("LAN bind {addr}: {e}")))?;
-
     let beacon = LanBeaconPayload {
         schema: discovery::SCHEMA.into(),
         version: env!("CARGO_PKG_VERSION").into(),
         http_port: cfg.http_port,
         instance_id,
         label: cfg.instance_label.clone(),
+        tls: true,
+        cert_sha256: tls_identity.sha256_fingerprint.clone(),
     }
     .to_json_line();
 
     let shutdown = Arc::new(AtomicBool::new(false));
     let sd_http = shutdown.clone();
     let sd_udp = shutdown.clone();
+    let tls_id = tls_identity.clone();
 
-    let http_task = tokio::spawn(async move {
-        let graceful = async move {
-            while !sd_http.load(Ordering::SeqCst) {
-                tokio::time::sleep(Duration::from_millis(400)).await;
-            }
-        };
-        axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(graceful)
-        .await
-    });
+    let http_task =
+        tokio::spawn(async move { tls::serve_tls_router(addr, &tls_id, router, sd_http).await });
 
     let udp_task = tokio::spawn(async move {
         discovery::run_discovery_responder(cfg.udp_discovery_port, beacon, sd_udp).await
@@ -213,6 +220,7 @@ pub async fn start_lan_embedded(
             http_task,
             udp_task,
             cfg: cfg.clone(),
+            tls_cert_sha256: tls_identity.sha256_fingerprint.clone(),
         });
     }
 
@@ -221,6 +229,7 @@ pub async fn start_lan_embedded(
         event = "LAN_SERVER_STARTED",
         http_port = cfg.http_port,
         discovery = cfg.udp_discovery_port,
+        tls_fingerprint = %tls_identity.sha256_fingerprint,
     );
 
     Ok(LanServerStatusPayload {
@@ -230,6 +239,7 @@ pub async fn start_lan_embedded(
         discovery_port: Some(cfg.udp_discovery_port),
         instance_label: Some(cfg.instance_label.clone()),
         suggested_base_urls: local_ipv4_urls(cfg.http_port),
+        tls_cert_sha256: Some(tls_identity.sha256_fingerprint),
     })
 }
 
@@ -320,6 +330,21 @@ pub async fn lan_server_scan(
             instance_id: p.instance_id,
             label: p.label,
             version: p.version,
+            tls: p.tls,
+            cert_sha256: p.cert_sha256.clone(),
         })
         .collect())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_lan_commands {
+    () => {
+        $crate::commands::lan_commands::lan_server_get_config,
+        $crate::commands::lan_commands::lan_server_set_config,
+        $crate::commands::lan_commands::lan_server_status,
+        $crate::commands::lan_commands::lan_server_start,
+        $crate::commands::lan_commands::lan_server_stop,
+        $crate::commands::lan_commands::lan_server_scan,
+    };
 }

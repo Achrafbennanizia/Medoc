@@ -21,12 +21,17 @@ export function AuditPage() {
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [breakGlassOnly, setBreakGlassOnly] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
         setLoadError(null);
         try {
-            const data = await listAuditLogsPaged({ page, pageSize });
+            const data = await listAuditLogsPaged({
+                page,
+                pageSize,
+                filter: breakGlassOnly ? { breakGlassOnly: true } : undefined,
+            });
             setResp(data);
         } catch (e) {
             setLoadError(errorMessage(e));
@@ -34,7 +39,7 @@ export function AuditPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, pageSize]);
+    }, [page, pageSize, breakGlassOnly]);
 
     useEffect(() => {
         void load();
@@ -94,6 +99,17 @@ export function AuditPage() {
                             ))}
                         </select>
                     </label>
+                    <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)" }}>
+                        <input
+                            type="checkbox"
+                            checked={breakGlassOnly}
+                            onChange={(e) => {
+                                setBreakGlassOnly(e.target.checked);
+                                setPage(1);
+                            }}
+                        />
+                        Nur Notfallzugriff (Break-Glass)
+                    </label>
                     <button
                         type="button"
                         onClick={() => void exportCsv()}
@@ -123,7 +139,7 @@ export function AuditPage() {
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Zeitpunkt</th><th>Aktion</th><th>Entität</th><th>Details</th><th>Benutzer</th>
+                                <th>Zeitpunkt</th><th>Aktion</th><th>Entität</th><th>Details</th><th>Notfall</th><th>Benutzer</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -133,6 +149,15 @@ export function AuditPage() {
                                     <td><Badge>{l.action}</Badge></td>
                                     <td>{l.entity}</td>
                                     <td>{l.details || "–"}</td>
+                                    <td>
+                                        {l.under_break_glass ? (
+                                            <span title={l.break_glass_reason ?? undefined}>
+                                                <Badge variant="warning">Break-Glass</Badge>
+                                            </span>
+                                        ) : (
+                                            "–"
+                                        )}
+                                    </td>
                                     <td
                                         style={{
                                             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",

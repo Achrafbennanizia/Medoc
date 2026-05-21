@@ -63,7 +63,10 @@ pub fn remove_storage_dir_best_effort(app_data_dir: &Path, akte_id: &str) {
     }
 }
 
-pub async fn list_for_akte(pool: &SqlitePool, akte_id: &str) -> Result<Vec<AkteAnlageRow>, AppError> {
+pub async fn list_for_akte(
+    pool: &SqlitePool,
+    akte_id: &str,
+) -> Result<Vec<AkteAnlageRow>, AppError> {
     let rows = sqlx::query_as::<_, AkteAnlageRow>(
         "SELECT id, akte_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at
          FROM akte_anlage WHERE akte_id = ?1 ORDER BY created_at DESC",
@@ -97,9 +100,7 @@ pub async fn create(
     bytes: &[u8],
 ) -> Result<AkteAnlageRow, AppError> {
     if bytes.len() > ANLAGE_MAX_BYTES {
-        return Err(AppError::Validation(
-            "Datei zu groß (max. 50 MB).".into(),
-        ));
+        return Err(AppError::Validation("Datei zu groß (max. 50 MB).".into()));
     }
 
     let (cnt,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patientenakte WHERE id = ?1")
@@ -121,9 +122,8 @@ pub async fn create(
     })?;
 
     let disk_path = absolute_path(app_data_dir, &rel);
-    std::fs::write(&disk_path, bytes).map_err(|e| {
-        AppError::Internal(format!("Datei konnte nicht gespeichert werden: {e}"))
-    })?;
+    std::fs::write(&disk_path, bytes)
+        .map_err(|e| AppError::Internal(format!("Datei konnte nicht gespeichert werden: {e}")))?;
 
     let size_i64 = i64::try_from(bytes.len()).map_err(|_| {
         AppError::Internal("Dateigröße außerhalb des unterstützten Bereichs".into())
@@ -154,10 +154,16 @@ pub async fn create(
         .ok_or_else(|| AppError::Internal("Anlage nach Insert nicht lesbar".into()))
 }
 
-pub async fn update_display_name(pool: &SqlitePool, id: &str, display_name: &str) -> Result<(), AppError> {
+pub async fn update_display_name(
+    pool: &SqlitePool,
+    id: &str,
+    display_name: &str,
+) -> Result<(), AppError> {
     let trimmed = display_name.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Validation("Bezeichnung darf nicht leer sein.".into()));
+        return Err(AppError::Validation(
+            "Bezeichnung darf nicht leer sein.".into(),
+        ));
     }
     let n = sqlx::query("UPDATE akte_anlage SET display_name = ?1 WHERE id = ?2")
         .bind(trimmed)
@@ -172,10 +178,16 @@ pub async fn update_display_name(pool: &SqlitePool, id: &str, display_name: &str
     Ok(())
 }
 
-pub async fn update_document_kind(pool: &SqlitePool, id: &str, document_kind: &str) -> Result<(), AppError> {
+pub async fn update_document_kind(
+    pool: &SqlitePool,
+    id: &str,
+    document_kind: &str,
+) -> Result<(), AppError> {
     let trimmed = document_kind.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Validation("Dokumenttyp darf nicht leer sein.".into()));
+        return Err(AppError::Validation(
+            "Dokumenttyp darf nicht leer sein.".into(),
+        ));
     }
     let n = sqlx::query("UPDATE akte_anlage SET document_kind = ?1 WHERE id = ?2")
         .bind(trimmed)

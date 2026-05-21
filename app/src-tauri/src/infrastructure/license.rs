@@ -14,18 +14,10 @@
 // The signature is appended as `.<base64-sig>` after the canonical JSON body
 // so the entire payload is one ASCII line: `<json>.<sig>`.
 
-use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{DateTime, Utc};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
-/// Public key embedded at compile time. Replace with the production vendor key
-/// before shipping. Must be 32 raw bytes (Ed25519 verifying key).
-const VENDOR_PUBKEY: &[u8; 32] = &[
-    // Development key — placeholder; never ships in production builds.
-    0x3d, 0x40, 0x17, 0xc3, 0xe8, 0x43, 0x89, 0x5a, 0x92, 0xb7, 0x0a, 0xa7, 0x4d, 0x1b, 0x7e, 0xbc,
-    0x96, 0x8e, 0x17, 0xfd, 0xe2, 0x65, 0xc4, 0xe6, 0x42, 0x9d, 0x6f, 0x88, 0x33, 0xb1, 0x91, 0x6f,
-];
+include!(concat!(env!("OUT_DIR"), "/pubkey.rs"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct License {
@@ -53,24 +45,10 @@ pub fn verify(token: &str) -> LicenseStatus {
         None => return invalid("Format ungültig — Trennzeichen fehlt"),
     };
 
-    let sig_bytes = match STANDARD_NO_PAD.decode(sig_b64.trim()) {
-        Ok(b) => b,
-        Err(e) => return invalid(&format!("Signatur nicht decodierbar: {e}")),
-    };
-    if sig_bytes.len() != 64 {
-        return invalid("Signaturlänge ungültig");
-    }
-    let mut sig_arr = [0u8; 64];
-    sig_arr.copy_from_slice(&sig_bytes);
-    let signature = Signature::from_bytes(&sig_arr);
-
-    let key = match VerifyingKey::from_bytes(VENDOR_PUBKEY) {
-        Ok(k) => k,
-        Err(e) => return invalid(&format!("Vendor-Key Fehler: {e}")),
-    };
-
-    if key.verify(body.as_bytes(), &signature).is_err() {
-        return invalid("Signatur ungültig");
+    if let Err(e) =
+        crate::infrastructure::crypto::sig::verify_ed25519(&VENDOR_PUBKEY, body.as_bytes(), sig_b64)
+    {
+        return invalid(&e.to_string());
     }
 
     let license: License = match serde_json::from_str(body) {

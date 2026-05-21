@@ -12,13 +12,18 @@ use sqlx::SqlitePool;
 use std::path::Path;
 
 use crate::error::AppError;
+use crate::infrastructure::database::{db_key, sqlcipher};
+use crate::infrastructure::{backup, logging::sanitizer};
 use crate::log_system;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ErasureReport {
     pub patient_id: String,
     pub anonymised_at: String,
     pub deleted_records: u64,
+    pub backups_redacted: u32,
+    pub log_files_redacted: u32,
 }
 
 /// Tuple representing the patient row queried for the DSGVO export.
@@ -70,12 +75,45 @@ pub async fn erase_patient(
     patient_id: &str,
     app_data_dir: &Path,
 ) -> Result<ErasureReport, AppError> {
-    let akte_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM patientenakte WHERE patient_id = ?1",
-    )
-    .bind(patient_id)
-    .fetch_all(pool)
-    .await?;
+    let (deleted, akte_ids) = erase_patient_records(pool, patient_id).await?;
+
+    for (aid,) in akte_ids {
+        crate::infrastructure::database::akte_anlage_repo::remove_storage_dir_best_effort(
+            app_data_dir,
+            &aid,
+        );
+    }
+
+    let backups_redacted = redact_patient_from_all_backups(app_data_dir, patient_id).await?;
+    let log_files_redacted = sanitizer::redact_patient_id_in_logs(patient_id)?.redacted_files.len() as u32;
+
+    log_system!(warn,
+        event = "DSGVO_ERASURE",
+        patient_id = %patient_id,
+        deleted_records = deleted,
+        backups_redacted = backups_redacted,
+        log_files_redacted = log_files_redacted,
+    );
+
+    Ok(ErasureReport {
+        patient_id: patient_id.to_string(),
+        anonymised_at: chrono::Utc::now().to_rfc3339(),
+        deleted_records: deleted,
+        backups_redacted,
+        log_files_redacted,
+    })
+}
+
+/// DB-only erasure (used for live DB and SQLCipher backup snapshots).
+pub async fn erase_patient_records(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<(u64, Vec<(String,)>), AppError> {
+    let akte_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM patientenakte WHERE patient_id = ?1")
+            .bind(patient_id)
+            .fetch_all(pool)
+            .await?;
 
     let mut deleted: u64 = 0;
     let mut tx = pool.begin().await?;
@@ -144,14 +182,13 @@ pub async fn erase_patient(
         .await?
         .rows_affected();
 
-    // CASCADE removes zahnbefund, untersuchung, behandlung linked via patientenakte.
     deleted += sqlx::query("DELETE FROM patientenakte WHERE patient_id = ?1")
         .bind(patient_id)
         .execute(&mut *tx)
         .await?
         .rows_affected();
 
-    let pseudo_name = format!("Anonymisiert ({})", patient_id);
+    let pseudo_name = format!("Anonymisiert ({patient_id})");
     let pseudo_vnr = format!("ANON-{patient_id}");
 
     let n = sqlx::query(
@@ -181,21 +218,46 @@ pub async fn erase_patient(
     }
 
     tx.commit().await?;
+    Ok((deleted, akte_ids))
+}
 
-    for (aid,) in akte_ids {
-        crate::infrastructure::database::akte_anlage_repo::remove_storage_dir_best_effort(
-            app_data_dir,
-            &aid,
-        );
+/// Apply patient erasure to every SQLCipher backup that still contains `patient_id`.
+async fn redact_patient_from_all_backups(
+    app_data_dir: &Path,
+    patient_id: &str,
+) -> Result<u32, AppError> {
+    let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
+    let mut redacted = 0u32;
+    for entry in backup::list()? {
+        let path = entry.path;
+        let Ok(pool) = sqlcipher::open_encrypted_pool(&path, key.clone(), false).await else {
+            log_system!(warn,
+                event = "BACKUP_REDACT_SKIP",
+                path = %path.display(),
+                reason = "not_sqlcipher_or_wrong_key",
+            );
+            continue;
+        };
+        let present = sqlx::query_scalar::<_, i32>("SELECT 1 FROM patient WHERE id = ?1")
+            .bind(patient_id)
+            .fetch_optional(&pool)
+            .await?
+            .is_some();
+        if present {
+            erase_patient_records(&pool, patient_id).await?;
+            pool.close().await;
+            backup::sign_file(&path)?;
+            redacted += 1;
+            log_system!(info,
+                event = "BACKUP_REDACT_OK",
+                path = %path.display(),
+                patient_id = %patient_id,
+            );
+        } else {
+            pool.close().await;
+        }
     }
-
-    log_system!(warn, event = "DSGVO_ERASURE", patient_id = %patient_id, deleted_records = deleted);
-
-    Ok(ErasureReport {
-        patient_id: patient_id.to_string(),
-        anonymised_at: chrono::Utc::now().to_rfc3339(),
-        deleted_records: deleted,
-    })
+    Ok(redacted)
 }
 
 async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, AppError> {

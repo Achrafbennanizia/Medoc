@@ -7,22 +7,20 @@
  * actionable error messages without a round-trip.
  *
  * Conventions:
- * - Enum literals are imported from {@link ../models/types} (single source of truth).
+ * - Enum literals: `config/enums.yaml` → {@link ./enums.generated.ts} (via `cargo build`).
  * - Mirror the Rust DTO field names exactly (snake_case).
  * - Strings are trimmed only when the backend also trims them.
  */
 import { z } from "zod";
 import {
-    AKTEN_STATUS_VALUES,
-    FEEDBACK_KATEGORIE_VALUES,
-    GESCHLECHT_VALUES,
-    PATIENT_STATUS_VALUES,
-    ROLLE_VALUES,
-    TERMIN_ART_VALUES,
-    TERMIN_STATUS_VALUES,
-    ZAHLUNGS_ART_VALUES,
-    ZAHLUNGS_STATUS_VALUES,
-} from "@/models/types";
+    FeedbackKategorieSchema,
+    GeschlechtSchema,
+    PatientStatusSchema,
+    RolleSchema,
+    TerminArtSchema,
+    TerminStatusSchema,
+    ZahlungsartSchema,
+} from "@/lib/schemas.enums.generated";
 
 const isoDate = z
     .string()
@@ -37,17 +35,19 @@ const optionalText = z
     .optional()
     .transform((v) => (v == null || v === "" ? null : v));
 
-/** z.enum on readonly tuples (Zod 3). */
-function stringEnumConst<T extends readonly [string, ...string[]]>(values: T) {
-    return z.enum(values);
-}
-
-export const GeschlechtSchema = stringEnumConst(GESCHLECHT_VALUES);
+export {
+    AktenStatusSchema,
+    FeedbackKategorieSchema,
+    GeschlechtSchema,
+    PatientStatusSchema,
+    RolleSchema,
+    TerminArtSchema,
+    TerminStatusSchema,
+    ZahlungsartSchema,
+    ZahlungStatusSchema,
+} from "@/lib/schemas.enums.generated";
 /** @deprecated Use {@link GeschlechtSchema}. */
 export const PatientGeschlechtSchema = GeschlechtSchema;
-
-export const PatientStatusSchema = stringEnumConst(PATIENT_STATUS_VALUES);
-export const AktenStatusSchema = stringEnumConst(AKTEN_STATUS_VALUES);
 
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name ist erforderlich").max(120),
@@ -73,9 +73,6 @@ export const UpdatePatientSchema = z
     })
     .strict();
 
-export const TerminArtSchema = stringEnumConst(TERMIN_ART_VALUES);
-export const TerminStatusSchema = stringEnumConst(TERMIN_STATUS_VALUES);
-
 export const CreateTerminSchema = z.object({
     datum: isoDate,
     uhrzeit: isoTime,
@@ -98,8 +95,6 @@ export const UpdateTerminSchema = z
         arzt_id: z.string().min(1).optional(),
     })
     .strict();
-
-export const RolleSchema = stringEnumConst(ROLLE_VALUES);
 
 export const CreatePersonalSchema = z.object({
     name: nonEmpty().max(120),
@@ -143,9 +138,6 @@ export const UpdateOwnProfileSchema = z
             d.telefon !== undefined,
         { message: "Mindestens ein Feld zum Speichern ausfüllen" },
     );
-
-export const ZahlungsartSchema = stringEnumConst(ZAHLUNGS_ART_VALUES);
-export const ZahlungStatusSchema = stringEnumConst(ZAHLUNGS_STATUS_VALUES);
 
 export const CreateZahlungSchema = z.object({
     patient_id: nonEmpty(),
@@ -327,8 +319,6 @@ export const CreateBilanzSnapshotSchema = z.object({
     ausgaben_cents: z.number().int().nonnegative(),
     payload: z.unknown(),
 });
-
-export const FeedbackKategorieSchema = stringEnumConst(FEEDBACK_KATEGORIE_VALUES);
 
 export const CreateFeedbackSchema = z.object({
     kategorie: FeedbackKategorieSchema,

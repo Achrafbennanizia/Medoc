@@ -1,7 +1,9 @@
 //! Tagesabschluss (Kasse / Abgleich) — protokollierte Läufe.
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::tagesabschluss_protokoll::{CreateTagesabschlussProtokoll, TagesabschlussProtokoll};
+use crate::domain::entities::tagesabschluss_protokoll::{
+    CreateTagesabschlussProtokoll, TagesabschlussProtokoll,
+};
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, tagesabschluss_protokoll_repo};
 use sqlx::SqlitePool;
@@ -70,4 +72,15 @@ pub async fn delete_tagesabschluss_protokoll(
     .await
     .ok();
     Ok(())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_tagesabschluss_protokoll_commands {
+    () => {
+        $crate::commands::tagesabschluss_protokoll_commands::list_tagesabschluss_protokolle,
+        $crate::commands::tagesabschluss_protokoll_commands::get_tagesabschluss_protokoll,
+        $crate::commands::tagesabschluss_protokoll_commands::create_tagesabschluss_protokoll,
+        $crate::commands::tagesabschluss_protokoll_commands::delete_tagesabschluss_protokoll,
+    };
 }

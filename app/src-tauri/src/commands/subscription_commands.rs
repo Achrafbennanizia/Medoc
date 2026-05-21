@@ -114,6 +114,15 @@ pub async fn attach_payment_method(
     Ok(())
 }
 
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_subscription_commands {
+    () => {
+        $crate::commands::subscription_commands::open_subscription_portal,
+        $crate::commands::subscription_commands::attach_payment_method,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::is_valid_provider_token;

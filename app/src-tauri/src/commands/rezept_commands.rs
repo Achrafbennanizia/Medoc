@@ -91,3 +91,14 @@ pub async fn delete_rezept(
         .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_rezept_commands {
+    () => {
+        $crate::commands::rezept_commands::list_rezepte,
+        $crate::commands::rezept_commands::create_rezept,
+        $crate::commands::rezept_commands::update_rezept,
+        $crate::commands::rezept_commands::delete_rezept,
+    };
+}

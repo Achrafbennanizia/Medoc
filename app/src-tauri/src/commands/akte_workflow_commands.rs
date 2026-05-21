@@ -1,9 +1,11 @@
 //! FA-AKTE-14/15, FA-PERS-08 — Akten-Workflow (Validierungs-Warteschlange, Weiterleitung, Tickets).
 use crate::application::rbac::{self, Role};
 use crate::commands::auth_commands::SessionState;
+use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    akte_repo, audit_repo, in_app_notification_repo, patient_repo, personal_repo, praxis_ticket_repo,
+    akte_repo, audit_repo, in_app_notification_repo, patient_repo, personal_repo,
+    praxis_ticket_repo,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -91,7 +93,9 @@ pub async fn forward_akte_to_physicians(
         .into_iter()
         .collect();
     if ids.is_empty() {
-        return Err(AppError::Validation("Mindestens einen Arzt auswählen.".into()));
+        return Err(AppError::Validation(
+            "Mindestens einen Arzt auswählen.".into(),
+        ));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
@@ -168,7 +172,9 @@ pub async fn create_praxis_ticket(
     }
     let body = args.body.trim();
     if body.is_empty() {
-        return Err(AppError::Validation("Nachricht darf nicht leer sein.".into()));
+        return Err(AppError::Validation(
+            "Nachricht darf nicht leer sein.".into(),
+        ));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
@@ -192,14 +198,11 @@ pub async fn create_praxis_ticket(
         .map(|p| p.name)
         .unwrap_or_default();
     let title = format!("Ticket: {pname}");
-    let notif_body = format!(
-        "{}",
-        if body.len() > 200 {
-            format!("{}…", &body[..200])
-        } else {
-            body.to_string()
-        }
-    );
+    let notif_body = if body.len() > 200 {
+        format!("{}…", &body[..200])
+    } else {
+        body.to_string()
+    };
     let pay = json!({ "ticketId": t.id, "patientId": args.patient_id }).to_string();
     in_app_notification_repo::insert(
         &pool,
@@ -251,11 +254,10 @@ pub async fn update_praxis_ticket_status(
         return Err(AppError::Unauthorized);
     }
     let st = args.status.trim().to_uppercase();
-    if !matches!(st.as_str(), "IN_BEARBEITUNG" | "ERLEDIGT") {
-        return Err(AppError::Validation(
-            "Status muss IN_BEARBEITUNG oder ERLEDIGT sein.".into(),
-        ));
-    }
+    let current = praxis_ticket_repo::find_by_id(&pool, &args.id)
+        .await?
+        .ok_or(AppError::NotFound("Ticket".into()))?;
+    workflow_transitions::praxis_ticket_status_transition(&current.status, &st)?;
     let out = praxis_ticket_repo::update_status(&pool, &args.id, &session.user_id, &st).await?;
     audit_repo::create(
         &pool,
@@ -282,4 +284,18 @@ pub async fn count_open_praxis_tickets_for_me(
         return Ok(0);
     }
     praxis_ticket_repo::count_open_for_arzt(&pool, &session.user_id).await
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_akte_workflow_commands {
+    () => {
+        $crate::commands::akte_workflow_commands::list_akten_zu_validieren,
+        $crate::commands::akte_workflow_commands::validate_patientenakte,
+        $crate::commands::akte_workflow_commands::forward_akte_to_physicians,
+        $crate::commands::akte_workflow_commands::create_praxis_ticket,
+        $crate::commands::akte_workflow_commands::list_praxis_tickets_for_me,
+        $crate::commands::akte_workflow_commands::update_praxis_ticket_status,
+        $crate::commands::akte_workflow_commands::count_open_praxis_tickets_for_me,
+    };
 }

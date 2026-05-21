@@ -12,6 +12,11 @@ jobs:
     defaults:
       run:
         working-directory: app/src-tauri
+    env:
+      # 32-byte Ed25519 verifying key (hex). CI/test builds only — production keys via ops secret store.
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -57,25 +62,4 @@ jobs:
       - run: npm audit --omit=dev
       - run: npm run lint
       - run: npm test
-      - run: npm run build
-
-  next-web:
-    name: Next.js web (src lint + build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/medoc?schema=public
-      AUTH_SECRET: "01234567890123456789012345678901"
-      AUTH_URL: http://localhost:3000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: src/package-lock.json
-      - run: npm ci
-      - run: npm run lint
       - run: npm run build

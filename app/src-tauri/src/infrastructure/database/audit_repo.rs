@@ -1,65 +1,35 @@
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use rand::RngCore;
+use crate::infrastructure::database::audit_break_glass;
+use crate::infrastructure::secret_store;
 use sqlx::SqlitePool;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
 static AUDIT_KEY_MATERIAL: OnceLock<Vec<u8>> = OnceLock::new();
 
 /// Initialise the audit HMAC key **before** any audit row is written.
-/// Prefer `MEDOC_AUDIT_KEY`; otherwise loads or creates `.audit_hmac_key` next to `medoc.db`.
-/// Migrates a legacy key from `~/medoc-data/.audit-hmac-key` when present.
+/// Prefer `MEDOC_AUDIT_KEY` (tests); otherwise OS keychain (`de.medoc.app` / `audit-hmac-key`).
+/// Migrates legacy plaintext `.audit_hmac_key` into the keychain and deletes the file.
 pub fn init_audit_hmac_key(app_data_dir: &Path) -> Result<(), std::io::Error> {
     if AUDIT_KEY_MATERIAL.get().is_some() {
         return Ok(());
     }
-    let key = resolve_audit_key_material(app_data_dir)?;
+    let key = resolve_audit_key_material(app_data_dir)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     let _ = AUDIT_KEY_MATERIAL.set(key);
     Ok(())
 }
 
-fn chmod600(path: &Path) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = std::fs::metadata(path) {
-            let mut perms = meta.permissions();
-            perms.set_mode(0o600);
-            let _ = std::fs::set_permissions(path, perms);
-        }
-    }
-}
-
-fn resolve_audit_key_material(app_data_dir: &Path) -> Result<Vec<u8>, std::io::Error> {
-    if let Ok(env) = std::env::var("MEDOC_AUDIT_KEY") {
-        return Ok(env.into_bytes());
-    }
-
-    let path = app_data_dir.join(".audit_hmac_key");
-    if path.exists() {
-        return std::fs::read(&path);
-    }
-
-    // Legacy location (pre–app-data-dir alignment)
+fn resolve_audit_key_material(app_data_dir: &Path) -> Result<Vec<u8>, AppError> {
+    let mut legacy_candidates = vec![app_data_dir.join(".audit_hmac_key")];
     if let Some(home) = dirs::home_dir() {
-        let legacy: PathBuf = home.join("medoc-data").join(".audit-hmac-key");
-        if legacy.exists() {
-            let bytes = std::fs::read(&legacy)?;
-            std::fs::create_dir_all(app_data_dir)?;
-            std::fs::write(&path, &bytes)?;
-            chmod600(&path);
-            return Ok(bytes);
-        }
+        legacy_candidates.push(home.join("medoc-data").join(".audit-hmac-key"));
     }
+    let legacy = legacy_candidates.iter().find(|p| p.exists());
 
-    std::fs::create_dir_all(app_data_dir)?;
-    let mut raw = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut raw);
-    std::fs::write(&path, raw)?;
-    chmod600(&path);
-    Ok(raw.to_vec())
+    secret_store::load_or_create_bytes("audit-hmac-key", legacy.map(|p| p.as_path()), 32)
 }
 
 #[cfg(test)]
@@ -82,6 +52,22 @@ fn audit_key() -> Result<Vec<u8>, AppError> {
     }
 }
 
+/// HMAC-SHA256 hex digest of `subject` (login email, practice slug, …) for brute-force keys.
+pub fn subject_hmac(subject: &str) -> Result<String, AppError> {
+    crypto::audit_hmac(&audit_key()?, subject).map_err(AppError::Internal)
+}
+
+/// HMAC-SHA256 (hex) over a backup file using the audit-chain key.
+pub fn hmac_file(path: &Path) -> Result<String, AppError> {
+    crypto::audit_hmac_file(&audit_key()?, path).map_err(AppError::Internal)
+}
+
+/// Returns `Ok(true)` when the sidecar matches, `Ok(false)` when it does not.
+pub fn verify_file_hmac(path: &Path, expected_hex: &str) -> Result<bool, AppError> {
+    let actual = hmac_file(path)?;
+    Ok(actual == expected_hex.trim())
+}
+
 pub async fn find_all(pool: &SqlitePool, limit: i64) -> Result<Vec<AuditLog>, AppError> {
     let rows =
         sqlx::query_as::<_, AuditLog>("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?1")
@@ -98,14 +84,32 @@ pub async fn find_paginated(
     limit: u32,
     offset: u32,
     sort_dir_sql: &'static str,
+    break_glass_only: bool,
 ) -> Result<(Vec<AuditLog>, i64), AppError> {
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
-        .fetch_one(pool)
-        .await?;
-    let sql = format!(
-        "SELECT * FROM audit_log ORDER BY created_at {} LIMIT ?1 OFFSET ?2",
-        sort_dir_sql
-    );
+    let (total, sql) = if break_glass_only {
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM audit_log WHERE under_break_glass = 1")
+                .fetch_one(pool)
+                .await?;
+        (
+            total,
+            format!(
+                "SELECT * FROM audit_log WHERE under_break_glass = 1 ORDER BY created_at {} LIMIT ?1 OFFSET ?2",
+                sort_dir_sql
+            ),
+        )
+    } else {
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
+            .fetch_one(pool)
+            .await?;
+        (
+            total,
+            format!(
+                "SELECT * FROM audit_log ORDER BY created_at {} LIMIT ?1 OFFSET ?2",
+                sort_dir_sql
+            ),
+        )
+    };
     let rows = sqlx::query_as::<_, AuditLog>(&sql)
         .bind(limit as i64)
         .bind(offset as i64)
@@ -140,11 +144,16 @@ pub async fn create(
 ) -> Result<(), AppError> {
     let id = uuid::Uuid::new_v4().to_string();
 
-    // Hash chain — include the previous row's HMAC so any tampering in the
-    // middle of the log is detectable.
+    // Serialize chain tip read + insert (BEGIN IMMEDIATE) so concurrent writers
+    // cannot observe the same prev HMAC and fork the chain.
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(AppError::Database)?;
+
     let prev_hash: Option<String> =
-        sqlx::query_scalar("SELECT hmac FROM audit_log ORDER BY created_at DESC LIMIT 1")
-            .fetch_optional(pool)
+        sqlx::query_scalar("SELECT hmac FROM audit_log ORDER BY rowid DESC LIMIT 1")
+            .fetch_optional(&mut *tx)
             .await?;
     let prev = prev_hash.clone().unwrap_or_default();
 
@@ -160,9 +169,12 @@ pub async fn create(
     );
     let hmac = crypto::audit_hmac(&audit_key()?, &payload).map_err(AppError::Internal)?;
 
+    let (under_break_glass, break_glass_reason) =
+        audit_break_glass::break_glass_meta_for_audit(user_id, entity, entity_id);
+
     sqlx::query(
-        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac, under_break_glass, break_glass_reason)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )
     .bind(&id)
     .bind(user_id)
@@ -172,8 +184,12 @@ pub async fn create(
     .bind(details)
     .bind(prev_hash)
     .bind(&hmac)
-    .execute(pool)
+    .bind(u8::from(under_break_glass))
+    .bind(break_glass_reason.as_deref())
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -195,7 +211,7 @@ type AuditRow = (
 pub async fn verify_chain(pool: &SqlitePool) -> Result<Option<String>, AppError> {
     let rows: Vec<AuditRow> = sqlx::query_as(
         "SELECT id, user_id, action, entity, entity_id, details, prev_hash, hmac
-             FROM audit_log ORDER BY created_at ASC",
+             FROM audit_log ORDER BY rowid ASC",
     )
     .fetch_all(pool)
     .await?;

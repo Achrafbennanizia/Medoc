@@ -1,8 +1,39 @@
 # Action ledger
 
-**Last updated:** 2026-04-26
+**Last updated:** 2026-05-20
 
 ## Now (this session / immediate)
+
+| ID | Action | Blocked by | Status |
+| -- | ------ | ---------- | ------ |
+| DOC | Document Phases B–E + professional PDF layout — validate & commit | User commit request | **Validated** 2026-05-19 (`pdf_document_tests` 5/5, 107 vitest); **uncommitted** |
+| P0 | Audit remediation Phase 0 (TASK 0.1–0.4) | — | **Done** 2026-05-19 |
+| P1 | Audit remediation Phase 1 (TASK 1.7 brute-force hardening) | — | **Done** 2026-05-19 |
+| P3a | Phase 3.1 — sqlx `migrate!`, `migrations/0001_initial_schema.sql`, dual legacy/fresh path | — | **Done** 2026-05-19 |
+| P3b | Phase 3.2 — domain services (`konflikt`, `pricing`, `workflow_transitions`) + `domain_services_tests` | — | **Done** 2026-05-19 |
+| P3c | Phase 3.3 — centralised IPC registration (`register.rs`, 224 commands) | — | **Done** 2026-05-20 |
+| P3d | Phase 3.4 — RBAC YAML codegen (`config/rbac.yaml` → Rust + `rbac.generated.ts`) | — | **Done** 2026-05-20 |
+| P3e | Phase 3.5 — enum codegen (`config/enums.yaml` → Rust + TS + Zod + SQL fragments) | — | **Done** 2026-05-20 |
+| P3f | Phase 3.6 — patient-scoped localStorage → SQLite (`akte_*`, `rechnung_document`, `termin.draft.v1.*` app_kv) | — | **Done** 2026-05-20 |
+| P3g | Phase 3.7 — page splits (utils/libs extracted) | P3f | **Done** 2026-05-20 |
+| P3h | Phase 3.7b — termin + einstellungen + **patient-detail** (7 tab modules + rezept hook/panel; shell ~2126 lines) | P3g | **Done** 2026-05-19 (uncommitted) |
+| CAL | Kalender: Pause/Notfall-Toolbar ausgeblendet (`termine.tsx` kommentiert) | — | **Done** 2026-05-20 |
+| P2 | Audit remediation Phase 2 complete | — | **Done** 2026-05-19 |
+| P2g | Phase 2.7 — DSGVO erasure: backups + logs | — | **Done** 2026-05-19 |
+| P2f | Phase 2.6 — Backup retention + HMAC signing | — | **Done** 2026-05-19 |
+| P2d | Phase 2.4 — Break-glass audit flags + filtered audit UI | — | **Done** 2026-05-19 |
+| P2e | Phase 2.5 — Audit chain verify at startup + ops block banner | — | **Done** 2026-05-19 |
+| P2c | Phase 2.3 — TOTP 2FA (ARZT mandatory, login + enrollment commands, `totp_tests`) | — | **Done** 2026-05-19 |
+| P2a | Phase 2.1 — Password policy (crypto + personal/einstellungen UI) | — | **Done** 2026-05-19 |
+| P2b | Phase 2.2 — Re-hash bcrypt → Argon2 on login | — | **Done** 2026-05-19 |
+| P1e | Phase 1.6 — audit chain `BEGIN IMMEDIATE` + concurrent test | — | **Done** 2026-05-19 |
+| P1d | Phase 1.5 — SQLCipher (`db_key`, `sqlcipher`, `DbSetupGate`, `sqlcipher_tests`, CI `MEDOC_DB_KEY`) | — | **Done** 2026-05-19 |
+| P1c | Phase 1.4 — CORS allowlists (LAN + company host, `cors_policy_tests`) | — | **Done** 2026-05-19 |
+| P1b | Phase 1.3 — Company-server API key Argon2 + brute-force on auth | — | **Done** 2026-05-19 |
+| P1a | Phase 1.1 — LAN TLS (self-signed cert, HTTPS-only, fingerprint in UI/beacon, `lan_tls_tests`) | — | **Done** 2026-05-19 |
+| P1f | Phase 1.7 — Brute-force: `BruteKey` (HMAC subject + IP), `brute_force_lockout` table, `admin_unlock_brute_force`, 6 tests | — | **Done** 2026-05-19 |
+
+## Prior Now (WAAD / product backlog)
 
 > **Action-ID-Konvention für WAAD-Wave:** A2..A10 sind genau so vergeben, wie sie in
 > `docs/requirements-engineering/01b-traceability-waad.md` zitiert werden. Bitte beim Querverweisen
@@ -56,4 +87,5 @@
 | D17 | Bestellungen end-to-end overhaul: backend `Bestellung` gains `bestellnummer` (auto `B-YYYY-MM-NNNN`) + `pharmaberater` (WF 45 parity), idempotent ALTER TABLE migration + supplier/bestellnummer indexes, new `update_bestellung` command/repo with patch DTO. Page now ships search, status segment + "Überfällig" KPI tile (clickable filters), sortable columns, lieferant/artikel/pharma datalists (autocompleted from history + `produkt`), inline status-transition dropdown (no more 3 buttons + dead-end states), edit dialog, detail dialog, **Nachbestellen** clone action, bulk select + bulk status / bulk delete bar, **CSV export** (UTF-8 BOM), **Lager nachbestellen** modal that batch-creates orders for products at/below `mindestbestand`. `EmptyState` got an optional `action` so the empty + no-match states are actionable. (`bestellungen.tsx`, `bestellung_repo.rs`, `bestellung_commands.rs`, `domain/entities/bestellung.rs`, `connection.rs`, `bestellung.controller.ts`, `schemas.ts`, `empty-state.tsx`) | 2026-04-25 |
 | D18 | Statistik-Seite (vollständige WF 39–42-Parität): Neuer Tauri-Befehl `get_statistik_overview` aggregiert Patienten/Behandlungen/Termine/Finanzen/Bestellungen über die letzten 6/12 Monate (`statistik_commands.rs`, `lib.rs`); Frontend-Seite (`statistik.tsx`) reuses recharts mit `MonthBar`/`MonthLine`/`PiePanel`/`CategoryBar`-Wrappern, sticky Sektions-Sidebar (Patienten / Behandlungen / Termine / Finanzen+Bestellungen), 6-Monats-/12-Monats-Schalter, CSV-Export. Datenbank-Seeding (`connection.rs`) bekommt 14 historische Bestellungen plus rückdatierte `created_at` für Patienten/Zahlungen/Termine/Behandlungen, damit die Charts realistische Zeitreihen zeigen. `MonthBucket`/`LabelValue`/`StatistikOverview` in `models/types.ts` + `statistik.controller.ts` ergänzt. Kompiliert (`cargo check`), `tsc --noEmit` clean, `npm run lint` clean, `vitest` 29/29, `cargo test` ok. | 2026-04-25 |
 | D19 | Bestellungen-Seite Re-Design auf Nielsen-Heuristiken: Hauptseite wieder minimalistisch wie `produkte.tsx` (Suche + Status-Filter, klickbare Bestellnummer öffnet Detailansicht; Anzeigen-/Löschen-Button in Aktionsspalte). Neue Detail-Route `/bestellungen/:id` (`bestellung-detail.tsx`) mit deutlichem **Zurück**-Button, Status-Workflow-Strip (vier-Status-Pills, aktiver Status hervorgehoben), Bearbeiten/Speichern-Modus inline, separater Karten-Layout für Bestelldaten + Metadaten/Verlauf, Löschen-Bestätigung. Route in `App.tsx` und `rbac.ts` (`bestellungen/:id` → `finanzen.read`) registriert. | 2026-04-25 |
+| P0 | Phase 0 STABILISE: removed CI `next-web` + doc refs to missing `src/`; `build.rs` + `MEDOC_VENDOR_PUBKEY`; `crypto/sig.rs` + update signature verification + tests; company-server `_demo` + settings banner; `docs/operations/vendor-key-rotation.md`, `company-server-demo.md` | 2026-05-19 |
 | D20 | Workflow-Refactor "Automation max" (User-Direktive 2026-04-26): (1) **Modal → Page**: `Neue Zahlung` aus `finanzen.tsx` entfernt und durch dedizierte Seite `zahlung-create.tsx` an `/finanzen/neu` ersetzt; Route in `App.tsx`, RBAC-Eintrag `finanzen/neu → finanzen.write` in `rbac.ts`. (2) **`patient-detail.tsx` Header-Refactor**: Top-Buttons `Löschen`/`Validieren`/`Bearbeiten` entfernt; pro-Sektion-Buttons (Stammdaten/Anamnese/Anlagen/Zahlungen) plus inline `Akte löschen` nur in Stammdaten und `+ Neue Zahlung` in Kundenleistungen-Sektion; Tab-Buttons tragen jetzt eine `tab-badge` (`!`/`✓`/Zahl) gespeist aus `app/src/lib/akte-validation.ts` (LocalStorage-basierte Validierungsstati pro Patient × Sektion); pending-count-Badge im Seitentitel. (3) **Behandlung-Composer**: Zwei-Mode-Schalter (`Neue Behandlung` / `Behandlung fortsetzen`) ersetzt das alte Formular; `BEHANDLUNGSNUMMER` und `SITZUNG` werden automatisch berechnet/angezeigt (read-only); `STATUS` / `TERMIN ERFORDERLICH` / `NOTIZEN` in einklappbares `<details>` "Nächsten Termin planen (optional)" verschoben. (4) **Termin-Tipp-Pipeline**: `patient-detail.tsx` schreibt bei `Plan nächsten Termin` einen freien Text nach `localStorage` (`medoc.akte.tipp.v1.<patientId>`); `termin-create.tsx` zeigt diesen Tipp prominent oben mit "In Notizen übernehmen"-Button. (5) **Rezept-Vorlagen-Integration**: Quick-Pick-Chip-Reihe für `rezeptVorlagen` direkt im Rezept-Tab + Standalone `rezepte.tsx`. (6) **CSS**: neue `.tab-badge.warn|.ok|.muted`-Styles in `index.css`. Validation: `tsc --noEmit` clean, `eslint --max-warnings 0` clean (nach Fix der fehlenden `activeTab`-Dependency im Vorlage-Loader-Effekt), `vitest run` 29/29 grün. Backend unverändert; live `tauri dev` (Terminal 1) zeigt `Finished dev profile in 13.68s` + `DB_READY`, d. h. der Rust-Stand kompiliert. | 2026-04-26 |

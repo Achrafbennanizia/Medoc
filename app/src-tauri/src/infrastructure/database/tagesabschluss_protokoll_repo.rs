@@ -1,5 +1,7 @@
 //! Tagesabschluss-Protokolle (Finanzen / Kasse).
-use crate::domain::entities::tagesabschluss_protokoll::{CreateTagesabschlussProtokoll, TagesabschlussProtokoll};
+use crate::domain::entities::tagesabschluss_protokoll::{
+    CreateTagesabschlussProtokoll, TagesabschlussProtokoll,
+};
 use crate::error::AppError;
 use chrono::NaiveDate;
 use sqlx::SqlitePool;
@@ -39,7 +41,10 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<TagesabschlussProtokoll,
     .ok_or_else(|| AppError::NotFound("TagesabschlussProtokoll".into()))
 }
 
-pub async fn create(pool: &SqlitePool, data: &CreateTagesabschlussProtokoll) -> Result<TagesabschlussProtokoll, AppError> {
+pub async fn create(
+    pool: &SqlitePool,
+    data: &CreateTagesabschlussProtokoll,
+) -> Result<TagesabschlussProtokoll, AppError> {
     validate_stichtag(&data.stichtag)?;
     if !data.bar_laut_system_eur.is_finite() || !data.einnahmen_laut_system_eur.is_finite() {
         return Err(AppError::Validation("Beträge ungültig".into()));

@@ -21,3 +21,13 @@ export const setAppKv = (key: AppKvKey, value: string) =>
 
 export const deleteAppKv = (key: AppKvKey) =>
     tauriInvoke<void>("delete_app_kv", { key });
+
+/** Whitelisted dynamic keys (e.g. `termin.draft.v1.{uuid}`) — policy in `app_kv_policy.rs`. */
+export const getAppKvRaw = (key: string) =>
+    tauriInvoke<string | null>("get_app_kv", { key });
+
+export const setAppKvRaw = (key: string, value: string) =>
+    tauriInvoke<void>("set_app_kv", { key, value });
+
+export const deleteAppKvRaw = (key: string) =>
+    tauriInvoke<void>("delete_app_kv", { key });

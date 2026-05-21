@@ -171,13 +171,14 @@ export function AttestePage() {
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Typ</th><th>Gültig von</th><th>Gültig bis</th><th>Ausgestellt</th><th>Aktionen</th>
+                                <th>Typ</th><th>ICD-10</th><th>Gültig von</th><th>Gültig bis</th><th>Ausgestellt</th><th>Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
                             {atteste.map((a) => (
                                 <tr key={a.id}>
                                     <td>{a.typ}</td>
+                                    <td>{a.icd10_code?.trim() || "—"}</td>
                                     <td>{formatDate(a.gueltig_von)}</td>
                                     <td>{formatDate(a.gueltig_bis)}</td>
                                     <td>{formatDate(a.ausgestellt_am)}</td>

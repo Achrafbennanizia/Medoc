@@ -25,6 +25,14 @@ pub enum AppError {
 
     #[error("Interner Fehler: {0}")]
     Internal(String),
+
+    /// Password OK; enrolled user must supply a 6-digit TOTP code on the next login step.
+    #[error("Zwei-Faktor-Code erforderlich")]
+    TotpRequired,
+
+    /// Password OK; ARZT must complete TOTP enrollment before a session is issued.
+    #[error("Zwei-Faktor-Einrichtung erforderlich")]
+    TotpEnrollmentRequired,
 }
 
 impl serde::Serialize for AppError {

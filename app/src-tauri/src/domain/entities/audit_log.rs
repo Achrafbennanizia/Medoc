@@ -11,5 +11,7 @@ pub struct AuditLog {
     pub details: Option<String>,
     pub prev_hash: Option<String>,
     pub hmac: String,
+    pub under_break_glass: bool,
+    pub break_glass_reason: Option<String>,
     pub created_at: NaiveDateTime,
 }

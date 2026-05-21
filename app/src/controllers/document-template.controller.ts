@@ -51,60 +51,13 @@ export async function listDokumentTemplatesForKind(kind: DocumentKind): Promise<
     return rows.map(normalizeDto);
 }
 
-export async function createDokumentTemplate(input: {
-    kind: DocumentKind;
-    name: string;
-    payload: DocumentTemplatePayloadV1;
-    isDefault?: boolean;
-}): Promise<DokumentTemplateDto> {
-    const row = await tauriInvoke<DokumentTemplateRow>("create_dokument_template", {
-        data: {
-            kind: input.kind,
-            name: input.name,
-            payload: JSON.stringify(input.payload),
-            isDefault: Boolean(input.isDefault),
-        },
-    });
-    return normalizeDto(row);
-}
-
-export async function updateDokumentTemplate(input: {
-    id: string;
-    name: string;
-    payload: DocumentTemplatePayloadV1;
-    isDefault?: boolean;
-}): Promise<DokumentTemplateDto> {
-    const row = await tauriInvoke<DokumentTemplateRow>("update_dokument_template", {
-        data: {
-            id: input.id,
-            name: input.name,
-            payload: JSON.stringify(input.payload),
-            isDefault: Boolean(input.isDefault),
-        },
-    });
-    return normalizeDto(row);
-}
-
-export async function deleteDokumentTemplate(id: string): Promise<void> {
-    await tauriInvoke<void>("delete_dokument_template", { id });
-}
-
-export async function previewTemplatePdf(kind: DocumentKind, templateName: string, payload: DocumentTemplatePayloadV1): Promise<string> {
-    return tauriInvoke<string>("preview_template_pdf", {
-        args: {
-            kind,
-            templateName,
-            templatePayloadJson: JSON.stringify(payload),
-        },
-    });
-}
-
-/** PDF mit Produktiv-Zeilinhalt (Export & Druck — strukturierte Vorlage, kein Roh-HTML). */
+/** PDF mit strukturierter Vorlage und Produktiv-Zeilinhalt (kein Roh-HTML). */
 export async function previewDocumentPdf(
     kind: DocumentKind,
     templateName: string,
     payload: DocumentTemplatePayloadV1,
     bodyLines: string[],
+    layoutJson?: string | null,
 ): Promise<string> {
     return tauriInvoke<string>("preview_document_pdf", {
         args: {
@@ -112,6 +65,7 @@ export async function previewDocumentPdf(
             templateName,
             templatePayloadJson: JSON.stringify(payload),
             bodyLines,
+            layoutJson: layoutJson ?? null,
         },
     });
 }

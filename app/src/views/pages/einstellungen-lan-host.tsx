@@ -148,9 +148,9 @@ export function EinstellungenLanHostSection() {
                 <div>
                     <div className="card-title">LAN-Host / Zweitgeräte</div>
                     <div className="card-sub">
-                        Stellt dieselbe SQLite-Datenbank authentifiziert per HTTP im lokalen Netz bereit — für einen zweiten PC,
-                        Tablet oder das Headless-Binary <Mono>medoc-server</Mono>. Ohne TLS: nur im
-                        vertrauenswürdigen LAN einsetzen; Zugriff über Anmeldung (JWT).
+                        Stellt dieselbe SQLite-Datenbank authentifiziert per <strong>HTTPS</strong> (selbstsigniertes Zertifikat)
+                        im lokalen Netz bereit — für einen zweiten PC, Tablet oder <Mono>medoc-server</Mono>.
+                        Clients müssen den Zertifikats-Fingerabdruck pinnen; Klartext-HTTP wird nicht angeboten.
                     </div>
                 </div>
             </div>
@@ -160,9 +160,14 @@ export function EinstellungenLanHostSection() {
                     <b>Serverstatus</b>
                     <div className="card-sub">
                         {running
-                            ? `Aktiv · HTTP ${status?.httpPort ?? "—"} · UDP-Suche ${status?.discoveryPort ?? "—"}`
+                            ? `Aktiv · HTTPS ${status?.httpPort ?? "—"} · UDP-Suche ${status?.discoveryPort ?? "—"}`
                             : "Gestoppt — starten Sie den Dienst, wenn Zweitgeräte diesen Rechner als Host nutzen sollen."}
                     </div>
+                    {running && status?.tlsCertSha256 ? (
+                        <div className="card-sub" style={{ marginTop: 8 }}>
+                            <b>Zertifikat SHA-256:</b> <Mono>{status.tlsCertSha256}</Mono>
+                        </div>
+                    ) : null}
                     {running && status?.suggestedBaseUrls?.length ? (
                         <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "var(--fg-2)" }}>
                             {status.suggestedBaseUrls.slice(0, 6).map((u) => (
@@ -201,7 +206,7 @@ export function EinstellungenLanHostSection() {
                 />
                 <Input
                     id="lan-http"
-                    label="HTTP-Port"
+                    label="HTTPS-Port"
                     value={String(cfg.httpPort)}
                     onChange={(e) => setCfg({ ...cfg, httpPort: Number.parseInt(e.target.value, 10) || cfg.httpPort })}
                 />
@@ -261,7 +266,7 @@ export function EinstellungenLanHostSection() {
                         <thead>
                             <tr>
                                 <th align="left">Quelle</th>
-                                <th align="left">HTTP</th>
+                                <th align="left">HTTPS</th>
                                 <th align="left">Label</th>
                                 <th align="left">Version</th>
                             </tr>

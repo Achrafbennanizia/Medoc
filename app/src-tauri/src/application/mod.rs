@@ -1,4 +1,5 @@
 pub mod app_kv_policy;
+pub mod audit_chain_guard;
 pub mod auth_service;
 pub mod break_glass;
 pub mod own_profile;

@@ -38,7 +38,11 @@ pub async fn insert(
     Ok(())
 }
 
-pub async fn list_for_user(pool: &SqlitePool, user_id: &str, limit: i64) -> Result<Vec<InAppNotification>, AppError> {
+pub async fn list_for_user(
+    pool: &SqlitePool,
+    user_id: &str,
+    limit: i64,
+) -> Result<Vec<InAppNotification>, AppError> {
     let rows = sqlx::query_as::<_, InAppNotification>(
         "SELECT id, user_id, kind, title, body, payload_json, read_at, created_at
          FROM in_app_notification
@@ -63,17 +67,20 @@ pub async fn count_unread(pool: &SqlitePool, user_id: &str) -> Result<i64, AppEr
     Ok(row.0)
 }
 
-pub async fn mark_read(pool: &SqlitePool, notification_id: &str, user_id: &str) -> Result<u64, AppError> {
+pub async fn mark_read(
+    pool: &SqlitePool,
+    notification_id: &str,
+    user_id: &str,
+) -> Result<u64, AppError> {
     let now = chrono::Utc::now().to_rfc3339();
-    let n = sqlx::query(
-        "UPDATE in_app_notification SET read_at = ?1 WHERE id = ?2 AND user_id = ?3",
-    )
-    .bind(&now)
-    .bind(notification_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?
-    .rows_affected();
+    let n =
+        sqlx::query("UPDATE in_app_notification SET read_at = ?1 WHERE id = ?2 AND user_id = ?3")
+            .bind(&now)
+            .bind(notification_id)
+            .bind(user_id)
+            .execute(pool)
+            .await?
+            .rows_affected();
     Ok(n)
 }
 

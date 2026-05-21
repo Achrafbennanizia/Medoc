@@ -16,6 +16,7 @@ export type LanServerStatusPayload = {
     discoveryPort: number | null;
     instanceLabel: string | null;
     suggestedBaseUrls: string[];
+    tlsCertSha256: string | null;
 };
 
 export type LanDiscoveryHitDto = {
@@ -24,6 +25,8 @@ export type LanDiscoveryHitDto = {
     instanceId: string;
     label: string;
     version: string;
+    tls: boolean;
+    certSha256: string;
 };
 
 export const lanServerGetConfig = () => tauriInvoke<LanServerConfigV1>("lan_server_get_config");

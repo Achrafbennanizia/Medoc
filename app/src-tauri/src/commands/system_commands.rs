@@ -67,7 +67,8 @@ pub async fn check_for_updates(
     let current = env!("CARGO_PKG_VERSION").to_string();
     log_system!(info, event = "UPDATE_CHECK", current_version = %current);
 
-    let cfg = crate::infrastructure::company_portal::config::load_company_portal_config(&pool).await;
+    let cfg =
+        crate::infrastructure::company_portal::config::load_company_portal_config(&pool).await;
     if let (Some(_base), true) = (
         crate::infrastructure::company_portal::config::effective_base_url(&cfg),
         !crate::infrastructure::company_portal::config::effective_api_key(&cfg).is_empty()
@@ -176,4 +177,17 @@ pub fn list_detected_photo_viewer_apps(
 ) -> Result<Vec<crate::infrastructure::photo_viewer_scan::DetectedPhotoViewerApp>, AppError> {
     rbac::require_authenticated(&session_state)?;
     Ok(crate::infrastructure::photo_viewer_scan::detect_photo_viewer_apps())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_system_commands {
+    () => {
+        $crate::commands::system_commands::verify_license,
+        $crate::commands::system_commands::check_for_updates,
+        $crate::commands::system_commands::list_detected_photo_viewer_apps,
+        $crate::commands::system_commands::system_health_check,
+        $crate::commands::system_commands::get_perf_threshold_ms,
+        $crate::commands::system_commands::set_perf_threshold_ms,
+    };
 }

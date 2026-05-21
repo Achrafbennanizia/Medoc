@@ -26,7 +26,6 @@
 | 3. Architekturentwurf | `03-architektur/` | `08-integrationstest/` | Vorlagen (README) |
 | 4. Modulentwurf | `04-modulentwurf/` | `09-modultest/` | Vorlagen (README) |
 | 5. Implementierung | `../app/` (Tauri-Desktop, **CI-kanonisch**) | — | In Arbeit |
-| 5b. Web-Referenz (optional) | `../src/` (Next.js, **nicht in CI**) | — | Prototyp — siehe `src/README.md` |
 | 6. Modultest | `09-modultest/` | ← Modulentwurf | In Arbeit (CI: `cargo test`, `npm test`) |
 | 7. Integrationstest | `08-integrationstest/` | ← Architekturentwurf | In Arbeit (Rust-Tests) |
 | 8. Systemtest | `07-systemtest/` | ← Systementwurf | Offen (Dokumentation) |
@@ -45,7 +44,7 @@
 | Tests (CI) | `cargo test` (Backend) + `npm test` (Vitest) + `npm run build` / `tsc` (Frontend) |
 | Sprache UI | Deutsch (partiell i18n) |
 
-**Hinweis:** Verzeichnis `src/` im Repo-Root enthält eine **separate** Next.js+Prisma+PostgreSQL-App (Referenz/Prototyp, V-Modell-Entwurfsstand). Sie ist **nicht** identisch mit dem in CI gebauten Tauri-Produkt — bitte `../app/` als Implementierungsreferenz für Abnahme/Traceability nutzen, sofern nicht ausdrücklich die Web-Variante gemeint ist.
+**Hinweis:** Die Implementierung liegt ausschließlich unter `../app/` (Tauri-Desktop). Historische Next.js-Web-Referenz-Dokumente in `03-architektur/` sind als Archiv gekennzeichnet.
 
 ## Zielgruppen (Primäre Nutzer)
 - **Arzt/Admin** (Praxisinhaber)

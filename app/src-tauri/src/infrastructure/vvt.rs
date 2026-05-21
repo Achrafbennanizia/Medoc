@@ -31,8 +31,8 @@ pub struct VVT {
 
 pub fn generate() -> VVT {
     let common_tech = vec![
-        "SQLite-Datenbank lokal (WAL-Modus); DB-Datei aktuell ohne SQLCipher — NFA-SEC-08 (Verschlüsselung at-rest) offen; ergänzend OS-Vollverschlüsselung des Geräts (BitLocker/FileVault) empfohlen",
-        "Geplant: SQLCipher/AES-256 für Verschlüsselung der Datenbankdatei (NFA-SEC-08)",
+        "SQLite-Datenbank lokal (WAL-Modus) mit SQLCipher (AES-256) — Schlüssel im OS-Schlüsselbund; optional `db-key.wrap` (NFA-SEC-08)",
+        "Ergänzend OS-Vollverschlüsselung des Geräts (BitLocker/FileVault) empfohlen",
         "Argon2id Passwort-Hashing",
         "TLS 1.3 für alle Netzwerkverbindungen",
         "Tamper-proof Audit-Log (HMAC-SHA256-Hash-Kette)",

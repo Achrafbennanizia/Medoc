@@ -83,3 +83,14 @@ pub async fn delete_produkt(
     .ok();
     Ok(())
 }
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_produkt_commands {
+    () => {
+        $crate::commands::produkt_commands::list_produkte,
+        $crate::commands::produkt_commands::create_produkt,
+        $crate::commands::produkt_commands::update_produkt,
+        $crate::commands::produkt_commands::delete_produkt,
+    };
+}

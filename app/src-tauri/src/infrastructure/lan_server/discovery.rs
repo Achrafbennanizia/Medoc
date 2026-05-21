@@ -21,6 +21,15 @@ pub struct LanBeaconPayload {
     pub http_port: u16,
     pub instance_id: String,
     pub label: String,
+    /// When true, clients must use `https://` on `http_port` (name kept for schema compat).
+    #[serde(default = "default_tls_enabled")]
+    pub tls: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cert_sha256: String,
+}
+
+fn default_tls_enabled() -> bool {
+    true
 }
 
 impl LanBeaconPayload {
@@ -38,8 +47,8 @@ pub fn parse_beacon_line(bytes: &[u8]) -> Option<LanBeaconPayload> {
 
 fn ipv4_broadcast(addr: Ipv4Addr, netmask: Ipv4Addr) -> Option<Ipv4Addr> {
     let mut octets = [0u8; 4];
-    for i in 0..4 {
-        octets[i] = addr.octets()[i] | (!netmask.octets()[i]);
+    for (i, o) in octets.iter_mut().enumerate() {
+        *o = addr.octets()[i] | (!netmask.octets()[i]);
     }
     Some(Ipv4Addr::from(octets))
 }
@@ -146,6 +155,8 @@ mod tests {
             http_port: 8787,
             instance_id: "abc".into(),
             label: "Test".into(),
+            tls: true,
+            cert_sha256: "deadbeef".into(),
         };
         let line = p.to_json_line();
         let parsed = parse_beacon_line(&line).unwrap();

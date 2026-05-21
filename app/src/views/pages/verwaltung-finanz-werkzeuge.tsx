@@ -13,7 +13,13 @@ import {
     sumInvoiceEur,
     type SavedInvoice,
 } from "@/controllers/rechnung-document.controller";
-import { getInvoicePraxisFromStorage, buildInvoiceHeaderAddressLinesForExport, lineFromLeistungWahl } from "@/lib/invoice-leistung";
+import {
+    getInvoicePraxisFromStorage,
+    buildInvoiceHeaderAddressLinesForExport,
+    lineFromLeistungWahl,
+} from "@/lib/invoice-leistung";
+import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
+import { PraxisReadinessDialog } from "../components/praxis-readiness-dialog";
 import { buildZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { openExportPreview } from "@/models/store/export-preview-store";
@@ -38,6 +44,7 @@ const newRow = (): LineRow => ({ id: `r-${Date.now()}-${Math.random().toString(3
  * Rechnung (PDF) — FA-FIN-INVOICE: B-/U-Zeilen aus der Patientenakte, Nummer/Praxis/Datum/Brutto automatisch.
  */
 export function VerwaltungFinanzWerkzeugePage() {
+    const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canWriteZahlung = role != null && allowed("finanzen.write", role);
@@ -48,6 +55,7 @@ export function VerwaltungFinanzWerkzeugePage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [invBusy, setInvBusy] = useState(false);
+    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
     const [patientId, setPatientId] = useState("");
     const [invoiceDate, setInvoiceDate] = useState(() => todayYmd());
     const [rechnungNr, setRechnungNr] = useState("");
@@ -60,7 +68,6 @@ export function VerwaltungFinanzWerkzeugePage() {
     const [aktenBusy, setAktenBusy] = useState(false);
     const [lines, setLines] = useState<LineRow[]>(() => [newRow()]);
     const [note, setNote] = useState("");
-    const navigate = useNavigate();
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -189,6 +196,11 @@ export function VerwaltungFinanzWerkzeugePage() {
     );
 
     const handleInvoicePdf = async () => {
+        const readiness = checkPraxisDocumentReadiness(praxis, "rechnung");
+        if (!readiness.ready) {
+            setPraxisGuardOpen(true);
+            return;
+        }
         const p = patienten.find((x) => x.id === patientId);
         if (!p) {
             toast("Bitte einen Patienten wählen.");
@@ -215,6 +227,18 @@ export function VerwaltungFinanzWerkzeugePage() {
         const num =
             rechnungNr.trim()
             || (await allocateRechnungsnummer(invoiceDate, { reserved: reservedNums }));
+        const bankLines: string[] = [];
+        const iban = (praxis.bankverbindung_iban ?? "").trim();
+        if (iban) {
+            const bic = (praxis.bankverbindung_bic ?? "").trim();
+            const bankName = (praxis.bankverbindung_bank ?? "").trim();
+            bankLines.push(
+                `Bankverbindung: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
+            );
+            const inh = (praxis.bankverbindung_inhaber ?? "").trim() || (praxis.behandler_name ?? "").trim();
+            if (inh) bankLines.push(`Kontoinhaber: ${inh}`);
+        }
+        const zt = praxis.zahlungsziel_tage ?? 14;
         const payload: InvoiceInput = {
             number: num,
             date: invoiceDate,
@@ -226,6 +250,12 @@ export function VerwaltungFinanzWerkzeugePage() {
             practice_address: buildInvoiceHeaderAddressLinesForExport(praxis),
             lines: pdfLines.map((l) => ({ description: l.description, amount_cents: l.amount_cents })),
             note: note.trim() || null,
+            behandler_name: praxis.behandler_name?.trim() || null,
+            behandler_zanr: praxis.zanr?.trim() || null,
+            praxis_bsnr: praxis.bsnr?.trim() || null,
+            bankverbindung: bankLines.length > 0 ? bankLines : null,
+            zahlungsziel_text: `Zahlbar innerhalb von ${zt} Tagen.`,
+            ust_hinweis: praxis.ust_befreiung_hinweis?.trim() || null,
         };
         setInvBusy(true);
         try {
@@ -654,6 +684,12 @@ export function VerwaltungFinanzWerkzeugePage() {
                 </div>
                 <div className="produkte-workspace__detail">{rightColumn}</div>
             </div>
+            <PraxisReadinessDialog
+                open={praxisGuardOpen}
+                documentKind="rechnung"
+                result={checkPraxisDocumentReadiness(praxis, "rechnung")}
+                onClose={() => setPraxisGuardOpen(false)}
+            />
         </div>
     );
 }

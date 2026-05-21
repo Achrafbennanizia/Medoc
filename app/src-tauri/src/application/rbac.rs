@@ -33,73 +33,11 @@ impl Role {
     }
 }
 
-/// Permission matrix. The list of roles allowed to perform an action.
+include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
+
+/// Permission matrix from `config/rbac.yaml` (generated at build time).
 pub fn allowed(action: &str, role: Role) -> bool {
-    match action {
-        // Patient medical records — clinicians only
-        "patient.read_medical" | "patient.write_medical" => role == Role::Arzt,
-        // Rezept-/Attest-Liste zum Drucken an der Rezeption (ohne volle Akte).
-        "patient.read_documents" => matches!(role, Role::Arzt | Role::Rezeption),
-        // Behandlung/Untersuchung-Zeilen für Zahlungszuordnung (Kundenleistungen, Finanzen → Neue Zahlung)
-        "patient.behandlungen_list_for_zahlung" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
-        },
-        // Patient demographics — clinicians + reception (not full medical record)
-        "patient.read" | "patient.write" => matches!(role, Role::Arzt | Role::Rezeption),
-        // Schedule: list doctors for appointment assignment (same audience as termin)
-        "termin.list_aerzte" => matches!(role, Role::Arzt | Role::Rezeption),
-        // Appointments — clinicians + reception
-        "termin.read" | "termin.write" => matches!(role, Role::Arzt | Role::Rezeption),
-        // Finance & invoicing — reception + tax advisor
-        "finanzen.read" => matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater),
-        // Buchungen und Rechnungs-PDF: Praxisalltag oft auch durch Ärzt:in (FA-FIN).
-        "finanzen.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater,),
-        // Dashboard aggregates — any authenticated staff
-        "dashboard.read" => true,
-        // Inventory / products — clinicians + reception + pharma rep
-        "produkt.read" => true,
-        "produkt.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
-        // Purchase orders (Bestellungen) — same audience as products
-        "bestellung.read" => true,
-        "bestellung.write" => matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater),
-        // Verwaltung hub (sidebar + root) — any back-office role may open; cards/route gates narrow further.
-        "verwaltung.read" => true,
-        // Lager / Bestellwesen slice — mirrors `produkt.*`.
-        "verwaltung.lager.read" => true,
-        "verwaltung.lager.write" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater)
-        },
-        // Ausgabenverträge (Vertrags-CRUD) — read for all staff; write wie Bestellung (ohne Steuerberater).
-        "verwaltung.vertraege.read" => true,
-        "verwaltung.vertraege.write" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Pharmaberater)
-        },
-        // Leistungs- / Behandlungskataloge unter Verwaltung — Lesen wie Finanzen; Schreiben gleiche Praxisrollen.
-        "verwaltung.kataloge.read" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
-        },
-        "verwaltung.kataloge.write" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
-        },
-        // Dokumentvorlagen unter /verwaltung/vorlagen — gleiche Policy wie `vorlagen.*`.
-        "verwaltung.vorlagen.read" | "verwaltung.vorlagen.write" => role == Role::Arzt,
-        // Tagesabschluss-Protokoll mutieren — gleiche Rollen wie `finanzen.write`.
-        "finanzen.tagesabschluss.write" => {
-            matches!(role, Role::Arzt | Role::Rezeption | Role::Steuerberater)
-        },
-        // Personnel administration — clinicians only
-        "personal.read" | "personal.write" => role == Role::Arzt,
-        // Prescription / certificate template catalog (Dokumentvorlagen) — clinicians only
-        "vorlagen.read" | "vorlagen.write" => role == Role::Arzt,
-        // Audit log read — clinicians only
-        "audit.read" => role == Role::Arzt,
-        // Operations / system / DSGVO actions — clinicians only
-        "ops.backup" | "ops.dsgvo" | "ops.migration" | "ops.system" | "ops.logs" => {
-            role == Role::Arzt
-        }
-        // Anything else: deny by default
-        _ => false,
-    }
+    rbac_matrix_allowed(action, role)
 }
 
 /// FA-PERS-07: Rollenmatrix, überschrieben durch explizite ALLOW/DENY-Zeilen pro Benutzer.
@@ -141,6 +79,19 @@ pub fn require(session_state: &State<'_, SessionState>, action: &str) -> Result<
         );
         return Err(AppError::Forbidden);
     }
+    if action.starts_with("ops.")
+        && action != "ops.audit_chain_ack"
+        && crate::application::audit_chain_guard::blocks_ops()
+    {
+        log_security!(error,
+            event = "ACCESS_DENIED",
+            user_id = %session.user_id,
+            role = %session.rolle,
+            action = action,
+            reason = "audit_chain_broken",
+        );
+        return Err(AppError::Forbidden);
+    }
     Ok(session.clone())
 }
 
@@ -153,7 +104,10 @@ pub fn require_one_of(
         session_state.lock_session();
     let (session, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
     let role = Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
-    if actions.iter().any(|a| effective_allowed(a, role, &session.permission_overrides)) {
+    if actions
+        .iter()
+        .any(|a| effective_allowed(a, role, &session.permission_overrides))
+    {
         return Ok(session.clone());
     }
     log_security!(warn,

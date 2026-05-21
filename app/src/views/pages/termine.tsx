@@ -1,9 +1,5 @@
 import {
-    type CSSProperties,
-    type Dispatch,
-    type MutableRefObject,
     type MouseEvent as ReactMouseEvent,
-    type SetStateAction,
     useCallback,
     useEffect,
     useId,
@@ -41,8 +37,6 @@ import {
 import {
     DEFAULT_MONTH_CAL_PATIENT_LOAD,
     loadPraxisPraeferenzenFromKv,
-    monthCalPatientLoadAccentHex,
-    monthCalPatientLoadTier,
     type MonthCalendarPatientLoadPrefs,
 } from "@/lib/praxis-praeferenzen-storage";
 import {
@@ -51,69 +45,50 @@ import {
     type PraxisArbeitszeitenConfig,
 } from "@/lib/praxis-planning";
 import { validateTerminSchedulingUpdates } from "@/lib/termin-availability";
-import { extractZahnschmerzFdisFromBeschwerden } from "@/lib/dental";
 import type { Termin, Patient, Abwesenheit } from "../../models/types";
-import { Button } from "../components/ui/button";
-import { Dialog, ConfirmDialog, IosConfirmActions } from "../components/ui/dialog";
+import { ConfirmDialog } from "../components/ui/dialog";
+// import { Dialog, IosConfirmActions } from "../components/ui/dialog"; — Pause/Notfall-Dialoge deaktiviert
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { TerminContextMenu } from "../components/termin-context-menu";
+import { TerminDetailDrawer } from "../components/termin-detail-drawer";
+import { DoctorLegend } from "../components/termin-doctor-legend";
+import { TerminMonthCalendar } from "../components/termin-month-calendar";
+import { TerminDaySplit, TerminWeekGrid } from "../components/termin-week-day-grid";
 import {
-    AmbulanceIcon,
-    BoltIcon,
-    CalendarIcon,
-    CheckIcon,
+    // AmbulanceIcon, — Kalender: Notfall-Toolbar vorübergehend deaktiviert
     ChevronLeftIcon,
     ChevronRightIcon,
-    EditIcon,
-    EyeIcon,
     FilterIcon,
-    MailIcon,
-    PauseIcon,
-    PhoneIcon,
+    // PauseIcon,
     PlusIcon,
     SearchIcon,
-    ShieldCheckIcon,
     XIcon,
 } from "@/lib/icons";
+import {
+    buildArztToneMap,
+    calendarMonthOffsetFromToday,
+    computePackedUpdatesAfterMove,
+    minutesToUhrzeit,
+    terminArtLabelFromTermin,
+    terminCountsAsPlanned,
+    terminUhrzeitToMinutes,
+    TERMIN_ART_FILTER_OPTIONS,
+    TERMIN_DAY_END_MIN,
+    TERMIN_DAY_START_MIN,
+    TERMIN_DEFAULT_DUR_MIN,
+    // TERMIN_NOTFALL_CONFIRM_MESSAGE,
+    // TERMIN_NOTFALL_CONFIRM_TITLE,
+    TERMIN_PX_PER_MIN,
+    TERMIN_STATUS_BADGE,
+} from "@/lib/termin-calendar-ui";
 
-type BadgeVariant = "primary" | "success" | "default" | "error" | "warning";
-
-const statusBadge: Record<string, BadgeVariant> = {
-    GEPLANT: "primary",
-    BESTAETIGT: "success",
-    DURCHGEFUEHRT: "default",
-    NICHT_ERSCHIENEN: "error",
-    ABGESAGT: "warning",
-};
-
-const terminArten = [
-    { value: "ERSTBESUCH", label: "Erstbesuch" },
-    { value: "UNTERSUCHUNG", label: "Untersuchung" },
-    { value: "KONTROLLE", label: "Kontrolle" },
-    { value: "BEHANDLUNG", label: "Behandlung" },
-    { value: "NOTFALL", label: "Notfall (Priorität)" },
-    { value: "BERATUNG", label: "Beratung" },
-];
-
-const EVENT_TONE_BY_ART: Record<string, "blue" | "accent" | "orange" | "purple" | "green"> = {
-    ERSTBESUCH: "blue",
-    KONTROLLE: "green",
-    BEHANDLUNG: "accent",
-    UNTERSUCHUNG: "blue",
-    BERATUNG: "purple",
-};
-
-type BlockTone = "green" | "blue" | "accent" | "orange" | "purple";
-
-const DOCTOR_TONE_CYCLE = ["green", "blue", "purple", "accent"] as const;
-type DoctorTone = (typeof DOCTOR_TONE_CYCLE)[number];
-
-const PX_PER_MIN = 1.4;
-const DAY_START_MIN = 8 * 60;
-const DAY_END_MIN = 19 * 60;
-const HOUR_PX = 84;
-const TERMIN_DEFAULT_DUR_MIN = 45;
+const statusBadge = TERMIN_STATUS_BADGE;
+const terminArten = TERMIN_ART_FILTER_OPTIONS;
+const PX_PER_MIN = TERMIN_PX_PER_MIN;
+const DAY_START_MIN = TERMIN_DAY_START_MIN;
+const DAY_END_MIN = TERMIN_DAY_END_MIN;
 /** Tag-Ansicht: Ziehen links/rechts neben dem Raster wechselt das Zieldatum (±1 Tag). */
 const DAY_DRAG_EDGE_PX = 40;
 /** Tag-Ansicht: linker/rechter Rand innerhalb der Tagesspalte wechselt den Kalendertag */
@@ -129,44 +104,6 @@ const APPT_CLICK_SUPPRESS_AFTER_DROP_MS = 500;
 /** Summe der Zeigerbewegung (|dx|+|dy|) ab der Drag-Zeit – ab diesem Wert als Zieh-Geste werten. */
 const APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX = 6;
 
-function useDayTimelineLayout() {
-    const hostRef = useRef<HTMLDivElement>(null);
-    const [layout, setLayout] = useState(() => ({ hourPx: HOUR_PX, pxPerMin: PX_PER_MIN }));
-    useLayoutEffect(() => {
-        const el = hostRef.current;
-        if (!el) return;
-        const apply = () => {
-            const h = el.clientHeight;
-            const slots = (DAY_END_MIN - DAY_START_MIN) / 60;
-            if (h < 40) return;
-            const hourPx = h / slots;
-            setLayout({ hourPx, pxPerMin: hourPx / 60 });
-        };
-        apply();
-        const ro = new ResizeObserver(apply);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
-    return { hostRef, layout };
-}
-
-/** Tag-Ansicht: unter dieser Höhe kompakte Seitenleiste (Scroll + verdichtete Karten). */
-const TERMIN_DAY_COMPACT_HEIGHT_PX = 680;
-
-function useTerminDayCompactChrome(hostRef: React.RefObject<HTMLDivElement | null>) {
-    const [compact, setCompact] = useState(false);
-    useLayoutEffect(() => {
-        const el = hostRef.current;
-        if (!el) return;
-        const apply = () => setCompact(el.clientHeight < TERMIN_DAY_COMPACT_HEIGHT_PX);
-        apply();
-        const ro = new ResizeObserver(apply);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, [hostRef]);
-    return compact;
-}
-
 const ART_FILTER_OPTIONS = [{ value: "", label: "Alle Arten" }, ...terminArten];
 
 const STATUS_FILTER_OPTIONS = [
@@ -174,199 +111,11 @@ const STATUS_FILTER_OPTIONS = [
     ...Object.keys(statusBadge).map((k) => ({ value: k, label: k.replace(/_/g, " ") })),
 ];
 
-const NOTFALL_CONFIRM_TITLE = "Notfall-Termin einplanen?";
-const NOTFALL_CONFIRM_MESSAGE =
-    "Der Notfall-Slot wird direkt vor dem nächsten freien Termin eingeordnet. Der aktuell laufende Patient erhält 8 Minuten Restzeit. Alle später beginnenden Termine verschieben sich automatisch.";
+// Kalender-Toolbar: Pause / Notfall (Dialoge) — vorübergehend deaktiviert
+// const NOTFALL_CONFIRM_TITLE = TERMIN_NOTFALL_CONFIRM_TITLE;
+// const NOTFALL_CONFIRM_MESSAGE = TERMIN_NOTFALL_CONFIRM_MESSAGE;
 
-const TERMIN_ART_LABEL: Record<string, string> = {
-    KONTROLLE: "Kontrolle",
-    BEHANDLUNG: "Behandlung",
-    BERATUNG: "Beratung",
-    ERSTBESUCH: "Erstbesuch",
-    UNTERSUCHUNG: "Untersuchung",
-};
-
-function terminArtLabel(art: string): string {
-    return TERMIN_ART_LABEL[art] ?? art.replace(/_/g, " ");
-}
-
-function terminArtLabelFromTermin(t: Termin): string {
-    if (terminIstNotfallMarkiert(t)) return "Notfall";
-    return terminArtLabel(t.art);
-}
-
-/** Anzeige-Status: Durchgeführt / Geändert / Storniert / Bestätigt / Geplant (letztere wenn noch offen). */
-function appointmentStateDisplay(t: Termin): { label: string; variant: BadgeVariant } {
-    if (t.status === "ABGESAGT" || t.status === "NICHT_ERSCHIENEN") {
-        return { label: "Storniert", variant: "error" };
-    }
-    if (t.status === "DURCHGEFUEHRT") {
-        return { label: "Durchgeführt", variant: "success" };
-    }
-    const editedMs = new Date(t.updated_at).getTime() - new Date(t.created_at).getTime();
-    const edited = editedMs > 60_000;
-    if (edited && (t.status === "GEPLANT" || t.status === "BESTAETIGT")) {
-        return { label: "Geändert", variant: "warning" };
-    }
-    if (t.status === "BESTAETIGT") {
-        return { label: "Bestätigt", variant: "success" };
-    }
-    return { label: "Geplant", variant: "primary" };
-}
-
-/** Weiche Status-Pille (Tagesliste im Stil der UI-Referenz). */
-function stateSoftPillClass(t: Termin): string {
-    const { label } = appointmentStateDisplay(t);
-    if (label === "Storniert") return "red";
-    if (label === "Durchgeführt") return "accent";
-    if (label === "Geändert") return "yellow";
-    if (label === "Bestätigt") return "blue";
-    return "grey";
-}
-
-/** Kalender-Karte Tag/Woche: Pille wie UI-Referenz („In Behandlung“ für BESTAETIGT). */
-function terminCalendarStatusPill(t: Termin): { label: string; tone: "active" | "planned" | "done" | "cancel" | "edit" } {
-    if (t.status === "ABGESAGT" || t.status === "NICHT_ERSCHIENEN") {
-        return { label: "Abgesagt", tone: "cancel" };
-    }
-    if (t.status === "DURCHGEFUEHRT") {
-        return { label: "Erledigt", tone: "done" };
-    }
-    const editedMs = new Date(t.updated_at).getTime() - new Date(t.created_at).getTime();
-    if (editedMs > 60_000 && (t.status === "GEPLANT" || t.status === "BESTAETIGT")) {
-        return { label: "Geändert", tone: "edit" };
-    }
-    if (t.status === "BESTAETIGT") {
-        return { label: "In Behandlung", tone: "active" };
-    }
-    return { label: "Geplant", tone: "planned" };
-}
-
-function uhrzeitToMinutes(u: string): number {
-    const p = u.slice(0, 5).split(":");
-    const h = Number(p[0]);
-    const m = Number(p[1]);
-    if (Number.isNaN(h) || Number.isNaN(m)) return DAY_START_MIN;
-    return h * 60 + m;
-}
-
-function minutesToUhrzeit(min: number): string {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function buildArztToneMap(aerzte: AerztSummary[]): Map<string, DoctorTone> {
-    const m = new Map<string, DoctorTone>();
-    aerzte.forEach((a, i) => m.set(a.id, DOCTOR_TONE_CYCLE[i % DOCTOR_TONE_CYCLE.length]!));
-    return m;
-}
-
-function blockToneForTermin(termin: Pick<Termin, "art" | "notizen">, doctorTone: DoctorTone): BlockTone {
-    if (terminIstNotfallMarkiert(termin)) return "orange";
-    const fromArt = EVENT_TONE_BY_ART[termin.art];
-    if (fromArt) return fromArt;
-    return doctorTone;
-}
-
-function doctorStripeVar(tone: DoctorTone): string {
-    if (tone === "green") return "var(--green)";
-    if (tone === "blue") return "var(--blue)";
-    if (tone === "purple") return "var(--purple)";
-    return "var(--accent)";
-}
-
-function terminCountsAsPlanned(t: Termin): boolean {
-    return t.status !== "ABGESAGT" && t.status !== "NICHT_ERSCHIENEN";
-}
-
-/**
- * Gleicher Kalendertag + gleicher Behandler: nach dem Verschieben geplante Termine so
- * nach hinten schieben, dass sich Zeiten nicht überschneiden (einheitliche Slot-Dauer).
- */
-function computePackedUpdatesAfterMove(
-    all: Termin[],
-    movingId: string,
-    targetDatum: string,
-    desiredStartMin: number,
-    slotDur: number,
-    /** Puffer zwischen Terminen (Min), aus Praxis-Präferenzen — verhindert zu dichtes Packen. */
-    gapAfterMin: number,
-): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
-    const moving = all.find((t) => t.id === movingId);
-    if (!moving) return { updates: [] };
-
-    const arztId = moving.arzt_id;
-    const step = 5;
-    let start = Math.round(desiredStartMin / step) * step;
-    start = Math.max(DAY_START_MIN, Math.min(start, DAY_END_MIN - slotDur));
-
-    type Bl = { id: string; start: number };
-    const blocks: Bl[] = all
-        .filter(
-            (t) =>
-                t.datum === targetDatum &&
-                t.arzt_id === arztId &&
-                terminCountsAsPlanned(t) &&
-                t.id !== movingId,
-        )
-        .map((t) => ({ id: t.id, start: uhrzeitToMinutes(t.uhrzeit) }));
-
-    blocks.push({ id: movingId, start });
-
-    const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
-    const endOf = (s: number) => s + slotDur + gap;
-
-    let guard = 0;
-    let changed = true;
-    while (changed && guard++ < 80) {
-        changed = false;
-        blocks.sort((a, b) => a.start - b.start);
-        for (let i = 0; i < blocks.length - 1; i++) {
-            const endI = endOf(blocks[i]!.start);
-            if (endI > blocks[i + 1]!.start) {
-                let ns = endI;
-                ns = Math.ceil(ns / step) * step;
-                if (ns < endI) ns += step;
-                blocks[i + 1]!.start = ns;
-                changed = true;
-            }
-        }
-    }
-
-    for (const b of blocks) {
-        if (b.start + slotDur > DAY_END_MIN) {
-            return {
-                updates: [],
-                error: "Am Tagesende ist kein freier Platz ohne Überschneidung.",
-            };
-        }
-    }
-
-    const updates: { id: string; data: Record<string, unknown> }[] = [];
-    for (const b of blocks) {
-        const t = all.find((x) => x.id === b.id);
-        if (!t) continue;
-        const newU = minutesToUhrzeit(b.start);
-        const uCmp = t.uhrzeit.slice(0, 5);
-        const newUCmp = newU.slice(0, 5);
-        if (b.id === movingId) {
-            if (t.datum !== targetDatum || uCmp !== newUCmp) {
-                updates.push({ id: b.id, data: { datum: targetDatum, uhrzeit: newU } });
-            }
-        } else if (uCmp !== newUCmp) {
-            updates.push({ id: b.id, data: { uhrzeit: newU } });
-        }
-    }
-
-    return { updates };
-}
-
-/** Month index offset from the current wall-clock month (for mini + month pickers). */
-function calendarMonthOffsetFromToday(d: Date): number {
-    const now = new Date();
-    return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
-}
+const uhrzeitToMinutes = terminUhrzeitToMinutes;
 
 export function TerminePage() {
     const navigate = useNavigate();
@@ -383,8 +132,8 @@ export function TerminePage() {
     const [monthCalPatientLoad, setMonthCalPatientLoad] = useState<MonthCalendarPatientLoadPrefs>(() => ({
         ...DEFAULT_MONTH_CAL_PATIENT_LOAD,
     }));
-    const [notfallConfirmOpen, setNotfallConfirmOpen] = useState(false);
-    const notfallTitleId = useId();
+    // const [notfallConfirmOpen, setNotfallConfirmOpen] = useState(false);
+    // const notfallTitleId = useId();
     const terminFilterArtSelectId = useId();
     const terminFilterStatusSelectId = useId();
     const [view, setView] = useState<"tag" | "woche" | "monat">(() => {
@@ -408,8 +157,8 @@ export function TerminePage() {
     const [filterPopoverFixed, setFilterPopoverFixed] = useState<null | { top: number; left: number; width: number }>(
         null,
     );
-    const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
-    const pauseTitleId = useId();
+    // const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
+    // const pauseTitleId = useId();
     const [drawerTermin, setDrawerTermin] = useState<Termin | null>(null);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; termin: Termin } | null>(null);
     const [dragState, setDragState] = useState<null | {
@@ -1166,6 +915,7 @@ export function TerminePage() {
                                 ) : null}
                             </button>
                         </div>
+                        {/* DISABLED: Pause / Notfall — Kalender-Toolbar (Produkt: später reaktivieren)
                         <button type="button" className="btn btn-subtle" onClick={() => setPauseConfirmOpen(true)}>
                             <PauseIcon size={16} />
                             Pause
@@ -1174,6 +924,7 @@ export function TerminePage() {
                             <AmbulanceIcon size={18} aria-hidden />
                             Notfall
                         </button>
+                        */}
                         <button type="button" className="btn btn-accent schedule-primary-action" onClick={() => goNeuerTermin({ datum: selectedDayIso })}>
                             <PlusIcon />
                             Neuer Termin
@@ -1393,7 +1144,7 @@ export function TerminePage() {
                             </div>
                         </div>
                     ) : view === "monat" ? (
-                        <MonthCalendar
+                        <TerminMonthCalendar
                             monthOffset={monthOffset}
                             onMonthChange={setMonthOffset}
                             termine={displayTermine}
@@ -1432,6 +1183,7 @@ export function TerminePage() {
             </div>
             </div>
 
+            {/* DISABLED: Notfall-Bestätigungsdialog (Kalender-Toolbar)
             <Dialog
                 open={notfallConfirmOpen}
                 onClose={() => setNotfallConfirmOpen(false)}
@@ -1467,7 +1219,9 @@ export function TerminePage() {
                     />
                 </div>
             </Dialog>
+            */}
 
+            {/* DISABLED: Pause-Bestätigungsdialog (Kalender-Toolbar)
             <Dialog
                 open={pauseConfirmOpen}
                 onClose={() => setPauseConfirmOpen(false)}
@@ -1493,6 +1247,7 @@ export function TerminePage() {
                     />
                 </div>
             </Dialog>
+            */}
 
             {drawerTermin ? (
                 <TerminDetailDrawer
@@ -1545,990 +1300,3 @@ export function TerminePage() {
     );
 }
 
-function TerminHourGutterSnap(props: {
-    startMin: number | null;
-    pxPerMin: number;
-    phase: "drag" | "placed" | null;
-}) {
-    const { startMin, pxPerMin, phase } = props;
-    if (startMin == null || phase == null) return null;
-    return (
-        <div
-            className={`termin-hour-gutter-snap termin-hour-gutter-snap--${phase}`}
-            style={{ top: (startMin - DAY_START_MIN) * pxPerMin }}
-            aria-hidden
-        >
-            <span className="termin-hour-gutter-snap__time">{minutesToUhrzeit(startMin)}</span>
-        </div>
-    );
-}
-
-function DoctorLegend({ aerzte, arztToneMap }: { aerzte: AerztSummary[]; arztToneMap: Map<string, DoctorTone> }) {
-    if (aerzte.length === 0) return null;
-    return (
-        <div className="termin-doctor-legend">
-            {aerzte.slice(0, 8).map((a) => {
-                const tone = arztToneMap.get(a.id) ?? "accent";
-                return (
-                    <span key={a.id} className="termin-legend-item">
-                        <span className={`termin-legend-dot termin-legend-dot--${tone}`} aria-hidden />
-                        {a.name}
-                    </span>
-                );
-            })}
-        </div>
-    );
-}
-
-function TerminApptBlockView({
-    termin,
-    patientName,
-    doctorTone,
-    dayColumn,
-    daySlotDurationMin,
-    dragPreviewUhrzeit,
-    dragging,
-    dragTargetDatumHint,
-    style,
-    onClick,
-    onMouseDown,
-    onContextMenu,
-}: {
-    termin: Termin;
-    patientName: string;
-    doctorTone: DoctorTone;
-    doctorName?: string;
-    compact?: boolean;
-    dayColumn?: boolean;
-    dragPreviewUhrzeit?: string;
-    daySlotDurationMin?: number;
-    dragging?: boolean;
-    /** Tagesansicht: Kurzdatum des Ziels wenn per Drag ein anderer Tag gewählt wird */
-    dragTargetDatumHint?: string;
-    style?: CSSProperties;
-    onClick: () => void;
-    onMouseDown: (e: ReactMouseEvent) => void;
-    onContextMenu: (e: ReactMouseEvent) => void;
-}) {
-    const blockTone = blockToneForTermin(termin, doctorTone);
-    const cancelled = termin.status === "ABGESAGT" || termin.status === "NICHT_ERSCHIENEN";
-    const durMin = daySlotDurationMin ?? TERMIN_DEFAULT_DUR_MIN;
-    const timeStr = (dragPreviewUhrzeit ?? termin.uhrzeit).slice(0, 5);
-    const pill = terminCalendarStatusPill(termin);
-    const stripeColor = doctorStripeVar(doctorTone);
-    const weekCompact = !dayColumn;
-    const schmerzZaehne = extractZahnschmerzFdisFromBeschwerden(termin.beschwerden);
-    return (
-        <button
-            type="button"
-            className={`termin-appt-block termin-appt-block--calendar-row ${dayColumn ? "termin-appt-block--day-tall" : "termin-appt-block--week-compact"} termin-appt-block--${blockTone}${cancelled ? " termin-appt-block--cancelled" : ""}${dragging ? " termin-appt-block--dragging" : ""}${weekCompact ? ` termin-appt-status-surface--${pill.tone}` : ""}`}
-            style={{
-                ...style,
-            }}
-            onClick={onClick}
-            onMouseDown={onMouseDown}
-            onContextMenu={onContextMenu}
-        >
-            <span className="termin-appt-block-time-col">
-                <span className={`termin-appt-block-time${dragPreviewUhrzeit ? " termin-appt-block-time--drag-live" : ""}`}>{timeStr}</span>
-                <span className="termin-appt-block-duration">{durMin} min</span>
-            </span>
-            <span className="termin-appt-block-stripe" style={{ background: stripeColor }} aria-hidden />
-            <span className="termin-appt-block-body-col">
-                <span className="termin-appt-block-name-row">
-                    {terminIstNotfallMarkiert(termin) ? (
-                        <span className="termin-appt-block-notfall-ic" aria-hidden>
-                            <BoltIcon size={12} />
-                        </span>
-                    ) : null}
-                    <span className="termin-appt-block-name">{patientName}</span>
-                </span>
-                <span className="termin-appt-block-type">{terminArtLabelFromTermin(termin)}</span>
-                {schmerzZaehne.length ? (
-                    <span
-                        className="termin-appt-block-zahn"
-                        title={`Zahnschmerz · FDI ${schmerzZaehne.join(", ")}`}
-                    >
-                        {schmerzZaehne.length === 1 ? `Zahn ${schmerzZaehne[0]}` : `Zähne ${schmerzZaehne.join(", ")}`}
-                    </span>
-                ) : null}
-                {dragTargetDatumHint ? (
-                    <span className="termin-appt-block-target-day">{dragTargetDatumHint}</span>
-                ) : null}
-            </span>
-            {weekCompact ? (
-                <span className="sr-only">{pill.label}</span>
-            ) : (
-                <span className={`termin-appt-status-pill termin-appt-status-pill--${pill.tone}`}>{pill.label}</span>
-            )}
-        </button>
-    );
-}
-
-function TerminTimeColumnBody({
-    iso,
-    termine,
-    patientNameById,
-    arztToneMap,
-    arztNameById,
-    dragState,
-    setDragState,
-    onBeginAppointmentDrag,
-    onOpenDrawer,
-    onContextMenu,
-    onNewAt,
-    nowMin,
-    singleDay,
-    axisLayout,
-    clickSuppressUntilRef,
-}: {
-    iso: string;
-    termine: Termin[];
-    patientNameById: Map<string, string>;
-    arztToneMap: Map<string, DoctorTone>;
-    arztNameById?: Map<string, string>;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
-    /** Tagesansicht: Stunden-Snap zurücksetzen wenn ein Termin-Block zum Ziehen gegriffen wird */
-    onBeginAppointmentDrag?: () => void;
-    onOpenDrawer: (t: Termin) => void;
-    onContextMenu: (t: Termin, e: ReactMouseEvent) => void;
-    onNewAt: (isoDay: string, startMin: number) => void;
-    nowMin: () => number;
-    singleDay: boolean;
-    /** Wochenansicht: erster Klick nach Drag-Drop verwerfen (s. Parent-Ref). */
-    clickSuppressUntilRef?: MutableRefObject<number>;
-    /** Tag- und Wochenansicht: Stundenhöhe aus verfügbarem Raster (ResizeObserver) */
-    axisLayout?: { hourPx: number; pxPerMin: number };
-}) {
-    const hourPx = axisLayout?.hourPx ?? HOUR_PX;
-    const pxPerMin = axisLayout?.pxPerMin ?? PX_PER_MIN;
-    const axisHeightPx = ((DAY_END_MIN - DAY_START_MIN) / 60) * hourPx;
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    const isTodayCol = iso === todayIso;
-    const isWeekend = [0, 6].includes(parseISO(iso).getDay());
-    const dayList = useMemo(() => [...termine].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit)), [termine]);
-    const nMin = nowMin();
-
-    const onColDblClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-        const el = e.currentTarget;
-        const r = el.getBoundingClientRect();
-        const y = e.clientY - r.top;
-        const raw = DAY_START_MIN + y / pxPerMin;
-        const snapped = Math.round(raw / 15) * 15;
-        const lo = DAY_START_MIN;
-        const hi = DAY_END_MIN - 15;
-        const start = Math.max(lo, Math.min(snapped, hi));
-        onNewAt(iso, start);
-    };
-
-    return (
-        <div
-            className={`termin-day-col ${isTodayCol ? "termin-day-col--today" : ""} ${isWeekend ? "termin-day-col--weekend" : ""}`}
-            data-termin-day-col={iso}
-            data-single-day={singleDay ? "1" : undefined}
-            style={{ minHeight: axisHeightPx }}
-            onDoubleClick={onColDblClick}
-            role="presentation"
-        >
-            {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }).map((_, i) => (
-                <div key={i} className="termin-hour-line" style={{ top: i * hourPx }} />
-            ))}
-            {isTodayCol && nMin >= DAY_START_MIN && nMin <= DAY_END_MIN ? (
-                <div className="termin-now-line" style={{ top: (nMin - DAY_START_MIN) * pxPerMin }}>
-                    <span className="termin-now-dot" />
-                    {!singleDay ? null : (
-                        <span className="termin-now-pill">
-                            {minutesToUhrzeit(nMin)} jetzt
-                        </span>
-                    )}
-                </div>
-            ) : null}
-            {dayList.map((ap) => {
-                if (!singleDay && dragState && dragState.id === ap.id && dragState.currentDatum !== iso) return null;
-                const st = uhrzeitToMinutes(ap.uhrzeit);
-                const docTone = arztToneMap.get(ap.arzt_id) ?? "accent";
-                const isDragThis = dragState?.id === ap.id;
-                const dispStart = isDragThis ? dragState!.currentStartMin : st;
-                const top = (dispStart - DAY_START_MIN) * pxPerMin;
-                const dur = TERMIN_DEFAULT_DUR_MIN;
-                const minDayBlockPx = singleDay ? Math.max(56, pxPerMin * 24) : 0;
-                const minWeekBlockPx = singleDay ? 0 : 48;
-                const blockHeight = Math.max(dur * pxPerMin - 2, singleDay ? minDayBlockPx : minWeekBlockPx);
-                const targetDayHint =
-                    singleDay && isDragThis && dragState && dragState.currentDatum !== iso
-                        ? `→ ${format(parseISO(dragState.currentDatum), "EEE d. MMM", { locale: de })}`
-                        : undefined;
-                return (
-                    <TerminApptBlockView
-                        key={ap.id}
-                        termin={ap}
-                        patientName={patientNameById.get(ap.patient_id) ?? "Patient"}
-                        doctorName={arztNameById?.get(ap.arzt_id)}
-                        doctorTone={docTone}
-                        compact={!singleDay}
-                        dayColumn={singleDay}
-                        daySlotDurationMin={dur}
-                        dragPreviewUhrzeit={isDragThis ? minutesToUhrzeit(dispStart) : undefined}
-                        dragging={isDragThis}
-                        dragTargetDatumHint={targetDayHint}
-                        style={{
-                            top,
-                            height: blockHeight,
-                            left: 4,
-                            right: 4,
-                        }}
-                        onClick={() => {
-                            if (clickSuppressUntilRef && Date.now() < clickSuppressUntilRef.current) return;
-                            onOpenDrawer(ap);
-                        }}
-                        onMouseDown={(e) => {
-                            if (e.button !== 0) return;
-                            e.stopPropagation();
-                            onBeginAppointmentDrag?.();
-                            setDragState({
-                                id: ap.id,
-                                datum: iso,
-                                durMin: dur,
-                                originalDatum: ap.datum,
-                                originalStartMin: st,
-                                currentDatum: ap.datum,
-                                currentStartMin: st,
-                            });
-                        }}
-                        onContextMenu={(e) => onContextMenu(ap, e)}
-                    />
-                );
-            })}
-        </div>
-    );
-}
-
-function TerminWeekGrid({
-    termine,
-    weekOffset,
-    patientNameById,
-    arztToneMap,
-    dragState,
-    setDragState,
-    snapLabel,
-    onClearSnapLabel,
-    clickSuppressUntilRef,
-    onHeaderDay,
-    onOpenDrawer,
-    onContextMenu,
-    onNewAt,
-    nowMin,
-}: {
-    termine: Termin[];
-    weekOffset: number;
-    patientNameById: Map<string, string>;
-    arztToneMap: Map<string, DoctorTone>;
-    clickSuppressUntilRef: MutableRefObject<number>;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
-    snapLabel: { iso: string; startMin: number } | null;
-    onClearSnapLabel: () => void;
-    onHeaderDay: (iso: string) => void;
-    onOpenDrawer: (t: Termin) => void;
-    onContextMenu: (t: Termin, e: ReactMouseEvent) => void;
-    onNewAt: (iso: string, min: number) => void;
-    nowMin: () => number;
-}) {
-    const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(anchor, i));
-    const byDate = useMemo(() => {
-        const acc: Record<string, Termin[]> = {};
-        for (const t of termine) {
-            (acc[t.datum] ??= []).push(t);
-        }
-        return acc;
-    }, [termine]);
-
-    const { hostRef: weekTimelineRef, layout: weekAxisLayout } = useDayTimelineLayout();
-    const hourGutterSnapMin = dragState != null ? dragState.currentStartMin : snapLabel?.startMin ?? null;
-    const hourGutterPhase: "drag" | "placed" | null = dragState != null ? "drag" : snapLabel != null ? "placed" : null;
-
-    return (
-        <div className="card card-pad termin-week-card fade-up">
-            <div className="termin-week-head-grid">
-                <div className="termin-week-corner" aria-hidden />
-                {days.map((d) => {
-                    const iso = format(d, "yyyy-MM-dd");
-                    const isToday = iso === format(new Date(), "yyyy-MM-dd");
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    const dow = format(d, "EEEEE", { locale: de }).toUpperCase();
-                    return (
-                        <button
-                            key={iso}
-                            type="button"
-                            className={`termin-week-dow ${isToday ? "today" : ""} ${isWeekend ? "weekend" : ""}`}
-                            onClick={() => onHeaderDay(iso)}
-                        >
-                            <span className="termin-week-dow-short">{dow}</span>
-                            <span className="termin-week-dow-num">{format(d, "d", { locale: de })}</span>
-                        </button>
-                    );
-                })}
-            </div>
-            <div className="termin-week-body" ref={weekTimelineRef}>
-                <div className="termin-week-body-grid" data-termin-week-canvas="1">
-                    <div className="termin-week-hours">
-                        <div className="termin-week-hours-stack" data-termin-hour-gutter="1">
-                            {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }, (_, i) => {
-                                const h = 8 + i;
-                                return (
-                                    <div key={h} className="termin-hour-label" style={{ height: weekAxisLayout.hourPx }}>
-                                        {`${String(h).padStart(2, "0")}:00`}
-                                    </div>
-                                );
-                            })}
-                            <TerminHourGutterSnap startMin={hourGutterSnapMin} pxPerMin={weekAxisLayout.pxPerMin} phase={hourGutterPhase} />
-                        </div>
-                    </div>
-                    {days.map((d) => {
-                        const iso = format(d, "yyyy-MM-dd");
-                        const baseList = byDate[iso] ?? [];
-                        const columnTermine =
-                            dragState != null && dragState.currentDatum === iso && !baseList.some((x) => x.id === dragState.id)
-                                ? (() => {
-                                      const ghost = termine.find((x) => x.id === dragState.id);
-                                      return ghost ? [...baseList, ghost] : baseList;
-                                  })()
-                                : baseList;
-                        return (
-                            <TerminTimeColumnBody
-                                key={iso}
-                                iso={iso}
-                                termine={columnTermine}
-                                patientNameById={patientNameById}
-                                arztToneMap={arztToneMap}
-                                dragState={dragState}
-                                setDragState={setDragState}
-                                onOpenDrawer={onOpenDrawer}
-                                onContextMenu={onContextMenu}
-                                onNewAt={onNewAt}
-                                nowMin={nowMin}
-                                singleDay={false}
-                                axisLayout={weekAxisLayout}
-                                onBeginAppointmentDrag={onClearSnapLabel}
-                                clickSuppressUntilRef={clickSuppressUntilRef}
-                            />
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function TerminDaySplit({
-    dayDate,
-    onJumpToDay,
-    termine,
-    patientNameById,
-    arztToneMap,
-    aerzte,
-    monthOffset,
-    onMonthOffsetChange,
-    daySnapLabel,
-    onClearDaySnapLabel,
-    dragState,
-    setDragState,
-    onOpenDrawer,
-    onContextMenu,
-    onNewAt,
-    emptyDescription,
-    emptyHasFilters,
-    onEmptyCreate,
-    onEmptyResetFilters,
-    nowMin,
-}: {
-    dayDate: Date;
-    onJumpToDay: (d: Date) => void;
-    termine: Termin[];
-    patientNameById: Map<string, string>;
-    arztToneMap: Map<string, DoctorTone>;
-    aerzte: AerztSummary[];
-    monthOffset: number;
-    onMonthOffsetChange: Dispatch<SetStateAction<number>>;
-    daySnapLabel: { iso: string; startMin: number } | null;
-    onClearDaySnapLabel: () => void;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
-    onOpenDrawer: (t: Termin) => void;
-    onContextMenu: (t: Termin, e: ReactMouseEvent) => void;
-    onNewAt: (iso: string, min: number) => void;
-    emptyDescription: string;
-    emptyHasFilters: boolean;
-    onEmptyCreate: () => void;
-    onEmptyResetFilters?: () => void;
-    nowMin: () => number;
-}) {
-    const iso = format(dayDate, "yyyy-MM-dd");
-    const { hostRef: dayTimelineRef, layout: dayAxisLayout } = useDayTimelineLayout();
-    const arztNameById = useMemo(() => new Map(aerzte.map((a) => [a.id, a.name])), [aerzte]);
-    const planned = termine.filter(terminCountsAsPlanned);
-    const bestaetigt = termine.filter((t) => t.status === "BESTAETIGT").length;
-    const slotMin = (DAY_END_MIN - DAY_START_MIN);
-    const bookedMin = planned.length * TERMIN_DEFAULT_DUR_MIN;
-    const auslastung = slotMin > 0 ? Math.min(100, Math.round((bookedMin / slotMin) * 100)) : 0;
-    const freiH = Math.max(0, Math.round(((slotMin - bookedMin) / 60) * 10) / 10);
-    const nMin = nowMin();
-    const sortedToday = useMemo(
-        () => [...termine].filter(terminCountsAsPlanned).sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit)),
-        [termine],
-    );
-    const nextAppt = sortedToday.find((t) => uhrzeitToMinutes(t.uhrzeit) >= nMin);
-
-    const miniAnchor = addMonths(new Date(), monthOffset);
-    const y = miniAnchor.getFullYear();
-    const m = miniAnchor.getMonth();
-    const first = new Date(y, m, 1);
-    const startOffset = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    const selectedIso = iso;
-
-    const hourGutterSnapMin = dragState != null ? dragState.currentStartMin : daySnapLabel != null ? daySnapLabel.startMin : null;
-    const hourGutterPhase: "drag" | "placed" | null =
-        dragState != null ? "drag" : daySnapLabel != null ? "placed" : null;
-
-    const splitRef = useRef<HTMLDivElement>(null);
-    const compactChrome = useTerminDayCompactChrome(splitRef);
-
-    const miniMonthCard = (
-        <div className="card card-pad termin-mini-month-card">
-            <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthOffsetChange((o) => o - 1)}>
-                    <ChevronLeftIcon size={16} />
-                </button>
-                <span className="termin-mini-month-title">{format(first, "MMMM yyyy", { locale: de })}</span>
-                <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthOffsetChange((o) => o + 1)}>
-                    <ChevronRightIcon size={16} />
-                </button>
-            </div>
-            <div className="termin-mini-cal">
-                {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d, i) => (
-                    <div key={`${d}-${i}`} className="termin-mini-cal-head">{d}</div>
-                ))}
-                {Array.from({ length: 42 }).map((_, idx) => {
-                    const dayN = idx - startOffset + 1;
-                    const inMonth = dayN > 0 && dayN <= daysInMonth;
-                    const date = inMonth ? new Date(y, m, dayN) : undefined;
-                    const cellIso = date ? format(date, "yyyy-MM-dd") : "";
-                    const isToday = Boolean(inMonth && cellIso === todayIso);
-                    const isSel = Boolean(inMonth && cellIso === selectedIso);
-                    return (
-                        <button
-                            key={idx}
-                            type="button"
-                            disabled={!inMonth}
-                            className={`termin-mini-cal-cell ${!inMonth ? "dim" : ""} ${isToday ? "today" : ""} ${isSel ? "selected" : ""}`}
-                            onClick={() => {
-                                if (!date) return;
-                                onJumpToDay(date);
-                                onMonthOffsetChange(calendarMonthOffsetFromToday(date));
-                            }}
-                        >
-                            {inMonth ? dayN : ""}
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
-    );
-
-    const tagesuebersichtBlock = (
-        <>
-            <div className="termin-side-h3">Tagesübersicht</div>
-            <div className="termin-stat-big">{planned.length}</div>
-            <div className="termin-stat-big-label">Termine geplant</div>
-            <div className="termin-stat-row termin-stat-row--day">
-                <span>
-                    <span className="termin-stat-line-label">Auslastung</span>
-                    <b className="termin-stat-line-val">{auslastung}%</b>
-                </span>
-                <span>
-                    <span className="termin-stat-line-label">Eingecheckt</span>
-                    <b className="termin-stat-line-val">{termine.filter((t) => t.status === "BESTAETIGT").length}</b>
-                </span>
-                <span>
-                    <span className="termin-stat-line-label">Frei</span>
-                    <b className="termin-stat-line-val">{freiH}h</b>
-                </span>
-            </div>
-        </>
-    );
-
-    const naechsterTerminBlock = (
-        <>
-            <div className="termin-side-h3">Nächster Termin</div>
-            {nextAppt ? (
-                <>
-                    <div className="termin-next-time">{nextAppt.uhrzeit.slice(0, 5)}</div>
-                    <div className="termin-next-name">{patientNameById.get(nextAppt.patient_id) ?? "Patient"}</div>
-                    <div className="termin-next-meta">
-                        {terminArtLabelFromTermin(nextAppt)} · {aerzte.find((a) => a.id === nextAppt.arzt_id)?.name ?? ""}
-                    </div>
-                </>
-            ) : sortedToday.length > 0 ? (
-                <p className="termin-next-empty">Kein weiterer Termin ab der aktuellen Uhrzeit.</p>
-            ) : (
-                <p className="termin-next-empty">Heute sind keine Termine in der Liste.</p>
-            )}
-        </>
-    );
-
-    return (
-        <div ref={splitRef} className={`termin-day-split fade-up${compactChrome ? " termin-day-split--compact" : ""}`}>
-            <div className="card card-pad termin-day-main">
-                <div className="termin-day-split-head">
-                    <div>
-                        <div className="card-title">{format(dayDate, "EEEE, d. MMMM yyyy", { locale: de })}</div>
-                        <div className="card-sub">
-                            {planned.length} Termine · {bestaetigt} bestätigt
-                        </div>
-                    </div>
-                    <DoctorLegend aerzte={aerzte} arztToneMap={arztToneMap} />
-                </div>
-                {sortedToday.length === 0 ? (
-                    <div className="termin-day-empty">
-                        <EmptyState
-                            graphic={(
-                                <span className="empty-state-icon-calendar" aria-hidden>
-                                    <CalendarIcon size={34} />
-                                </span>
-                            )}
-                            title="Keine Termine an diesem Tag"
-                            description={emptyDescription}
-                        />
-                        <div className="schedule-day-empty-actions">
-                            <Button type="button" onClick={onEmptyCreate}>Termin anlegen</Button>
-                            {emptyHasFilters && onEmptyResetFilters ? (
-                                <Button type="button" variant="ghost" onClick={onEmptyResetFilters}>Filter zurücksetzen</Button>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="termin-day-timeline-host" ref={dayTimelineRef}>
-                        <div className="termin-week-body-grid termin-day-body-grid">
-                            <div className="termin-week-hours termin-day-hours">
-                                <div className="termin-day-hours-stack" data-termin-hour-gutter="1">
-                                    {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }, (_, i) => {
-                                        const h = 8 + i;
-                                        return (
-                                            <div key={h} className="termin-hour-label termin-day-hour-label" style={{ height: dayAxisLayout.hourPx }}>
-                                                {`${String(h).padStart(2, "0")}:00`}
-                                            </div>
-                                        );
-                                    })}
-                                    <TerminHourGutterSnap startMin={hourGutterSnapMin} pxPerMin={dayAxisLayout.pxPerMin} phase={hourGutterPhase} />
-                                </div>
-                            </div>
-                            <TerminTimeColumnBody
-                                iso={iso}
-                                termine={termine}
-                                patientNameById={patientNameById}
-                                arztToneMap={arztToneMap}
-                                arztNameById={arztNameById}
-                                dragState={dragState}
-                                setDragState={setDragState}
-                                onBeginAppointmentDrag={onClearDaySnapLabel}
-                                onOpenDrawer={onOpenDrawer}
-                                onContextMenu={onContextMenu}
-                                onNewAt={onNewAt}
-                                nowMin={nowMin}
-                                singleDay
-                                axisLayout={dayAxisLayout}
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
-            <aside className="termin-day-sidebar" aria-label="Kalender und Tagesübersicht">
-                {miniMonthCard}
-                {compactChrome ? (
-                    <div className="card card-pad termin-day-sidebar__summary termin-next-card">
-                        {tagesuebersichtBlock}
-                        <div className="termin-day-sidebar__next" style={{ marginTop: 12 }}>
-                            {naechsterTerminBlock}
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        <div className="card card-pad">{tagesuebersichtBlock}</div>
-                        <div className="card card-pad termin-next-card">{naechsterTerminBlock}</div>
-                    </>
-                )}
-            </aside>
-        </div>
-    );
-}
-
-function terminDrawerActiveStep(status: Termin["status"]): number {
-    if (status === "DURCHGEFUEHRT") return 3;
-    if (status === "BESTAETIGT") return 1;
-    if (status === "GEPLANT") return 0;
-    if (status === "ABGESAGT" || status === "NICHT_ERSCHIENEN") return -1;
-    return 0;
-}
-
-function TerminDetailDrawer({
-    termin,
-    patientName,
-    patientPhone,
-    doctorLabel,
-    onClose,
-    onBearbeiten,
-    onStornieren,
-    onReminder,
-    onStatusChange,
-    onPhone,
-}: {
-    termin: Termin;
-    patientName: string;
-    patientPhone: string | null;
-    doctorLabel: string;
-    onClose: () => void;
-    onBearbeiten: () => void;
-    onStornieren: () => void;
-    onReminder: () => void;
-    onStatusChange: (id: string, s: Termin["status"]) => void;
-    onPhone: () => void;
-}) {
-    const titleId = useId();
-    const panelRef = useRef<HTMLDivElement>(null);
-    const st = appointmentStateDisplay(termin);
-    const active = terminDrawerActiveStep(termin.status);
-    const dauer = TERMIN_DEFAULT_DUR_MIN;
-
-    useEffect(() => {
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
-            e.preventDefault();
-            e.stopPropagation();
-            onClose();
-        };
-        document.addEventListener("keydown", onKey, true);
-        queueMicrotask(() => {
-            const closeBtn = panelRef.current?.querySelector<HTMLButtonElement>(".termin-drawer-head .icon-btn");
-            closeBtn?.focus();
-        });
-        return () => {
-            document.removeEventListener("keydown", onKey, true);
-            document.body.style.overflow = prevOverflow;
-        };
-    }, [onClose]);
-
-    const layer = (
-        <div className="termin-drawer-root" role="presentation">
-            <button type="button" className="termin-drawer-backdrop" aria-label="Schließen" onClick={onClose} />
-            <div
-                ref={panelRef}
-                className="termin-drawer-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={titleId}
-                tabIndex={-1}
-            >
-                <div className="termin-drawer-body-scroll">
-                    <div className="termin-drawer-head">
-                        <span className={`pill ${stateSoftPillClass(termin)}`}>{st.label}</span>
-                        <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
-                            <XIcon size={18} />
-                        </button>
-                    </div>
-                    <div className="termin-drawer-section">
-                        <div className="termin-drawer-eyebrow">Termin</div>
-                        <h2 id={titleId} className="termin-drawer-title">{patientName}</h2>
-                        <div className="termin-drawer-sub">{terminArtLabelFromTermin(termin)}</div>
-                    </div>
-                    <div className="termin-drawer-meta-row">
-                        <div>
-                            <div className="termin-drawer-eyebrow">Datum</div>
-                            <div className="termin-drawer-meta-val">{format(parseISO(termin.datum), "d. MMMM yyyy", { locale: de })}</div>
-                        </div>
-                        <div>
-                            <div className="termin-drawer-eyebrow">Zeit</div>
-                            <div className="termin-drawer-meta-val">
-                                {termin.uhrzeit.slice(0, 5)} – {minutesToUhrzeit(uhrzeitToMinutes(termin.uhrzeit) + dauer)}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="termin-drawer-eyebrow">Dauer</div>
-                            <div className="termin-drawer-meta-val">{dauer} Min.</div>
-                        </div>
-                    </div>
-                    <div className="termin-drawer-section">
-                        <div className="termin-drawer-eyebrow">Workflow</div>
-                        <div className="termin-workflow-simple">
-                            {(["Geplant", "Bestätigt", "Aktiv", "Fertig"] as const).map((label, i) => (
-                                <button
-                                    key={label}
-                                    type="button"
-                                    className={`termin-workflow-node ${i <= active ? "on" : ""} ${i === active ? "current" : ""}`}
-                                    title={label}
-                                    onClick={() => {
-                                        const map: Termin["status"][] = ["GEPLANT", "BESTAETIGT", "BESTAETIGT", "DURCHGEFUEHRT"];
-                                        onStatusChange(termin.id, map[i]!);
-                                    }}
-                                >
-                                    {i === 0 ? <CheckIcon size={14} /> : i === 1 ? <EyeIcon size={14} /> : i === 2 ? <BoltIcon size={14} /> : <ShieldCheckIcon size={14} />}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="termin-workflow-captions">
-                            {(["Geplant", "Bestätigt", "Aktiv", "Fertig"] as const).map((label) => (
-                                <span key={label} className="termin-workflow-label">{label}</span>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="ios-list">
-                        <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Behandler</div>
-                            <div className="termin-drawer-meta-val">{doctorLabel}</div>
-                        </div>
-                        <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Patient-Telefon</div>
-                            <div className="termin-drawer-meta-val">{patientPhone ?? "—"}</div>
-                        </div>
-                        <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Behandlungsart</div>
-                            <div className="termin-drawer-meta-val">{terminArtLabelFromTermin(termin)}</div>
-                        </div>
-                    </div>
-                    {termin.notizen?.trim() ? (
-                        <div className="termin-drawer-note">
-                            <div className="termin-drawer-note-title">Notiz</div>
-                            <p>{termin.notizen}</p>
-                        </div>
-                    ) : null}
-                    <div className="termin-drawer-actions row">
-                        <button type="button" className="btn btn-subtle" onClick={onPhone}>
-                            <PhoneIcon size={14} />
-                            Anrufen
-                        </button>
-                        <button type="button" className="btn btn-subtle" onClick={onReminder}>
-                            <MailIcon size={14} />
-                            Erinnerung
-                        </button>
-                        <button type="button" className="btn btn-subtle" onClick={onBearbeiten}>
-                            <EditIcon size={14} />
-                            Bearbeiten
-                        </button>
-                    </div>
-                </div>
-                <div className="termin-drawer-panel-foot">
-                    <div className="termin-drawer-footer row">
-                        {termin.status === "GEPLANT" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "BESTAETIGT")}>Bestätigen</button>
-                        ) : null}
-                        {termin.status === "BESTAETIGT" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "DURCHGEFUEHRT")}>Abschließen</button>
-                        ) : null}
-                        <button type="button" className="btn btn-subtle danger" onClick={onStornieren}>Absagen</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    return createPortal(layer, document.body);
-}
-
-function TerminContextMenu({
-    termin,
-    x,
-    y,
-    patientName,
-    onClose,
-    onOpenDetails,
-    onBearbeiten,
-    onStornieren,
-    onReminder,
-}: {
-    termin: Termin;
-    x: number;
-    y: number;
-    patientName: string;
-    onClose: () => void;
-    onOpenDetails: () => void;
-    onBearbeiten: () => void;
-    onStornieren: () => void;
-    onReminder: () => void;
-}) {
-    const maxX = typeof window !== "undefined" ? window.innerWidth - 240 : x;
-    const maxY = typeof window !== "undefined" ? window.innerHeight - 320 : y;
-    const left = Math.max(8, Math.min(x, maxX));
-    const top = Math.max(8, Math.min(y, maxY));
-    return (
-        <div className="menu termin-ctx-menu" style={{ position: "fixed", left, top }}>
-            <div className="termin-ctx-title">{patientName}</div>
-            <div className="termin-ctx-sub">
-                {termin.uhrzeit.slice(0, 5)} · {terminArtLabelFromTermin(termin)}
-            </div>
-            <button type="button" className="menu-item" onClick={() => { onOpenDetails(); onClose(); }}>Details öffnen</button>
-            <div className="menu-sep" />
-            <button type="button" className="menu-item" onClick={() => { onBearbeiten(); onClose(); }}>Termin bearbeiten</button>
-            <button type="button" className="menu-item" onClick={() => { onReminder(); onClose(); }}>Erinnerung senden</button>
-            <button type="button" className="menu-item danger" onClick={() => { onStornieren(); onClose(); }}>Absagen</button>
-        </div>
-    );
-}
-
-function MonthCalendar({
-    monthOffset,
-    onMonthChange,
-    termine,
-    aerzte,
-    arztToneMap,
-    patientLoadSettings,
-    onPickDay,
-}: {
-    monthOffset: number;
-    onMonthChange: Dispatch<SetStateAction<number>>;
-    termine: Termin[];
-    aerzte: AerztSummary[];
-    arztToneMap: Map<string, DoctorTone>;
-    patientLoadSettings: MonthCalendarPatientLoadPrefs;
-    onPickDay: (iso: string) => void;
-}) {
-    const anchor = addMonths(new Date(), monthOffset);
-    const y = anchor.getFullYear();
-    const m = anchor.getMonth();
-    const first = new Date(y, m, 1);
-    const startOffset = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const total = 42;
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    const byDate = termine.reduce<Record<string, Termin[]>>((acc, t) => {
-        (acc[t.datum] ||= []).push(t);
-        return acc;
-    }, {});
-    return (
-        <div className="card card-pad termin-month-view">
-            <div className="month-view-topbar">
-                <div className="row month-view-period" style={{ gap: 8, fontWeight: 600, alignItems: "center" }}>
-                    <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthChange((o) => o - 1)}><ChevronLeftIcon size={16} /></button>
-                    <span className="month-view-period-label">{format(first, "MMMM yyyy", { locale: de })}</span>
-                    <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthChange((o) => o + 1)}><ChevronRightIcon size={16} /></button>
-                </div>
-                <button type="button" className="btn btn-subtle" onClick={() => onMonthChange(0)}>Heute</button>
-                <DoctorLegend aerzte={aerzte} arztToneMap={arztToneMap} />
-            </div>
-            <div className="cal termine-month-cal">
-                {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d) => <div className="cal-head" key={d}>{d}</div>)}
-                {Array.from({ length: total }).map((_, idx) => {
-                    const day = idx - startOffset + 1;
-                    const inMonth = day > 0 && day <= daysInMonth;
-                    const date = new Date(y, m, day);
-                    const iso = format(date, "yyyy-MM-dd");
-                    const events = [...(byDate[iso] ?? [])].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
-                    const isTodayCell = iso === todayIso;
-                    const terminCount = events.length;
-                    const loadTier = terminCount > 0 ? monthCalPatientLoadTier(terminCount, patientLoadSettings) : null;
-                    const loadHex =
-                        loadTier != null ? monthCalPatientLoadAccentHex(loadTier, patientLoadSettings) : null;
-                    const loadLabelDe =
-                        loadTier === "few" ? "wenig" : loadTier === "medium" ? "mittel" : loadTier === "high" ? "hoch" : "";
-                    const terminBadgeText = terminCount === 1 ? "1 Termin" : `${terminCount} Termine`;
-                    return (
-                        <div
-                            key={idx}
-                            role="button"
-                            tabIndex={0}
-                            className={`cal-cell ${inMonth ? "" : "dim"} ${isTodayCell ? "today" : ""}`}
-                            onClick={() => onPickDay(iso)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    onPickDay(iso);
-                                }
-                            }}
-                        >
-                            <div className="cal-num">{date.getDate()}</div>
-                            {inMonth ? (
-                                terminCount > 0 ? (
-                                    <div
-                                        className="cal-cell-termin-pill"
-                                        data-load-tier={loadTier ?? undefined}
-                                        style={
-                                            loadHex
-                                                ? ({ "--termin-pill-accent": loadHex } as CSSProperties)
-                                                : undefined
-                                        }
-                                        aria-label={`${terminBadgeText}, Auslastung ${loadLabelDe}`}
-                                        title={`${terminBadgeText} · Auslastung ${loadLabelDe}`}
-                                    >
-                                        {terminBadgeText}
-                                    </div>
-                                ) : (
-                                    <div className="cal-cell-termin-pill cal-cell-termin-pill--empty" aria-label="Keine Termine">
-                                        —
-                                    </div>
-                                )
-                            ) : null}
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}

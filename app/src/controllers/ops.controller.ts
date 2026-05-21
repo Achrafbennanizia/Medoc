@@ -3,12 +3,16 @@ import { tauriInvoke } from "@/services/tauri.service";
 export interface BackupInfo {
     path: string;
     size_bytes: number;
+    /** null = no .sig sidecar (legacy); true/false = HMAC verification */
+    signature_ok: boolean | null;
 }
 
 export interface ErasureReport {
     patient_id: string;
     anonymised_at: string;
     deleted_records: number;
+    backups_redacted: number;
+    log_files_redacted: number;
 }
 
 export interface ImportReport {

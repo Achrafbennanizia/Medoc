@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use std::time::Instant;
 use tauri::State;
 
@@ -12,7 +13,7 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::log_security;
 
-pub struct BreakGlassStateExt(pub BreakGlassState);
+pub struct BreakGlassStateExt(pub Arc<BreakGlassState>);
 
 #[derive(Debug, Serialize)]
 pub struct BreakGlassEntry {
@@ -80,4 +81,13 @@ pub fn break_glass_active(
             elapsed_secs: g.granted_at.elapsed().as_secs(),
         })
         .collect())
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_break_glass_commands {
+    () => {
+        $crate::commands::break_glass_commands::break_glass_activate,
+        $crate::commands::break_glass_commands::break_glass_active,
+    };
 }

@@ -6,6 +6,9 @@ import { exportDischargeMerkblattPdf } from "@/controllers/akte.controller";
 import { finishExportWithSettings } from "@/lib/export";
 import { slugPatientName } from "@/lib/akte-export";
 import { useToastStore } from "./ui/toast-store";
+import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
+import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
+import { PraxisReadinessDialog } from "./praxis-readiness-dialog";
 
 export type DischargeMerkblattDialogProps = {
     open: boolean;
@@ -19,6 +22,8 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
     const [zusatzHinweise, setZusatzHinweise] = useState("");
     const [ueberweisungHinweise, setUeberweisungHinweise] = useState("");
     const [busy, setBusy] = useState(false);
+    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
+    const praxisReadiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), "akte");
 
     useEffect(() => {
         if (!open) {
@@ -38,6 +43,10 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
     const runExport = useCallback(async () => {
         if (!patient) {
             toast("Keine Patientendaten geladen.", "error");
+            return;
+        }
+        if (!praxisReadiness.ready) {
+            setPraxisGuardOpen(true);
             return;
         }
         setBusy(true);
@@ -72,6 +81,7 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
         suggestedFilename,
         toast,
         onClose,
+        praxisReadiness.ready,
     ]);
 
     return (
@@ -118,6 +128,12 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
                     />
                 </label>
             </div>
+            <PraxisReadinessDialog
+                open={praxisGuardOpen}
+                documentKind="akte"
+                result={praxisReadiness}
+                onClose={() => setPraxisGuardOpen(false)}
+            />
         </Dialog>
     );
 }

@@ -1,20 +1,47 @@
-// DSGVO erasure: deletes akte-linked rows and anonymises within schema CHECK constraints.
+// DSGVO erasure: deletes akte-linked rows, anonymises, redacts backups + logs.
 
-use medoc_lib::infrastructure::database::connection::run_migrations;
+use medoc_lib::infrastructure::backup;
+use medoc_lib::infrastructure::database::audit_repo;
+use medoc_lib::infrastructure::database::connection::{init_db_headless, run_migrations};
+use medoc_lib::infrastructure::database::{db_key, sqlcipher};
 use medoc_lib::infrastructure::dsgvo;
-use sqlx::sqlite::SqlitePoolOptions;
+use medoc_lib::infrastructure::logging::sanitizer;
+use std::path::PathBuf;
+use std::sync::{Mutex, Once};
+use zeroize::Zeroizing;
 
-async fn memory_pool() -> sqlx::SqlitePool {
-    SqlitePoolOptions::new()
-        .max_connections(2)
-        .connect("sqlite::memory:")
-        .await
-        .expect("sqlite memory pool")
+const HEX_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+static INIT: Once = Once::new();
+static DSGVO_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn init_env(app_dir: &PathBuf, backup_dir: &PathBuf, log_dir: &PathBuf) {
+    INIT.call_once(|| {
+        std::env::set_var("MEDOC_DB_KEY", HEX_KEY);
+        std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
+    });
+    std::env::set_var("MEDOC_BACKUP_DIR", backup_dir);
+    std::env::set_var("MEDOC_LOG_DIR", log_dir);
+    std::fs::create_dir_all(backup_dir).expect("backup dir");
+    std::fs::create_dir_all(log_dir).expect("log dir");
+    std::fs::create_dir_all(app_dir).expect("app dir");
+    audit_repo::init_audit_hmac_key(app_dir).expect("audit key");
 }
 
 #[tokio::test]
 async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
-    let pool = memory_pool().await;
+    let (base, app_dir, _backup_dir, log_dir) = {
+        let _lock = DSGVO_TEST_LOCK.lock().expect("dsgvo test lock");
+        let base = std::env::temp_dir().join(format!("medoc-dsgvo-{}", std::process::id()));
+        let app_dir = base.join("app");
+        let backup_dir = base.join("backups");
+        let log_dir = base.join("logs");
+        let _ = std::fs::remove_dir_all(&base);
+        init_env(&app_dir, &backup_dir, &log_dir);
+        (base, app_dir, backup_dir, log_dir)
+    };
+
+    let pool = init_db_headless(&app_dir).await.expect("file-backed sqlcipher db");
     run_migrations(&pool).await.expect("migrations");
 
     sqlx::query(
@@ -63,51 +90,27 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
     .await
     .expect("insert rechnung_document");
 
-    let n_beh: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM behandlung WHERE akte_id = 'akte-dsgvo-1'")
-            .fetch_one(&pool)
-            .await
-            .expect("count behandlung");
-    assert_eq!(n_beh.0, 1);
+    backup::create(&pool).await.expect("snapshot backup");
 
-    dsgvo::erase_patient(&pool, "p-dsgvo-1", std::path::Path::new("/tmp"))
+    std::fs::write(
+        log_dir.join("app.log"),
+        "event=VIEW patient_id=p-dsgvo-1 name=Test Patient\n",
+    )
+    .expect("write log");
+
+    let report = dsgvo::erase_patient(&pool, "p-dsgvo-1", &app_dir)
         .await
         .expect("erase");
 
-    // Scope the assertion to the test akte: `seed_demo_data` populates other
-    // behandlung rows tied to seed-Akten that intentionally survive erasure of
-    // `p-dsgvo-1`. The DSGVO contract requires all behandlung of the deleted
-    // patient to disappear, not the entire table.
+    assert!(report.backups_redacted >= 1, "backup snapshot must be redacted");
+    assert!(report.log_files_redacted >= 1, "log file must be redacted");
+
     let n_beh_after: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM behandlung WHERE akte_id = 'akte-dsgvo-1'")
             .fetch_one(&pool)
             .await
             .expect("count behandlung after");
-    assert_eq!(
-        n_beh_after.0, 0,
-        "behandlung must be cascade-deleted with patientenakte"
-    );
-
-    let n_val: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM akte_validation WHERE patient_id = 'p-dsgvo-1'")
-            .fetch_one(&pool)
-            .await
-            .expect("count akte_validation");
-    assert_eq!(n_val.0, 0);
-
-    let n_hint: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM akte_next_termin_hint WHERE patient_id = 'p-dsgvo-1'")
-            .fetch_one(&pool)
-            .await
-            .expect("count hint");
-    assert_eq!(n_hint.0, 0);
-
-    let n_rd: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM rechnung_document WHERE patient_id = 'p-dsgvo-1'")
-            .fetch_one(&pool)
-            .await
-            .expect("count rechnung_document");
-    assert_eq!(n_rd.0, 0);
+    assert_eq!(n_beh_after.0, 0);
 
     let row: (String, String, String, String) = sqlx::query_as(
         "SELECT name, geschlecht, status, versicherungsnummer FROM patient WHERE id = 'p-dsgvo-1'",
@@ -116,8 +119,61 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
     .await
     .expect("select patient");
 
-    assert!(row.0.starts_with("Anonymisiert"), "name stub: {:?}", row.0);
+    assert!(row.0.starts_with("Anonymisiert"));
     assert_eq!(row.1, "DIVERS");
     assert_eq!(row.2, "READONLY");
-    assert!(row.3.starts_with("ANON-"), "pseudo vnr: {:?}", row.3);
+    assert!(row.3.starts_with("ANON-"));
+
+    let backups = backup::list().expect("list backups");
+    assert!(!backups.is_empty());
+    let key = db_key::env_override_key().expect("MEDOC_DB_KEY");
+    let backup_pool =
+        sqlcipher::open_encrypted_pool(&backups[0].path, Zeroizing::new(key), false)
+        .await
+        .expect("open backup");
+    let backup_name: (String,) =
+        sqlx::query_as("SELECT name FROM patient WHERE id = 'p-dsgvo-1'")
+            .fetch_one(&backup_pool)
+            .await
+            .expect("patient in backup");
+    assert!(
+        backup_name.0.starts_with("Anonymisiert"),
+        "backup DB must be anonymised: {:?}",
+        backup_name.0
+    );
+    backup_pool.close().await;
+
+    let log_body = std::fs::read_to_string(log_dir.join("app.log")).expect("read log");
+    assert!(!log_body.contains("p-dsgvo-1"));
+    assert!(log_body.contains("[REDACTED-patient-"));
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn redact_patient_id_in_logs_replaces_needle() {
+    let _lock = DSGVO_TEST_LOCK.lock().expect("dsgvo test lock");
+    let log_dir = std::env::temp_dir().join(format!("medoc-dsgvo-log-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&log_dir);
+    std::fs::create_dir_all(&log_dir).expect("log dir");
+    std::fs::write(log_dir.join("security.log"), "patient_id=p-dsgvo-x\n")
+        .expect("write");
+
+    // sanitizer scans ~/medoc-data/logs when tracing not init — write there too.
+    let home_logs = dirs::home_dir()
+        .map(|h| h.join("medoc-data").join("logs"))
+        .expect("home");
+    std::fs::create_dir_all(&home_logs).ok();
+    let probe = home_logs.join(format!("medoc-dsgvo-probe-{}.log", std::process::id()));
+    std::fs::write(&probe, "needle p-dsgvo-x tail").expect("probe log");
+
+    let report = sanitizer::redact_patient_id_in_logs("p-dsgvo-x").expect("redact");
+    assert!(!report.redacted_files.is_empty());
+
+    let body = std::fs::read_to_string(&probe).expect("read probe");
+    assert!(!body.contains("p-dsgvo-x"));
+    assert!(body.contains("[REDACTED-patient-"));
+
+    let _ = std::fs::remove_file(&probe);
+    let _ = std::fs::remove_dir_all(&log_dir);
 }

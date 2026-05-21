@@ -53,13 +53,11 @@ pub async fn delete_row(
     patient_id: &str,
     section_or_item: &str,
 ) -> Result<(), AppError> {
-    sqlx::query(
-        "DELETE FROM akte_validation WHERE patient_id = ?1 AND section_or_item = ?2",
-    )
-    .bind(patient_id)
-    .bind(section_or_item)
-    .execute(pool)
-    .await?;
+    sqlx::query("DELETE FROM akte_validation WHERE patient_id = ?1 AND section_or_item = ?2")
+        .bind(patient_id)
+        .bind(section_or_item)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

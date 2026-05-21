@@ -38,6 +38,13 @@ import {
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
 import { loadPlanNextTerminWithMigration } from "@/controllers/plan-next-termin.controller";
+import {
+    clearTerminDraftFromBackend,
+    loadTerminDraftWithMigration,
+    persistTerminDraftToBackend,
+    stripLegacyTerminDraftLocalStorage,
+    type TerminDraft,
+} from "@/controllers/termin-draft.controller";
 
 const BEHANDLUNG_OPTIONS = [
     { value: "KONTROLLE", label: "Kontrolluntersuchung" },
@@ -96,25 +103,6 @@ function buildBeschwerdenPayload(tags: string[], zahnschmerzTeeth: string[]): st
         })
         .join("; ");
 }
-
-const DRAFT_PREFIX = "medoc-termin-draft-";
-
-type TerminDraft = {
-    datum: string;
-    uhrzeit: string;
-    patientId: string;
-    patientQuery: string;
-    arztId: string;
-    art: string;
-    beschwerdenTags: string[];
-    /** FDI numbers when Zahnschmerzen + teeth chosen (e.g. `["14","16"]`). */
-    zahnschmerzenTeeth?: string[];
-    /** @deprecated Draft key — migrated to zahnschmerzenTeeth */
-    zahnschmerzenTooth?: string | null;
-    notizen: string;
-    dauerMin: string;
-    statusWunsch: string;
-};
 
 function normalizeArt(raw: string | null): string {
     if (!raw) return "KONTROLLE";
@@ -265,10 +253,11 @@ export function TerminCreatePage() {
             setDraftHydrated(true);
             return;
         }
-        try {
-            const raw = localStorage.getItem(`${DRAFT_PREFIX}${draftId}`);
-            if (raw) {
-                const d = JSON.parse(raw) as Partial<TerminDraft>;
+        let cancelled = false;
+        void (async () => {
+            try {
+                const d = await loadTerminDraftWithMigration(draftId);
+                if (cancelled || !d) return;
                 if (hasDatumParam) {
                     setDatum(datumInit);
                 } else if (d.datum) {
@@ -302,12 +291,15 @@ export function TerminCreatePage() {
                 if (d.notizen) setNotizen(d.notizen);
                 if (d.dauerMin) setDauerMin(d.dauerMin);
                 if (d.statusWunsch) setStatusWunsch(d.statusWunsch);
+            } catch {
+                /* ignore */
+            } finally {
+                if (!cancelled) setDraftHydrated(true);
             }
-        } catch {
-            // ignore broken draft
-        } finally {
-            setDraftHydrated(true);
-        }
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [draftId, hasDatumParam, hasPatientParam, hasArtParam, hasUhrzeitParam, hasArztParam, datumInit, patientInit, artInit, uhrzeitInit, isEdit]);
 
     useEffect(() => {
@@ -375,7 +367,12 @@ export function TerminCreatePage() {
             dauerMin,
             statusWunsch,
         };
-        localStorage.setItem(`${DRAFT_PREFIX}${draftId}`, JSON.stringify(snap));
+        const timer = window.setTimeout(() => {
+            void persistTerminDraftToBackend(draftId, snap).catch(() => {
+                /* offline — legacy row may be stale until next save */
+            });
+        }, 400);
+        return () => window.clearTimeout(timer);
     }, [datum, uhrzeit, patientId, patientQuery, arztId, art, beschwerdenTags, zahnschmerzenTeeth, notizen, dauerMin, statusWunsch, draftId, draftHydrated, isEdit]);
 
     useEffect(() => {
@@ -595,7 +592,8 @@ export function TerminCreatePage() {
                 }
             }
             toast("Termin gespeichert");
-            localStorage.removeItem(`${DRAFT_PREFIX}${draftId}`);
+            await clearTerminDraftFromBackend(draftId);
+            stripLegacyTerminDraftLocalStorage(draftId);
             navigate("/termine");
         } catch (e) {
             const msg = errorMessage(e);

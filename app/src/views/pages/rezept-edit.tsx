@@ -7,10 +7,17 @@ import type { Patient } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
-import { Input, Textarea } from "../components/ui/input";
+import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { ChevronLeftIcon } from "@/lib/icons";
+import {
+    DARREICHUNGSFORM_OPTIONS,
+    DENTAL_ICD10_SUGGESTIONS,
+    PACKUNGSGROESSE_OPTIONS,
+    REZEPT_TYP_OPTIONS,
+    type RezeptLine,
+} from "@/lib/medikamente";
 
 export function RezeptEditPage() {
     const { id: patientId, rezeptId } = useParams<{ id: string; rezeptId: string }>();
@@ -29,6 +36,13 @@ export function RezeptEditPage() {
     const [dosierung, setDosierung] = useState("");
     const [dauer, setDauer] = useState("");
     const [hinweise, setHinweise] = useState("");
+    const [pzn, setPzn] = useState("");
+    const [darreichungsform, setDarreichungsform] = useState("");
+    const [packungsgroesse, setPackungsgroesse] = useState("");
+    const [menge, setMenge] = useState("");
+    const [rezeptTyp, setRezeptTyp] = useState<RezeptLine["rezept_typ"]>("PRIVAT");
+    const [icd10Code, setIcd10Code] = useState("");
+    const [autIdem, setAutIdem] = useState(true);
 
     const load = useCallback(async () => {
         if (!patientId || !rezeptId) return;
@@ -45,6 +59,13 @@ export function RezeptEditPage() {
                 setDosierung(r.dosierung);
                 setDauer(r.dauer);
                 setHinweise(r.hinweise ?? "");
+                setPzn(r.pzn ?? "");
+                setDarreichungsform(r.darreichungsform ?? "");
+                setPackungsgroesse(r.packungsgroesse ?? "");
+                setMenge(r.menge != null ? String(r.menge) : "");
+                setRezeptTyp((r.rezept_typ as RezeptLine["rezept_typ"]) ?? "PRIVAT");
+                setIcd10Code(r.icd10_code ?? "");
+                setAutIdem(r.aut_idem ?? true);
             }
         } catch (e) {
             setLoadError(errorMessage(e));
@@ -65,6 +86,7 @@ export function RezeptEditPage() {
             toast("Medikament, Dosierung und Dauer sind Pflichtfelder.", "error");
             return;
         }
+        const mengeN = Number.parseInt(menge.trim(), 10);
         setSaving(true);
         try {
             await updateRezept({
@@ -74,6 +96,14 @@ export function RezeptEditPage() {
                 dosierung: dosierung.trim(),
                 dauer: dauer.trim(),
                 hinweise: hinweise.trim() || null,
+                pzn: pzn.trim() || null,
+                darreichungsform: darreichungsform.trim() || null,
+                packungsgroesse: packungsgroesse.trim() || null,
+                menge: Number.isFinite(mengeN) && mengeN > 0 ? mengeN : null,
+                aut_idem: autIdem,
+                rezept_typ: rezeptTyp,
+                icd10_code: icd10Code.trim() || null,
+                verordnender_arzt_id: rezept.verordnender_arzt_id ?? session.user_id,
             });
             toast("Rezept gespeichert", "success");
             navigate(`/patienten/${patientId}#rezept`);
@@ -117,9 +147,7 @@ export function RezeptEditPage() {
                     <ChevronLeftIcon />Zurück zur Akte
                 </Button>
                 <div>
-                    <div className="page-sub page-sub-caps">
-                        {patient.name}
-                    </div>
+                    <div className="page-sub page-sub-caps">{patient.name}</div>
                     <h1 className="page-title" style={{ margin: 0 }}>Rezept bearbeiten</h1>
                 </div>
             </div>
@@ -127,7 +155,7 @@ export function RezeptEditPage() {
             <Card>
                 <CardHeader
                     title="Medikation"
-                    subtitle="Änderungen gelten für diese eine Rezeptzeile in der Akte."
+                    subtitle="AMVV-Felder (PZN, Darreichungsform, Rezepttyp) für den PDF-Export."
                 />
                 <div style={{ padding: "0 16px 16px" }}>
                     <Input
@@ -165,6 +193,69 @@ export function RezeptEditPage() {
                         value={hinweise}
                         onChange={(e) => setHinweise(e.target.value)}
                     />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
+                        <Input
+                            id="re-edit-pzn"
+                            label="PZN"
+                            value={pzn}
+                            onChange={(e) => setPzn(e.target.value)}
+                        />
+                        <Select
+                            id="re-edit-dar"
+                            label="Darreichungsform"
+                            value={darreichungsform}
+                            options={[
+                                { value: "", label: "—" },
+                                ...DARREICHUNGSFORM_OPTIONS.map((d) => ({ value: d, label: d })),
+                            ]}
+                            onChange={(e) => setDarreichungsform(e.target.value)}
+                        />
+                        <Select
+                            id="re-edit-pack"
+                            label="Packungsgröße"
+                            value={packungsgroesse}
+                            options={[
+                                { value: "", label: "—" },
+                                ...PACKUNGSGROESSE_OPTIONS.map((p) => ({ value: p, label: p })),
+                            ]}
+                            onChange={(e) => setPackungsgroesse(e.target.value)}
+                        />
+                        <Input
+                            id="re-edit-menge"
+                            label="Menge"
+                            type="number"
+                            min={1}
+                            value={menge}
+                            onChange={(e) => setMenge(e.target.value)}
+                        />
+                        <Select
+                            id="re-edit-typ"
+                            label="Rezepttyp"
+                            value={rezeptTyp}
+                            options={REZEPT_TYP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                            onChange={(e) => setRezeptTyp(e.target.value as RezeptLine["rezept_typ"])}
+                        />
+                        <Input
+                            id="re-edit-icd"
+                            label="ICD-10"
+                            list="re-edit-icd-suggestions"
+                            value={icd10Code}
+                            onChange={(e) => setIcd10Code(e.target.value)}
+                        />
+                    </div>
+                    <datalist id="re-edit-icd-suggestions">
+                        {DENTAL_ICD10_SUGGESTIONS.map((c) => (
+                            <option key={c} value={c} />
+                        ))}
+                    </datalist>
+                    <label className="row" style={{ gap: 8, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+                        <input
+                            type="checkbox"
+                            checked={autIdem}
+                            onChange={(e) => setAutIdem(e.target.checked)}
+                        />
+                        Aut-idem (kein Austausch)
+                    </label>
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
                         <Button variant="ghost" onClick={back} disabled={saving}>
                             Abbrechen

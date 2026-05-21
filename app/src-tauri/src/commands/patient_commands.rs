@@ -128,12 +128,11 @@ pub async fn delete_patient(
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
-    let akte_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM patientenakte WHERE patient_id = ?1",
-    )
-    .bind(&id)
-    .fetch_all(&*pool)
-    .await?;
+    let akte_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM patientenakte WHERE patient_id = ?1")
+            .bind(&id)
+            .fetch_all(&*pool)
+            .await?;
     patient_repo::delete(&pool, &id).await?;
     for (aid,) in akte_ids {
         akte_anlage_repo::remove_storage_dir_best_effort(&app_dir, &aid);
@@ -175,4 +174,17 @@ pub async fn search_patienten(
     .await
     .ok();
     Ok(rows)
+}
+
+/// IPC commands for [`crate::commands::register`].
+#[macro_export]
+macro_rules! register_patient_commands {
+    () => {
+        $crate::commands::patient_commands::list_patienten,
+        $crate::commands::patient_commands::get_patient,
+        $crate::commands::patient_commands::create_patient,
+        $crate::commands::patient_commands::update_patient,
+        $crate::commands::patient_commands::delete_patient,
+        $crate::commands::patient_commands::search_patienten,
+    };
 }

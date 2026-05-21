@@ -53,9 +53,7 @@ pub async fn delete_for_patient(pool: &SqlitePool, patient_id: &str) -> Result<u
 }
 
 /// All stored hints (newest first). Caller filters empty JSON.
-pub async fn list_all_ordered(
-    pool: &SqlitePool,
-) -> Result<Vec<(String, String)>, AppError> {
+pub async fn list_all_ordered(pool: &SqlitePool) -> Result<Vec<(String, String)>, AppError> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT patient_id, hint_json FROM akte_next_termin_hint ORDER BY updated_at DESC",
     )

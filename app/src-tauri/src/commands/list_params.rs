@@ -100,4 +100,13 @@ impl ListParams {
             None => default,
         }
     }
+
+    pub fn filter_bool(&self, key: &str) -> Option<bool> {
+        self.filter.as_ref().and_then(|m| m.get(key)).and_then(|v| match v {
+            FilterValue::Bool(b) => Some(*b),
+            FilterValue::Int(n) => Some(*n != 0),
+            FilterValue::Text(s) => Some(s == "1" || s.eq_ignore_ascii_case("true")),
+            _ => None,
+        })
+    }
 }

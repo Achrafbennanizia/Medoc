@@ -1,0 +1,57 @@
+# MeDoc RBAC matrix — single source of truth (TASK 3.4).
+# Edit this file only; run `cargo build` to regenerate Rust + TypeScript.
+version: 1
+
+roles:
+  - ARZT
+  - REZEPTION
+  - STEUERBERATER
+  - PHARMABERATER
+
+# Reusable role groups (expanded at codegen time).
+role_sets:
+  arzt_only: [ARZT]
+  clinical_frontdesk: [ARZT, REZEPTION]
+  finanzen_staff: [ARZT, REZEPTION, STEUERBERATER]
+  inventory_write: [ARZT, REZEPTION, PHARMABERATER]
+  everyone: [ARZT, REZEPTION, STEUERBERATER, PHARMABERATER]
+
+# action → role set name, explicit role list, or "*" (all authenticated roles).
+permissions:
+  patient.read_medical: arzt_only
+  patient.write_medical: arzt_only
+  patient.read_documents: clinical_frontdesk
+  patient.behandlungen_list_for_zahlung: finanzen_staff
+  patient.read: clinical_frontdesk
+  patient.write: clinical_frontdesk
+  termin.list_aerzte: clinical_frontdesk
+  termin.read: clinical_frontdesk
+  termin.write: clinical_frontdesk
+  finanzen.read: finanzen_staff
+  finanzen.write: finanzen_staff
+  dashboard.read: everyone
+  produkt.read: everyone
+  produkt.write: inventory_write
+  bestellung.read: everyone
+  bestellung.write: inventory_write
+  verwaltung.read: everyone
+  verwaltung.lager.read: everyone
+  verwaltung.lager.write: inventory_write
+  verwaltung.vertraege.read: everyone
+  verwaltung.vertraege.write: inventory_write
+  verwaltung.kataloge.read: finanzen_staff
+  verwaltung.kataloge.write: finanzen_staff
+  verwaltung.vorlagen.read: arzt_only
+  verwaltung.vorlagen.write: arzt_only
+  finanzen.tagesabschluss.write: finanzen_staff
+  personal.read: arzt_only
+  personal.write: arzt_only
+  vorlagen.read: arzt_only
+  vorlagen.write: arzt_only
+  audit.read: arzt_only
+  ops.backup: arzt_only
+  ops.dsgvo: arzt_only
+  ops.migration: arzt_only
+  ops.system: arzt_only
+  ops.logs: arzt_only
+  ops.audit_chain_ack: arzt_only
