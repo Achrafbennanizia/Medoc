@@ -1,6 +1,6 @@
 # Validation ledger
 
-**Last updated:** 2026-05-25 (Wave A complete)
+**Last updated:** 2026-05-26 (Wave B2.a–c + B4 complete)
 
 ## Verified (commands run, outcomes recorded)
 
@@ -19,6 +19,19 @@
 | Wave B3 — `cargo check --workspace --all-targets` | `cargo check --workspace --all-targets` from `app/` | **PASS** | 2026-05-25 | 42.0s cold; all 3 members compile |
 | Wave B3 — `cargo test --workspace --tests` | `cargo test --workspace --tests` from `app/` | **PASS** | 2026-05-25 | full suite green; medoc-codegen + medoc-core 0 tests |
 | Wave B3 — `cargo clippy --workspace -D warnings` | `cargo clippy --workspace --all-targets -- -D warnings` from `app/` | **PASS** | 2026-05-25 | 13.0s incremental; no warnings |
+| Wave B2.a — `cargo check --workspace` | `cargo check --workspace --all-targets` from `app/` | **PASS** | 2026-05-25 | 11.3s; `Role` enum reachable via `domain::rbac` + back-compat re-export from `application::rbac` |
+| Wave B2.a — `cargo clippy --workspace -D warnings` | `cargo clippy --workspace --all-targets --no-deps -- -D warnings` from `app/` | **PASS** | 2026-05-25 | 12.4s; no warnings |
+| Wave B2.a — `cargo test --workspace --tests` | `cargo test --workspace --tests` from `app/` | **PASS** | 2026-05-25 | **159 tests / 0 fail**; baseline unchanged |
+| Wave B2.b — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 6.5s; `require/require_authenticated/require_one_of` resolve via re-export in `application::rbac` |
+| Wave B2.b — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 6.7s; no warnings |
+| Wave B2.b — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** |
+| Wave B2.c — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 8.5s; `infrastructure/database/connection.rs` `grep -E '\btauri\b'` = 0 |
+| Wave B2.c — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 9.3s; no warnings |
+| Wave B2.c — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** |
+| Wave B4 — `cargo check --workspace` (cold) | as above | **PASS** | 2026-05-26 | 13.7s; `medoc-codegen` now provides RBAC + enums codegen |
+| Wave B4 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 11.9s after lint fix on `build.rs` docstring |
+| Wave B4 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** |
+| Wave B4 — generated artefacts byte-identical | `git diff --stat` on `rbac.generated.ts`, `enums.generated.ts`, `schemas.enums.generated.ts`, `migrations/generated/` | **PASS** | 2026-05-26 | clean; codegen output unchanged after relocation |
 | Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |

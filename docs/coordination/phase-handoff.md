@@ -1,9 +1,9 @@
 # Phase handoff
 
-**Last phase label:** Workspace restructure — Wave B1 (mapping) + B3 (skeleton)  
-**Last closed:** 2026-05-25 — workspace skeleton at `app/Cargo.toml` + `app/crates/medoc-{codegen,core}/`; **PASS** (`cargo check/test/clippy --workspace`); no source code lifted yet
+**Last phase label:** Workspace restructure — Wave B2.a–c (Tauri-untangle) + B4 (codegen lift)  
+**Last closed:** 2026-05-25/26 — `5f09d58`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests); `medoc-codegen` crate now drives RBAC + enums codegen; `domain::rbac::Role`, `commands::rbac_state::{require, …}`, `commands::db_setup_commands::init_db_from_app` introduced
 
-### Workspace restructure (2026-05-25)
+### Workspace restructure (2026-05-25 / 26)
 
 | Item | Status |
 |------|--------|
@@ -11,10 +11,13 @@
 | Backup retention test `dbd146d` — day-of-week independent fix | **PASS** (`cargo test --test backup_tests` + full `cargo test --tests` + `clippy -D warnings`) |
 | Wave A `f402f28` — drop 41 controller shims + 15 page shims; repoint imports | **PASS** (`npm run lint`, `npm test` 155/28, `npm run build`) |
 | Wave B1 — per-module crate mapping document [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md) | **DONE** (evidence-backed; 6 constraints catalogued) |
-| Wave B3 — workspace skeleton (`app/Cargo.toml` + 2 empty placeholder crates) | **PASS** (`cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace -D warnings`) |
+| Wave B3 `a1196d3` — workspace skeleton (`app/Cargo.toml` + 2 empty placeholder crates) | **PASS** (`cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace -D warnings`) |
 | Wave C prep — `app/src/lib/*` category mapping [`wave-c-package-mapping.md`](wave-c-package-mapping.md) | **DONE** (97 files triaged) |
-| Wave B2 — untangle Tauri leakage (`application/rbac.rs`, `infrastructure/database/connection.rs`, `domain → application::rbac::Role`) | **NOT STARTED** |
-| Wave B4–B8 — real source lifts (codegen → core → lan → company → practice → binaries) | **NOT STARTED** |
+| Wave B2.a `5696bea` — move `Role` enum to `domain::rbac`; close inverted dep from `workflow_transitions` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests) |
+| Wave B2.b `65fbcfc` — extract `require`/`require_authenticated`/`require_one_of` into `commands::rbac_state` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests) |
+| Wave B2.c `04843bf` — remove Tauri dep from `infrastructure::database::connection`; add `commands::db_setup_commands::init_db_from_app` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; `connection.rs` `grep tauri` empty) |
+| Wave B4 `5f09d58` — lift `build/{enums,rbac}_codegen.rs` into `medoc-codegen` lib crate; thin `build.rs` caller; latent `.gitignore` `build/` bug fixed | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; generated TS / RS / SQL byte-identical) |
+| Wave B5–B8 — real source lifts (core → lan → company → practice → binaries) | **NOT STARTED** |
 | Wave C — npm workspace split | **NOT STARTED** — depends on B |
 | Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`) | **NOT STARTED** — depends on B + C |
 
@@ -39,12 +42,22 @@
 
 ### Must happen next
 
-1. **Decide whether Wave B (Cargo workspace) proceeds in a fresh session.** Recommended next-session steps:
-   - Phase B1: enumerate `use crate::*` graph; produce per-module target-crate mapping under `docs/coordination/wave-b-crate-mapping.md`.
-   - Phase B2: untangle Tauri leakage out of `application/` (e.g. `application/rbac.rs`).
-   - Phase B3: create `app/Cargo.toml` workspace + empty `medoc-core` crate; lift `domain/` + crypto/database (no Tauri); re-validate.
-   - Phase B4 onwards: each remaining crate one at a time.
-2. **Live UI smokes from earlier phases remain NOT OBSERVED.**
+1. **Wave B5 — lift `domain/` + non-Tauri infrastructure into `medoc-core` crate.** Now unblocked because B2.a–c removed every direct `tauri::*` reference from `domain/` and `infrastructure/database/`. Mapping at `wave-b-crate-mapping.md`. Constraints likely still to surface in the actual lift:
+   - `application/audit_chain_guard::blocks_ops()` is called from `commands::rbac_state::require` (Wave B2.b decision). If `audit_chain_guard.rs` moves to `medoc-core`, the call stays where it is; only `commands::rbac_state` lives in `medoc-practice`. Verify before splitting.
+   - `domain::repositories::*` traits use `crate::infrastructure::database::*` types in some signatures — re-check before lift.
+   - `application/akte/*` (billing_release, clinical_line_persistence, pdf_export, rezeption_redact) all reference `commands::auth_commands::SessionState` indirectly via `rbac::require` — confirm no remaining `tauri::State` usage before lifting `application/`.
+2. **Wave B6/B7 — lift `infrastructure/lan_server/` and `infrastructure/company_host/` into `medoc-lan` / `medoc-company` crates.** Both already isolated as systems; should be near-mechanical once core lands.
+3. **Wave B8 — split binaries (`bin/medoc-server.rs`, `bin/medoc-company-server.rs`) into their own crates; trim `medoc` crate to Tauri-only.**
+4. **Live UI smokes from earlier phases remain NOT OBSERVED.**
+
+### Continuity tokens for the next Wave B session
+
+- The workspace root is `app/Cargo.toml`. Always invoke cargo from there (`cd app && cargo check --workspace`).
+- Required env for any `cargo {check,test,clippy}` invocation:
+  - `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`
+  - `MEDOC_DB_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`
+  - `MEDOC_AUDIT_KEY="k9-medoc-test-audit-key-32bytes!"`
+- Latent gotcha (resolved by B4): `.gitignore:52` matches `build/` globally → any new `build/` subdir under `app/src-tauri/` will silently disappear from version control. Prefer workspace crates under `app/crates/` for build-time logic.
 
 
 
