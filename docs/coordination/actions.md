@@ -8,8 +8,11 @@
   - **Checkpoint:** `33171bd` — wave-23 state committed (290 files, +17,548/-10,023).
   - **Test fix:** `dbd146d` — backup retention test made day-of-week independent (was failing on Mondays/Sundays).
   - **Wave A — DONE** `f402f28` — dropped 41 legacy controller shims + 15 legacy page shims; repointed ~90 imports to `@/systems/*/controllers/*` and `@/systems/*/pages/*`. `npm run lint && npm test (155) && npm run build` PASS.
-  - **Wave B — BLOCKED on multi-session capacity.** Scope is 179 Rust files + ~500–700 `use crate::*` rewrites + Tauri-leakage untangling + 5 new crates (medoc-{core,practice,lan,company,codegen}) + build.rs re-homing + per-binary dependency closure verification + workspace-wide test cycle. Realistically several focused sessions of Rust work, not a single chat. Stopping here for explicit go/no-go.
-  - **Waves C, D** — depend on Wave B; not started.
+  - **Wave B1 (mapping) — DONE** [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md). Every `.rs` file under `app/src-tauri/src/` assigned to a target crate (medoc-{core,practice,lan,company,codegen}); 6 known constraints catalogued (Tauri leakage in `application/rbac.rs` + `infrastructure/database/connection.rs`; inverted `domain → application::rbac::Role`; crate-root macro re-homing; OUT_DIR codegen pathing; TS-file relative paths).
+  - **Wave B3 (workspace skeleton) — DONE** — `app/Cargo.toml` virtual workspace; new placeholder crates `app/crates/medoc-codegen/` and `app/crates/medoc-core/` (empty `lib.rs`, no deps). Workspace target dir is now `app/target/`; orphan `app/src-tauri/Cargo.lock` removed. `cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace --all-targets -- -D warnings` ALL PASS. No source code lifted yet.
+  - **Wave B2/B4–B8 — NOT STARTED.** Real lifts (untangle Tauri leakage, move `domain/`, `error.rs`, non-Tauri `application/`, non-Tauri `infrastructure/`, then `lan_server/` → `medoc-lan`, `company_host/` → `medoc-company`, `commands/` → `medoc-practice`, finally binaries) require focused follow-up sessions.
+  - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files in `app/src/lib/` categorised: 3 generated, ~50 pure helper candidates for `@medoc/shared`, 3 Tauri-coupled, 1 React component, ~38 system-aware (require dependency inversion or relocation).
+  - **Waves C/D execution** — depend on B; not started.
 - **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
 
 ## Done (2026-05-22 three-system wave)

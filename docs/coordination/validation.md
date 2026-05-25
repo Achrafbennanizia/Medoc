@@ -14,6 +14,11 @@
 | Wave A — `npm run lint` | `npm run lint` | **PASS** | 2026-05-25 | 0 warnings, no-cache |
 | Wave A — `npm test` | `npm test` | **PASS** | 2026-05-25 | **155 tests / 28 files** (baseline 154, +1 from `systems-structure.test.ts` split) |
 | Wave A — `npm run build` | `npm run build` | **PASS** | 2026-05-25 | 2.35s |
+| Wave B3 — `cargo metadata` (workspace) | `cargo metadata --format-version 1 --no-deps` from `app/` | **PASS** | 2026-05-25 | 3 workspace members: medoc, medoc-codegen, medoc-core |
+| Wave B3 — `cargo check -p medoc-codegen -p medoc-core` | `cargo check -p medoc-codegen -p medoc-core` | **PASS** | 2026-05-25 | 7.45s; empty crates compile |
+| Wave B3 — `cargo check --workspace --all-targets` | `cargo check --workspace --all-targets` from `app/` | **PASS** | 2026-05-25 | 42.0s cold; all 3 members compile |
+| Wave B3 — `cargo test --workspace --tests` | `cargo test --workspace --tests` from `app/` | **PASS** | 2026-05-25 | full suite green; medoc-codegen + medoc-core 0 tests |
+| Wave B3 — `cargo clippy --workspace -D warnings` | `cargo clippy --workspace --all-targets -- -D warnings` from `app/` | **PASS** | 2026-05-25 | 13.0s incremental; no warnings |
 | Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |
