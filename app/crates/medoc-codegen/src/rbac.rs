@@ -11,9 +11,17 @@ struct RbacYaml {
     permissions: BTreeMap<String, serde_yaml::Value>,
 }
 
-pub fn run(manifest_dir: &Path) {
-    let yaml_path = manifest_dir.join("../../config/rbac.yaml");
-    let yaml_src = fs::read_to_string(&yaml_path)
+/// Run the RBAC codegen.
+///
+/// - `yaml_path` — absolute path to `config/rbac.yaml`.
+/// - `ts_out_dir` — directory to receive `rbac.generated.ts`
+///   (e.g. `app/src/lib/`).
+///
+/// The Rust output (`rbac_generated.rs`) is written to the **calling crate's**
+/// `OUT_DIR` so that `include!(concat!(env!("OUT_DIR"), …))` resolves to the
+/// same crate that defines `application::rbac`.
+pub fn run(yaml_path: &Path, ts_out_dir: &Path) {
+    let yaml_src = fs::read_to_string(yaml_path)
         .unwrap_or_else(|e| panic!("read {}: {e}", yaml_path.display()));
     let doc: RbacYaml = serde_yaml::from_str(&yaml_src)
         .unwrap_or_else(|e| panic!("parse {}: {e}", yaml_path.display()));
@@ -29,7 +37,7 @@ pub fn run(manifest_dir: &Path) {
     fs::write(out_dir.join("rbac_generated.rs"), render_rust(&resolved))
         .expect("write rbac_generated.rs");
 
-    let ts_path = manifest_dir.join("../src/lib/rbac.generated.ts");
+    let ts_path = ts_out_dir.join("rbac.generated.ts");
     fs::write(&ts_path, render_ts(&resolved)).expect("write rbac.generated.ts");
 
     println!("cargo:rerun-if-changed={}", yaml_path.display());
