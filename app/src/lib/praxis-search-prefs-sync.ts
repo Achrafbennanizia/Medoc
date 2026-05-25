@@ -9,7 +9,7 @@ import {
     parsePraxisPreferencesV1,
     type PraxisPreferencesV1,
 } from "@/lib/confirmation-preferences";
-import { getAppKv, setAppKv } from "@/controllers/app-kv.controller";
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 import {
     DEFAULT_CLIENT_SETTINGS,
     loadClientSettings,

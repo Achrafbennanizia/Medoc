@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listProdukte, createProdukt } from "../../controllers/produkt.controller";
+import { listProdukte, createProdukt } from "@/systems/practice-host/controllers/produkt.controller";
 import {
     listLieferantStamm,
     createLieferantStamm,
@@ -10,7 +10,7 @@ import {
     listLieferantPharmaVorlagen,
     createLieferantPharmaVorlage,
     deleteLieferantPharmaVorlage,
-} from "../../controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/praxis.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { LieferantPharmaVorlage, LieferantStamm, PharmaberaterStamm, Produkt } from "@/models/types";

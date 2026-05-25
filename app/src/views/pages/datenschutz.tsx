@@ -4,12 +4,12 @@ import { Button } from "../components/ui/button";
 import { PatientComboField } from "../components/patient-combo-field";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
-import { listPatienten } from "../../controllers/patient.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     dsgvoExportPatient,
     dsgvoErasePatient,
     type ErasureReport,
-} from "../../controllers/ops.controller";
+} from "@/systems/practice-host/controllers/ops.controller";
 import type { Patient } from "../../models/types";
 import { clearPatientScopedBrowserStorage } from "../../lib/patient-browser-storage";
 import { errorMessage, formatTpl } from "../../lib/utils";

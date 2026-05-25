@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
-import { listZahlungen } from "../../controllers/zahlung.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { listBestellungen, updateBestellungStatus } from "../../controllers/bestellung.controller";
-import type { BestellStatus, Bestellung } from "../../controllers/bestellung.controller";
+import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listBestellungen, updateBestellungStatus } from "@/systems/practice-host/controllers/bestellung.controller";
+import type { BestellStatus, Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
 import { parseRole, allowed } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";

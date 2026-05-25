@@ -4,7 +4,7 @@ import {
     provisionDbPassphrase,
     unlockDbPassphrase,
     type DbSetupStatus,
-} from "../../controllers/db-setup.controller";
+} from "@/systems/practice-host/controllers/db-setup.controller";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";

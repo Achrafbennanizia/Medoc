@@ -1,6 +1,6 @@
-import { createAttest, deleteAttest } from "@/controllers/attest.controller";
-import { createDokumentVorlage, listDokumentVorlagen } from "@/controllers/praxis.controller";
-import { createRezept, deleteRezept } from "@/controllers/rezept.controller";
+import { createAttest, deleteAttest } from "@/systems/practice-host/controllers/attest.controller";
+import { createDokumentVorlage, listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
+import { createRezept, deleteRezept } from "@/systems/practice-host/controllers/rezept.controller";
 import type { DokumentVorlage } from "@/models/types";
 import {
     buildAttestInhalt,

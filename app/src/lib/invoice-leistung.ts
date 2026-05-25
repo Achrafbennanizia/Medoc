@@ -14,7 +14,7 @@ import {
 } from "@/lib/zahlung-buchung";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 
-import { getAppKv, setAppKv } from "@/controllers/app-kv.controller";
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 
 const LS_INVOICE_PRAXIS = "medoc-invoice-praxis-v1";
 const INVOICE_PRAXIS_KV_KEY = "invoice.praxis.v1" as const;

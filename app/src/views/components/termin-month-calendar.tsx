@@ -2,7 +2,7 @@ import { type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { addMonths, format } from "date-fns";
 import { de } from "date-fns/locale";
 import type { Termin } from "@/models/types";
-import type { AerztSummary } from "@/controllers/personal.controller";
+import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import {
     monthCalPatientLoadAccentHex,
     monthCalPatientLoadTier,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listDokumentVorlagen, deleteDokumentVorlage } from "../../controllers/praxis.controller";
+import { listDokumentVorlagen, deleteDokumentVorlage } from "@/systems/practice-host/controllers/praxis.controller";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { DokumentVorlage } from "../../models/types";

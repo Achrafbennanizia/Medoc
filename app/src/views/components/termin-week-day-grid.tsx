@@ -11,7 +11,7 @@ import {
 } from "react";
 import { addDays, addMonths, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import type { AerztSummary } from "@/controllers/personal.controller";
+import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { extractZahnschmerzFdisFromBeschwerden } from "@/lib/dental";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { minutesToUhrzeit } from "@/lib/termin-availability";

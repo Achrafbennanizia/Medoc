@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getOwnProfile, updateOwnProfile, type OwnProfileDto } from "@/controllers/personal.controller";
+import { getOwnProfile, updateOwnProfile, type OwnProfileDto } from "@/systems/practice-host/controllers/personal.controller";
 import { errorMessage } from "@/lib/utils";
 import { parseRole, type Role } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";

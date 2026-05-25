@@ -7,13 +7,13 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
-import { listPatienten } from "../../controllers/patient.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     listAtteste,
     createAttest,
     deleteAttest,
     type Attest,
-} from "../../controllers/attest.controller";
+} from "@/systems/practice-host/controllers/attest.controller";
 import type { Patient } from "../../models/types";
 import { errorMessage, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";

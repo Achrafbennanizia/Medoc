@@ -3,11 +3,11 @@ import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
-import { checkSession, logout, touchSession } from "../../controllers/auth.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { breakGlassActivate } from "../../controllers/break-glass.controller";
-import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "../../controllers/akte-workflow.controller";
-import { countOpenPraxisAufgabenForMe } from "../../controllers/praxis-aufgabe.controller";
+import { checkSession, logout, touchSession } from "@/systems/practice-host/controllers/auth.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
+import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "@/systems/practice-host/controllers/akte-workflow.controller";
+import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "../../lib/rbac";
 import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
@@ -27,7 +27,7 @@ import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { NotificationsPopover } from "../components/notifications-popover";
-import { checkForUpdates, openNativePrintDialog } from "@/controllers/system.controller";
+import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { AuditChainBanner } from "../components/audit-chain-banner";
@@ -41,9 +41,9 @@ import {
     migrateInvoicePraxisLocalStorageToAppKv,
 } from "@/lib/invoice-leistung";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
-import { syncNativeMenu } from "@/controllers/native-menu.controller";
+import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.controller";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
-import { countUnreadInAppNotifications } from "@/controllers/in-app-notification.controller";
+import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 function breadcrumbsForPath(pathname: string): string[] {

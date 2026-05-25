@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import { createTermin, getTermin, listTermine, updateTermin } from "../../controllers/termin.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { getAkte, listZahnbefunde } from "../../controllers/akte.controller";
-import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
-import { listAbwesenheiten } from "../../controllers/praxis.controller";
+import { createTermin, getTermin, listTermine, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { getAkte, listZahnbefunde } from "@/systems/practice-host/controllers/akte.controller";
+import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
+import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.controller";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage } from "../../lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
@@ -43,14 +43,14 @@ import {
     planNextTerminSummary,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
-import { loadPlanNextTerminWithMigration } from "@/controllers/plan-next-termin.controller";
+import { loadPlanNextTerminWithMigration } from "@/systems/practice-host/controllers/plan-next-termin.controller";
 import {
     clearTerminDraftFromBackend,
     loadTerminDraftWithMigration,
     persistTerminDraftToBackend,
     stripLegacyTerminDraftLocalStorage,
     type TerminDraft,
-} from "@/controllers/termin-draft.controller";
+} from "@/systems/practice-host/controllers/termin-draft.controller";
 
 const BEHANDLUNG_OPTIONS = [
     { value: "KONTROLLE", label: "Kontrolluntersuchung" },

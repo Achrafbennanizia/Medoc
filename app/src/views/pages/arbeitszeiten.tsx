@@ -15,7 +15,7 @@ import {
 } from "../../lib/praxis-arbeitszeiten-validation";
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
+import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 
 const DAY_ORDER: readonly PraxisDayKey[] = ["mo", "di", "mi", "do", "fr", "sa", "so"];
 const PRACTICE_PROFILE_KEY = "__practice__";

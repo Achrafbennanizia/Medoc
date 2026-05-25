@@ -1,4 +1,4 @@
-import { getAppKv, setAppKv } from "@/controllers/app-kv.controller";
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 
 export const PRAXIS_PREFERENCES_KV_KEY = "praxis.preferences.v1" as const;
 

@@ -9,7 +9,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import {
     submitFeedback,
     type FeedbackKategorie,
-} from "../../controllers/feedback.controller";
+} from "@/systems/practice-host/controllers/feedback.controller";
 
 export function FeedbackPage() {
     const t = useT();

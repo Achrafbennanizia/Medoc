@@ -2,7 +2,7 @@ import {
     companyPortalBillingPortalUrl,
     openSubscriptionPortal,
     type LicenseStatus,
-} from "@/controllers/settings-page.controller";
+} from "@/systems/practice-host/controllers/settings-page.controller";
 import { formatDeDateShort, formatEurFromCents } from "@/lib/settings-format";
 import { ChevronRightIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";

@@ -6,7 +6,7 @@ import {
     setPerfThresholdMs,
     systemHealthCheck,
     type HealthCheck,
-} from "@/controllers/settings-page.controller";
+} from "@/systems/practice-host/controllers/settings-page.controller";
 import {
     DEFAULT_CLIENT_SETTINGS,
     mergeClientSettingsPatch,

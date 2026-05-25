@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../../controllers/auth.controller";
+import { login } from "@/systems/practice-host/controllers/auth.controller";
 import {
     confirmTotpEnrollmentLogin,
     startTotpEnrollmentLogin,
     type TotpEnrollment,
-} from "../../controllers/totp.controller";
+} from "@/systems/practice-host/controllers/totp.controller";
 import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
 import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";

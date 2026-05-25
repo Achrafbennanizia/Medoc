@@ -5,7 +5,7 @@ import {
     getCompanyPortalConfig,
     setCompanyPortalConfig,
     type CompanyPortalConfig,
-} from "@/controllers/settings-page.controller";
+} from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";

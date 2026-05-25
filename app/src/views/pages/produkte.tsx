@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "../../controllers/produkt.controller";
+import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "@/systems/practice-host/controllers/produkt.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "../../lib/utils";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";

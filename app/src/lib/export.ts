@@ -1,7 +1,7 @@
 import { openExportPreview, type ExportFormat } from "@/models/store/export-preview-store";
 import { loadExportPathConfig } from "@/lib/export-settings";
 import { isTauriApp } from "@/lib/save-download";
-import { saveExportBytesToFolder } from "@/controllers/document-template.controller";
+import { saveExportBytesToFolder } from "@/systems/practice-host/controllers/document-template.controller";
 
 export type FinishExportWithSettingsInput = {
     format: ExportFormat;

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { deleteAttest } from "@/controllers/attest.controller";
-import { deleteRezept, updateRezept } from "@/controllers/rezept.controller";
-import type { Attest } from "@/controllers/attest.controller";
-import type { Rezept } from "@/controllers/rezept.controller";
-import { listDokumentVorlagen } from "@/controllers/praxis.controller";
+import { deleteAttest } from "@/systems/practice-host/controllers/attest.controller";
+import { deleteRezept, updateRezept } from "@/systems/practice-host/controllers/rezept.controller";
+import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
+import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
+import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import {
     ATTEST_TYP_OPTIONS,
     KRANKHEITEN_SUGGESTIONS,

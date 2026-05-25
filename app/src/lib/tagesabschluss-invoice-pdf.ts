@@ -1,6 +1,6 @@
-import { getAkte, listBehandlungen, listUntersuchungen } from "@/controllers/akte.controller";
-import { allocateBerichtNummer, renderInvoicePdf } from "@/controllers/invoice.controller";
-import type { TagesabschlussProtokoll } from "@/controllers/tagesabschluss-protokoll.controller";
+import { getAkte, listBehandlungen, listUntersuchungen } from "@/systems/practice-host/controllers/akte.controller";
+import { allocateBerichtNummer, renderInvoicePdf } from "@/systems/practice-host/controllers/invoice.controller";
+import type { TagesabschlussProtokoll } from "@/systems/practice-host/controllers/tagesabschluss-protokoll.controller";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 import {
     buildTagesberichtLines,

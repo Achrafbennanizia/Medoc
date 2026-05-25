@@ -6,7 +6,7 @@ import {
     transitionPraxisAufgabe,
     type PraxisAufgabe,
     type PraxisAufgabeStatus,
-} from "@/controllers/praxis-aufgabe.controller";
+} from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";

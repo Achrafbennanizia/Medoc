@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getPatient } from "../../controllers/patient.controller";
-import { listDokumentVorlagen } from "../../controllers/praxis.controller";
-import { createRezept } from "../../controllers/rezept.controller";
+import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
+import { createRezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { errorMessage } from "../../lib/utils";
 import type { DokumentVorlage } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";

@@ -1,4 +1,4 @@
-import { getPatient } from "@/controllers/patient.controller";
+import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     getAkte,
     getAnamnesebogen,
@@ -6,10 +6,10 @@ import {
     listBehandlungen,
     listUntersuchungen,
     listZahnbefunde,
-} from "@/controllers/akte.controller";
-import { listAtteste, type Attest } from "@/controllers/attest.controller";
-import { listRezepte, type Rezept } from "@/controllers/rezept.controller";
-import { listZahlungenForPatient } from "@/controllers/zahlung.controller";
+} from "@/systems/practice-host/controllers/akte.controller";
+import { listAtteste, type Attest } from "@/systems/practice-host/controllers/attest.controller";
+import { listRezepte, type Rezept } from "@/systems/practice-host/controllers/rezept.controller";
+import { listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
 import type { AkteAnlageRowDto } from "@/lib/akte-anlagen";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, Zahlung } from "@/models/types";
 

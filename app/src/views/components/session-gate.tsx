@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { checkSession } from "../../controllers/auth.controller";
+import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import { mergeAutocompleteFromPraxisKvIntoLocal } from "@/lib/praxis-search-prefs-sync";
 import { useAuthStore } from "../../models/store/auth-store";
 

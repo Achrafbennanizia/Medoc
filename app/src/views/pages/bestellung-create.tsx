@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { createBestellung, listBestellungen, type Bestellung } from "../../controllers/bestellung.controller";
-import { listProdukte } from "../../controllers/produkt.controller";
+import { createBestellung, listBestellungen, type Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
+import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
 import {
     listLieferantStamm,
     listPharmaberaterStamm,
     listLieferantPharmaVorlagen,
-} from "../../controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/praxis.controller";
 import { countProdukteWithName, errorMessage, formatCurrency, produktSelectLabel } from "@/lib/utils";
 import { roundMoney2 } from "@/lib/zahlung-buchung";
 import { allowed, parseRole } from "@/lib/rbac";

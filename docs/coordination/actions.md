@@ -1,10 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-05-22 (wave 20 — company-portal section + LAN login test)
+**Last updated:** 2026-05-25 (restructure plan opened)
 
 ## Now
 
-- **Three-system — next:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
+- **Workspace restructure — see [`restructure-plan.md`](restructure-plan.md):**
+  - **Checkpoint:** `33171bd` — wave-23 state committed (290 files, +17,548/-10,023).
+  - **Plan:** Wave A (drop legacy controller/page shims) → Wave B (Cargo workspace) → Wave C (npm workspace) → Wave D (repo-root `apps/ crates/ packages/`).
+  - **Next:** Run Wave A. Validation: `npm run lint && npm test && npm run build` + `cargo test --tests` must stay green.
+- **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
 
 ## Done (2026-05-22 three-system wave)
 

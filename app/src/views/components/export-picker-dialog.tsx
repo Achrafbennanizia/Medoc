@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Input, Select } from "./ui/input";
 import type { Patient } from "@/models/types";
 import type { ExportFormat } from "@/models/store/export-preview-store";
-import { exportAktePdf } from "@/controllers/akte.controller";
+import { exportAktePdf } from "@/systems/practice-host/controllers/akte.controller";
 import { useToastStore } from "./ui/toast-store";
 import {
     AKTE_EXPORT_SECTION_META,
@@ -31,7 +31,7 @@ import {
     listDokumentTemplatesForKind,
     previewDocumentPdf,
     type DokumentTemplateDto,
-} from "@/controllers/document-template.controller";
+} from "@/systems/practice-host/controllers/document-template.controller";
 import { finishExportWithSettings } from "@/lib/export";
 import {
     BUILTIN_TEMPLATES_BY_KIND,

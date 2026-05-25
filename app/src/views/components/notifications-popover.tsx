@@ -8,7 +8,7 @@ import {
     listInAppNotifications,
     markAllInAppNotificationsRead,
     markInAppNotificationRead,
-} from "@/controllers/in-app-notification.controller";
+} from "@/systems/practice-host/controllers/in-app-notification.controller";
 import type { InAppNotification } from "@/models/types";
 import { useLocale, useT } from "@/lib/i18n";
 

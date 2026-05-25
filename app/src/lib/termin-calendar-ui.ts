@@ -1,7 +1,7 @@
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { minutesToUhrzeit } from "@/lib/termin-availability";
 import type { Termin } from "@/models/types";
-import type { AerztSummary } from "@/controllers/personal.controller";
+import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 
 export type TerminBadgeVariant = "primary" | "success" | "default" | "error" | "warning";
 

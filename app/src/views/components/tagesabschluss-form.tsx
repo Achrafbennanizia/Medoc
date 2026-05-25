@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listZahlungen, setZahlungenKasseGeprueft } from "@/controllers/zahlung.controller";
-import type { CreateTagesabschlussProtokoll } from "@/controllers/tagesabschluss-protokoll.controller";
+import { listZahlungen, setZahlungenKasseGeprueft } from "@/systems/practice-host/controllers/zahlung.controller";
+import type { CreateTagesabschlussProtokoll } from "@/systems/practice-host/controllers/tagesabschluss-protokoll.controller";
 import { errorMessage, formatCurrency } from "@/lib/utils";
 import {
     AMOUNT_TOL,

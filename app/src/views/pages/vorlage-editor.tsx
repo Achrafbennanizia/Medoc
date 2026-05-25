@@ -5,7 +5,7 @@ import {
     createDokumentVorlage,
     updateDokumentVorlage,
     deleteDokumentVorlage,
-} from "../../controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/praxis.controller";
 import { useFormDirtyStore } from "../../models/store/form-dirty-store";
 import { errorMessage } from "../../lib/utils";
 import { Button } from "../components/ui/button";

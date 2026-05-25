@@ -1,5 +1,5 @@
-import type { Attest } from "@/controllers/attest.controller";
-import type { Rezept } from "@/controllers/rezept.controller";
+import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
+import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
 import type { Patient, Behandlung, Untersuchung, Zahlung } from "@/models/types";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";

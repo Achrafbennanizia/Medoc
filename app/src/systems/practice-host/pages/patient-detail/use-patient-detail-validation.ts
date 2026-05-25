@@ -7,7 +7,7 @@ import {
     rowsToValidationMaps,
     setAkteItemValidated,
     setAkteSectionValidated,
-} from "@/controllers/validation.controller";
+} from "@/systems/practice-host/controllers/validation.controller";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type UsePatientDetailValidationArgs = {

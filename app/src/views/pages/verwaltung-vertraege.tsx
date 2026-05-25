@@ -25,8 +25,8 @@ import {
     migrateLegacyVertraegeFromLocalStorageOnce,
     openVertragDokument,
     upsertVertragOnBackend,
-} from "@/controllers/vertrag.controller";
-import { pickVertragPdfFile, openSystemScanUtility, scannerAttachVertragAppData, scannerListRecent } from "@/controllers/system.controller";
+} from "@/systems/practice-host/controllers/vertrag.controller";
+import { pickVertragPdfFile, openSystemScanUtility, scannerAttachVertragAppData, scannerListRecent } from "@/systems/practice-host/controllers/system.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { EditIcon, BoltIcon } from "@/lib/icons";

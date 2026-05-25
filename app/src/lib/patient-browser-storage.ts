@@ -4,9 +4,9 @@
  * `app_kv` termin drafts via `termin.draft.v1.{uuid}`, …).
  */
 
-import { stripLegacyAkteValidationLocalStorage } from "@/controllers/validation.controller";
-import { stripLegacyPlanNextTerminLocalStorage } from "@/controllers/plan-next-termin.controller";
-import { stripLegacyInvoiceHistoryLocalStorage } from "@/controllers/rechnung-document.controller";
+import { stripLegacyAkteValidationLocalStorage } from "@/systems/practice-host/controllers/validation.controller";
+import { stripLegacyPlanNextTerminLocalStorage } from "@/systems/practice-host/controllers/plan-next-termin.controller";
+import { stripLegacyInvoiceHistoryLocalStorage } from "@/systems/practice-host/controllers/rechnung-document.controller";
 
 export function clearPatientScopedBrowserStorage(patientId: string): void {
     const id = patientId.trim();

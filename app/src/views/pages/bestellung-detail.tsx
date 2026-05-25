@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { listProdukte } from "../../controllers/produkt.controller";
+import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
 import { Card, CardHeader } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -16,7 +16,7 @@ import {
     deleteBestellung,
     type Bestellung,
     type BestellStatus,
-} from "../../controllers/bestellung.controller";
+} from "@/systems/practice-host/controllers/bestellung.controller";
 import { useAuthStore } from "@/models/store/auth-store";
 import { allowed, parseRole } from "@/lib/rbac";
 import type { Produkt } from "@/models/types";

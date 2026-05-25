@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { createZahlung, listZahlungenForPatient } from "../../controllers/zahlung.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { getAkte, listBehandlungen, listUntersuchungen } from "../../controllers/akte.controller";
+import { createZahlung, listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { getAkte, listBehandlungen, listUntersuchungen } from "@/systems/practice-host/controllers/akte.controller";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
 import { allowed, parseRole } from "../../lib/rbac";
 import type { Behandlung, Patient, Untersuchung, Zahlung, ZahlungsArt } from "../../models/types";
