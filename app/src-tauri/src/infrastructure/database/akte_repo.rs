@@ -191,8 +191,8 @@ pub async fn create_untersuchung(
         _ => next_untersuchungsnummer(pool, &data.akte_id).await?,
     };
     sqlx::query(
-        "INSERT INTO untersuchung (id, akte_id, beschwerden, ergebnisse, diagnose, untersuchungsnummer)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO untersuchung (id, akte_id, beschwerden, ergebnisse, diagnose, untersuchungsnummer, kategorie, leistungsname, gesamtkosten)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
     )
     .bind(&id)
     .bind(&data.akte_id)
@@ -200,6 +200,9 @@ pub async fn create_untersuchung(
     .bind(&data.ergebnisse)
     .bind(&data.diagnose)
     .bind(&nr)
+    .bind(&data.kategorie)
+    .bind(&data.leistungsname)
+    .bind(data.gesamtkosten)
     .execute(pool)
     .await?;
 
@@ -372,11 +375,15 @@ pub async fn update_untersuchung(
         .await?
         .ok_or(AppError::NotFound("Untersuchung".into()))?;
     sqlx::query(
-        "UPDATE untersuchung SET beschwerden = ?1, ergebnisse = ?2, diagnose = ?3 WHERE id = ?4",
+        "UPDATE untersuchung SET beschwerden = ?1, ergebnisse = ?2, diagnose = ?3,
+         kategorie = ?4, leistungsname = ?5, gesamtkosten = ?6 WHERE id = ?7",
     )
     .bind(&data.beschwerden)
     .bind(&data.ergebnisse)
     .bind(&data.diagnose)
+    .bind(&data.kategorie)
+    .bind(&data.leistungsname)
+    .bind(data.gesamtkosten)
     .bind(&data.id)
     .execute(pool)
     .await?;
@@ -395,28 +402,6 @@ pub async fn delete_untersuchung(pool: &SqlitePool, id: &str) -> Result<(), AppE
         return Err(AppError::NotFound("Untersuchung".into()));
     }
     Ok(())
-}
-
-pub async fn release_behandlung_for_billing(
-    pool: &SqlitePool,
-    behandlung_id: &str,
-    arzt_personal_id: &str,
-) -> Result<Behandlung, AppError> {
-    let n = sqlx::query(
-        "UPDATE behandlung SET freigegeben_von_arzt_id = ?1, freigegeben_am = datetime('now')
-         WHERE id = ?2",
-    )
-    .bind(arzt_personal_id)
-    .bind(behandlung_id)
-    .execute(pool)
-    .await?
-    .rows_affected();
-    if n == 0 {
-        return Err(AppError::NotFound("Behandlung".into()));
-    }
-    find_behandlung_by_id(pool, behandlung_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("Behandlung nach Freigabe nicht lesbar".into()))
 }
 
 pub async fn release_untersuchung_for_billing(
@@ -439,6 +424,28 @@ pub async fn release_untersuchung_for_billing(
     find_untersuchung_by_id(pool, untersuchung_id)
         .await?
         .ok_or_else(|| AppError::Internal("Untersuchung nach Freigabe nicht lesbar".into()))
+}
+
+pub async fn release_behandlung_for_billing(
+    pool: &SqlitePool,
+    behandlung_id: &str,
+    arzt_personal_id: &str,
+) -> Result<Behandlung, AppError> {
+    let n = sqlx::query(
+        "UPDATE behandlung SET freigegeben_von_arzt_id = ?1, freigegeben_am = datetime('now')
+         WHERE id = ?2",
+    )
+    .bind(arzt_personal_id)
+    .bind(behandlung_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Behandlung".into()));
+    }
+    find_behandlung_by_id(pool, behandlung_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Behandlung nach Freigabe nicht lesbar".into()))
 }
 
 /// FA-AKTE-15: Akten mit Status ENTWURF oder IN_BEARBEITUNG (ärztliche Validierung ausstehend).
@@ -466,6 +473,17 @@ pub async fn list_akten_zu_validieren(
     Ok(rows)
 }
 
+/// FA-AKTE-15: count for sidebar badge (same filter as [`list_akten_zu_validieren`]).
+pub async fn count_akten_zu_validieren(pool: &SqlitePool) -> Result<i64, AppError> {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM patientenakte pa
+         WHERE pa.status IN ('ENTWURF', 'IN_BEARBEITUNG')",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 /// Setzt Akten-Status auf VALIDIERT (nur Vorwärts aus ENTWURF / IN_BEARBEITUNG).
 pub async fn validate_patientenakte_status(
     pool: &SqlitePool,
@@ -474,9 +492,7 @@ pub async fn validate_patientenakte_status(
     let cur = find_akte_by_patient(pool, patient_id)
         .await?
         .ok_or(AppError::NotFound("Patientenakte".into()))?;
-    crate::domain::services::workflow_transitions::patientenakte_validate_transition(
-        &cur.status,
-    )?;
+    crate::domain::services::workflow_transitions::patientenakte_validate_transition(&cur.status)?;
     sqlx::query(
         "UPDATE patientenakte SET status = 'VALIDIERT', updated_at = CURRENT_TIMESTAMP
          WHERE patient_id = ?1",

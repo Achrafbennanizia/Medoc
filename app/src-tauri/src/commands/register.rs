@@ -37,12 +37,17 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::akte_validation_commands::set_akte_item_validated,
             $crate::commands::akte_validation_commands::clear_akte_validation,
             $crate::commands::akte_workflow_commands::list_akten_zu_validieren,
+            $crate::commands::akte_workflow_commands::count_akten_zu_validieren,
             $crate::commands::akte_workflow_commands::validate_patientenakte,
             $crate::commands::akte_workflow_commands::forward_akte_to_physicians,
             $crate::commands::akte_workflow_commands::create_praxis_ticket,
             $crate::commands::akte_workflow_commands::list_praxis_tickets_for_me,
             $crate::commands::akte_workflow_commands::update_praxis_ticket_status,
             $crate::commands::akte_workflow_commands::count_open_praxis_tickets_for_me,
+            $crate::commands::praxis_aufgabe_commands::create_praxis_aufgabe,
+            $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_for_me,
+            $crate::commands::praxis_aufgabe_commands::transition_praxis_aufgabe,
+            $crate::commands::praxis_aufgabe_commands::count_open_praxis_aufgaben_for_me,
             $crate::commands::app_kv_commands::get_app_kv,
             $crate::commands::app_kv_commands::set_app_kv,
             $crate::commands::app_kv_commands::delete_app_kv,
@@ -135,6 +140,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::ops_commands::create_backup,
             $crate::commands::ops_commands::list_backups,
             $crate::commands::ops_commands::validate_backup,
+            $crate::commands::ops_commands::restore_backup,
             $crate::commands::ops_commands::dsgvo_export_patient,
             $crate::commands::ops_commands::dsgvo_erase_patient,
             $crate::commands::ops_commands::import_patients_csv,
@@ -233,13 +239,11 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 224;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 230;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
 /// Concrete `Wry` runtime required so commands taking `AppHandle` type-check (see `akte_anlage_commands`).
-pub fn register_invoke_handler(
-    builder: tauri::Builder<tauri::Wry>,
-) -> tauri::Builder<tauri::Wry> {
+pub fn register_invoke_handler(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(crate::medoc_invoke_handler!())
 }

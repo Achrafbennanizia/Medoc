@@ -69,6 +69,26 @@ export function PraxisTicketsPage() {
                 </div>
             </div>
 
+            <div
+                className="card"
+                style={{
+                    padding: "12px 16px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+                role="note"
+            >
+                <p className="page-sub" style={{ margin: 0, flex: "1 1 240px" }}>
+                    {t("page.praxis_tickets.posteingang_banner")}
+                </p>
+                <Link to="/posteingang" className="btn btn-subtle">
+                    {t("page.praxis_tickets.posteingang_link")}
+                </Link>
+            </div>
+
             {loading ? (
                 <PageLoading label={t("page.praxis_tickets.loading")} />
             ) : err ? (

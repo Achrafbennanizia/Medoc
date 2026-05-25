@@ -82,13 +82,13 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | WAAD | Pflichtenheft | Status | Code-Evidenz | Bemerkung |
 |---|---|---|---|---|
 | **6.1.1** Bareinnahmen + Validierung + Tagesabschluss | FA-FIN-01, FA-FIN-02, FA-FIN-04 | ✅ COVERED | `zahlung_commands.rs`, `finanzen.tsx` (Tagesübersicht). | — |
-| **6.1.2** Arzt gibt kostenpflichtige Leistungen frei | FA-FIN-03, **FA-LEIST-05 (NEU)** | 🟡 PARTIAL | RBAC trennt `finanzen.write` vs. `personal.write`; expliziter „freigegeben_von_arzt"-Flag pro Leistung/Buchung fehlt. | Pflichtenheft-Erweiterung FA-LEIST-05; Implementierung als Action `A5`. |
+| **6.1.2** Arzt gibt kostenpflichtige Leistungen frei | FA-FIN-03, **FA-LEIST-05 (NEU)** | ✅ COVERED | `freigegeben_*` auf `behandlung`/`untersuchung`; `domain/services/pricing.rs`; `release_*_for_billing` IPC; Zahlung blockiert ohne Freigabe. | Katalog-`leistung` ist nicht Freigabe-Träger (siehe FA-LEIST-05). |
 | **6.1.3** Strukturierte Erstattungsbelege (parametrisch filterbar) | FA-FIN-05 | ✅ COVERED | `finanzen.tsx` Filter (Datum/Betrag/Kategorie). | — |
 | **6.1.4** Einkaufsübersicht (Artikel + Zustand) | FA-PROD-01..05 | ✅ COVERED | `produkte.tsx`, `bestellungen.tsx`. | — |
 | **6.2.1** Übersicht Einnahmen/Ausgaben + Filter + Export | FA-FIN-04, FA-FIN-06, FA-FIN-09, FA-FIN-10 | ✅ COVERED | `bilanz.tsx`, `bilanz-neu.tsx`. | — |
 | **6.2.2** Automatische Statistiken (Leistungen/Einnahmen/Kosten) | FA-FIN-08, FA-STAT-01..04 | ✅ COVERED | `statistik.tsx`, `dashboard.tsx`. | — |
 | **6.2.3** PDF-Export für Steueranmeldung | FA-FIN-06, NFA-COMP-02 | ✅ COVERED | Bilanz-Export, Akten-Export (`pdf.rs`). | — |
-| **6.2.4** Rezeption sieht Preisliste; Arzt bestätigt erbrachte Leistungen | FA-LEIST-03, **FA-LEIST-05 (NEU)** | 🟡 PARTIAL | Preisliste read-only für REZ vorhanden; digitale Bestätigung pro erbrachter Leistung → siehe 6.1.2. | — |
+| **6.2.4** Rezeption sieht Preisliste; Arzt bestätigt erbrachte Leistungen | FA-LEIST-03, **FA-LEIST-05 (NEU)** | ✅ COVERED | Preisliste read-only (REZ); Arzt-Freigabe pro B/U in Patient-Akte vor Zahlungsbuchung. | — |
 
 ## ID 7 — Standardisierung, Zeitersparnis & Fehlervermeidung
 
@@ -152,7 +152,8 @@ einen eindeutigen Implementierungsauftrag (siehe `pflichtenheft.md` und
 | **FA-AKTE-15** | 2.2.1 | Validierungs-Queue-Seite („Zu validieren") für Arzt: Liste aller Akten / Einträge mit Status `IN_BEARBEITUNG`, sortiert nach Wartezeit. |
 | **FA-AKTE-16** | 7.3.3 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (Anamnese, Versicherungsblock, etc.) mit Klick-zu-Springen-Link. |
 | **FA-DOK-08** | 5.1.1 | Patienten-Nachsorge-Merkblatt (Discharge Summary) am Behandlungsende: Medikation + Kontrolltermin + Facharztüberweisung als druckbares PDF. |
-| **FA-LEIST-05** | 6.1.2, 6.2.4 | „Arzt-Freigabe" pro abrechenbarer Leistung: Flag `freigegeben_von_arzt_id` + UI-Bestätigungsschritt vor Rechnungserstellung. |
+| **FA-LEIST-05** | 6.1.2, 6.2.4 | „Arzt-Freigabe" auf **Behandlung/Untersuchung** (`freigegeben_von_arzt_id`, `freigegeben_am`) vor Zahlung; nicht auf Katalog-`leistung`. |
+| **FA-LEIST-06** | 6.1.2, 6.2.4 (Erweiterung) | Nach Leistung auf B/U: Abrechnungs-Tab + offene Buchung (`AUSSTEHEND`); implizite Freigabe beim Leistungsspeichern. | 🔴 **NEW-PH** | Kein Auto-Navigation/`create_zahlung` nach `create_behandlung`/`create_untersuchung` (2026-05-21). Soll: `patient-detail` Tab `zahl`, `zahlung-buchung.ts`, optional `zahlung_repo::create`. |
 | **FA-PERS-07** | 2.1.1, 2.1.4, 2.2.3, 2.2.4 | Granulare Berechtigungs-Oberfläche („Strict-Mode" / per-Patient-/per-Aktenbereich-Toggles, vom Arzt änderbar). |
 | **FA-PERS-08** | 5.2.2 | Ticket-/Notiz-System: Rezeption legt eine an einen Arzt adressierte Notiz pro Patient/Akte an, mit Status `OFFEN/IN_BEARBEITUNG/ERLEDIGT`. |
 | **NFA-USE-09** | 7.2.1, 7.2.3 | Tooltip-Coverage ≥ 80 % aller interaktiven Felder; geführter Onboarding-Wizard pro Rolle. |

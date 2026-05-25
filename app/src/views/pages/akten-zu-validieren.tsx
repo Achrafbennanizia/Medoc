@@ -39,6 +39,7 @@ export function AktenZuValidierenPage() {
         try {
             await validatePatientenakte(patientId);
             toast(t("page.akten_zu_validieren.validated_toast"), "success");
+            window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
             await load();
         } catch (e) {
             toast(errorMessage(e), "error");

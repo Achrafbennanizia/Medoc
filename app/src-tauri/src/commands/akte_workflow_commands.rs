@@ -52,6 +52,20 @@ pub async fn list_akten_zu_validieren(
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn count_akten_zu_validieren(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<i64, AppError> {
+    let session = rbac::require(&session_state, "patient.read_medical")?;
+    let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
+    if role != Role::Arzt {
+        return Ok(0);
+    }
+    akte_repo::count_akten_zu_validieren(&pool).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn validate_patientenakte(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -291,6 +305,7 @@ pub async fn count_open_praxis_tickets_for_me(
 macro_rules! register_akte_workflow_commands {
     () => {
         $crate::commands::akte_workflow_commands::list_akten_zu_validieren,
+        $crate::commands::akte_workflow_commands::count_akten_zu_validieren,
         $crate::commands::akte_workflow_commands::validate_patientenakte,
         $crate::commands::akte_workflow_commands::forward_akte_to_physicians,
         $crate::commands::akte_workflow_commands::create_praxis_ticket,

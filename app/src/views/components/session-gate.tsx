@@ -13,7 +13,9 @@ export function SessionGate({ children }: { children: ReactNode }) {
     useEffect(() => {
         void checkSession()
             .then(() => mergeAutocompleteFromPraxisKvIntoLocal())
-            .catch(() => {})
+            .catch((e) => {
+                console.warn("SessionGate: checkSession failed", e);
+            })
             .finally(() => {
                 useAuthStore.getState().markSessionChecked();
             });

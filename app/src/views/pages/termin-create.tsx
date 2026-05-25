@@ -18,7 +18,13 @@ import {
     resolveEffectiveArbeitszeitenForArzt,
     type PraxisArbeitszeitenConfig,
 } from "../../lib/praxis-planning";
-import { terminSchedulingBlockReason, uhrzeitToMinutes } from "@/lib/termin-availability";
+import {
+    formatAlternativeSlotsDe,
+    isTerminConflictErrorMessage,
+    suggestAlternativeTerminSlots,
+    terminSchedulingBlockReason,
+    uhrzeitToMinutes,
+} from "@/lib/termin-availability";
 import { parseZahnschmerzTeethFromBeschwerdenPart, sortFdiTeeth, splitBeschwerdenParts } from "@/lib/dental";
 import { TERMIN_ART_VALUES, type Patient, type Termin, type Abwesenheit, type Zahnbefund } from "../../models/types";
 import { Button } from "../components/ui/button";
@@ -597,8 +603,25 @@ export function TerminCreatePage() {
             navigate("/termine");
         } catch (e) {
             const msg = errorMessage(e);
-            if (msg.toLowerCase().includes("termin") || msg.toLowerCase().includes("invalid")) {
-                toast(`Fehler: ${msg}`, "error");
+            if (isTerminConflictErrorMessage(msg) && arztId && datum && uhrzeit) {
+                const alts = suggestAlternativeTerminSlots({
+                    datum,
+                    arztId,
+                    preferredUhrzeit: uhrzeit,
+                    durMin,
+                    slotStep,
+                    termine,
+                    praxisCfg: effectivePraxisCfg,
+                    abwesenheiten,
+                    excludeTerminId: isEdit && editId ? editId : undefined,
+                });
+                const hint = formatAlternativeSlotsDe(alts);
+                toast(
+                    hint
+                        ? `Terminkonflikt. Freie Alternativen: ${hint}`
+                        : `Terminkonflikt: ${msg}`,
+                    "error",
+                );
             } else {
                 toast(`Fehler: ${msg}`, "error");
             }

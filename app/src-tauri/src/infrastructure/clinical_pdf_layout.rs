@@ -249,7 +249,11 @@ fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     // Titel zentriert
     pb.text_center(17, true, &doc.document_title);
     pb.advance(22);
-    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(sub) = doc
+        .document_subtitle
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         pb.text_center(10, false, sub);
         pb.advance(14);
     }
@@ -261,7 +265,17 @@ fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     emit_label_value_rows(pb, &doc.label_value_rows);
 
     for table in &doc.tables {
-        emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+        emit_table(
+            pb,
+            table,
+            (
+                doc.praxis_lines
+                    .first()
+                    .map(|s| s.as_str())
+                    .unwrap_or("MeDoc"),
+                &doc.document_title,
+            ),
+        );
     }
 
     emit_detail_records(pb, &doc.detail_records);
@@ -293,7 +307,11 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     // Großer "Rezept"-Titel links, ggf. Untertitel (Privatrezept / Kassenrezept / BtM)
     pb.text(M_LEFT, 18, true, &doc.document_title);
     pb.advance(22);
-    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(sub) = doc
+        .document_subtitle
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         pb.text(M_LEFT, 10, false, sub);
         pb.advance(14);
     }
@@ -313,7 +331,17 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
         pb.text(M_LEFT, 14, true, "Rp.");
         pb.advance(16);
         for table in &doc.tables {
-            emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+            emit_table(
+                pb,
+                table,
+                (
+                    doc.praxis_lines
+                        .first()
+                        .map(|s| s.as_str())
+                        .unwrap_or("MeDoc"),
+                    &doc.document_title,
+                ),
+            );
         }
     }
 
@@ -345,7 +373,11 @@ fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 
     pb.text_center(15, true, &doc.document_title);
     pb.advance(20);
-    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(sub) = doc
+        .document_subtitle
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         pb.text_center(11, false, sub);
         pb.advance(14);
     }
@@ -358,7 +390,10 @@ fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     // Summen + Leistungstabelle als ein zusammenhängender Block (einheitliche Graustufe)
     if let Some(table) = doc.tables.first() {
         let cont = (
-            doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"),
+            doc.praxis_lines
+                .first()
+                .map(|s| s.as_str())
+                .unwrap_or("MeDoc"),
             doc.document_title.as_str(),
         );
         emit_quittung_totals_and_table(pb, &doc.totals, table, cont);
@@ -395,7 +430,11 @@ fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 
     pb.text(M_LEFT, 14, true, &doc.document_title);
     pb.advance(18);
-    if let Some(sub) = doc.document_subtitle.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(sub) = doc
+        .document_subtitle
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         pb.text(M_LEFT, 10, false, sub);
         pb.advance(14);
     }
@@ -408,7 +447,17 @@ fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     }
 
     for table in &doc.tables {
-        emit_table(pb, table, (doc.praxis_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"), &doc.document_title));
+        emit_table(
+            pb,
+            table,
+            (
+                doc.praxis_lines
+                    .first()
+                    .map(|s| s.as_str())
+                    .unwrap_or("MeDoc"),
+                &doc.document_title,
+            ),
+        );
     }
 
     emit_detail_records(pb, &doc.detail_records);
@@ -439,7 +488,11 @@ fn render_intro(pb: &mut PageBuilder, paragraphs: &[String]) {
         let trimmed = p.trim_end();
         let is_heading = trimmed.ends_with(':')
             && trimmed.len() <= 40
-            && trimmed[..trimmed.len() - 1].chars().filter(|c| *c == ':').count() == 0;
+            && trimmed[..trimmed.len() - 1]
+                .chars()
+                .filter(|c| *c == ':')
+                .count()
+                == 0;
 
         if is_heading {
             pb.ensure_space(40);
@@ -501,7 +554,12 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
     // Titel
     let prev_y = pb.y;
     pb.y = title_y;
-    pb.text(M_LEFT + 8, 9, true, block.left_title.as_deref().unwrap_or("Patient:in"));
+    pb.text(
+        M_LEFT + 8,
+        9,
+        true,
+        block.left_title.as_deref().unwrap_or("Patient:in"),
+    );
     if let Some(t) = block.right_title.as_deref() {
         pb.text(mid_x + 4, 9, true, t);
     }
@@ -618,7 +676,13 @@ fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
     let n = totals.len() as i32;
     let band_h = n * QUITTUNG_ROW_H + 8;
     let band_bottom = pb.y - band_h;
-    pb.fill_rect(M_LEFT, band_bottom, CONTENT_WIDTH, band_h, QUITTUNG_BAND_GRAY);
+    pb.fill_rect(
+        M_LEFT,
+        band_bottom,
+        CONTENT_WIDTH,
+        band_h,
+        QUITTUNG_BAND_GRAY,
+    );
     let mut y = pb.y - 4;
     for (i, row) in totals.iter().enumerate() {
         let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
@@ -661,7 +725,13 @@ fn emit_quittung_totals_and_table(
         pb.advance(4);
     }
     let band_bottom = pb.y - combined_h;
-    pb.fill_rect(M_LEFT, band_bottom, CONTENT_WIDTH, combined_h, QUITTUNG_BAND_GRAY);
+    pb.fill_rect(
+        M_LEFT,
+        band_bottom,
+        CONTENT_WIDTH,
+        combined_h,
+        QUITTUNG_BAND_GRAY,
+    );
 
     let mut y = pb.y - 4;
     if !totals.is_empty() {
@@ -734,7 +804,13 @@ fn emit_table_data_rows(
         }
 
         if ri % 2 == 1 {
-            pb.fill_rect(M_LEFT, pb.y - row_height + 8, CONTENT_WIDTH, row_height, 0.97);
+            pb.fill_rect(
+                M_LEFT,
+                pb.y - row_height + 8,
+                CONTENT_WIDTH,
+                row_height,
+                0.97,
+            );
         }
 
         let base_y = pb.y;
@@ -848,8 +924,14 @@ mod tests {
 
     fn meta() -> Vec<LabelValue> {
         vec![
-            LabelValue { label: "Datum".into(), value: "19.04.2026".into() },
-            LabelValue { label: "Dokument-Nr.".into(), value: "AT-001".into() },
+            LabelValue {
+                label: "Datum".into(),
+                value: "19.04.2026".into(),
+            },
+            LabelValue {
+                label: "Dokument-Nr.".into(),
+                value: "AT-001".into(),
+            },
         ]
     }
 
@@ -864,12 +946,21 @@ mod tests {
             document_title: "ÄRZTLICHES ATTEST".into(),
             document_subtitle: Some("Arbeitsunfähigkeitsbescheinigung".into()),
             intro_paragraphs: vec![
-                "Hiermit wird bescheinigt, dass die unten genannte Person …".into(),
+                "Hiermit wird bescheinigt, dass die unten genannte Person …".into()
             ],
             label_value_rows: vec![
-                LabelValue { label: "Patient:in".into(), value: "Max Mustermann".into() },
-                LabelValue { label: "Geburtsdatum".into(), value: "01.01.1980".into() },
-                LabelValue { label: "ICD-10".into(), value: "K02.1 — Karies des Dentins".into() },
+                LabelValue {
+                    label: "Patient:in".into(),
+                    value: "Max Mustermann".into(),
+                },
+                LabelValue {
+                    label: "Geburtsdatum".into(),
+                    value: "01.01.1980".into(),
+                },
+                LabelValue {
+                    label: "ICD-10".into(),
+                    value: "K02.1 — Karies des Dentins".into(),
+                },
             ],
             two_column: None,
             tables: vec![],
@@ -900,9 +991,10 @@ mod tests {
             document_title: "Rezept".into(),
             document_subtitle: Some("Privatrezept".into()),
             intro_paragraphs: vec![],
-            label_value_rows: vec![
-                LabelValue { label: "Verordnungsdatum".into(), value: "19.04.2026".into() },
-            ],
+            label_value_rows: vec![LabelValue {
+                label: "Verordnungsdatum".into(),
+                value: "19.04.2026".into(),
+            }],
             two_column: Some(TwoColumnBlock {
                 left_title: Some("Patient:in".into()),
                 left_lines: vec![
@@ -951,8 +1043,14 @@ mod tests {
             praxis_lines: praxis(),
             header_right_lines: vec![],
             meta_lines: vec![
-                LabelValue { label: "Quittung-Nr.".into(), value: "QU-2026-0001".into() },
-                LabelValue { label: "Datum".into(), value: "19.04.2026".into() },
+                LabelValue {
+                    label: "Quittung-Nr.".into(),
+                    value: "QU-2026-0001".into(),
+                },
+                LabelValue {
+                    label: "Datum".into(),
+                    value: "19.04.2026".into(),
+                },
             ],
             address_lines: vec!["Max Mustermann".into()],
             document_title: "QUITTUNG".into(),
@@ -961,15 +1059,22 @@ mod tests {
                 "Hiermit bestätigen wir den Erhalt des unten ausgewiesenen Betrages.".into(),
             ],
             label_value_rows: vec![
-                LabelValue { label: "Zahlungsart".into(), value: "Barzahlung".into() },
-                LabelValue { label: "Leistung".into(), value: "Kontrolluntersuchung".into() },
+                LabelValue {
+                    label: "Zahlungsart".into(),
+                    value: "Barzahlung".into(),
+                },
+                LabelValue {
+                    label: "Leistung".into(),
+                    value: "Kontrolluntersuchung".into(),
+                },
             ],
             two_column: None,
             tables: vec![],
             detail_records: vec![],
-            totals: vec![
-                LabelValue { label: "Gesamtbetrag".into(), value: "45,00 €".into() },
-            ],
+            totals: vec![LabelValue {
+                label: "Gesamtbetrag".into(),
+                value: "45,00 €".into(),
+            }],
             closing_paragraphs: vec![
                 "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG.".into(),
                 "Betrag dankend erhalten.".into(),
@@ -1032,7 +1137,8 @@ mod tests {
                 rows: vec![vec![
                     "21".into(),
                     "Erhebliche Karies an der mesialen Approximalfläche \
-                     mit vermutlich pulpennaher Tiefe".into(),
+                     mit vermutlich pulpennaher Tiefe"
+                        .into(),
                     "Röntgen empfohlen".into(),
                 ]],
                 column_layout: TableColumnLayout::Even,
@@ -1108,9 +1214,10 @@ mod tests {
             two_column: None,
             tables: vec![],
             detail_records: vec![],
-            totals: vec![
-                LabelValue { label: "Gesamt".into(), value: "100,00 €".into() },
-            ],
+            totals: vec![LabelValue {
+                label: "Gesamt".into(),
+                value: "100,00 €".into(),
+            }],
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
@@ -1122,6 +1229,10 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         // Sollte mehrere /Page-Objekte enthalten
         let page_objs = text.matches("/Type /Page ").count();
-        assert!(page_objs >= 2, "expected multi-page PDF, got {} pages", page_objs);
+        assert!(
+            page_objs >= 2,
+            "expected multi-page PDF, got {} pages",
+            page_objs
+        );
     }
 }

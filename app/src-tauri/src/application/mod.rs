@@ -1,3 +1,4 @@
+pub mod akte;
 pub mod app_kv_policy;
 pub mod audit_chain_guard;
 pub mod auth_service;

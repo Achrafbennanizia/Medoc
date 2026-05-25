@@ -19,7 +19,9 @@ fn init_audit() {
 
 async fn pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
-    brute_force_repo::ensure_schema(&pool).await.expect("schema");
+    brute_force_repo::ensure_schema(&pool)
+        .await
+        .expect("schema");
     pool
 }
 

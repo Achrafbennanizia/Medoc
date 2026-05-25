@@ -178,6 +178,7 @@ export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
   "/termine": CalendarIcon,
   "/patienten": UsersIcon,
   "/akten/zu-validieren": ShieldCheckIcon,
+  "/posteingang": MailIcon,
   "/tickets": ClipboardIcon,
   "/finanzen": WalletIcon,
   "/bilanz": ChartIcon,

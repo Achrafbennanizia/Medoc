@@ -9,6 +9,7 @@ pub mod leistung;
 pub mod patient;
 pub mod patientenakte;
 pub mod personal;
+pub mod praxis_aufgabe;
 pub mod produkt;
 pub mod rezept;
 pub mod tagesabschluss_protokoll;

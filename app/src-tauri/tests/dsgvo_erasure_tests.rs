@@ -41,7 +41,9 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
         (base, app_dir, backup_dir, log_dir)
     };
 
-    let pool = init_db_headless(&app_dir).await.expect("file-backed sqlcipher db");
+    let pool = init_db_headless(&app_dir)
+        .await
+        .expect("file-backed sqlcipher db");
     run_migrations(&pool).await.expect("migrations");
 
     sqlx::query(
@@ -102,7 +104,10 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
         .await
         .expect("erase");
 
-    assert!(report.backups_redacted >= 1, "backup snapshot must be redacted");
+    assert!(
+        report.backups_redacted >= 1,
+        "backup snapshot must be redacted"
+    );
     assert!(report.log_files_redacted >= 1, "log file must be redacted");
 
     let n_beh_after: (i64,) =
@@ -127,15 +132,13 @@ async fn erase_removes_behandlung_via_akte_and_anonymises_patient() {
     let backups = backup::list().expect("list backups");
     assert!(!backups.is_empty());
     let key = db_key::env_override_key().expect("MEDOC_DB_KEY");
-    let backup_pool =
-        sqlcipher::open_encrypted_pool(&backups[0].path, Zeroizing::new(key), false)
+    let backup_pool = sqlcipher::open_encrypted_pool(&backups[0].path, Zeroizing::new(key), false)
         .await
         .expect("open backup");
-    let backup_name: (String,) =
-        sqlx::query_as("SELECT name FROM patient WHERE id = 'p-dsgvo-1'")
-            .fetch_one(&backup_pool)
-            .await
-            .expect("patient in backup");
+    let backup_name: (String,) = sqlx::query_as("SELECT name FROM patient WHERE id = 'p-dsgvo-1'")
+        .fetch_one(&backup_pool)
+        .await
+        .expect("patient in backup");
     assert!(
         backup_name.0.starts_with("Anonymisiert"),
         "backup DB must be anonymised: {:?}",
@@ -156,8 +159,7 @@ fn redact_patient_id_in_logs_replaces_needle() {
     let log_dir = std::env::temp_dir().join(format!("medoc-dsgvo-log-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&log_dir);
     std::fs::create_dir_all(&log_dir).expect("log dir");
-    std::fs::write(log_dir.join("security.log"), "patient_id=p-dsgvo-x\n")
-        .expect("write");
+    std::fs::write(log_dir.join("security.log"), "patient_id=p-dsgvo-x\n").expect("write");
 
     // sanitizer scans ~/medoc-data/logs when tracing not init — write there too.
     let home_logs = dirs::home_dir()

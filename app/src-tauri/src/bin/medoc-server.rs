@@ -113,16 +113,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .hydrate_from_db(&pool)
         .await
         .map_err(|e| format!("brute-force hydrate: {e}"))?;
-    let state = medoc_lib::infrastructure::lan_server::http::LanHttpState {
-        pool: pool.clone(),
+    let state = medoc_lib::systems::lan::LanSystemFactory::build_state(
+        pool.clone(),
         jwt_secret,
         brute,
-        http_port: args.http_port,
-        extra_cors_origins: Arc::new(vec![]),
-        discovery_peers: Arc::new(vec![]),
-    };
+        args.http_port,
+        vec![],
+        vec![],
+    );
 
-    let router = medoc_lib::infrastructure::lan_server::http::build_router(state);
+    let router = medoc_lib::systems::lan::LanSystemFactory::build_router(state);
     let addr: SocketAddr = format!("{}:{}", args.http_bind, args.http_port)
         .parse()
         .map_err(|e| format!("bind address: {e}"))?;

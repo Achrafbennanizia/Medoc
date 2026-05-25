@@ -1,8 +1,8 @@
 use crate::application::auth_service::{self, LoginRequest, Session};
 use crate::application::rbac;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, device_session_repo, personal_permission_repo};
 use crate::infrastructure::database::personal_repo;
+use crate::infrastructure::database::{audit_repo, device_session_repo, personal_permission_repo};
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
@@ -296,7 +296,9 @@ pub async fn confirm_totp_enrollment_login(
         .as_deref()
         .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
     if !totp::verify_code(secret, &code)? {
-        return Err(AppError::Validation("Ungültiger Code — bitte erneut versuchen".into()));
+        return Err(AppError::Validation(
+            "Ungültiger Code — bitte erneut versuchen".into(),
+        ));
     }
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())

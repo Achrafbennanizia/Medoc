@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::{db_key, sqlcipher};
 use crate::log_system;
 
 const DAILY_DAYS: i64 = 30;
@@ -176,7 +177,9 @@ pub fn enforce_retention_at(
             }
             report.scanned += 1;
             let Some(ts) = parse_backup_timestamp(&path) else {
-                report.errors.push(format!("Zeitstempel nicht lesbar: {}", path.display()));
+                report
+                    .errors
+                    .push(format!("Zeitstempel nicht lesbar: {}", path.display()));
                 continue;
             };
             files.push((path, ts));
@@ -232,7 +235,9 @@ pub fn enforce_retention_at(
         for p in [path.clone(), sig_path(&path)] {
             if p.exists() {
                 match std::fs::remove_file(&p) {
-                    Ok(()) => report.deleted.push(p.file_name().unwrap().to_string_lossy().into_owned()),
+                    Ok(()) => report
+                        .deleted
+                        .push(p.file_name().unwrap().to_string_lossy().into_owned()),
                     Err(e) => report.errors.push(format!("{}: {e}", p.display())),
                 }
             }
@@ -240,6 +245,94 @@ pub fn enforce_retention_at(
     }
 
     Ok(report)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreReport {
+    /// Live DB pool was closed; restart the app before further work.
+    pub requires_app_restart: bool,
+    /// Path of the file copied into `medoc.db`.
+    pub restored_from: PathBuf,
+    /// Whether a pre-restore safety snapshot was created.
+    pub pre_restore_backup_created: bool,
+}
+
+/// Replace `medoc.db` with a validated backup snapshot (G2 / WAAD 9.1).
+///
+/// Closes the active pool; the desktop app must restart to reopen the database.
+pub async fn restore_from_backup(
+    pool: &SqlitePool,
+    app_data_dir: &Path,
+    backup_path: &Path,
+) -> Result<RestoreReport, AppError> {
+    if !backup_path.is_file() {
+        return Err(AppError::Validation("Backup-Datei nicht gefunden.".into()));
+    }
+    if backup_path.extension().and_then(|e| e.to_str()) != Some("db") {
+        return Err(AppError::Validation(
+            "Nur .db-Dateien können wiederhergestellt werden.".into(),
+        ));
+    }
+    match verify_signature(backup_path) {
+        Some(false) => {
+            return Err(AppError::Validation(
+                "Backup-Signatur ungültig — Wiederherstellung abgebrochen.".into(),
+            ));
+        }
+        Some(true) => {}
+        None => {
+            if !validate(backup_path)? {
+                return Err(AppError::Validation(
+                    "Datei ist keine gültige SQLite-Sicherung (keine Signatur, Header ungültig)."
+                        .into(),
+                ));
+            }
+        }
+    }
+
+    let pre = create(pool).await.is_ok();
+
+    let db_path = app_data_dir.join("medoc.db");
+    pool.close().await;
+
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let p = PathBuf::from(format!("{}{}", db_path.display(), suffix));
+        let _ = std::fs::remove_file(p);
+    }
+
+    std::fs::copy(backup_path, &db_path).map_err(|e| {
+        AppError::Internal(format!(
+            "Wiederherstellung fehlgeschlagen (Kopie nach {}): {e}",
+            db_path.display()
+        ))
+    })?;
+
+    // `VACUUM INTO` may yield plaintext or SQLCipher (header is always "SQLite format 3").
+    let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
+    if !sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await {
+        if sqlcipher::is_plaintext_sqlite_file(&db_path) {
+            sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
+        } else {
+            return Err(AppError::Validation(
+                "Wiederhergestellte Datei ist keine gültige MeDoc-Datenbank.".into(),
+            ));
+        }
+    }
+
+    log_system!(
+        warn,
+        event = "BACKUP_RESTORE",
+        from = %backup_path.display(),
+        target = %db_path.display(),
+        pre_snapshot = pre,
+    );
+
+    Ok(RestoreReport {
+        requires_app_restart: true,
+        restored_from: backup_path.to_path_buf(),
+        pre_restore_backup_created: pre,
+    })
 }
 
 /// Validate that a backup file looks like a SQLite database.

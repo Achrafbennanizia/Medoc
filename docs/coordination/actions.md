@@ -1,91 +1,124 @@
 # Action ledger
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-22 (wave 20 — company-portal section + LAN login test)
 
-## Now (this session / immediate)
+## Now
 
-| ID | Action | Blocked by | Status |
-| -- | ------ | ---------- | ------ |
-| DOC | Document Phases B–E + professional PDF layout — validate & commit | User commit request | **Validated** 2026-05-19 (`pdf_document_tests` 5/5, 107 vitest); **uncommitted** |
-| P0 | Audit remediation Phase 0 (TASK 0.1–0.4) | — | **Done** 2026-05-19 |
-| P1 | Audit remediation Phase 1 (TASK 1.7 brute-force hardening) | — | **Done** 2026-05-19 |
-| P3a | Phase 3.1 — sqlx `migrate!`, `migrations/0001_initial_schema.sql`, dual legacy/fresh path | — | **Done** 2026-05-19 |
-| P3b | Phase 3.2 — domain services (`konflikt`, `pricing`, `workflow_transitions`) + `domain_services_tests` | — | **Done** 2026-05-19 |
-| P3c | Phase 3.3 — centralised IPC registration (`register.rs`, 224 commands) | — | **Done** 2026-05-20 |
-| P3d | Phase 3.4 — RBAC YAML codegen (`config/rbac.yaml` → Rust + `rbac.generated.ts`) | — | **Done** 2026-05-20 |
-| P3e | Phase 3.5 — enum codegen (`config/enums.yaml` → Rust + TS + Zod + SQL fragments) | — | **Done** 2026-05-20 |
-| P3f | Phase 3.6 — patient-scoped localStorage → SQLite (`akte_*`, `rechnung_document`, `termin.draft.v1.*` app_kv) | — | **Done** 2026-05-20 |
-| P3g | Phase 3.7 — page splits (utils/libs extracted) | P3f | **Done** 2026-05-20 |
-| P3h | Phase 3.7b — termin + einstellungen + **patient-detail** (7 tab modules + rezept hook/panel; shell ~2126 lines) | P3g | **Done** 2026-05-19 (uncommitted) |
-| CAL | Kalender: Pause/Notfall-Toolbar ausgeblendet (`termine.tsx` kommentiert) | — | **Done** 2026-05-20 |
-| P2 | Audit remediation Phase 2 complete | — | **Done** 2026-05-19 |
-| P2g | Phase 2.7 — DSGVO erasure: backups + logs | — | **Done** 2026-05-19 |
-| P2f | Phase 2.6 — Backup retention + HMAC signing | — | **Done** 2026-05-19 |
-| P2d | Phase 2.4 — Break-glass audit flags + filtered audit UI | — | **Done** 2026-05-19 |
-| P2e | Phase 2.5 — Audit chain verify at startup + ops block banner | — | **Done** 2026-05-19 |
-| P2c | Phase 2.3 — TOTP 2FA (ARZT mandatory, login + enrollment commands, `totp_tests`) | — | **Done** 2026-05-19 |
-| P2a | Phase 2.1 — Password policy (crypto + personal/einstellungen UI) | — | **Done** 2026-05-19 |
-| P2b | Phase 2.2 — Re-hash bcrypt → Argon2 on login | — | **Done** 2026-05-19 |
-| P1e | Phase 1.6 — audit chain `BEGIN IMMEDIATE` + concurrent test | — | **Done** 2026-05-19 |
-| P1d | Phase 1.5 — SQLCipher (`db_key`, `sqlcipher`, `DbSetupGate`, `sqlcipher_tests`, CI `MEDOC_DB_KEY`) | — | **Done** 2026-05-19 |
-| P1c | Phase 1.4 — CORS allowlists (LAN + company host, `cors_policy_tests`) | — | **Done** 2026-05-19 |
-| P1b | Phase 1.3 — Company-server API key Argon2 + brute-force on auth | — | **Done** 2026-05-19 |
-| P1a | Phase 1.1 — LAN TLS (self-signed cert, HTTPS-only, fingerprint in UI/beacon, `lan_tls_tests`) | — | **Done** 2026-05-19 |
-| P1f | Phase 1.7 — Brute-force: `BruteKey` (HMAC subject + IP), `brute_force_lockout` table, `admin_unlock_brute_force`, 6 tests | — | **Done** 2026-05-19 |
+- **Three-system — next:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
 
-## Prior Now (WAAD / product backlog)
+## Done (2026-05-22 three-system wave)
 
-> **Action-ID-Konvention für WAAD-Wave:** A2..A10 sind genau so vergeben, wie sie in
-> `docs/requirements-engineering/01b-traceability-waad.md` zitiert werden. Bitte beim Querverweisen
-> aus dem Traceability-Dokument diese IDs unverändert verwenden.
+- **`application/akte/pdf_export.rs`** — FA-AKTE-04 + FA-DOK-08; `akte_commands.rs` **~369** lines (thin IPC wrappers)
+- **Einstellungen sections** — `systems/practice-host/pages/einstellungen/` (12 modules); re-export stubs in `views/pages/`
+- **Company-portal section** — `systems/company-portal/pages/einstellungen-company-portal-section.tsx`; view stub retained
+- **LAN client login flow** — `http-practice.adapter.test.ts` (fetch mock + token persistence); live browser E2E **NOT RUN**
+
+## Done (2026-05-21 three-system wave)
+
+- **Structure:** `app/src/systems/{practice-host,lan,company-portal}/`, `app/src-tauri/src/systems/{practice,lan,company}/`, `docs/architecture/three-systems.md`
+- **Patient feature folder:** `systems/practice-host/pages/patient-detail/` (17 modules); stub `views/pages/patient-detail.tsx`
+- **Validation:** `systems-structure.test.ts`; smoke IPC assert fix; transport delegate for Vitest
+- **`HttpPracticeAdapter` + `practice-transport` factory** — `systems/practice-host/adapters/`
+- **`application/akte/billing_release.rs`** — first akte use-case extraction from `akte_commands.rs`
+- **Clippy:** `needless_borrows` + `AbrechnungAufgabeParams` in DB repos (**PASS** `cargo clippy --lib`)
+- **LAN client UI** — `einstellungen-lan-host.tsx` (`medoc.lan.client.v1`, discovery → URL)
+- **`application/akte/rezeption_redact.rs`** — REZ redaction extracted from `akte_commands.rs`
+- **`backup_tests`** — `tokio::sync::Mutex` (**PASS** `cargo clippy --all-targets`)
+- **`application/akte/clinical_line_persistence.rs`** — B/U CRUD + FA-LEIST-06/07 + FA-AUFG-02 side effects
+- **LAN UI** — `systems/lan/pages/einstellungen-lan-host.tsx` (re-export stub in `views/pages/`)
+
+## Now (previous) (gap remediation — active)
+
+> **Phase 0:** Ledger truth sync (this file). **Phases 1–6:** G1–G13 below.  
+> Legacy WAAD IDs **A1–A13** retained for traceability; see **Status** column.
 
 | ID | Action | Blocked by | Status |
 | -- | ------ | ---------- | ------ |
-| A1 | Implement NFA-SEC-08 at-rest DB encryption when prioritized | Product/engineering | Open |
-| A2 | Implement WAAD-derived `FA-PERS-07` (granulare Permission-Overrides): Tabelle `personal_permission_override`, `rbac::allowed_for_user`, Settings-UI | RBAC-Test-Erweiterung | Open |
-| A3 | Implement WAAD-derived `FA-DOK-08` (Patient-Discharge-Summary): druckbares Nachsorge-Merkblatt-PDF; Reuse PDF pipeline aus `export_akte_pdf` | — | Open |
-| A4 | Implement WAAD-derived `FA-PERS-08` (Internes Ticket-/Notiz-System Rezeption→Arzt): Domain-Entität + Dashboard-Badge + Audit-Log on read (NICE TO HAVE) | A2 (visibility scoping nutzt Overrides) | Open |
-| A5 | Implement WAAD-derived `FA-LEIST-05` (Arzt-Freigabe pro Leistung): `freigegeben_von_arzt_id`/`freigegeben_am` in `leistung`; Rechnungs-Workflow lehnt ohne Freigabe ab | Migration + Backfill-Plan für Legacy-`leistung`-Zeilen | Open |
-| A6 | Implement WAAD-derived `NFA-USE-09` (geführter Onboarding-Wizard pro Rolle + per-Route Tooltip-Coverage ≥ 80 %), aufbauend auf `app/src/views/components/app-help-dialogs.tsx` + `app_kv` | — | Open |
-| A7 | Implement WAAD-derived `FA-AKTE-16` (Akten-Vollständigkeits-Indikator): zuerst Durchführbarkeits-Spike, dann Heuristik in `app/src/lib/akte-completeness.ts` | Vorab-Spike | Open |
-| A8 | Implement WAAD 9.1: automatischer Tages-Backup-Scheduler + Restore-UI über `backup.rs`/`ops_commands.rs` | OS-Scheduler-Strategie (Tauri Plugin / Cron) | Open |
-| A9 | Implement WAAD 9.4 / `NFA-PERF-04`: automatisierter Stresstest (5 parallele Tauri-Clients) + Performance-Logging-Auswertung | Multi-Client-Test-Harness | Open |
-| A10 | Implement WAAD 9.5: Verlaufsmuster-/Krankheitsbilder-Charts mit Export in `statistik.tsx` (über `FA-STAT-02/04`) | — | Open |
-| A11 | Implement WAAD-derived `FA-AKTE-14` (Akte-an-Arzt-Weiterleitungs-Aktion): Aktionsmenü + Backend-Command + Audit-Log-Eintrag; erzeugt Eintrag in der Validierungs-Queue (A12) | Produkt-Bestätigung der Empfänger-Multi-Select-Regel | Open |
-| A12 | Implement WAAD-derived `FA-AKTE-15` (Validierungs-Queue-Seite „Zu validieren" für ARZT): Liste + Sidebar-Badge + ARZT-only-Route | A11 (gemeinsames Datenmodell für Pending-Einträge) | Open |
-| A13 | Implement WAAD-derived `NFA-USE-10` (konfigurierbares Autocomplete + Toggle „Auto-Vervollständigung deaktivieren") in `app/src/lib/string-suggest.ts` + `app_kv` | A6 Styling-Alignment | Open |
+| G0 | Reconcile `project-truth.md`, `06-validierung.md`, `phase-handoff.md` with code (close stale A-rows) | — | **Done** 2026-05-21 |
+| G1 | FA-AKTE-15 sidebar badge: `count_akten_zu_validieren` IPC + nav UI | — | **Done** 2026-05-21 |
+| G2 | WAAD 9.1 restore: `restore_backup` + Ops UI + confirm dialog (scheduler in `lib.rs`) | — | **Done** 2026-05-21 |
+| G3 | Error surfacing: replace silent `.catch` on ops, gates, patient-detail, app-layout | — | **Done** 2026-05-21 (portal `null` documented offline-by-design in `einstellungen.tsx`) |
+| G4 | Discharge PDF test in `pdf_document_tests.rs` + DoD routes `/akten/zu-validieren`, `/tickets` | — | **Done** 2026-05-21 |
+| G5 | `patient-detail` shell further split (rezept tab / shell &lt;1200 lines) | P3h | **Done** 2026-05-21 (shell **~1029** lines; clinical/zahl/akte hooks + `patient-detail-overlays.tsx`) |
+| G6 | NFA-USE-09 onboarding wizard (`app_kv` + per-route coverage ≥80%) | Product copy | **Done** 2026-05-21 (coachmark, nested-route match, `ONBOARDING_MIN_COVERAGE_RATIO`, settings %) |
+| G7 | NFA-USE-10 configurable autocomplete + disable toggle (`app_kv`) | — | **Done** (already in `client-settings` + Arbeitsabläufe toggle) |
+| G8 | WAAD 9.5 / A10: Krankheitsbild-Verlauf charts + CSV in `statistik.tsx` | — | **Done** 2026-05-21 |
+| G9 | Termin reminders: dashboard panel MVP (full SMS/email deferred) | — | **Done** 2026-05-21 |
+| G10 | Integration capability matrix + disable/label stubs (TI/KIM/pay/DICOM) | Product D3 | **Done** 2026-05-21 |
+| G11 | A9 stress test harness (5 parallel clients) | CI budget | **Done** 2026-05-21 (`stress_tests.rs`) |
+| G12 | Per-patient RBAC spike (WAAD 2.1.1) | Product decision | **Deferred** |
+| G13 | FA-LEIST-05 doc rescope (B/U not catalog `leistung`) + billing UI hints | — | **Done** 2026-05-21 (`pflichtenheft.md`, traceability, zahl-tab + `billing-release.ts`) |
+| CAL2 | Termin Pause/Notfall toolbar: re-enable OR formal feature flag (D1) | Product D1 | **Done** 2026-05-21 (flag + banner + settings toggle) |
+| N3 | E2E test: release B/U → Zahlung OK; without release → FA-LEIST-05 error | G13 | **Done** 2026-05-21 (`zahlung_repo_tests` + `billing-release-flow.test.ts`; full UI E2E **NOT RUN**) |
+| G14 | **FA-LEIST-06:** Nach B/U+Leistung → Tab `zahl` + offene Buchung (`AUSSTEHEND`); implizite `freigegeben_*` | G13 | **Done** 2026-05-21 (Behandlung; `ensure_open_booking_for_billable_behandlung` + `billing-open-booking.ts`) |
+| G15 | **FA-LEIST-07:** `untersuchung` + UI Leistung/Preis wie `behandlung`; `pricing`/`zahlung-buchung` | G14 | **Done** 2026-05-21 |
+| G16 | **FA-AUFG-01/06:** `praxis_aufgabe` + Statusmaschine + IPC + migrate `praxis_ticket` | Product | **Done** 2026-05-21 |
+| G17 | **FA-AUFG-02–05:** Posteingang REZ, erledigen→notify, Arzt VALIDIERT/ZURUECK; poll/badge | G16 | **Done** 2026-05-21 (`/posteingang`, 5s poll, `PRAXIS_AUFGABE_ERLEDIGT`) |
+| G18 | Auto-Aufgabe `ABRECHNUNG` bei B/U+Leistung speichern (verknüpft G14+G17) | G14, G17 | **Done** 2026-05-21 (`ensure_abrechnung_aufgabe_for_clinical_line`) |
+| G19 | **FA-AUFG-02 manual:** „Aufgabe an Rezeption“ in Patientenakte (ARZT → `create_praxis_aufgabe`) | G17 | **Done** 2026-05-21 (`patient-akte-workflow-dialogs.tsx`, shell button) |
+| G2b | **G2 fix:** restore backup → SQLCipher (`opens_with_sqlcipher_key` or plaintext migrate) | G2 | **Done** 2026-05-21 (`backup.rs`, `sqlcipher.rs`) |
+
+### Gap register (P0–P3) — master audit
+
+Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/10-master-feature-workflow-audit.md) §6–§8.
+
+| Priority | IDs | Theme | Status (2026-05-21) |
+| -------- | --- | ----- | ------------------- |
+| **P0** | GAP-01..04 | REZ clinical leak; Posteingang; FA-AUFG bidirectional | **Mitigated in code** — `redact_*_for_rezeption` (`akte_commands.rs`); REZ patient-detail gates (`canViewClinical` / `canListBehandlungenForZahlung`); G16–G19 Posteingang + manual Aufgabe. **NOT OBSERVED:** live REZ UI audit |
+| **P1** | GAP-05..07 | FA-LEIST-07 Untersuchung; LEIST-06 U; auto Aufgabe | **Done** (G14–G18) |
+| **P2** | GAP-08..12 | Termin SMS/Notfall; REZ nav; Quittung; VDDS/BDT |
+| **P3** | GAP-13..15 | TI/KIM; mobile LAN; Abo live |
+
+**Recommended implementation order:** Phase 1 (GAP-01/02) → Phase 2 (G15/G14-U) → Phase 3 (G16–G18) → Phase 4 (REZ IA).
+
+### WAAD backlog (reconciled 2026-05-21)
+
+| ID | Action | Status | Notes |
+| -- | ------ | ------ | ----- |
+| A1 | NFA-SEC-08 SQLCipher | **Done** | `sqlcipher.rs`, `DbSetupGate` |
+| A2 | FA-PERS-07 permission overrides | **Done** | `personal.tsx` + RBAC session |
+| A3 | FA-DOK-08 discharge merkblatt PDF | **Done** | G4 adds PDF test |
+| A4 | FA-PERS-08 praxis tickets | **Done** | `/tickets`; verify audit-on-read if required |
+| A5 | FA-LEIST-05 physician release | **Done** | B/U `freigegeben_*`; G13 docs |
+| A6 | NFA-USE-09 onboarding | **Done** → **G6** | Per-route coachmark + ≥80 % target |
+| A7 | FA-AKTE-16 completeness | **Done** (extend) | `akte-completeness.ts` |
+| A8 | Auto backup + restore UI | **Done** | scheduler `lib.rs` + **G2** restore + test |
+| A9 | Stress test | **Done** → **G11** | `five_parallel_clients_audit_inserts_remain_valid` |
+| A10 | Disease pattern statistik | **Done** → **G8** | Proxy from Behandlungsaggregaten |
+| A11 | FA-AKTE-14 forward akte | **Done** | `PatientAkteWorkflowDialogs` |
+| A12 | FA-AKTE-15 validation queue | **Done** | page + **G1** nav badge |
+| A13 | NFA-USE-10 autocomplete | **Done** → **G7** | |
+
+## Prior Now (audit remediation — complete)
+
+| ID | Action | Status |
+| -- | ------ | ------ |
+| DOC | Document Phases B–E + professional PDF layout | **Validated** 2026-05-19; uncommitted |
+| P0–P3h, P1*, P2*, CAL | Security, codegen, page splits | **Done** (see phase-handoff) |
 
 ## Next (queued)
 
 | ID | Action | Dependency | Priority |
 | -- | ------ | ---------- | -------- |
-| N1 | Clarify product positioning: desktop `app/` vs Next `src/` in README or architecture | Stakeholder | Medium |
-| N2 | Optional: `tauri build` smoke on CI or release pipeline | CI time budget | Low |
-| N3 | Re-verify ARZT-Freigabe (`FA-LEIST-05`) end-to-end after A5 — Rechnungs-Workflow lehnt ungekoppelte Leistungen ab | A5 | Medium |
+| G20 | Deprecate `/tickets` → banner + nav; Posteingang in sidebar + `ROUTE_VISIBILITY` | — | **Done** 2026-05-21 (no full redirect — REZ→ARZT tickets remain FA-PERS-08) |
+| G21a | Automated G21: `collaboration-g21.test.ts`, `posteingang.smoke.test.tsx`, tab guard util | — | **Done** 2026-05-21 |
+| G21b | Live Tauri checklist | G21a | **Pending** — [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) (manual) |
+| — | G12 per-patient RBAC | Product | **Deferred** |
 
 ## Done (recent; keep short)
 
 | ID | Outcome | Date |
 | -- | ------- | ---- |
-| D1 | VVT `common_tech`: honest SQLite vs SQLCipher wording | 2026-04-19 |
-| D2 | `tauri.conf.json`: `csp` + `devCsp` (removed invalid host wildcards) | 2026-04-19 |
-| D3 | Ledgers + validation evidence updated | 2026-04-19 |
-| D4 | Implemented Termin draft-preserving Akte round-trip and cascading period scheduling in Arbeitszeiten/Sonder-Sperrzeiten | 2026-04-25 |
-| D5 | Backend domain enums all carry `#[serde(rename_all = "UPPERCASE")]` — fixes silent create/update failures for Termin, Patient, Personal, Zahlung, Auditor, Akte (`app/src-tauri/src/domain/enums.rs`) | 2026-04-25 |
-| D6 | Dental mini-bar popover portaled to `document.body` so transformed ancestors (`.animate-fade-in`) cannot clip it inside the page card | 2026-04-25 |
-| D7 | Untersuchung composer (clinical sections + structured `UntersuchungV1` JSON) wired into Akte; previous Untersuchungen render parsed detail view | 2026-04-25 |
-| D8 | Behandlung composer auto-generates `B-{YYYY}-{seq}` numbers and computes next `Sitzung` automatically when a B.Nummer is present | 2026-04-25 |
-| D9 | Patient/Personal create flows: format & range validation for `geburtsdatum`, `versicherungsnummer`, `email`, `telefon`, `passwort` (≥ 8) | 2026-04-25 |
-| D10 | Seed-data ordering fixed (FK regression in `tests/db_migrations_tests.rs`) and DSGVO test scoped to test akte | 2026-04-25 |
-| D11 | "Neues Rezept" supports cascading combo of medications: shared draft + add-row pattern in `rezepte.tsx` and `patient-detail.tsx`, datalist-backed med suggestions, auto-print as Kombinationsrezept when n>1 (`app/src/lib/medikamente.ts`, `app/src/views/pages/rezepte.tsx`, `app/src/views/pages/patient-detail.tsx`); template editor unified onto same suggestion list | 2026-04-25 |
-| D12 | `CardHeader` accepts optional `subtitle` (used by migration wizard); cleared a pre-existing tsc regression so frontend `tsc --noEmit` is now zero-error | 2026-04-25 |
-| D13 | WAAD-Anforderungen aus PDF formal aufgenommen: `docs/requirements-engineering/source/anforderungen-ableitung-waad.pdf` + `01a-waad-anforderungen.md` (verbatim) + `01b-traceability-waad.md` (Mapping + Code-Evidenz); 9 neue FA/NFA-IDs in Pflichtenheft (`FA-AKTE-14/15/16`, `FA-DOK-08`, `FA-LEIST-05`, `FA-PERS-07/08`, `NFA-USE-09/10`); Counts in `02-klassifizierung.md` aktualisiert; Erfüllungs-Matrix in `06-validierung.md` (§6.3a) ergänzt | 2026-04-25 |
-| D13 | Vorlage selector wired into both Rezept dialogs (`patient-detail.tsx`, `rezepte.tsx`) — closes the gap WF 32/34 (templates created in `vorlage-editor` were invisible during issuance). New helpers `vorlageItemsToLines` + `parseRezeptVorlagePayload` in `app/src/lib/medikamente.ts` | 2026-04-25 |
-| D14 | Patient-create: Medikation & Allergien `<details>` opens by default (compliance — needed before first treatment), summary now reads "einklappen" | 2026-04-25 |
-| D15 | Termine: `Bearbeiten` action navigates to `/termine/neu?id=<id>` instead of toasting "in Kürze". `termin-create.tsx` now supports edit mode via `?id=<termin_id>` (prefill via `getTermin`, save via `updateTermin`, busy-key excludes self, page title + button label flip). `Mitteilen` toast now mentions the patient name. | 2026-04-25 |
-| D16 | Vorlage-Editor Attest: `Krankheiten` is now free-text `Input` with datalist suggestions (replaces 5-option Select). Suggestion list extended with dental-relevant entries. | 2026-04-25 |
-| D17 | Bestellungen end-to-end overhaul: backend `Bestellung` gains `bestellnummer` (auto `B-YYYY-MM-NNNN`) + `pharmaberater` (WF 45 parity), idempotent ALTER TABLE migration + supplier/bestellnummer indexes, new `update_bestellung` command/repo with patch DTO. Page now ships search, status segment + "Überfällig" KPI tile (clickable filters), sortable columns, lieferant/artikel/pharma datalists (autocompleted from history + `produkt`), inline status-transition dropdown (no more 3 buttons + dead-end states), edit dialog, detail dialog, **Nachbestellen** clone action, bulk select + bulk status / bulk delete bar, **CSV export** (UTF-8 BOM), **Lager nachbestellen** modal that batch-creates orders for products at/below `mindestbestand`. `EmptyState` got an optional `action` so the empty + no-match states are actionable. (`bestellungen.tsx`, `bestellung_repo.rs`, `bestellung_commands.rs`, `domain/entities/bestellung.rs`, `connection.rs`, `bestellung.controller.ts`, `schemas.ts`, `empty-state.tsx`) | 2026-04-25 |
-| D18 | Statistik-Seite (vollständige WF 39–42-Parität): Neuer Tauri-Befehl `get_statistik_overview` aggregiert Patienten/Behandlungen/Termine/Finanzen/Bestellungen über die letzten 6/12 Monate (`statistik_commands.rs`, `lib.rs`); Frontend-Seite (`statistik.tsx`) reuses recharts mit `MonthBar`/`MonthLine`/`PiePanel`/`CategoryBar`-Wrappern, sticky Sektions-Sidebar (Patienten / Behandlungen / Termine / Finanzen+Bestellungen), 6-Monats-/12-Monats-Schalter, CSV-Export. Datenbank-Seeding (`connection.rs`) bekommt 14 historische Bestellungen plus rückdatierte `created_at` für Patienten/Zahlungen/Termine/Behandlungen, damit die Charts realistische Zeitreihen zeigen. `MonthBucket`/`LabelValue`/`StatistikOverview` in `models/types.ts` + `statistik.controller.ts` ergänzt. Kompiliert (`cargo check`), `tsc --noEmit` clean, `npm run lint` clean, `vitest` 29/29, `cargo test` ok. | 2026-04-25 |
-| D19 | Bestellungen-Seite Re-Design auf Nielsen-Heuristiken: Hauptseite wieder minimalistisch wie `produkte.tsx` (Suche + Status-Filter, klickbare Bestellnummer öffnet Detailansicht; Anzeigen-/Löschen-Button in Aktionsspalte). Neue Detail-Route `/bestellungen/:id` (`bestellung-detail.tsx`) mit deutlichem **Zurück**-Button, Status-Workflow-Strip (vier-Status-Pills, aktiver Status hervorgehoben), Bearbeiten/Speichern-Modus inline, separater Karten-Layout für Bestelldaten + Metadaten/Verlauf, Löschen-Bestätigung. Route in `App.tsx` und `rbac.ts` (`bestellungen/:id` → `finanzen.read`) registriert. | 2026-04-25 |
-| P0 | Phase 0 STABILISE: removed CI `next-web` + doc refs to missing `src/`; `build.rs` + `MEDOC_VENDOR_PUBKEY`; `crypto/sig.rs` + update signature verification + tests; company-server `_demo` + settings banner; `docs/operations/vendor-key-rotation.md`, `company-server-demo.md` | 2026-05-19 |
-| D20 | Workflow-Refactor "Automation max" (User-Direktive 2026-04-26): (1) **Modal → Page**: `Neue Zahlung` aus `finanzen.tsx` entfernt und durch dedizierte Seite `zahlung-create.tsx` an `/finanzen/neu` ersetzt; Route in `App.tsx`, RBAC-Eintrag `finanzen/neu → finanzen.write` in `rbac.ts`. (2) **`patient-detail.tsx` Header-Refactor**: Top-Buttons `Löschen`/`Validieren`/`Bearbeiten` entfernt; pro-Sektion-Buttons (Stammdaten/Anamnese/Anlagen/Zahlungen) plus inline `Akte löschen` nur in Stammdaten und `+ Neue Zahlung` in Kundenleistungen-Sektion; Tab-Buttons tragen jetzt eine `tab-badge` (`!`/`✓`/Zahl) gespeist aus `app/src/lib/akte-validation.ts` (LocalStorage-basierte Validierungsstati pro Patient × Sektion); pending-count-Badge im Seitentitel. (3) **Behandlung-Composer**: Zwei-Mode-Schalter (`Neue Behandlung` / `Behandlung fortsetzen`) ersetzt das alte Formular; `BEHANDLUNGSNUMMER` und `SITZUNG` werden automatisch berechnet/angezeigt (read-only); `STATUS` / `TERMIN ERFORDERLICH` / `NOTIZEN` in einklappbares `<details>` "Nächsten Termin planen (optional)" verschoben. (4) **Termin-Tipp-Pipeline**: `patient-detail.tsx` schreibt bei `Plan nächsten Termin` einen freien Text nach `localStorage` (`medoc.akte.tipp.v1.<patientId>`); `termin-create.tsx` zeigt diesen Tipp prominent oben mit "In Notizen übernehmen"-Button. (5) **Rezept-Vorlagen-Integration**: Quick-Pick-Chip-Reihe für `rezeptVorlagen` direkt im Rezept-Tab + Standalone `rezepte.tsx`. (6) **CSS**: neue `.tab-badge.warn|.ok|.muted`-Styles in `index.css`. Validation: `tsc --noEmit` clean, `eslint --max-warnings 0` clean (nach Fix der fehlenden `activeTab`-Dependency im Vorlage-Loader-Effekt), `vitest run` 29/29 grün. Backend unverändert; live `tauri dev` (Terminal 1) zeigt `Finished dev profile in 13.68s` + `DB_READY`, d. h. der Rust-Stand kompiliert. | 2026-04-26 |
+| G7–G10, G8–G9, CAL2 | Queue items wired + validated | 2026-05-21 |
+| G21a | Collaboration unit + Posteingang poll smoke tests | 2026-05-21 |
+| G20, G17-fix | Posteingang sidebar + route guard; tickets→Posteingang banner | 2026-05-21 |
+| G19, G2b | Manual Aufgabe dialog; backup restore SQLCipher re-encrypt | 2026-05-21 |
+| G16–G18 | FA-AUFG praxis_aufgabe + Posteingang + auto ABRECHNUNG | 2026-05-21 |
+| G15 | FA-LEIST-07 Untersuchung billing fields + open booking + zahl tab | 2026-05-21 |
+| G14 | FA-LEIST-06 auto open booking + zahl tab | 2026-05-21 |
+| N2, N6, G3 | CI tauri smoke; Verwaltung RBAC split; portal offline doc | 2026-05-21 |
+| N1, N4, N5 | README desktop-only; termin alt slots; invoice LS→app_kv | 2026-05-21 |
+| G6, G13, N3 | Onboarding ≥80 %, FA-LEIST-05 docs, billing IPC tests | 2026-05-21 |
+| G5 | patient-detail shell &lt;1200 lines + overlays | 2026-05-21 |
+| G1–G4, G2 restore | Gap remediation batch 1 | 2026-05-21 |
+| D1–D20, P0 | See prior entries | 2026-04-19 … 2026-05-20 |

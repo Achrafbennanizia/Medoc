@@ -1,4 +1,8 @@
-import type { Patientenakte, Untersuchung, Zahnbefund } from "@/models/types";
+import type { BehandlungsKatalogItem, Patientenakte, Untersuchung, Zahnbefund } from "@/models/types";
+import {
+    UntersuchungBillingFields,
+    type UntersuchungBillingFormState,
+} from "@/views/components/untersuchung-billing-fields";
 import { parseUntersuchungV1 } from "@/lib/untersuchung";
 import type { UntersuchungSubmit } from "@/views/components/UntersuchungComposer";
 import { formatDateTime } from "@/lib/utils";
@@ -19,6 +23,9 @@ export type PatientDetailUnterTabProps = {
     unterEditUnlocked: boolean;
     unterDeleteId: string | null;
     canViewClinical: boolean;
+    katalog: BehandlungsKatalogItem[];
+    unterBillingForm: UntersuchungBillingFormState;
+    setUnterBillingForm: (next: UntersuchungBillingFormState) => void;
     onStartNewUntersuchung: () => void;
     onToggleDetail: (id: string, open: boolean) => void;
     onReleaseForBilling: (untersuchungId: string) => void | Promise<void>;
@@ -45,6 +52,9 @@ export function PatientDetailUnterTab({
     unterEditUnlocked,
     unterDeleteId,
     canViewClinical,
+    katalog,
+    unterBillingForm,
+    setUnterBillingForm,
     onStartNewUntersuchung,
     onToggleDetail,
     onReleaseForBilling,
@@ -97,6 +107,15 @@ export function PatientDetailUnterTab({
                                                     {formatDateTime(u.created_at)}
                                                 </div>
                                                 <div style={{ fontWeight: 600 }}>{u.diagnose || detail?.diagnosis || "Diagnose offen"}</div>
+                                                {(u.leistungsname ?? "").trim() ? (
+                                                    <div style={{ fontSize: 13, color: "var(--fg-2)" }}>
+                                                        {(u.kategorie ?? "").trim() ? `${u.kategorie} · ` : ""}
+                                                        {u.leistungsname}
+                                                        {u.gesamtkosten != null && Number.isFinite(u.gesamtkosten)
+                                                            ? ` · ${u.gesamtkosten.toFixed(2)} €`
+                                                            : ""}
+                                                    </div>
+                                                ) : null}
                                                 <div style={{ color: "var(--fg-3)", fontSize: 13 }}>
                                                     {u.beschwerden || detail?.chiefComplaint || "—"}
                                                 </div>
@@ -287,6 +306,12 @@ export function PatientDetailUnterTab({
                                                 onClose={onCloseEdit}
                                                 rootClassName="akte-inline-panel--unter-stack-edit"
                                             >
+                                                <UntersuchungBillingFields
+                                                    katalog={katalog}
+                                                    form={unterBillingForm}
+                                                    setForm={setUnterBillingForm}
+                                                    locked={!unterEditUnlocked}
+                                                />
                                                 <UntersuchungComposer
                                                     key={unterEdit.id}
                                                     variant="edit"
@@ -343,6 +368,11 @@ export function PatientDetailUnterTab({
                                 </Button>
                             </div>
                             <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
+                                <UntersuchungBillingFields
+                                    katalog={katalog}
+                                    form={unterBillingForm}
+                                    setForm={setUnterBillingForm}
+                                />
                                 <UntersuchungComposer
                                     befunde={befunde}
                                     onApplyTooth={onApplyTooth}

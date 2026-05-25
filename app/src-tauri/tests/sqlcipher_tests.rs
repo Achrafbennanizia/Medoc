@@ -106,22 +106,19 @@ async fn migrate_plaintext_file_to_sqlcipher() {
         .arg("CREATE TABLE plain_probe (id INTEGER PRIMARY KEY); INSERT INTO plain_probe VALUES (1);")
         .status()
         .expect("sqlite3 CLI");
-    assert!(status.success(), "sqlite3 must be available for migration test");
-    assert!(medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(
-        &db_path
-    ));
+    assert!(
+        status.success(),
+        "sqlite3 must be available for migration test"
+    );
+    assert!(medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path));
 
     std::env::set_var("MEDOC_DB_KEY", HEX_KEY);
     let key = db_key::env_override_key().expect("MEDOC_DB_KEY");
-    medoc_lib::infrastructure::database::sqlcipher::migrate_plaintext_to_sqlcipher(
-        &db_path, &key,
-    )
-    .await
-    .expect("migrate plaintext → SQLCipher");
+    medoc_lib::infrastructure::database::sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key)
+        .await
+        .expect("migrate plaintext → SQLCipher");
 
-    assert!(!medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(
-        &db_path
-    ));
+    assert!(!medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path));
     let pool = init_db_headless(&dir).await.expect("open migrated db");
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM plain_probe")
         .fetch_one(&pool)

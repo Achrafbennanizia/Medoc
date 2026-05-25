@@ -103,6 +103,10 @@ pub struct StatistikOverview {
     // Behandlungen
     pub behandlungen_nach_kategorie: Vec<LabelValue>,
     pub behandlungen_pro_monat: Vec<MonthBucket>,
+    /// WAAD 9.5 / G8 — Top-Kategorien als Krankheitsbild-Proxy (Behandlungskategorie/Art).
+    pub krankheitsbilder_top: Vec<LabelValue>,
+    /// WAAD 9.5 / G8 — Verlauf der Behandlungsfälle pro Monat.
+    pub krankheitsbilder_verlauf_pro_monat: Vec<MonthBucket>,
     pub medikamente_top: Vec<LabelValue>,
     // Termine & Organisation
     pub termine_pro_monat: Vec<MonthBucket>,
@@ -309,6 +313,8 @@ pub async fn get_statistik_overview(
             .map(|(m, c)| (m.clone(), *c as f64))
             .collect();
         out.behandlungen_pro_monat = align_months(beh_mon_f, &months_12);
+        out.krankheitsbilder_top = out.behandlungen_nach_kategorie.clone();
+        out.krankheitsbilder_verlauf_pro_monat = out.behandlungen_pro_monat.clone();
 
         // top medikamente by wirkstoff
         let med: Vec<(String, i64)> = sqlx::query_as(

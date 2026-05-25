@@ -19,12 +19,27 @@ pub fn money_to_invoice_cents(bruto: f64) -> i64 {
     cents
 }
 
+/// FA-LEIST-06: abrechnungsrelevante Behandlung (Leistungsname und/oder Soll > 0).
+pub fn behandlung_has_billable_leistung(
+    leistungsname: Option<&str>,
+    gesamtkosten: Option<f64>,
+) -> bool {
+    if leistungsname.map(str::trim).is_some_and(|s| !s.is_empty()) {
+        return true;
+    }
+    gesamtkosten
+        .filter(|g| g.is_finite())
+        .is_some_and(|g| g > EUR_EPS)
+}
+
 /// FA-LEIST-05: both Freigabe fields must be non-empty.
 pub fn is_released_for_billing(
     freigegeben_von_arzt_id: Option<&str>,
     freigegeben_am: Option<&str>,
 ) -> bool {
-    let vid = freigegeben_von_arzt_id.map(str::trim).filter(|s| !s.is_empty());
+    let vid = freigegeben_von_arzt_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let vam = freigegeben_am.map(str::trim).filter(|s| !s.is_empty());
     vid.is_some() && vam.is_some()
 }
@@ -46,9 +61,7 @@ pub fn require_released_for_billing(
 /// Invoice line amount for a Behandlung (port of `lineFromLeistungWahl` behand branch).
 pub fn invoice_amount_cents_behandlung(gesamtkosten: Option<f64>, paid_sum_eur: f64) -> i64 {
     let paid = round_money_2(paid_sum_eur);
-    let cost = gesamtkosten
-        .filter(|c| c.is_finite())
-        .map(round_money_2);
+    let cost = gesamtkosten.filter(|c| c.is_finite()).map(round_money_2);
     let bruto = match cost {
         Some(c) if c > 0.0 => c,
         _ if paid > 0.0 => paid,
@@ -57,11 +70,9 @@ pub fn invoice_amount_cents_behandlung(gesamtkosten: Option<f64>, paid_sum_eur: 
     money_to_invoice_cents(bruto).max(1)
 }
 
-/// Invoice line amount for an Untersuchung (no `gesamtkosten`; uses payments only).
-pub fn invoice_amount_cents_untersuchung(paid_sum_eur: f64) -> i64 {
-    let paid = round_money_2(paid_sum_eur);
-    let bruto = if paid > 0.0 { paid } else { 0.01 };
-    money_to_invoice_cents(bruto).max(1)
+/// Invoice line amount for an Untersuchung (FA-LEIST-07: `gesamtkosten` wie Behandlung).
+pub fn invoice_amount_cents_untersuchung(gesamtkosten: Option<f64>, paid_sum_eur: f64) -> i64 {
+    invoice_amount_cents_behandlung(gesamtkosten, paid_sum_eur)
 }
 
 /// ZANR / BSNR: exactly 9 digits (ignoring non-digits). Matches FE `isValidPraxisDigitId`.
@@ -76,7 +87,10 @@ pub fn praxis_rechnung_pflicht_missing(
     bsnr: Option<&str>,
     bank_iban: Option<&str>,
 ) -> bool {
-    behandler_name.map(str::trim).filter(|s| !s.is_empty()).is_none()
+    behandler_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_none()
         || zanr.map(str::trim).filter(|s| !s.is_empty()).is_none()
         || bsnr.map(str::trim).filter(|s| !s.is_empty()).is_none()
         || bank_iban.map(str::trim).filter(|s| !s.is_empty()).is_none()
@@ -84,10 +98,7 @@ pub fn praxis_rechnung_pflicht_missing(
 
 /// Auto invoice number `RE-YYYYMMDD-XXXXXX` (port of FE `nextRechnungsnummer`).
 pub fn next_rechnungsnummer(ymd: &str, reserved: &[&str]) -> String {
-    let d: String = ymd
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let d: String = ymd.chars().filter(|c| c.is_ascii_digit()).collect();
     let mut rng = rand::thread_rng();
     if d.len() < 8 {
         for _ in 0..48 {

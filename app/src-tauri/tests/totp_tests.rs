@@ -173,7 +173,12 @@ async fn confirm_enrollment_persists() {
     };
     let code = totp_inst.generate_current().unwrap();
     assert!(totp::verify_code(&secret, &code).unwrap());
-    personal_repo::confirm_totp_enrollment(&pool, "a1").await.unwrap();
-    let user = personal_repo::find_by_id(&pool, "a1").await.unwrap().unwrap();
+    personal_repo::confirm_totp_enrollment(&pool, "a1")
+        .await
+        .unwrap();
+    let user = personal_repo::find_by_id(&pool, "a1")
+        .await
+        .unwrap()
+        .unwrap();
     assert!(personal_repo::is_totp_enrolled(&user));
 }

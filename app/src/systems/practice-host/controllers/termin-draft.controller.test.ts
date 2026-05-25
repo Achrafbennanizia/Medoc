@@ -5,13 +5,13 @@ import {
     type TerminDraft,
 } from "./termin-draft.controller";
 
-vi.mock("@/controllers/app-kv.controller", () => ({
+vi.mock("@/systems/practice-host/controllers/app-kv.controller", () => ({
     getAppKvRaw: vi.fn(),
     setAppKvRaw: vi.fn(),
     deleteAppKvRaw: vi.fn(),
 }));
 
-import { getAppKvRaw, setAppKvRaw } from "@/controllers/app-kv.controller";
+import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
 
 const sample: TerminDraft = {
     datum: "2026-05-20",

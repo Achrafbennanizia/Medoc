@@ -35,11 +35,7 @@ fn yaml_rust_enum_variant_counts() {
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
         if generate_rust {
-            assert_eq!(
-                variants.len(),
-                *expected,
-                "update RUST_ENUMS for {name}"
-            );
+            assert_eq!(variants.len(), *expected, "update RUST_ENUMS for {name}");
         }
     }
 }

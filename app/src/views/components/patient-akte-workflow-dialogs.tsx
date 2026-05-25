@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPraxisTicket, forwardAkteToPhysicians } from "@/controllers/akte-workflow.controller";
+import {
+    createPraxisAufgabe,
+    type PraxisAufgabeTyp,
+} from "@/controllers/praxis-aufgabe.controller";
 import { listAerzte, type AerztSummary } from "@/controllers/personal.controller";
 import { errorMessage } from "@/lib/utils";
 import type { Role } from "@/lib/rbac";
@@ -7,7 +11,15 @@ import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { Select, Textarea } from "./ui/input";
 
-export type PatientAkteWorkflowMode = "ticket" | "forward" | null;
+export type PatientAkteWorkflowMode = "ticket" | "forward" | "aufgabe" | null;
+
+const AUFGABE_TYP_OPTS: { value: PraxisAufgabeTyp; label: string }[] = [
+    { value: "ABRECHNUNG", label: "Abrechnung" },
+    { value: "TERMIN", label: "Termin" },
+    { value: "DRUCK", label: "Druck" },
+    { value: "STAMMDATEN", label: "Stammdaten" },
+    { value: "SONSTIGES", label: "Sonstiges" },
+];
 
 type ToastFn = (message: string, variant?: "info" | "error" | "success") => void;
 
@@ -30,6 +42,10 @@ export function PatientAkteWorkflowDialogs(props: {
     const [forwardIds, setForwardIds] = useState<Record<string, boolean>>({});
     const [forwardNote, setForwardNote] = useState("");
 
+    const [aufgabeTyp, setAufgabeTyp] = useState<PraxisAufgabeTyp>("SONSTIGES");
+    const [aufgabeTitel, setAufgabeTitel] = useState("");
+    const [aufgabeBody, setAufgabeBody] = useState("");
+
     const loadAerzte = useCallback(async () => {
         setLoadErr(null);
         try {
@@ -50,6 +66,9 @@ export function PatientAkteWorkflowDialogs(props: {
         setTicketBody("");
         setForwardNote("");
         setForwardIds({});
+        setAufgabeTyp("SONSTIGES");
+        setAufgabeTitel("");
+        setAufgabeBody("");
     }, [mode, loadAerzte]);
 
     const submitTicket = async () => {
@@ -62,6 +81,30 @@ export function PatientAkteWorkflowDialogs(props: {
         try {
             await createPraxisTicket({ patientId, toArztId: ticketArztId, body });
             toast("Ticket erstellt.", "success");
+            onClose();
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const submitAufgabe = async () => {
+        const titel = aufgabeTitel.trim();
+        if (!titel) {
+            toast("Titel ausfüllen.", "error");
+            return;
+        }
+        setBusy(true);
+        try {
+            await createPraxisAufgabe({
+                patientId,
+                typ: aufgabeTyp,
+                titel,
+                body: aufgabeBody.trim() || null,
+                assigneeRole: "REZEPTION",
+            });
+            toast("Aufgabe an Rezeption erstellt.", "success");
             onClose();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -96,6 +139,7 @@ export function PatientAkteWorkflowDialogs(props: {
     };
 
     if (mode === "ticket" && role !== "REZEPTION") return null;
+    if (mode === "aufgabe" && role !== "ARZT") return null;
     if (mode === "forward" && role !== "ARZT" && role !== "REZEPTION") return null;
 
     return (
@@ -133,6 +177,53 @@ export function PatientAkteWorkflowDialogs(props: {
                             value={ticketBody}
                             onChange={(e) => setTicketBody(e.target.value)}
                             placeholder="Kurze strukturierte Anfrage an den behandelnden Arzt…"
+                        />
+                    </label>
+                </div>
+            </Dialog>
+
+            <Dialog
+                open={mode === "aufgabe"}
+                onClose={onClose}
+                title="Aufgabe an Rezeption"
+                footer={(
+                    <div className="modal-actions">
+                        <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+                            Abbrechen
+                        </Button>
+                        <Button type="button" variant="primary" onClick={() => void submitAufgabe()} disabled={busy}>
+                            {busy ? "Senden…" : "Anlegen"}
+                        </Button>
+                    </div>
+                )}
+            >
+                <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <p className="page-sub" style={{ margin: 0 }}>
+                        Erscheint im Posteingang der Rezeption (FA-AUFG-02).
+                    </p>
+                    <label className="stack" style={{ gap: 6 }}>
+                        <span className="text-sm text-muted">Typ</span>
+                        <Select
+                            value={aufgabeTyp}
+                            onChange={(e) => setAufgabeTyp(e.target.value as PraxisAufgabeTyp)}
+                            options={AUFGABE_TYP_OPTS.map((o) => ({ value: o.value, label: o.label }))}
+                        />
+                    </label>
+                    <label className="stack" style={{ gap: 6 }}>
+                        <span className="text-sm text-muted">Titel *</span>
+                        <input
+                            className="input"
+                            value={aufgabeTitel}
+                            onChange={(e) => setAufgabeTitel(e.target.value)}
+                            placeholder="z. B. Termin vereinbaren"
+                        />
+                    </label>
+                    <label className="stack" style={{ gap: 6 }}>
+                        <span className="text-sm text-muted">Beschreibung</span>
+                        <Textarea
+                            rows={3}
+                            value={aufgabeBody}
+                            onChange={(e) => setAufgabeBody(e.target.value)}
                         />
                     </label>
                 </div>

@@ -37,6 +37,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
     { id: "sec-patienten", title: "Patientenstatistiken", description: "Demographie, Wachstum, Status." },
+    { id: "sec-krankheitsbilder", title: "Krankheitsbilder & Verlauf", description: "WAAD 9.5 — Kategorien und Monatsverlauf (Proxy aus Behandlungsdaten)." },
     { id: "sec-behandlungen", title: "Behandlungsstatistiken", description: "Leistungen und Verordnungen." },
     { id: "sec-termine", title: "Termin- & Organisationsstatistiken", description: "Auslastung, Status, Termin-Art." },
     { id: "sec-finanzen", title: "Finanz- & Bestellstatistiken", description: "Einnahmen, Zahlungsarten, Lager." },
@@ -432,6 +433,10 @@ export function StatistikPage() {
     const trimmedPatKum = useMemo(() => trim(stats?.patienten_kumuliert_pro_monat ?? [], period), [period, stats]);
     const trimmedTermine = useMemo(() => trim(stats?.termine_pro_monat ?? [], period), [period, stats]);
     const trimmedBeh = useMemo(() => trim(stats?.behandlungen_pro_monat ?? [], period), [period, stats]);
+    const trimmedKrankheitsVerlauf = useMemo(
+        () => trim(stats?.krankheitsbilder_verlauf_pro_monat ?? [], period),
+        [period, stats],
+    );
     const trimmedEinn = useMemo(() => trim(stats?.einnahmen_pro_monat ?? [], period), [period, stats]);
     const trimmedBest = useMemo(() => trim(stats?.bestellungen_pro_monat ?? [], period), [period, stats]);
 
@@ -517,6 +522,12 @@ export function StatistikPage() {
         for (const v of stats.altersgruppen) rows.push(["Patienten", `Altersgruppe ${v.label}`, v.value]);
         for (const v of stats.geschlechter) rows.push(["Patienten", `Geschlecht ${v.label}`, v.value]);
         for (const v of stats.behandlungen_nach_kategorie) rows.push(["Behandlungen", `Kategorie ${v.label}`, v.value]);
+        for (const v of stats.krankheitsbilder_top ?? []) {
+            rows.push(["Krankheitsbilder", `Top ${v.label}`, v.value]);
+        }
+        for (const m of stats.krankheitsbilder_verlauf_pro_monat ?? []) {
+            rows.push(["Krankheitsbilder", `Verlauf ${m.month}`, m.value]);
+        }
         for (const v of stats.medikamente_top) rows.push(["Behandlungen", `Top-Wirkstoff ${v.label}`, v.value]);
         for (const v of stats.termin_status) rows.push(["Termine", `Status ${v.label}`, v.value]);
         for (const v of stats.termin_art) rows.push(["Termine", `Art ${v.label}`, v.value]);
@@ -839,6 +850,29 @@ export function StatistikPage() {
                             </ChartCard>
                             <ChartCard title="Patienten-Status" subtitle="Aktiv, validiert, neu, archiviert" hasData={stats.patient_status.length > 0}>
                                 <CategoryBar data={stats.patient_status} color={PALETTE[3]} />
+                            </ChartCard>
+                        </div>
+                    </section>
+                    ) : null}
+
+                    {activePanel === "sec-krankheitsbilder" ? (
+                    <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        <h2 className="statistik-workspace__panel-title">Krankheitsbilder &amp; Verlauf</h2>
+                        <p className="statistik-workspace__panel-intro">
+                            Auswertung nach Behandlungskategorie/Art (Proxy für Krankheitsbilder bis strukturierte ICD-Diagnosen vorliegen).
+                        </p>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <ChartCard
+                                title="Top Krankheitsbilder (Kategorien)"
+                                hasData={(stats.krankheitsbilder_top ?? []).length > 0}
+                            >
+                                <CategoryBar data={stats.krankheitsbilder_top ?? []} color={PALETTE[4]} />
+                            </ChartCard>
+                            <ChartCard
+                                title="Verlauf Behandlungsfälle pro Monat"
+                                hasData={trimmedKrankheitsVerlauf.some((m) => m.value > 0)}
+                            >
+                                <MonthLine data={trimmedKrankheitsVerlauf} color={PALETTE[0]} />
                             </ChartCard>
                         </div>
                     </section>

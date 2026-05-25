@@ -1,7 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Document PDF — **professional layout** (Attest/Rezept/Quittung/Rechnung/Akte)  
-**Last closed:** 2026-05-19 — full stack validation **PASS**; changes **uncommitted**
+**Last phase label:** Three-system architecture (Practice / LAN / Company)  
+**Last closed:** 2026-05-22 — wave 23; full stack **PASS**; changes **uncommitted**
+
+### Three-system wave (2026-05-22)
+
+| Item | Status |
+|------|--------|
+| `application/akte/pdf_export.rs` | **PASS** — FA-AKTE-04 + FA-DOK-08; args tests in module |
+| `akte_commands.rs` thin IPC | **PASS** — ~369 lines |
+| `practice-host/pages/einstellungen/` | **PASS** — 12 section modules + view stubs |
+| `company-portal/pages/einstellungen-company-portal-section` | **PASS** — view stub |
+| LAN client `login` (Vitest + fetch mock) | **PASS** — `http-practice.adapter.test.ts` |
+| `cargo fmt/clippy --all-targets/test` | **PASS** |
+| `npm lint/test` (151) / `build` | **PASS** |
+| Live LAN-client browser E2E | **NOT RUN** |
+
+### Three-system wave (2026-05-21)
+
+| Item | Status |
+|------|--------|
+| `app/src/systems/*` + `app/src-tauri/src/systems/*` | **PASS** — ports/adapters/facade |
+| `npm lint` / `npm test` (142) / `npm run build` | **PASS** |
+| `cargo fmt --check` / `cargo test --tests` | **PASS** (CI vendor pubkey) |
+| `cargo clippy --all-targets -D warnings` | **PASS** | 2026-05-21 |
+| LAN client UI (`einstellungen-lan-host`) | **PASS** (code) — live **NOT OBSERVED** |
+| Patient-detail folder move | **PASS** — `systems/practice-host/pages/patient-detail/` |
 
 ## Verified (Phase 0 re-validation + Phase 1.1)
 
@@ -274,11 +298,157 @@
 | `cargo test --tests` (MEDOC_* env) | **PASS** |
 | `npm lint/test/build` | **PASS** (114 vitest) |
 
+## Gap remediation wave 2 (2026-05-21)
+
+### Verified
+
+| Item | Evidence |
+|------|----------|
+| G8 Krankheitsbild panel + CSV | `statistik_commands.rs` `krankheitsbilder_*`; `statistik.tsx` `sec-krankheitsbilder` |
+| G9 Dashboard 24h reminders | `list_upcoming_appointments` + `dashboard.tsx` panel |
+| G10 Integration stubs honesty | `integration-capabilities.ts` + integrationen section |
+| G7 Autocomplete | Pre-existing toggle; confirmed in Arbeitsabläufe |
+| CAL2 Emergency toolbar | `calendarEmergencyToolbarEnabled` + termine banner + settings checkbox |
+| G6 Onboarding (partial) | `OnboardingCoachmark` in `app-layout` |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `clippy -D warnings` | **PASS** |
+| `npm lint/test/build` | **PASS** (114 vitest) |
+
+### Remains unverified
+
+- Live UI: validation nav badges, backup restore, dashboard upcoming list, statistik Krankheitsbild panel, onboarding coachmark dismiss — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CAL2 resolved as **formal feature flag** (default off) rather than re-enabling commented toolbar code.
+- G8 uses **Behandlungsaggregaten as proxy** until structured ICD diagnosis data exists.
+
+## Gap remediation wave 3 (2026-05-21)
+
+### Verified
+
+| Item | Evidence |
+|------|----------|
+| G0 doc sync | `project-truth.md`, `06-validierung.md` §6.3a WAAD matrix updated |
+| G3 error surfacing (more) | `app-layout` break-glass, `termine` plan load, `onboarding-coachmark` KV |
+| N3 FA-LEIST-05 tests | `domain_services_tests::pricing_require_release_*`; `billing-release.test.ts` |
+| G6 onboarding tests | `onboarding.test.ts` (route paths + coverage ratio) |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `clippy -D warnings` | **PASS** |
+| `npm lint/test/build` | **PASS** (120 vitest) |
+
+## Gap remediation wave 4 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| G11 stress | `tests/stress_tests.rs` — 5 clients × 20 audit ops |
+| G3 | dashboard plan-next, patient katalog, session-gate, system settings toasts |
+| G6 | ARZT routes + atteste/audit; settings progress % + reset |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `stress_tests` | **PASS** |
+| `npm lint/test/build` | **PASS** (120 vitest) |
+
+## Gap remediation wave 7 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| G5 patient-detail shell | `patient-detail.tsx` **1028** lines (was ~2128); hooks: `use-patient-detail-{clinical-actions,validation,zahl-actions,akte-save}.ts`; UI: `patient-detail-shell-header.tsx`, `patient-detail-akte-subnav.tsx`, `patient-detail-overlays.tsx` |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` | **PASS** |
+| `npm run lint` / `npm test` / `npm run build` | **PASS** (120 vitest) |
+
+## Gap remediation wave 8 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| G6 onboarding | `ONBOARDING_MIN_COVERAGE_RATIO`, nested `stepForRoute`, coachmark persist errors |
+| G13 FA-LEIST-05 | Pflichtenheft + traceability: Freigabe on B/U, not Katalog-`leistung` |
+| N3 billing | `billing-release-flow.test.ts` + `zahlung_repo_tests` |
+| G3 praxis sync | Toasts on `syncInvoicePraxisToAppKv` failure |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `npm lint/test/build` | **PASS** (124 vitest) |
+
+## Gap remediation wave 9 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| N1 | `README.md` — desktop `app/` only, no phantom `src/` release |
+| N4 | `suggestAlternativeTerminSlots` in `termin-availability.ts`; conflict toast in `termin-create.tsx` |
+| N5 | `migrateInvoicePraxisLocalStorageToAppKv` + login hydrate in `app-layout.tsx` |
+
+| Command | Result |
+|---------|--------|
+| `npm lint/test/build` + `cargo test --tests` | **PASS** (127 vitest) |
+
+## Gap remediation wave 11 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| G14 FA-LEIST-06 | `zahlung_repo::ensure_open_booking_for_billable_behandlung`; FE `billing-open-booking.ts`; ARZT → Tab `zahl` |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `npm lint/test/build` | **PASS** (129 vitest, 4× `zahlung_repo_tests`) |
+
+## Gap remediation wave 10 (2026-05-21)
+
+| Item | Evidence |
+|------|----------|
+| N6 | `verwaltung.team.read`, `verwaltung.praxisplanung.read/write` in `config/rbac.yaml`; routes + `praxis_commands` |
+| N2 | CI job `tauri-smoke` (`--debug --no-bundle`) |
+| G3 | Portal fetch `null` documented in `einstellungen.tsx` |
+
+| Command | Result |
+|---------|--------|
+| `cargo test --tests` + `npm lint/test/build` | **PASS** (128 vitest) |
+
 ## Must happen next
 
-1. **Commit** audit remediation when ready (large mixed working tree).
-2. Optional: `0002_seed_dev.sql` + CI schema drift check for migrations.
-3. **NOT OBSERVED:** browser smoke on patient-detail rezept/attest wizards + quittung print from Zahl tab.
+1. **G12** per-patient RBAC — deferred (product).
+2. **G21b** manual Tauri checklist — [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) (**NOT OBSERVED**).
+4. **P0 GAP-01/02** — code + unit tests; formal UI audit still pending.
+
+## Wave 18 delta (2026-05-21)
+
+- **Revalidation:** `cargo fmt --check`, `cargo test --tests`, `backup_tests` 4/4, `npm lint/test/build` (139), `tauri build --debug --no-bundle`.
+- **G2b:** `vacuum_backup_from_encrypted_db_opens_with_sqlcipher_key`; restore test holds `BACKUP_TEST_LOCK` for full run.
+
+## Wave 17 delta (2026-05-21)
+
+- **G2b regression:** `restore_from_backup` no longer runs plaintext migration on already-encrypted `VACUUM INTO` snapshots (`opens_with_sqlcipher_key`).
+- **Validation:** `backup_tests` 3/3; `cargo test --tests` **PASS**.
+
+## Wave 16 delta (2026-05-21)
+
+- **G21a:** `collaboration-g21.test.ts`, `posteingang.smoke.test.tsx`, `patientDetailTabBlocked`, `POSTEINGANG_POLL_MS`.
+- **Validation:** 139 vitest; full stack **PASS**.
+
+## Wave 15 delta (2026-05-21)
+
+- **G17-fix:** `posteingang` in `ROUTE_VISIBILITY` + `NAV_SECTIONS` (route was denied; nav item never shown).
+- **G20:** Tickets page banner → Posteingang; nav/native-go-menu ordering.
+- **Validation:** 132 vitest; `backup_tests` 3/3; `cargo test --tests` **PASS**.
+
+## Wave 14 delta (2026-05-21)
+
+- **G2b:** `restore_from_backup` re-encrypts plaintext `VACUUM INTO` snapshots via `sqlcipher::migrate_plaintext_to_sqlcipher` (`backup.rs`).
+- **G19:** ARZT „Aufgabe an Rezeption“ in `patient-akte-workflow-dialogs.tsx` + shell header.
+- **Validation:** `backup_tests` 3/3; `cargo test --tests` **PASS**; `npm lint/test/build` **PASS** (130 vitest).
+
+## Wave 12 delta (2026-05-21)
+
+- **G15 FA-LEIST-07:** `untersuchung` billing columns; `ensure_open_booking_for_billable_untersuchung`; FE `UntersuchungBillingFields` + `zahlung-buchung` Soll for U-lines.
+- **Validation:** `cargo test --tests` **PASS**; `npm lint/test` **PASS** (130 vitest).
 
 ## Continuity tokens
 

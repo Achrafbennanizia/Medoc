@@ -70,6 +70,39 @@ export function maxNeuZahlungBehandlung(
     return Math.max(0, roundMoney2(gesamtkosten - paid));
 }
 
+export function maxNeuZahlungUntersuchung(
+    zahlungen: Zahlung[],
+    patientId: string,
+    untersuchungId: string,
+    gesamtkosten: number | null,
+): number | null {
+    if (gesamtkosten == null || !Number.isFinite(gesamtkosten)) return null;
+    if (gesamtkosten <= 0) return 0;
+    const paid = sumZahlungenForUntersuchung(zahlungen, patientId, untersuchungId);
+    return Math.max(0, roundMoney2(gesamtkosten - paid));
+}
+
+export function maxEditZahlungUntersuchung(
+    zahlungen: Zahlung[],
+    patientId: string,
+    untersuchungId: string,
+    excludeZahlungId: string,
+    gesamtkosten: number | null,
+): number | null {
+    if (gesamtkosten == null || !Number.isFinite(gesamtkosten)) return null;
+    if (gesamtkosten <= 0) return 0;
+    const otherPaid = zahlungen
+        .filter(
+            (x) =>
+                x.patient_id === patientId
+                && x.untersuchung_id === untersuchungId
+                && x.id !== excludeZahlungId
+                && zahlCountsTowardPaid(x.status),
+        )
+        .reduce((s, x) => s + x.betrag, 0);
+    return Math.max(0, roundMoney2(gesamtkosten - otherPaid));
+}
+
 /** Max. Betrag bei Bearbeitung: Soll minus alle anderen Zahlungen derselben Zeile. */
 export function maxEditZahlungBehandlung(
     zahlungen: Zahlung[],
@@ -169,10 +202,17 @@ export function zuordnungNochOffenFuerNeueZahlung(
         return rowsBh.some((z) => z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT");
     }
     if (kind === "unter") {
+        const u = _untersuchungen.find((x) => x.id === id);
+        const ges =
+            u?.gesamtkosten != null && Number.isFinite(u.gesamtkosten) ? u.gesamtkosten : null;
         const rowsU = zahlungen.filter(
             (z) =>
                 z.patient_id === patientId && z.untersuchung_id === id && zahlCountsTowardPaid(z.status),
         );
+        if (ges != null && ges > ZAHL_EUR_EPS) {
+            const maxNeu = maxNeuZahlungUntersuchung(zahlungen, patientId, id, ges);
+            return maxNeu != null && maxNeu > ZAHL_EUR_EPS;
+        }
         if (rowsU.length === 0) return true;
         return rowsU.some((z) => z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT");
     }
@@ -317,20 +357,25 @@ export function aggregateZahlungenByZuordnung(
             });
         } else {
             const u = untersuchungen.find((x) => x.id === acc.lineId);
+            const soll =
+                u?.gesamtkosten != null && Number.isFinite(u.gesamtkosten) ? u.gesamtkosten : null;
+            const offen =
+                soll != null && soll > ZAHL_EUR_EPS ? Math.max(0, roundMoney2(soll - acc.gezahlt)) : null;
             const un = (u?.untersuchungsnummer ?? "").trim();
             const bezugShort = un ? `U ${un}` : "U";
-            const line = (u?.diagnose || "Untersuchung").trim();
-            const bezugLine = un ? `U-Nr. ${un} — ${line}` : `U-Nr. — (fehlt)${line ? ` — ${line}` : ""}`;
+            const sub = (u ? (u.leistungsname || u.diagnose || "") : "").trim();
+            const nr = un || "—";
+            const bezugLine = sub ? `U-Nr. ${nr} — ${sub}` : `U-Nr. ${nr}`;
             rows.push({
                 key,
                 kind: "unter",
                 lineId: acc.lineId,
                 bezugShort,
                 bezugLine,
-                soll: null,
+                soll,
                 gezahlt: acc.gezahlt,
-                offen: null,
-                status: deriveAggregateStatus(acc.gezahlt, null),
+                offen,
+                status: deriveAggregateStatus(acc.gezahlt, soll),
                 latestAt: acc.latestAt,
             });
         }

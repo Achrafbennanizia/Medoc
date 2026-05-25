@@ -358,7 +358,9 @@ pub async fn confirm_totp_enrollment(
         .as_deref()
         .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
     if !totp::verify_code(secret, &code)? {
-        return Err(AppError::Validation("Ungültiger Code — bitte erneut versuchen".into()));
+        return Err(AppError::Validation(
+            "Ungültiger Code — bitte erneut versuchen".into(),
+        ));
     }
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     audit_repo::create(
@@ -385,10 +387,7 @@ pub async fn admin_unlock_brute_force(
 ) -> Result<u64, AppError> {
     let session = rbac::require(&session_state, "personal.write")?;
     let hashed = brute_force::hash_subject(target_email.trim())?;
-    let removed = brute_force
-        .0
-        .admin_clear_subject(&pool, &hashed)
-        .await?;
+    let removed = brute_force.0.admin_clear_subject(&pool, &hashed).await?;
     audit_repo::create(
         &pool,
         &session.user_id,

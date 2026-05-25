@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { allowed, navItemVisible, NAV_ITEM_DEFINITIONS, parseRole, routeChildPathAllowed, ROUTE_VISIBILITY, type Role } from "./rbac";
+import {
+    allowed,
+    navItemVisible,
+    NAV_ITEM_DEFINITIONS,
+    parseRole,
+    resolveRoutePathFromLocation,
+    routeChildPathAllowed,
+    routeLocationAllowed,
+    ROUTE_VISIBILITY,
+    settingsSectionVisible,
+    type Role,
+} from "./rbac";
 
 const ROLES = ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const satisfies readonly Role[];
 
@@ -51,11 +62,11 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
     REZEPTION: {
         verwaltung: true,
         "verwaltung/team": false,
-        "verwaltung/arbeitstage": false,
-        "verwaltung/praxisplanung": false,
-        "verwaltung/arbeitszeiten": false,
-        "verwaltung/sonder-sperrzeiten": false,
-        "verwaltung/praxis-praeferenzen": false,
+        "verwaltung/arbeitstage": true,
+        "verwaltung/praxisplanung": true,
+        "verwaltung/arbeitszeiten": true,
+        "verwaltung/sonder-sperrzeiten": true,
+        "verwaltung/praxis-praeferenzen": true,
         "verwaltung/vorlagen": false,
         "verwaltung/vorlagen/editor": false,
         "verwaltung/behandlungs-katalog": true,
@@ -229,6 +240,35 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("tickets", "STEUERBERATER")).toBe(false);
         expect(routeChildPathAllowed("tickets", "PHARMABERATER")).toBe(false);
     });
+    it("allows posteingang for Arzt and Rezeption only (FA-AUFG-03)", () => {
+        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("posteingang", "STEUERBERATER")).toBe(false);
+    });
+    it("GAP-01: REZEPTION cannot read medical records action", () => {
+        expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
+        expect(allowed("patient.behandlungen_list_for_zahlung", "REZEPTION")).toBe(true);
+    });
+});
+
+describe("resolveRoutePathFromLocation", () => {
+    it("maps dynamic patient paths to ROUTE_VISIBILITY keys", () => {
+        expect(resolveRoutePathFromLocation("/patienten/p-42")).toBe("patienten/:id");
+        expect(resolveRoutePathFromLocation("/patienten/p-42/rezept/neu")).toBe("patienten/:id/rezept/neu");
+    });
+
+    it("routeLocationAllowed uses resolved keys", () => {
+        expect(routeLocationAllowed("/patienten/p-1", "REZEPTION")).toBe(true);
+        expect(routeLocationAllowed("/akten/zu-validieren", "REZEPTION")).toBe(false);
+    });
+});
+
+describe("settingsSectionVisible", () => {
+    it("hides migration and system for REZEPTION", () => {
+        expect(settingsSectionVisible("migration", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("system", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("praxis", "REZEPTION")).toBe(true);
+    });
 });
 
 describe("navItemVisible", () => {
@@ -247,5 +287,12 @@ describe("navItemVisible", () => {
         for (const role of ROLES) {
             expect(navItemVisible(role, item!)).toBe(true);
         }
+    });
+
+    it("N6: REZEPTION can open Praxisplanung routes but not Team (personal HR)", () => {
+        expect(routeChildPathAllowed("verwaltung/praxisplanung", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/arbeitszeiten", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/team", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("personal", "REZEPTION")).toBe(false);
     });
 });

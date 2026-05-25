@@ -44,8 +44,8 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
     }
 
     if crypto::needs_rehash(&user.passwort_hash) {
-        let new_hash = crypto::hash_password(&req.passwort)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let new_hash =
+            crypto::hash_password(&req.passwort).map_err(|e| AppError::Internal(e.to_string()))?;
         personal_repo::update_password_hash(pool, &user.id, &new_hash).await?;
     }
 
@@ -87,7 +87,11 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
 }
 
 /// Password check without issuing a session (enrollment bootstrap).
-pub async fn verify_credentials(pool: &SqlitePool, email: &str, passwort: &str) -> Result<(), AppError> {
+pub async fn verify_credentials(
+    pool: &SqlitePool,
+    email: &str,
+    passwort: &str,
+) -> Result<(), AppError> {
     let user = personal_repo::find_by_email(pool, email)
         .await?
         .ok_or(AppError::Unauthorized)?;

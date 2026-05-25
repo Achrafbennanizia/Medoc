@@ -42,7 +42,7 @@ export function ProduktePage() {
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canWrite = role != null && allowed("produkt.write", role);
-    const canGoVerwaltung = role != null && allowed("personal.read", role);
+    const canGoVerwaltung = role != null && allowed("verwaltung.read", role);
 
     const load = useCallback(
         async (opts?: { initial?: boolean }) => {

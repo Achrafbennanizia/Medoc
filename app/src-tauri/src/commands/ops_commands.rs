@@ -61,6 +61,35 @@ pub fn validate_backup(
     backup::validate(&PathBuf::from(path))
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupResult {
+    pub requires_app_restart: bool,
+    pub restored_from: String,
+    pub pre_restore_backup_created: bool,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(app, pool, session_state, path))]
+pub async fn restore_backup(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    path: String,
+) -> Result<RestoreBackupResult, AppError> {
+    rbac::require(&session_state, "ops.backup")?;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+    let report = backup::restore_from_backup(&pool, &app_dir, &PathBuf::from(path)).await?;
+    Ok(RestoreBackupResult {
+        requires_app_restart: report.requires_app_restart,
+        restored_from: report.restored_from.display().to_string(),
+        pre_restore_backup_created: report.pre_restore_backup_created,
+    })
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn dsgvo_export_patient(
@@ -145,6 +174,7 @@ macro_rules! register_ops_commands {
         $crate::commands::ops_commands::create_backup,
         $crate::commands::ops_commands::list_backups,
         $crate::commands::ops_commands::validate_backup,
+        $crate::commands::ops_commands::restore_backup,
         $crate::commands::ops_commands::dsgvo_export_patient,
         $crate::commands::ops_commands::dsgvo_erase_patient,
         $crate::commands::ops_commands::import_patients_csv,

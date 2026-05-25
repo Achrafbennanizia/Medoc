@@ -1,7 +1,9 @@
 use crate::domain::entities::zahlung::{Bilanz, CreateZahlung, UpdateZahlung};
 use crate::domain::entities::Zahlung;
 use crate::domain::enums::ZahlungsArt;
+use crate::domain::services::pricing;
 use crate::error::AppError;
+use crate::infrastructure::database::akte_repo;
 use sqlx::SqlitePool;
 
 /// Erlaubte Abweichung bei Soll/Offen-Prüfung (EUR) — Frontend `ZAHL_EUR_EPS` entspricht diesem Wert.
@@ -213,6 +215,40 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         }
     }
 
+    if let Some(ref uid) = data.untersuchung_id {
+        let row: Option<(Option<f64>,)> = sqlx::query_as(
+            "SELECT u.gesamtkosten FROM untersuchung u
+             JOIN patientenakte a ON u.akte_id = a.id
+             WHERE u.id = ?1 AND a.patient_id = ?2",
+        )
+        .bind(uid)
+        .bind(&data.patient_id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((g_opt,)) = row {
+            if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
+                let sum_paid: f64 = sqlx::query_scalar(
+                    "SELECT COALESCE(SUM(betrag), 0) FROM zahlung
+                     WHERE untersuchung_id = ?1 AND patient_id = ?2
+                     AND (status IS NULL OR TRIM(UPPER(status)) != 'STORNIERT')",
+                )
+                .bind(uid)
+                .bind(&data.patient_id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or(0.0);
+                let open = round_money2(g - sum_paid).max(0.0);
+                if betrag > open + OPEN_BOOKING_TOLERANCE_EUR {
+                    return Err(AppError::Validation(format!(
+                        "Zahlbetrag übersteigt den offenen Betrag für diese Untersuchung (max. {:.2} €, Summe bisher {:.2} €, Soll {:.2} €).",
+                        open, sum_paid, g
+                    )));
+                }
+                betrag_erwartet = Some(open);
+            }
+        }
+    }
+
     let status = compute_payment_status(betrag, betrag_erwartet);
 
     sqlx::query(
@@ -240,11 +276,24 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
     )
 }
 
-/// Erste offene Buchung (0 €), falls noch keine Zahlungen zu dieser Behandlung existieren.
-pub async fn ensure_placeholder_for_behandlung(
+/// FA-LEIST-06: implizite Freigabe + offene Buchung (`AUSSTEHEND`, 0 €) für abrechnungsrelevante Behandlung.
+pub async fn ensure_open_booking_for_billable_behandlung(
     pool: &SqlitePool,
     behandlung_id: &str,
+    arzt_personal_id: &str,
 ) -> Result<(), AppError> {
+    let b = akte_repo::find_behandlung_by_id(pool, behandlung_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Behandlung".into()))?;
+    if !pricing::behandlung_has_billable_leistung(b.leistungsname.as_deref(), b.gesamtkosten) {
+        return Ok(());
+    }
+    if !pricing::is_released_for_billing(
+        b.freigegeben_von_arzt_id.as_deref(),
+        b.freigegeben_am.as_deref(),
+    ) {
+        akte_repo::release_behandlung_for_billing(pool, behandlung_id, arzt_personal_id).await?;
+    }
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT a.patient_id FROM behandlung b
          INNER JOIN patientenakte a ON b.akte_id = a.id
@@ -268,6 +317,9 @@ pub async fn ensure_placeholder_for_behandlung(
     if n.0 > 0 {
         return Ok(());
     }
+    let betrag_erwartet = b
+        .gesamtkosten
+        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
     create(
         pool,
         &CreateZahlung {
@@ -275,10 +327,76 @@ pub async fn ensure_placeholder_for_behandlung(
             betrag: 0.0,
             zahlungsart: ZahlungsArt::Rechnung,
             leistung_id: None,
-            beschreibung: Some("Automatisch beim Anlegen: offene Abrechnung (Behandlung).".into()),
+            beschreibung: Some(
+                "Automatisch nach Leistungseingabe: offene Abrechnung (FA-LEIST-06).".into(),
+            ),
             behandlung_id: Some(behandlung_id.to_string()),
             untersuchung_id: None,
-            betrag_erwartet: None,
+            betrag_erwartet,
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+/// FA-LEIST-06/07: implizite Freigabe + offene Buchung für abrechnungsrelevante Untersuchung.
+pub async fn ensure_open_booking_for_billable_untersuchung(
+    pool: &SqlitePool,
+    untersuchung_id: &str,
+    arzt_personal_id: &str,
+) -> Result<(), AppError> {
+    let u = akte_repo::find_untersuchung_by_id(pool, untersuchung_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Untersuchung".into()))?;
+    if !pricing::behandlung_has_billable_leistung(u.leistungsname.as_deref(), u.gesamtkosten) {
+        return Ok(());
+    }
+    if !pricing::is_released_for_billing(
+        u.freigegeben_von_arzt_id.as_deref(),
+        u.freigegeben_am.as_deref(),
+    ) {
+        akte_repo::release_untersuchung_for_billing(pool, untersuchung_id, arzt_personal_id)
+            .await?;
+    }
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT a.patient_id FROM untersuchung u
+         INNER JOIN patientenakte a ON u.akte_id = a.id
+         WHERE u.id = ?1",
+    )
+    .bind(untersuchung_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((patient_id,)) = row else {
+        return Ok(());
+    };
+    let n: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM zahlung
+         WHERE patient_id = ?1 AND untersuchung_id = ?2
+           AND (status IS NULL OR TRIM(UPPER(status)) != 'STORNIERT')",
+    )
+    .bind(&patient_id)
+    .bind(untersuchung_id)
+    .fetch_one(pool)
+    .await?;
+    if n.0 > 0 {
+        return Ok(());
+    }
+    let betrag_erwartet = u
+        .gesamtkosten
+        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+    create(
+        pool,
+        &CreateZahlung {
+            patient_id,
+            betrag: 0.0,
+            zahlungsart: ZahlungsArt::Rechnung,
+            leistung_id: None,
+            beschreibung: Some(
+                "Automatisch nach Leistungseingabe: offene Abrechnung (FA-LEIST-06/07).".into(),
+            ),
+            behandlung_id: None,
+            untersuchung_id: Some(untersuchung_id.to_string()),
+            betrag_erwartet,
         },
     )
     .await?;
@@ -333,12 +451,13 @@ pub async fn ensure_placeholder_for_untersuchung(
 }
 
 pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Zahlung, AppError> {
-    let row: Option<(String, Option<String>, String)> =
-        sqlx::query_as("SELECT status, behandlung_id, patient_id FROM zahlung WHERE id = ?1")
-            .bind(&data.id)
-            .fetch_optional(pool)
-            .await?;
-    let Some((st, behandlung_id, patient_id)) = row else {
+    let row: Option<(String, Option<String>, Option<String>, String)> = sqlx::query_as(
+        "SELECT status, behandlung_id, untersuchung_id, patient_id FROM zahlung WHERE id = ?1",
+    )
+    .bind(&data.id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((st, behandlung_id, untersuchung_id, patient_id)) = row else {
         return Err(AppError::NotFound("Zahlung".into()));
     };
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
@@ -387,6 +506,41 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
             }
         }
     }
+
+    if let Some(ref uid) = untersuchung_id {
+        let row: Option<(Option<f64>,)> = sqlx::query_as(
+            "SELECT u.gesamtkosten FROM untersuchung u
+             JOIN patientenakte a ON u.akte_id = a.id
+             WHERE u.id = ?1 AND a.patient_id = ?2",
+        )
+        .bind(uid)
+        .bind(&patient_id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((g_opt,)) = row {
+            if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
+                let sum_others: f64 = sqlx::query_scalar(
+                    "SELECT COALESCE(SUM(betrag), 0) FROM zahlung
+                     WHERE untersuchung_id = ?1 AND patient_id = ?2 AND id != ?3
+                     AND (status IS NULL OR TRIM(UPPER(status)) != 'STORNIERT')",
+                )
+                .bind(uid)
+                .bind(&patient_id)
+                .bind(&data.id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or(0.0);
+                let max_for_row = round_money2(g - sum_others).max(0.0);
+                if data.betrag > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
+                    return Err(AppError::Validation(format!(
+                        "Zahlbetrag übersteigt den zulässigen Rahmen für diese Untersuchung (max. {:.2} € inkl. dieser Buchung).",
+                        max_for_row
+                    )));
+                }
+            }
+        }
+    }
+
     sqlx::query(
         "UPDATE zahlung SET betrag = ?1, zahlungsart = ?2, leistung_id = ?3, beschreibung = ?4 WHERE id = ?5",
     )

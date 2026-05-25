@@ -10,6 +10,10 @@ pub struct Untersuchung {
     pub diagnose: Option<String>,
     pub untersuchungsnummer: Option<String>,
     pub created_at: NaiveDateTime,
+    /// FA-LEIST-07: Abrechnungsleistung (Parität zu `behandlung`).
+    pub kategorie: Option<String>,
+    pub leistungsname: Option<String>,
+    pub gesamtkosten: Option<f64>,
     /// FA-LEIST-05: vor Buchung einer Zahlung mit `untersuchung_id` gesetzt werden.
     pub freigegeben_von_arzt_id: Option<String>,
     pub freigegeben_am: Option<String>,
@@ -23,6 +27,12 @@ pub struct CreateUntersuchung {
     pub diagnose: Option<String>,
     #[serde(default)]
     pub untersuchungsnummer: Option<String>,
+    #[serde(default)]
+    pub kategorie: Option<String>,
+    #[serde(default)]
+    pub leistungsname: Option<String>,
+    #[serde(default)]
+    pub gesamtkosten: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -81,6 +91,12 @@ pub struct UpdateUntersuchung {
     pub beschwerden: Option<String>,
     pub ergebnisse: Option<String>,
     pub diagnose: Option<String>,
+    #[serde(default)]
+    pub kategorie: Option<String>,
+    #[serde(default)]
+    pub leistungsname: Option<String>,
+    #[serde(default)]
+    pub gesamtkosten: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

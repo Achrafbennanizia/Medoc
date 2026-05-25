@@ -1,5 +1,7 @@
 pub mod app_menu;
 pub mod backup;
+pub mod clinical_pdf_layout;
+pub mod clinical_text_format;
 pub mod company_host;
 pub mod company_portal;
 pub mod cors_policy;
@@ -14,8 +16,6 @@ pub mod logging;
 pub mod migration;
 pub mod notifications;
 pub mod payment;
-pub mod clinical_pdf_layout;
-pub mod clinical_text_format;
 pub mod pdf;
 pub mod pdf_core;
 pub mod pdf_letterhead;

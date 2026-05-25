@@ -45,7 +45,9 @@ async fn arzt_slot_conflict_detects_duplicate() {
         exclude_termin_id: None,
     };
     assert!(
-        konflikt::has_arzt_slot_conflict(&pool, q).await.expect("query"),
+        konflikt::has_arzt_slot_conflict(&pool, q)
+            .await
+            .expect("query"),
         "duplicate slot should conflict"
     );
 
@@ -56,7 +58,9 @@ async fn arzt_slot_conflict_detects_duplicate() {
         exclude_termin_id: Some("t-conflict-a"),
     };
     assert!(
-        !konflikt::has_arzt_slot_conflict(&pool, q2).await.expect("query exclude"),
+        !konflikt::has_arzt_slot_conflict(&pool, q2)
+            .await
+            .expect("query exclude"),
         "same row excluded → no conflict"
     );
 }
@@ -71,6 +75,16 @@ fn pricing_round_trip_and_release() {
         Some("2026-01-01")
     ));
     assert!(!pricing::is_released_for_billing(Some("arzt-1"), None));
+    assert!(pricing::behandlung_has_billable_leistung(
+        Some("Füllung"),
+        None
+    ));
+    assert!(pricing::behandlung_has_billable_leistung(None, Some(42.0)));
+    assert!(!pricing::behandlung_has_billable_leistung(None, None));
+    assert!(!pricing::behandlung_has_billable_leistung(
+        Some("  "),
+        Some(0.0)
+    ));
     assert_eq!(
         pricing::invoice_amount_cents_behandlung(Some(50.0), 0.0),
         5000
@@ -81,43 +95,64 @@ fn pricing_round_trip_and_release() {
 
 #[test]
 fn workflow_termin_transitions() {
-    assert!(
-        workflow_transitions::termin_status_transition("GEPLANT", "BESTAETIGT").is_ok()
-    );
-    assert!(
-        workflow_transitions::termin_status_transition("DURCHGEFUEHRT", "GEPLANT").is_err()
-    );
+    assert!(workflow_transitions::termin_status_transition("GEPLANT", "BESTAETIGT").is_ok());
+    assert!(workflow_transitions::termin_status_transition("DURCHGEFUEHRT", "GEPLANT").is_err());
 }
 
 #[test]
 fn workflow_patientenakte_validate() {
-    assert!(
-        workflow_transitions::patientenakte_validate_transition("ENTWURF").is_ok()
-    );
-    assert!(
-        workflow_transitions::patientenakte_validate_transition("VALIDIERT").is_err()
-    );
+    assert!(workflow_transitions::patientenakte_validate_transition("ENTWURF").is_ok());
+    assert!(workflow_transitions::patientenakte_validate_transition("VALIDIERT").is_err());
+}
+
+#[test]
+fn workflow_praxis_aufgabe_transitions() {
+    use medoc_lib::application::rbac::Role;
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "OFFEN",
+        "IN_BEARBEITUNG",
+        Role::Rezeption,
+        Some("REZEPTION"),
+        None,
+        "seed-arzt-001",
+        "seed-rez-001",
+    )
+    .is_ok());
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "ERLEDIGT_REZEPTION",
+        "VALIDIERT",
+        Role::Arzt,
+        Some("REZEPTION"),
+        None,
+        "seed-arzt-001",
+        "seed-arzt-001",
+    )
+    .is_ok());
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "VALIDIERT",
+        "OFFEN",
+        Role::Arzt,
+        Some("REZEPTION"),
+        None,
+        "seed-arzt-001",
+        "seed-arzt-001",
+    )
+    .is_err());
 }
 
 #[test]
 fn workflow_bestellung_and_ticket() {
-    assert!(
-        workflow_transitions::bestellung_status_transition("OFFEN", "UNTERWEGS").is_ok()
-    );
-    assert!(
-        workflow_transitions::bestellung_status_transition("GELIEFERT", "OFFEN").is_err()
-    );
+    assert!(workflow_transitions::bestellung_status_transition("OFFEN", "UNTERWEGS").is_ok());
+    assert!(workflow_transitions::bestellung_status_transition("GELIEFERT", "OFFEN").is_err());
     assert!(
         workflow_transitions::praxis_ticket_status_transition("OFFEN", "IN_BEARBEITUNG").is_ok()
     );
-    assert!(
-        workflow_transitions::praxis_ticket_status_transition("ERLEDIGT", "OFFEN").is_err()
-    );
+    assert!(workflow_transitions::praxis_ticket_status_transition("ERLEDIGT", "OFFEN").is_err());
 }
 
 #[test]
 fn pricing_require_release_maps_to_validation() {
-    let err = pricing::require_released_for_billing(None, None, "Behandlung")
-        .expect_err("must fail");
+    let err =
+        pricing::require_released_for_billing(None, None, "Behandlung").expect_err("must fail");
     assert!(matches!(err, AppError::Validation(_)));
 }

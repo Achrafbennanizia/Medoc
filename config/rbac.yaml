@@ -43,6 +43,10 @@ permissions:
   verwaltung.kataloge.write: finanzen_staff
   verwaltung.vorlagen.read: arzt_only
   verwaltung.vorlagen.write: arzt_only
+  # Verwaltung sub-areas (decouple from `personal.*` HR permissions — N6).
+  verwaltung.team.read: arzt_only
+  verwaltung.praxisplanung.read: clinical_frontdesk
+  verwaltung.praxisplanung.write: clinical_frontdesk
   finanzen.tagesabschluss.write: finanzen_staff
   personal.read: arzt_only
   personal.write: arzt_only

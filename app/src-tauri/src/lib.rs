@@ -3,9 +3,10 @@ pub mod commands;
 pub mod domain;
 pub mod error;
 pub mod infrastructure;
+pub mod systems;
 
-use commands::auth_commands::{BruteForceState, SessionState};
 use commands::audit_chain_commands::AuditChainGuardExt;
+use commands::auth_commands::{BruteForceState, SessionState};
 use infrastructure::database;
 use infrastructure::logging::{self, brute_force::BruteForceTracker};
 use std::sync::Arc;
@@ -188,14 +189,11 @@ pub fn run() {
             infrastructure::app_menu::handle_menu_event(app, &event);
         });
     let app = commands::register::register_invoke_handler(app);
-    app
-        .run(tauri::generate_context!())
-        .unwrap_or_else(|e| {
-            // Last-resort log; tracing may not be initialised if `setup` failed,
-            // so we always echo to stderr too.
-            tracing::error!(target: "medoc::system", event = "APP_FATAL", error = %e);
-            eprintln!("medoc fatal: {e}");
-            std::process::exit(1);
-        });
+    app.run(tauri::generate_context!()).unwrap_or_else(|e| {
+        // Last-resort log; tracing may not be initialised if `setup` failed,
+        // so we always echo to stderr too.
+        tracing::error!(target: "medoc::system", event = "APP_FATAL", error = %e);
+        eprintln!("medoc fatal: {e}");
+        std::process::exit(1);
+    });
 }
-

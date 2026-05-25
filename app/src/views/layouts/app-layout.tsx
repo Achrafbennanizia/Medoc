@@ -6,6 +6,8 @@ import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "../../controllers/auth.controller";
 import { listPatienten } from "../../controllers/patient.controller";
 import { breakGlassActivate } from "../../controllers/break-glass.controller";
+import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "../../controllers/akte-workflow.controller";
+import { countOpenPraxisAufgabenForMe } from "../../controllers/praxis-aufgabe.controller";
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "../../lib/rbac";
 import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
@@ -13,6 +15,7 @@ import { ExportPreviewHost } from "../components/export-preview-host";
 import { shouldShowPraxisSetupWizard } from "@/lib/praxis-completeness";
 import { PraxisSetupWizard } from "../components/praxis-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
+import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "../components/ui/toast-store";
 import { ToastContainer } from "../components/ui/toast";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
@@ -22,6 +25,7 @@ import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, NA
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
+import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
@@ -29,8 +33,13 @@ import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
 import { allowed } from "@/lib/rbac";
+import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
 import { loadClientSettings } from "../../lib/client-settings";
+import {
+    hydrateInvoicePraxisFromAppKv,
+    migrateInvoicePraxisLocalStorageToAppKv,
+} from "@/lib/invoice-leistung";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/controllers/native-menu.controller";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
@@ -44,6 +53,7 @@ function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/patienten/neu") return ["MeDoc", "Patienten", "Neuer Patient"];
     if (pathname === "/bilanz/neu") return ["MeDoc", "Bilanz", "Neuer Bilanz"];
     if (pathname === "/akten/zu-validieren") return ["MeDoc", "Patienten", "Akten zu validieren"];
+    if (pathname === "/posteingang") return ["MeDoc", "Posteingang"];
     if (pathname === "/tickets") return ["MeDoc", "Praxis-Tickets"];
     if (pathname === "/verwaltung") return ["MeDoc", "Verwaltung"];
     if (pathname === "/verwaltung/arbeitstage") return ["MeDoc", "Verwaltung", "Arbeitstage"];
@@ -90,6 +100,7 @@ const CRUMBS: Record<string, string[]> = {
     "/termine/neu": ["MeDoc", "Terminübersicht", "Neuer Termin"],
     "/patienten": ["MeDoc", "Patienten"],
     "/akten/zu-validieren": ["MeDoc", "Patienten", "Akten zu validieren"],
+    "/posteingang": ["MeDoc", "Posteingang"],
     "/tickets": ["MeDoc", "Praxis-Tickets"],
     "/finanzen": ["MeDoc", "Finanzen"],
     "/finanzen/neu": ["MeDoc", "Finanzen", "Neue Zahlung"],
@@ -134,7 +145,7 @@ const CRUMBS: Record<string, string[]> = {
 
 const NAV_SECTIONS: Array<{ label: string; items: string[] }> = [
     { label: "Übersicht", items: ["/", "/termine"] },
-    { label: "Behandlung", items: ["/patienten", "/akten/zu-validieren", "/tickets", "/rezepte", "/statistik"] },
+    { label: "Behandlung", items: ["/patienten", "/akten/zu-validieren", "/posteingang", "/tickets", "/rezepte", "/statistik"] },
     { label: "Praxis", items: ["/finanzen", "/bestellungen", "/verwaltung", "/einstellungen"] },
 ];
 
@@ -212,6 +223,9 @@ export function AppLayout() {
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [inAppUnread, setInAppUnread] = useState(0);
+    const [aktenZuValidierenCount, setAktenZuValidierenCount] = useState(0);
+    const [openPraxisTicketsCount, setOpenPraxisTicketsCount] = useState(0);
+    const [openPraxisAufgabenCount, setOpenPraxisAufgabenCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -282,16 +296,58 @@ export function AppLayout() {
         }
     }, [session?.user_id]);
 
+    const refreshNavBadges = useCallback(async () => {
+        const rolle = session?.rolle;
+        if (rolle !== "ARZT" && rolle !== "REZEPTION") {
+            setAktenZuValidierenCount(0);
+            setOpenPraxisTicketsCount(0);
+            setOpenPraxisAufgabenCount(0);
+            return;
+        }
+        try {
+            const aufgabenP = countOpenPraxisAufgabenForMe();
+            if (rolle === "ARZT") {
+                const [akten, tickets, aufgaben] = await Promise.all([
+                    countAktenZuValidieren(),
+                    countOpenPraxisTicketsForMe(),
+                    aufgabenP,
+                ]);
+                setAktenZuValidierenCount(typeof akten === "number" && akten > 0 ? akten : 0);
+                setOpenPraxisTicketsCount(typeof tickets === "number" && tickets > 0 ? tickets : 0);
+                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
+            } else {
+                const aufgaben = await aufgabenP;
+                setAktenZuValidierenCount(0);
+                setOpenPraxisTicketsCount(0);
+                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
+            }
+        } catch {
+            setAktenZuValidierenCount(0);
+            setOpenPraxisTicketsCount(0);
+            setOpenPraxisAufgabenCount(0);
+        }
+    }, [session?.rolle]);
+
     const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
 
     useEffect(() => {
         void refreshInAppUnread();
-    }, [refreshInAppUnread, location.pathname]);
+        void refreshNavBadges();
+    }, [refreshInAppUnread, refreshNavBadges, location.pathname]);
 
     useEffect(() => {
-        const id = window.setInterval(() => void refreshInAppUnread(), 120_000);
+        const id = window.setInterval(() => {
+            void refreshInAppUnread();
+            void refreshNavBadges();
+        }, 120_000);
         return () => window.clearInterval(id);
-    }, [refreshInAppUnread]);
+    }, [refreshInAppUnread, refreshNavBadges]);
+
+    useEffect(() => {
+        const onBadges = () => void refreshNavBadges();
+        window.addEventListener("medoc-nav-badges-refresh", onBadges);
+        return () => window.removeEventListener("medoc-nav-badges-refresh", onBadges);
+    }, [refreshNavBadges]);
 
     // Inactivity guard (FA-AUTH-03 / NFA-SEC-09): the backend expires sessions after 30 min.
     // Throttle activity pings to once every 30 s and poll the session status
@@ -486,6 +542,19 @@ export function AppLayout() {
         return () => window.removeEventListener("medoc-request-logout", onReq);
     }, []);
 
+    const sessionUserId = session?.user_id;
+    useEffect(() => {
+        if (!sessionUserId) return;
+        void (async () => {
+            try {
+                await migrateInvoicePraxisLocalStorageToAppKv();
+                await hydrateInvoicePraxisFromAppKv();
+            } catch (e) {
+                toast(`Praxis-Stammdaten konnten nicht synchronisiert werden: ${errorMessage(e)}`, "warning");
+            }
+        })();
+    }, [sessionUserId, toast]);
+
     useEffect(() => {
         if (!session) return;
         const mins = loadClientSettings().security?.idleLogoutMinutes ?? 0;
@@ -513,8 +582,13 @@ export function AppLayout() {
 
     useEffect(() => {
         if (!breakOpen) return;
-        listPatienten().then(setBgPatients).catch(() => { setBgPatients([]); });
-    }, [breakOpen]);
+        listPatienten()
+            .then(setBgPatients)
+            .catch((e) => {
+                setBgPatients([]);
+                toast(`Patientenliste (Break-Glass) konnte nicht geladen werden: ${errorMessage(e)}`, "error");
+            });
+    }, [breakOpen, toast]);
 
     useEffect(() => {
         const onOnline = () => setIsOnline(true);
@@ -996,6 +1070,21 @@ export function AppLayout() {
                                             <span className="sb-item-label" aria-hidden="true">
                                                 {label}
                                             </span>
+                                            {item.to === "/akten/zu-validieren" && aktenZuValidierenCount > 0 ? (
+                                                <span className="count" aria-label={`${aktenZuValidierenCount} ausstehend`}>
+                                                    {aktenZuValidierenCount > 99 ? "99+" : aktenZuValidierenCount}
+                                                </span>
+                                            ) : null}
+                                            {item.to === "/tickets" && openPraxisTicketsCount > 0 ? (
+                                                <span className="count" aria-label={`${openPraxisTicketsCount} offen`}>
+                                                    {openPraxisTicketsCount > 99 ? "99+" : openPraxisTicketsCount}
+                                                </span>
+                                            ) : null}
+                                            {item.to === "/posteingang" && openPraxisAufgabenCount > 0 ? (
+                                                <span className="count" aria-label={`${openPraxisAufgabenCount} offen`}>
+                                                    {openPraxisAufgabenCount > 99 ? "99+" : openPraxisAufgabenCount}
+                                                </span>
+                                            ) : null}
                                         </NavLink>
                                     );
                                 })}
@@ -1094,12 +1183,15 @@ export function AppLayout() {
                     aria-label={t("app.title")}
                 >
                     <Suspense fallback={<PageLoading label="Seite wird geladen…" />}>
-                        <Outlet />
+                        <RouteOutletGuard>
+                            <Outlet />
+                        </RouteOutletGuard>
                     </Suspense>
                 </main>
             </div>
             </div>
 
+            <OnboardingCoachmark rolle={session?.rolle} />
             <ToastContainer />
             <ExportPreviewHost />
             <PraxisSetupWizard open={praxisSetupOpen} onClose={() => setPraxisSetupOpen(false)} />

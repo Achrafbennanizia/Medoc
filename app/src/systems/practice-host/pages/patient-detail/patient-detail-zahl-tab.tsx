@@ -1,6 +1,9 @@
 import { type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { Behandlung, Untersuchung, Zahlung, ZahlungsArt } from "@/models/types";
 import { itemValidationKey, type ValidationRecord } from "@/lib/akte-validation";
+import { billingReleaseErrorDe } from "@/lib/billing-release";
+
+const requireReleasedHint = billingReleaseErrorDe("Behandlung");
 import { ShieldCheckIcon } from "@/lib/icons";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
@@ -394,7 +397,7 @@ const zahlEditPanelFooter =
                     <div>
                         <div className="akte-inline-panel-title">Neue Zahlung</div>
                         <div className="akte-inline-panel-sub">
-                            Zuordnung nur zu noch offenen B-/U-Zeilen (Bei gesetztem Behandlungssoll ohne Rest wird die Zeile ausgeblendet). Erwartete Kosten sind bei der Behandlung hinterlegt.
+                            Zuordnung nur zu noch offenen Behandlungs- oder Untersuchungszeilen mit ärztlicher Abrechnungsfreigabe (FA-LEIST-05; kein Katalog-Leistungseintrag). Ohne Freigabe: {`„${requireReleasedHint}“`}
                         </div>
                     </div>
                     <Button

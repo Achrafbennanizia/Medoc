@@ -12,7 +12,7 @@
 
 | Typ | Abkürzung | Beschreibung | Anzahl |
 |-----|-----------|-------------|--------|
-| Funktionale Anforderung | FA | Systemverhalten und Funktionen | 83 |
+| Funktionale Anforderung | FA | Systemverhalten und Funktionen | 91 |
 | Nicht-funktionale Anforderung | NFA | Qualitätsmerkmale und Randbedingungen | 18 |
 | Benutzeranforderung | BA | Erwartungen aus Nutzersicht | 10 |
 | Systemanforderung | SA | Technische Realisierungsvorgaben | 8 |
@@ -33,7 +33,8 @@ MeDoc
 ├── Administrativer Bereich
 │   ├── FA-FIN  (Finanzen)                [8 Anforderungen]
 │   ├── FA-PROD (Produkte)                [5 Anforderungen]
-│   ├── FA-LEIST (Leistungen)             [5 Anforderungen]    ← +1 aus WAAD (6.1.2/6.2.4, Arzt-Freigabe)
+│   ├── FA-LEIST (Leistungen)             [7 Anforderungen]    ← +LEIST-06/07 (Abrechnung, Untersuchung-Preis)
+│   ├── FA-AUFG (Praxis-Aufgaben)         [6 Anforderungen]    ← Arzt↔Rezeption sync, Validierung (2026-05-21)
 │   └── FA-PERS (Personal)               [9 Anforderungen]    ← +2 aus WAAD (1.2.2 Override, 1.4 Ticket-System)
 ├── System & Zugang
 │   ├── FA-AUTH  (Authentifizierung)      [4 Anforderungen] — NEU

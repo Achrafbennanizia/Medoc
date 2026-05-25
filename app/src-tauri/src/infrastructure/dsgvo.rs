@@ -85,7 +85,9 @@ pub async fn erase_patient(
     }
 
     let backups_redacted = redact_patient_from_all_backups(app_data_dir, patient_id).await?;
-    let log_files_redacted = sanitizer::redact_patient_id_in_logs(patient_id)?.redacted_files.len() as u32;
+    let log_files_redacted = sanitizer::redact_patient_id_in_logs(patient_id)?
+        .redacted_files
+        .len() as u32;
 
     log_system!(warn,
         event = "DSGVO_ERASURE",

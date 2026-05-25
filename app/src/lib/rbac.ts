@@ -68,6 +68,7 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     { to: "/termine", labelKey: "nav.termine", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", visibility: { kind: "action", action: "patient.read" } },
     { to: "/akten/zu-validieren", labelKey: "nav.akten_zu_validieren", visibility: { kind: "action", action: "patient.read_medical" } },
+    { to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
@@ -97,6 +98,7 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "patienten/:id/rezept/neu": { kind: "action", action: "patient.write_medical" },
     "patienten/:id/rezept/:rezeptId": { kind: "action", action: "patient.write_medical" },
     "akten/zu-validieren": { kind: "action", action: "patient.read_medical" },
+    posteingang: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
     tickets: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
     finanzen: { kind: "action", action: "finanzen.read" },
     "finanzen/neu": { kind: "action", action: "finanzen.write" },
@@ -124,12 +126,12 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     feedback: { kind: "action", action: "dashboard.read" },
     migration: { kind: "action", action: "ops.migration" },
     verwaltung: { kind: "action", action: "verwaltung.read" },
-    "verwaltung/team": { kind: "action", action: "personal.read" },
-    "verwaltung/arbeitstage": { kind: "action", action: "personal.read" },
-    "verwaltung/praxisplanung": { kind: "action", action: "personal.read" },
-    "verwaltung/arbeitszeiten": { kind: "action", action: "personal.read" },
-    "verwaltung/sonder-sperrzeiten": { kind: "action", action: "personal.read" },
-    "verwaltung/praxis-praeferenzen": { kind: "action", action: "personal.read" },
+    "verwaltung/team": { kind: "action", action: "verwaltung.team.read" },
+    "verwaltung/arbeitstage": { kind: "action", action: "verwaltung.praxisplanung.read" },
+    "verwaltung/praxisplanung": { kind: "action", action: "verwaltung.praxisplanung.read" },
+    "verwaltung/arbeitszeiten": { kind: "action", action: "verwaltung.praxisplanung.read" },
+    "verwaltung/sonder-sperrzeiten": { kind: "action", action: "verwaltung.praxisplanung.read" },
+    "verwaltung/praxis-praeferenzen": { kind: "action", action: "verwaltung.praxisplanung.read" },
     "verwaltung/vorlagen": { kind: "action", action: "verwaltung.vorlagen.read" },
     "verwaltung/vorlagen/editor": { kind: "action", action: "verwaltung.vorlagen.write" },
     "verwaltung/behandlungs-katalog": { kind: "action", action: "verwaltung.kataloge.read" },
@@ -173,4 +175,83 @@ export function routeChildPathAllowed(
     const visibility = ROUTE_VISIBILITY[routePath];
     if (!visibility) return false;
     return navVisibilitySatisfied(visibility, rolle, overrides);
+}
+
+/** Normalize App route path (no leading slash, no query). */
+export function routePathFromLocation(pathname: string): string {
+    const p = pathname.replace(/^\//, "").split("?")[0] ?? "";
+    if (p === "") return "";
+    return p;
+}
+
+function routePatternToRegExp(pattern: string): RegExp {
+    const parts = pattern.split("/").map((seg) =>
+        seg.startsWith(":") ? "[^/]+" : seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+    return new RegExp(`^${parts.join("/")}$`);
+}
+
+/** Map browser path to {@link ROUTE_VISIBILITY} key (supports `:id` segments). */
+export function resolveRoutePathFromLocation(pathname: string): string {
+    const path = routePathFromLocation(pathname);
+    if (path in ROUTE_VISIBILITY) return path;
+    const segments = path.split("/");
+    let best: string | null = null;
+    let bestLiteralMatches = -1;
+    for (const pattern of Object.keys(ROUTE_VISIBILITY)) {
+        if (!routePatternToRegExp(pattern).test(path)) continue;
+        const patternSegs = pattern.split("/");
+        let literalMatches = 0;
+        for (let i = 0; i < patternSegs.length; i++) {
+            const ps = patternSegs[i]!;
+            if (!ps.startsWith(":") && segments[i] === ps) literalMatches++;
+        }
+        if (
+            literalMatches > bestLiteralMatches ||
+            (literalMatches === bestLiteralMatches && (best == null || pattern.length > best.length))
+        ) {
+            best = pattern;
+            bestLiteralMatches = literalMatches;
+        }
+    }
+    return best ?? path;
+}
+
+/** Authorize current URL for role (used by layout outlet guard). */
+export function routeLocationAllowed(
+    pathname: string,
+    rolle: string | undefined,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    return routeChildPathAllowed(resolveRoutePathFromLocation(pathname), rolle, overrides);
+}
+
+export type SettingsSectionId =
+    | "praxis"
+    | "konto"
+    | "benachrichtigungen"
+    | "sicherheit"
+    | "lizenz"
+    | "integrationen"
+    | "migration"
+    | "darstellung"
+    | "arbeitsablaeufe"
+    | "system"
+    | "ueber";
+
+/** Einstellungen sub-panels (page is already gated by `einstellungen` route). */
+export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavVisibility>> = {
+    migration: { kind: "action", action: "ops.migration" },
+    system: { kind: "anyOf", actions: ["ops.backup", "ops.system", "ops.logs"] },
+};
+
+export function settingsSectionVisible(
+    section: string,
+    rolle: string | undefined,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    if (!routeChildPathAllowed("einstellungen", rolle, overrides)) return false;
+    const vis = SETTINGS_SECTION_VISIBILITY[section as SettingsSectionId];
+    if (!vis) return true;
+    return navVisibilitySatisfied(vis, rolle, overrides);
 }

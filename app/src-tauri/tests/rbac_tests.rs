@@ -40,6 +40,9 @@ fn rezeption_cannot_read_medical_records_or_audit() {
     assert!(allowed("patient.read_documents", Role::Rezeption));
     assert!(!allowed("audit.read", Role::Rezeption));
     assert!(!allowed("personal.read", Role::Rezeption));
+    assert!(!allowed("verwaltung.team.read", Role::Rezeption));
+    assert!(allowed("verwaltung.praxisplanung.read", Role::Rezeption));
+    assert!(allowed("verwaltung.praxisplanung.write", Role::Rezeption));
     assert!(!allowed("ops.backup", Role::Rezeption));
     assert!(allowed("termin.list_aerzte", Role::Rezeption));
     assert!(allowed("verwaltung.read", Role::Rezeption));

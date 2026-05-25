@@ -252,8 +252,12 @@ export function TerminePage() {
             });
         };
         const refreshPraxisPlan = () => {
-            void loadPraxisArbeitszeitenConfig().then(setPraxisPlanCfg).catch(() => {});
-            void listAbwesenheiten().then(setAbwesenheiten).catch(() => {});
+            void loadPraxisArbeitszeitenConfig()
+                .then(setPraxisPlanCfg)
+                .catch((e) => toast(`Arbeitszeiten konnten nicht geladen werden: ${errorMessage(e)}`, "warning"));
+            void listAbwesenheiten()
+                .then(setAbwesenheiten)
+                .catch((e) => toast(`Abwesenheiten konnten nicht geladen werden: ${errorMessage(e)}`, "warning"));
         };
         refreshMonthCalPrefs();
         refreshPraxisPlan();
@@ -265,7 +269,7 @@ export function TerminePage() {
         };
         document.addEventListener("visibilitychange", onVis);
         return () => document.removeEventListener("visibilitychange", onVis);
-    }, [location.pathname]);
+    }, [location.pathname, toast]);
 
     useEffect(() => {
         const cur = loadClientSettings();
@@ -900,6 +904,22 @@ export function TerminePage() {
                         <button type="button" aria-pressed={view === "monat"} onClick={() => setView("monat")}>Monat</button>
                     </div>
                     <div className="schedule-quick-actions">
+                        {!loadClientSettings().workflows?.calendarEmergencyToolbarEnabled ? (
+                            <p
+                                className="termin-cal-banner"
+                                style={{
+                                    margin: 0,
+                                    padding: "6px 10px",
+                                    fontSize: 12,
+                                    color: "var(--fg-3)",
+                                    borderRadius: 8,
+                                    background: "var(--surface-2)",
+                                    maxWidth: 280,
+                                }}
+                            >
+                                Pause/Notfall-Werkzeuge sind deaktiviert (Einstellungen → Arbeitsabläufe). Der Notfall-Filter bleibt aktiv.
+                            </p>
+                        ) : null}
                         <div className="termin-filter-anchor" ref={filterPopoverWrapRef}>
                             <button
                                 type="button"
