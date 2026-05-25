@@ -1,6 +1,6 @@
 //! Backup HMAC sidecars and GFS retention (TASK 2.6).
 
-use chrono::{Duration, Utc};
+use chrono::{Datelike, Duration, Utc};
 use medoc_lib::infrastructure::backup::{enforce_retention_at, parse_backup_timestamp, sign_file};
 use medoc_lib::infrastructure::database::audit_repo;
 use std::path::PathBuf;
@@ -149,7 +149,13 @@ fn backup_retention_keeps_daily_weekly_and_drops_ancient() {
     let now = Utc::now();
 
     let fresh = dir.join(ts_name(now - Duration::days(5)));
-    let week_anchor = now - Duration::weeks(8);
+    // Pin the weekly anchor to Wednesday of its ISO week so the anchor and the
+    // anchor-minus-one-day both land in the same ISO week regardless of which
+    // day-of-week `now` falls on. (Previously `now` on Mon/Sun shifted the pair
+    // across an ISO-week boundary and broke the XOR assertion below.)
+    let week_anchor_raw = now - Duration::weeks(8);
+    let weekday_iso = week_anchor_raw.weekday().number_from_monday() as i64;
+    let week_anchor = week_anchor_raw + Duration::days(3 - weekday_iso);
     let old_week_a = dir.join(ts_name(week_anchor - Duration::days(1)));
     let old_week_b = dir.join(ts_name(week_anchor));
     let monthly = dir.join(ts_name(now - Duration::days(200)));
