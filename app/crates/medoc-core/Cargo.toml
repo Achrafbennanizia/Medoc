@@ -1,0 +1,12 @@
+[package]
+name = "medoc-core"
+version = "0.1.0"
+edition = "2021"
+description = "MeDoc shared domain + non-Tauri infrastructure (database, crypto, logging, PDF, …)."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Wave B3 placeholder: real lifts (domain, error, crypto, database, logging, …) happen in Wave B5+.

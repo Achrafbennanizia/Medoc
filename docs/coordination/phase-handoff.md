@@ -1,7 +1,7 @@
 # Phase handoff
 
-**Last phase label:** Workspace restructure — Wave A (legacy shim cleanup)  
-**Last closed:** 2026-05-25 — `f402f28`; **PASS** (npm lint/test 155/build, cargo unchanged from previous green); waves B/C/D not started
+**Last phase label:** Workspace restructure — Wave B1 (mapping) + B3 (skeleton)  
+**Last closed:** 2026-05-25 — workspace skeleton at `app/Cargo.toml` + `app/crates/medoc-{codegen,core}/`; **PASS** (`cargo check/test/clippy --workspace`); no source code lifted yet
 
 ### Workspace restructure (2026-05-25)
 
@@ -10,7 +10,11 @@
 | Checkpoint `33171bd` — wave-23 state committed | **PASS** (safe rollback point established) |
 | Backup retention test `dbd146d` — day-of-week independent fix | **PASS** (`cargo test --test backup_tests` + full `cargo test --tests` + `clippy -D warnings`) |
 | Wave A `f402f28` — drop 41 controller shims + 15 page shims; repoint imports | **PASS** (`npm run lint`, `npm test` 155/28, `npm run build`) |
-| Wave B — Cargo workspace split | **NOT STARTED** — scope too large for single session (179 .rs, ~500–700 use-paths, Tauri leakage in `application/`); see [`restructure-plan.md`](restructure-plan.md) Wave B |
+| Wave B1 — per-module crate mapping document [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md) | **DONE** (evidence-backed; 6 constraints catalogued) |
+| Wave B3 — workspace skeleton (`app/Cargo.toml` + 2 empty placeholder crates) | **PASS** (`cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace -D warnings`) |
+| Wave C prep — `app/src/lib/*` category mapping [`wave-c-package-mapping.md`](wave-c-package-mapping.md) | **DONE** (97 files triaged) |
+| Wave B2 — untangle Tauri leakage (`application/rbac.rs`, `infrastructure/database/connection.rs`, `domain → application::rbac::Role`) | **NOT STARTED** |
+| Wave B4–B8 — real source lifts (codegen → core → lan → company → practice → binaries) | **NOT STARTED** |
 | Wave C — npm workspace split | **NOT STARTED** — depends on B |
 | Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`) | **NOT STARTED** — depends on B + C |
 

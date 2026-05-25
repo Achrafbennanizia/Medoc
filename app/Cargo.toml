@@ -1,0 +1,3 @@
+[workspace]
+members = ["src-tauri", "crates/medoc-codegen", "crates/medoc-core"]
+resolver = "2"
