@@ -35,6 +35,7 @@ pub mod personal_commands;
 pub mod praxis_aufgabe_commands;
 pub mod praxis_commands;
 pub mod produkt_commands;
+pub mod rbac_state;
 pub mod rechnung_document_commands;
 pub mod rezept_commands;
 pub mod statistik_commands;
