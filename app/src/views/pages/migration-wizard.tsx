@@ -15,7 +15,7 @@ import {
     type GdtRecord,
     type DicomFileInfo,
     type ScannedDocument,
-} from "../../controllers/system.controller";
+} from "@/systems/practice-host/controllers/system.controller";
 
 const STEP_COUNT = 6;
 

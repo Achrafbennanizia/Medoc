@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { createAkteAnlage, deleteAkteAnlage } from "@/controllers/akte.controller";
+import { createAkteAnlage, deleteAkteAnlage } from "@/systems/practice-host/controllers/akte.controller";
 import {
     flushAttestFinalizeVorlage,
     flushRezeptFinalizeVorlage,

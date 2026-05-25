@@ -1,7 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import type { Behandlung, Patient, Untersuchung, Zahlung, ZahlungsArt } from "@/models/types";
-import { allocateQuittungNummer } from "@/controllers/invoice.controller";
-import { createZahlung, deleteZahlung, updateZahlung } from "@/controllers/zahlung.controller";
+import { allocateQuittungNummer } from "@/systems/practice-host/controllers/invoice.controller";
+import { createZahlung, deleteZahlung, updateZahlung } from "@/systems/practice-host/controllers/zahlung.controller";
 import {
     bundleQuittungExport,
     suggestQuittungExportBasename,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
 import type { Patient } from "@/models/types";
-import { exportDischargeMerkblattPdf } from "@/controllers/akte.controller";
+import { exportDischargeMerkblattPdf } from "@/systems/practice-host/controllers/akte.controller";
 import { finishExportWithSettings } from "@/lib/export";
 import { slugPatientName } from "@/lib/akte-export";
 import { useToastStore } from "./ui/toast-store";

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createZahlung } from "@/controllers/zahlung.controller";
+import { createZahlung } from "@/systems/practice-host/controllers/zahlung.controller";
 import { billingReleaseErrorDe } from "@/lib/billing-release";
 import { tauriInvoke } from "@/services/tauri.service";
 

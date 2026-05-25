@@ -12,7 +12,7 @@ import {
     type ProcessingActivity,
     type RiskScenario,
     type VVT,
-} from "../../controllers/compliance.controller";
+} from "@/systems/practice-host/controllers/compliance.controller";
 import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
 

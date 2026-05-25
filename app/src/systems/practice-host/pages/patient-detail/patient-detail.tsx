@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { getPatient } from "@/controllers/patient.controller";
+import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     getAkte,
     listZahnbefunde,
@@ -14,8 +14,8 @@ import {
     renameAkteAnlage,
     openAkteAnlageExternally,
     duplicateAkteAnlage,
-} from "@/controllers/akte.controller";
-import { listBehandlungsKatalog } from "@/controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/akte.controller";
+import { listBehandlungsKatalog } from "@/systems/practice-host/controllers/praxis.controller";
 import { errorMessage, formatDate } from "@/lib/utils";
 import { allowed, parseRole } from "@/lib/rbac";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, BehandlungsKatalogItem } from "@/models/types";
@@ -42,16 +42,16 @@ import { PatientDetailZahlTab } from "./patient-detail-zahl-tab";
 import { PatientDetailRezeptTab, type PatientDetailRezeptTabHandle } from "./patient-detail-rezept-tab";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { itemValidationKey, type ValidationRecord, type ValidationState } from "@/lib/akte-validation";
-import { listRezepte, type Rezept } from "@/controllers/rezept.controller";
-import { listAtteste, type Attest } from "@/controllers/attest.controller";
-import { listZahlungenForPatient } from "@/controllers/zahlung.controller";
+import { listRezepte, type Rezept } from "@/systems/practice-host/controllers/rezept.controller";
+import { listAtteste, type Attest } from "@/systems/practice-host/controllers/attest.controller";
+import { listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
 import type { Zahlung, ZahlungsArt } from "@/models/types";
 import {
     emptyPlanNextTermin,
     planNextHasContent,
     type PlanNextTerminV2,
 } from "@/lib/plan-next-termin";
-import { loadPlanNextTerminWithMigration, persistPlanNextTerminToBackend } from "@/controllers/plan-next-termin.controller";
+import { loadPlanNextTerminWithMigration, persistPlanNextTerminToBackend } from "@/systems/practice-host/controllers/plan-next-termin.controller";
 import {
     validateAnlageFile,
     mapAkteAnlageRowDto,
@@ -63,7 +63,7 @@ import { type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
 import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
 import type { DocumentKind } from "@/lib/document-template-schema";
-import { openSystemScanUtility } from "@/controllers/system.controller";
+import { openSystemScanUtility } from "@/systems/practice-host/controllers/system.controller";
 import { buildOpenZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import {
     isPatientenakteMissingError,

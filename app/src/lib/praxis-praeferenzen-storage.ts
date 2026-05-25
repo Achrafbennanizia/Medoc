@@ -8,7 +8,7 @@ import {
     getAppKv,
     setAppKv,
     type AppKvKey,
-} from "@/controllers/app-kv.controller";
+} from "@/systems/practice-host/controllers/app-kv.controller";
 import {
     parsePraxisPreferencesV1,
     PRAXIS_PREFERENCES_KV_KEY,

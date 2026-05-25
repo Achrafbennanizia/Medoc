@@ -3,8 +3,8 @@ import {
     BREAK_GLASS_WINDOW_SECS,
     breakGlassActive,
     type BreakGlassEntry,
-} from "@/controllers/break-glass.controller";
-import { listPatienten } from "@/controllers/patient.controller";
+} from "@/systems/practice-host/controllers/break-glass.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import type { Patient } from "@/models/types";
 
 function formatRemaining(totalSecs: number): string {

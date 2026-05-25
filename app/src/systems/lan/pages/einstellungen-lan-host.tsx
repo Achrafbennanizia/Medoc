@@ -9,7 +9,7 @@ import {
     type LanDiscoveryHitDto,
     type LanServerConfigV1,
     type LanServerStatusPayload,
-} from "@/controllers/settings-page.controller";
+} from "@/systems/practice-host/controllers/settings-page.controller";
 import {
     EMPTY_LAN_CLIENT_CONFIG,
     isLanClientActive,

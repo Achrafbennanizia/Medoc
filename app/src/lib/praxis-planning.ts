@@ -1,4 +1,4 @@
-import { getAppKv, setAppKv } from "../controllers/app-kv.controller";
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 
 /**
  * Browser-side cache key. The authoritative store is the backend `app_kv`

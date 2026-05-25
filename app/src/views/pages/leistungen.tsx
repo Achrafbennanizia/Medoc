@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { listLeistungen, createLeistung, deleteLeistung, updateLeistung } from "../../controllers/leistung.controller";
+import { listLeistungen, createLeistung, deleteLeistung, updateLeistung } from "@/systems/practice-host/controllers/leistung.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "../../lib/utils";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";

@@ -13,7 +13,7 @@ const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/
 const TerminePage = lazy(async () => ({ default: (await import("./views/pages/termine")).TerminePage }));
 const TerminCreatePage = lazy(async () => ({ default: (await import("./views/pages/termin-create")).TerminCreatePage }));
 const PatientenPage = lazy(async () => ({ default: (await import("./views/pages/patienten")).PatientenPage }));
-const PatientDetailPage = lazy(async () => ({ default: (await import("./views/pages/patient-detail")).PatientDetailPage }));
+const PatientDetailPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/patient-detail/patient-detail")).PatientDetailPage }));
 const AktenZuValidierenPage = lazy(async () => ({
     default: (await import("./views/pages/akten-zu-validieren")).AktenZuValidierenPage,
 }));

@@ -1,4 +1,4 @@
-import { getAppKv, type AppKvKey } from "@/controllers/app-kv.controller";
+import { getAppKv, type AppKvKey } from "@/systems/practice-host/controllers/app-kv.controller";
 import { isTauriApp } from "@/lib/save-download";
 import type { DocumentKind } from "@/lib/document-template-schema";
 

@@ -3,7 +3,7 @@
  */
 
 import type { Rolle } from "@/models/types";
-import { getAppKvRaw, setAppKvRaw } from "@/controllers/app-kv.controller";
+import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
 
 /** NFA-USE-09 acceptance threshold (≥80 % onboarding routes per role). */
 export const ONBOARDING_MIN_COVERAGE_RATIO = 0.8;

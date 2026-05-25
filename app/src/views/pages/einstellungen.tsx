@@ -12,7 +12,7 @@ import {
     type HealthCheck,
     type LicenseStatus,
     verifyLicense,
-} from "@/controllers/settings-page.controller";
+} from "@/systems/practice-host/controllers/settings-page.controller";
 import { useLocale } from "../../lib/i18n";
 import {
     DEFAULT_CLIENT_SETTINGS,
@@ -38,17 +38,17 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { Dialog } from "../components/ui/dialog";
-import { EinstellungenPraxisSection } from "./einstellungen-praxis-section";
-import { EinstellungenBenachrichtigungenSection } from "./einstellungen-benachrichtigungen-section";
-import { EinstellungenDarstellungSection } from "./einstellungen-darstellung-section";
-import { EinstellungenArbeitsablaeufeSection } from "./einstellungen-arbeitsablaeufe-section";
-import { EinstellungenKontoSection } from "./einstellungen-konto-section";
-import { EinstellungenSicherheitSection } from "./einstellungen-sicherheit-section";
-import { EinstellungenSystemSection } from "./einstellungen-system-section";
-import { EinstellungenMigrationSection } from "./einstellungen-migration-section";
-import { EinstellungenUeberSection } from "./einstellungen-ueber-section";
-import { EinstellungenLizenzSection } from "./einstellungen-lizenz-section";
-import { EinstellungenIntegrationenSection } from "./einstellungen-integrationen-section";
+import { EinstellungenPraxisSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-praxis-section";
+import { EinstellungenBenachrichtigungenSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-benachrichtigungen-section";
+import { EinstellungenDarstellungSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-darstellung-section";
+import { EinstellungenArbeitsablaeufeSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-arbeitsablaeufe-section";
+import { EinstellungenKontoSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-konto-section";
+import { EinstellungenSicherheitSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-sicherheit-section";
+import { EinstellungenSystemSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-system-section";
+import { EinstellungenMigrationSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-migration-section";
+import { EinstellungenUeberSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-ueber-section";
+import { EinstellungenLizenzSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-lizenz-section";
+import { EinstellungenIntegrationenSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-integrationen-section";
 import {
     BellIcon,
     BoltIcon,

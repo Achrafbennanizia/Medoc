@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listAktenZuValidieren, validatePatientenakte, type AkteZuValidierenRow } from "@/controllers/akte-workflow.controller";
+import { listAktenZuValidieren, validatePatientenakte, type AkteZuValidierenRow } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { Badge } from "../components/ui/badge";

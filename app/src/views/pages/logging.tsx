@@ -7,7 +7,7 @@ import {
     verifyAuditChain,
     getLogDir,
     type LogLevel,
-} from "../../controllers/logging.controller";
+} from "@/systems/practice-host/controllers/logging.controller";
 import { Button } from "../components/ui/button";
 import { errorMessage } from "../../lib/utils";
 import { openExportPreview } from "../../models/store/export-preview-store";

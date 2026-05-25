@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getPatient } from "../../controllers/patient.controller";
-import { listRezepte, updateRezept, type Rezept } from "../../controllers/rezept.controller";
+import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { listRezepte, updateRezept, type Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { errorMessage } from "../../lib/utils";
 import type { Patient } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";

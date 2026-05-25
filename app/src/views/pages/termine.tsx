@@ -21,10 +21,10 @@ import {
     startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { listTermine, deleteTermin, updateTermin } from "../../controllers/termin.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { listAerzte, type AerztSummary } from "../../controllers/personal.controller";
-import { listAbwesenheiten } from "../../controllers/praxis.controller";
+import { listTermine, deleteTermin, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
+import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.controller";
 import { errorMessage } from "../../lib/utils";
 import { MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";

@@ -3,8 +3,8 @@
  * Matches German reference layouts (Attest, Rezept, Patientenquittung).
  */
 
-import type { Attest } from "@/controllers/attest.controller";
-import type { Rezept } from "@/controllers/rezept.controller";
+import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
+import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import type { Patient, Behandlung, Untersuchung, Zahlung } from "@/models/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";

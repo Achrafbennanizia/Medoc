@@ -4,7 +4,7 @@ import {
     createAbwesenheit,
     updateAbwesenheit,
     deleteAbwesenheit,
-} from "../../controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/praxis.controller";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Abwesenheit } from "../../models/types";

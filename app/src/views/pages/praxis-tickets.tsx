@@ -4,7 +4,7 @@ import {
     listPraxisTicketsForMe,
     updatePraxisTicketStatus,
     type PraxisTicket,
-} from "@/controllers/akte-workflow.controller";
+} from "@/systems/practice-host/controllers/akte-workflow.controller";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { parseRole } from "@/lib/rbac";

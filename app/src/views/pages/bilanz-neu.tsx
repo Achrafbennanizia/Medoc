@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listZahlungen } from "../../controllers/zahlung.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { listProdukte } from "../../controllers/produkt.controller";
-import { createBilanzSnapshot } from "../../controllers/bilanz-snapshot.controller";
+import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
+import { createBilanzSnapshot } from "@/systems/practice-host/controllers/bilanz-snapshot.controller";
 import { allowed, parseRole } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Produkt, Zahlung, ZahlungsStatus } from "../../models/types";

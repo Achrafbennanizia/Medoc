@@ -1,4 +1,4 @@
-import { listDetectedPhotoViewerApps as fetchPhotoViewerApps, type DetectedPhotoViewerApp } from "@/controllers/system.controller";
+import { listDetectedPhotoViewerApps as fetchPhotoViewerApps, type DetectedPhotoViewerApp } from "@/systems/practice-host/controllers/system.controller";
 
 export type { DetectedPhotoViewerApp };
 

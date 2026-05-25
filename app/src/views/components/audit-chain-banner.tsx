@@ -3,7 +3,7 @@ import {
     acknowledgeAuditChainBreak,
     getAuditChainStatus,
     type AuditChainStatus,
-} from "@/controllers/audit-chain.controller";
+} from "@/systems/practice-host/controllers/audit-chain.controller";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "./ui/toast-store";
 import { Button } from "./ui/button";

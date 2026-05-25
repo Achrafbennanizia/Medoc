@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { checkSession } from "../../controllers/auth.controller";
+import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import {
     createPersonal,
     deletePersonal,
@@ -10,7 +10,7 @@ import {
     setPersonalPasswordByAdmin,
     setPersonalPermissionOverride,
     updatePersonal,
-} from "../../controllers/personal.controller";
+} from "@/systems/practice-host/controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { errorMessage, formatDate } from "../../lib/utils";

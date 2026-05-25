@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
-import { deletePatient, updatePatient } from "@/controllers/patient.controller";
+import { deletePatient, updatePatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     createBehandlung,
     createUntersuchung,
@@ -9,8 +9,8 @@ import {
     saveAnamnesebogen,
     updateBehandlung,
     updateUntersuchung,
-} from "@/controllers/akte.controller";
-import { persistPlanNextTerminToBackend } from "@/controllers/plan-next-termin.controller";
+} from "@/systems/practice-host/controllers/akte.controller";
+import { persistPlanNextTerminToBackend } from "@/systems/practice-host/controllers/plan-next-termin.controller";
 import { mergeQuickIntoAnamneseJson, parseAnamneseV1 } from "@/lib/anamnese";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {

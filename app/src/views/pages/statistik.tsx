@@ -17,7 +17,7 @@ import {
 import {
     getStatistikOverview,
     type StatistikOverview,
-} from "../../controllers/statistik.controller";
+} from "@/systems/practice-host/controllers/statistik.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
 import { errorMessage, formatCurrency } from "../../lib/utils";
 import { openExportPreview } from "../../models/store/export-preview-store";

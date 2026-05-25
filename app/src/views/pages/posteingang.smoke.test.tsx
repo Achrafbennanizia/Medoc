@@ -8,10 +8,10 @@ import { useAuthStore } from "@/models/store/auth-store";
 import {
     countOpenPraxisAufgabenForMe,
     listPraxisAufgabenForMe,
-} from "@/controllers/praxis-aufgabe.controller";
+} from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { PosteingangPage } from "./posteingang";
 
-vi.mock("@/controllers/praxis-aufgabe.controller", () => ({
+vi.mock("@/systems/practice-host/controllers/praxis-aufgabe.controller", () => ({
     listPraxisAufgabenForMe: vi.fn(),
     countOpenPraxisAufgabenForMe: vi.fn(),
     transitionPraxisAufgabe: vi.fn(),

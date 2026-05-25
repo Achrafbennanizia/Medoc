@@ -17,7 +17,7 @@ import {
     startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { listPersonal } from "../../controllers/personal.controller";
+import { listPersonal } from "@/systems/practice-host/controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { getDashboardStats, type DashboardStats } from "../../controllers/statistik.controller";
-import { listTermine } from "../../controllers/termin.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { listBestellungen, updateBestellungStatus, type Bestellung } from "../../controllers/bestellung.controller";
-import { listAkteValidation, rowsToValidationMaps, setAkteSectionValidated } from "../../controllers/validation.controller";
-import { listAkteNextTerminHintsPending } from "@/controllers/plan-next-termin.controller";
+import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistik.controller";
+import { listTermine } from "@/systems/practice-host/controllers/termin.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listBestellungen, updateBestellungStatus, type Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
+import { listAkteValidation, rowsToValidationMaps, setAkteSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
+import { listAkteNextTerminHintsPending } from "@/systems/practice-host/controllers/plan-next-termin.controller";
 import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser } from "@/lib/plan-next-termin";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -20,7 +20,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { useT } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
-import { listUpcomingAppointments, type UpcomingAppointment } from "@/controllers/integration.controller";
+import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 
 const PRUEF_PATIENT_CAP = 100;

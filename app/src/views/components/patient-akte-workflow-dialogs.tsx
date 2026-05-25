@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { createPraxisTicket, forwardAkteToPhysicians } from "@/controllers/akte-workflow.controller";
+import { createPraxisTicket, forwardAkteToPhysicians } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import {
     createPraxisAufgabe,
     type PraxisAufgabeTyp,
-} from "@/controllers/praxis-aufgabe.controller";
-import { listAerzte, type AerztSummary } from "@/controllers/personal.controller";
+} from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
+import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { errorMessage } from "@/lib/utils";
 import type { Role } from "@/lib/rbac";
 import { Button } from "./ui/button";

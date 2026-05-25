@@ -1,4 +1,4 @@
-import type { AerztSummary } from "@/controllers/personal.controller";
+import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import type { TerminDoctorTone } from "@/lib/termin-calendar-ui";
 
 export type DoctorLegendProps = {

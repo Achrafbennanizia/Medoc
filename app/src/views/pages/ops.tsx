@@ -10,14 +10,14 @@ import {
     validateBackup,
     type BackupInfo,
     type ImportReport,
-} from "../../controllers/ops.controller";
+} from "@/systems/practice-host/controllers/ops.controller";
 import {
     getPerfThresholdMs,
     setPerfThresholdMs,
     systemHealthCheck,
     type HealthCheck,
-} from "../../controllers/system.controller";
-import { getAuditChainStatus } from "@/controllers/audit-chain.controller";
+} from "@/systems/practice-host/controllers/system.controller";
+import { getAuditChainStatus } from "@/systems/practice-host/controllers/audit-chain.controller";
 import { errorMessage } from "../../lib/utils";
 import { Button } from "../components/ui/button";
 import { ConfirmDialog } from "../components/ui/dialog";

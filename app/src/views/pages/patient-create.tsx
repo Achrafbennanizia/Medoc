@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPatient } from "../../controllers/patient.controller";
-import { saveAnamnesebogen } from "../../controllers/akte.controller";
+import { createPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { saveAnamnesebogen } from "@/systems/practice-host/controllers/akte.controller";
 import { useFormDirtyStore } from "../../models/store/form-dirty-store";
 import { errorMessage } from "../../lib/utils";
 import { Button } from "../components/ui/button";

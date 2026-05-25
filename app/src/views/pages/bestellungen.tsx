@@ -6,7 +6,7 @@ import { Input, Select } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
-import { listBestellungen, updateBestellungStatus, type Bestellung, type BestellStatus } from "../../controllers/bestellung.controller";
+import { listBestellungen, updateBestellungStatus, type Bestellung, type BestellStatus } from "@/systems/practice-host/controllers/bestellung.controller";
 import { useAuthStore } from "@/models/store/auth-store";
 import { allowed } from "@/lib/rbac";
 import { errorMessage, formatDate } from "@/lib/utils";

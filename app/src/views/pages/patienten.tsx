@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { deletePatient, listPatienten, searchPatienten } from "../../controllers/patient.controller";
-import { listPatientIdsOpenInvoice } from "../../controllers/zahlung.controller";
+import { deletePatient, listPatienten, searchPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/zahlung.controller";
 import { errorMessage, formatDate } from "../../lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";

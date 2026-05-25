@@ -11,10 +11,22 @@ describe("three-system frontend layout", () => {
         }
     });
 
-    it("keeps legacy controller re-exports", () => {
-        expect(existsSync(resolve(srcRoot, "controllers", "patient.controller.ts"))).toBe(true);
-        expect(existsSync(resolve(srcRoot, "controllers", "lan-server.controller.ts"))).toBe(true);
-        expect(existsSync(resolve(srcRoot, "controllers", "company-portal.controller.ts"))).toBe(true);
+    it("has no legacy controller re-exports (single source under systems/*)", () => {
+        expect(existsSync(resolve(srcRoot, "controllers"))).toBe(false);
+    });
+
+    it("has system-prefixed controllers in the expected systems", () => {
+        expect(
+            existsSync(resolve(srcRoot, "systems/practice-host/controllers/patient.controller.ts")),
+        ).toBe(true);
+        expect(
+            existsSync(resolve(srcRoot, "systems/lan/controllers/lan-server.controller.ts")),
+        ).toBe(true);
+        expect(
+            existsSync(
+                resolve(srcRoot, "systems/company-portal/controllers/company-portal.controller.ts"),
+            ),
+        ).toBe(true);
     });
 
     it("exposes system registry", async () => {

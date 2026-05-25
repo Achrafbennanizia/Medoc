@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAkte, listBehandlungen, listUntersuchungen } from "../../controllers/akte.controller";
-import { listPatienten } from "../../controllers/patient.controller";
-import { allocateRechnungsnummer, renderInvoicePdf } from "../../controllers/invoice.controller";
-import { listZahlungenForPatient } from "../../controllers/zahlung.controller";
-import type { InvoiceInput } from "@/controllers/invoice.controller";
+import { getAkte, listBehandlungen, listUntersuchungen } from "@/systems/practice-host/controllers/akte.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { allocateRechnungsnummer, renderInvoicePdf } from "@/systems/practice-host/controllers/invoice.controller";
+import { listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
+import type { InvoiceInput } from "@/systems/practice-host/controllers/invoice.controller";
 import {
     appendRechnungDocument,
     INVOICE_HISTORY_MAX,
@@ -12,7 +12,7 @@ import {
     migrateLegacyInvoiceHistoryFromLocalStorageOnce,
     sumInvoiceEur,
     type SavedInvoice,
-} from "@/controllers/rechnung-document.controller";
+} from "@/systems/practice-host/controllers/rechnung-document.controller";
 import {
     getInvoicePraxisFromStorage,
     buildInvoiceHeaderAddressLinesForExport,

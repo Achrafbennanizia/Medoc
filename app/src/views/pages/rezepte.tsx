@@ -7,15 +7,15 @@ import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
-import { listPatienten } from "../../controllers/patient.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     listRezepte,
     createRezept,
     deleteRezept,
     type Rezept,
-} from "../../controllers/rezept.controller";
-import { validateEprescription, submitEprescription } from "../../controllers/integration.controller";
-import { listDokumentVorlagen } from "../../controllers/praxis.controller";
+} from "@/systems/practice-host/controllers/rezept.controller";
+import { validateEprescription, submitEprescription } from "@/systems/practice-host/controllers/integration.controller";
+import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import type { Patient, DokumentVorlage } from "../../models/types";
 import { errorMessage, formatDate } from "../../lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";

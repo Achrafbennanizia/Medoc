@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { exportAuditCsv, listAuditLogsPaged } from "../../controllers/audit.controller";
+import { exportAuditCsv, listAuditLogsPaged } from "@/systems/practice-host/controllers/audit.controller";
 import { errorMessage, formatDateTime } from "../../lib/utils";
 import { openExportPreview } from "../../models/store/export-preview-store";
 import type { AuditLog } from "../../models/types";

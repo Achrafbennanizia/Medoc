@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TagesabschlussProtokollExtra } from "../components/tagesabschluss-form";
 import { useNavigate } from "react-router-dom";
-import { listPatienten } from "@/controllers/patient.controller";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     createTagesabschlussProtokoll,
     deleteTagesabschlussProtokoll,
     listTagesabschlussProtokolle,
     type CreateTagesabschlussProtokoll,
     type TagesabschlussProtokoll,
-} from "@/controllers/tagesabschluss-protokoll.controller";
-import { listZahlungen } from "@/controllers/zahlung.controller";
+} from "@/systems/practice-host/controllers/tagesabschluss-protokoll.controller";
+import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 import { downloadTagesabschlussBerichtPdf } from "@/lib/tagesabschluss-invoice-pdf";
