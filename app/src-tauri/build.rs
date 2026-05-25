@@ -12,8 +12,10 @@ fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let config_dir = manifest_dir.join("../../config");
     let ts_out_dir = manifest_dir.join("../src/lib");
-    let sql_fragments = manifest_dir.join("migrations/generated/enum_check_fragments.sql");
-    medoc_codegen::enums::run(&config_dir.join("enums.yaml"), &ts_out_dir, &sql_fragments);
+    // Enums codegen now runs from `medoc-core/build.rs` because `domain::enums`
+    // lives in that crate and `include!(env!("OUT_DIR")…)` must resolve to the
+    // crate that owns the include. RBAC stays here because `application::rbac`
+    // (which include!s `rbac_generated.rs`) is still in the practice crate.
     medoc_codegen::rbac::run(&config_dir.join("rbac.yaml"), &ts_out_dir);
     let hex = env::var("MEDOC_VENDOR_PUBKEY").unwrap_or_else(|_| {
         panic!(
