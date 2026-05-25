@@ -10,8 +10,11 @@ use std::path::Path;
 
 fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    medoc_codegen::enums::run(manifest_dir);
-    medoc_codegen::rbac::run(manifest_dir);
+    let config_dir = manifest_dir.join("../../config");
+    let ts_out_dir = manifest_dir.join("../src/lib");
+    let sql_fragments = manifest_dir.join("migrations/generated/enum_check_fragments.sql");
+    medoc_codegen::enums::run(&config_dir.join("enums.yaml"), &ts_out_dir, &sql_fragments);
+    medoc_codegen::rbac::run(&config_dir.join("rbac.yaml"), &ts_out_dir);
     let hex = env::var("MEDOC_VENDOR_PUBKEY").unwrap_or_else(|_| {
         panic!(
             "MEDOC_VENDOR_PUBKEY must be set to 64 hex chars (32-byte Ed25519 public key) before building medoc"

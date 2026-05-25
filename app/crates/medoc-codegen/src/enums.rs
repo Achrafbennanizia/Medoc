@@ -45,9 +45,20 @@ fn default_uppercase() -> String {
     "UPPERCASE".into()
 }
 
-pub fn run(manifest_dir: &Path) {
-    let yaml_path = manifest_dir.join("../../config/enums.yaml");
-    let yaml_src = fs::read_to_string(&yaml_path)
+/// Run the enums codegen.
+///
+/// - `yaml_path` — absolute path to `config/enums.yaml`.
+/// - `ts_out_dir` — directory to receive `enums.generated.ts` and
+///   `schemas.enums.generated.ts` (e.g. `app/src/lib/`).
+/// - `sql_out_path` — file path to receive the `CHECK` fragments preview
+///   (e.g. `app/src-tauri/migrations/generated/enum_check_fragments.sql`);
+///   parent dirs are created as needed.
+///
+/// The Rust output (`domain_enums_generated.rs`) is written to the
+/// **calling crate's** `OUT_DIR` so that `include!(concat!(env!("OUT_DIR"), …))`
+/// resolves to the same crate that defines the enum type's owning module.
+pub fn run(yaml_path: &Path, ts_out_dir: &Path, sql_out_path: &Path) {
+    let yaml_src = fs::read_to_string(yaml_path)
         .unwrap_or_else(|e| panic!("read {}: {e}", yaml_path.display()));
     let doc: EnumsYaml = serde_yaml::from_str(&yaml_src)
         .unwrap_or_else(|e| panic!("parse {}: {e}", yaml_path.display()));
@@ -60,20 +71,21 @@ pub fn run(manifest_dir: &Path) {
     )
     .expect("write domain_enums_generated.rs");
 
-    let app_src = manifest_dir.join("../src/lib");
-    fs::write(app_src.join("enums.generated.ts"), render_ts(&doc.enums))
-        .expect("write enums.generated.ts");
     fs::write(
-        app_src.join("schemas.enums.generated.ts"),
+        ts_out_dir.join("enums.generated.ts"),
+        render_ts(&doc.enums),
+    )
+    .expect("write enums.generated.ts");
+    fs::write(
+        ts_out_dir.join("schemas.enums.generated.ts"),
         render_zod(&doc.enums),
     )
     .expect("write schemas.enums.generated.ts");
 
-    let sql_fragments = manifest_dir.join("migrations/generated/enum_check_fragments.sql");
-    if let Some(parent) = sql_fragments.parent() {
-        fs::create_dir_all(parent).expect("create migrations/generated");
+    if let Some(parent) = sql_out_path.parent() {
+        fs::create_dir_all(parent).expect("create sql fragments parent");
     }
-    fs::write(&sql_fragments, render_sql_fragments(&doc.enums))
+    fs::write(sql_out_path, render_sql_fragments(&doc.enums))
         .expect("write enum_check_fragments.sql");
 
     println!("cargo:rerun-if-changed={}", yaml_path.display());
