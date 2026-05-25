@@ -1,14 +1,8 @@
 //! Embeds the vendor Ed25519 public key at compile time (`OUT_DIR/pubkey.rs`).
-//!
-//! Set `MEDOC_VENDOR_PUBKEY` to 64 hex characters (32 raw bytes) before building.
-//! RBAC matrix: `config/rbac.yaml` → `OUT_DIR/rbac_generated.rs` + `app/src/lib/rbac.generated.ts`.
-//! Domain enums: `config/enums.yaml` → `OUT_DIR/domain_enums_generated.rs` + `app/src/lib/enums.generated.ts`.
-
-#[path = "build/enums_codegen.rs"]
-mod enums_codegen;
-
-#[path = "build/rbac_codegen.rs"]
-mod rbac_codegen;
+//! Delegates RBAC + domain-enum codegen to the `medoc-codegen` build-time
+//! crate (consumes `config/rbac.yaml` + `config/enums.yaml` and emits Rust
+//! into `OUT_DIR/`, TypeScript into `app/src/lib/`, and SQL CHECK fragments
+//! into `app/src-tauri/migrations/generated/`).
 
 use std::env;
 use std::fs;
@@ -16,8 +10,8 @@ use std::path::Path;
 
 fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    enums_codegen::run(manifest_dir);
-    rbac_codegen::run(manifest_dir);
+    medoc_codegen::enums::run(manifest_dir);
+    medoc_codegen::rbac::run(manifest_dir);
     let hex = env::var("MEDOC_VENDOR_PUBKEY").unwrap_or_else(|_| {
         panic!(
             "MEDOC_VENDOR_PUBKEY must be set to 64 hex chars (32-byte Ed25519 public key) before building medoc"

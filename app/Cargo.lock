@@ -2705,6 +2705,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "libsqlite3-sys",
+ "medoc-codegen",
  "rand 0.8.6",
  "rcgen",
  "regex",
@@ -2737,6 +2738,10 @@ dependencies = [
 [[package]]
 name = "medoc-codegen"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_yaml",
+]
 
 [[package]]
 name = "medoc-core"

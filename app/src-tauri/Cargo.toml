@@ -13,8 +13,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
+medoc-codegen = { path = "../crates/medoc-codegen" }
 
 [dependencies]
 axum = { version = "0.8", features = ["macros", "json"] }
