@@ -1,13 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-05-25 (restructure plan opened)
+**Last updated:** 2026-05-25 (Wave A complete)
 
 ## Now
 
 - **Workspace restructure — see [`restructure-plan.md`](restructure-plan.md):**
   - **Checkpoint:** `33171bd` — wave-23 state committed (290 files, +17,548/-10,023).
-  - **Plan:** Wave A (drop legacy controller/page shims) → Wave B (Cargo workspace) → Wave C (npm workspace) → Wave D (repo-root `apps/ crates/ packages/`).
-  - **Next:** Run Wave A. Validation: `npm run lint && npm test && npm run build` + `cargo test --tests` must stay green.
+  - **Test fix:** `dbd146d` — backup retention test made day-of-week independent (was failing on Mondays/Sundays).
+  - **Wave A — DONE** `f402f28` — dropped 41 legacy controller shims + 15 legacy page shims; repointed ~90 imports to `@/systems/*/controllers/*` and `@/systems/*/pages/*`. `npm run lint && npm test (155) && npm run build` PASS.
+  - **Wave B — BLOCKED on multi-session capacity.** Scope is 179 Rust files + ~500–700 `use crate::*` rewrites + Tauri-leakage untangling + 5 new crates (medoc-{core,practice,lan,company,codegen}) + build.rs re-homing + per-binary dependency closure verification + workspace-wide test cycle. Realistically several focused sessions of Rust work, not a single chat. Stopping here for explicit go/no-go.
+  - **Waves C, D** — depend on Wave B; not started.
 - **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
 
 ## Done (2026-05-22 three-system wave)

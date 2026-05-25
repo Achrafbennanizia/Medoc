@@ -1,11 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-05-21 (Gap remediation wave 16 — G21a automated smoke)
+**Last updated:** 2026-05-25 (Wave A complete)
 
 ## Verified (commands run, outcomes recorded)
 
 | Check | Command | Result | Date | Notes |
 | ----- | ------- | ------ | ---- | ----- |
+| Wave A — `cargo fmt --check` | `cargo fmt --all -- --check` | **PASS** | 2026-05-25 | clean |
+| Wave A — `cargo check` | `cargo check --all-targets` | **PASS** | 2026-05-25 | 20.2s cold compile |
+| Wave A — `cargo test --tests` (pre-fix) | `cargo test --tests` | **FAIL** | 2026-05-25 | `backup_retention_keeps_daily_weekly_and_drops_ancient` panicked: ISO-week boundary brittleness when `now` is Mon/Sun; fixed in `dbd146d` |
+| Wave A — `cargo test --tests` (post-fix) | `cargo test --tests` | **PASS** | 2026-05-25 | full suite green |
+| Wave A — `cargo clippy` | `cargo clippy --all-targets -- -D warnings` | **PASS** | 2026-05-25 | no warnings |
+| Wave A — `npm run lint` | `npm run lint` | **PASS** | 2026-05-25 | 0 warnings, no-cache |
+| Wave A — `npm test` | `npm test` | **PASS** | 2026-05-25 | **155 tests / 28 files** (baseline 154, +1 from `systems-structure.test.ts` split) |
+| Wave A — `npm run build` | `npm run build` | **PASS** | 2026-05-25 | 2.35s |
 | Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |

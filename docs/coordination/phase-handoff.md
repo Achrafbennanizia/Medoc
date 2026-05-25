@@ -1,7 +1,48 @@
 # Phase handoff
 
-**Last phase label:** Three-system architecture (Practice / LAN / Company)  
-**Last closed:** 2026-05-22 — wave 23; full stack **PASS**; changes **uncommitted**
+**Last phase label:** Workspace restructure — Wave A (legacy shim cleanup)  
+**Last closed:** 2026-05-25 — `f402f28`; **PASS** (npm lint/test 155/build, cargo unchanged from previous green); waves B/C/D not started
+
+### Workspace restructure (2026-05-25)
+
+| Item | Status |
+|------|--------|
+| Checkpoint `33171bd` — wave-23 state committed | **PASS** (safe rollback point established) |
+| Backup retention test `dbd146d` — day-of-week independent fix | **PASS** (`cargo test --test backup_tests` + full `cargo test --tests` + `clippy -D warnings`) |
+| Wave A `f402f28` — drop 41 controller shims + 15 page shims; repoint imports | **PASS** (`npm run lint`, `npm test` 155/28, `npm run build`) |
+| Wave B — Cargo workspace split | **NOT STARTED** — scope too large for single session (179 .rs, ~500–700 use-paths, Tauri leakage in `application/`); see [`restructure-plan.md`](restructure-plan.md) Wave B |
+| Wave C — npm workspace split | **NOT STARTED** — depends on B |
+| Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`) | **NOT STARTED** — depends on B + C |
+
+### Validation snapshot (post Wave A, 2026-05-25)
+
+| Command | Result |
+|---------|--------|
+| `cargo fmt --all -- --check` | **PASS** |
+| `cargo check --all-targets` | **PASS** |
+| `cargo test --tests` | **PASS** (after `dbd146d` test fix; baseline failed on Monday-run weekly-tier XOR) |
+| `cargo clippy --all-targets -- -D warnings` | **PASS** |
+| `npm run lint` | **PASS** |
+| `npm test` | **PASS** — 155 tests / 28 files (was 154; +1 from systems-structure split) |
+| `npm run build` | **PASS** — 2.35s |
+
+### Understanding delta (Wave A)
+
+- `app/src/controllers/*.ts` no longer exists. Every consumer now imports directly from `@/systems/{practice-host,lan,company-portal}/controllers/*`.
+- 15 view-page re-export shims (`einstellungen-*-section.tsx`, `einstellungen-lan-host.tsx`, `einstellungen-company-portal-section.tsx`, `einstellungen-praxis-billing.tsx`, `patient-detail.tsx`) deleted; consumers (notably `einstellungen.tsx`, `App.tsx` lazy import, intra-system relative imports) repointed.
+- `systems-structure.test.ts` now asserts the new layout instead of the legacy shims.
+- `views/pages/` still contains ~53 not-yet-migrated pages (termine, dashboard, personal, verwaltung-*, etc.). These remain at their current path until a later wave decides to move them into `systems/practice-host/pages/`.
+
+### Must happen next
+
+1. **Decide whether Wave B (Cargo workspace) proceeds in a fresh session.** Recommended next-session steps:
+   - Phase B1: enumerate `use crate::*` graph; produce per-module target-crate mapping under `docs/coordination/wave-b-crate-mapping.md`.
+   - Phase B2: untangle Tauri leakage out of `application/` (e.g. `application/rbac.rs`).
+   - Phase B3: create `app/Cargo.toml` workspace + empty `medoc-core` crate; lift `domain/` + crypto/database (no Tauri); re-validate.
+   - Phase B4 onwards: each remaining crate one at a time.
+2. **Live UI smokes from earlier phases remain NOT OBSERVED.**
+
+
 
 ### Three-system wave (2026-05-22)
 
