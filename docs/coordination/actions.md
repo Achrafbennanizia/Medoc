@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-05-25 (Wave A complete)
+**Last updated:** 2026-05-26 (Wave B2.a–c + B4 complete)
 
 ## Now
 
@@ -9,10 +9,14 @@
   - **Test fix:** `dbd146d` — backup retention test made day-of-week independent (was failing on Mondays/Sundays).
   - **Wave A — DONE** `f402f28` — dropped 41 legacy controller shims + 15 legacy page shims; repointed ~90 imports to `@/systems/*/controllers/*` and `@/systems/*/pages/*`. `npm run lint && npm test (155) && npm run build` PASS.
   - **Wave B1 (mapping) — DONE** [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md). Every `.rs` file under `app/src-tauri/src/` assigned to a target crate (medoc-{core,practice,lan,company,codegen}); 6 known constraints catalogued (Tauri leakage in `application/rbac.rs` + `infrastructure/database/connection.rs`; inverted `domain → application::rbac::Role`; crate-root macro re-homing; OUT_DIR codegen pathing; TS-file relative paths).
-  - **Wave B3 (workspace skeleton) — DONE** — `app/Cargo.toml` virtual workspace; new placeholder crates `app/crates/medoc-codegen/` and `app/crates/medoc-core/` (empty `lib.rs`, no deps). Workspace target dir is now `app/target/`; orphan `app/src-tauri/Cargo.lock` removed. `cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace --all-targets -- -D warnings` ALL PASS. No source code lifted yet.
-  - **Wave B2/B4–B8 — NOT STARTED.** Real lifts (untangle Tauri leakage, move `domain/`, `error.rs`, non-Tauri `application/`, non-Tauri `infrastructure/`, then `lan_server/` → `medoc-lan`, `company_host/` → `medoc-company`, `commands/` → `medoc-practice`, finally binaries) require focused follow-up sessions.
-  - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files in `app/src/lib/` categorised: 3 generated, ~50 pure helper candidates for `@medoc/shared`, 3 Tauri-coupled, 1 React component, ~38 system-aware (require dependency inversion or relocation).
-  - **Waves C/D execution** — depend on B; not started.
+  - **Wave B3 (workspace skeleton) — DONE** `a1196d3` — `app/Cargo.toml` virtual workspace; new placeholder crates `app/crates/medoc-codegen/` and `app/crates/medoc-core/`. Workspace target dir is now `app/target/`; orphan `app/src-tauri/Cargo.lock` removed.
+  - **Wave B2.a — DONE** `5696bea` — moved `Role` enum to new `domain::rbac` (closes inverted dep from `workflow_transitions`); `application::rbac` keeps `pub use` re-export so ~45 call sites compile unchanged. `cargo check/clippy/test --workspace` PASS (159 tests).
+  - **Wave B2.b — DONE** `65fbcfc` — extracted `require/require_authenticated/require_one_of` into new `commands::rbac_state`; `application::rbac` reduced to pure policy (Role + matrix + `effective_allowed`) with re-exports for back-compat. PASS (159 tests).
+  - **Wave B2.c — DONE** `04843bf` — removed Tauri dep from `infrastructure::database::connection`; new `commands::db_setup_commands::init_db_from_app(&AppHandle)` wraps `init_db_headless(&Path)`. `connection.rs` `grep tauri` empty. PASS (159 tests).
+  - **Wave B4 — DONE** `5f09d58` — lifted `build/{enums,rbac}_codegen.rs` into `app/crates/medoc-codegen/src/{enums,rbac}.rs` as library functions; `build.rs` now thin caller. Fixes latent `.gitignore:52 build/` bug (codegen files were never tracked). Generated TS / RS / SQL byte-identical. PASS (159 tests).
+  - **Wave B5–B8 — NOT STARTED.** Now unblocked: `domain/` + `infrastructure/database/` (minus `lan_server`, `company_host`) are Tauri-free; the actual `domain` + non-Tauri `application/` + non-Tauri `infrastructure/` source lift into `medoc-core` is the next big step (will touch dependency-graph order carefully — see `wave-b-crate-mapping.md`).
+  - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files in `app/src/lib/` categorised.
+  - **Waves C/D execution** — depend on B5+; not started.
 - **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
 
 ## Done (2026-05-22 three-system wave)
