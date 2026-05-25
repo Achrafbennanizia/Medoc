@@ -127,6 +127,10 @@ verbindliche Grundlage für die Validierung in `06-validierung.md`.
 - FA-LEIST-02: Aktiv/Inaktiv-Verwaltung
 - FA-LEIST-03: Zuordnung zu Behandlungen und Zahlungen
 - FA-LEIST-04: Leistungsliste mit Suche, Filter und Schnellaktionen (Bearbeiten, Löschen)
+- FA-LEIST-05: Arzt-Freigabe pro Behandlung/Untersuchung vor Abrechnung
+- FA-LEIST-06: Nach Leistungseingabe (B/U) automatisch Abrechnungsbereich mit offener Buchung öffnen
+- FA-LEIST-07: Untersuchung mit Leistungsname und gesamtkosten wie Behandlung (Katalog-Vorgabe)
+- FA-AUFG-01..06: Bidirektionale Praxis-Aufgaben (Arzt→Rezeption erledigen→Arzt validiert); Posteingang sync
 
 #### Personalverwaltung (FA-PERS)
 - FA-PERS-01: Mitarbeiterdaten mit Rolle und Fachrichtung

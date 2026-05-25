@@ -354,7 +354,14 @@ impl PageBuilder {
 
     /// Umrandetes Rechteck.
     pub fn stroke_rect(&mut self, x: i32, y_bottom: i32, w: i32, h: i32) {
-        let _ = writeln!(self.cur, "{x} {y} {w} {h} re S", x = x, y = y_bottom, w = w, h = h);
+        let _ = writeln!(
+            self.cur,
+            "{x} {y} {w} {h} re S",
+            x = x,
+            y = y_bottom,
+            w = w,
+            h = h
+        );
     }
 
     /// Tabellen-Kopfband: heller Hintergrund hinter Tabellenkopfzeile.
@@ -530,8 +537,23 @@ fn char_len(s: &str) -> usize {
 fn is_vowel(c: char) -> bool {
     matches!(
         c,
-        'a' | 'e' | 'i' | 'o' | 'u' | 'ä' | 'ö' | 'ü' | 'y'
-            | 'A' | 'E' | 'I' | 'O' | 'U' | 'Ä' | 'Ö' | 'Ü' | 'Y'
+        'a' | 'e'
+            | 'i'
+            | 'o'
+            | 'u'
+            | 'ä'
+            | 'ö'
+            | 'ü'
+            | 'y'
+            | 'A'
+            | 'E'
+            | 'I'
+            | 'O'
+            | 'U'
+            | 'Ä'
+            | 'Ö'
+            | 'Ü'
+            | 'Y'
     )
 }
 
@@ -644,8 +666,8 @@ fn collect_german_hyphen_points(word: &str) -> Vec<usize> {
     let mut set = std::collections::BTreeSet::new();
 
     const PREFIXES: &[&str] = &[
-        "be", "ge", "ver", "zer", "er", "emp", "ent", "auf", "aus", "ein", "über", "unter",
-        "voll", "teil", "haus", "grund", "haupt", "neben", "zwischen",
+        "be", "ge", "ver", "zer", "er", "emp", "ent", "auf", "aus", "ein", "über", "unter", "voll",
+        "teil", "haus", "grund", "haupt", "neben", "zwischen",
     ];
     for p in PREFIXES {
         if lower.starts_with(p) && n > p.len() + 4 {
@@ -654,8 +676,8 @@ fn collect_german_hyphen_points(word: &str) -> Vec<usize> {
     }
 
     const SUFFIXES: &[&str] = &[
-        "ierung", "schaft", "heit", "keit", "chen", "lein", "ieren", "isch", "lich", "los",
-        "bar", "sam", "haft", "nis", "tum", "ung", "ion",
+        "ierung", "schaft", "heit", "keit", "chen", "lein", "ieren", "isch", "lich", "los", "bar",
+        "sam", "haft", "nis", "tum", "ung", "ion",
     ];
     for s in SUFFIXES {
         if let Some(pos) = lower.find(s) {

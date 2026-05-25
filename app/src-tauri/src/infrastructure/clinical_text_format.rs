@@ -141,7 +141,11 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
 
     let mut lines: Vec<String> = Vec::new();
 
-    push_label_line(&mut lines, "Hauptbeschwerde", &str_field(&root, "chiefComplaint"));
+    push_label_line(
+        &mut lines,
+        "Hauptbeschwerde",
+        &str_field(&root, "chiefComplaint"),
+    );
 
     let pain = str_field(&root, "painVas");
     let loc = str_field(&root, "painLocation");
@@ -353,7 +357,8 @@ pub fn plain_text_for_pdf(raw: &str) -> String {
                 || v.get("vorerkrankungen").is_some()
             {
                 format_anamnese_antworten(t).join("\n")
-            } else if (v.get("version") == Some(&Value::from(1)) && v.get("chiefComplaint").is_some())
+            } else if (v.get("version") == Some(&Value::from(1))
+                && v.get("chiefComplaint").is_some())
                 || v.get("psi").is_some()
                 || v.get("diagnosis").is_some()
             {
@@ -381,7 +386,8 @@ mod tests {
 
     #[test]
     fn anamnese_formats_sections_not_raw_json() {
-        let json = r#"{"version":1,"versicherungsstatus":"GKV","allergien":{"medikamente":"Penicillin"}}"#;
+        let json =
+            r#"{"version":1,"versicherungsstatus":"GKV","allergien":{"medikamente":"Penicillin"}}"#;
         let lines = format_anamnese_antworten(json);
         let joined = lines.join("\n");
         assert!(joined.contains("Versicherungsstatus: GKV"));

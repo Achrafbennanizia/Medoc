@@ -1,8 +1,74 @@
 # Validation ledger
 
-**Last updated:** 2026-05-19 (Phase 3.7b — patient-detail rezept logic extraction validated)
+**Last updated:** 2026-05-21 (Gap remediation wave 16 — G21a automated smoke)
 
 ## Verified (commands run, outcomes recorded)
+
+| Check | Command | Result | Date | Notes |
+| ----- | ------- | ------ | ---- | ----- |
+| Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
+| Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
+| Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |
+| Gap G3 — error surfacing (partial) | code review | **PARTIAL** | 2026-05-21 | `ops.tsx`, `db-setup-gate.tsx`, `patient-detail` plan-next; more pages queued |
+| Gap remediation — full stack | `cargo fmt` + `cargo test --tests` + `cargo clippy -D warnings` + `npm lint/test/build` | **PASS** | 2026-05-21 | Clippy: `AktePdfTable` derive Default; restore trusts HMAC for SQLCipher; **NOT OBSERVED:** live badge/restore UI |
+| Gap G8 — Krankheitsbild statistik | `cargo test --tests` + `npm run build` | **PASS** | 2026-05-21 | `krankheitsbilder_*` on `StatistikOverview`; panel `sec-krankheitsbilder` + CSV rows |
+| Gap G9 — upcoming appointments panel | `npm run build` + code review | **PASS** | 2026-05-21 | `list_upcoming_appointments` → dashboard 24h list; SMS/email **deferred** |
+| Gap G10 — integration capability matrix | code review | **PASS** | 2026-05-21 | `integration-capabilities.ts` + `einstellungen-integrationen-section.tsx` |
+| Gap G7 — autocomplete toggle | code review (pre-existing) | **PASS** | 2026-05-21 | `client-settings` + Arbeitsabläufe checkbox + `praxis-search-prefs-sync` |
+| Gap CAL2 — emergency toolbar flag | `npm run build` | **PASS** | 2026-05-21 | `calendarEmergencyToolbarEnabled` default false; termine banner + settings toggle |
+| Gap G6 — onboarding coachmark | code review | **PARTIAL** | 2026-05-21 | `OnboardingCoachmark` in `app-layout`; full route wizard **NOT OBSERVED** |
+| Gap remediation wave 2 — full stack | `cargo test --tests` + `clippy -D warnings` + `npm lint/test/build` | **PASS** | 2026-05-21 | 114 vitest; IPC **226** unchanged |
+| Gap G0 — doc truth sync | code review | **PASS** | 2026-05-21 | `project-truth.md` WAAD status; `06-validierung.md` §6.3a matrix |
+| Gap N3 — FA-LEIST-05 unit tests | `cargo test --test domain_services_tests` + `billing-release.test.ts` | **PASS** | 2026-05-21 | E2E Zahlung flow **NOT RUN** |
+| Gap G6 — onboarding tests | `onboarding.test.ts` | **PASS** | 2026-05-21 | Route coverage math; live coachmark **NOT OBSERVED** |
+| Gap remediation wave 3 — stack | `cargo test --tests` + `clippy` + `npm lint/test/build` | **PASS** | 2026-05-21 | 120 vitest (incl. billing-release, onboarding) |
+| Gap G11 — stress harness | `cargo test --test stress_tests` | **PASS** | 2026-05-21 | 5×20 concurrent audit inserts; chain verify OK |
+| Gap remediation wave 4 — stack | `cargo test --tests` + `stress_tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | G3/G6 settings UI |
+| Gap G5 — patient-detail shell split (partial) | `npm run lint/test/build` | **PASS** | 2026-05-21 | shell **~1481** lines (was ~2128); `use-patient-detail-{validation,zahl-actions,akte-save}.ts` |
+| Gap N3 — zahlung without release | `cargo test --test zahlung_repo_tests` | **PASS** | 2026-05-21 | `create_rejects_behandlung_without_physician_release` |
+| Gap remediation wave 5 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 120 vitest |
+| Gap remediation wave 6 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | G5 hooks extraction |
+| Gap G5 — patient-detail shell &lt;1200 | `npm run lint` + `npm test` + `npm run build` + `wc -l patient-detail.tsx` | **PASS** | 2026-05-21 | shell **1028** lines; `use-patient-detail-clinical-actions.ts` (640); `patient-detail-overlays.tsx` (130) |
+| Gap remediation wave 7 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 120 vitest; G5 wiring complete |
+| Gap G6 — onboarding ≥80 % | `onboarding.test.ts` (prefix routes, target math) | **PASS** | 2026-05-21 | `ONBOARDING_MIN_COVERAGE_RATIO=0.8`; coachmark save error toast |
+| Gap G13 — FA-LEIST-05 docs | code review | **PASS** | 2026-05-21 | `pflichtenheft.md`, `01b-traceability-waad.md` rescoped to B/U |
+| Gap N3 — billing release FE | `billing-release-flow.test.ts` + `zahlung_repo_tests` | **PASS** | 2026-05-21 | IPC contract; full UI E2E **NOT RUN** |
+| Gap remediation wave 8 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 124 vitest |
+| N1 README desktop-only | code review | **PASS** | 2026-05-21 | `README.md` product table |
+| N4 termin alt slots | `termin-availability.test.ts` | **PASS** | 2026-05-21 | `suggestAlternativeTerminSlots` + `termin-create` toast |
+| N5 invoice LS→app_kv | code review + app-layout hydrate | **PASS** | 2026-05-21 | `migrateInvoicePraxisLocalStorageToAppKv` |
+| Gap remediation wave 9 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 127 vitest |
+| N6 RBAC Verwaltung split | `rbac_tests` + `rbac.test.ts` | **PASS** | 2026-05-21 | `verwaltung.praxisplanung.*`; REZEPTION planning routes |
+| N2 CI tauri smoke | `npm run tauri build -- --debug --no-bundle` + CI job | **PASS** | 2026-05-21 | Local binary `target/debug/medoc`; CI job `tauri-smoke` in `ci.yml` |
+| Gap remediation wave 10 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 128 vitest |
+| G14 FA-LEIST-06 | `zahlung_repo_tests::ensure_open_booking_*` + `billing-open-booking.test.ts` | **PASS** | 2026-05-21 | ARZT → Tab `zahl` after billable Behandlung save |
+| Gap remediation wave 11 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 129 vitest; `cargo fmt` on `backup_tests.rs` |
+| G15 FA-LEIST-07 | `zahlung_repo_tests::ensure_open_booking_for_billable_untersuchung_*` + `billing-open-booking.test.ts` | **PASS** | 2026-05-21 | Schema + `UntersuchungBillingFields`; live UI **NOT RUN** |
+| Gap remediation wave 12 — stack | `cargo test --tests` + `npm lint/test` | **PASS** | 2026-05-21 | 130 vitest; 5 `zahlung_repo_tests` |
+| G16 FA-AUFG-01/06 | `praxis_aufgabe_tests` + `domain_services_tests` | **PASS** | 2026-05-21 | 230 IPC; ticket migration |
+| G17–G18 | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | `/posteingang`; auto `ABRECHNUNG`; live UI **NOT RUN** |
+| Wave 13 revalidation | `npm lint` + `npm test` (130) + `npm run build` + `cargo test --tests` (MEDOC_VENDOR_PUBKEY) | **PASS** | 2026-05-21 | `cargo fmt` on `akte_commands.rs` |
+| G2b — backup restore SQLCipher | `cargo test --test backup_tests` (`MEDOC_DB_KEY`) | **PASS** | 2026-05-21 | `opens_with_sqlcipher_key` before migrate (fixes false plaintext on encrypted `VACUUM INTO`) |
+| G19 — manual Aufgabe dialog | `npm run lint` + `npm run build` | **PASS** | 2026-05-21 | `PatientAkteWorkflowDialogs` mode `aufgabe`; live UI **NOT OBSERVED** |
+| Wave 14 — full stack | `cargo test --tests` + `npm lint/test/build` (130 vitest) | **PASS** | 2026-05-21 | All integration tests green |
+| G17-fix — posteingang route | `rbac.test.ts` `posteingang` + `ROUTE_VISIBILITY` + `NAV_SECTIONS` | **PASS** | 2026-05-21 | Was blocking `RoleRoute` (returned false) and missing from sidebar |
+| G20 — tickets banner | `npm test` + `npm run build` | **PASS** | 2026-05-21 | Legacy tickets kept; link to `/posteingang` |
+| Wave 15 — full stack | `backup_tests` + `cargo test --tests` + `npm lint/test` (132 vitest) | **PASS** | 2026-05-21 | Revalidation after G20 |
+| G21a — collaboration smoke | `collaboration-g21.test.ts` + `posteingang.smoke.test.tsx` | **PASS** | 2026-05-21 | Poll 5s; REZ tab guard; live Tauri **NOT OBSERVED** (`g21-live-smoke-checklist.md`) |
+| Wave 16 — full stack | `cargo test --tests` + `npm lint/test/build` (139 vitest) | **PASS** | 2026-05-21 | G21a + `patientDetailTabBlocked` |
+| G2b regression fix | `cargo test --test backup_tests` | **PASS** | 2026-05-21 | `opens_with_sqlcipher_key` in `sqlcipher.rs` |
+| Wave 17 — full stack | `cargo test --tests` + `npm test` (139) + `npm run build` | **PASS** | 2026-05-21 | After G2b restore fix |
+| Three-system restructure | `npm lint` + `npm test` (142) + `npm run build` + `cargo fmt --check` + `cargo test --tests` (CI `MEDOC_VENDOR_PUBKEY`) | **PASS** | 2026-05-21 | `systems-structure.test.ts`; patient-detail → `practice-host/pages/` |
+| Three-system clippy (lib) | `cargo clippy --lib -D warnings` | **PASS** | 2026-05-21 | Fixed `needless_borrows`; `AbrechnungAufgabeParams` |
+| Three-system clippy (all targets) | `cargo clippy --all-targets -D warnings` | **PASS** | 2026-05-21 | `backup_tests` → `tokio::sync::Mutex` |
+| Three-system wave 19 | `npm lint/test/build` (144 vitest) + `cargo test --tests` + `http-practice.adapter.test.ts` | **PASS** | 2026-05-21 | `HttpPracticeAdapter`; `application/akte/billing_release` |
+| Three-system wave 20 | `npm lint/test/build` (147 vitest) + `cargo test --tests` + `backup_tests` + clippy all | **PASS** | 2026-05-21 | LAN client UI; `rezeption_redact`; `lan-client-config.test.ts` |
+| Three-system wave 21 | `cargo fmt/clippy/test` + `npm lint/test/build` (148 vitest) + `zahlung_repo_tests` | **PASS** | 2026-05-21 | `clinical_line_persistence`; LAN page under `systems/lan/pages/` |
+| Three-system wave 22 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (149 vitest) | **PASS** | 2026-05-22 | `application/akte/pdf_export.rs`; `akte_commands.rs` ~369 lines; `practice-host/pages/einstellungen/` (12 sections) |
+| Three-system wave 23 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (151 vitest) | **PASS** | 2026-05-22 | `company-portal/pages/einstellungen-company-portal-section`; LAN `login` adapter test (mock fetch) |
+| G2b — vacuum backup opens with key | `vacuum_backup_from_encrypted_db_opens_with_sqlcipher_key` | **PASS** | 2026-05-21 | 4/4 `backup_tests`; restore test lock held for full test |
+| Tauri build smoke | `npm run tauri build -- --debug --no-bundle` (MEDOC_VENDOR_PUBKEY) | **PASS** | 2026-05-21 | `target/debug/medoc` |
+| Wave 18 — full revalidation | `cargo fmt --check` + `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 139 vitest; `backup_tests` 4/4 |
 
 | Check | Command | Result | Date | Notes |
 | ----- | ------- | ------ | ---- | ----- |

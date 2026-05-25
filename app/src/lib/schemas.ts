@@ -294,6 +294,9 @@ export const CreateUntersuchungSchema = z.object({
     ergebnisse: optionalText,
     diagnose: optionalText,
     untersuchungsnummer: optionalText,
+    kategorie: optionalText,
+    leistungsname: optionalText,
+    gesamtkosten: z.number().finite().optional().nullable(),
 });
 
 export const UpdateUntersuchungSchema = z.object({
@@ -301,6 +304,9 @@ export const UpdateUntersuchungSchema = z.object({
     beschwerden: optionalText,
     ergebnisse: optionalText,
     diagnose: optionalText,
+    kategorie: optionalText,
+    leistungsname: optionalText,
+    gesamtkosten: z.number().finite().optional().nullable(),
 });
 
 export const CreateZahnbefundSchema = z.object({

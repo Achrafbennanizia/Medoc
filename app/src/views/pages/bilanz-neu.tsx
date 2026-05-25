@@ -53,7 +53,7 @@ export function BilanzNeuPage() {
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
     const canReadPatients = role ? allowed("patient.read", role) : false;
-    const canBackVerwaltung = role != null && allowed("personal.read", role);
+    const canBackVerwaltung = role != null && allowed("verwaltung.read", role);
 
     const [step, setStep] = useState(0);
     const [ack, setAck] = useState(false);

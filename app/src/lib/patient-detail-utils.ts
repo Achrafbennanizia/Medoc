@@ -19,6 +19,14 @@ export function isPatientenakteMissingError(e: unknown): boolean {
 export const PATIENT_DETAIL_TAB_IDS = ["stamm", "anam", "unter", "behand", "rezept", "anlage", "zahl"] as const;
 export type PatientDetailAkteTab = (typeof PATIENT_DETAIL_TAB_IDS)[number];
 
+/** Tabs that require `patient.read_medical` (GAP-01 / REZ need-to-know). */
+export const CLINICAL_PATIENT_DETAIL_TABS = ["anam", "unter", "behand"] as const satisfies readonly PatientDetailAkteTab[];
+
+export function patientDetailTabBlocked(tab: PatientDetailAkteTab, canViewClinical: boolean): boolean {
+    if (canViewClinical) return false;
+    return (CLINICAL_PATIENT_DETAIL_TABS as readonly PatientDetailAkteTab[]).includes(tab);
+}
+
 export type RezeptWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 export type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 

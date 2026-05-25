@@ -17,16 +17,13 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
             Some("dashboard.read")
         }
         "lan.server.config.v1" => Some("ops.system"),
+        key if key.starts_with("onboarding.progress.v1.") => Some("dashboard.read"),
         _ => None,
     }
 }
 
 fn is_safe_termin_draft_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 #[cfg(test)]
@@ -43,5 +40,13 @@ mod tests {
     fn termin_draft_rejects_path_traversal() {
         assert!(permission_for_app_kv_key("termin.draft.v1.../etc").is_none());
         assert!(permission_for_app_kv_key("termin.draft.v1.").is_none());
+    }
+
+    #[test]
+    fn onboarding_progress_whitelisted() {
+        assert_eq!(
+            permission_for_app_kv_key("onboarding.progress.v1.arzt"),
+            Some("dashboard.read")
+        );
     }
 }

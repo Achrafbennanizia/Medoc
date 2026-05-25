@@ -6,6 +6,7 @@ import {
     importPatientsCsv,
     pickBackupFile,
     pickPatientsCsvFile,
+    restoreBackup,
     validateBackup,
     type BackupInfo,
     type ImportReport,
@@ -19,6 +20,7 @@ import {
 import { getAuditChainStatus } from "@/controllers/audit-chain.controller";
 import { errorMessage } from "../../lib/utils";
 import { Button } from "../components/ui/button";
+import { ConfirmDialog } from "../components/ui/dialog";
 
 const CSV_ERROR_PREVIEW_LIMIT = 50;
 
@@ -42,11 +44,15 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
     const [perfMs, setPerfMs] = useState("");
     const [perfSaved, setPerfSaved] = useState<string | null>(null);
     const [opsBlocked, setOpsBlocked] = useState(false);
+    const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
 
     useEffect(() => {
         void getAuditChainStatus()
             .then((s) => setOpsBlocked(s.blocks_ops))
-            .catch(() => setOpsBlocked(false));
+            .catch((e: unknown) => {
+                setOpsBlocked(false);
+                setMessage(`Audit-Status konnte nicht geladen werden: ${errorMessage(e)}`);
+            });
     }, []);
 
     useEffect(() => {
@@ -122,6 +128,36 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             setBackupValidateMsg(`Fehler: ${errorMessage(e)}`);
         } finally {
             setBusy(false);
+        }
+    }
+
+    async function runRestoreBackup() {
+        const path = backupValidatePath.trim();
+        if (!path) return;
+        setBusy(true);
+        setMessage(null);
+        setBackupValidateMsg(null);
+        try {
+            const ok = await validateBackup(path);
+            if (!ok) {
+                setBackupValidateMsg("Wiederherstellung abgebrochen: Datei ist keine gültige SQLite-Sicherung.");
+                return;
+            }
+            const report = await restoreBackup(path);
+            const hint = report.pre_restore_backup_created
+                ? " Vor der Wiederherstellung wurde eine zusätzliche Sicherung erstellt."
+                : "";
+            setMessage(
+                `Datenbank wiederhergestellt aus ${report.restored_from}.${hint} Bitte die Anwendung jetzt neu starten (Seite neu laden).`,
+            );
+            if (report.requires_app_restart) {
+                window.setTimeout(() => window.location.reload(), 2500);
+            }
+        } catch (e: unknown) {
+            setMessage(`Wiederherstellung fehlgeschlagen: ${errorMessage(e)}`);
+        } finally {
+            setBusy(false);
+            setRestoreConfirmOpen(false);
         }
     }
 
@@ -274,10 +310,30 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                         <Button type="button" variant="ghost" onClick={() => void runValidateBackup()} disabled={busy || opsBlocked || !backupValidatePath.trim()}>
                             Prüfen
                         </Button>
+                        <Button
+                            type="button"
+                            variant="danger"
+                            onClick={() => setRestoreConfirmOpen(true)}
+                            disabled={busy || opsBlocked || !backupValidatePath.trim()}
+                        >
+                            Wiederherstellen…
+                        </Button>
                     </div>
                     {backupValidateMsg ? <p className="text-body" role="status" style={{ margin: 0 }}>{backupValidateMsg}</p> : null}
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={restoreConfirmOpen}
+                onClose={() => setRestoreConfirmOpen(false)}
+                title="Datenbank wiederherstellen?"
+                message="Die aktuelle Datenbank wird durch die gewählte Sicherungsdatei ersetzt. Offene Arbeit geht verloren, sofern sie nicht gesichert ist. Die App wird danach neu geladen."
+                confirmLabel="Wiederherstellen"
+                cancelLabel="Abbrechen"
+                danger
+                loading={busy}
+                onConfirm={() => void runRestoreBackup()}
+            />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Patientenimport (CSV)</h3>

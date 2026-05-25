@@ -12,7 +12,7 @@ pub async fn list_abwesenheiten(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<praxis_repo::Abwesenheit>, AppError> {
-    rbac::require(&session_state, "personal.read")?;
+    rbac::require(&session_state, "verwaltung.praxisplanung.read")?;
     praxis_repo::list_abwesenheiten(&pool).await
 }
 
@@ -23,7 +23,7 @@ pub async fn create_abwesenheit(
     session_state: State<'_, SessionState>,
     data: praxis_repo::CreateAbwesenheit,
 ) -> Result<praxis_repo::Abwesenheit, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.praxisplanung.write")?;
     let row = praxis_repo::create_abwesenheit(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -46,7 +46,7 @@ pub async fn update_abwesenheit(
     id: String,
     data: praxis_repo::UpdateAbwesenheit,
 ) -> Result<praxis_repo::Abwesenheit, AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.praxisplanung.write")?;
     let row = praxis_repo::update_abwesenheit(&pool, &id, &data).await?;
     audit_repo::create(
         &pool,
@@ -68,7 +68,7 @@ pub async fn delete_abwesenheit(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<(), AppError> {
-    let session = rbac::require(&session_state, "personal.write")?;
+    let session = rbac::require(&session_state, "verwaltung.praxisplanung.write")?;
     praxis_repo::delete_abwesenheit(&pool, &id).await?;
     audit_repo::create(
         &pool,

@@ -126,9 +126,10 @@ export function usePatientDetailRezeptTab({
         hinweise: "",
     });
 
+    const rezeptEditId = rezeptEdit?.id ?? null;
     useEffect(() => {
-        if (rezeptEdit) setRezeptEditUnlocked(false);
-    }, [rezeptEdit?.id]);
+        if (rezeptEditId) setRezeptEditUnlocked(false);
+    }, [rezeptEditId]);
 
     const resetRezeptWizard = useCallback(() => {
         setRezeptWizardStep(null);

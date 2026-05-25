@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-05-19  
+**Last updated:** 2026-05-21  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Stable truth (high confidence)
@@ -20,6 +20,7 @@
 - **Praxis document readiness (FE):** `app/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
 - **Validation (fix session):** `npm run lint`, `npm test`, `npm run build` (app/) **passed**; `cargo test --tests` (app/src-tauri) **passed** (`docs/coordination/validation.md`).
+- **Three-system layout (2026-05-21):** FE `app/src/systems/{practice-host,lan,company-portal}/`; Rust `app/src-tauri/src/systems/{practice,lan,company}/`; architecture `docs/architecture/three-systems.md`. Legacy `app/src/controllers/*.ts` re-export stubs.
 - **Removed:** Root `src/` Next.js reference app and CI job `next-web` (audit remediation TASK 0.1, 2026-05-19). V-Model docs mark historical Next prototype as archive only.
 
 ## Working model (needs confirmation)
@@ -36,13 +37,18 @@
   with status (COVERED / PARTIAL / NEW-PH / ORG) and code evidence (file + line / `rg` query).
 - **New Pflichtenheft IDs derived from WAAD:** `FA-AKTE-14` (Akte-an-Arzt-Weiterleitung),
   `FA-AKTE-15` (Validierungs-Queue-Page), `FA-AKTE-16` (Vollständigkeits-Indikator),
-  `FA-DOK-08` (Discharge Summary PDF), `FA-LEIST-05` (Arzt-Freigabe pro Leistung),
+  `FA-DOK-08` (Discharge Summary PDF), `FA-LEIST-05` (Arzt-Freigabe pro Leistung), `FA-LEIST-06` (Auto-offene Buchung nach Leistung B/U),
   `FA-PERS-07` (Permission Overrides), `FA-PERS-08` (Personal Ticket-System),
   `NFA-USE-09` (per-route Onboarding-Walkthrough), `NFA-USE-10` (Konfigurierbares Autocomplete).
-- **Implementation status of new IDs:** All listed in `docs/coordination/actions.md` (A2–A10) as
-  "Open" — code evidence sweep performed (`docs/coordination/validation.md` §"WAAD intake — code-evidence audit"),
-  none of these IDs has runnable code yet.
-- **Counts after intake:** FA = 83 (from 76), NFA = 18 (from 16) — see `02-klassifizierung.md`.
+- **Implementation status of new IDs (2026-05-21 gap remediation):** See `docs/coordination/actions.md`.
+  **Done in code:** `FA-AKTE-14/15/16`, `FA-DOK-08`, `FA-PERS-07/08`, `NFA-SEC-08` (SQLCipher), `NFA-USE-10`,
+  restore backup (WAAD 9.1), Krankheitsbild statistik proxy (WAAD 9.5 / A10).
+  **Done:** `FA-LEIST-05` (B/U `freigegeben_*` + `pricing::require_released_for_billing`; FE `billing-release.ts`; docs rescoped G13).
+  **Done:** `FA-LEIST-06` (Behandlung), `FA-LEIST-07` (Untersuchung: `kategorie`/`leistungsname`/`gesamtkosten`, `ensure_open_booking_for_billable_untersuchung`, `UntersuchungBillingFields`, `zahlung-buchung` Soll).
+  **Done:** `FA-AUFG-01..06` (`praxis_aufgabe`, `/posteingang`, Statusmaschine, `PRAXIS_AUFGABE_ERLEDIGT`, auto `ABRECHNUNG`, manueller Dialog „Aufgabe an Rezeption“ in Patientenakte). Legacy `/tickets` + `praxis_ticket` IPC bleiben parallel.
+  **Partial:** `NFA-USE-09` (`onboarding.ts`, `OnboardingCoachmark`, per-route ≥80 % target; field tooltips TBD).
+  **Open:** A9 stress test → G11; per-patient RBAC → G12 deferred.
+- **Counts after intake:** FA = 91 (from 76; +LEIST-06/07, +AUFG-01..06 2026-05-21), NFA = 18 (from 16) — see `02-klassifizierung.md`.
 
 ## Evidence index
 

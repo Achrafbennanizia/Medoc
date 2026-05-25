@@ -27,15 +27,13 @@ use crate::application::rbac::{self, Role};
 use crate::domain::entities::personal::UpdateOwnProfile;
 use crate::domain::entities::{Patient, Termin};
 use crate::error::AppError;
-use crate::infrastructure::company_portal::{
-    fetch_feature_flags, fetch_integration_statuses, fetch_subscription_summary,
-    load_company_portal_config, post_billing_portal_url,
-};
+use crate::infrastructure::company_portal::load_company_portal_config;
 use crate::infrastructure::cors_policy::{self, CorsGate};
 use crate::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
 use crate::infrastructure::lan_server::discovery::LanBeaconPayload;
 use crate::infrastructure::lan_server::jwt;
 use crate::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
+use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 
 #[derive(Clone)]
 pub struct LanHttpState {
@@ -229,13 +227,9 @@ async fn login(
     Json(body): Json<LoginBody>,
 ) -> Result<Json<LoginResponse>, Response> {
     let peer_ip = addr.ip().to_string();
-    let brute_key = BruteKey::from_subject(&body.email, &peer_ip)
-        .map_err(|e| ApiError(e).into_response())?;
-    match state
-        .brute
-        .check(Some(&state.pool), &brute_key)
-        .await
-    {
+    let brute_key =
+        BruteKey::from_subject(&body.email, &peer_ip).map_err(|e| ApiError(e).into_response())?;
+    match state.brute.check(Some(&state.pool), &brute_key).await {
         CheckResult::Locked { remaining_secs } => {
             return Err((
                 StatusCode::TOO_MANY_REQUESTS,
@@ -390,7 +384,7 @@ async fn company_summary_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = fetch_subscription_summary(&cfg).await?;
+    let v = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
     Ok(Json(v))
 }
 
@@ -400,7 +394,7 @@ async fn company_integrations_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = fetch_integration_statuses(&cfg).await?;
+    let v = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
     Ok(Json(v))
 }
 
@@ -410,7 +404,7 @@ async fn company_feature_flags_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = fetch_feature_flags(&cfg).await?;
+    let v = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
     Ok(Json(v))
 }
 
@@ -420,6 +414,6 @@ async fn company_billing_portal_post(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let url = post_billing_portal_url(&cfg).await?;
+    let url = COMPANY_PORTAL.post_billing_portal_url(&cfg).await?;
     Ok(Json(json!({ "url": url, "provider": "Hersteller-Portal" })))
 }

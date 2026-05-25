@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS untersuchung (
             ergebnisse TEXT,
             diagnose TEXT,
             untersuchungsnummer TEXT,
+            kategorie TEXT,
+            leistungsname TEXT,
+            gesamtkosten REAL,
             freigegeben_von_arzt_id TEXT,
             freigegeben_am TEXT,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -410,6 +413,34 @@ CREATE TABLE IF NOT EXISTS praxis_ticket (
 CREATE INDEX IF NOT EXISTS idx_praxis_ticket_arzt ON praxis_ticket(to_arzt_id, status, datetime(created_at) DESC);
 
 CREATE INDEX IF NOT EXISTS idx_praxis_ticket_from ON praxis_ticket(from_user_id, datetime(created_at) DESC);
+
+CREATE TABLE IF NOT EXISTS praxis_aufgabe (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            typ TEXT NOT NULL DEFAULT 'SONSTIGES',
+            titel TEXT NOT NULL,
+            body TEXT,
+            assignee_role TEXT,
+            assignee_user_id TEXT REFERENCES personal(id) ON DELETE SET NULL,
+            created_by TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            behandlung_id TEXT,
+            untersuchung_id TEXT,
+            leistungsname TEXT,
+            gesamtkosten REAL,
+            zahlung_id TEXT,
+            erledigt_notiz TEXT,
+            zurueck_begruendung TEXT,
+            status TEXT NOT NULL DEFAULT 'OFFEN',
+            legacy_ticket_id TEXT UNIQUE,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_rezeption ON praxis_aufgabe(assignee_role, status, datetime(created_at) DESC);
+
+CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_assignee ON praxis_aufgabe(assignee_user_id, status, datetime(created_at) DESC);
+
+CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_creator ON praxis_aufgabe(created_by, status, datetime(updated_at) DESC);
 
 CREATE TABLE IF NOT EXISTS dokument_template_user (
             id TEXT PRIMARY KEY,

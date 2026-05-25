@@ -13,6 +13,7 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "patient.write_medical":
         case "personal.read":
         case "personal.write":
+        case "verwaltung.team.read":
         case "verwaltung.vorlagen.read":
         case "verwaltung.vorlagen.write":
         case "vorlagen.read":
@@ -24,6 +25,8 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "termin.list_aerzte":
         case "termin.read":
         case "termin.write":
+        case "verwaltung.praxisplanung.read":
+        case "verwaltung.praxisplanung.write":
             return role === "ARZT" || role === "REZEPTION";
         case "bestellung.write":
         case "produkt.write":

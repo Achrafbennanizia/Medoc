@@ -142,7 +142,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
         });
-        expect(tauriInvoke).toHaveBeenCalledWith("logout");
+        const ipcCommands = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
+        expect(ipcCommands, `IPC calls: ${ipcCommands.join(", ")}`).toContain("logout");
     });
 });
 

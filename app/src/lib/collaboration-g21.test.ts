@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import { buildNativeGoMenuItems, NATIVE_GO_MENU_SEP } from "./native-go-menu";
+import { POSTEINGANG_POLL_MS } from "./posteingang-config";
+import {
+    CLINICAL_PATIENT_DETAIL_TABS,
+    patientDetailTabBlocked,
+    type PatientDetailAkteTab,
+} from "./patient-detail-utils";
+import { allowed, navItemVisible, NAV_ITEM_DEFINITIONS, routeChildPathAllowed } from "./rbac";
+
+describe("G21 collaboration contracts", () => {
+    it("Posteingang polls every 5 seconds (FA-AUFG-03)", () => {
+        expect(POSTEINGANG_POLL_MS).toBe(5_000);
+    });
+
+    it("REZEPTION: clinical akte tabs blocked, zahl/stamm allowed", () => {
+        const canViewClinical = allowed("patient.read_medical", "REZEPTION");
+        expect(canViewClinical).toBe(false);
+        for (const tab of CLINICAL_PATIENT_DETAIL_TABS) {
+            expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(true);
+        }
+        const open: PatientDetailAkteTab[] = ["stamm", "zahl", "rezept", "anlage"];
+        for (const tab of open) {
+            expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(false);
+        }
+    });
+
+    it("ARZT: all patient-detail tabs reachable", () => {
+        const canViewClinical = allowed("patient.read_medical", "ARZT");
+        expect(canViewClinical).toBe(true);
+        for (const tab of CLINICAL_PATIENT_DETAIL_TABS) {
+            expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(false);
+        }
+    });
+
+    it("REZEPTION can open posteingang and tickets routes", () => {
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
+    });
+
+    it("REZEPTION native Go menu includes posteingang before tickets", () => {
+        const paths = buildNativeGoMenuItems("REZEPTION", (k) => k)
+            .filter((i) => i.path !== NATIVE_GO_MENU_SEP)
+            .map((i) => i.path);
+        const pi = paths.indexOf("/posteingang");
+        const ti = paths.indexOf("/tickets");
+        expect(pi).toBeGreaterThanOrEqual(0);
+        expect(ti).toBeGreaterThanOrEqual(0);
+        expect(pi).toBeLessThan(ti);
+    });
+
+    it("posteingang nav item visible for ARZT and REZEPTION", () => {
+        const item = NAV_ITEM_DEFINITIONS.find((i) => i.to === "/posteingang");
+        expect(item).toBeDefined();
+        expect(navItemVisible("ARZT", item!)).toBe(true);
+        expect(navItemVisible("REZEPTION", item!)).toBe(true);
+        expect(navItemVisible("STEUERBERATER", item!)).toBe(false);
+    });
+});

@@ -42,10 +42,8 @@ async fn require_practice_auth(
             return Err((StatusCode::INTERNAL_SERVER_ERROR, "brute key").into_response());
         }
     };
-    if let CheckResult::Locked { remaining_secs } = state
-        .brute
-        .check(Some(&state.pool), &brute_key)
-        .await
+    if let CheckResult::Locked { remaining_secs } =
+        state.brute.check(Some(&state.pool), &brute_key).await
     {
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
@@ -96,10 +94,7 @@ pub async fn build_company_router(pool: SqlitePool) -> Router {
     if let Err(e) = brute.hydrate_from_db(&pool).await {
         tracing::warn!(target: "medoc::company", event = "BRUTE_FORCE_HYDRATE_FAILED", error = %e);
     }
-    let state = CompanyHostState {
-        pool,
-        brute,
-    };
+    let state = CompanyHostState { pool, brute };
     let protected = Router::new()
         .route("/health", get(health))
         .route("/summary", get(summary))

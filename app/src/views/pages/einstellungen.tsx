@@ -30,7 +30,9 @@ import {
     savePraxisPraeferenzen,
     type PraxisPraeferenzen,
 } from "../../lib/praxis-praeferenzen-storage";
-import { allowed, parseRole } from "@/lib/rbac";
+import type { SettingsSectionId } from "@/lib/rbac";
+import { useRbac } from "@/lib/use-rbac";
+import { AccessDeniedView } from "@/views/components/rbac-gate";
 import { normalizeAccentId } from "../../lib/accent-preset";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -66,18 +68,7 @@ const SETTINGS_BREADCRUMB =
 
 const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
 
-type SettingsSection =
-    | "praxis"
-    | "konto"
-    | "benachrichtigungen"
-    | "sicherheit"
-    | "lizenz"
-    | "integrationen"
-    | "migration"
-    | "darstellung"
-    | "arbeitsablaeufe"
-    | "system"
-    | "ueber";
+type SettingsSection = SettingsSectionId;
 
 const TAB_QUERY: Record<SettingsSection, string> = {
     praxis: "praxis",
@@ -97,12 +88,12 @@ export function EinstellungenPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
+    const { can, canSettingsSection } = useRbac();
     const locale = useLocale((s) => s.locale);
     const setLocale = useLocale((s) => s.setLocale);
     const toast = useToastStore((s) => s.add);
-    const role = parseRole(session?.rolle);
-    const canMigration = role != null && allowed("ops.migration", role);
-    const canLanHost = role != null && allowed("ops.system", role);
+    const canMigration = can("ops.migration");
+    const canLanHost = can("ops.system");
 
     const hydrateConfirmations = useUiPreferencesStore((s) => s.hydrate);
 
@@ -170,6 +161,7 @@ export function EinstellungenPage() {
         setPortalFetchBusy(true);
         void (async () => {
             try {
+                // Portal optional (offline / no company host): `null` is intentional, not a silent failure.
                 if (activeSection === "lizenz") {
                     const sum = await companyPortalFetchSummary().catch(() => null);
                     if (!cancelled && sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
@@ -271,7 +263,7 @@ export function EinstellungenPage() {
         [setSearchParams],
     );
 
-    const primaryNav: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
+    const primaryNavAll: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
         { id: "praxis", label: "Praxis", icon: StethoscopeIcon },
         { id: "konto", label: "Konto", icon: UsersIcon },
         { id: "benachrichtigungen", label: "Benachrichtigungen", icon: BellIcon },
@@ -282,11 +274,20 @@ export function EinstellungenPage() {
         { id: "darstellung", label: "Darstellung", icon: SunIcon },
     ];
 
-    const advancedNav: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
+    const advancedNavAll: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
         { id: "arbeitsablaeufe", label: "Arbeitsabläufe", icon: SlidersHorizontalIcon },
         { id: "system", label: "System", icon: SettingsIcon },
         { id: "ueber", label: "Über die Anwendung", icon: InfoIcon },
     ];
+
+    const primaryNav = primaryNavAll.filter((item) => canSettingsSection(item.id));
+    const advancedNav = advancedNavAll.filter((item) => canSettingsSection(item.id));
+
+    useEffect(() => {
+        if (canSettingsSection(activeSection)) return;
+        const first = primaryNav[0]?.id ?? advancedNav[0]?.id ?? null;
+        if (first) setSection(first);
+    }, [activeSection, session?.rolle, session?.permission_overrides, primaryNav, advancedNav, setSection, canSettingsSection]);
 
     const appearance = client.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
     const accentPresetId = normalizeAccentId(appearance.accentPreset);
@@ -344,21 +345,24 @@ export function EinstellungenPage() {
                     </div>
                 </nav>
                 <div className="settings-panel-stack">
-                    {activeSection === "praxis" ? (
+                    {!canSettingsSection(activeSection) ? (
+                        <AccessDeniedView detail="Dieser Einstellungen-Bereich ist für Ihre Rolle nicht freigegeben." />
+                    ) : null}
+                    {canSettingsSection(activeSection) && activeSection === "praxis" ? (
                         <EinstellungenPraxisSection
                             sessionUserId={session?.user_id}
                             onOpenArbeitsablaeufe={() => setSection("arbeitsablaeufe")}
                         />
                     ) : null}
 
-                    {activeSection === "konto" ? (
+                    {canSettingsSection(activeSection) && activeSection === "konto" ? (
                         <EinstellungenKontoSection
                             onOpenPasswordDialog={() => setPwDialogOpen(true)}
                             passwordChangedTick={pwAgeTick}
                         />
                     ) : null}
 
-                    {activeSection === "benachrichtigungen" ? (
+                    {canSettingsSection(activeSection) && activeSection === "benachrichtigungen" ? (
                         <EinstellungenBenachrichtigungenSection
                             notifications={notifications}
                             portalFlags={portalFlags}
@@ -366,7 +370,7 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "sicherheit" ? (
+                    {canSettingsSection(activeSection) && activeSection === "sicherheit" ? (
                         <EinstellungenSicherheitSection
                             security={security}
                             healthLast={healthLast}
@@ -374,7 +378,7 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "lizenz" ? (
+                    {canSettingsSection(activeSection) && activeSection === "lizenz" ? (
                         <EinstellungenLizenzSection
                             portalSummary={portalSummary}
                             portalFetchBusy={portalFetchBusy}
@@ -384,7 +388,7 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "integrationen" ? (
+                    {canSettingsSection(activeSection) && activeSection === "integrationen" ? (
                         <EinstellungenIntegrationenSection
                             portalIntegrations={portalIntegrations}
                             integrations={integrations}
@@ -392,11 +396,11 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "migration" ? (
+                    {canSettingsSection(activeSection) && activeSection === "migration" ? (
                         <EinstellungenMigrationSection canMigration={canMigration} />
                     ) : null}
 
-                    {activeSection === "darstellung" ? (
+                    {canSettingsSection(activeSection) && activeSection === "darstellung" ? (
                         <EinstellungenDarstellungSection
                             appearance={appearance}
                             colorSchemePref={colorSchemePref}
@@ -410,7 +414,7 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "arbeitsablaeufe" ? (
+                    {canSettingsSection(activeSection) && activeSection === "arbeitsablaeufe" ? (
                         <EinstellungenArbeitsablaeufeSection
                             praef={praef}
                             praefDirty={praefDirty}
@@ -420,10 +424,11 @@ export function EinstellungenPage() {
                             workflows={wf}
                             searchPrefs={searchPrefs}
                             onPersistClient={persistClientSilent}
+                            rolle={session?.rolle}
                         />
                     ) : null}
 
-                    {activeSection === "system" ? (
+                    {canSettingsSection(activeSection) && activeSection === "system" ? (
                         <EinstellungenSystemSection
                             appearance={appearance}
                             security={security}
@@ -435,7 +440,7 @@ export function EinstellungenPage() {
                         />
                     ) : null}
 
-                    {activeSection === "ueber" ? (
+                    {canSettingsSection(activeSection) && activeSection === "ueber" ? (
                         <EinstellungenUeberSection
                             licenseToken={licenseToken}
                             onLicenseTokenChange={setLicenseToken}

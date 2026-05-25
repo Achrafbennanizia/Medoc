@@ -144,6 +144,10 @@ export interface Untersuchung {
     diagnose: string | null;
     untersuchungsnummer?: string | null;
     created_at: string;
+    /** FA-LEIST-07 */
+    kategorie?: string | null;
+    leistungsname?: string | null;
+    gesamtkosten?: number | null;
     /** FA-LEIST-05 */
     freigegeben_von_arzt_id?: string | null;
     freigegeben_am?: string | null;
@@ -309,6 +313,9 @@ export interface StatistikOverview {
     // Behandlungen
     behandlungen_nach_kategorie: LabelValue[];
     behandlungen_pro_monat: MonthBucket[];
+    /** WAAD 9.5 — Krankheitsbilder (Kategorie/Art) und Monatsverlauf. */
+    krankheitsbilder_top: LabelValue[];
+    krankheitsbilder_verlauf_pro_monat: MonthBucket[];
     medikamente_top: LabelValue[];
     // Termine & Organisation
     termine_pro_monat: MonthBucket[];

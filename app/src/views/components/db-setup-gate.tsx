@@ -5,6 +5,7 @@ import {
     unlockDbPassphrase,
     type DbSetupStatus,
 } from "../../controllers/db-setup.controller";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -22,7 +23,10 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
     const refresh = useCallback(() => {
         void getDbSetupStatus()
             .then(setStatus)
-            .catch(() => setStatus({ needsPassphraseSetup: false, needsUnlock: false }));
+            .catch((e: unknown) => {
+                setStatus({ needsPassphraseSetup: false, needsUnlock: false });
+                setError(`Datenbank-Status konnte nicht geladen werden: ${errorMessage(e)}`);
+            });
     }, []);
 
     useEffect(() => {

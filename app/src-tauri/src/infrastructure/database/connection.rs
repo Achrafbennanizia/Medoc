@@ -222,6 +222,43 @@ async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         .execute(pool)
         .await;
     }
+
+    let ins_aufg = sqlx::query(
+        "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.praxis_ticket_to_aufgabe_v1', '1')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if ins_aufg.rows_affected() > 0 {
+        let _ = sqlx::query(
+            r#"INSERT INTO praxis_aufgabe (
+                id, patient_id, typ, titel, body, assignee_user_id, created_by, status,
+                legacy_ticket_id, created_at, updated_at
+            )
+            SELECT
+                t.id,
+                t.patient_id,
+                'SONSTIGES',
+                CASE WHEN length(t.body) > 80 THEN substr(t.body, 1, 80) || '…' ELSE t.body END,
+                t.body,
+                t.to_arzt_id,
+                t.from_user_id,
+                CASE t.status
+                    WHEN 'ERLEDIGT' THEN 'VALIDIERT'
+                    WHEN 'IN_BEARBEITUNG' THEN 'IN_BEARBEITUNG'
+                    ELSE 'OFFEN'
+                END,
+                t.id,
+                t.created_at,
+                t.updated_at
+            FROM praxis_ticket t
+            WHERE NOT EXISTS (
+                SELECT 1 FROM praxis_aufgabe a WHERE a.legacy_ticket_id = t.id
+            )"#,
+        )
+        .execute(pool)
+        .await;
+    }
     Ok(())
 }
 
@@ -906,6 +943,18 @@ async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), AppErro
             "freigegeben_am_u",
         ),
         (
+            "ALTER TABLE untersuchung ADD COLUMN kategorie TEXT",
+            "kategorie_u",
+        ),
+        (
+            "ALTER TABLE untersuchung ADD COLUMN leistungsname TEXT",
+            "leistungsname_u",
+        ),
+        (
+            "ALTER TABLE untersuchung ADD COLUMN gesamtkosten REAL",
+            "gesamtkosten_u",
+        ),
+        (
             "ALTER TABLE zahlung ADD COLUMN behandlung_id TEXT",
             "behandlung_id",
         ),
@@ -948,7 +997,10 @@ async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), AppErro
             "ALTER TABLE audit_log ADD COLUMN break_glass_reason TEXT",
             "break_glass_reason",
         ),
-        ("ALTER TABLE personal ADD COLUMN totp_secret TEXT", "totp_secret"),
+        (
+            "ALTER TABLE personal ADD COLUMN totp_secret TEXT",
+            "totp_secret",
+        ),
         (
             "ALTER TABLE personal ADD COLUMN totp_enrolled_at TEXT",
             "totp_enrolled_at",
@@ -1152,6 +1204,47 @@ async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), AppErro
     .await?;
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_praxis_ticket_from ON praxis_ticket(from_user_id, datetime(created_at) DESC)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS praxis_aufgabe (
+            id TEXT PRIMARY KEY,
+            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            typ TEXT NOT NULL DEFAULT 'SONSTIGES',
+            titel TEXT NOT NULL,
+            body TEXT,
+            assignee_role TEXT,
+            assignee_user_id TEXT REFERENCES personal(id) ON DELETE SET NULL,
+            created_by TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            behandlung_id TEXT,
+            untersuchung_id TEXT,
+            leistungsname TEXT,
+            gesamtkosten REAL,
+            zahlung_id TEXT,
+            erledigt_notiz TEXT,
+            zurueck_begruendung TEXT,
+            status TEXT NOT NULL DEFAULT 'OFFEN',
+            legacy_ticket_id TEXT UNIQUE,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_rezeption ON praxis_aufgabe(assignee_role, status, datetime(created_at) DESC)",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_assignee ON praxis_aufgabe(assignee_user_id, status, datetime(created_at) DESC)",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_creator ON praxis_aufgabe(created_by, status, datetime(updated_at) DESC)",
     )
     .execute(pool)
     .await?;

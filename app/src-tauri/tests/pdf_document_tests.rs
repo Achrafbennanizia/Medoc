@@ -44,7 +44,13 @@ fn test_invoice_goz_has_required_fields() {
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in ["GOZ", "Fak", "IBAN", "Umsatzsteuerbefreit", "Zahlbar innerhalb"] {
+    for needle in [
+        "GOZ",
+        "Fak",
+        "IBAN",
+        "Umsatzsteuerbefreit",
+        "Zahlbar innerhalb",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -82,7 +88,8 @@ fn test_akte_pdf_has_praxis_header() {
         ],
         table: None,
     }];
-    let pdf = render_akte_blocks("Akte", "2026-01-01", "Akte Test", &blocks, None).expect("akte pdf");
+    let pdf =
+        render_akte_blocks("Akte", "2026-01-01", "Akte Test", &blocks, None).expect("akte pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(s.contains("Praxis"));
     assert!(s.contains("BSNR"));
@@ -150,11 +157,7 @@ fn test_akte_untersuchung_table_renders_full_psi() {
                 "Nr.".into(),
                 "Untersuchungsbefund (vollständig)".into(),
             ],
-            rows: vec![vec![
-                "2026-05-19".into(),
-                "U-001".into(),
-                befund,
-            ]],
+            rows: vec![vec!["2026-05-19".into(), "U-001".into(), befund]],
             column_weights: Some(vec![2, 1, 12]),
         }),
     }];
@@ -193,11 +196,7 @@ fn test_clinical_quittung_table_layout() {
         two_column: None,
         tables: vec![PdfTableSpec {
             title: None,
-            headers: vec![
-                "Tag".into(),
-                "Position".into(),
-                "Kurzbeschreibung".into(),
-            ],
+            headers: vec!["Tag".into(), "Position".into(), "Kurzbeschreibung".into()],
             rows: vec![vec![
                 "19.05.2026".into(),
                 "Q-001".into(),
@@ -225,7 +224,38 @@ fn test_clinical_quittung_table_layout() {
     };
     let pdf = render_clinical_layout(&doc).expect("quittung pdf");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in ["PATIENTENQUITTUNG", "Tag", "Kurzbeschreibung", "Honorar", "Gesamt"] {
+    for needle in [
+        "PATIENTENQUITTUNG",
+        "Tag",
+        "Kurzbeschreibung",
+        "Honorar",
+        "Gesamt",
+    ] {
+        assert!(s.contains(needle), "missing {needle}");
+    }
+}
+
+#[test]
+fn test_discharge_merkblatt_pdf_markers() {
+    let blocks = vec![AktePdfBlock::body(
+        "Hinweis",
+        vec![
+            "Dieses Merkblatt fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung."
+                .into(),
+            "Bitte bringen Sie dieses Blatt zu Folgeterminen mit.".into(),
+        ],
+    )];
+    let pdf = render_akte_blocks(
+        "Entlassungs-Merkblatt / Nachsorge",
+        "2026-05-21",
+        "Entlassungs-Merkblatt — Testpatient",
+        &blocks,
+        None,
+    )
+    .expect("discharge merkblatt pdf");
+    let s = String::from_utf8_lossy(&pdf);
+    assert!(pdf.starts_with(b"%PDF"));
+    for needle in ["Entlassungs-Merkblatt", "Praxissoftware", "Folgeterminen"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }

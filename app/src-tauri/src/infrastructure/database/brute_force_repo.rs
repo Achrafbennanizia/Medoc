@@ -39,11 +39,13 @@ pub async fn get(pool: &SqlitePool, key_hash: &str) -> Result<Option<LockoutRow>
     .bind(key_hash)
     .fetch_optional(pool)
     .await?;
-    Ok(row.map(|(key_hash, failure_count, locked_until)| LockoutRow {
-        key_hash,
-        failure_count,
-        locked_until: parse_dt(locked_until),
-    }))
+    Ok(
+        row.map(|(key_hash, failure_count, locked_until)| LockoutRow {
+            key_hash,
+            failure_count,
+            locked_until: parse_dt(locked_until),
+        }),
+    )
 }
 
 pub async fn upsert(
@@ -78,7 +80,10 @@ pub async fn delete(pool: &SqlitePool, key_hash: &str) -> Result<(), AppError> {
 }
 
 /// Clears lockouts for every `key_hash` whose storage key starts with `{hashed_subject}|`.
-pub async fn clear_by_subject_prefix(pool: &SqlitePool, hashed_subject: &str) -> Result<u64, AppError> {
+pub async fn clear_by_subject_prefix(
+    pool: &SqlitePool,
+    hashed_subject: &str,
+) -> Result<u64, AppError> {
     let prefix = format!("{hashed_subject}|");
     let res = sqlx::query("DELETE FROM brute_force_lockout WHERE key_hash LIKE ?1")
         .bind(format!("{prefix}%"))

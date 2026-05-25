@@ -20,7 +20,7 @@ import { useToastStore } from "../components/ui/toast-store";
  */
 export function BilanzPage() {
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
-    const canBackVerwaltung = role != null && allowed("personal.read", role);
+    const canBackVerwaltung = role != null && allowed("verwaltung.read", role);
     const [bilanz, setBilanz] = useState<Bilanz | null>(null);
     const [zahlungen, setZahlungen] = useState<Zahlung[]>([]);
     const [snapshots, setSnapshots] = useState<BilanzSnapshot[]>([]);

@@ -21,6 +21,7 @@ import {
     buildOpenZahlLinkSelectOptions,
     formatZahlungBezugLine,
     maxNeuZahlungBehandlung,
+    maxNeuZahlungUntersuchung,
     roundMoney2,
     sumZahlungenForBehandlung,
     sumZahlungenForUntersuchung,
@@ -173,12 +174,21 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
     const zahlLinkValue = linkKind && linkId ? `${linkKind}:${linkId}` : "";
 
     const zahlNeuMaxBetragEur = useMemo(() => {
-        if (!patientId || linkKind !== "behand" || !linkId) return null;
-        const selBh = behandlungen.find((b) => b.id === linkId);
-        const gesamt =
-            selBh?.gesamtkosten != null && Number.isFinite(selBh.gesamtkosten) ? selBh.gesamtkosten : null;
-        return maxNeuZahlungBehandlung(zahlungenPatient, patientId, linkId, gesamt);
-    }, [patientId, linkKind, linkId, behandlungen, zahlungenPatient]);
+        if (!patientId || !linkId) return null;
+        if (linkKind === "behand") {
+            const selBh = behandlungen.find((b) => b.id === linkId);
+            const gesamt =
+                selBh?.gesamtkosten != null && Number.isFinite(selBh.gesamtkosten) ? selBh.gesamtkosten : null;
+            return maxNeuZahlungBehandlung(zahlungenPatient, patientId, linkId, gesamt);
+        }
+        if (linkKind === "unter") {
+            const selU = untersuchungen.find((u) => u.id === linkId);
+            const gesamt =
+                selU?.gesamtkosten != null && Number.isFinite(selU.gesamtkosten) ? selU.gesamtkosten : null;
+            return maxNeuZahlungUntersuchung(zahlungenPatient, patientId, linkId, gesamt);
+        }
+        return null;
+    }, [patientId, linkKind, linkId, behandlungen, untersuchungen, zahlungenPatient]);
 
     function onPatientChange(id: string) {
         setPatientId(id);

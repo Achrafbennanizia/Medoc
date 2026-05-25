@@ -27,8 +27,7 @@
 //! verwendet (siehe [`emit_continuation_header`]).
 
 use super::pdf_core::{
-    wrap_soft, PageBuilder, ADDRESS_WINDOW_Y, M_LEFT, M_RIGHT,
-    M_TOP, SENDER_HINT_Y,
+    wrap_soft, PageBuilder, ADDRESS_WINDOW_Y, M_LEFT, M_RIGHT, M_TOP, SENDER_HINT_Y,
 };
 
 /// Eine Zeile des rechten Meta-Blocks: "Bezeichnung" + "Wert".
@@ -263,7 +262,11 @@ mod tests {
     }
 
     fn dummy_address() -> Vec<String> {
-        vec!["Max Mustermann".into(), "Musterstr. 2".into(), "10117 Berlin".into()]
+        vec![
+            "Max Mustermann".into(),
+            "Musterstr. 2".into(),
+            "10117 Berlin".into(),
+        ]
     }
 
     #[test]

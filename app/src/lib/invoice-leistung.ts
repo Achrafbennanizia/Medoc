@@ -265,6 +265,24 @@ export async function syncInvoicePraxisToAppKv(p: InvoicePraxis): Promise<void> 
     await setAppKv(INVOICE_PRAXIS_KV_KEY, JSON.stringify(invoicePraxisToBlob(p)));
 }
 
+/**
+ * One-shot: wenn `app_kv` leer ist, Praxis-Stammdaten aus legacy `localStorage` nach SQLite übernehmen.
+ * `localStorage` bleibt als synchroner Cache (wie Arbeitszeiten).
+ */
+export async function migrateInvoicePraxisLocalStorageToAppKv(): Promise<boolean> {
+    if (typeof window === "undefined" || globalThis.localStorage == null) return false;
+    try {
+        const existing = await getAppKv(INVOICE_PRAXIS_KV_KEY);
+        if (existing?.trim()) return false;
+        const raw = localStorage.getItem(LS_INVOICE_PRAXIS);
+        if (!raw?.trim()) return false;
+        await setAppKv(INVOICE_PRAXIS_KV_KEY, raw);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 /** Lädt `invoice.praxis.v1` aus der DB und spiegelt nach localStorage (Desktop). */
 export async function hydrateInvoicePraxisFromAppKv(): Promise<InvoicePraxis | null> {
     try {

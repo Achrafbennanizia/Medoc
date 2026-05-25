@@ -9,11 +9,8 @@ use crate::error::AppError;
 use crate::infrastructure::company_portal::config::{
     load_company_portal_config, CompanyPortalConfig, COMPANY_PORTAL_KV_KEY,
 };
-use crate::infrastructure::company_portal::{
-    attach_payment_method_remote, fetch_feature_flags, fetch_integration_statuses,
-    fetch_subscription_summary, fetch_update_manifest, post_billing_portal_url,
-};
 use crate::infrastructure::database::app_kv_repo;
+use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
@@ -44,7 +41,7 @@ pub async fn company_portal_fetch_summary(
 ) -> Result<Value, AppError> {
     rbac::require_authenticated(&session_state)?;
     let cfg = load_company_portal_config(&pool).await;
-    fetch_subscription_summary(&cfg).await
+    COMPANY_PORTAL.fetch_subscription_summary(&cfg).await
 }
 
 #[tauri::command]
@@ -54,7 +51,7 @@ pub async fn company_portal_fetch_integrations(
 ) -> Result<Value, AppError> {
     rbac::require_authenticated(&session_state)?;
     let cfg = load_company_portal_config(&pool).await;
-    fetch_integration_statuses(&cfg).await
+    COMPANY_PORTAL.fetch_integration_statuses(&cfg).await
 }
 
 #[tauri::command]
@@ -64,7 +61,7 @@ pub async fn company_portal_fetch_feature_flags(
 ) -> Result<Value, AppError> {
     rbac::require_authenticated(&session_state)?;
     let cfg = load_company_portal_config(&pool).await;
-    fetch_feature_flags(&cfg).await
+    COMPANY_PORTAL.fetch_feature_flags(&cfg).await
 }
 
 #[tauri::command]
@@ -74,7 +71,7 @@ pub async fn company_portal_billing_portal_url(
 ) -> Result<String, AppError> {
     rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
-    post_billing_portal_url(&cfg).await
+    COMPANY_PORTAL.post_billing_portal_url(&cfg).await
 }
 
 #[tauri::command]
@@ -85,7 +82,9 @@ pub async fn company_portal_attach_payment(
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
-    attach_payment_method_remote(&cfg, &provider_token).await
+    COMPANY_PORTAL
+        .attach_payment_method(&cfg, &provider_token)
+        .await
 }
 
 /// Für `check_for_updates` — liefert JSON wie `UpdateInfo` oder Fehler.
@@ -97,7 +96,9 @@ pub async fn company_portal_fetch_update_manifest(
 ) -> Result<Value, AppError> {
     rbac::require_authenticated(&session_state)?;
     let cfg = load_company_portal_config(&pool).await;
-    fetch_update_manifest(&cfg, &current_version).await
+    COMPANY_PORTAL
+        .fetch_update_manifest(&cfg, &current_version)
+        .await
 }
 
 /// Verbindungsprobe (ohne sensible Daten im Fehlerfall außer HTTP-Status).

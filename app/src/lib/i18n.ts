@@ -42,6 +42,7 @@ const dict: Record<Locale, Record<string, string>> = {
         "nav.migration": "Datenmigration",
         "nav.akten_zu_validieren": "Akten zu validieren",
         "nav.praxis_tickets": "Praxis-Tickets",
+        "nav.posteingang": "Posteingang",
         "app.native_menu.denied": "Diese Aktion ist für Ihre Rolle nicht freigeschaltet.",
         "app.sidebar_tagline": "Zahnarzt-Praxis Nord",
         "app.role_label.ARZT": "Zahnarzt / Zahnärztin",
@@ -367,6 +368,8 @@ const dict: Record<Locale, Record<string, string>> = {
         "page.praxis_tickets.action_done": "Erledigt",
         "page.praxis_tickets.updated_toast": "Ticket aktualisiert.",
         "page.praxis_tickets.open_akte": "Zur Akte",
+        "page.praxis_tickets.posteingang_banner": "Aufgaben Arzt→Rezeption (Abrechnung, Termine) sind im Posteingang. Tickets bleiben für Nachrichten Rezeption→Arzt (FA-PERS-08).",
+        "page.praxis_tickets.posteingang_link": "Zum Posteingang",
     },
     en: {
         "app.title": "MeDoc — Practice Management",
@@ -399,6 +402,7 @@ const dict: Record<Locale, Record<string, string>> = {
         "nav.migration": "Data migration",
         "nav.akten_zu_validieren": "Records to validate",
         "nav.praxis_tickets": "Practice tickets",
+        "nav.posteingang": "Inbox",
         "app.native_menu.denied": "This action is not available for your role.",
         "app.sidebar_tagline": "Dental practice North",
         "app.role_label.ARZT": "Dentist",
@@ -722,6 +726,8 @@ const dict: Record<Locale, Record<string, string>> = {
         "page.praxis_tickets.action_done": "Done",
         "page.praxis_tickets.updated_toast": "Ticket updated.",
         "page.praxis_tickets.open_akte": "Open record",
+        "page.praxis_tickets.posteingang_banner": "Tasks from physician to reception (billing, appointments) live in Inbox. Tickets remain for reception→physician messages (FA-PERS-08).",
+        "page.praxis_tickets.posteingang_link": "Go to Inbox",
     },
 };
 

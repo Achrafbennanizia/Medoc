@@ -46,6 +46,8 @@ export type ClientSettingsV1 = {
         defaultTerminDauerMin?: number;
         /** Lokale Uhrzeit für einmalige Tages-Erinnerung (HH:mm, z. B. 18:00). */
         tagesabschlussReminderTime?: string;
+        /** CAL2: Pause/Notfall-Toolbar im Kalender (experimentell). */
+        calendarEmergencyToolbarEnabled?: boolean;
     };
     /** Suche */
     search?: {
@@ -95,6 +97,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         termineDefaultView: "monat",
         defaultTerminDauerMin: 30,
         tagesabschlussReminderTime: "18:00",
+        calendarEmergencyToolbarEnabled: false,
     },
     search: {
         patientIncludeVersicherungsnummer: true,

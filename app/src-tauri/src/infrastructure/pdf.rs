@@ -75,7 +75,7 @@ impl InvoiceLine {
 #[derive(Debug, Clone, Default)]
 pub struct Invoice {
     pub number: String,
-    pub date: String,                         // ISO-Datum (wird intern in DE-Format konvertiert)
+    pub date: String, // ISO-Datum (wird intern in DE-Format konvertiert)
     pub recipient_name: String,
     pub recipient_address: Vec<String>,
     pub practice_name: String,
@@ -124,15 +124,25 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     // ---------- Briefkopf (nur erste Seite) -------------------------------
     let mut meta = Vec::new();
     meta.push(MetaRow::new("Rechnung-Nr.", &invoice.number));
-    meta.push(MetaRow::new("Rechnungsdatum", format_date_de(&invoice.date)));
-    if let Some(b) = invoice.behandler_name.as_deref().filter(|s| !s.trim().is_empty()) {
+    meta.push(MetaRow::new(
+        "Rechnungsdatum",
+        format_date_de(&invoice.date),
+    ));
+    if let Some(b) = invoice
+        .behandler_name
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         meta.push(MetaRow::new("Behandler:in", b));
     }
 
     // Praxis-Zeilen + Standesangaben (BSNR/ZANR) in die Kopfzeile
     let mut praxis_full = vec![invoice.practice_name.clone()];
     praxis_full.extend(invoice.practice_address.iter().cloned());
-    if let (Some(bsnr), zanr) = (invoice.praxis_bsnr.as_deref(), invoice.behandler_zanr.as_deref()) {
+    if let (Some(bsnr), zanr) = (
+        invoice.praxis_bsnr.as_deref(),
+        invoice.behandler_zanr.as_deref(),
+    ) {
         if !bsnr.trim().is_empty() {
             let zline = match zanr {
                 Some(z) if !z.trim().is_empty() => format!("BSNR: {bsnr} · ZANR: {z}"),
@@ -180,7 +190,11 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     emit_invoice_totals(&mut pb, invoice);
 
     // ---------- Zahlungsbedingungen ---------------------------------------
-    if let Some(zt) = invoice.zahlungsziel_text.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(zt) = invoice
+        .zahlungsziel_text
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         pb.advance(8);
         pb.paragraph(zt, 9, 90, 0);
     } else if let Some(note) = &invoice.note {
@@ -274,7 +288,12 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
     // Material-Subzeile (gem. GOZ § 9: separat ausweisen)
     if let Some(m) = line.material.as_deref().filter(|s| !s.trim().is_empty()) {
         pb.advance(10);
-        pb.text(inv_cols::BEZEICHNUNG, 8, false, &format!("   Material: {m}"));
+        pb.text(
+            inv_cols::BEZEICHNUNG,
+            8,
+            false,
+            &format!("   Material: {m}"),
+        );
     }
 
     // Begründungs-Subzeile (GOZ § 10 Abs. 3: Pflicht bei Faktor > 2.3)
@@ -284,10 +303,17 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
         .filter(|s| !s.trim().is_empty())
     {
         let needs = line.faktor.map(|f| f > 2.3).unwrap_or(false);
-        let label = if needs { "Begründung (§ 10 Abs. 3 GOZ)" } else { "Hinweis" };
+        let label = if needs {
+            "Begründung (§ 10 Abs. 3 GOZ)"
+        } else {
+            "Hinweis"
+        };
         // Label nur in der ersten Zeile, Folgezeilen eingerückt.
         let body = format!("   {label}: {reason}");
-        for (i, chunk) in wrap_soft(&body, inv_cols::BEZEICHNUNG_CHARS).iter().enumerate() {
+        for (i, chunk) in wrap_soft(&body, inv_cols::BEZEICHNUNG_CHARS)
+            .iter()
+            .enumerate()
+        {
             pb.advance(10);
             let text = if i == 0 {
                 chunk.clone()
@@ -333,23 +359,13 @@ fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
 // ===========================================================================
 
 /// Tabelle in einem Akte-Block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AktePdfTable {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
     /// Optionale Spaltenbreiten (z. B. `[2, 1, 10]` → schmal · schmal · breit).
     /// Fehlt die Angabe: gleichmäßige Verteilung über [`CONTENT_WIDTH`].
     pub column_weights: Option<Vec<i32>>,
-}
-
-impl Default for AktePdfTable {
-    fn default() -> Self {
-        Self {
-            headers: Vec::new(),
-            rows: Vec::new(),
-            column_weights: None,
-        }
-    }
 }
 
 impl AktePdfTable {
@@ -520,7 +536,12 @@ pub fn render_akte_blocks(
     emit_multipage_pdf(&pages, pdf_title_meta)
 }
 
-fn emit_akte_block(pb: &mut PageBuilder, block: &AktePdfBlock, practice_name: &str, doc_title: &str) {
+fn emit_akte_block(
+    pb: &mut PageBuilder,
+    block: &AktePdfBlock,
+    practice_name: &str,
+    doc_title: &str,
+) {
     // Sicherstellen, dass mind. Titel + 2 Zeilen passen
     pb.ensure_space(48);
     if pb.y < M_BOTTOM + 100 {
@@ -694,7 +715,13 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
         }
 
         if ri % 2 == 1 {
-            pb.fill_rect(M_LEFT, pb.y - row_height + 8, CONTENT_WIDTH, row_height, 0.97);
+            pb.fill_rect(
+                M_LEFT,
+                pb.y - row_height + 8,
+                CONTENT_WIDTH,
+                row_height,
+                0.97,
+            );
         }
 
         let base_y = pb.y;
@@ -721,12 +748,21 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
 
 /// Legacy-Wrapper.
 pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
-    let diag = doc.diagnose.clone().unwrap_or_else(|| "(keine Eintragung)".into());
-    let bef = doc.befunde.clone().unwrap_or_else(|| "(keine Eintragung)".into());
+    let diag = doc
+        .diagnose
+        .clone()
+        .unwrap_or_else(|| "(keine Eintragung)".into());
+    let bef = doc
+        .befunde
+        .clone()
+        .unwrap_or_else(|| "(keine Eintragung)".into());
     let beh_lines: Vec<String> = if doc.behandlungen.is_empty() {
         vec!["(keine Behandlungen erfasst)".to_string()]
     } else {
-        doc.behandlungen.iter().map(|(d, b)| format!("{d} — {b}")).collect()
+        doc.behandlungen
+            .iter()
+            .map(|(d, b)| format!("{d} — {b}"))
+            .collect()
     };
 
     let blocks = vec![
@@ -735,7 +771,10 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
             vec![
                 ("Patient".into(), doc.patient_name.clone()),
                 ("Geburtsdatum".into(), doc.patient_geburtsdatum.clone()),
-                ("Versicherungsnr.".into(), doc.patient_versicherungsnummer.clone()),
+                (
+                    "Versicherungsnr.".into(),
+                    doc.patient_versicherungsnummer.clone(),
+                ),
                 ("Akten-Status".into(), doc.akte_status.clone()),
             ],
         ),
@@ -769,9 +808,8 @@ pub fn render_template_preview_pdf(
     layout_json: Option<&str>,
 ) -> Result<Vec<u8>, AppError> {
     if let Some(json) = layout_json.filter(|s| !s.trim().is_empty()) {
-        let layout: super::clinical_pdf_layout::ClinicalPdfLayout =
-            serde_json::from_str(json)
-                .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
+        let layout: super::clinical_pdf_layout::ClinicalPdfLayout = serde_json::from_str(json)
+            .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
         return super::clinical_pdf_layout::render_clinical_layout(&layout);
     }
 
@@ -870,8 +908,14 @@ mod tests {
         // Bytes — Helvetica Helvetica-WinAnsi wir alle als 7-bit ASCII vorliegen).
         let text = String::from_utf8_lossy(&pdf);
         for needle in [
-            "Rechnung", "BSNR", "ZANR", "IBAN", "GOZ", "Faktor",
-            "Endbetrag", "Zahlbar",
+            "Rechnung",
+            "BSNR",
+            "ZANR",
+            "IBAN",
+            "GOZ",
+            "Faktor",
+            "Endbetrag",
+            "Zahlbar",
         ] {
             assert!(text.contains(needle), "missing: {needle}");
         }
@@ -943,9 +987,11 @@ mod tests {
 
     #[test]
     fn renders_akte_without_header_context() {
-        let blocks = vec![AktePdfBlock::body("Hinweis", vec!["Ohne Praxiskopf.".into()])];
-        let pdf =
-            render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
+        let blocks = vec![AktePdfBlock::body(
+            "Hinweis",
+            vec!["Ohne Praxiskopf.".into()],
+        )];
+        let pdf = render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 

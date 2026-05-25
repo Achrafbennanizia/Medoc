@@ -18,3 +18,6 @@ Alle UML-Diagramme verwenden Mermaid-Syntax und können in GitHub, GitLab, VS Co
 | Use-Case-Diagramm | [02-use-case-diagram.md](./02-use-case-diagram.md) | Akteure und Anwendungsfälle |
 | Sequenzdiagramm | [03-sequence-diagram.md](./03-sequence-diagram.md) | Zeitliche Interaktionen |
 | Aktivitätsdiagramm | [04-activity-diagram.md](./04-activity-diagram.md) | Geschäftsprozesse und Workflows |
+| **Arzt ↔ Rezeption** | [08-arzt-rezeption-kollaboration.md](./08-arzt-rezeption-kollaboration.md) | **Kollaborations-Workflows** (Use Case + Sequence + Activity, Stand 2026-05-21) |
+| **Aufgaben + Leistung/Preis** | [09-aufgaben-leistung-kollaboration.md](./09-aufgaben-leistung-kollaboration.md) | **FA-LEIST-06/07, FA-AUFG-01..06** — State/Sequence/Activity + Diagramm-Leitfaden |
+| **Master-Audit (alle Features)** | [10-master-feature-workflow-audit.md](./10-master-feature-workflow-audit.md) | **Vollständig:** Inventar 45+ Routes, 226 IPC, Gap-Register P0–P3, Roadmap Phase 1–6 |

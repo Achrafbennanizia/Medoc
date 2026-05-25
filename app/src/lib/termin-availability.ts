@@ -1,6 +1,10 @@
 import type { Abwesenheit, Termin } from "../models/types";
 import type { PraxisArbeitszeitenConfig } from "./praxis-planning";
-import { isAppointmentSpanBlockedByPraxisConfig, resolveEffectiveArbeitszeitenForArzt } from "./praxis-planning";
+import {
+    isAppointmentSpanBlockedByPraxisConfig,
+    isSlotBlockedByPraxisConfig,
+    resolveEffectiveArbeitszeitenForArzt,
+} from "./praxis-planning";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 export function uhrzeitToMinutes(u: string): number {
@@ -92,4 +96,81 @@ export function validateTerminSchedulingUpdates(
         if (reason) return reason;
     }
     return undefined;
+}
+
+function normUhrzeitHm(u: string): string {
+    return u.length >= 5 ? u.slice(0, 5) : u;
+}
+
+function busySlotKey(datum: string, uhrzeit: string): string {
+    return `${datum}|${normUhrzeitHm(uhrzeit)}`;
+}
+
+/** True when backend would reject create/update (same Arzt, date, time; excludes ABGESAGT). */
+export function hasArztSlotConflict(
+    termine: Termin[],
+    datum: string,
+    uhrzeit: string,
+    arztId: string,
+    excludeTerminId?: string,
+): boolean {
+    const key = busySlotKey(datum, uhrzeit);
+    for (const t of termine) {
+        if (excludeTerminId && t.id === excludeTerminId) continue;
+        if (t.status === "ABGESAGT") continue;
+        if (t.datum !== datum || t.arzt_id !== arztId) continue;
+        if (busySlotKey(t.datum, t.uhrzeit) === key) return true;
+    }
+    return false;
+}
+
+export function isTerminConflictErrorMessage(msg: string): boolean {
+    const m = msg.toLowerCase();
+    return m.includes("terminkonflikt") || m.includes("bereits einen termin");
+}
+
+/**
+ * WAAD 1.2.4 — alternative Uhrzeiten am selben Tag (UI; authoritative check remains backend).
+ */
+export function suggestAlternativeTerminSlots(opts: {
+    datum: string;
+    arztId: string;
+    preferredUhrzeit: string;
+    durMin: number;
+    slotStep: number;
+    termine: Termin[];
+    praxisCfg: PraxisArbeitszeitenConfig;
+    abwesenheiten: Abwesenheit[];
+    excludeTerminId?: string;
+    max?: number;
+}): string[] {
+    const max = opts.max ?? 5;
+    const eff = resolveEffectiveArbeitszeitenForArzt(opts.praxisCfg, opts.arztId);
+    const step = Math.max(5, opts.slotStep);
+    const prefMin = uhrzeitToMinutes(normUhrzeitHm(opts.preferredUhrzeit));
+    const offsets: number[] = [0];
+    for (let i = 1; i <= 32; i++) {
+        offsets.push(i * step, -i * step);
+    }
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const off of offsets) {
+        const startMin = prefMin + off;
+        if (startMin < 6 * 60 || startMin > 21 * 60) continue;
+        const hm = minutesToUhrzeit(startMin);
+        if (seen.has(hm)) continue;
+        seen.add(hm);
+        if (isSlotBlockedByPraxisConfig(eff, opts.datum, hm)) continue;
+        const block = terminSchedulingBlockReason(eff, opts.abwesenheiten, opts.datum, startMin, startMin + opts.durMin);
+        if (block) continue;
+        if (hasArztSlotConflict(opts.termine, opts.datum, hm, opts.arztId, opts.excludeTerminId)) continue;
+        out.push(hm);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
+export function formatAlternativeSlotsDe(slots: string[]): string {
+    if (slots.length === 0) return "";
+    return slots.map((s) => `${s} Uhr`).join(", ");
 }

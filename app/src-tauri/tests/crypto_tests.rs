@@ -90,10 +90,9 @@ async fn login_rehashes_legacy_bcrypt_to_argon2() {
     .await
     .expect("login");
 
-    let row: (String,) =
-        sqlx::query_as("SELECT passwort_hash FROM personal WHERE id = 'u1'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let row: (String,) = sqlx::query_as("SELECT passwort_hash FROM personal WHERE id = 'u1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert!(row.0.starts_with("$argon2"), "expected Argon2 upgrade");
 }

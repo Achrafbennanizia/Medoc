@@ -9,11 +9,22 @@ Paths are relative to `app/` unless noted.
 - Zustand for client state
 - Tauri 2 WebView for IPC (`@tauri-apps/api`)
 
-## Data flow: pages → controllers → `tauriInvoke` → Rust
+## Three systems (2026-05)
+
+| System | FE path | Rust path |
+|--------|---------|-----------|
+| Practice Host | `src/systems/practice-host/` | `src-tauri/src/systems/practice/` |
+| LAN | `src/systems/lan/` | `src-tauri/src/systems/lan/` |
+| Company portal | `src/systems/company-portal/` | `src-tauri/src/systems/company/` |
+
+See `docs/architecture/three-systems.md` for boundaries, SOLID, and the Gang-of-Four pattern map.
+
+## Data flow: pages → controllers → port adapter → Rust
 
 1. **Views** (`src/views/pages/*.tsx`, `views/components/*`) render UI and call **controllers**.
-2. **Controllers** (`src/controllers/*.ts`) are the **only** place that should talk to the backend for RPC-shaped operations. They call `tauriInvoke("command_name", { … })` with **snake_case** keys that match `#[tauri::command]` parameters in `app/src-tauri/src/commands/`.
-3. **Transport** — `src/services/tauri.service.ts` wraps `invoke` from `@tauri-apps/api/core`. Keep logging/telemetry hooks here if you add them.
+2. **Controllers** live under `src/systems/<system>/controllers/`. Legacy `src/controllers/*.ts` re-exports them unchanged.
+3. **Ports + adapters** — `practiceSystem.invoke`, `lanSystem.*`, `companySystem.*` (`src/systems/registry.ts`).
+4. **Transport** — `src/services/tauri.service.ts` (used only by adapters via `systems/shared/transport/`).
 4. **Validation** — User-boundary DTOs use Zod in `src/lib/schemas.ts`. Enum literals are imported from `src/models/types.ts` (aligned with Rust `enums.rs` / SQLite `CHECK`s). Controllers use `parseOrThrow` before IPC where applicable.
 
 ## RBAC and routing

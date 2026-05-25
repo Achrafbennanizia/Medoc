@@ -42,7 +42,10 @@ impl AuditChainGuard {
     }
 
     pub fn broken_at(&self) -> Option<String> {
-        self.broken_at.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.broken_at
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     pub fn acknowledged(&self) -> bool {

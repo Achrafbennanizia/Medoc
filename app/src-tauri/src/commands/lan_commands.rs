@@ -14,9 +14,10 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
 use crate::infrastructure::lan_server::{
-    discovery, http, secrets, tls, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY,
+    discovery, secrets, tls, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY,
 };
 use crate::infrastructure::logging::brute_force::BruteForceTracker;
+use crate::systems::lan::LanSystemFactory;
 use sqlx::SqlitePool;
 
 #[derive(Default)]
@@ -176,15 +177,15 @@ pub async fn start_lan_embedded(
         .hydrate_from_db(&pool)
         .await
         .map_err(|e| AppError::Internal(format!("Brute-Force-Lockouts: {e}")))?;
-    let http_state = http::LanHttpState {
+    let http_state = LanSystemFactory::build_state(
         pool,
-        jwt_secret: jwt_secret.clone(),
+        jwt_secret.clone(),
         brute,
-        http_port: cfg.http_port,
-        extra_cors_origins: Arc::new(cfg.extra_cors_origins.clone()),
-        discovery_peers: Arc::new(vec![]),
-    };
-    let router = http::build_router(http_state);
+        cfg.http_port,
+        cfg.extra_cors_origins.clone(),
+        vec![],
+    );
+    let router = LanSystemFactory::build_router(http_state);
 
     let addr: SocketAddr = format!("{}:{}", cfg.bind_addr.trim(), cfg.http_port)
         .parse()

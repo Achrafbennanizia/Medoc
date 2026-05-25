@@ -1,0 +1,297 @@
+import { useMemo, type Dispatch, type SetStateAction } from "react";
+import type { Behandlung, Patient, Untersuchung, Zahlung, ZahlungsArt } from "@/models/types";
+import { allocateQuittungNummer } from "@/controllers/invoice.controller";
+import { createZahlung, deleteZahlung, updateZahlung } from "@/controllers/zahlung.controller";
+import {
+    bundleQuittungExport,
+    suggestQuittungExportBasename,
+    type ClinicalDocumentExportBundle,
+} from "@/lib/document-print-html";
+import type { DocumentKind } from "@/lib/document-template-schema";
+import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
+import { PATIENT_DETAIL_TOAST_UNDO_MS } from "@/lib/patient-detail-utils";
+import {
+    ZAHL_EUR_EPS,
+    aggregateZahlungenByZuordnung,
+    buildOpenZahlLinkSelectOptions,
+    latestZahlungForZuordnungRow,
+    maxEditZahlungBehandlung,
+    maxNeuZahlungBehandlung,
+    maxNeuZahlungUntersuchung,
+    maxEditZahlungUntersuchung,
+    roundMoney2,
+    sumZahlungenForBehandlung,
+    type ZahlZuordnungSummaryRow,
+} from "@/lib/zahlung-buchung";
+import { zahlungLocalYmd } from "@/lib/tagesabschluss";
+import { formatCurrency } from "@/lib/utils";
+import { useToastStore } from "@/views/components/ui/toast-store";
+
+export type ZahlNewFormState = {
+    linkKind: "" | "behand" | "unter";
+    linkId: string;
+    betrag: string;
+    zahlungsart: ZahlungsArt;
+    beschreibung: string;
+};
+
+export type ZahlEditFormState = {
+    betrag: string;
+    zahlungsart: ZahlungsArt;
+    beschreibung: string;
+};
+
+export type UsePatientDetailZahlActionsArgs = {
+    patientId: string | undefined;
+    patient: Patient | null;
+    behandlungen: Behandlung[];
+    untersuchungen: Untersuchung[];
+    zahlungen: Zahlung[];
+    zahlNewForm: ZahlNewFormState;
+    setZahlNewForm: Dispatch<SetStateAction<ZahlNewFormState>>;
+    setShowZahlComposer: (v: boolean) => void;
+    zahlEdit: Zahlung | null;
+    setZahlEdit: (z: Zahlung | null) => void;
+    zahlEditUnlocked: boolean;
+    zahlEditForm: ZahlEditFormState;
+    zahlDeleteId: string | null;
+    setZahlDeleteId: (id: string | null) => void;
+    load: () => Promise<void>;
+    ensurePraxisForDocument: (kind: DocumentKind) => boolean;
+    setHtmlDocExport: (v: {
+        kind: HtmlExportDocumentKind;
+        bundle: ClinicalDocumentExportBundle;
+        suggestedBasename: string;
+        exportPreviewTitle: string;
+        hint?: string;
+    } | null) => void;
+};
+
+export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArgs) {
+    const toast = useToastStore((s) => s.add);
+    const {
+        patientId,
+        patient,
+        behandlungen,
+        untersuchungen,
+        zahlungen,
+        zahlNewForm,
+        setZahlNewForm,
+        setShowZahlComposer,
+        zahlEdit,
+        setZahlEdit,
+        zahlEditUnlocked,
+        zahlEditForm,
+        zahlDeleteId,
+        setZahlDeleteId,
+        load,
+        ensurePraxisForDocument,
+        setHtmlDocExport,
+    } = args;
+
+    const zahlLinkSelectOptionsOpen = useMemo(() => {
+        if (!patientId) return [{ value: "", label: "—" }];
+        return buildOpenZahlLinkSelectOptions(zahlungen, patientId, behandlungen, untersuchungen);
+    }, [patientId, zahlungen, behandlungen, untersuchungen]);
+
+    const zahlZuordnungSummaries = useMemo(
+        () => (patientId ? aggregateZahlungenByZuordnung(zahlungen, patientId, behandlungen, untersuchungen) : []),
+        [patientId, zahlungen, behandlungen, untersuchungen],
+    );
+
+    const zahlungenHistorisch = useMemo(
+        () => [...zahlungen].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
+        [zahlungen],
+    );
+
+    const zahlNeuMaxBetragEur = useMemo(() => {
+        if (!patientId || !zahlNewForm.linkId) return null;
+        if (zahlNewForm.linkKind === "behand") {
+            const selBh = behandlungen.find((b) => b.id === zahlNewForm.linkId);
+            const gesamt =
+                selBh?.gesamtkosten != null && Number.isFinite(selBh.gesamtkosten) ? selBh.gesamtkosten : null;
+            return maxNeuZahlungBehandlung(zahlungen, patientId, zahlNewForm.linkId, gesamt);
+        }
+        if (zahlNewForm.linkKind === "unter") {
+            const selU = untersuchungen.find((u) => u.id === zahlNewForm.linkId);
+            const gesamt =
+                selU?.gesamtkosten != null && Number.isFinite(selU.gesamtkosten) ? selU.gesamtkosten : null;
+            return maxNeuZahlungUntersuchung(zahlungen, patientId, zahlNewForm.linkId, gesamt);
+        }
+        return null;
+    }, [patientId, zahlNewForm.linkKind, zahlNewForm.linkId, behandlungen, untersuchungen, zahlungen]);
+
+    const zahlEditMaxBetragEur = (() => {
+        if (!patientId || !zahlEdit) return null;
+        if (zahlEdit.behandlung_id) {
+            const bRow = behandlungen.find((x) => x.id === zahlEdit.behandlung_id);
+            const gesamt =
+                bRow?.gesamtkosten != null && Number.isFinite(bRow.gesamtkosten) ? bRow.gesamtkosten : null;
+            return maxEditZahlungBehandlung(zahlungen, patientId, zahlEdit.behandlung_id, zahlEdit.id, gesamt);
+        }
+        if (zahlEdit.untersuchung_id) {
+            const uRow = untersuchungen.find((x) => x.id === zahlEdit.untersuchung_id);
+            const gesamt =
+                uRow?.gesamtkosten != null && Number.isFinite(uRow.gesamtkosten) ? uRow.gesamtkosten : null;
+            return maxEditZahlungUntersuchung(zahlungen, patientId, zahlEdit.untersuchung_id, zahlEdit.id, gesamt);
+        }
+        return null;
+    })();
+
+    const runSaveZahlEdit = async () => {
+        if (!zahlEdit) return;
+        if (!zahlEditUnlocked) {
+            toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
+            return;
+        }
+        const betrag = Number(String(zahlEditForm.betrag).replace(",", "."));
+        if (!Number.isFinite(betrag) || betrag <= 0) {
+            toast("Bitte gültigen Betrag eingeben.", "error");
+            return;
+        }
+        if (zahlEdit.behandlung_id && patientId && zahlEditMaxBetragEur != null && betrag > zahlEditMaxBetragEur + ZAHL_EUR_EPS) {
+            toast(
+                `Der Betrag darf maximal ${formatCurrency(zahlEditMaxBetragEur)} sein (offener Anteil für diese Behandlung).`,
+                "error",
+            );
+            return;
+        }
+        const prevRow = zahlungen.find((z) => z.id === zahlEdit.id);
+        if (!prevRow) {
+            toast("Zahlung nicht mehr geladen.", "error");
+            return;
+        }
+        try {
+            await updateZahlung({
+                id: zahlEdit.id,
+                betrag,
+                zahlungsart: zahlEditForm.zahlungsart,
+                leistung_id: zahlEdit.leistung_id,
+                beschreibung: zahlEditForm.beschreibung.trim() || null,
+            });
+            toast("Zahlung aktualisiert", "success", {
+                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await updateZahlung({
+                            id: prevRow.id,
+                            betrag: prevRow.betrag,
+                            zahlungsart: prevRow.zahlungsart,
+                            leistung_id: prevRow.leistung_id,
+                            beschreibung: prevRow.beschreibung,
+                        });
+                        await load();
+                    } catch (e) {
+                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    }
+                },
+            });
+            setZahlEdit(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
+    };
+
+    const submitSaveZahlNew = async () => {
+        if (!patientId) return;
+        if (!zahlNewForm.linkKind || !zahlNewForm.linkId.trim()) {
+            toast("Bitte eine Behandlung (B) oder Untersuchung (U) zuordnen.", "error");
+            return;
+        }
+        const betrag = Number(String(zahlNewForm.betrag).replace(",", "."));
+        if (!Number.isFinite(betrag) || betrag <= 0) {
+            toast("Bitte gültigen Zahlbetrag eingeben.", "error");
+            return;
+        }
+        const selBh =
+            zahlNewForm.linkKind === "behand" ? behandlungen.find((b) => b.id === zahlNewForm.linkId) : undefined;
+        const gesamt =
+            selBh?.gesamtkosten != null && Number.isFinite(selBh.gesamtkosten) ? selBh.gesamtkosten : null;
+        const paidSoFar =
+            zahlNewForm.linkKind === "behand" && zahlNewForm.linkId
+                ? sumZahlungenForBehandlung(zahlungen, patientId, zahlNewForm.linkId)
+                : 0;
+        let openBefore: number | undefined;
+        if (zahlNewForm.linkKind === "behand" && zahlNewForm.linkId && gesamt != null && Number.isFinite(gesamt)) {
+            openBefore = Math.max(0, roundMoney2(gesamt - paidSoFar));
+        }
+        if (zahlNewForm.linkKind === "behand" && openBefore != null && betrag > openBefore + ZAHL_EUR_EPS) {
+            toast(
+                `Der Zahlbetrag darf den offenen Betrag (${formatCurrency(openBefore)}) nicht übersteigen.`,
+                "error",
+            );
+            return;
+        }
+        try {
+            await createZahlung({
+                patient_id: patientId,
+                betrag,
+                zahlungsart: zahlNewForm.zahlungsart,
+                beschreibung: zahlNewForm.beschreibung.trim() || undefined,
+                behandlung_id: zahlNewForm.linkKind === "behand" ? zahlNewForm.linkId : undefined,
+                untersuchung_id: zahlNewForm.linkKind === "unter" ? zahlNewForm.linkId : undefined,
+                betrag_erwartet: openBefore,
+            });
+            toast("Zahlung erfasst", "success");
+            setShowZahlComposer(false);
+            setZahlNewForm({
+                linkKind: "",
+                linkId: "",
+                betrag: "",
+                zahlungsart: "BAR",
+                beschreibung: "",
+            });
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
+    };
+
+    const handleDeleteZahlungRow = async () => {
+        if (!zahlDeleteId) return;
+        try {
+            await deleteZahlung(zahlDeleteId);
+            toast("Zahlung gelöscht");
+            setZahlDeleteId(null);
+            await load();
+        } catch (e) {
+            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
+    };
+
+    const handlePrintQuittung = async (z: Zahlung) => {
+        if (!ensurePraxisForDocument("quittung") || !patient) return;
+        const ymd = zahlungLocalYmd(z.created_at);
+        const nr = await allocateQuittungNummer(ymd);
+        setHtmlDocExport({
+            kind: "quittung",
+            bundle: bundleQuittungExport(z, patient, behandlungen, untersuchungen, nr),
+            suggestedBasename: suggestQuittungExportBasename(z),
+            exportPreviewTitle: `Quittung — ${patient.name}`,
+        });
+    };
+
+    const handlePrintQuittungFromSummeRow = (row: ZahlZuordnungSummaryRow) => {
+        if (!patientId) return;
+        const z = latestZahlungForZuordnungRow(row, zahlungen, patientId);
+        if (!z) {
+            toast("Keine druckbare Buchung für diese Zuordnung.", "info");
+            return;
+        }
+        void handlePrintQuittung(z);
+    };
+
+    return {
+        zahlLinkSelectOptionsOpen,
+        zahlZuordnungSummaries,
+        zahlungenHistorisch,
+        zahlNeuMaxBetragEur,
+        zahlEditMaxBetragEur,
+        runSaveZahlEdit,
+        submitSaveZahlNew,
+        handleDeleteZahlungRow,
+        handlePrintQuittung,
+        handlePrintQuittungFromSummeRow,
+    };
+}

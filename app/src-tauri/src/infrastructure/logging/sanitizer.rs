@@ -97,7 +97,9 @@ pub fn redact_patient_id_in_logs(patient_id: &str) -> Result<LogRedactionReport,
             }
             report.scanned += 1;
             let Ok(content) = std::fs::read_to_string(&path) else {
-                report.errors.push(format!("Lesen fehlgeschlagen: {}", path.display()));
+                report
+                    .errors
+                    .push(format!("Lesen fehlgeschlagen: {}", path.display()));
                 continue;
             };
             if !content.contains(patient_id) {
@@ -107,7 +109,9 @@ pub fn redact_patient_id_in_logs(patient_id: &str) -> Result<LogRedactionReport,
             if let Err(e) = std::fs::write(&path, redacted) {
                 report.errors.push(format!("{}: {e}", path.display()));
             } else if let Some(name) = path.file_name() {
-                report.redacted_files.push(name.to_string_lossy().into_owned());
+                report
+                    .redacted_files
+                    .push(name.to_string_lossy().into_owned());
             }
         }
     }

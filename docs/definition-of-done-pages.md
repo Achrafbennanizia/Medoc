@@ -22,6 +22,8 @@ This checklist applies **one row per routed screen** in `app/src/App.tsx`.
 | `/patienten` | `views/pages/patienten.tsx` | `patienten` | ✅ | — | Search + list |
 | `/patienten/neu` | `views/pages/patient-create.tsx` | `patienten/neu` | ✅ | — | Zod + IPC |
 | `/patienten/:id` | `views/pages/patient-detail.tsx` | `patienten/:id` | ✅ | — | Akte tabs |
+| `/akten/zu-validieren` | `views/pages/akten-zu-validieren.tsx` | `akten/zu-validieren` | ✅ | — | ARZT validation queue + nav badge |
+| `/tickets` | `views/pages/praxis-tickets.tsx` | `tickets` | ✅ | — | Praxis tickets (ARZT/REZEPTION) |
 | `/patienten/:id/rezept/neu` | `views/pages/rezept-create.tsx` | `patienten/:id/rezept/neu` | ✅ | — | — |
 | `/patienten/:id/rezept/:rezeptId` | `views/pages/rezept-edit.tsx` | `patienten/:id/rezept/:rezeptId` | ✅ | — | — |
 | `/finanzen` | `views/pages/finanzen.tsx` | `finanzen` | ✅ | — | — |

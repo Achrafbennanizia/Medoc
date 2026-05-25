@@ -20,6 +20,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { useT } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
+import { listUpcomingAppointments, type UpcomingAppointment } from "@/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 
 const PRUEF_PATIENT_CAP = 100;
@@ -77,6 +78,7 @@ export function DashboardPage() {
     const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
     const [stornoConfirmBestellung, setStornoConfirmBestellung] = useState<Bestellung | null>(null);
     const [listsError, setListsError] = useState<string | null>(null);
+    const [upcomingTermine, setUpcomingTermine] = useState<UpcomingAppointment[]>([]);
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [planNextPending, setPlanNextPending] = useState<{ patientId: string; hintJson: string }[]>([]);
@@ -141,6 +143,28 @@ export function DashboardPage() {
     useEffect(() => {
         let cancelled = false;
         const r = parseRole(session?.rolle ?? undefined);
+        if (!r || !allowed("termin.read", r)) {
+            setUpcomingTermine([]);
+            return;
+        }
+        void listUpcomingAppointments(24 * 60)
+            .then((rows) => {
+                if (!cancelled) setUpcomingTermine(rows);
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    setUpcomingTermine([]);
+                    toast(`Termin-Erinnerungen konnten nicht geladen werden: ${errorMessage(e)}`, "error");
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [reloadToken, session?.rolle, toast]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const r = parseRole(session?.rolle ?? undefined);
         if (!r || !allowed("patient.read", r)) {
             setPlanNextPending([]);
             return;
@@ -149,13 +173,16 @@ export function DashboardPage() {
             .then((rows) => {
                 if (!cancelled) setPlanNextPending(rows);
             })
-            .catch(() => {
-                if (!cancelled) setPlanNextPending([]);
+            .catch((e) => {
+                if (!cancelled) {
+                    setPlanNextPending([]);
+                    toast(`Plan-Next-Hinweise konnten nicht geladen werden: ${errorMessage(e)}`, "warning");
+                }
             });
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, session?.rolle]);
+    }, [reloadToken, session?.rolle, toast]);
 
     useEffect(() => {
         let cancelled = false;
@@ -725,6 +752,44 @@ export function DashboardPage() {
                     </div>
                 </div>
                 <div className="col dashboard-col-secondary" style={{ gap: 14 }}>
+                    {role != null && allowed("termin.read", role) ? (
+                        <div className="card dashboard-card-fill">
+                            <div className="card-head">
+                                <div>
+                                    <div className="card-title">Termine in den nächsten 24 Stunden</div>
+                                    <div className="card-sub">
+                                        G9 — Erinnerungsliste (kein SMS/E-Mail-Versand; nur Anzeige in der App).
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="dashboard-card-list">
+                                {upcomingTermine.length === 0 ? (
+                                    <p style={{ padding: "16px 20px", margin: 0, color: "var(--fg-3)", fontSize: 14 }}>
+                                        Keine anstehenden Termine in den nächsten 24 Stunden.
+                                    </p>
+                                ) : (
+                                    upcomingTermine.slice(0, 12).map((u) => (
+                                        <div key={u.termin_id} className="dashboard-timeline-row">
+                                            <div>
+                                                <div className="schedule-day-time-primary">
+                                                    {u.datum} {u.uhrzeit.slice(0, 5)}
+                                                </div>
+                                                <div className="schedule-day-time-meta">
+                                                    in {u.minutes_until} Min. · {u.art.replace(/_/g, " ")}
+                                                </div>
+                                            </div>
+                                            <div style={{ textAlign: "right", fontSize: 13 }}>
+                                                <div style={{ fontWeight: 600 }}>{u.patient_name}</div>
+                                                <Link to={`/patienten/${u.patient_id}`} className="dashboard-wire-head-link">
+                                                    Patient öffnen
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    ) : null}
                     <div className="card dashboard-card-fill">
                         <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                             <div style={{ minWidth: 0 }}>

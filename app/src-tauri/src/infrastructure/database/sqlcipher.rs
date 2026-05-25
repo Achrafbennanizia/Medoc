@@ -25,6 +25,22 @@ pub fn is_plaintext_sqlite_file(path: &Path) -> bool {
     matches!(f.read_exact(&mut head), Ok(())) && &head[..15] == b"SQLite format 3"
 }
 
+/// True when `medoc.db` opens with the SQLCipher key (already encrypted).
+pub async fn opens_with_sqlcipher_key(db_path: &Path, key: &[u8]) -> bool {
+    let key = Zeroizing::new(key.to_vec());
+    match open_encrypted_pool(db_path, key, false).await {
+        Ok(pool) => {
+            let ok = sqlx::query("SELECT count(*) FROM sqlite_master")
+                .fetch_one(&pool)
+                .await
+                .is_ok();
+            pool.close().await;
+            ok
+        }
+        Err(_) => false,
+    }
+}
+
 pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Result<(), AppError> {
     let backup = db_path.with_extension("db.plain-backup");
     std::fs::copy(db_path, &backup)
