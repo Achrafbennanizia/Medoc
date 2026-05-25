@@ -54,7 +54,9 @@ pub fn run() {
             application::audit_chain_guard::register(Arc::clone(&audit_chain_guard));
             app.manage(AuditChainGuardExt(audit_chain_guard.clone()));
 
-            match tauri::async_runtime::block_on(database::connection::init_db(&app_handle)) {
+            match tauri::async_runtime::block_on(
+                crate::commands::db_setup_commands::init_db_from_app(&app_handle),
+            ) {
                 Ok(pool) => {
                     #[cfg(debug_assertions)]
                     {

@@ -1,35 +1,23 @@
 //! Local SQLite (`medoc.db`, WAL) via **SQLCipher** (NFA-SEC-08).
+//!
+//! This module is intentionally **Tauri-free**: the Tauri-bound desktop
+//! entry point lives in [`crate::commands::db_setup_commands::init_db_from_app`]
+//! and resolves `app_data_dir` from the `AppHandle` before delegating to
+//! [`init_db_headless`].
 use sqlx::sqlite::SqlitePool;
-use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::database::db_key;
 use crate::infrastructure::database::sqlcipher;
 
-pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, AppError> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis nicht verfügbar: {e}")))?;
-    std::fs::create_dir_all(&app_dir).map_err(|e| {
-        AppError::Internal(format!(
-            "App-Datenverzeichnis konnte nicht angelegt werden: {e}"
-        ))
-    })?;
-
-    audit_repo::init_audit_hmac_key(&app_dir).map_err(|e| {
-        AppError::Internal(format!(
-            "Audit-HMAC-Schlüssel konnte nicht initialisiert werden: {e}"
-        ))
-    })?;
-
-    open_pool_with_migrations(&app_dir).await
-}
-
-/// Initialise the same SQLite store as [`init_db`], but without a Tauri [`AppHandle`].
-/// Used by the headless `medoc-server` binary — **`app_data_dir` must match** the desktop
-/// app’s data directory so LAN clients and GUI share one database.
+/// Initialise the on-disk SQLCipher store at `app_data_dir/medoc.db`,
+/// running schema + Rust-only migrations and seeding the audit-HMAC key.
+///
+/// Both the desktop binary (via `commands::db_setup_commands::init_db_from_app`)
+/// and the headless `medoc-server` binary call this — `app_data_dir`
+/// **must match** the desktop app’s data directory so LAN clients and the
+/// GUI share one database.
 pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
     std::fs::create_dir_all(app_data_dir).map_err(|e| {
         AppError::Internal(format!(

@@ -1,9 +1,18 @@
 //! Initial DB passphrase setup / unlock when keyring is unavailable.
+//!
+//! Also exposes [`init_db_from_app`] — the Tauri-bound entry point that
+//! resolves the desktop app's `app_data_dir` and delegates to the
+//! Tauri-free [`crate::infrastructure::database::connection::init_db_headless`].
+//! Keeping the `AppHandle` boundary in `commands/` (rather than in
+//! `infrastructure/database/`) lets the `database` module live without a
+//! `tauri` dependency.
 
 use serde::Serialize;
+use sqlx::sqlite::SqlitePool;
 use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
+use crate::infrastructure::database::connection::init_db_headless;
 use crate::infrastructure::database::db_key;
 
 #[derive(Debug, Serialize)]
@@ -11,6 +20,17 @@ use crate::infrastructure::database::db_key;
 pub struct DbSetupStatusDto {
     pub needs_passphrase_setup: bool,
     pub needs_unlock: bool,
+}
+
+/// Tauri-bound DB initialisation: resolves `app_data_dir` from the
+/// `AppHandle` and delegates to the headless initialiser. The desktop
+/// binary (`lib.rs::run`) calls this once at startup.
+pub async fn init_db_from_app(app: &AppHandle) -> Result<SqlitePool, AppError> {
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis nicht verfügbar: {e}")))?;
+    init_db_headless(&app_dir).await
 }
 
 #[tauri::command]
