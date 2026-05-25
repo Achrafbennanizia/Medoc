@@ -1,5 +1,5 @@
 //! Status transition rules (authoritative; commands must not embed ad-hoc match trees).
-use crate::application::rbac::Role;
+use crate::domain::rbac::Role;
 use crate::error::AppError;
 
 fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {

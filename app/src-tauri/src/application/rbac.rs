@@ -12,26 +12,10 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::log_security;
 
-/// Roles defined in the requirements (4 personae).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
-    Arzt,
-    Rezeption,
-    Steuerberater,
-    Pharmaberater,
-}
-
-impl Role {
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "ARZT" => Some(Role::Arzt),
-            "REZEPTION" => Some(Role::Rezeption),
-            "STEUERBERATER" => Some(Role::Steuerberater),
-            "PHARMABERATER" => Some(Role::Pharmaberater),
-            _ => None,
-        }
-    }
-}
+// `Role` itself lives in `domain::rbac` so lower layers (e.g. `domain::services`) can
+// reference it without an upward dependency. Re-exported here for source compatibility
+// with the many `use crate::application::rbac::Role;` (and `{self, Role}`) call sites.
+pub use crate::domain::rbac::Role;
 
 include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
 
