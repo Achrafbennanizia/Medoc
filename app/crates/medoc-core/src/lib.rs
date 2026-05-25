@@ -6,8 +6,9 @@
 //! it directly.
 //!
 //! The practice-host (`medoc`) crate re-exports the most-used items
-//! (`medoc_core::error::AppError`) on their existing `crate::*` paths
-//! for source compatibility with the ~200 call sites that haven't been
-//! repointed yet.
+//! (`medoc_core::error::AppError`, `medoc_core::domain::*`) on their
+//! existing `crate::*` paths for source compatibility with the ~200
+//! call sites that haven't been repointed yet.
 
+pub mod domain;
 pub mod error;

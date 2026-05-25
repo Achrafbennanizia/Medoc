@@ -9,9 +9,21 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-# `AppError` (re-exported into the practice/Tauri crate for source compat)
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
-# Only the error surface needs sqlx for the `Database(#[from] sqlx::Error)` variant.
-# Feature unification: practice crate enables runtime-tokio/sqlite/etc.; this stays minimal.
-sqlx = { version = "0.8", default-features = false }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+# `macros` for `#[derive(sqlx::Type)]` on domain enums; `sqlite` + `chrono` for
+# `domain::services::konflikt` which queries via `SqlitePool` and `NaiveDateTime`.
+# Feature unification: practice crate enables runtime-tokio + migrate as well;
+# both crates resolve to the same compiled sqlx instance.
+sqlx = { version = "0.8", default-features = false, features = [
+    "macros",
+    "sqlite",
+    "runtime-tokio",
+    "chrono",
+] }
+
+[build-dependencies]
+medoc-codegen = { path = "../medoc-codegen" }
