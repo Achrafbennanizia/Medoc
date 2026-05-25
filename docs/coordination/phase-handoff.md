@@ -1,7 +1,7 @@
 # Phase handoff
 
-**Last phase label:** Workspace restructure — Wave B2.a–c (Tauri-untangle) + B4 (codegen lift)  
-**Last closed:** 2026-05-25/26 — `5f09d58`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests); `medoc-codegen` crate now drives RBAC + enums codegen; `domain::rbac::Role`, `commands::rbac_state::{require, …}`, `commands::db_setup_commands::init_db_from_app` introduced
+**Last phase label:** Workspace restructure — Wave B5.0–B5.2 (`error.rs` + `domain/` lifted into `medoc-core`)  
+**Last closed:** 2026-05-26 — `2c0307c`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests); `medoc-core` now carries `AppError` + the entire `domain/` tree (24 files, 4 sub-modules); `medoc-core/build.rs` drives enums codegen; `app/src-tauri/src/{error,domain}.rs` reduced to one-line re-export shims
 
 ### Workspace restructure (2026-05-25 / 26)
 
@@ -17,7 +17,12 @@
 | Wave B2.b `65fbcfc` — extract `require`/`require_authenticated`/`require_one_of` into `commands::rbac_state` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests) |
 | Wave B2.c `04843bf` — remove Tauri dep from `infrastructure::database::connection`; add `commands::db_setup_commands::init_db_from_app` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; `connection.rs` `grep tauri` empty) |
 | Wave B4 `5f09d58` — lift `build/{enums,rbac}_codegen.rs` into `medoc-codegen` lib crate; thin `build.rs` caller; latent `.gitignore` `build/` bug fixed | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; generated TS / RS / SQL byte-identical) |
-| Wave B5–B8 — real source lifts (core → lan → company → practice → binaries) | **NOT STARTED** |
+| Wave B5.0 `a74fd82` — give `medoc_codegen::{enums,rbac}::run` explicit `yaml_path` + `ts_out_dir` (+ `sql_out_path`) parameters (prereq for codegen migration across crates) | **PASS** (159 tests; generated artefacts byte-identical) |
+| Wave B5.1 `6aef090` — move `AppError` into `medoc-core::error`; `app/src-tauri/src/error.rs` becomes `pub use` shim; first true cross-crate source lift | **PASS** (159 tests; `medoc-core` is now a load-bearing dep of `medoc`) |
+| Wave B5.2 `2c0307c` — move entire `domain/` (24 files, entities + enums + rbac + repositories + services) into `medoc-core/src/domain/`; new `medoc-core/build.rs` drives enums codegen; `app/src-tauri/src/domain.rs` shim re-exports everything | **PASS** (159 tests; generated artefacts byte-identical) |
+| Wave B6 — lift non-Tauri `infrastructure/` (crypto, database, dsgvo, logging, pdf*, retention, backup) into `medoc-core` | **NOT STARTED** — pattern from B5 recipe |
+| Wave B7 — lift `lan_server/` → `medoc-lan` crate; `company_host/` → `medoc-company` crate | **NOT STARTED** |
+| Wave B8 — split `bin/medoc-server.rs` + `bin/medoc-company-server.rs` into own binary crates; trim `medoc` to Tauri-only | **NOT STARTED** |
 | Wave C — npm workspace split | **NOT STARTED** — depends on B |
 | Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`) | **NOT STARTED** — depends on B + C |
 
@@ -42,39 +47,25 @@
 
 ### Must happen next
 
-1. **Wave B5 — lift `domain/` + `error.rs` into `medoc-core` crate.**
+Waves B5.0/B5.1/B5.2 completed in-session (2026-05-26). `medoc-core` is now a load-bearing crate that owns `AppError` and the entire `domain/` tree. The recipe is proven; B6/B7/B8 follow the same pattern.
 
-   **Evidence the lift is otherwise clean** (probed 2026-05-26):
-   ```
-   $ grep -E '^use crate::' app/src-tauri/src/domain -r
-   domain/services/{konflikt,pricing,workflow_transitions}.rs : use crate::error::AppError;  (3 files)
-   domain/entities/{patient,personal,termin,zahlung}.rs       : use crate::domain::enums::…;
-   domain/services/workflow_transitions.rs                    : use crate::domain::rbac::Role;
-   ```
-   The **only** outward dep from `domain/` is `crate::error::AppError`. All other `use crate::*` references stay within `domain/`. `error.rs` itself depends only on external crates (`thiserror`, `serde`, `sqlx::Error`).
+1. **Wave B6 — lift non-Tauri `infrastructure/` modules into `medoc-core`.** Inspection order:
+   - **B6.0 evidence probe:** `grep -E '^use crate::(application|commands|systems)' app/src-tauri/src/infrastructure -r` to find modules still depending upward. Modules that probe clean (`crypto/`, `database/` minus `connection.rs` audit-hmac flow, `dsgvo.rs`, `logging/`, `retention.rs`, `backup.rs`, `pdf*`, `clinical_pdf_layout.rs`, `clinical_text_format.rs`) can lift immediately. Modules that don't (`lan_server/`, `company_host/`) go to their own crates in B7.
+   - **B6.1:** Lift `crypto/` (smallest, no `crate::*` deps beyond `error`). Validate.
+   - **B6.2:** Lift `database/` (excluding any `tauri::*` left in module). After this, `application/` is unblocked.
+   - **B6.3+:** Lift remaining standalone modules one-by-one with revert-on-failure between each.
+   - Each new `medoc-core/src/<module>/` subdirectory just needs to be declared in `medoc-core/src/lib.rs` and shimmed by a re-export in `app/src-tauri/src/<module>.rs` (or `<module>/mod.rs` — pick whichever the practice crate already uses).
 
-   **One real blocker remains — codegen `OUT_DIR` routing:**
-   ```
-   $ grep -n 'OUT_DIR' app/src-tauri/src/domain
-   domain/enums.rs:8: include!(concat!(env!("OUT_DIR"), "/domain_enums_generated.rs"));
-   ```
-   `env!("OUT_DIR")` resolves at compile time to the *consuming crate's* build dir. If `domain/` moves to `medoc-core`, the file `domain_enums_generated.rs` must be produced into `medoc-core`'s `OUT_DIR`, but the codegen currently runs from `medoc`'s `build.rs`. Two clean fixes:
+2. **Wave B7 — `medoc-lan` + `medoc-company` crates.** Both `infrastructure/lan_server/` and `infrastructure/company_host/` are already self-contained system modules. After B6 lands, they only depend on `medoc_core::*` plus their own external crates (axum, axum-server, rustls, etc.). Create two new crates, lift, re-export shims.
 
-   - **B5.0a:** Move the enums codegen call into a new `medoc-core/build.rs` that takes `[build-dependencies] medoc-codegen = { path = ... }` and calls `medoc_codegen::enums::run(...)`. Then the `include!` resolves correctly. *Side effect:* the TS output path in `medoc_codegen::enums` is hard-coded to `manifest_dir + "../src/lib/"`. From `medoc-core` that resolves to `app/crates/src/lib/` which doesn't exist. So:
-   - **B5.0b:** Extend `medoc_codegen::enums::run(manifest_dir)` to also take an explicit `ts_out_dir: &Path` parameter. `medoc-core/build.rs` passes `manifest_dir.join("../../src/lib")`; the practice-host `build.rs` would do the same once enums no longer lives there.
+3. **Wave B8 — binary crates.** `bin/medoc-server.rs` and `bin/medoc-company-server.rs` move into `app/crates/medoc-{lan,company}-server/src/main.rs` (or similar). Practice-host `medoc` crate keeps only `lib.rs` + `main.rs` + `commands/` + `systems/` and uses `medoc_core` + `medoc_lan` (for the embedded LAN server) as deps.
 
-   Recommended sequence:
-   1. **B5.0** — refactor `medoc_codegen::enums::run` signature to accept explicit `ts_out_dir`; update existing call in `app/src-tauri/build.rs` to pass `manifest_dir.join("../src/lib")` (current behaviour). Validate. (One commit.)
-   2. **B5.1** — move `error.rs` into `medoc-core/src/error.rs`; add `thiserror`/`serde`/`sqlx` to `medoc-core` deps; add `medoc-core` as a normal dep of `medoc`; keep `app/src-tauri/src/error.rs` as a one-liner `pub use medoc_core::error::*;` for back-compat. Validate. (One commit.)
-   3. **B5.2** — give `medoc-core` a `build.rs` that calls `medoc_codegen::enums::run(manifest_dir, manifest_dir.join("../../src/lib"))`; move `domain/` directory to `app/crates/medoc-core/src/domain/`; `medoc-core/src/lib.rs` declares `pub mod domain; pub mod error;`; `app/src-tauri/src/domain.rs` becomes `pub use medoc_core::domain::*;`. **Drop** the enums codegen call from `app/src-tauri/build.rs`. Validate. (One commit.)
-   4. **B5.3** — flip `application::rbac::Role` re-export to point at `medoc_core::domain::rbac::Role`. Other consumers (`use crate::domain::*`) keep working via the re-export shim. Validate. (Same commit as B5.2 or follow-up.)
-
-   This roadmap should be ~3 commits, each ≤ 30 minutes of focused work + 1 minute of validation.
-
-2. **Other constraints to revisit later** (no longer Wave B5 blockers, but expected to surface during B6/B7):
-   - `application/audit_chain_guard::blocks_ops()` is called from `commands::rbac_state::require` (Wave B2.b decision). If `audit_chain_guard.rs` later moves to `medoc-core`, the call stays where it is; only `commands::rbac_state` lives in `medoc-practice`. Verify before splitting `application/`.
-   - `domain::repositories::*` traits — re-check signatures before lift; they should be pure trait definitions, but a quick `grep` once `medoc-core` is producing.
+4. **Other constraints to revisit during B6/B7** (not blockers yet):
+   - `application/audit_chain_guard::blocks_ops()` is called from `commands::rbac_state::require` (Wave B2.b). If `audit_chain_guard.rs` later moves to `medoc-core`, the call stays where it is; only `commands::rbac_state` lives in the practice crate. Verify before splitting `application/`.
    - `application/akte/*` reference `commands::auth_commands::SessionState` indirectly via `rbac::require` — confirm no remaining `tauri::State` usage before lifting `application/` into `medoc-core`.
+   - `application::rbac` has `include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"))`. If `application/` ever moves to `medoc-core`, that codegen invocation must follow it (same pattern as B5.2 did for enums). For now it's fine in the practice crate.
+
+5. **Live UI smokes from earlier phases remain NOT OBSERVED.**
 2. **Wave B6/B7 — lift `infrastructure/lan_server/` and `infrastructure/company_host/` into `medoc-lan` / `medoc-company` crates.** Both already isolated as systems; should be near-mechanical once core lands.
 3. **Wave B8 — split binaries (`bin/medoc-server.rs`, `bin/medoc-company-server.rs`) into their own crates; trim `medoc` crate to Tauri-only.**
 4. **Live UI smokes from earlier phases remain NOT OBSERVED.**

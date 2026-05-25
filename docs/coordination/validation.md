@@ -1,6 +1,6 @@
 # Validation ledger
 
-**Last updated:** 2026-05-26 (Wave B2.a–c + B4 complete)
+**Last updated:** 2026-05-26 (Wave B2.a–c + B4 + B5.0–B5.2 complete)
 
 ## Verified (commands run, outcomes recorded)
 
@@ -32,6 +32,15 @@
 | Wave B4 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 11.9s after lint fix on `build.rs` docstring |
 | Wave B4 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** |
 | Wave B4 — generated artefacts byte-identical | `git diff --stat` on `rbac.generated.ts`, `enums.generated.ts`, `schemas.enums.generated.ts`, `migrations/generated/` | **PASS** | 2026-05-26 | clean; codegen output unchanged after relocation |
+| Wave B5.0 — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 5.4s; `medoc_codegen::{enums,rbac}::run` signature change is purely additive |
+| Wave B5.0 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 7.4s; required doc-comment de-indent fix |
+| Wave B5.0 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail**; generated artefacts byte-identical |
+| Wave B5.1 — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 12.7s; first cross-crate lift — `medoc-core::error::AppError` re-exported into practice crate |
+| Wave B5.1 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 12.2s; clean |
+| Wave B5.1 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail**; AppError reachable via both old and new paths |
+| Wave B5.2 — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 10.7s; entire `domain/` (24 files) now lives in medoc-core; required adding `serde_json` to medoc-core runtime deps |
+| Wave B5.2 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 12.6s; clean |
+| Wave B5.2 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail**; including `domain::enums::termin_status_serde_tests` running from medoc-core; generated artefacts byte-identical |
 | Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |
