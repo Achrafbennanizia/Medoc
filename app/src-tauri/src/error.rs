@@ -1,45 +1,8 @@
-use thiserror::Error;
+//! Application error type — single source of truth in `medoc_core::error`.
+//!
+//! Re-exported here so the ~200 existing `use crate::error::AppError;` (and
+//! `crate::error::AppError::*`) call sites in this crate continue to compile.
+//! When other server crates (LAN, Company) move to the workspace they should
+//! import directly from `medoc_core::error` rather than going through this shim.
 
-#[derive(Error, Debug)]
-pub enum AppError {
-    #[error("Nicht autorisiert")]
-    Unauthorized,
-
-    #[error("Zu viele Fehlversuche — bitte {0} Sekunden warten")]
-    RateLimited(u64),
-
-    #[error("Zugriff verweigert")]
-    Forbidden,
-
-    #[error("{0} nicht gefunden")]
-    NotFound(String),
-
-    #[error("Konflikt: {0}")]
-    Conflict(String),
-
-    #[error("Validierungsfehler: {0}")]
-    Validation(String),
-
-    #[error("Datenbankfehler: {0}")]
-    Database(#[from] sqlx::Error),
-
-    #[error("Interner Fehler: {0}")]
-    Internal(String),
-
-    /// Password OK; enrolled user must supply a 6-digit TOTP code on the next login step.
-    #[error("Zwei-Faktor-Code erforderlich")]
-    TotpRequired,
-
-    /// Password OK; ARZT must complete TOTP enrollment before a session is issued.
-    #[error("Zwei-Faktor-Einrichtung erforderlich")]
-    TotpEnrollmentRequired,
-}
-
-impl serde::Serialize for AppError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
+pub use medoc_core::error::AppError;
