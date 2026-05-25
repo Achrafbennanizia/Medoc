@@ -2706,6 +2706,7 @@ dependencies = [
  "keyring",
  "libsqlite3-sys",
  "medoc-codegen",
+ "medoc-core",
  "rand 0.8.6",
  "rcgen",
  "regex",
@@ -2746,6 +2747,11 @@ dependencies = [
 [[package]]
 name = "medoc-core"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "sqlx",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "memchr"

@@ -9,4 +9,9 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-# Wave B3 placeholder: real lifts (domain, error, crypto, database, logging, …) happen in Wave B5+.
+# `AppError` (re-exported into the practice/Tauri crate for source compat)
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+# Only the error surface needs sqlx for the `Database(#[from] sqlx::Error)` variant.
+# Feature unification: practice crate enables runtime-tokio/sqlite/etc.; this stays minimal.
+sqlx = { version = "0.8", default-features = false }
