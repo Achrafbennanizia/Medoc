@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-05-26 (Wave B2.a–c + B4 complete)
+**Last updated:** 2026-05-26 (Wave B2.a–c + B4 + B5.0–B5.2 complete)
 
 ## Now
 
@@ -14,7 +14,10 @@
   - **Wave B2.b — DONE** `65fbcfc` — extracted `require/require_authenticated/require_one_of` into new `commands::rbac_state`; `application::rbac` reduced to pure policy (Role + matrix + `effective_allowed`) with re-exports for back-compat. PASS (159 tests).
   - **Wave B2.c — DONE** `04843bf` — removed Tauri dep from `infrastructure::database::connection`; new `commands::db_setup_commands::init_db_from_app(&AppHandle)` wraps `init_db_headless(&Path)`. `connection.rs` `grep tauri` empty. PASS (159 tests).
   - **Wave B4 — DONE** `5f09d58` — lifted `build/{enums,rbac}_codegen.rs` into `app/crates/medoc-codegen/src/{enums,rbac}.rs` as library functions; `build.rs` now thin caller. Fixes latent `.gitignore:52 build/` bug (codegen files were never tracked). Generated TS / RS / SQL byte-identical. PASS (159 tests).
-  - **Wave B5–B8 — NOT STARTED.** Now unblocked: `domain/` + `infrastructure/database/` (minus `lan_server`, `company_host`) are Tauri-free; the actual `domain` + non-Tauri `application/` + non-Tauri `infrastructure/` source lift into `medoc-core` is the next big step (will touch dependency-graph order carefully — see `wave-b-crate-mapping.md`).
+  - **Wave B5.0 — DONE** `a74fd82` — `medoc_codegen::{enums,rbac}::run` now take explicit `yaml_path` + `ts_out_dir` + `sql_out_path`. Prereq for invoking codegen from multiple build scripts. PASS (159 tests; generated artefacts byte-identical).
+  - **Wave B5.1 — DONE** `6aef090` — `AppError` lives in `medoc-core::error`; `app/src-tauri/src/error.rs` is now a `pub use` shim. `medoc-core` is a real dep of `medoc`. Smallest possible cross-crate lift, proves the workspace dep plumbing. PASS (159 tests).
+  - **Wave B5.2 — DONE** `2c0307c` — entire `domain/` (24 files, entities + enums + rbac + repositories + services) lifted into `medoc-core/src/domain/`. New `medoc-core/build.rs` drives enums codegen so `domain::enums`'s `include!(env!("OUT_DIR")…)` resolves correctly. `app/src-tauri/src/domain.rs` re-exports everything. PASS (159 tests; generated artefacts byte-identical).
+  - **Wave B6–B8 — NOT STARTED.** Pattern from B5.2 now reusable: lift `infrastructure/` modules one at a time into `medoc-core`, then split `lan_server/` → `medoc-lan` and `company_host/` → `medoc-company`, then split binaries. See phase-handoff for the inspection probe and ordering.
   - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files in `app/src/lib/` categorised.
   - **Waves C/D execution** — depend on B5+; not started.
 - **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
