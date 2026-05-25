@@ -9,4 +9,5 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-# Wave B3 placeholder: actual codegen helpers (serde, serde_yaml, …) lift in Wave B4.
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
