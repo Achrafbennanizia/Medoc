@@ -1,7 +1,28 @@
 # Phase handoff
 
-**Last phase label:** Workspace restructure — Wave B5.0–B5.2 (`error.rs` + `domain/` lifted into `medoc-core`)  
-**Last closed:** 2026-05-26 — `2c0307c`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests); `medoc-core` now carries `AppError` + the entire `domain/` tree (24 files, 4 sub-modules); `medoc-core/build.rs` drives enums codegen; `app/src-tauri/src/{error,domain}.rs` reduced to one-line re-export shims
+**Last phase label:** Workspace restructure — **Wave B COMPLETE**: three deployable binaries each live in their own Cargo crate with their own dependency closure  
+**Last closed:** 2026-05-26 — `ed362bc`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests). The user's "3 fully separated models" goal is now physically real: `cargo build -p medoc-lan-server` and `cargo build -p medoc-company-server` both produce working standalone binaries (`target/debug/medoc-server` 39 MB, `target/debug/medoc-company-server` 19 MB) without compiling any Tauri code. The desktop Tauri app (`cargo build -p medoc`, `target/debug/medoc` 82 MB) still works.
+
+### Three-system split — outcome (after Wave B8)
+
+```
+app/
+├── Cargo.toml                            # workspace root, 7 members
+├── crates/
+│   ├── medoc-codegen/                    # build-time RBAC + enums + pubkey codegen
+│   ├── medoc-core/                       # domain + application + non-Tauri infra
+│   ├── medoc-lan/                        # LAN HTTP server library
+│   ├── medoc-lan-server/                 # LAN binary (medoc-server)
+│   ├── medoc-company/                    # Company HTTP server library
+│   ├── medoc-company-server/             # Company binary (medoc-company-server)
+└── src-tauri/                            # Tauri desktop binary (medoc)
+```
+
+| Binary | Crate | Pull-in | Run with |
+|--------|-------|--------|----------|
+| Practice host | `medoc` (src-tauri/) | medoc-core + medoc-lan + medoc-company + tauri | `cargo run -p medoc` |
+| LAN server | `medoc-lan-server` | medoc-core + medoc-lan (no Tauri) | `cargo run -p medoc-lan-server -- --data-dir <path>` |
+| Company server | `medoc-company-server` | medoc-core + medoc-company (no Tauri, no LAN) | `cargo run -p medoc-company-server -- --data-dir <path>` |
 
 ### Workspace restructure (2026-05-25 / 26)
 
@@ -20,10 +41,13 @@
 | Wave B5.0 `a74fd82` — give `medoc_codegen::{enums,rbac}::run` explicit `yaml_path` + `ts_out_dir` (+ `sql_out_path`) parameters (prereq for codegen migration across crates) | **PASS** (159 tests; generated artefacts byte-identical) |
 | Wave B5.1 `6aef090` — move `AppError` into `medoc-core::error`; `app/src-tauri/src/error.rs` becomes `pub use` shim; first true cross-crate source lift | **PASS** (159 tests; `medoc-core` is now a load-bearing dep of `medoc`) |
 | Wave B5.2 `2c0307c` — move entire `domain/` (24 files, entities + enums + rbac + repositories + services) into `medoc-core/src/domain/`; new `medoc-core/build.rs` drives enums codegen; `app/src-tauri/src/domain.rs` shim re-exports everything | **PASS** (159 tests; generated artefacts byte-identical) |
-| Wave B6 — lift non-Tauri `infrastructure/` (crypto, database, dsgvo, logging, pdf*, retention, backup) into `medoc-core` | **NOT STARTED** — pattern from B5 recipe |
-| Wave B7 — lift `lan_server/` → `medoc-lan` crate; `company_host/` → `medoc-company` crate | **NOT STARTED** |
-| Wave B8 — split `bin/medoc-server.rs` + `bin/medoc-company-server.rs` into own binary crates; trim `medoc` to Tauri-only | **NOT STARTED** |
-| Wave C — npm workspace split | **NOT STARTED** — depends on B |
+| Wave B6.0 `8e1f8b5` — pre-lift untanglings (`BreakGlassState` → `medoc-core::break_glass`, `PermissionOverride` → `medoc-core::domain::rbac`, `lan_server::discovery` → `medoc-core::discovery`) | **PASS** (159 tests; resolves 3 upward `use crate::*` edges before bulk lift) |
+| Wave B6.1 `975f96c` — bulk-lift ~50 non-Tauri infrastructure files (backup, clinical_*, cors_policy, crypto/, database/, devices/, dsfa/dsgvo, license, logging/, migration, notifications, payment, pdf*, perf, photo_viewer_scan, retention, secret_store, telematik, totp, update, vvt) + `migrations/` directory into `medoc-core`; vendor pubkey codegen relocated to `medoc-core/build.rs` (third OUT_DIR migration after enums + RBAC) | **PASS** (159 tests; macros `log_*!` re-exported at practice crate root) |
+| Wave B7.0 `5f82295` — lift `application/` (10 files) + `infrastructure/company_portal/` (3 files) into `medoc-core`; RBAC codegen moved to `medoc-core/build.rs`; practice's `application.rs` becomes a 17-line facade with a `rbac` shim that merges medoc-core's matrix with practice's Tauri-State guards | **PASS** (159 tests; medoc-codegen build-dep removed from practice crate) |
+| Wave B7.1 `5c7251d` — create **`medoc-lan` crate** (workspace member). Lift `infrastructure/lan_server/` (7 files) into it. Also lift `systems/company/{port,adapter}.rs` into `medoc-core::company` so both LAN + practice consume the same `COMPANY_PORTAL` singleton. Practice's `infrastructure/lan_server.rs` = `pub use medoc_lan::*;` shim | **PASS** (159 tests; `cargo check -p medoc-lan` builds with zero Tauri code) |
+| Wave B7.2 `400f8ca` — create **`medoc-company` crate**. Lift `infrastructure/company_host/` (4 files) into it. Practice's `infrastructure/company_host.rs` = `pub use medoc_company::*;` shim | **PASS** (159 tests; `cargo check -p medoc-company` builds with zero Tauri, zero LAN code) |
+| Wave B8 `ed362bc` — split `bin/medoc-server.rs` + `bin/medoc-company-server.rs` into **`medoc-lan-server`** + **`medoc-company-server`** binary crates. Drop the `[[bin]]` entries from practice's Cargo.toml. `LanSystemFactory` lifted from practice into `medoc-lan` so the standalone binary doesn't need the practice crate. Cold rebuild **proves** each binary builds in isolation | **PASS** (159 tests; `cargo build -p medoc-lan-server` 39 MB; `cargo build -p medoc-company-server` 19 MB; `cargo build -p medoc` 82 MB) |
+| Wave C — npm workspace split | **NOT STARTED** — independent of B; can proceed |
 | Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`) | **NOT STARTED** — depends on B + C |
 
 ### Validation snapshot (post Wave A, 2026-05-25)
@@ -47,16 +71,36 @@
 
 ### Must happen next
 
-Waves B5.0/B5.1/B5.2 completed in-session (2026-05-26). `medoc-core` is now a load-bearing crate that owns `AppError` and the entire `domain/` tree. The recipe is proven; B6/B7/B8 follow the same pattern.
+**Wave B closed `ed362bc` (2026-05-26).** Eight successive commits (B6.0, B6.1, B7.0, B7.1, B7.2, B8) lifted the entire shared backend out of `app/src-tauri/` and produced three independent Cargo crates that build standalone binaries. Validation green at every step (159 tests / 0 fail).
 
-1. **Wave B6 — lift non-Tauri `infrastructure/` modules into `medoc-core`.** Inspection order:
-   - **B6.0 evidence probe:** `grep -E '^use crate::(application|commands|systems)' app/src-tauri/src/infrastructure -r` to find modules still depending upward. Modules that probe clean (`crypto/`, `database/` minus `connection.rs` audit-hmac flow, `dsgvo.rs`, `logging/`, `retention.rs`, `backup.rs`, `pdf*`, `clinical_pdf_layout.rs`, `clinical_text_format.rs`) can lift immediately. Modules that don't (`lan_server/`, `company_host/`) go to their own crates in B7.
-   - **B6.1:** Lift `crypto/` (smallest, no `crate::*` deps beyond `error`). Validate.
-   - **B6.2:** Lift `database/` (excluding any `tauri::*` left in module). After this, `application/` is unblocked.
-   - **B6.3+:** Lift remaining standalone modules one-by-one with revert-on-failure between each.
-   - Each new `medoc-core/src/<module>/` subdirectory just needs to be declared in `medoc-core/src/lib.rs` and shimmed by a re-export in `app/src-tauri/src/<module>.rs` (or `<module>/mod.rs` — pick whichever the practice crate already uses).
+#### The user-facing payoff (verified)
 
-2. **Wave B7 — `medoc-lan` + `medoc-company` crates.** Both `infrastructure/lan_server/` and `infrastructure/company_host/` are already self-contained system modules. After B6 lands, they only depend on `medoc_core::*` plus their own external crates (axum, axum-server, rustls, etc.). Create two new crates, lift, re-export shims.
+| Step | Command | Output | Tauri compiled? |
+|------|---------|--------|-----------------|
+| Cold build LAN binary | `cargo build -p medoc-lan-server` | `target/debug/medoc-server` (39 MB) | **No** — only medoc-core + medoc-lan + their deps |
+| Cold build Company binary | `cargo build -p medoc-company-server` | `target/debug/medoc-company-server` (19 MB) | **No** — only medoc-core + medoc-company |
+| Cold build desktop | `cargo build -p medoc` | `target/debug/medoc` (82 MB) | Yes — Tauri practice host |
+
+This delivers the user's "3 fully separated models" goal as a hard, verifiable artefact (cold rebuild from clean target — no shared object files between the LAN and Company binaries beyond `medoc-core`, no Tauri runtime in either standalone binary).
+
+#### Outstanding work (Waves C + D, independent of each other)
+
+1. **Wave C — npm workspace split (frontend).**  
+   `app/src/` is still a single TypeScript tree. The mapping document `docs/coordination/wave-c-package-mapping.md` already triages all 97 files in `app/src/lib/`. Goal: split into `@medoc/shared`, `@medoc/ui`, `@medoc/system-practice`, `@medoc/system-lan` (a future browser/tablet client for the LAN server), `@medoc/system-company`. Steps: (a) introduce `app/package.json` workspaces; (b) move shared types out first; (c) per-system Vite roots; (d) per-system smoke tests.
+
+2. **Wave D — repo-root restructure.**  
+   Promote the workspace from `app/` into root: `apps/{practice,lan,company}/`, `crates/{medoc-*}/`, `packages/{shared,ui,system-*}/`, `tools/`. Updates required: CI workflow (`.github/workflows/ci.yml`), README, `AGENTS.md`, every `docs/coordination/*.md` path reference. Highest blast radius — should run last.
+
+3. **Wave B follow-ups (lower priority, deferrable).**  
+   - Trim practice crate's `Cargo.toml` deps that are now only used transitively (axum, axum-server, rustls, rcgen, rustls-pemfile, tower, tower-http, if-addrs, jsonwebtoken, reqwest, urlencoding, tracing-appender, hmac, sha2, zeroize, ed25519-dalek, base64, zip, regex, dirs, keyring, totp-rs — many already covered by medoc-core/medoc-lan/medoc-company). Run `cargo machete` or manual pruning + `cargo check` per removal.
+   - Move `commands/lan_commands::start_lan_embedded` to call `medoc_lan::*` directly instead of through the `infrastructure::lan_server` shim.
+   - Reduce the `lan_server.rs` + `company_host.rs` re-export shims once consumers are repointed.
+
+#### Continuity notes for the next session
+
+- **`MEDOC_VENDOR_PUBKEY`** is now required at build time for **medoc-core** (it generates `pubkey.rs` in `OUT_DIR`). CI value: `79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`. The variable is read by `medoc-core/build.rs` (was `app/src-tauri/build.rs` before B6.1).
+- **Disk space:** `app/target/debug/incremental/` was cleared mid-Wave-B6 (it had grown to 15 GB). Future bulk lifts may need the same cleanup.
+- **No coordination contradictions** detected between the lifted code and the docs; the only stale paths are in `docs/coordination/wave-b-crate-mapping.md` (mentions migrations as still-in-src-tauri — but they're now in medoc-core; minor).
 
 3. **Wave B8 — binary crates.** `bin/medoc-server.rs` and `bin/medoc-company-server.rs` move into `app/crates/medoc-{lan,company}-server/src/main.rs` (or similar). Practice-host `medoc` crate keeps only `lib.rs` + `main.rs` + `commands/` + `systems/` and uses `medoc_core` + `medoc_lan` (for the embedded LAN server) as deps.
 
