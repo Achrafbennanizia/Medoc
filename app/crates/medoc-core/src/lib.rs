@@ -12,6 +12,7 @@
 
 pub mod application;
 pub mod break_glass;
+pub mod company;
 pub mod discovery;
 pub mod domain;
 pub mod error;
