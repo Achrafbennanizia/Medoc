@@ -10,6 +10,7 @@
 //! existing `crate::*` paths for source compatibility with the ~200
 //! call sites that haven't been repointed yet.
 
+pub mod application;
 pub mod break_glass;
 pub mod discovery;
 pub mod domain;
