@@ -2749,12 +2749,14 @@ name = "medoc-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "if-addrs",
  "medoc-codegen",
  "rand 0.8.6",
  "serde",
  "serde_json",
  "sqlx",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

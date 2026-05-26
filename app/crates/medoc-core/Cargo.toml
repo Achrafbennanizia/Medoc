@@ -24,6 +24,9 @@ sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",
     "chrono",
 ] }
+# `discovery` UDP beacon needs tokio net/time + interface enumeration.
+tokio = { version = "1", features = ["net", "time", "rt", "macros"] }
+if-addrs = "0.14"
 
 [build-dependencies]
 medoc-codegen = { path = "../medoc-codegen" }

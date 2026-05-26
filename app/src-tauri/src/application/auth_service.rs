@@ -13,11 +13,12 @@ pub struct LoginRequest {
     pub totp_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PermissionOverride {
-    pub action: String,
-    pub effect: String,
-}
+// `PermissionOverride` is the domain shape for FA-PERS-07 RBAC overrides;
+// canonical definition now lives in `medoc_core::domain::rbac`. Re-exported
+// here so the ~30 `use crate::application::auth_service::PermissionOverride;`
+// (and direct field access via `Session.permission_overrides`) sites keep
+// compiling unchanged.
+pub use crate::domain::rbac::PermissionOverride;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
