@@ -3,9 +3,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::infrastructure::company_host::api_key;
-use crate::infrastructure::cors_policy::{self, CorsGate};
-use crate::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
+use medoc_core::infrastructure::cors_policy::{self, CorsGate};
+use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
+
+use crate::api_key;
 use axum::extract::{ConnectInfo, Extension, Query, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
