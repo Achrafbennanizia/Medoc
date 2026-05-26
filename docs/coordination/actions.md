@@ -1,26 +1,29 @@
 # Action ledger
 
-**Last updated:** 2026-05-26 (Wave B2.a–c + B4 + B5.0–B5.2 complete)
+**Last updated:** 2026-05-26 (Wave B COMPLETE — three independently-runnable binaries)
 
 ## Now
 
 - **Workspace restructure — see [`restructure-plan.md`](restructure-plan.md):**
-  - **Checkpoint:** `33171bd` — wave-23 state committed (290 files, +17,548/-10,023).
-  - **Test fix:** `dbd146d` — backup retention test made day-of-week independent (was failing on Mondays/Sundays).
-  - **Wave A — DONE** `f402f28` — dropped 41 legacy controller shims + 15 legacy page shims; repointed ~90 imports to `@/systems/*/controllers/*` and `@/systems/*/pages/*`. `npm run lint && npm test (155) && npm run build` PASS.
-  - **Wave B1 (mapping) — DONE** [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md). Every `.rs` file under `app/src-tauri/src/` assigned to a target crate (medoc-{core,practice,lan,company,codegen}); 6 known constraints catalogued (Tauri leakage in `application/rbac.rs` + `infrastructure/database/connection.rs`; inverted `domain → application::rbac::Role`; crate-root macro re-homing; OUT_DIR codegen pathing; TS-file relative paths).
-  - **Wave B3 (workspace skeleton) — DONE** `a1196d3` — `app/Cargo.toml` virtual workspace; new placeholder crates `app/crates/medoc-codegen/` and `app/crates/medoc-core/`. Workspace target dir is now `app/target/`; orphan `app/src-tauri/Cargo.lock` removed.
-  - **Wave B2.a — DONE** `5696bea` — moved `Role` enum to new `domain::rbac` (closes inverted dep from `workflow_transitions`); `application::rbac` keeps `pub use` re-export so ~45 call sites compile unchanged. `cargo check/clippy/test --workspace` PASS (159 tests).
-  - **Wave B2.b — DONE** `65fbcfc` — extracted `require/require_authenticated/require_one_of` into new `commands::rbac_state`; `application::rbac` reduced to pure policy (Role + matrix + `effective_allowed`) with re-exports for back-compat. PASS (159 tests).
-  - **Wave B2.c — DONE** `04843bf` — removed Tauri dep from `infrastructure::database::connection`; new `commands::db_setup_commands::init_db_from_app(&AppHandle)` wraps `init_db_headless(&Path)`. `connection.rs` `grep tauri` empty. PASS (159 tests).
-  - **Wave B4 — DONE** `5f09d58` — lifted `build/{enums,rbac}_codegen.rs` into `app/crates/medoc-codegen/src/{enums,rbac}.rs` as library functions; `build.rs` now thin caller. Fixes latent `.gitignore:52 build/` bug (codegen files were never tracked). Generated TS / RS / SQL byte-identical. PASS (159 tests).
-  - **Wave B5.0 — DONE** `a74fd82` — `medoc_codegen::{enums,rbac}::run` now take explicit `yaml_path` + `ts_out_dir` + `sql_out_path`. Prereq for invoking codegen from multiple build scripts. PASS (159 tests; generated artefacts byte-identical).
-  - **Wave B5.1 — DONE** `6aef090` — `AppError` lives in `medoc-core::error`; `app/src-tauri/src/error.rs` is now a `pub use` shim. `medoc-core` is a real dep of `medoc`. Smallest possible cross-crate lift, proves the workspace dep plumbing. PASS (159 tests).
-  - **Wave B5.2 — DONE** `2c0307c` — entire `domain/` (24 files, entities + enums + rbac + repositories + services) lifted into `medoc-core/src/domain/`. New `medoc-core/build.rs` drives enums codegen so `domain::enums`'s `include!(env!("OUT_DIR")…)` resolves correctly. `app/src-tauri/src/domain.rs` re-exports everything. PASS (159 tests; generated artefacts byte-identical).
-  - **Wave B6–B8 — NOT STARTED.** Pattern from B5.2 now reusable: lift `infrastructure/` modules one at a time into `medoc-core`, then split `lan_server/` → `medoc-lan` and `company_host/` → `medoc-company`, then split binaries. See phase-handoff for the inspection probe and ordering.
-  - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files in `app/src/lib/` categorised.
-  - **Waves C/D execution** — depend on B5+; not started.
-- **Three-system — previous:** live LAN-client browser E2E **NOT RUN**; optional `einstellungen.tsx` → `practice-host/pages/`.
+  - **Wave A — DONE** `f402f28` — three-system frontend cleanup; 155 tests / 28 files green.
+  - **Wave B1 (mapping) — DONE** [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md).
+  - **Wave B3 (workspace skeleton) — DONE** `a1196d3`.
+  - **Wave B2.a–c — DONE** `5696bea` / `65fbcfc` / `04843bf` — Tauri leakage closed in `application/rbac.rs` + `infrastructure/database/connection.rs`.
+  - **Wave B4 — DONE** `5f09d58` — codegen lifted into `medoc-codegen` lib crate.
+  - **Wave B5.0/5.1/5.2 — DONE** `a74fd82` / `6aef090` / `2c0307c` — explicit codegen paths, then `AppError` + `domain/` (24 files) lifted into `medoc-core`.
+  - **Wave B6.0 — DONE** `8e1f8b5` — three pre-lift untanglings (`BreakGlassState`, `PermissionOverride`, UDP `discovery`) into medoc-core. 159 tests.
+  - **Wave B6.1 — DONE** `975f96c` — bulk-lift of ~50 non-Tauri infrastructure files + `migrations/` directory into `medoc-core`; vendor pubkey codegen relocated. 159 tests.
+  - **Wave B7.0 — DONE** `5f82295` — `application/` (10 files) + `company_portal/` (3 files) into `medoc-core`; RBAC codegen also moves to `medoc-core/build.rs`. 159 tests.
+  - **Wave B7.1 — DONE** `5c7251d` — **`medoc-lan` is now a workspace crate**; `lan_server/` lifted into it; `cargo check -p medoc-lan` builds Tauri-free. 159 tests.
+  - **Wave B7.2 — DONE** `400f8ca` — **`medoc-company` is now a workspace crate**; `company_host/` lifted into it. 159 tests.
+  - **Wave B8 — DONE** `ed362bc` — **two new binary crates `medoc-lan-server` + `medoc-company-server`**. Verified cold builds:
+    - `cargo build -p medoc-lan-server`     → `target/debug/medoc-server` (39 MB, no Tauri compiled)
+    - `cargo build -p medoc-company-server` → `target/debug/medoc-company-server` (19 MB, no Tauri, no LAN compiled)
+    - `cargo build -p medoc`                → `target/debug/medoc` (82 MB, Tauri desktop)
+  - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files triaged.
+  - **Wave C (npm workspace split) — NOT STARTED.** Independent of B.
+  - **Wave D (repo-root restructure) — NOT STARTED.** Depends on B + C.
+- The user's "3 fully separated models" goal is **DELIVERED** — see [`phase-handoff.md`](phase-handoff.md) for the binary verification matrix.
 
 ## Done (2026-05-22 three-system wave)
 

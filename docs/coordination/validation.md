@@ -1,6 +1,6 @@
 # Validation ledger
 
-**Last updated:** 2026-05-26 (Wave B2.a–c + B4 + B5.0–B5.2 complete)
+**Last updated:** 2026-05-26 (Wave B COMPLETE — three independently-runnable binaries verified)
 
 ## Verified (commands run, outcomes recorded)
 
@@ -41,6 +41,15 @@
 | Wave B5.2 — `cargo check --workspace` | as above | **PASS** | 2026-05-26 | 10.7s; entire `domain/` (24 files) now lives in medoc-core; required adding `serde_json` to medoc-core runtime deps |
 | Wave B5.2 — `cargo clippy --workspace -D warnings` | as above | **PASS** | 2026-05-26 | 12.6s; clean |
 | Wave B5.2 — `cargo test --workspace --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail**; including `domain::enums::termin_status_serde_tests` running from medoc-core; generated artefacts byte-identical |
+| Wave B6.0 — `cargo check/clippy/test --workspace` | as above | **PASS** | 2026-05-26 | 10–11s check; **159 tests / 0 fail**; 3 upward edges closed (`BreakGlassState`, `PermissionOverride`, `discovery`); medoc-core gains `tokio` (net/time/rt/macros) + `if-addrs` deps |
+| Wave B6.1 — `cargo check/clippy/test --workspace` | `MEDOC_VENDOR_PUBKEY=…3b32 cargo …` | **PASS** | 2026-05-26 | 13.3s check; **159 tests / 0 fail**; bulk lift of ~50 infrastructure files; vendor pubkey codegen relocated; 16 GB `target/debug/incremental/` cleared mid-run to recover disk |
+| Wave B7.0 — `cargo check/clippy/test --workspace` | as above | **PASS** | 2026-05-26 | 12s check; **159 tests / 0 fail**; `application/` + `company_portal/` lifted; RBAC codegen now also runs from `medoc-core/build.rs`; practice's `medoc-codegen` build-dep removed |
+| Wave B7.1 — `cargo check/clippy/test --workspace` | as above | **PASS** | 2026-05-26 | 7.2s check; **159 tests / 0 fail**; **`medoc-lan` is a new workspace crate**; `cargo check -p medoc-lan` builds with zero Tauri code |
+| Wave B7.2 — `cargo check/clippy/test --workspace` | as above | **PASS** | 2026-05-26 | 8.0s check; **159 tests / 0 fail**; **`medoc-company` is a new workspace crate**; `cargo check -p medoc-company` builds with zero Tauri AND zero LAN code |
+| Wave B8 — `cargo build -p medoc-lan-server` (cold) | as above | **PASS** | 2026-05-26 | 24.9s; `target/debug/medoc-server` 39 MB; verified compile log lists `aws-lc-rs / rustls / axum-server / medoc-core / medoc-lan / medoc-lan-server` **and not `tauri`** |
+| Wave B8 — `cargo build -p medoc-company-server` (cold) | as above | **PASS** | 2026-05-26 | 12.3s; `target/debug/medoc-company-server` 19 MB; compile log lists `sqlx-macros / medoc-core / medoc-company / medoc-company-server` **and not `tauri`, not `medoc-lan`** |
+| Wave B8 — `cargo build -p medoc` (Tauri desktop) | as above | **PASS** | 2026-05-26 | 22.5s; `target/debug/medoc` 82 MB; pulls medoc-core + medoc-lan + medoc-company through re-export shims |
+| Wave B8 — full workspace `clippy --no-deps -D warnings` + `test --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** across all 7 crates (medoc, medoc-codegen, medoc-core, medoc-lan, medoc-company, medoc-lan-server, medoc-company-server) |
 | Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |
