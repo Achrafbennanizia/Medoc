@@ -62,5 +62,11 @@ keyring = "3"
 # TOTP / 2FA
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 
+# Outbound HTTP to the company portal (subscription / feature flags /
+# billing / update manifest). Shared by the practice host and the LAN
+# server (which proxies these calls).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+urlencoding = "2"
+
 [build-dependencies]
 medoc-codegen = { path = "../medoc-codegen" }

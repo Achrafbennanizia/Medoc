@@ -13,7 +13,9 @@ crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-medoc-codegen = { path = "../crates/medoc-codegen" }
+# `medoc-codegen` (RBAC + enums + pubkey codegen) is now driven from
+# `medoc-core/build.rs`, so the practice crate no longer needs it as a
+# build-dep — only `tauri_build::build()` runs here.
 
 [dependencies]
 medoc-core = { path = "../crates/medoc-core" }

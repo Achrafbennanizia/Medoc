@@ -9,6 +9,7 @@
 pub mod backup;
 pub mod clinical_pdf_layout;
 pub mod clinical_text_format;
+pub mod company_portal;
 pub mod cors_policy;
 pub mod crypto;
 pub mod database;

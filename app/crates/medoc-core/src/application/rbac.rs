@@ -4,24 +4,23 @@
 // perform. Backend Tauri commands call `require()` with the active session
 // before executing privileged operations.
 //
-// This module contains the *pure* policy: the `Role` enum (re-exported
-// from `domain::rbac`), the build-time-generated permission matrix
-// (`rbac_matrix_allowed`), and `effective_allowed` (matrix + per-user
-// ALLOW/DENY overrides). Tauri-State-bound entry points (`require`,
-// `require_authenticated`, `require_one_of`) live in `commands::rbac_state`
-// and are re-exported below so existing `use crate::application::rbac::require;`
-// call sites keep working unchanged.
+// This module hosts the *pure* policy:
+// - the `Role` enum (re-exported from `domain::rbac`),
+// - the build-time-generated permission matrix (`rbac_matrix_allowed`),
+// - and `effective_allowed` (matrix + per-user ALLOW/DENY overrides).
+//
+// The Tauri-State-bound entry points (`require`, `require_authenticated`,
+// `require_one_of`) live in the practice crate's `commands::rbac_state`
+// because they take a `&State<'_, SessionState>`. The practice crate's
+// `application::rbac` shim re-exports them next to the matrix below so
+// `crate::application::rbac::require(…)` keeps working at every call site.
 
-use crate::application::auth_service::PermissionOverride;
+use crate::domain::rbac::PermissionOverride;
 
 // `Role` itself lives in `domain::rbac` so lower layers (e.g. `domain::services`) can
 // reference it without an upward dependency. Re-exported here for source compatibility
 // with the many `use crate::application::rbac::Role;` (and `{self, Role}`) call sites.
 pub use crate::domain::rbac::Role;
-
-// Tauri-State-bound guards. Re-exported so existing `rbac::require(...)`
-// call sites keep working; the implementations now sit under `commands::`.
-pub use crate::commands::rbac_state::{require, require_authenticated, require_one_of};
 
 include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
 

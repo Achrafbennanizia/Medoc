@@ -12,12 +12,12 @@
 //!   server — stays here until the frontend split decides where it belongs.
 
 pub use medoc_core::infrastructure::{
-    backup, clinical_pdf_layout, clinical_text_format, cors_policy, crypto, database, devices,
-    dsfa, dsgvo, license, logging, migration, notifications, payment, pdf, pdf_core,
-    pdf_letterhead, perf, photo_viewer_scan, retention, secret_store, telematik, totp, update, vvt,
+    backup, clinical_pdf_layout, clinical_text_format, company_portal, cors_policy, crypto,
+    database, devices, dsfa, dsgvo, license, logging, migration, notifications, payment, pdf,
+    pdf_core, pdf_letterhead, perf, photo_viewer_scan, retention, secret_store, telematik, totp,
+    update, vvt,
 };
 
 pub mod app_menu;
 pub mod company_host;
-pub mod company_portal;
 pub mod lan_server;
