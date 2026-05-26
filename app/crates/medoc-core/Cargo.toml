@@ -9,24 +9,58 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
+# Error + serialisation
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
-# `macros` for `#[derive(sqlx::Type)]` on domain enums; `sqlite` + `chrono` for
-# `domain::services::konflikt` which queries via `SqlitePool` and `NaiveDateTime`.
-# Feature unification: practice crate enables runtime-tokio + migrate as well;
-# both crates resolve to the same compiled sqlx instance.
+uuid = { version = "1", features = ["v4", "serde"] }
+base64 = "0.22"
+regex = "1"
+
+# SQLx for the database/* layer + sqlite-cipher. Practice/LAN/Company crates
+# also depend on sqlx (and on `libsqlite3-sys = { features = ["bundled-sqlcipher"] }`)
+# so cargo unifies the build into a single SQLCipher-enabled sqlite.
 sqlx = { version = "0.8", default-features = false, features = [
     "macros",
     "sqlite",
     "runtime-tokio",
     "chrono",
+    "migrate",
 ] }
-# `discovery` UDP beacon needs tokio net/time + interface enumeration.
-tokio = { version = "1", features = ["net", "time", "rt", "macros"] }
+
+# `discovery` UDP beacon + database connection pool need tokio net/time + interface enumeration.
+tokio = { version = "1", features = ["full"] }
 if-addrs = "0.14"
+
+# HTTP middleware shared between LAN and Company hosts (cors_policy).
+axum = { version = "0.8", features = ["macros", "json"] }
+tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace"] }
+
+# Crypto stack (argon2 password hashing, hmac-sha256 audit chains, bcrypt
+# legacy verification, ed25519 signature verification, key zeroization).
+argon2 = "0.5"
+bcrypt = "0.17"
+hmac = "0.12"
+sha2 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
+ed25519-dalek = "2"
+
+# Logging stack (structured tracing → rolling JSON file).
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt", "registry"] }
+tracing-appender = "0.2"
+
+# Filesystem helpers
+dirs = "5"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# OS keyring (db_key.rs + secret_store.rs)
+keyring = "3"
+
+# TOTP / 2FA
+totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 
 [build-dependencies]
 medoc-codegen = { path = "../medoc-codegen" }
