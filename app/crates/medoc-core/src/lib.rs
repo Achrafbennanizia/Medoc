@@ -14,3 +14,4 @@ pub mod break_glass;
 pub mod discovery;
 pub mod domain;
 pub mod error;
+pub mod infrastructure;

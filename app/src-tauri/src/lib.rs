@@ -5,6 +5,13 @@ pub mod error;
 pub mod infrastructure;
 pub mod systems;
 
+// Re-export the structured-log macros from medoc-core. `#[macro_export]`
+// places macros at the *defining* crate's root, so `crate::log_security!`
+// inside the practice crate would not resolve after the logging module
+// moved into `medoc-core`. Re-exporting them here keeps every existing
+// `use crate::log_security;` / `crate::log_system!(…)` call site working.
+pub use medoc_core::{log_device, log_migration, log_perf, log_security, log_system};
+
 use commands::audit_chain_commands::AuditChainGuardExt;
 use commands::auth_commands::{BruteForceState, SessionState};
 use infrastructure::database;

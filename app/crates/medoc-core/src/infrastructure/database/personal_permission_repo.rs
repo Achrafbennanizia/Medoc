@@ -1,6 +1,6 @@
 //! FA-PERS-07: granulare Berechtigungs-Overrides pro Personal-Zeile.
 
-use crate::application::auth_service::PermissionOverride;
+use crate::domain::rbac::PermissionOverride;
 use crate::error::AppError;
 use sqlx::SqlitePool;
 

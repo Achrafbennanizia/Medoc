@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use crate::application::break_glass::BreakGlassState;
+use crate::break_glass::BreakGlassState;
 
 static BREAK_GLASS: OnceLock<Arc<BreakGlassState>> = OnceLock::new();
 

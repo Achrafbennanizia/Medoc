@@ -12,7 +12,7 @@ use if_addrs::IfAddr;
 use serde_json::json;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::infrastructure::lan_server::discovery::LanBeaconPayload;
+use crate::discovery::LanBeaconPayload;
 
 /// Origins allowed for the LAN API: loopback, local Vite/Tauri dev, LAN interface HTTPS, optional extras.
 pub fn lan_allowed_origin_strings(
