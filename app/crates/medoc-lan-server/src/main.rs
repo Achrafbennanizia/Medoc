@@ -98,22 +98,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let pool =
-        medoc_lib::infrastructure::database::connection::init_db_headless(&args.data_dir).await?;
-    let jwt_raw =
-        medoc_lib::infrastructure::lan_server::secrets::ensure_jwt_secret_bytes(&args.data_dir)?;
+    let pool = medoc_core::infrastructure::database::connection::init_db_headless(&args.data_dir)
+        .await?;
+    let jwt_raw = medoc_lan::secrets::ensure_jwt_secret_bytes(&args.data_dir)?;
     let jwt_secret = Arc::new(jwt_raw);
-    let instance_id =
-        medoc_lib::infrastructure::lan_server::secrets::ensure_instance_id(&args.data_dir)?;
-    let tls_identity =
-        medoc_lib::infrastructure::lan_server::tls::ensure_lan_tls_identity(&args.data_dir)?;
+    let instance_id = medoc_lan::secrets::ensure_instance_id(&args.data_dir)?;
+    let tls_identity = medoc_lan::tls::ensure_lan_tls_identity(&args.data_dir)?;
 
-    let brute = Arc::new(medoc_lib::infrastructure::logging::brute_force::BruteForceTracker::new());
+    let brute = Arc::new(medoc_core::infrastructure::logging::brute_force::BruteForceTracker::new());
     brute
         .hydrate_from_db(&pool)
         .await
         .map_err(|e| format!("brute-force hydrate: {e}"))?;
-    let state = medoc_lib::systems::lan::LanSystemFactory::build_state(
+    let state = medoc_lan::LanSystemFactory::build_state(
         pool.clone(),
         jwt_secret,
         brute,
@@ -122,13 +119,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec![],
     );
 
-    let router = medoc_lib::systems::lan::LanSystemFactory::build_router(state);
+    let router = medoc_lan::LanSystemFactory::build_router(state);
     let addr: SocketAddr = format!("{}:{}", args.http_bind, args.http_port)
         .parse()
         .map_err(|e| format!("bind address: {e}"))?;
 
-    let beacon = medoc_lib::infrastructure::lan_server::discovery::LanBeaconPayload {
-        schema: medoc_lib::infrastructure::lan_server::discovery::SCHEMA.into(),
+    let beacon = medoc_lan::discovery::LanBeaconPayload {
+        schema: medoc_lan::discovery::SCHEMA.into(),
         version: env!("CARGO_PKG_VERSION").into(),
         http_port: args.http_port,
         instance_id,
@@ -141,12 +138,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let sd_udp = shutdown.clone();
     tokio::spawn(async move {
-        if let Err(e) = medoc_lib::infrastructure::lan_server::discovery::run_discovery_responder(
-            args.discovery_port,
-            beacon,
-            sd_udp,
-        )
-        .await
+        if let Err(e) =
+            medoc_lan::discovery::run_discovery_responder(args.discovery_port, beacon, sd_udp).await
         {
             tracing::error!(target: "medoc::lan", event = "DISCOVERY_FAIL", error = %e);
         }
@@ -163,8 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sd_http = shutdown.clone();
     let tls_id = tls_identity.clone();
     let https_task = tokio::spawn(async move {
-        medoc_lib::infrastructure::lan_server::tls::serve_tls_router(addr, &tls_id, router, sd_http)
-            .await
+        medoc_lan::tls::serve_tls_router(addr, &tls_id, router, sd_http).await
     });
 
     let graceful = async move {

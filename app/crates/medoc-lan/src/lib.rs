@@ -28,3 +28,32 @@ pub mod tls;
 pub use config::{LanServerConfigV1, APP_KV_KEY};
 pub use discovery::{scan_lan_hosts, LanBeaconPayload, SCHEMA};
 pub use secrets::{ensure_instance_id, ensure_jwt_secret_bytes};
+
+/// LAN system **Factory** — single entry point that builds the HTTPS state +
+/// Axum router for both the embedded path (Tauri practice host spawns it
+/// via `commands::lan_commands`) and the standalone `medoc-server` binary.
+pub struct LanSystemFactory;
+
+impl LanSystemFactory {
+    pub fn build_state(
+        pool: sqlx::SqlitePool,
+        jwt_secret: std::sync::Arc<[u8; 32]>,
+        brute: std::sync::Arc<medoc_core::infrastructure::logging::brute_force::BruteForceTracker>,
+        http_port: u16,
+        extra_cors_origins: Vec<String>,
+        discovery_peers: Vec<(std::net::SocketAddr, LanBeaconPayload)>,
+    ) -> http::LanHttpState {
+        http::LanHttpState {
+            pool,
+            jwt_secret,
+            brute,
+            http_port,
+            extra_cors_origins: std::sync::Arc::new(extra_cors_origins),
+            discovery_peers: std::sync::Arc::new(discovery_peers),
+        }
+    }
+
+    pub fn build_router(state: http::LanHttpState) -> axum::Router {
+        http::build_router(state)
+    }
+}

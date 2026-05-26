@@ -4,8 +4,6 @@ version = "0.1.0"
 description = "MeDoc - Zahnarztpraxis Management System"
 authors = ["MeDoc Team"]
 edition = "2021"
-# `tauri dev` runs `cargo run` without `--bin`; prefer GUI app over `medoc-server`.
-default-run = "medoc"
 
 [lib]
 name = "medoc_lib"
@@ -77,10 +75,8 @@ totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 filetime = "0.2.27"
 serde_yaml = "0.9"
 
-[[bin]]
-name = "medoc-server"
-path = "src/bin/medoc-server.rs"
-
-[[bin]]
-name = "medoc-company-server"
-path = "src/bin/medoc-company-server.rs"
+# The `medoc-server` (LAN) + `medoc-company-server` (Company) binaries now
+# live in their own workspace crates — `crates/medoc-lan-server/` and
+# `crates/medoc-company-server/` — so each one builds in isolation without
+# the Tauri runtime. Run them with `cargo run -p medoc-lan-server` /
+# `cargo run -p medoc-company-server`.
