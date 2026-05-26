@@ -2762,6 +2762,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "medoc-company-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "medoc-company",
+ "medoc-core",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "medoc-core"
 version = "0.1.0"
 dependencies = [
@@ -2818,6 +2830,17 @@ dependencies = [
  "tower-http",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "medoc-lan-server"
+version = "0.1.0"
+dependencies = [
+ "medoc-core",
+ "medoc-lan",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

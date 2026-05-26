@@ -3,7 +3,9 @@ members = [
     "src-tauri",
     "crates/medoc-codegen",
     "crates/medoc-company",
+    "crates/medoc-company-server",
     "crates/medoc-core",
     "crates/medoc-lan",
+    "crates/medoc-lan-server",
 ]
 resolver = "2"

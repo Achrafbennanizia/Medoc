@@ -79,10 +79,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     std::fs::create_dir_all(&args.data_dir)?;
-    medoc_lib::infrastructure::database::audit_repo::init_audit_hmac_key(&args.data_dir)?;
+    medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&args.data_dir)?;
     let db_path = args.data_dir.join("company.db");
-    let pool = medoc_lib::infrastructure::company_host::db::init_company_db(&db_path).await?;
-    let router = medoc_lib::infrastructure::company_host::http::build_company_router(pool).await;
+    let pool = medoc_company::db::init_company_db(&db_path).await?;
+    let router = medoc_company::http::build_company_router(pool).await;
     let addr: SocketAddr = format!("{}:{}", args.http_bind, args.http_port)
         .parse()
         .map_err(|e| format!("bind: {e}"))?;
