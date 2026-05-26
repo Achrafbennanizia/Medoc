@@ -2,6 +2,7 @@
 members = [
     "src-tauri",
     "crates/medoc-codegen",
+    "crates/medoc-company",
     "crates/medoc-core",
     "crates/medoc-lan",
 ]

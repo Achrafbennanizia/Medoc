@@ -1,6 +1,6 @@
 //! Practice API key hashing (Argon2id) for the company server.
 
-use crate::infrastructure::crypto;
+use medoc_core::infrastructure::crypto;
 
 pub fn hash_api_key(raw: &str) -> Result<String, String> {
     crypto::hash_password(raw)

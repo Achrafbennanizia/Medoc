@@ -1,0 +1,37 @@
+[package]
+name = "medoc-company"
+version = "0.1.0"
+edition = "2021"
+description = "MeDoc Company server — vendor portal (subscription, feature flags, billing) HTTPS host."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+medoc-core = { path = "../medoc-core" }
+
+# HTTP stack — company server has no LAN-style TLS termination here
+# (terminated by the vendor's reverse proxy in production), but axum +
+# tower-http are still needed for routing/middleware.
+axum = { version = "0.8", features = ["macros", "json"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Data + serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = [
+    "macros",
+    "sqlite",
+    "runtime-tokio",
+    "chrono",
+] }
+# Same SQLCipher-bundled sqlite as the other crates.
+libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
+
+# Structured logging — emits `medoc::company` events.
+tracing = "0.1"

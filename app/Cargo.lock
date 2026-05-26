@@ -2705,6 +2705,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "libsqlite3-sys",
+ "medoc-company",
  "medoc-core",
  "medoc-lan",
  "rand 0.8.6",
@@ -2742,6 +2743,22 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_yaml",
+]
+
+[[package]]
+name = "medoc-company"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "libsqlite3-sys",
+ "medoc-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
 ]
 
 [[package]]

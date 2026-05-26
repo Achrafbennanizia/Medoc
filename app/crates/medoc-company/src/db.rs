@@ -3,8 +3,9 @@
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::str::FromStr;
 
-use crate::error::AppError;
-use crate::infrastructure::company_host::api_key;
+use medoc_core::error::AppError;
+
+use crate::api_key;
 
 const DEMO_SLUG: &str = "demo-praxis";
 const DEMO_API_KEY: &str = "sk_demo_company_practice_key";
