@@ -4,8 +4,8 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::infrastructure::secret_store;
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::secret_store;
 
 const JWT_SECRET_FILE: &str = "lan-jwt-secret.bin";
 const INSTANCE_ID_FILE: &str = "lan-instance-id.txt";

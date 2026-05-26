@@ -4,7 +4,7 @@ use chrono::Utc;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
-use crate::error::AppError;
+use medoc_core::error::AppError;
 
 const JWT_ISS: &str = "medoc-lan";
 const TOKEN_TTL_SECS: i64 = 8 * 3600;

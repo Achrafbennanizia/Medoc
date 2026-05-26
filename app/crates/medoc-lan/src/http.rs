@@ -20,20 +20,21 @@ use sqlx::SqlitePool;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
-use crate::application::app_kv_policy;
-use crate::application::auth_service::{self, LoginRequest};
-use crate::application::own_profile::{self, OwnProfileDto};
-use crate::application::rbac::{self, Role};
-use crate::domain::entities::personal::UpdateOwnProfile;
-use crate::domain::entities::{Patient, Termin};
-use crate::error::AppError;
-use crate::infrastructure::company_portal::load_company_portal_config;
-use crate::infrastructure::cors_policy::{self, CorsGate};
-use crate::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
-use crate::infrastructure::lan_server::discovery::LanBeaconPayload;
-use crate::infrastructure::lan_server::jwt;
-use crate::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
-use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
+use medoc_core::application::app_kv_policy;
+use medoc_core::application::auth_service::{self, LoginRequest};
+use medoc_core::application::own_profile::{self, OwnProfileDto};
+use medoc_core::application::rbac::{self, Role};
+use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
+use medoc_core::domain::entities::personal::UpdateOwnProfile;
+use medoc_core::domain::entities::{Patient, Termin};
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::company_portal::load_company_portal_config;
+use medoc_core::infrastructure::cors_policy::{self, CorsGate};
+use medoc_core::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
+use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
+
+use crate::discovery::LanBeaconPayload;
+use crate::jwt;
 
 #[derive(Clone)]
 pub struct LanHttpState {

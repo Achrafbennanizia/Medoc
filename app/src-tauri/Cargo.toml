@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 medoc-core = { path = "../crates/medoc-core" }
+medoc-lan = { path = "../crates/medoc-lan" }
 axum = { version = "0.8", features = ["macros", "json"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 rustls = { version = "0.23", features = ["aws_lc_rs"] }

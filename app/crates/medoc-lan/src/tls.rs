@@ -7,7 +7,7 @@ use rcgen::generate_simple_self_signed;
 use sha2::{Digest, Sha256};
 use tokio::net::TcpListener;
 
-use crate::error::AppError;
+use medoc_core::error::AppError;
 
 const CERT_FILE: &str = "lan-tls.crt";
 const KEY_FILE: &str = "lan-tls.key";
