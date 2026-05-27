@@ -707,7 +707,7 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
             wrapped.push(w);
         }
 
-        let row_height = row_lines as i32 * 11 + 4;
+        let row_height = row_lines as i32 * 12 + 6;
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
             emit_continuation_header(pb, practice_name, doc_title);
@@ -715,13 +715,7 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
         }
 
         if ri % 2 == 1 {
-            pb.fill_rect(
-                M_LEFT,
-                pb.y - row_height + 8,
-                CONTENT_WIDTH,
-                row_height,
-                0.97,
-            );
+            pb.fill_rect(M_LEFT, pb.y - row_height, CONTENT_WIDTH, row_height, 0.97);
         }
 
         let base_y = pb.y;
@@ -735,7 +729,7 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
                     .unwrap_or("");
                 if !chunk.is_empty() {
                     let prev = pb.y;
-                    pb.y = base_y - li as i32 * 11;
+                    pb.y = base_y - li as i32 * 12;
                     pb.text(x + 2, 9, false, chunk);
                     pb.y = prev;
                 }
@@ -789,6 +783,92 @@ pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
         &format!("Patientenakte {}", doc.patient_name),
         &blocks,
         None,
+    )
+}
+
+// ===========================================================================
+// Auswertungs- / Finanzberichte (Statistik, Bilanz, Einnahmen)
+// ===========================================================================
+
+/// Key-value row in the report summary block.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportPdfSummaryRow {
+    pub label: String,
+    pub value: String,
+}
+
+/// Tabular section (same table primitive as Patientenakte).
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportPdfSection {
+    pub title: String,
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+}
+
+/// Structured input for practice reports (Einnahmen, Statistik, Bilanz).
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportPdfInput {
+    pub doc_title: String,
+    pub generated_at: String,
+    pub practice_name: String,
+    pub practice_address: Vec<String>,
+    pub summary: Vec<ReportPdfSummaryRow>,
+    pub sections: Vec<ReportPdfSection>,
+}
+
+/// Renders a practice report PDF using the same [`render_akte_blocks`] pipeline as
+/// Akte / Merkblatt — identical letterhead, margins, tables, and page numbers.
+pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
+    let mut praxis_lines: Vec<String> = Vec::new();
+    if !input.practice_name.trim().is_empty() {
+        praxis_lines.push(input.practice_name.trim().to_string());
+    }
+    for line in &input.practice_address {
+        let t = line.trim();
+        if !t.is_empty() {
+            praxis_lines.push(t.to_string());
+        }
+    }
+
+    let header = if praxis_lines.is_empty() {
+        None
+    } else {
+        Some(AkteHeaderContext {
+            praxis_lines,
+            ..Default::default()
+        })
+    };
+
+    let mut blocks: Vec<AktePdfBlock> = Vec::new();
+    if !input.summary.is_empty() {
+        blocks.push(AktePdfBlock::kv(
+            "Zusammenfassung",
+            input
+                .summary
+                .iter()
+                .map(|r| (r.label.clone(), r.value.clone()))
+                .collect(),
+        ));
+    }
+    for sec in &input.sections {
+        if sec.headers.is_empty() && sec.rows.is_empty() {
+            continue;
+        }
+        blocks.push(AktePdfBlock::table(
+            &sec.title,
+            AktePdfTable::new(sec.headers.clone(), sec.rows.clone()),
+        ));
+    }
+
+    render_akte_blocks(
+        &input.doc_title,
+        &input.generated_at,
+        &input.doc_title,
+        &blocks,
+        header.as_ref(),
     )
 }
 
@@ -1025,5 +1105,38 @@ mod tests {
         )
         .unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    #[test]
+    fn renders_financial_report_with_summary_and_table() {
+        let input = ReportPdfInput {
+            doc_title: "Einnahmenbericht".into(),
+            generated_at: "26.05.2026".into(),
+            practice_name: "Zahnarztpraxis Nord".into(),
+            practice_address: vec!["Hauptstr. 1".into(), "10115 Berlin".into()],
+            summary: vec![ReportPdfSummaryRow {
+                label: "Einnahmen (laufender Monat)".into(),
+                value: "12.450,00 €".into(),
+            }],
+            sections: vec![ReportPdfSection {
+                title: "Einnahmen pro Monat".into(),
+                headers: vec!["Monat".into(), "Betrag".into()],
+                rows: vec![
+                    vec!["2026-04".into(), "10.200,00".into()],
+                    vec!["2026-05".into(), "12.450,00".into()],
+                ],
+            }],
+        };
+        let pdf = render_report_pdf(&input).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        for needle in [
+            "Einnahmenbericht",
+            "Zusammenfassung",
+            "Einnahmen pro Monat",
+            "Seite",
+        ] {
+            assert!(text.contains(needle), "missing {needle}");
+        }
     }
 }

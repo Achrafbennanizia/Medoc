@@ -20,11 +20,12 @@ import {
 } from "@/systems/practice-host/controllers/statistik.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
 import { errorMessage, formatCurrency } from "../../lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { buildStatistikReportBundle } from "../../lib/report-export";
+import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { ExportIcon, NAV_ICONS } from "@/lib/icons";
+import { NAV_ICONS } from "@/lib/icons";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 
 type Period = "6m" | "12m";
@@ -492,58 +493,16 @@ export function StatistikPage() {
         };
     }, [stats, period]);
 
+    const buildExportBundle = useCallback(() => {
+        if (!stats) return null;
+        return buildStatistikReportBundle(stats, period);
+    }, [stats, period]);
+
     if (loadError) return <PageLoadError message={loadError} onRetry={reload} />;
     if (!stats) return <PageLoading />;
 
     const periodLabel = period === "6m" ? "Letzte 6 Monate" : "Letzte 12 Monate";
     const dash = dashboardMetrics!;
-
-    async function exportCsv() {
-        if (!stats) return;
-        const rows: (string | number)[][] = [["Sektion", "Kennzahl", "Wert"]];
-        rows.push(["Patienten", "Gesamt", stats.patienten_gesamt]);
-        rows.push(["Produkte", "Artikel unter Mindestbestand", stats.produkte_niedrig]);
-        rows.push(["Finanzen", "Einnahmen Kalendermonat (laufend)", formatCurrency(stats.einnahmen_aktueller_monat)]);
-        for (const m of stats.patienten_neu_pro_monat) {
-            rows.push(["Patienten", `Neue Patienten ${m.month}`, m.value]);
-        }
-        for (const m of stats.einnahmen_pro_monat) {
-            rows.push(["Finanzen", `Einnahmen ${m.month}`, m.value]);
-        }
-        for (const m of stats.termine_pro_monat) {
-            rows.push(["Termine", `Termine ${m.month}`, m.value]);
-        }
-        for (const m of stats.behandlungen_pro_monat) {
-            rows.push(["Behandlungen", `Behandlungen ${m.month}`, m.value]);
-        }
-        for (const m of stats.bestellungen_pro_monat) {
-            rows.push(["Bestellungen", `Bestellungen ${m.month}`, m.value]);
-        }
-        for (const v of stats.altersgruppen) rows.push(["Patienten", `Altersgruppe ${v.label}`, v.value]);
-        for (const v of stats.geschlechter) rows.push(["Patienten", `Geschlecht ${v.label}`, v.value]);
-        for (const v of stats.behandlungen_nach_kategorie) rows.push(["Behandlungen", `Kategorie ${v.label}`, v.value]);
-        for (const v of stats.krankheitsbilder_top ?? []) {
-            rows.push(["Krankheitsbilder", `Top ${v.label}`, v.value]);
-        }
-        for (const m of stats.krankheitsbilder_verlauf_pro_monat ?? []) {
-            rows.push(["Krankheitsbilder", `Verlauf ${m.month}`, m.value]);
-        }
-        for (const v of stats.medikamente_top) rows.push(["Behandlungen", `Top-Wirkstoff ${v.label}`, v.value]);
-        for (const v of stats.termin_status) rows.push(["Termine", `Status ${v.label}`, v.value]);
-        for (const v of stats.termin_art) rows.push(["Termine", `Art ${v.label}`, v.value]);
-        for (const v of stats.umsatz_nach_zahlungsart) rows.push(["Finanzen", `Zahlungsart ${v.label}`, v.value]);
-        for (const v of stats.bestellungen_nach_status) rows.push(["Bestellungen", `Status ${v.label}`, v.value]);
-
-        const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-        const csvBody = `\uFEFF${csv}`;
-        openExportPreview({
-            format: "csv",
-            title: "Statistik exportieren",
-            hint: `Auswertung ${periodLabel} · Semikolon-getrennt. Spaltenköpfe zum Sortieren.`,
-            suggestedFilename: `medoc-statistik-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
-            textBody: csvBody,
-        });
-    }
 
     const lastEinnMonth = dash.einn6.length > 0 ? dash.einn6[dash.einn6.length - 1]! : null;
     const einnBadge =
@@ -587,9 +546,7 @@ export function StatistikPage() {
                     <Button type="button" variant="ghost" onClick={reload} title="Daten neu laden">
                         Aktualisieren
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => void exportCsv()}>
-                        <ExportIcon size={14} /> CSV-Export
-                    </Button>
+                    <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
                 </div>
             </div>
 

@@ -132,11 +132,9 @@ export function buildClinicalTemplateKopfLines(
                 const bic = (praxis.bankverbindung_bic ?? "").trim();
                 const bank = (praxis.bankverbindung_bank ?? "").trim();
                 if (!iban && !bic && !bank) break;
-                const parts: string[] = [];
-                if (iban) parts.push(`IBAN: ${privacy.bank ? iban : maskPraxisExportToken(iban)}`);
-                if (bic) parts.push(`BIC: ${privacy.bank ? bic : maskPraxisExportToken(bic)}`);
-                if (bank) parts.push(`Bank: ${privacy.bank ? bank : maskPraxisExportToken(bank)}`);
-                lines.push(parts.join(" | "));
+                if (iban) lines.push(`IBAN: ${privacy.bank ? iban : maskPraxisExportToken(iban)}`);
+                if (bic) lines.push(`BIC: ${privacy.bank ? bic : maskPraxisExportToken(bic)}`);
+                if (bank) lines.push(`Bank: ${privacy.bank ? bank : maskPraxisExportToken(bank)}`);
                 break;
             }
             case "kammer": {

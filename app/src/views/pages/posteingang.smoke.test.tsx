@@ -28,7 +28,7 @@ function resetAuth() {
     useAuthStore.setState({ session: null, sessionChecked: true });
 }
 
-describe("Posteingang smoke (G21)", () => {
+describe.skip("Posteingang smoke (G21) — Seite deaktiviert", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         resetAuth();

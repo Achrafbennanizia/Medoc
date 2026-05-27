@@ -16,6 +16,19 @@ export default defineConfig(async () => ({
     test: {
         setupFiles: ["./src/vitest-setup.ts"],
         passWithNoTests: false,
+        coverage: {
+            provider: "v8",
+            reporter: ["text-summary", "lcov"],
+            reportsDirectory: "./coverage",
+            include: ["src/**/*.{ts,tsx}"],
+            exclude: [
+                "src/**/*.test.{ts,tsx}",
+                "src/**/*.smoke.test.{ts,tsx}",
+                "src/**/*.generated.{ts,tsx}",
+                "src/vitest-setup.ts",
+                "src/main.tsx",
+            ],
+        },
         projects: [
             {
                 extends: true,

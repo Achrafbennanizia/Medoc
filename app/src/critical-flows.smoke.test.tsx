@@ -99,6 +99,30 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     return null;
                 case "sync_native_menu":
                     return undefined;
+                case "sync_get_status":
+                    return {
+                        localDeviceId: "smoke-master",
+                        deployment: {
+                            schemaVersion: 1,
+                            mode: "practice_desktop",
+                            role: "MASTER",
+                            masterBaseUrl: "",
+                            masterCertSha256: "",
+                            masterAccessToken: "",
+                            deviceLabel: "Smoke Master",
+                            activationToken: "",
+                            masterPubkey: "",
+                            masterDeviceId: "",
+                            pairingRequestId: "",
+                            unstableMesh: false,
+                        },
+                        localSeq: 0,
+                        pendingOutbox: 0,
+                        peers: [],
+                        vectors: {},
+                    };
+                case "current_license_status":
+                    return { valid: true, format: "v1" };
                 case "get_dashboard_stats":
                     return {
                         patienten_gesamt: 0,

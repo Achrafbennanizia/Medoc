@@ -50,6 +50,22 @@ describe("three-system frontend layout", () => {
         ).toBe(true);
     });
 
+    it("has deployment + sync settings section", () => {
+        expect(
+            existsSync(
+                resolve(
+                    srcRoot,
+                    "systems/practice-host/pages/einstellungen/einstellungen-deployment-section.tsx",
+                ),
+            ),
+        ).toBe(true);
+        expect(
+            existsSync(
+                resolve(srcRoot, "systems/practice-host/lib/deployment-config.ts"),
+            ),
+        ).toBe(true);
+    });
+
     it("has company-portal einstellungen section", () => {
         expect(
             existsSync(

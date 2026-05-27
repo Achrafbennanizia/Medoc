@@ -131,7 +131,19 @@ pub fn run() {
                     let auto_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                        commands::lan_commands::auto_start_if_enabled(auto_app, auto_pool).await;
+                        commands::lan_commands::auto_start_if_enabled(
+                            auto_app.clone(),
+                            auto_pool.clone(),
+                        )
+                        .await;
+                        if let Some(ctrl) = auto_app.try_state::<commands::lan_commands::LanServerControl>() {
+                            commands::lan_commands::auto_start_replica_sync_lan(
+                                &auto_app,
+                                auto_pool,
+                                &ctrl,
+                            )
+                            .await;
+                        }
                     });
 
                     // NFA-SEC-05: daily automatic backup scheduler (24h interval).

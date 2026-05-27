@@ -7,7 +7,8 @@ import type { BestellStatus, Bestellung } from "@/systems/practice-host/controll
 import { parseRole, allowed } from "../../lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage, formatCurrency, formatDate } from "../../lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { buildFinanzenReportBundle, type FinanzTxRow } from "../../lib/report-export";
+import { ReportExportToolbar } from "../components/report-export-toolbar";
 import type { Zahlung, Patient, ZahlungsArt } from "../../models/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -15,7 +16,7 @@ import { Select } from "../components/ui/input";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { ExportIcon, FilterIcon, MoreIcon, NAV_ICONS } from "@/lib/icons";
+import { FilterIcon, MoreIcon, NAV_ICONS } from "@/lib/icons";
 
 const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
     { value: "OFFEN", label: "Offen" },
@@ -53,16 +54,22 @@ function bezugKurz(z: Zahlung): string {
 
 type FinanzTxTab = "alle" | "einn" | "aus";
 
-type FinanzTxRow = { kind: "zahlung"; z: Zahlung } | { kind: "bestellung"; b: Bestellung };
+function finanzFilterLabel(tab: FinanzTxTab, art: "ALLE" | ZahlungsArt): string {
+    const tabLabel = tab === "alle" ? "Alle Transaktionen" : tab === "einn" ? "Einnahmen" : "Ausgaben/Storni";
+    const artLabel = art === "ALLE" ? "alle Zahlungsarten" : zahlungsartLabel(art);
+    return `${tabLabel} · ${artLabel}`;
+}
 
-function toFinanzRows(z: Zahlung[], b: Bestellung[]): FinanzTxRow[] {
+type FinanzTxRowLocal = FinanzTxRow;
+
+function toFinanzRows(z: Zahlung[], b: Bestellung[]): FinanzTxRowLocal[] {
     return [
         ...z.map((x) => ({ kind: "zahlung" as const, z: x })),
         ...b.map((x) => ({ kind: "bestellung" as const, b: x })),
     ];
 }
 
-function rowSortTs(r: FinanzTxRow): number {
+function rowSortTs(r: FinanzTxRowLocal): number {
     return new Date(r.kind === "zahlung" ? r.z.created_at : r.b.created_at).getTime();
 }
 
@@ -107,23 +114,11 @@ function monthOverMonthEinn(list: Zahlung[], year: number, month0: number): { cu
     return { current, prev, deltaPct };
 }
 
-function statusPillToken(status: string): "ok" | "open" | "part" | "storno" {
-    if (status === "BEZAHLT") return "ok";
-    if (status === "AUSSTEHEND") return "open";
-    if (status === "TEILBEZAHLT") return "part";
-    return "storno";
-}
-
 function vorgangText(z: Zahlung): string {
     const b = bezugKurz(z);
     const note = (z.beschreibung ?? "").trim();
     if (note) return b === "Direktzahlung" ? note : `${b} — ${note}`;
     return b;
-}
-
-function escapeCsvCell(s: string): string {
-    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
 }
 
 type FinanzKpiTone = "mint" | "red" | "blue" | "amber";
@@ -268,49 +263,14 @@ export function FinanzenPage() {
         [filteredRows],
     );
 
-    const exportCsv = useCallback(() => {
-        const header = ["Datum", "Typ", "Vorgang", "Gegenpartei", "Zahlungsart", "Status", "Betrag_EUR", "Notiz"];
-        const lines: string[] = [header.map(escapeCsvCell).join(",")];
-        for (const r of sortedRows) {
-            if (r.kind === "zahlung") {
-                const z = r.z;
-                const row = [
-                    formatDate(z.created_at),
-                    "Zahlung",
-                    vorgangText(z),
-                    patientMap.get(z.patient_id) ?? "—",
-                    zahlungsartLabel(z.zahlungsart),
-                    z.status,
-                    z.betrag.toFixed(2).replace(".", ","),
-                    (z.beschreibung ?? "").replace(/\r?\n/g, " ").trim(),
-                ];
-                lines.push(row.map(escapeCsvCell).join(","));
-            } else {
-                const b = r.b;
-                const row = [
-                    formatDate(b.created_at),
-                    "Bestellung",
-                    `Bestellung: ${b.artikel}`,
-                    b.lieferant,
-                    "—",
-                    b.status,
-                    b.gesamtbetrag != null && Number.isFinite(b.gesamtbetrag)
-                        ? b.gesamtbetrag.toFixed(2).replace(".", ",")
-                        : "",
-                    (b.bemerkung ?? "").replace(/\r?\n/g, " ").trim(),
-                ];
-                lines.push(row.map(escapeCsvCell).join(","));
-            }
-        }
-        const csvBody = `\uFEFF${lines.join("\r\n")}`;
-        openExportPreview({
-            format: "csv",
-            title: "Finanzen exportieren",
-            hint: "Transaktionsliste (Komma, UTF-8 mit BOM für Excel). Spalten sortieren optional.",
-            suggestedFilename: `medoc-finanzen-${new Date().toISOString().slice(0, 10)}.csv`,
-            textBody: csvBody,
-        });
-    }, [sortedRows, patientMap]);
+    const buildExportBundle = useCallback(() => {
+        return buildFinanzenReportBundle(
+            sortedRows,
+            patientMap,
+            kpiMtd,
+            finanzFilterLabel(txTab, artFilter),
+        );
+    }, [sortedRows, patientMap, kpiMtd, txTab, artFilter]);
 
     if (listLoading) {
         return (
@@ -382,9 +342,12 @@ export function FinanzenPage() {
                     </div>
                     <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
                         {canReadFinanzen ? (
-                            <Button type="button" variant="secondary" onClick={exportCsv}>
-                                <ExportIcon size={14} /> Exportieren
-                            </Button>
+                            <ReportExportToolbar
+                                buildBundle={buildExportBundle}
+                                defaultFormat="pdf"
+                                showImport
+                                legacyCsv={{ rows: sortedRows, patientNames: patientMap }}
+                            />
                         ) : null}
                         {canReadFinanzen ? (
                             <Button type="button" variant="secondary" onClick={() => navigate("/bestellungen/neu")}>
@@ -517,12 +480,14 @@ export function FinanzenPage() {
                                     <th scope="col" style={{ width: "28%" }}>
                                         Vorgang
                                     </th>
-                                    <th scope="col" style={{ width: "23%" }}>
+                                    <th scope="col" style={{ width: "22%" }}>
                                         Gegenpartei
                                     </th>
-                                    <th scope="col" className="finanzen-th-betrag-status" style={{ width: "24%", textAlign: "right" }}>
-                                        <span className="finanzen-th-betrag-status__line">Betrag</span>
-                                        <span className="finanzen-th-betrag-status__line finanzen-th-betrag-status__line--sub">Status</span>
+                                    <th scope="col" style={{ width: "12%", textAlign: "right" }}>
+                                        Betrag
+                                    </th>
+                                    <th scope="col" style={{ width: "14%" }}>
+                                        Status
                                     </th>
                                     <th scope="col" style={{ width: "11%", textAlign: "right" }}>
                                         Aktion
@@ -534,8 +499,6 @@ export function FinanzenPage() {
                                     if (row.kind === "bestellung") {
                                         const b = row.b;
                                         const bst = bestellStatusDe(b.status);
-                                        const bDot =
-                                            b.status === "GELIEFERT" ? "ok" : b.status === "UNTERWEGS" ? "open" : b.status === "OFFEN" ? "open" : "storno";
                                         const bBetragEur = b.gesamtbetrag;
                                         const hasBetrag = bBetragEur != null && Number.isFinite(bBetragEur);
                                         return (
@@ -549,6 +512,12 @@ export function FinanzenPage() {
                                                         {b.artikel}
                                                         {b.bestellnummer ? ` · ${b.bestellnummer}` : ""}
                                                     </div>
+                                                    {hasBetrag ? (
+                                                        <div className="finanzen-tx-v2" style={{ color: "var(--fg-2)" }}>
+                                                            {formatCurrency(bBetragEur)}
+                                                            {b.menge != null && b.menge > 1 ? ` · ${b.menge}×` : ""}
+                                                        </div>
+                                                    ) : null}
                                                 </td>
                                                 <td>
                                                     <div className="zahl-td-clip" title={b.lieferant}>
@@ -556,45 +525,39 @@ export function FinanzenPage() {
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div className="finanzen-amt-col">
-                                                        <div
-                                                            className="finanzen-amt finanzen-amt--out"
-                                                            title={
-                                                                hasBetrag
-                                                                    ? "Voraussichtliche Ausgabe: Lager-Preis × Menge bei Erfassung (keine Rechnung ersetzen)"
-                                                                    : "Kein Betrag hinterlegt (ältere Bestellung oder manuell ohne Lager-Preis)"
-                                                            }
-                                                        >
-                                                            {hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen"}
-                                                        </div>
-                                                        {canUpdateBestellStatus ? (
-                                                            <div className="finanzen-zahl-status-block">
-                                                                <span className="finanzen-zahl-status-hint">Bestellung</span>
-                                                                <Select
-                                                                    id={`bestell-status-${b.id}`}
-                                                                    className="finanzen-zahl-status-select w-full min-w-0"
-                                                                    aria-label={`Bestellstatus: ${b.artikel}`}
-                                                                    value={b.status}
-                                                                    disabled={statusUpdatingBestellId === b.id}
-                                                                    onChange={(e) =>
-                                                                        handleBestellStatusChange(
-                                                                            b,
-                                                                            e.target.value as BestellStatus,
-                                                                        )
-                                                                    }
-                                                                    options={BESTELL_STATUS_OPTIONS.map((o) => ({
-                                                                        value: o.value,
-                                                                        label: o.label,
-                                                                    }))}
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <div className="finanzen-pill">
-                                                                <span className="finanzen-pill__dot" data-s={bDot} />
-                                                                <Badge variant={bst.variant}>{bst.label}</Badge>
-                                                            </div>
-                                                        )}
+                                                    <div
+                                                        className="finanzen-amt finanzen-amt--out"
+                                                        title={
+                                                            hasBetrag
+                                                                ? "Voraussichtliche Ausgabe: Lager-Preis × Menge bei Erfassung (keine Rechnung ersetzen)"
+                                                                : "Kein Betrag hinterlegt (ältere Bestellung oder manuell ohne Lager-Preis)"
+                                                        }
+                                                    >
+                                                        {hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen"}
                                                     </div>
+                                                </td>
+                                                <td>
+                                                    {canUpdateBestellStatus ? (
+                                                        <Select
+                                                            id={`bestell-status-${b.id}`}
+                                                            className="finanzen-zahl-status-select w-full min-w-0"
+                                                            aria-label={`Bestellstatus: ${b.artikel}`}
+                                                            value={b.status}
+                                                            disabled={statusUpdatingBestellId === b.id}
+                                                            onChange={(e) =>
+                                                                handleBestellStatusChange(
+                                                                    b,
+                                                                    e.target.value as BestellStatus,
+                                                                )
+                                                            }
+                                                            options={BESTELL_STATUS_OPTIONS.map((o) => ({
+                                                                value: o.value,
+                                                                label: o.label,
+                                                            }))}
+                                                        />
+                                                    ) : (
+                                                        <Badge variant={bst.variant}>{bst.label}</Badge>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     <div className="finanzen-row-go">
@@ -639,13 +602,10 @@ export function FinanzenPage() {
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className="finanzen-amt-col">
-                                                    <div className={["finanzen-amt", zahlungAmt.cls].join(" ")}>{zahlungAmt.text}</div>
-                                                    <div className="finanzen-pill">
-                                                        <span className="finanzen-pill__dot" data-s={statusPillToken(z.status)} />
-                                                        <Badge variant={st.variant}>{st.label}</Badge>
-                                                    </div>
-                                                </div>
+                                                <div className={["finanzen-amt", zahlungAmt.cls].join(" ")}>{zahlungAmt.text}</div>
+                                            </td>
+                                            <td>
+                                                <Badge variant={st.variant}>{st.label}</Badge>
                                             </td>
                                             <td>
                                                 <div className="finanzen-row-go">

@@ -6,7 +6,7 @@ import {
     patientDetailTabBlocked,
     type PatientDetailAkteTab,
 } from "./patient-detail-utils";
-import { allowed, navItemVisible, NAV_ITEM_DEFINITIONS, routeChildPathAllowed } from "./rbac";
+import { allowed, routeChildPathAllowed } from "./rbac";
 
 describe("G21 collaboration contracts", () => {
     it("Posteingang polls every 5 seconds (FA-AUFG-03)", () => {
@@ -33,27 +33,22 @@ describe("G21 collaboration contracts", () => {
         }
     });
 
-    it("REZEPTION can open posteingang and tickets routes", () => {
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+    it("REZEPTION can open tickets; posteingang deaktiviert, Aufgaben unter Verwaltung", () => {
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(true);
     });
 
-    it("REZEPTION native Go menu includes posteingang before tickets", () => {
+    it("REZEPTION native Go menu: tickets ohne Posteingang", () => {
         const paths = buildNativeGoMenuItems("REZEPTION", (k) => k)
             .filter((i) => i.path !== NATIVE_GO_MENU_SEP)
             .map((i) => i.path);
-        const pi = paths.indexOf("/posteingang");
-        const ti = paths.indexOf("/tickets");
-        expect(pi).toBeGreaterThanOrEqual(0);
-        expect(ti).toBeGreaterThanOrEqual(0);
-        expect(pi).toBeLessThan(ti);
+        expect(paths).not.toContain("/posteingang");
+        expect(paths.indexOf("/tickets")).toBeGreaterThanOrEqual(0);
     });
 
-    it("posteingang nav item visible for ARZT and REZEPTION", () => {
-        const item = NAV_ITEM_DEFINITIONS.find((i) => i.to === "/posteingang");
-        expect(item).toBeDefined();
-        expect(navItemVisible("ARZT", item!)).toBe(true);
-        expect(navItemVisible("REZEPTION", item!)).toBe(true);
-        expect(navItemVisible("STEUERBERATER", item!)).toBe(false);
+    it("verwaltung/aufgaben route für ARZT und REZEPTION (Verwaltung)", () => {
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(true);
     });
 });

@@ -104,6 +104,7 @@ export function PatientDetailPage() {
     const [anamneseSign, setAnamneseSign] = useState(false);
     const [showUnterComposer, setShowUnterComposer] = useState(false);
     const [showBehandComposer, setShowBehandComposer] = useState(false);
+    const [showClinicalPrices, setShowClinicalPrices] = useState(false);
     const [akteExportPickerOpen, setAkteExportPickerOpen] = useState(false);
     const [dischargeMerkblattOpen, setDischargeMerkblattOpen] = useState(false);
     const [akteWorkflowMode, setAkteWorkflowMode] = useState<PatientAkteWorkflowMode>(null);
@@ -710,6 +711,8 @@ export function PatientDetailPage() {
                     unterEditUnlocked={unterEditUnlocked}
                     unterDeleteId={unterDeleteId}
                     canViewClinical={canViewClinical}
+                    showClinicalPrices={showClinicalPrices}
+                    onToggleClinicalPrices={() => setShowClinicalPrices((v) => !v)}
                     onStartNewUntersuchung={() => {
                         setUnterEdit(null);
                         setUnterDeleteId(null);
@@ -771,6 +774,8 @@ export function PatientDetailPage() {
                     behandEditId={behandEditId}
                     behandDeleteId={behandDeleteId}
                     canViewClinical={canViewClinical}
+                    showClinicalPrices={showClinicalPrices}
+                    onToggleClinicalPrices={() => setShowClinicalPrices((v) => !v)}
                     onStartNewBehandlung={() => {
                         const nextNr = generateNewBehandlungsnummer();
                         setBehandDeleteId(null);

@@ -61,3 +61,22 @@ pub struct TransitionPraxisAufgabeArgs {
     #[serde(default)]
     pub zurueck_begruendung: Option<String>,
 }
+
+/// Verwaltung: Aufgabe bearbeiten (Titel, Zuweisung, Status).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdatePraxisAufgabeAdmin {
+    pub id: String,
+    #[serde(default)]
+    pub titel: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub typ: Option<String>,
+    #[serde(default)]
+    pub assignee_role: Option<String>,
+    #[serde(default)]
+    pub assignee_user_id: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}

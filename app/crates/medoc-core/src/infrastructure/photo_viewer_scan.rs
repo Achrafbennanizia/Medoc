@@ -448,7 +448,6 @@ fn scan_windows() -> Vec<DetectedPhotoViewerApp> {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn scan_unix() -> Vec<DetectedPhotoViewerApp> {
     let mut out = Vec::new();
-    let mut r: u32 = 0;
     const CANDIDATES: &[(&str, &str)] = &[
         ("GNOME Bildbetrachter (eog)", "/usr/bin/eog"),
         ("GNOME Bildbetrachter", "/usr/bin/gnome-image-viewer"),
@@ -529,9 +528,8 @@ fn scan_unix() -> Vec<DetectedPhotoViewerApp> {
         ("mirage (pip)", "/home/.local/bin/mirage"),
     ];
 
-    for (name, p) in CANDIDATES {
+    for (r, &(name, p)) in (0_u32..).zip(CANDIDATES.iter()) {
         push_if_exists(&mut out, r, name, PathBuf::from(p));
-        r += 1;
     }
 
     out.sort_by_key(|e| e.rank);

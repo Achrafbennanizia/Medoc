@@ -56,3 +56,9 @@ dist/
 app/src-tauri/target/
 app/src-tauri/target/
 app/src-tauri/target-ci/
+
+# Coverage artifacts (Vitest v8 + cargo-llvm-cov)
+app/coverage/
+app/target/coverage/
+*.profraw
+

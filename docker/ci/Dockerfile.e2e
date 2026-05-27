@@ -1,0 +1,17 @@
+# Wave V1 end-to-end validation (Linux): scoped tests + medoc-e2e + headless server smoke.
+FROM rust:1-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup component add rustfmt clippy
+
+ENV PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+WORKDIR /work/app
+
+COPY docker/ci/run-e2e-wave-v1.sh /usr/local/bin/run-e2e-wave-v1.sh
+RUN chmod +x /usr/local/bin/run-e2e-wave-v1.sh
+
+CMD ["/usr/local/bin/run-e2e-wave-v1.sh"]

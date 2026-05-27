@@ -206,12 +206,20 @@ pub async fn create_untersuchung(
     .execute(pool)
     .await?;
 
-    Ok(
-        sqlx::query_as::<_, Untersuchung>("SELECT * FROM untersuchung WHERE id = ?1")
-            .bind(&id)
-            .fetch_one(pool)
-            .await?,
+    let inserted = sqlx::query_as::<_, Untersuchung>("SELECT * FROM untersuchung WHERE id = ?1")
+        .bind(&id)
+        .fetch_one(pool)
+        .await?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "untersuchung",
+        &id,
+        "INSERT",
+        &body,
     )
+    .await?;
+    Ok(inserted)
 }
 
 pub async fn list_untersuchungen(
@@ -283,12 +291,20 @@ pub async fn create_behandlung(
     .execute(pool)
     .await?;
 
-    Ok(
-        sqlx::query_as::<_, Behandlung>("SELECT * FROM behandlung WHERE id = ?1")
-            .bind(&id)
-            .fetch_one(pool)
-            .await?,
+    let inserted = sqlx::query_as::<_, Behandlung>("SELECT * FROM behandlung WHERE id = ?1")
+        .bind(&id)
+        .fetch_one(pool)
+        .await?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "behandlung",
+        &id,
+        "INSERT",
+        &body,
     )
+    .await?;
+    Ok(inserted)
 }
 
 pub async fn find_behandlung_by_id(
@@ -339,9 +355,20 @@ pub async fn update_behandlung(
     .bind(&data.id)
     .execute(pool)
     .await?;
-    find_behandlung_by_id(pool, &existing.id)
+    let updated = find_behandlung_by_id(pool, &existing.id)
         .await?
-        .ok_or(AppError::Internal("Behandlung update failed".into()))
+        .ok_or(AppError::Internal("Behandlung update failed".into()))?;
+    let body = serde_json::to_string(&updated)
+        .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", existing.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "behandlung",
+        &existing.id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 pub async fn delete_behandlung(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -353,6 +380,14 @@ pub async fn delete_behandlung(pool: &SqlitePool, id: &str) -> Result<(), AppErr
     if n == 0 {
         return Err(AppError::NotFound("Behandlung".into()));
     }
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "behandlung",
+        id,
+        "DELETE",
+        &format!("{{\"id\":\"{id}\"}}"),
+    )
+    .await?;
     Ok(())
 }
 
@@ -387,9 +422,20 @@ pub async fn update_untersuchung(
     .bind(&data.id)
     .execute(pool)
     .await?;
-    find_untersuchung_by_id(pool, &data.id)
+    let updated = find_untersuchung_by_id(pool, &data.id)
         .await?
-        .ok_or(AppError::Internal("Untersuchung update failed".into()))
+        .ok_or(AppError::Internal("Untersuchung update failed".into()))?;
+    let body =
+        serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", data.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "untersuchung",
+        &data.id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 pub async fn delete_untersuchung(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -401,6 +447,14 @@ pub async fn delete_untersuchung(pool: &SqlitePool, id: &str) -> Result<(), AppE
     if n == 0 {
         return Err(AppError::NotFound("Untersuchung".into()));
     }
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "untersuchung",
+        id,
+        "DELETE",
+        &format!("{{\"id\":\"{id}\"}}"),
+    )
+    .await?;
     Ok(())
 }
 
@@ -500,7 +554,18 @@ pub async fn validate_patientenakte_status(
     .bind(patient_id)
     .execute(pool)
     .await?;
-    find_akte_by_patient(pool, patient_id)
+    let updated = find_akte_by_patient(pool, patient_id)
         .await?
-        .ok_or_else(|| AppError::Internal("Akte nach Validierung nicht lesbar".into()))
+        .ok_or_else(|| AppError::Internal("Akte nach Validierung nicht lesbar".into()))?;
+    let body = serde_json::to_string(&updated)
+        .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "patientenakte",
+        &updated.id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
 }

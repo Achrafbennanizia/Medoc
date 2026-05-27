@@ -18,6 +18,7 @@ use crate::infrastructure::lan_server::{
 };
 use crate::infrastructure::logging::brute_force::BruteForceTracker;
 use crate::systems::lan::LanSystemFactory;
+use medoc_sync::engine::SyncEngine;
 use sqlx::SqlitePool;
 
 #[derive(Default)]
@@ -278,6 +279,54 @@ pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
     match start_lan_embedded(&app, pool, &ctrl).await {
         Ok(_) => tracing::info!(target: "medoc::lan", event = "LAN_AUTO_STARTED"),
         Err(e) => tracing::warn!(target: "medoc::lan", event = "LAN_AUTO_START_FAIL", error = %e),
+    }
+}
+
+/// Start embedded LAN on serverless replicas so mesh peers can push sync data.
+pub async fn auto_start_replica_sync_lan(
+    app: &AppHandle,
+    pool: SqlitePool,
+    control: &LanServerControl,
+) {
+    let snap = match SyncEngine::status(&pool).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_CFG", error = %e);
+            return;
+        }
+    };
+    if snap.deployment.mode != medoc_sync::deployment::DeploymentMode::ServerlessPeer
+        || snap.deployment.role != medoc_sync::deployment::DeviceRole::Replica
+    {
+        return;
+    }
+    if snap.deployment.activation_token.is_empty() {
+        return;
+    }
+    {
+        let g = control.0.lock().unwrap_or_else(|e| e.into_inner());
+        if g.runtime.is_some() {
+            return;
+        }
+    }
+    let mut cfg = match load_or_default_config(&pool).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_CFG", error = %e);
+            return;
+        }
+    };
+    if cfg.instance_label == "MeDoc Praxis" {
+        cfg.instance_label = format!(
+            "MeDoc Replica ({})",
+            &snap.local_device_id[..snap.local_device_id.len().min(8)]
+        );
+    }
+    let _ = cfg;
+    if let Err(e) = start_lan_embedded(app, pool, control).await {
+        tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e);
+    } else {
+        tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_STARTED");
     }
 }
 

@@ -17,6 +17,7 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
             Some("dashboard.read")
         }
         "lan.server.config.v1" => Some("ops.system"),
+        "pairing.enabled.v1" | "sync.deployment.v1" => Some("ops.system"),
         key if key.starts_with("onboarding.progress.v1.") => Some("dashboard.read"),
         _ => None,
     }

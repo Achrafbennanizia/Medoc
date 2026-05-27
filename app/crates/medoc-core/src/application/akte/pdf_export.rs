@@ -10,11 +10,23 @@ use crate::infrastructure::database::{
 use crate::infrastructure::pdf::{
     render_akte_blocks, AkteHeaderContext, AktePdfBlock, AktePdfTable,
 };
+use crate::infrastructure::pdf_core::truncate_cell;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
 fn default_true() -> bool {
     true
+}
+
+fn fmt_behand_status(raw: &str) -> String {
+    match raw.trim().to_uppercase().as_str() {
+        "DURCHGEFUEHRT" => "Durchgef.".into(),
+        "GEPLANT" => "Geplant".into(),
+        "ABGEBROCHEN" => "Abbr.".into(),
+        "STORNIERT" => "Storno".into(),
+        other if other.is_empty() || other == "-" => "-".into(),
+        other => truncate_cell(other, 12),
+    }
 }
 
 async fn praxis_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String)> {
@@ -412,7 +424,7 @@ pub async fn export_akte_pdf(
                     "Notizen".into(),
                 ],
                 rows: vec![],
-                ..Default::default()
+                column_weights: Some(vec![2, 4, 2, 1, 1, 2, 1, 3]),
             }
         } else {
             AktePdfTable {
@@ -453,13 +465,13 @@ pub async fn export_akte_pdf(
                                 .map(|s| s.to_string())
                                 .unwrap_or_else(|| "-".into()),
                             b.behandlungsnummer.as_deref().unwrap_or("-").to_string(),
-                            b.behandlung_status.as_deref().unwrap_or("-").to_string(),
+                            fmt_behand_status(b.behandlung_status.as_deref().unwrap_or("-")),
                             kosten,
                             b.notizen.as_deref().unwrap_or("-").to_string(),
                         ]
                     })
                     .collect(),
-                ..Default::default()
+                column_weights: Some(vec![2, 4, 2, 1, 1, 2, 1, 3]),
             }
         };
         blocks.push(AktePdfBlock {

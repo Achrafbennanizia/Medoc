@@ -138,7 +138,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
         <>
         <CardHeader
             title="Rezepte"
-            subtitle="Vordefiniertes oder neues Rezept: die Eingabe öffnet sich direkt unter der Liste — ohne separates Fenster."
+            subtitle="Vordefiniertes oder neues Rezept: die Eingabe öffnet sich oben in der Liste — ohne separates Fenster."
             action={canWriteMedical ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Button type="button" size="sm" variant="secondary" onClick={openRezeptPick} disabled={!id}>
@@ -155,236 +155,6 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                 Rezepte können nur von Berechtigten mit ärztlicher Freigabe angelegt oder geändert werden. Die Liste ist einsehbar, sofern Ihre Rolle Zugriff auf die Akte hat.
             </p>
         ) : null}
-
-        <FormSection title="Rezeptliste dieser Akte">
-            {rezepte.length === 0 ? (
-                <EmptyState
-                    icon="💊"
-                    title="Keine Rezepte in dieser Akte"
-                    description={canWriteMedical
-                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint unter dieser Liste."
-                        : "Für diese Akte wurden noch keine Rezepte erfasst."}
-                    action={canWriteMedical && id
-                        ? { label: "Neues Rezept", onClick: openRezeptNeu }
-                        : undefined}
-                />
-            ) : (
-                <div style={{ overflowX: "auto" }}>
-                    <table className="tbl">
-                        <thead>
-                            <tr>
-                                <th>Medikament</th>
-                                <th>Dosierung</th>
-                                <th>Dauer</th>
-                                <th>Status</th>
-                                <th>Ausgestellt</th>
-                                <th style={{ minWidth: 200 }}>Aktion</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rezepte.map((r) => {
-                                const st = rezeptStatusDisplay(r.status);
-                                const showEditRow =
-                                    canWriteMedical && rezeptEdit?.id === r.id && !rezeptWizardStep;
-                                return (
-                                    <Fragment key={r.id}>
-                                        {showEditRow ? (
-                                            <tr>
-                                                <td
-                                                    colSpan={6}
-                                                    style={{
-                                                        padding: 12,
-                                                        verticalAlign: "top",
-                                                        background: "var(--bg-elev)",
-                                                    }}
-                                                >
-                                                    <AkteEditFormOrInline
-                                                        area="patient_akte_rezept_edit"
-                                                        open={canWriteMedical && !!rezeptEdit && !rezeptWizardStep}
-                                                        onClose={() => setRezeptEdit(null)}
-                                                        title="Rezept bearbeiten"
-                                                        subtitle={
-                                                            rezeptEditUnlocked
-                                                                ? "Änderungen gelten nur für diese Zeile in der Akte."
-                                                                : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
-                                                        }
-                                                        inlineId={`ak-rezept-edit-inline-${r.id}`}
-                                                        ariaLabel="Rezept bearbeiten"
-                                                        panelVariant="rezept"
-                                                        presentationOverride="inline"
-                                                        headerExtra={
-                                                            !rezeptEditUnlocked ? (
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="secondary"
-                                                                    size="sm"
-                                                                    onClick={() => setRezeptEditUnlocked(true)}
-                                                                >
-                                                                    Bearbeiten
-                                                                </Button>
-                                                            ) : null
-                                                        }
-                                                        footer={(
-                                                            <>
-                                                                <Button type="button" variant="ghost" onClick={() => setRezeptEdit(null)}>
-                                                                    Abbrechen
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    onClick={() => void runSaveRezeptEdit()}
-                                                                    disabled={
-                                                                        !rezeptEditUnlocked
-                                                                        || !rezeptEditForm.medikament.trim()
-                                                                        || !rezeptEditForm.dosierung.trim()
-                                                                        || !rezeptEditForm.dauer.trim()
-                                                                    }
-                                                                >
-                                                                    Speichern
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    >
-                                                        <Input
-                                                            id={`rex-med-${r.id}`}
-                                                            label="Medikament *"
-                                                            value={rezeptEditForm.medikament}
-                                                            disabled={!rezeptEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setRezeptEditForm({
-                                                                    ...rezeptEditForm,
-                                                                    medikament: e.target.value,
-                                                                })}
-                                                        />
-                                                        <Input
-                                                            id={`rex-wirk-${r.id}`}
-                                                            label="Wirkstoff"
-                                                            value={rezeptEditForm.wirkstoff}
-                                                            disabled={!rezeptEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setRezeptEditForm({
-                                                                    ...rezeptEditForm,
-                                                                    wirkstoff: e.target.value,
-                                                                })}
-                                                        />
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                            <Input
-                                                                id={`rex-dos-${r.id}`}
-                                                                label="Dosierung *"
-                                                                value={rezeptEditForm.dosierung}
-                                                                disabled={!rezeptEditUnlocked}
-                                                                onChange={(e) =>
-                                                                    setRezeptEditForm({
-                                                                        ...rezeptEditForm,
-                                                                        dosierung: e.target.value,
-                                                                    })}
-                                                            />
-                                                            <Input
-                                                                id={`rex-dauer-${r.id}`}
-                                                                label="Dauer *"
-                                                                value={rezeptEditForm.dauer}
-                                                                disabled={!rezeptEditUnlocked}
-                                                                onChange={(e) =>
-                                                                    setRezeptEditForm({
-                                                                        ...rezeptEditForm,
-                                                                        dauer: e.target.value,
-                                                                    })}
-                                                            />
-                                                        </div>
-                                                        <Textarea
-                                                            id={`rex-hin-${r.id}`}
-                                                            label="Hinweise"
-                                                            rows={2}
-                                                            value={rezeptEditForm.hinweise}
-                                                            disabled={!rezeptEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setRezeptEditForm({
-                                                                    ...rezeptEditForm,
-                                                                    hinweise: e.target.value,
-                                                                })}
-                                                        />
-                                                    </AkteEditFormOrInline>
-                                                </td>
-                                            </tr>
-                                        ) : null}
-                                        <tr>
-                                            <td style={{ fontWeight: 600 }}>{r.medikament}</td>
-                                            <td>{r.dosierung}</td>
-                                            <td>{r.dauer}</td>
-                                            <td><Badge variant={st.variant}>{st.label}</Badge></td>
-                                            <td>{formatDate(r.ausgestellt_am)}</td>
-                                            <td>
-                                                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        type="button"
-                                                        onClick={() => handlePrintRezept(r)}
-                                                    >
-                                                        Exportieren…
-                                                    </Button>
-                                                    {canWriteMedical ? (
-                                                        <>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() => {
-                                                                    setRezeptDeleteId(null);
-                                                                    resetRezeptWizard();
-                                                                    setRezeptEditUnlocked(false);
-                                                                    setRezeptEditForm({
-                                                                        medikament: r.medikament,
-                                                                        wirkstoff: r.wirkstoff ?? "",
-                                                                        dosierung: r.dosierung,
-                                                                        dauer: r.dauer,
-                                                                        hinweise: r.hinweise ?? "",
-                                                                    });
-                                                                    setRezeptEdit(r);
-                                                                }}
-                                                            >
-                                                                Bearbeiten
-                                                            </Button>
-                                                            <Button
-                                                                variant="danger"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    resetRezeptWizard();
-                                                                    setRezeptEdit(null);
-                                                                    setRezeptDeleteId(r.id);
-                                                                }}
-                                                            >
-                                                                Löschen
-                                                            </Button>
-                                                        </>
-                                                    ) : null}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </Fragment>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {canWriteMedical && rezeptDeleteId ? (
-                <ConfirmOrInline
-                    area="patient_akte_rezept_delete"
-                    open={canWriteMedical && !!rezeptDeleteId}
-                    inlineId="ak-rezept-delete-panel"
-                    title="Rezept löschen"
-                    message={(() => {
-                        const r = rezepte.find((x) => x.id === rezeptDeleteId);
-                        return r
-                            ? `Das Rezept „${r.medikament}“ (${r.dosierung}, ${r.dauer}) wirklich löschen?`
-                            : "Dieses Rezept wirklich löschen?";
-                    })()}
-                    onCancel={() => setRezeptDeleteId(null)}
-                    onConfirm={() => void handleDeleteRezept()}
-                    confirmLabel="Ja, löschen"
-                    danger
-                />
-            ) : null}
 
             {canWriteMedical && rezeptWizardStep ? (
                 <div
@@ -710,13 +480,245 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                 </div>
             ) : null}
 
+
+        <FormSection title="Rezeptliste dieser Akte">
+            {rezepte.length === 0 ? (
+                <EmptyState
+                    icon="💊"
+                    title="Keine Rezepte in dieser Akte"
+                    description={canWriteMedical
+                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint direkt oben in der Liste."
+                        : "Für diese Akte wurden noch keine Rezepte erfasst."}
+                    action={canWriteMedical && id
+                        ? { label: "Neues Rezept", onClick: openRezeptNeu }
+                        : undefined}
+                />
+            ) : (
+                <div style={{ overflowX: "auto" }}>
+                    <table className="tbl">
+                        <thead>
+                            <tr>
+                                <th>Medikament</th>
+                                <th>Dosierung</th>
+                                <th>Dauer</th>
+                                <th>Status</th>
+                                <th>Ausgestellt</th>
+                                <th style={{ minWidth: 200 }}>Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rezepte.map((r) => {
+                                const st = rezeptStatusDisplay(r.status);
+                                const showEditRow =
+                                    canWriteMedical && rezeptEdit?.id === r.id && !rezeptWizardStep;
+                                return (
+                                    <Fragment key={r.id}>
+                                        {showEditRow ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={6}
+                                                    style={{
+                                                        padding: 12,
+                                                        verticalAlign: "top",
+                                                        background: "var(--bg-elev)",
+                                                    }}
+                                                >
+                                                    <AkteEditFormOrInline
+                                                        area="patient_akte_rezept_edit"
+                                                        open={canWriteMedical && !!rezeptEdit && !rezeptWizardStep}
+                                                        onClose={() => setRezeptEdit(null)}
+                                                        title="Rezept bearbeiten"
+                                                        subtitle={
+                                                            rezeptEditUnlocked
+                                                                ? "Änderungen gelten nur für diese Zeile in der Akte."
+                                                                : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
+                                                        }
+                                                        inlineId={`ak-rezept-edit-inline-${r.id}`}
+                                                        ariaLabel="Rezept bearbeiten"
+                                                        panelVariant="rezept"
+                                                        presentationOverride="inline"
+                                                        headerExtra={
+                                                            !rezeptEditUnlocked ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    onClick={() => setRezeptEditUnlocked(true)}
+                                                                >
+                                                                    Bearbeiten
+                                                                </Button>
+                                                            ) : null
+                                                        }
+                                                        footer={(
+                                                            <>
+                                                                <Button type="button" variant="ghost" onClick={() => setRezeptEdit(null)}>
+                                                                    Abbrechen
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={() => void runSaveRezeptEdit()}
+                                                                    disabled={
+                                                                        !rezeptEditUnlocked
+                                                                        || !rezeptEditForm.medikament.trim()
+                                                                        || !rezeptEditForm.dosierung.trim()
+                                                                        || !rezeptEditForm.dauer.trim()
+                                                                    }
+                                                                >
+                                                                    Speichern
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    >
+                                                        <Input
+                                                            id={`rex-med-${r.id}`}
+                                                            label="Medikament *"
+                                                            value={rezeptEditForm.medikament}
+                                                            disabled={!rezeptEditUnlocked}
+                                                            onChange={(e) =>
+                                                                setRezeptEditForm({
+                                                                    ...rezeptEditForm,
+                                                                    medikament: e.target.value,
+                                                                })}
+                                                        />
+                                                        <Input
+                                                            id={`rex-wirk-${r.id}`}
+                                                            label="Wirkstoff"
+                                                            value={rezeptEditForm.wirkstoff}
+                                                            disabled={!rezeptEditUnlocked}
+                                                            onChange={(e) =>
+                                                                setRezeptEditForm({
+                                                                    ...rezeptEditForm,
+                                                                    wirkstoff: e.target.value,
+                                                                })}
+                                                        />
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                            <Input
+                                                                id={`rex-dos-${r.id}`}
+                                                                label="Dosierung *"
+                                                                value={rezeptEditForm.dosierung}
+                                                                disabled={!rezeptEditUnlocked}
+                                                                onChange={(e) =>
+                                                                    setRezeptEditForm({
+                                                                        ...rezeptEditForm,
+                                                                        dosierung: e.target.value,
+                                                                    })}
+                                                            />
+                                                            <Input
+                                                                id={`rex-dauer-${r.id}`}
+                                                                label="Dauer *"
+                                                                value={rezeptEditForm.dauer}
+                                                                disabled={!rezeptEditUnlocked}
+                                                                onChange={(e) =>
+                                                                    setRezeptEditForm({
+                                                                        ...rezeptEditForm,
+                                                                        dauer: e.target.value,
+                                                                    })}
+                                                            />
+                                                        </div>
+                                                        <Textarea
+                                                            id={`rex-hin-${r.id}`}
+                                                            label="Hinweise"
+                                                            rows={2}
+                                                            value={rezeptEditForm.hinweise}
+                                                            disabled={!rezeptEditUnlocked}
+                                                            onChange={(e) =>
+                                                                setRezeptEditForm({
+                                                                    ...rezeptEditForm,
+                                                                    hinweise: e.target.value,
+                                                                })}
+                                                        />
+                                                    </AkteEditFormOrInline>
+                                                </td>
+                                            </tr>
+                                        ) : null}
+                                        <tr>
+                                            <td style={{ fontWeight: 600 }}>{r.medikament}</td>
+                                            <td>{r.dosierung}</td>
+                                            <td>{r.dauer}</td>
+                                            <td><Badge variant={st.variant}>{st.label}</Badge></td>
+                                            <td>{formatDate(r.ausgestellt_am)}</td>
+                                            <td>
+                                                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        type="button"
+                                                        onClick={() => handlePrintRezept(r)}
+                                                    >
+                                                        Exportieren…
+                                                    </Button>
+                                                    {canWriteMedical ? (
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => {
+                                                                    setRezeptDeleteId(null);
+                                                                    resetRezeptWizard();
+                                                                    setRezeptEditUnlocked(false);
+                                                                    setRezeptEditForm({
+                                                                        medikament: r.medikament,
+                                                                        wirkstoff: r.wirkstoff ?? "",
+                                                                        dosierung: r.dosierung,
+                                                                        dauer: r.dauer,
+                                                                        hinweise: r.hinweise ?? "",
+                                                                    });
+                                                                    setRezeptEdit(r);
+                                                                }}
+                                                            >
+                                                                Bearbeiten
+                                                            </Button>
+                                                            <Button
+                                                                variant="danger"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    resetRezeptWizard();
+                                                                    setRezeptEdit(null);
+                                                                    setRezeptDeleteId(r.id);
+                                                                }}
+                                                            >
+                                                                Löschen
+                                                            </Button>
+                                                        </>
+                                                    ) : null}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {canWriteMedical && rezeptDeleteId ? (
+                <ConfirmOrInline
+                    area="patient_akte_rezept_delete"
+                    open={canWriteMedical && !!rezeptDeleteId}
+                    inlineId="ak-rezept-delete-panel"
+                    title="Rezept löschen"
+                    message={(() => {
+                        const r = rezepte.find((x) => x.id === rezeptDeleteId);
+                        return r
+                            ? `Das Rezept „${r.medikament}“ (${r.dosierung}, ${r.dauer}) wirklich löschen?`
+                            : "Dieses Rezept wirklich löschen?";
+                    })()}
+                    onCancel={() => setRezeptDeleteId(null)}
+                    onConfirm={() => void handleDeleteRezept()}
+                    confirmLabel="Ja, löschen"
+                    danger
+                />
+            ) : null}
+
+
         </FormSection>
         </>
         ) : (
         <>
         <CardHeader
             title="Atteste"
-            subtitle="Wie bei den Rezepten: vordefinierte Praxis-Vorlage wählen oder neu erfassen — der Assistent erscheint unter der Liste."
+            subtitle="Wie bei den Rezepten: vordefinierte Praxis-Vorlage wählen oder neu erfassen — der Assistent erscheint oben in der Liste."
             action={canWriteMedical ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Button type="button" size="sm" variant="secondary" onClick={openAttestPick} disabled={!id}>
@@ -733,85 +735,6 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                 Atteste können nur von Berechtigten mit ärztlicher Freigabe angelegt oder gelöscht werden. Die Liste ist einsehbar, sofern Ihre Rolle Zugriff auf die Akte hat.
             </p>
         ) : null}
-
-        <FormSection title="Attestliste dieser Akte">
-            {atteste.length === 0 ? (
-                <EmptyState
-                    icon="📄"
-                    title="Keine Atteste in dieser Akte"
-                    description={canWriteMedical
-                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint unter dieser Liste."
-                        : "Für diese Akte wurden noch keine Atteste erfasst."}
-                    action={canWriteMedical && id
-                        ? { label: "Neues Attest", onClick: openAttestNeu }
-                        : undefined}
-                />
-            ) : (
-                <div style={{ overflowX: "auto" }}>
-                    <table className="tbl">
-                        <thead>
-                            <tr>
-                                <th>Typ</th>
-                                <th>Gültig von</th>
-                                <th>Gültig bis</th>
-                                <th>Ausgestellt</th>
-                                <th style={{ minWidth: 200 }}>Aktion</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {atteste.map((a) => (
-                                <tr key={a.id}>
-                                    <td style={{ fontWeight: 600 }}>{a.typ}</td>
-                                    <td>{formatDate(a.gueltig_von)}</td>
-                                    <td>{formatDate(a.gueltig_bis)}</td>
-                                    <td>{formatDate(a.ausgestellt_am)}</td>
-                                    <td>
-                                        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                            <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
-                                                Exportieren…
-                                            </Button>
-                                            {canWriteMedical ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="danger"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        resetAttestWizard();
-                                                        setAttestDeleteId(a.id);
-                                                    }}
-                                                >
-                                                    Löschen
-                                                </Button>
-                                            ) : (
-                                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {canWriteMedical && attestDeleteId ? (
-                <ConfirmOrInline
-                    area="patient_akte_attest_delete"
-                    open={canWriteMedical && !!attestDeleteId}
-                    inlineId="ak-attest-delete-panel"
-                    title="Attest löschen"
-                    message={(() => {
-                        const a = atteste.find((x) => x.id === attestDeleteId);
-                        return a
-                            ? `Das Attest „${a.typ}“ (gültig ${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}) wirklich löschen?`
-                            : "Dieses Attest wirklich löschen?";
-                    })()}
-                    onCancel={() => setAttestDeleteId(null)}
-                    onConfirm={() => void handleDeleteAttest()}
-                    confirmLabel="Ja, löschen"
-                    danger
-                />
-            ) : null}
 
             {canWriteMedical && attestWizardStep ? (
                 <div
@@ -1107,6 +1030,87 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     </div>
                 </div>
             ) : null}
+
+        <FormSection title="Attestliste dieser Akte">
+            {atteste.length === 0 ? (
+                <EmptyState
+                    icon="📄"
+                    title="Keine Atteste in dieser Akte"
+                    description={canWriteMedical
+                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint direkt oben in der Liste."
+                        : "Für diese Akte wurden noch keine Atteste erfasst."}
+                    action={canWriteMedical && id
+                        ? { label: "Neues Attest", onClick: openAttestNeu }
+                        : undefined}
+                />
+            ) : (
+                <div style={{ overflowX: "auto" }}>
+                    <table className="tbl">
+                        <thead>
+                            <tr>
+                                <th>Typ</th>
+                                <th>Gültig von</th>
+                                <th>Gültig bis</th>
+                                <th>Ausgestellt</th>
+                                <th style={{ minWidth: 200 }}>Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {atteste.map((a) => (
+                                <tr key={a.id}>
+                                    <td style={{ fontWeight: 600 }}>{a.typ}</td>
+                                    <td>{formatDate(a.gueltig_von)}</td>
+                                    <td>{formatDate(a.gueltig_bis)}</td>
+                                    <td>{formatDate(a.ausgestellt_am)}</td>
+                                    <td>
+                                        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                            <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
+                                                Exportieren…
+                                            </Button>
+                                            {canWriteMedical ? (
+                                                <Button
+                                                    type="button"
+                                                    variant="danger"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        resetAttestWizard();
+                                                        setAttestDeleteId(a.id);
+                                                    }}
+                                                >
+                                                    Löschen
+                                                </Button>
+                                            ) : (
+                                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {canWriteMedical && attestDeleteId ? (
+                <ConfirmOrInline
+                    area="patient_akte_attest_delete"
+                    open={canWriteMedical && !!attestDeleteId}
+                    inlineId="ak-attest-delete-panel"
+                    title="Attest löschen"
+                    message={(() => {
+                        const a = atteste.find((x) => x.id === attestDeleteId);
+                        return a
+                            ? `Das Attest „${a.typ}“ (gültig ${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}) wirklich löschen?`
+                            : "Dieses Attest wirklich löschen?";
+                    })()}
+                    onCancel={() => setAttestDeleteId(null)}
+                    onConfirm={() => void handleDeleteAttest()}
+                    confirmLabel="Ja, löschen"
+                    danger
+                />
+            ) : null}
+
+
         </FormSection>
         </>
         )}

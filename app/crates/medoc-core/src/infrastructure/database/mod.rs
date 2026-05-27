@@ -25,6 +25,7 @@ pub mod produkt_repo;
 pub mod rechnung_document_repo;
 pub mod rezept_repo;
 pub mod sqlcipher;
+pub mod sync_outbox;
 pub mod tagesabschluss_protokoll_repo;
 pub mod termin_repo;
 pub mod vertrag_repo;

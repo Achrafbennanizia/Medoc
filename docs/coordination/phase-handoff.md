@@ -1,7 +1,199 @@
 # Phase handoff
 
-**Last phase label:** Workspace restructure — **Wave B COMPLETE**: three deployable binaries each live in their own Cargo crate with their own dependency closure  
-**Last closed:** 2026-05-26 — `ed362bc`; **PASS** (`cargo check/test/clippy --workspace`, 159 tests). The user's "3 fully separated models" goal is now physically real: `cargo build -p medoc-lan-server` and `cargo build -p medoc-company-server` both produce working standalone binaries (`target/debug/medoc-server` 39 MB, `target/debug/medoc-company-server` 19 MB) without compiling any Tauri code. The desktop Tauri app (`cargo build -p medoc`, `target/debug/medoc` 82 MB) still works.
+**Last phase label:** Testing matrix expansion v2 (multi-replica conflict + license gate negatives)  
+**Last closed:** 2026-05-27 (afternoon) — `medoc-e2e` grew 40 → **56** HTTP integration tests after adding `multi_replica_roundtrip.rs` (9) and `license_gate_negatives.rs` (7). The multi-replica suite drives the full HTTP push/pull pipeline on the master (`SyncEngine::ingest_push` → `apply_remote_entry` → `MasterWinsWithFreshness`) and pushed `medoc-sync/merge.rs` coverage from **57.04% → 71.85%**. The license-gate suite walks every negative path of `master_license::require_master_license` from the LAN HTTP surface (unlicensed, tampered envelope, wrong-device binding, skip-switch, replica-role exemption). Full Docker pipeline GREEN end-to-end.
+
+**Previous phase label:** Testing matrix expansion + coverage wiring (Wave V1 follow-up)  
+**Previous closed:** 2026-05-27 (morning) — `medoc-e2e` doubled from 20 → 40 HTTP integration tests (revocation/rotation, behandlung+untersuchung outbox lifecycle, serverful `lan_client` RBAC). One real security defect found and fixed: revoked slaves could keep using activation tokens on `/sync/*` and `/pairing/peers` because the gate trusted the token claims when `slave_permission` rows were missing. Real coverage numbers measured with `cargo-llvm-cov` + `@vitest/coverage-v8` and recorded below (no more hand-waving on "100% coverage"). See [`validation.md`](validation.md) 2026-05-27 block.
+
+### 2026-05-27 (afternoon) — Verified
+
+- **e2e count: 56** (was 40). Full Docker pipeline GREEN.
+- **`medoc-e2e/tests/multi_replica_roundtrip.rs`** (9 tests):
+  - `replica_push_applies_one_patient_row_on_master` — full HTTP roundtrip;
+    asserted via `sync_applied` row, not vectors.
+  - `replica_pull_sees_master_local_writes` — pulls patient + auto-created
+    patientenakte after enabling serverless MASTER mode on the master.
+  - `older_push_does_not_overwrite_newer_master_row` — freshness keeps
+    the master's locally-newer row.
+  - `newer_push_overwrites_older_master_row` — freshness applies the
+    newer replica push.
+  - `two_replicas_push_same_entity_freshness_resolves_winner` — three
+    interleaved INSERT+UPDATE pushes from two replicas; the freshest
+    wins regardless of arrival order; older retry never regresses the
+    row.
+  - `push_with_mismatched_from_device_id_is_rejected` — token claim vs
+    body mismatch → 403 from `sync_push`.
+  - `push_with_inner_entry_device_id_mismatch_returns_400` — token+body
+    agree but inner `OutboxEntry.device_id` differs → 400.
+  - `pull_with_unknown_master_device_id_returns_empty_entries` — pull
+    against an unknown device id returns `entries: []`, not 500.
+  - `idempotent_push_same_seq_does_not_double_apply` — three identical
+    pushes; verified via single `sync_applied` row.
+- **`medoc-e2e/tests/license_gate_negatives.rs`** (7 tests, serialised by
+  a per-file `Mutex` because they mutate `MEDOC_SKIP_MASTER_LICENSE`):
+  - `unlicensed_master_rejects_sync_status_with_403`
+  - `unlicensed_master_rejects_pairing_decide_with_403`
+  - `unlicensed_master_rejects_pairing_submit_with_403`
+  - `tampered_license_master_rejects_sync_status` — flips the last byte
+    of the stored envelope; `verify` returns invalid, gate returns 403.
+  - `wrong_device_license_master_rejects_pairing_submit` — license bound
+    to a different `device_id`; envelope decrypt fails locally.
+  - `skip_enforcement_env_bypasses_gate_even_without_license` — ops
+    kill-switch verified end-to-end.
+  - `replica_role_in_serverless_peer_does_not_require_master_license` —
+    REPLICA role exemption verified (matches `acts_as_sync_master`).
+- **Real coverage delta** (host run via `cargo llvm-cov`, scoped to
+  Wave V1 + e2e tests, ignoring `tests/`):
+  - `medoc-sync/merge.rs`: **57.04% → 71.85%** (+14.81 pp, conflict
+    paths now exercised end-to-end).
+  - `medoc-lan/master_license.rs`: **85.96% → 89.47%**.
+  - `medoc-lan/sync_http.rs`: **88.51% → 89.86%**.
+  - `medoc-lan/pairing_http.rs`: **85.81% → 86.16%**.
+  - `medoc-sync/engine.rs`: 55.06% → 55.36% (marginal — `run_mesh_sync`
+    and `push_to_master`/`pull_from_master` are still mostly only hit
+    by `two_replica_mesh.rs`).
+  - TOTAL workspace: 25.61% → **25.94%** lines (still dragged down by
+    the same untested non-Wave-V1 surface: PDF, telematik, DSGVO,
+    devices, ~half the `infrastructure/database` repos).
+- Outputs at `app/target/coverage/{summary.txt,lcov.info}`.
+
+**Previous phase label:** Master/slave pairing + License v2 (Wave V1)  
+**Previous closed:** 2026-05-26 — perpetual device-bound encrypted license, master Ed25519 keypair, replica activation tokens, freshness-aware conflict resolution, auto outbox hooks, and BEST-EFFORT mesh scaffolding. See [`actions.md`](actions.md) "Wave V1" entry and [`validation.md`](validation.md) for the per-slice evidence.
+
+### 2026-05-27 — Verified (this session)
+
+- **Docker pipeline GREEN end-to-end**: `bash scripts/validate-docker.sh` —
+  Frontend (167 + 1 skipped Vitest), Rust Wave V1 scoped (fmt + clippy +
+  tests), `medoc-e2e` (40/40 in Linux Docker), headless `medoc-server`
+  HTTPS smoke. Wall clock ≈ 3.2 min on this host.
+- **New e2e tests, evidence-driven (20 added, all green)**:
+  - `revoke_and_rotation.rs` (7) — revoke clears `slave_permission`,
+    revoked token rejected on `/sync/status` AND `/pairing/peers`,
+    re-pairing mints fresh token, double-decide rejected, master
+    pairing toggle gate, revoke route requires `ops.system` JWT.
+  - `outbox_clinical_writes.rs` (3) — `behandlung` lifecycle
+    (create/update/delete) emits exactly 3 outbox rows; same for
+    `untersuchung`; `practice_desktop` mode emits zero (no sync).
+  - `serverful_lan_client_flows.rs` (10) — REZEPTION vs ARZT JWT
+    boundaries, JWT-not-accepted-on-`/sync/*` (mt2 only), `app-kv`
+    PUT/GET/DELETE round trip with whitelist enforcement, login
+    failure modes (wrong pw, unknown user, missing bearer).
+- **SECURITY FIX (high)** — `medoc-lan/src/sync_http.rs::verify_activation_for_path`
+  and `medoc-lan/src/pairing_http.rs::peers`: previously, when the master
+  had revoked a slave, the deletion of `slave_permission` rows caused
+  the gate to silently fall through to the token's baked-in
+  `allowed_actions`. Revoked slaves could keep using their (perpetual)
+  activation tokens until the underlying signing key rotated. Replaced
+  with a default-deny gate that consults `pairing_request.status` and
+  rejects on `REVOKED`; mesh peer pushes (where no row exists for the
+  sibling's device_id) still pass via the master signature. Regression
+  test: `revoke_and_rotation::revoked_action_rejects_sync_status_even_with_valid_token`
+  + `::revoked_slave_cannot_access_pairing_peers_either`.
+- **Frontend regression fix** — `critical-flows.smoke.test.tsx` flow (a)
+  now mocks `sync_get_status` and `current_license_status` (introduced
+  by `LicenseAndPairingGate` + `ReplicaSyncBackground` startup).
+- **Coverage wired and measured (real numbers, not aspirational)**:
+  - Frontend (`@vitest/coverage-v8` + `npm run test:coverage`):
+    Statements 14.65% (6867/46873), Branches 57.57%, Functions 35.57%,
+    Lines 14.65%. Big untested surface = UI screens / pages.
+  - Rust workspace (`cargo-llvm-cov`, scoped to wave-V1 + e2e tests):
+    TOTAL 25.61% lines (16455/22120 uncovered). On the Wave V1 critical
+    path:
+    - `medoc-lan/lib.rs` 100%, `medoc-lan/jwt.rs` 98.39%,
+      `medoc-lan/sync_http.rs` 88.51%, `medoc-lan/pairing_http.rs`
+      85.81%, `medoc-lan/master_license.rs` 85.96%,
+      `medoc-lan/http.rs` 80.30%.
+    - `medoc-sync/pairing.rs` 89.86%, `medoc-sync/schema.rs` 84.48%,
+      `medoc-sync/repo.rs` 80.94%, `medoc-sync/master_keys.rs` 76.32%,
+      `medoc-sync/merge.rs` 57.04%, `medoc-sync/engine.rs` 55.06%.
+    - `medoc-core/license.rs` 81.31%,
+      `medoc-core/database/sync_outbox.rs` 87.85%.
+    Outputs: `app/target/coverage/summary.txt`, `lcov.info`.
+
+### 2026-05-27 — Unverified / not-run / deferred
+
+- **"100% coverage" and "10,000 use cases"** — explicitly NOT achieved
+  in this session. The pragmatic scope (agreed up-front) was a measured
+  baseline + ~20 new e2e cases + coverage wiring. Real coverage on the
+  Wave V1 critical path is 55–100%; the rest of `medoc-core`
+  (PDF, telematik, DSGVO, devices, many repos) is largely untested
+  Rust code that is out of Wave V1 scope.
+- **Tauri-driver UI E2E**, **3-slave conflict matrix**,
+  **license tamper / expiry**, **proptest for sync/license/pairing** —
+  NOT-RUN. These are the next four scope chunks in the agreed plan and
+  were de-prioritised in favour of the security fix + honest coverage
+  numbers. Tracked in `actions.md`.
+- **Coverage in Docker** — the new `MEDOC_COVERAGE=1` switch in
+  `docker/ci/run-rust-validate-wave-v1.sh` was authored but only the
+  *host* run was executed end-to-end this session. The Docker image
+  rebuild (with `cargo install cargo-llvm-cov`) was not re-tested
+  inside Docker; flagged for the next CI pass.
+
+### Wave V1 — Verified
+
+- `LicenseV2` envelope encrypts + signs against the master's `device_id`;
+  rejection paths covered in `app/crates/medoc-core/tests/license_v2_tests.rs`.
+- Pairing handshake compiles + unit-tests pass (4 tests in
+  `medoc_sync::pairing::tests`).
+- Activation tokens authenticate `/sync/{push,pull,status}` and
+  `/pairing/peers`. Non-allow-listed routes reject mt2 tokens (403).
+- Outbox hooks recorded for all 8 allow-listed tables — 7 integration
+  tests in `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
+  green.
+- `ConflictPolicy::MasterWinsWithFreshness` — 2 new merge tests in
+  `medoc_sync::engine::tests` (older master push is rejected; newer
+  master push wins).
+- UI: replica `pairing-scan.tsx`, master `einstellungen-pairing-inbox.tsx`,
+  `license-activate.tsx`, top-level `LicenseAndPairingGate` integrated
+  into `App.tsx`.
+- **Docker E2E (`medoc-e2e`)** — 20 HTTP integration tests + headless
+  `medoc-server` HTTPS smoke pass in Linux Docker
+  (`./scripts/validate-docker-e2e.sh`, 2026-05-26).
+- **Gap fixes (2026-05-26 follow-up):** replica license gate bypass when
+  `activationToken` present; `ReplicaSyncBackground` (30s + online event);
+  replica `sync_run_now` without `ops.system`; mesh peer URLs + signature
+  verify; `pairing.enabled.v1` master toggle in Einstellungen inbox.
+
+### Wave V1 — Unverified / BEST-EFFORT
+
+- **Live two-device pairing smoke** — DEFERRED (needs second physical host;
+  in-process HTTP e2e covers the same API contract).
+- **Mesh fan-out to peer HTTPS endpoints** — peer list uses
+  `sync_device.peer_base_url` when set; signature verification matches full
+  peer payload. Live two-replica mesh push **OBSERVED** in
+  `medoc-e2e::mesh_push_delivers_outbox_entry_to_peer_replica` (TCP
+  `axum::serve`, 2026-05-26).
+- **Repository coverage** stays at the 8 allow-listed tables.
+- **Documentation audit** is partial — only the architecture docs
+  touched by this wave were updated.
+
+### Wave V1 — Understanding delta
+
+- Activation token bypass is now scoped: any `mt2.*` bearer hitting a
+  non-sync protected route gets HTTP 403 instead of falling through to
+  the JWT path. Replicas paired before Slice 4 keep working only because
+  the JWT branch is still wired in `jwt_auth_middleware`.
+- `app_kv` writes are partially synced (internal `sync.*`, `license.*`,
+  `pairing.*` keys are excluded). This is a deliberate tradeoff documented
+  in `serverless-sync.md`.
+
+### Required next steps (ordered)
+
+1. Run the Slice 8 validation matrix (cargo fmt/clippy/test workspace +
+   npm lint/test/build) and append results to `validation.md`.
+2. Spin up two physical/VM hosts and execute the live pairing → push →
+   pull → revoke smoke.
+3. Verify the peer list signature in `run_mesh_sync`; flip
+   `unstable_mesh` to supported once mesh works end-to-end.
+4. Migrate the remaining write paths beyond the 8 outbox-hooked tables.
+
+---
+
+## Previous handoff (archived)
+
+**Phase label:** Three-system deployment + **serverless peer sync (foundation)**  
+**Closed:** 2026-05-26 — Wave B8 binaries + **`medoc-sync`** crate; **PASS** (`cargo test/clippy --workspace`, 158 vitest). The user's "3 fully separated models" goal is physically real: `cargo build -p medoc-lan-server` and `cargo build -p medoc-company-server` both produce working standalone binaries (`target/debug/medoc-server` 39 MB, `target/debug/medoc-company-server` 19 MB) without compiling any Tauri code. The desktop Tauri app (`cargo build -p medoc`, `target/debug/medoc` 82 MB) still works.
 
 ### Three-system split — outcome (after Wave B8)
 
@@ -82,6 +274,19 @@ app/
 | Cold build desktop | `cargo build -p medoc` | `target/debug/medoc` (82 MB) | Yes — Tauri practice host |
 
 This delivers the user's "3 fully separated models" goal as a hard, verifiable artefact (cold rebuild from clean target — no shared object files between the LAN and Company binaries beyond `medoc-core`, no Tauri runtime in either standalone binary).
+
+#### Serverless sync (2026-05-26 — foundation)
+
+| Item | Status |
+|------|--------|
+| `medoc-sync` crate (outbox, vector, master/replica engine) | **PASS** — 2 unit tests |
+| DB tables `sync_device`, `sync_vector`, `sync_outbox`, `sync_applied` | **PASS** — `ensure_sync_replication_tables` in `connection.rs` |
+| LAN HTTP `/api/v1/sync/{push,pull,status}` | **PASS** — compiles; JWT-protected like other LAN routes |
+| Tauri IPC `sync_get_status`, `sync_set_deployment`, `sync_run_now`, `sync_record_change` | **PASS** |
+| UI Einstellungen → Bereitstellung & Sync | **PASS** (code); live two-device sync **NOT OBSERVED** |
+| Auto outbox on every clinical write | **NOT STARTED** — v1 uses explicit `sync_record_change` / manual append |
+
+Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-sync.md).
 
 #### Outstanding work (Waves C + D, independent of each other)
 

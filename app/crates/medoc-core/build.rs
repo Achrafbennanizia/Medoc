@@ -49,4 +49,32 @@ fn main() {
     fs::write(&dest, body).expect("write OUT_DIR/pubkey.rs");
 
     println!("cargo:rerun-if-env-changed=MEDOC_VENDOR_PUBKEY");
+
+    // License v2 envelope seed (NFA-LIC-02). 32 bytes hex.
+    // Optional: when unset we use a deterministic dev seed so existing CI keeps building.
+    // Production builds MUST set MEDOC_VENDOR_SEED.
+    const DEV_SEED_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    let seed_hex = env::var("MEDOC_VENDOR_SEED").unwrap_or_else(|_| {
+        println!(
+            "cargo:warning=MEDOC_VENDOR_SEED not set — using deterministic dev seed (licenses encrypted with this key are NOT secure)"
+        );
+        DEV_SEED_HEX.to_string()
+    });
+    let seed_hex = seed_hex.trim();
+    if seed_hex.len() != 64 {
+        panic!(
+            "MEDOC_VENDOR_SEED must be exactly 64 hex characters (got {} chars)",
+            seed_hex.len()
+        );
+    }
+    let mut seed_bytes = [0u8; 32];
+    for (i, chunk) in seed_hex.as_bytes().chunks(2).enumerate() {
+        let pair = std::str::from_utf8(chunk).expect("MEDOC_VENDOR_SEED must be ASCII hex");
+        seed_bytes[i] = u8::from_str_radix(pair, 16)
+            .unwrap_or_else(|_| panic!("MEDOC_VENDOR_SEED contains invalid hex at byte {i}"));
+    }
+    let seed_dest = Path::new(&out_dir).join("license_seed.rs");
+    let seed_body = format!("pub const VENDOR_LICENSE_SEED: [u8; 32] = {seed_bytes:?};\n");
+    fs::write(&seed_dest, seed_body).expect("write OUT_DIR/license_seed.rs");
+    println!("cargo:rerun-if-env-changed=MEDOC_VENDOR_SEED");
 }

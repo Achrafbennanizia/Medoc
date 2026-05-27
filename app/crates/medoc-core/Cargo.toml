@@ -45,7 +45,10 @@ bcrypt = "0.17"
 hmac = "0.12"
 sha2 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
-ed25519-dalek = "2"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+# AES-GCM symmetric envelope for license v2 + activation tokens (NFA-LIC-02).
+aes-gcm = "0.10"
+hkdf = "0.12"
 
 # Logging stack (structured tracing → rolling JSON file).
 tracing = "0.1"

@@ -23,6 +23,8 @@ export type PatientDetailUnterTabProps = {
     unterEditUnlocked: boolean;
     unterDeleteId: string | null;
     canViewClinical: boolean;
+    showClinicalPrices: boolean;
+    onToggleClinicalPrices: () => void;
     katalog: BehandlungsKatalogItem[];
     unterBillingForm: UntersuchungBillingFormState;
     setUnterBillingForm: (next: UntersuchungBillingFormState) => void;
@@ -52,6 +54,8 @@ export function PatientDetailUnterTab({
     unterEditUnlocked,
     unterDeleteId,
     canViewClinical,
+    showClinicalPrices,
+    onToggleClinicalPrices,
     katalog,
     unterBillingForm,
     setUnterBillingForm,
@@ -80,12 +84,53 @@ export function PatientDetailUnterTab({
                     <CardHeader
                         title="Untersuchungen"
                         action={(
-                            <Button size="sm" disabled={showUnterComposer} onClick={onStartNewUntersuchung}>
-                                {showUnterComposer ? "Erfassung aktiv…" : "Neue Untersuchung"}
-                            </Button>
+                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={showClinicalPrices ? "primary" : "ghost"}
+                                    onClick={onToggleClinicalPrices}
+                                    aria-pressed={showClinicalPrices}
+                                >
+                                    {showClinicalPrices ? "Preise ausblenden" : "Preise anzeigen"}
+                                </Button>
+                                <Button size="sm" disabled={showUnterComposer} onClick={onStartNewUntersuchung}>
+                                    {showUnterComposer ? "Erfassung aktiv…" : "Neue Untersuchung"}
+                                </Button>
+                            </div>
                         )}
                     />
-                    {untersuchungen.length === 0 ? (
+                    {akte && showUnterComposer ? (
+                        <div className="akte-inline-panel" role="region" aria-label="Neue Untersuchung" style={{ marginBottom: 16 }}>
+                            <div className="akte-inline-panel-head">
+                                <div>
+                                    <div className="akte-inline-panel-title">Neue Untersuchung</div>
+                                    <div className="akte-inline-panel-sub">
+                                        Vorgesehene Nummer: <strong>{nextUnterPreview}</strong>
+                                        {" — "}
+                                        strukturierte Erfassung, erscheint im Verlauf dieser Akte.
+                                    </div>
+                                </div>
+                                <Button type="button" variant="ghost" size="sm" onClick={onCloseComposer}>
+                                    Schließen
+                                </Button>
+                            </div>
+                            <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
+                                <UntersuchungBillingFields
+                                    katalog={katalog}
+                                    form={unterBillingForm}
+                                    setForm={setUnterBillingForm}
+                                />
+                                <UntersuchungComposer
+                                    befunde={befunde}
+                                    onApplyTooth={onApplyTooth}
+                                    onCancel={onCloseComposer}
+                                    onSave={onCreateUntersuchung}
+                                />
+                            </div>
+                        </div>
+                    ) : null}
+                    {untersuchungen.length === 0 && !showUnterComposer ? (
                         <p style={{ color: "var(--fg-3)" }}>Keine Untersuchungen.</p>
                     ) : (
                         <div className="col unter-stack" style={{ gap: 8 }}>
@@ -107,11 +152,11 @@ export function PatientDetailUnterTab({
                                                     {formatDateTime(u.created_at)}
                                                 </div>
                                                 <div style={{ fontWeight: 600 }}>{u.diagnose || detail?.diagnosis || "Diagnose offen"}</div>
-                                                {(u.leistungsname ?? "").trim() ? (
+                                                {(u.leistungsname ?? "").trim() || showClinicalPrices ? (
                                                     <div style={{ fontSize: 13, color: "var(--fg-2)" }}>
                                                         {(u.kategorie ?? "").trim() ? `${u.kategorie} · ` : ""}
-                                                        {u.leistungsname}
-                                                        {u.gesamtkosten != null && Number.isFinite(u.gesamtkosten)
+                                                        {(u.leistungsname ?? "").trim() || "—"}
+                                                        {showClinicalPrices && u.gesamtkosten != null && Number.isFinite(u.gesamtkosten)
                                                             ? ` · ${u.gesamtkosten.toFixed(2)} €`
                                                             : ""}
                                                     </div>
@@ -351,36 +396,6 @@ export function PatientDetailUnterTab({
                             confirmLabel="Ja, löschen"
                             danger
                         />
-                    ) : null}
-                    {akte && showUnterComposer ? (
-                        <div className="akte-inline-panel" role="region" aria-label="Neue Untersuchung">
-                            <div className="akte-inline-panel-head">
-                                <div>
-                                    <div className="akte-inline-panel-title">Neue Untersuchung</div>
-                                    <div className="akte-inline-panel-sub">
-                                        Vorgesehene Nummer: <strong>{nextUnterPreview}</strong>
-                                        {" — "}
-                                        strukturierte Erfassung, erscheint im Verlauf dieser Akte.
-                                    </div>
-                                </div>
-                                <Button type="button" variant="ghost" size="sm" onClick={onCloseComposer}>
-                                    Schließen
-                                </Button>
-                            </div>
-                            <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
-                                <UntersuchungBillingFields
-                                    katalog={katalog}
-                                    form={unterBillingForm}
-                                    setForm={setUnterBillingForm}
-                                />
-                                <UntersuchungComposer
-                                    befunde={befunde}
-                                    onApplyTooth={onApplyTooth}
-                                    onCancel={onCloseComposer}
-                                    onSave={onCreateUntersuchung}
-                                />
-                            </div>
-                        </div>
                     ) : null}
                 </Card>
             </div>

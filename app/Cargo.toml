@@ -7,5 +7,7 @@ members = [
     "crates/medoc-core",
     "crates/medoc-lan",
     "crates/medoc-lan-server",
+    "crates/medoc-sync",
+    "crates/medoc-e2e",
 ]
 resolver = "2"

@@ -15,7 +15,8 @@ use crate::error::AppError;
 use serde::Deserialize;
 
 use super::pdf_core::{
-    emit_multipage_pdf, wrap_de, wrap_soft, PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    emit_multipage_pdf, truncate_cell, wrap_de, wrap_soft, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
+    M_LEFT, M_RIGHT,
 };
 use super::pdf_letterhead::{
     emit_continuation_header, emit_letterhead, emit_signature_block, Letterhead, MetaRow,
@@ -325,11 +326,9 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 
     emit_label_value_rows(pb, &doc.label_value_rows);
 
-    // "Rp."-Marker dann Tabellen
+    // Tabellen (Titel enthält ggf. „Rp.“ — kein doppeltes Präfix)
     if !doc.tables.is_empty() {
         pb.advance(6);
-        pb.text(M_LEFT, 14, true, "Rp.");
-        pb.advance(16);
         for table in &doc.tables {
             emit_table(
                 pb,
@@ -673,19 +672,18 @@ fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
     }
     pb.ensure_space(60);
     pb.advance(4);
-    let n = totals.len() as i32;
-    let band_h = n * QUITTUNG_ROW_H + 8;
-    let band_bottom = pb.y - band_h;
-    pb.fill_rect(
-        M_LEFT,
-        band_bottom,
-        CONTENT_WIDTH,
-        band_h,
-        QUITTUNG_BAND_GRAY,
-    );
     let mut y = pb.y - 4;
     for (i, row) in totals.iter().enumerate() {
         let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+        if bold {
+            pb.fill_rect(
+                M_LEFT,
+                y - QUITTUNG_ROW_H + 2,
+                CONTENT_WIDTH,
+                QUITTUNG_ROW_H,
+                QUITTUNG_BAND_GRAY,
+            );
+        }
         pb.y = y;
         pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
         pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
@@ -693,7 +691,7 @@ fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
             y -= QUITTUNG_ROW_H;
         }
     }
-    pb.y = band_bottom - 6;
+    pb.y = y - QUITTUNG_ROW_H - 6;
 }
 
 /// Summenblock + Tabellenkopf in **einem** grauen Band (keine weiße Lücke dazwischen).
@@ -717,7 +715,7 @@ fn emit_quittung_totals_and_table(
     let totals_h = if totals.is_empty() {
         0
     } else {
-        totals_rows * QUITTUNG_ROW_H + 8
+        totals_rows * QUITTUNG_ROW_H + 4
     };
     let combined_h = totals_h + QUITTUNG_HEADER_H;
 
@@ -725,18 +723,20 @@ fn emit_quittung_totals_and_table(
         pb.advance(4);
     }
     let band_bottom = pb.y - combined_h;
-    pb.fill_rect(
-        M_LEFT,
-        band_bottom,
-        CONTENT_WIDTH,
-        combined_h,
-        QUITTUNG_BAND_GRAY,
-    );
 
     let mut y = pb.y - 4;
     if !totals.is_empty() {
         for (i, row) in totals.iter().enumerate() {
             let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+            if bold {
+                pb.fill_rect(
+                    M_LEFT,
+                    y - QUITTUNG_ROW_H + 2,
+                    CONTENT_WIDTH,
+                    QUITTUNG_ROW_H,
+                    QUITTUNG_BAND_GRAY,
+                );
+            }
             pb.y = y;
             pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
             pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
@@ -784,12 +784,13 @@ fn emit_table_data_rows(
         for ci in 0..ncol {
             let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
             let max_chars = col_chars.get(ci).copied().unwrap_or(20);
-            let w = wrap_soft(cell, max_chars);
+            let clipped = truncate_cell(cell, max_chars.saturating_mul(2));
+            let w = wrap_soft(&clipped, max_chars);
             row_lines = row_lines.max(w.len().max(1));
             wrapped.push(w);
         }
 
-        let row_height = row_lines as i32 * 11 + 4;
+        let row_height = row_lines as i32 * 12 + 6;
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
             emit_continuation_header(pb, continuation.0, continuation.1);
@@ -804,13 +805,7 @@ fn emit_table_data_rows(
         }
 
         if ri % 2 == 1 {
-            pb.fill_rect(
-                M_LEFT,
-                pb.y - row_height + 8,
-                CONTENT_WIDTH,
-                row_height,
-                0.97,
-            );
+            pb.fill_rect(M_LEFT, pb.y - row_height, CONTENT_WIDTH, row_height, 0.97);
         }
 
         let base_y = pb.y;
@@ -824,7 +819,7 @@ fn emit_table_data_rows(
                     .unwrap_or("");
                 if !chunk.is_empty() {
                     let prev = pb.y;
-                    pb.y = base_y - li as i32 * 11;
+                    pb.y = base_y - li as i32 * 12;
                     pb.text(x + QUITTUNG_PAD, 9, false, chunk);
                     pb.y = prev;
                 }

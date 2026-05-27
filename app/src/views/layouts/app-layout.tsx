@@ -7,7 +7,9 @@ import { checkSession, logout, touchSession } from "@/systems/practice-host/cont
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
 import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "@/systems/practice-host/controllers/akte-workflow.controller";
+/* Posteingang deaktiviert
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
+*/
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "../../lib/rbac";
 import { useT, useLocale, translateLocale } from "../../lib/i18n";
 import type { Patient } from "../../models/types";
@@ -145,7 +147,7 @@ const CRUMBS: Record<string, string[]> = {
 
 const NAV_SECTIONS: Array<{ label: string; items: string[] }> = [
     { label: "Übersicht", items: ["/", "/termine"] },
-    { label: "Behandlung", items: ["/patienten", "/akten/zu-validieren", "/posteingang", "/tickets", "/rezepte", "/statistik"] },
+    { label: "Behandlung", items: ["/patienten", "/akten/zu-validieren", "/tickets", "/rezepte", "/statistik"] },
     { label: "Praxis", items: ["/finanzen", "/bestellungen", "/verwaltung", "/einstellungen"] },
 ];
 
@@ -225,7 +227,6 @@ export function AppLayout() {
     const [inAppUnread, setInAppUnread] = useState(0);
     const [aktenZuValidierenCount, setAktenZuValidierenCount] = useState(0);
     const [openPraxisTicketsCount, setOpenPraxisTicketsCount] = useState(0);
-    const [openPraxisAufgabenCount, setOpenPraxisAufgabenCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -301,30 +302,23 @@ export function AppLayout() {
         if (rolle !== "ARZT" && rolle !== "REZEPTION") {
             setAktenZuValidierenCount(0);
             setOpenPraxisTicketsCount(0);
-            setOpenPraxisAufgabenCount(0);
             return;
         }
         try {
-            const aufgabenP = countOpenPraxisAufgabenForMe();
             if (rolle === "ARZT") {
-                const [akten, tickets, aufgaben] = await Promise.all([
+                const [akten, tickets] = await Promise.all([
                     countAktenZuValidieren(),
                     countOpenPraxisTicketsForMe(),
-                    aufgabenP,
                 ]);
                 setAktenZuValidierenCount(typeof akten === "number" && akten > 0 ? akten : 0);
                 setOpenPraxisTicketsCount(typeof tickets === "number" && tickets > 0 ? tickets : 0);
-                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             } else {
-                const aufgaben = await aufgabenP;
                 setAktenZuValidierenCount(0);
                 setOpenPraxisTicketsCount(0);
-                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             }
         } catch {
             setAktenZuValidierenCount(0);
             setOpenPraxisTicketsCount(0);
-            setOpenPraxisAufgabenCount(0);
         }
     }, [session?.rolle]);
 
@@ -1078,11 +1072,6 @@ export function AppLayout() {
                                             {item.to === "/tickets" && openPraxisTicketsCount > 0 ? (
                                                 <span className="count" aria-label={`${openPraxisTicketsCount} offen`}>
                                                     {openPraxisTicketsCount > 99 ? "99+" : openPraxisTicketsCount}
-                                                </span>
-                                            ) : null}
-                                            {item.to === "/posteingang" && openPraxisAufgabenCount > 0 ? (
-                                                <span className="count" aria-label={`${openPraxisAufgabenCount} offen`}>
-                                                    {openPraxisAufgabenCount > 99 ? "99+" : openPraxisAufgabenCount}
                                                 </span>
                                             ) : null}
                                         </NavLink>

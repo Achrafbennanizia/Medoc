@@ -20,6 +20,8 @@ import {
 } from "@/lib/photo-viewer-apps";
 import { EinstellungenCompanyPortalSection } from "@/systems/company-portal/pages/einstellungen-company-portal-section";
 import { EinstellungenLanHostSection } from "@/systems/lan/pages/einstellungen-lan-host";
+import { EinstellungenDeploymentSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-deployment-section";
+import { EinstellungenPairingInbox } from "@/systems/practice-host/pages/einstellungen/einstellungen-pairing-inbox";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
 import { Input, Select } from "@/views/components/ui/input";
@@ -286,6 +288,8 @@ export function EinstellungenSystemSection({
                     Speichern
                 </Button>
             </div>
+            <EinstellungenDeploymentSection />
+            {canLanHost ? <EinstellungenPairingInbox /> : null}
             {canLanHost ? <EinstellungenLanHostSection /> : null}
             {canLanHost ? <EinstellungenCompanyPortalSection /> : null}
             <div className="card-head" style={{ marginTop: 12 }}>

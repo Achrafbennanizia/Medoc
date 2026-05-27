@@ -139,7 +139,16 @@ async fn jwt_auth_middleware(
         .ok_or_else(|| unauthorized("Authorization header required"))?;
     let raw = auth
         .strip_prefix("Bearer ")
-        .ok_or_else(|| unauthorized("Bearer token required"))?;
+        .ok_or_else(|| unauthorized("Bearer token required"))?
+        .trim();
+    if raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        // Activation-token path (Slice 4): replicas authenticate sync calls
+        // with the Ed25519-signed token instead of the legacy JWT.
+        let path = req.uri().path().to_string();
+        let payload = crate::sync_http::verify_activation_for_path(&state, raw, &path).await?;
+        req.extensions_mut().insert(payload);
+        return Ok(next.run(req).await);
+    }
     let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw)
         .map_err(|_| unauthorized("Invalid token"))?;
     req.extensions_mut().insert(claims);
@@ -169,6 +178,13 @@ pub fn build_router(state: LanHttpState) -> Router {
     let public = Router::new()
         .route("/ping", get(ping))
         .route("/auth/login", post(login))
+        .route("/pairing/request", post(crate::pairing_http::submit))
+        .route("/pairing/status/{id}", get(crate::pairing_http::status))
+        .route(
+            "/pairing/master-info",
+            get(crate::pairing_http::master_info),
+        )
+        .route("/pairing/peers", get(crate::pairing_http::peers))
         .with_state(state.clone());
 
     let protected = Router::new()
@@ -188,6 +204,16 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route(
             "/company/billing/portal-session",
             post(company_billing_portal_post),
+        )
+        .route("/sync/push", post(crate::sync_http::sync_push))
+        .route("/sync/pull", post(crate::sync_http::sync_pull))
+        .route("/sync/status", get(crate::sync_http::sync_status))
+        .route("/pairing/pending", get(crate::pairing_http::pending))
+        .route("/pairing/all", get(crate::pairing_http::list_all))
+        .route("/pairing/decide/{id}", post(crate::pairing_http::decide))
+        .route(
+            "/pairing/revoke/{device_id}",
+            post(crate::pairing_http::revoke),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),

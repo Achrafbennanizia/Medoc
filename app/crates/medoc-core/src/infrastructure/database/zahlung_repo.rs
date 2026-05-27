@@ -268,12 +268,16 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
     .execute(pool)
     .await?;
 
-    Ok(
-        sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
-            .bind(&id)
-            .fetch_one(pool)
-            .await?,
+    let inserted = sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
+        .bind(&id)
+        .fetch_one(pool)
+        .await?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "zahlung", &id, "INSERT", &body,
     )
+    .await?;
+    Ok(inserted)
 }
 
 /// FA-LEIST-06: implizite Freigabe + offene Buchung (`AUSSTEHEND`, 0 €) für abrechnungsrelevante Behandlung.
@@ -554,11 +558,18 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
 
     refresh_payment_status(pool, &data.id).await?;
 
-    sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
+    let updated = sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
         .bind(&data.id)
         .fetch_optional(pool)
         .await?
-        .ok_or(AppError::NotFound("Zahlung".into()))
+        .ok_or(AppError::NotFound("Zahlung".into()))?;
+    let body =
+        serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", data.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "zahlung", &data.id, "UPDATE", &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -576,6 +587,14 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
         .bind(id)
         .execute(pool)
         .await?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "zahlung",
+        id,
+        "DELETE",
+        &format!("{{\"id\":\"{id}\"}}"),
+    )
+    .await?;
     Ok(())
 }
 
@@ -586,11 +605,17 @@ pub async fn update_status(pool: &SqlitePool, id: &str, status: &str) -> Result<
         .execute(pool)
         .await?;
 
-    sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
+    let updated = sqlx::query_as::<_, Zahlung>("SELECT * FROM zahlung WHERE id = ?1")
         .bind(id)
         .fetch_optional(pool)
         .await?
-        .ok_or(AppError::NotFound("Zahlung".into()))
+        .ok_or(AppError::NotFound("Zahlung".into()))?;
+    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "zahlung", id, "UPDATE", &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 pub async fn get_bilanz(pool: &SqlitePool) -> Result<Bilanz, AppError> {

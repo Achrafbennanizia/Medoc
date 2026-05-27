@@ -48,6 +48,9 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_for_me,
             $crate::commands::praxis_aufgabe_commands::transition_praxis_aufgabe,
             $crate::commands::praxis_aufgabe_commands::count_open_praxis_aufgaben_for_me,
+            $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_admin,
+            $crate::commands::praxis_aufgabe_commands::create_praxis_aufgabe_admin,
+            $crate::commands::praxis_aufgabe_commands::update_praxis_aufgabe_admin,
             $crate::commands::app_kv_commands::get_app_kv,
             $crate::commands::app_kv_commands::set_app_kv,
             $crate::commands::app_kv_commands::delete_app_kv,
@@ -120,6 +123,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::integration_commands::submit_eprescription,
             $crate::commands::integration_commands::send_kim_message,
             $crate::commands::invoice_commands::render_invoice_pdf,
+            $crate::commands::report_pdf_commands::render_report_pdf_command,
             $crate::commands::invoice_sequence_commands::allocate_invoice_document_number,
             $crate::commands::lan_commands::lan_server_get_config,
             $crate::commands::lan_commands::lan_server_set_config,
@@ -127,6 +131,19 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::lan_commands::lan_server_start,
             $crate::commands::lan_commands::lan_server_stop,
             $crate::commands::lan_commands::lan_server_scan,
+            $crate::commands::sync_commands::sync_get_status,
+            $crate::commands::sync_commands::sync_set_deployment,
+            $crate::commands::sync_commands::sync_run_now,
+            $crate::commands::sync_commands::sync_record_change,
+            $crate::commands::pairing_commands::pairing_list_pending,
+            $crate::commands::pairing_commands::pairing_list_all,
+            $crate::commands::pairing_commands::pairing_decide,
+            $crate::commands::pairing_commands::pairing_revoke,
+            $crate::commands::pairing_commands::pairing_master_info,
+            $crate::commands::pairing_commands::pairing_scan_lan,
+            $crate::commands::pairing_commands::pairing_submit_request,
+            $crate::commands::pairing_commands::pairing_check_status,
+            $crate::commands::pairing_commands::pairing_persist_token,
             $crate::commands::leistung_commands::list_leistungen,
             $crate::commands::leistung_commands::create_leistung,
             $crate::commands::leistung_commands::update_leistung,
@@ -207,6 +224,9 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::subscription_commands::open_subscription_portal,
             $crate::commands::subscription_commands::attach_payment_method,
             $crate::commands::system_commands::verify_license,
+            $crate::commands::system_commands::activate_license,
+            $crate::commands::system_commands::current_license_status,
+            $crate::commands::system_commands::clear_license,
             $crate::commands::system_commands::check_for_updates,
             $crate::commands::system_commands::list_detected_photo_viewer_apps,
             $crate::commands::system_commands::system_health_check,
@@ -239,7 +259,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 230;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 234;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

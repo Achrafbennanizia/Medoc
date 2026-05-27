@@ -8,6 +8,8 @@ import { listZahlungen, getBilanz } from "@/systems/practice-host/controllers/za
 import { listBilanzSnapshots, deleteBilanzSnapshot, type BilanzSnapshot } from "@/systems/practice-host/controllers/bilanz-snapshot.controller";
 import type { Zahlung, Bilanz } from "../../models/types";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
+import { buildBilanzReportBundle } from "../../lib/report-export";
+import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
@@ -82,6 +84,11 @@ export function BilanzPage() {
 
     const max = Math.max(1, ...byMonth.map(([, v]) => v.einnahmen));
 
+    const buildExportBundle = useCallback(() => {
+        if (!bilanz) return null;
+        return buildBilanzReportBundle(bilanz, byMonth, snapshots);
+    }, [bilanz, byMonth, snapshots]);
+
     if (loadError) {
         return <PageLoadError message={loadError} onRetry={reload} />;
     }
@@ -98,7 +105,10 @@ export function BilanzPage() {
             ) : null}
             <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <h2 className="page-title" style={{ margin: 0 }}>Bilanz</h2>
-                <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
+                    <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
+                </div>
             </div>
 
             <div

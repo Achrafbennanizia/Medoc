@@ -17,6 +17,7 @@ pub mod devices;
 pub mod dsfa;
 pub mod dsgvo;
 pub mod license;
+pub mod license_repo;
 pub mod logging;
 pub mod migration;
 pub mod notifications;

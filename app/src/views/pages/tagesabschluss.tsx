@@ -208,6 +208,18 @@ export function TagesabschlussPage() {
                         subtitle={`Protokolliert ${formatDateTime(selected.protokolliert_at)} — gespeicherte Kennzahlen zum Abgleich.`}
                         action={(
                             <div className="row tagesabschluss-no-print" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() =>
+                                        void downloadTagesabschlussBerichtPdf(selected, zahlungen, patienten).catch((e) =>
+                                            toast(`Tagesbericht (PDF): ${errorMessage(e)}`, "error"),
+                                        )
+                                    }
+                                >
+                                    Tagesbericht (PDF)
+                                </Button>
                                 <Button type="button" size="sm" variant="secondary" onClick={handlePrintProtokoll}>
                                     Drucken
                                 </Button>

@@ -18,6 +18,8 @@ export type PatientDetailBehandTabProps = {
     behandEditId: string | null;
     behandDeleteId: string | null;
     canViewClinical: boolean;
+    showClinicalPrices: boolean;
+    onToggleClinicalPrices: () => void;
     onStartNewBehandlung: () => void;
     onContinueBehandlung: () => void;
     onReleaseForBilling: (behandlungId: string) => void | Promise<void>;
@@ -35,6 +37,8 @@ export function PatientDetailBehandTab({
     behandEditId,
     behandDeleteId,
     canViewClinical,
+    showClinicalPrices,
+    onToggleClinicalPrices,
     onStartNewBehandlung,
     onContinueBehandlung,
     onReleaseForBilling,
@@ -58,6 +62,15 @@ export function PatientDetailBehandTab({
                         <h3 className="text-title" style={{ margin: 0 }}>
                             Behandlungen (Verlauf)
                         </h3>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={showClinicalPrices ? "primary" : "ghost"}
+                            onClick={onToggleClinicalPrices}
+                            aria-pressed={showClinicalPrices}
+                        >
+                            {showClinicalPrices ? "Preise ausblenden" : "Preise anzeigen"}
+                        </Button>
                     </div>
                     {!showBehandComposer ? (
                         <div
@@ -105,6 +118,7 @@ export function PatientDetailBehandTab({
                                         <th>Leistungsname</th>
                                         <th>Sitzung</th>
                                         <th>B.Nummer</th>
+                                        {showClinicalPrices ? <th style={{ textAlign: "right" }}>EUR</th> : null}
                                         <th>Abrechnung</th>
                                         <th style={{ width: 220 }}>Aktion</th>
                                     </tr>
@@ -116,7 +130,7 @@ export function PatientDetailBehandTab({
                                                 {showBehandComposer && behandEditId === b.id ? (
                                                     <tr>
                                                         <td
-                                                            colSpan={8}
+                                                            colSpan={showClinicalPrices ? 9 : 8}
                                                             style={{
                                                                 padding: 12,
                                                                 verticalAlign: "top",
@@ -138,6 +152,13 @@ export function PatientDetailBehandTab({
                                                     <td>{b.leistungsname || b.beschreibung || b.art}</td>
                                                     <td>{b.sitzung != null ? `Nr. ${b.sitzung}` : "—"}</td>
                                                     <td>{b.behandlungsnummer || "—"}</td>
+                                                    {showClinicalPrices ? (
+                                                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                                            {b.gesamtkosten != null && Number.isFinite(b.gesamtkosten)
+                                                                ? `${b.gesamtkosten.toFixed(2)} €`
+                                                                : "—"}
+                                                        </td>
+                                                    ) : null}
                                                     <td>
                                                         {b.freigegeben_von_arzt_id && (b.freigegeben_am ?? "").trim() !== "" ? (
                                                             <Badge variant="primary">Freigegeben</Badge>
