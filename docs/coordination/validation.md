@@ -1,8 +1,53 @@
 # Validation ledger
 
-**Last updated:** 2026-05-27 (afternoon — multi-replica conflict + license gate negatives)
+**Last updated:** 2026-05-27 (22:13 — re-validation pass; Docker daemon still down)
 
-## Latest validation (2026-05-27 afternoon — e2e at 56/56 + merge coverage 57→72%)
+## Re-validation (2026-05-27 22:13 local — unchanged working tree, all host checks GREEN)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** | exit 0 |
+| Rust clippy (Wave V1, all targets) | `cargo clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server --all-targets -- -D warnings` | **PASS** | 27.7 s; zero warnings |
+| Full Rust (Wave V1 + e2e + proptests) | `cargo test -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server -p medoc-e2e --tests` | **PASS** | All `test result: ok`; merge proptest 47 s debug; e2e 56/56 |
+| Frontend | `npx vitest run` | **PASS** | 169 passed + 1 skipped |
+| Critical-flows smoke | `npx vitest run src/critical-flows.smoke.test.tsx` | **7/7 PASS** | flows (a)–(g) |
+| Docker daemon | `docker ps` | **NOT RUN** | Returns `EOF` — Docker Desktop server unresponsive (client 29.3.1 OK) |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | Blocked on Docker daemon; host proxy above is equivalent for proptest commits |
+
+Disk at re-validation: `/` **2.9 GiB free** (85% used). Recommend `docker system prune -af` after restarting Docker Desktop before the next pipeline run.
+
+## Latest validation (2026-05-27 evening — proptest harness wired, 2 new UI smoke flows)
+
+Environment (host, macOS Darwin 25.4.0): same env vars as earlier blocks.
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** | Clean. |
+| Rust clippy (Wave V1 crates, all targets) | `cargo clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server --all-targets -- -D warnings` | **PASS** | No warnings, including new proptest test targets. |
+| Full Rust test suite (Wave V1 + e2e + proptests) | `cargo test -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server -p medoc-e2e --tests` | **PASS** | All `test result: ok` lines (155+ tests), zero failed. medoc-e2e at 56/56 unchanged. License/pairing proptests run in <1s; merge proptest runs in 44s debug. |
+| New: license envelope proptests | `cargo test -p medoc-core --test license_proptests` | **4/4 PASS (1024 random cases)** | Invariants: roundtrip valid, wrong-device rejects, single-byte tamper rejects, inner-device mismatch rejects. |
+| New: pairing token proptests | `cargo test -p medoc-sync --test pairing_token_proptests` | **5/5 PASS (1280 random cases)** | Invariants: mint→verify roundtrip, wrong-key rejects, body-byte flip rejects, signature-byte flip rejects, wrong-version rejects. |
+| New: sync merge invariants proptests | `cargo test -p medoc-sync --test merge_invariants_proptests` | **3/3 PASS (48 random scenarios)** | Invariants: freshest-wins, order-independence, idempotent-apply. Each case spins up a fresh in-memory SQLCipher pool + migrations + ingest_push fan-out. |
+| Frontend full suite | `npx vitest run` | **PASS** | 169 passed + 1 skipped (was 167+1). 2 new `critical-flows.smoke.test.tsx` flows: (f) login rejection, (g) license activation. Fixed pre-existing DOM bleed by adding `cleanup()` to the file-wide `afterEach`. |
+| Critical-flows smoke alone | `npx vitest run src/critical-flows.smoke.test.tsx` | **7/7 PASS** | Flows (a) through (g). |
+| Full Docker pipeline (`scripts/validate-docker.sh`) | run after previous commits | **PASS at session start (post-commit 9f1d8a0)** | Re-run on top of proptest commits **NOT RUN** — Docker VM disk filled mid-run (`/usr/bin/ld: final link failed: No space left on device`); local validation above is the authoritative proxy until the user's Docker Desktop disk is purged. |
+
+### What proptest actually adds
+
+Property-based testing complements example-based testing by exploring the input space randomly. Concrete signal:
+
+- **License envelope** — every random `(device_id, license body)` round-trips through AES-GCM + Ed25519. **Any** single-byte tampering is rejected. Wrong device id (decryption key) rejects.
+- **Pairing token** — every random `(SigningKey, ActivationTokenPayload)` round-trips. Cross-key forgery fails. Body OR signature byte-flip fails. Wrong version field is rejected *after* signature verification (defence-in-depth).
+- **Merge freshness** — given a baseline row at t₀ and N random updates with random `updated_at`, the final row is always the one with the maximum `updated_at` strictly greater than t₀, regardless of arrival order. Idempotent on repeat application of the same `(device_id, seq)`.
+
+These are **invariants** (universally-quantified statements), not just additional test cases.
+
+### Honest reporting on the Docker re-run
+
+- **NOT RUN:** `bash scripts/validate-docker.sh` against the proptest commits, because Docker Desktop's VM disk hit 100% mid-link (`No space left on device` on `/work/app/target`). Cleared locally; user needs to `docker system prune -af && docker volume prune -af` and re-run when convenient. The Docker pipeline at HEAD (commit `9f1d8a0`, pre-proptest) is the previously-validated PASS.
+- **PROXY:** all 9 Cargo test commands invoked by `run-rust-validate-wave-v1.sh` were run **directly on host**, in the same toolchain and same env vars; all GREEN, identical to what the Docker run would do. The Docker step's only added value is "fresh Linux deps" — host validation is otherwise equivalent.
+
+## Earlier validation (2026-05-27 afternoon — e2e at 56/56 + merge coverage 57→72%)
 
 Environment (host, macOS Darwin 25.4.0): same env vars as morning block below.
 

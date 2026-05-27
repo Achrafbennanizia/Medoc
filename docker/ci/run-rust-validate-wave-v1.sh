@@ -28,6 +28,11 @@ cargo test -p medoc-core --test sync_outbox_hooks_tests
 cargo test -p medoc-sync --lib
 cargo test -p medoc-e2e --tests
 
+echo "=== property-based tests (proptest) ==="
+cargo test -p medoc-core --test license_proptests
+cargo test -p medoc-sync --test pairing_token_proptests
+cargo test -p medoc-sync --test merge_invariants_proptests
+
 # Optional coverage pass. Skipped by default to keep CI under the
 # 5-minute budget; enable per-run with MEDOC_COVERAGE=1.
 if [[ "${MEDOC_COVERAGE:-0}" == "1" ]]; then

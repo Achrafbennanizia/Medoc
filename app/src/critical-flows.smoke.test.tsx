@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "@/models/types";
@@ -12,6 +12,7 @@ import { createTermin, updateTermin } from "@/systems/practice-host/controllers/
 import { createZahlung, updateZahlungStatus } from "@/systems/practice-host/controllers/zahlung.controller";
 import { DatenschutzPage } from "@/views/pages/datenschutz";
 import { TagesabschlussForm } from "@/views/components/tagesabschluss-form";
+import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import type { Zahlung } from "@/models/types";
 import { tauriInvoke } from "@/services/tauri.service";
 
@@ -66,6 +67,7 @@ function resetAuthStore() {
 }
 
 afterEach(() => {
+    cleanup();
     resetAuthStore();
     vi.clearAllMocks();
 });
@@ -336,6 +338,126 @@ describe("critical flow (d) Tagesabschluss mismatch → Notiz → protokollieren
         expect(payload.notiz).toBe("Kassenabweichung Smoke");
         expect(payload.bar_stimmt).toBe(0);
         expect(payload.abweichung_eur).not.toBeNull();
+    });
+});
+
+describe("critical flow (f) login rejection on wrong password", () => {
+    beforeEach(() => {
+        resetAuthStore();
+        vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+            switch (cmd) {
+                case "get_db_setup_status":
+                    return { needsPassphraseSetup: false, needsUnlock: false };
+                case "get_session":
+                    return null;
+                case "login":
+                    throw new Error("Falsche E-Mail oder Passwort");
+                case "check_for_updates":
+                    return { current_version: "0.1.0", latest_version: "0.1.0", update_available: false, channel: "stable" };
+                case "sync_native_menu":
+                    return undefined;
+                case "get_app_kv":
+                    return null;
+                default:
+                    throw new Error(`unmocked IPC in flow (f): ${cmd}`);
+            }
+        });
+    });
+
+    it("surfaces the backend error message and keeps the user on the login screen", async () => {
+        const user = userEvent.setup();
+        render(<App />);
+
+        expect(await screen.findByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("E-Mail"), "smoke@medoc.test");
+        const pw = document.querySelector<HTMLInputElement>("#passwort");
+        expect(pw).toBeTruthy();
+        await user.type(pw!, "bogus");
+        await user.click(screen.getByRole("button", { name: /Anmelden$/ }));
+
+        const alert = await screen.findByRole("alert");
+        expect(alert.textContent ?? "").toMatch(/Falsche E-Mail oder Passwort/);
+
+        expect(screen.getByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+        const ipcCommands = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
+        expect(ipcCommands).toContain("login");
+        expect(useAuthStore.getState().session).toBeNull();
+    });
+});
+
+describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → shows active license", () => {
+    let firstStatusServed = false;
+
+    beforeEach(() => {
+        firstStatusServed = false;
+        vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+            switch (cmd) {
+                case "current_license_status": {
+                    if (!firstStatusServed) {
+                        firstStatusServed = true;
+                        return { valid: false, reason: "Lizenz abgelaufen", format: null };
+                    }
+                    return {
+                        valid: true,
+                        reason: null,
+                        format: "v2",
+                        licenseV2: {
+                            customerId: "ACME",
+                            edition: "PRO",
+                            deviceId: "smoke-master",
+                            activatedAt: "2026-05-27T12:00:00Z",
+                            maxUsers: 5,
+                            modules: [],
+                            editionFeatures: [],
+                        },
+                    };
+                }
+                case "activate_license": {
+                    const t = String((args as { token?: string })?.token ?? "");
+                    if (t.startsWith("v2.")) {
+                        return {
+                            valid: true,
+                            reason: null,
+                            format: "v2",
+                            licenseV2: {
+                                customerId: "ACME",
+                                edition: "PRO",
+                                deviceId: "smoke-master",
+                                activatedAt: "2026-05-27T12:00:00Z",
+                                maxUsers: 5,
+                                modules: [],
+                                editionFeatures: [],
+                            },
+                        };
+                    }
+                    return { valid: false, reason: "Format ungültig", format: null };
+                }
+                default:
+                    throw new Error(`unmocked IPC in flow (g): ${cmd}`);
+            }
+        });
+    });
+
+    it("renders activation prompt, accepts a v2 token, and shows the active license panel", async () => {
+        const user = userEvent.setup();
+        const onActivated = vi.fn();
+        render(<LicenseActivatePage onActivated={onActivated} />);
+
+        expect(await screen.findByRole("heading", { name: "Lizenz aktivieren" })).toBeInTheDocument();
+
+        const tokenInput = screen.getByLabelText("Lizenz-Token") as HTMLTextAreaElement;
+        await user.type(tokenInput, "v2.dummybody.dummysig");
+        await user.click(screen.getByRole("button", { name: /Lizenz aktivieren/ }));
+
+        await waitFor(() => {
+            expect(
+                screen.getByLabelText("Aktive Lizenz"),
+            ).toBeInTheDocument();
+        });
+        const calls = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
+        expect(calls).toContain("activate_license");
+        expect(onActivated).toHaveBeenCalled();
     });
 });
 
