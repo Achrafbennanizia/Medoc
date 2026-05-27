@@ -1,6 +1,230 @@
 # Validation ledger
 
-**Last updated:** 2026-05-26 (Wave B COMPLETE — three independently-runnable binaries verified)
+**Last updated:** 2026-05-27 (afternoon — multi-replica conflict + license gate negatives)
+
+## Latest validation (2026-05-27 afternoon — e2e at 56/56 + merge coverage 57→72%)
+
+Environment (host, macOS Darwin 25.4.0): same env vars as morning block below.
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PASS** | Frontend (167+1 skipped Vitest) + Rust Wave V1 + `medoc-e2e` (56/56 in Linux Docker) + headless HTTPS smoke. ≈3.1 min wall clock. |
+| `medoc-e2e` full | `cargo test -p medoc-e2e --tests` | **56/56 PASS** | Up from 40. New files: `multi_replica_roundtrip.rs` (9), `license_gate_negatives.rs` (7). |
+| Rust coverage (Wave V1 + e2e) | `cargo llvm-cov` clean+run+report | **PASS** | `medoc-sync/merge.rs` **57.04% → 71.85%**; `medoc-lan/master_license.rs` 85.96% → 89.47%; `medoc-lan/sync_http.rs` 88.51% → 89.86%; TOTAL 25.94% lines (the workspace floor is dominated by untested non-Wave-V1 code). |
+
+### New test files (HTTP-layer evidence)
+
+- **`multi_replica_roundtrip.rs`** drives `/api/v1/sync/{push,pull,status}` end-to-end. Assertions on `sync_applied` (not `sync_vector`, which only tracks LOCAL outbox high-water marks per device).
+- **`license_gate_negatives.rs`** walks every negative branch of `master_license::require_master_license` from the LAN HTTP surface. Tests serialise on `MEDOC_SKIP_MASTER_LICENSE` via a per-file `Mutex` since the env var is process-wide.
+
+### Subtle finding: `vectors` semantics in `/sync/status`
+
+Discovered while writing `replica_push_applies_one_patient_row_on_master`: the `vectors` field returned by `/sync/status` is **the local outbox high-water mark per device on the queried pool** (filled by `register_device_row` to 0, incremented by `append_outbox`), not the "max applied sequence per remote device". When the master ingests a push from a replica, the master records `(source_device_id, source_seq)` in `sync_applied`; `sync_vector[replica_id]` on the master stays 0 because the master never *writes* outbox entries on behalf of the replica. This is consistent with how `pull_from_master` uses `all_vectors` (to decide "since which seq on the master's own device do I pull?"), but worth keeping in mind for any future UI that surfaces these numbers.
+
+## Earlier validation (2026-05-27 morning — e2e suite doubled + real coverage + revoke fix)
+
+Environment (host, macOS Darwin 25.4.0): `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MEDOC_DB_KEY=0123…`, `MEDOC_AUDIT_KEY=k9-medoc-test-audit-key-32bytes!`, `MEDOC_PAIRING_MASTER_SECRET=0123…`.
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PASS** | Frontend (167 + 1 skip Vitest) + Rust Wave V1 scoped (fmt + clippy + tests) + `medoc-e2e` (40/40 in Docker) + headless `medoc-server` HTTPS smoke. |
+| `medoc-e2e` full | `cargo test -p medoc-e2e --tests` | **40/40 PASS** | Up from 20 — added `revoke_and_rotation.rs` (7), `outbox_clinical_writes.rs` (3), `serverful_lan_client_flows.rs` (10). |
+| Wave V1 clippy | `cargo clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server --all-targets -- -D warnings` | **PASS** | No new warnings. |
+| Frontend coverage | `npm run test:coverage` (vite config + `@vitest/coverage-v8`) | **PASS** | Lines 14.65% (6867/46873), Branches 57.57%, Functions 35.57%. Honest baseline — most UI screens have no unit tests. |
+| Rust coverage | `cargo llvm-cov` (workspace, scoped to Wave V1 tests + e2e) | **PASS** | TOTAL 25.61% lines; Wave V1 critical path 55–100% (see breakdown in `phase-handoff.md`). Reports written to `app/target/coverage/{summary.txt,lcov.info}`. |
+
+### Security fix: revoked-slave bypass on `/sync/*` and `/pairing/peers`
+
+- **Where:** `app/crates/medoc-lan/src/sync_http.rs::verify_activation_for_path` (lines ~121–157) and `app/crates/medoc-lan/src/pairing_http.rs::peers` (lines ~205–225).
+- **Old behaviour:** when the master revoked a slave via `pairing::revoke`, `slave_permission` rows were deleted. The gate then did `if !actions.is_empty() && !actions.iter().any(...) { 403 }` — i.e. it **skipped the rejection** in the now-empty case and trusted the token's baked-in `allowed_actions` claim. Mt2 activation tokens are perpetual until the master Ed25519 signing key rotates, so the bypass was effectively forever.
+- **New behaviour:** consult `pairing_request.status`. `REVOKED` → 403. No row at all → mesh-peer case (sibling pushing to us); still pass via the master signature, because we are not this device's master and never had its permission rows. Otherwise verify the action against live `slave_permission` rows.
+- **Regression tests:** `revoke_and_rotation::revoked_action_rejects_sync_status_even_with_valid_token` (was failing before the fix; now passes), `revoke_and_rotation::revoked_slave_cannot_access_pairing_peers_either` (new), `two_replica_mesh::mesh_push_delivers_outbox_entry_to_peer_replica` (broke under the first attempt at the fix, passes again under the refined gate).
+
+### Frontend regression fix
+
+- **Where:** `app/src/critical-flows.smoke.test.tsx` flow (a).
+- **Symptom:** `LicenseAndPairingGate` + `ReplicaSyncBackground` now invoke `current_license_status` and `sync_get_status` during boot. The mock returned `undefined`, the gate failed, and the dashboard greeting never rendered → "Unable to find role=heading".
+- **Fix:** added both mocks. Flow (a) now passes against the unmodified production gate.
+
+## Earlier validation (2026-05-26 — mesh push + peer-list signature fix)
+
+Environment: `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MEDOC_DB_KEY=0123456789abcdef…`, `MEDOC_PAIRING_MASTER_SECRET=0123456789abcdef…`.
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| `medoc-e2e` HTTP integration (host) | `cargo test -p medoc-e2e --tests` | **PASS** | **20 tests** incl. live mesh push over TCP |
+| Docker E2E all systems | `./scripts/validate-docker-e2e.sh` | **PASS** | Linux ~42s: scoped crate tests + `medoc-e2e` 20/20 + headless smoke |
+| Mesh peer-list signature | `medoc-e2e::mesh_push_delivers_outbox_entry_to_peer_replica` | **PASS** | Fixed canonical verify (`SignedMeshPeerEntry`); peers URL from `sync_device` |
+
+### Bug fixes (2026-05-26 follow-up)
+
+- **`fetch_peer_list` signature mismatch** — verification now re-serialises the
+  full peer entry (`deviceId`, `slaveLabel`, `slavePubkey`, `peerBaseUrl`) to
+  match what the master signs in `pairing_http::peers`.
+- **Peer URL source** — `pairing::peer_advertised_url` prefers
+  `sync_device.peer_base_url` (updated by `touch_replica_seen` / pairing accept)
+  over derived `https://{ip}:8787`.
+
+---
+
+## Prior validation (2026-05-26 — Wave V1 E2E Docker)
+
+Environment: `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MEDOC_DB_KEY=0123456789abcdef…`, `MEDOC_PAIRING_MASTER_SECRET=0123456789abcdef…`.
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| `medoc-e2e` HTTP integration (host) | `cargo test -p medoc-e2e --tests` | **PASS** | **16 tests**: LAN pairing/sync/RBAC (7), company portal (6), license+outbox (3). |
+| Docker E2E all systems | `./scripts/validate-docker-e2e.sh` | **PASS** | Linux ~77s: scoped crate tests + `medoc-e2e` 19/19 + headless smoke |
+| Full Docker validate (frontend + scoped + e2e) | `./scripts/validate-docker.sh` | **PASS** | Includes e2e phase after Wave V1 scoped Rust. |
+
+### E2E coverage (`app/crates/medoc-e2e/tests/`)
+
+| File | Cases |
+| ---- | ----- |
+| `lan_pairing_sync.rs` | health/ping, JWT login+`/me`, pairing accept/reject, activation-token sync push/pull/status/peers, RBAC 403 on `/patienten`, device-id mismatch 403, unauth 401 |
+| `company_portal.rs` | public health, authenticated summary/flags/integrations, invalid key, missing slug, billing attach validation |
+| `license_and_outbox.rs` | license v2 store+verify in `app_kv`, outbox hook on patient create, JWT patient list |
+| `two_replica_mesh.rs` | signed peer list URLs, license gate on unlicensed master, `touch_replica_seen`, **live mesh push** (TCP replicas) |
+
+### E2E scripts
+
+```bash
+# E2E only (Rust + headless medoc-server smoke)
+./scripts/validate-docker-e2e.sh
+
+# Full Docker CI mirror (frontend + scoped Rust + e2e)
+./scripts/validate-docker.sh
+```
+
+---
+
+## Prior validation (2026-05-26 — Wave V1 re-validation)
+
+Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`, `MEDOC_DB_KEY=0123456789abcdef…` (test key).
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| `cargo fmt --all -- --check` | as written | **PASS** | |
+| `cargo clippy --workspace --all-targets -- -D warnings` | as written | **PASS** | After fixes: `photo_viewer_scan.rs` (`explicit_counter_loop`), `app_menu.rs` (`#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]` on `pkg`). |
+| `cargo test --workspace --tests` | as written | **PASS** | All binaries green (~48s). Wave V1: `license_v2_tests` 6/6, `sync_outbox_hooks_tests` 7/7, `medoc_sync` lib 9/9. |
+| `npm run lint` | as written | **PASS** | |
+| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`posteingang.smoke.test.tsx`). |
+| `npm run build` | as written | **PASS** | 2.4s; chunk-size warning pre-existing. |
+| Docker frontend (`medoc-fe-ci`) | `./scripts/validate-docker.sh` | **PASS** | Linux Node 20; lint + vitest + build (~34s). |
+| Docker Rust Wave V1 scoped | `./scripts/validate-docker.sh` | **PASS** | Linux `rust:1-bookworm`; fmt + clippy + tests for medoc-core/sync/lan/company (~186s). Wave V1 integration tests 6+7+9 green inside container. |
+| Docker Rust full workspace + Tauri | `VALIDATE_DOCKER_FULL=1 ./scripts/validate-docker.sh` | **NOT RUN** | Scoped path sufficient; full Tauri link optional (~8 GiB). |
+
+### Fixes applied during re-validation
+
+| File | Fix | Reason |
+| ---- | ----- | ------ |
+| `medoc-core/.../pdf.rs` | Removed `truncate_cell` before `wrap_soft` on akte table rows | `test_akte_untersuchung_table_renders_full_psi` failed — clinical text (e.g. `CHX`) was clipped. |
+| `medoc-core/.../photo_viewer_scan.rs` | `(0_u32..).zip(CANDIDATES.iter())` | Linux clippy `explicit_counter_loop` (-D warnings). |
+| `medoc-core/.../app_menu.rs` | `#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]` on `pkg` | `pkg` used only in `#[cfg(target_os = "macos")]` block; Linux clippy treats it as unused. |
+| `docker/ci/*`, `scripts/validate-docker.sh` | CI-mirror Docker validation | Reproducible Linux checks; Wave V1 scoped image skips Tauri link to save disk. |
+
+### Docker usage (when daemon is running)
+
+```bash
+# Default: frontend + Wave V1 scoped Rust (recommended, ~4 GiB free disk)
+./scripts/validate-docker.sh
+
+# Full workspace + Tauri inside Docker (needs ~8+ GiB free)
+VALIDATE_DOCKER_FULL=1 ./scripts/validate-docker.sh
+```
+
+### Still NOT OBSERVED / DEFERRED
+
+- Live two-device pairing + sync smoke (master + replica hosts).
+- Mesh peer-list signature verification in `SyncEngine::run_mesh_sync`.
+- Docker full-workspace + Tauri (`VALIDATE_DOCKER_FULL=1`) — optional; scoped Linux run **PASS** 2026-05-26.
+
+---
+
+## Prior validation (2026-05-26 — PDF, Patientenakte, Finanzen, Aufgaben)
+
+Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| `npm run lint` | as written | **PASS** | |
+| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`posteingang.smoke.test.tsx` — page deaktiviert). |
+| `npm run build` | as written | **PASS** | Vite 7.16s; chunk-size warning pre-existing. |
+| `cargo test --test pdf_document_tests --test invoke_registration_tests -p medoc` | as written | **PASS** | IPC count **234**; 8 PDF marker tests green. |
+
+**NOT OBSERVED:** Live PDF preview in Tauri WKWebView; Posteingang page runtime (route commented out).
+
+---
+
+## Prior validation (2026-05-26 — Wave V1)
+
+Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`
+(CI value; `MEDOC_VENDOR_SEED` left unset → deterministic dev seed warning).
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| `cargo fmt --all -- --check` | as written | **PASS** | After applying one `cargo fmt --all` autofix (formatter divergence on `pairing_commands.rs` + `pdf_document_tests.rs`). |
+| `cargo clippy --workspace --all-targets -- -D warnings` | as written | **PASS** | Builds medoc-codegen → medoc-core → medoc-sync → medoc-company → medoc-company-server → medoc-lan → medoc → medoc-lan-server (16s). |
+| `cargo test --workspace --tests` | as written | **PASS** | All workspace test binaries green, including the new ones: `medoc-core::tests::license_v2_tests` (6), `medoc-core::tests::sync_outbox_hooks_tests` (7), `medoc-core::infrastructure::database::sync_outbox::tests` (3), `medoc_sync::pairing::tests` (4), `medoc_sync::engine::tests` (3 incl. 2 freshness tests). Run time ≈ 58s. |
+| `npm run lint` | as written | **PASS** | `eslint src --max-warnings 0`. |
+| `npm test` | as written | **PASS** | **168 tests** / 31 files. |
+| `npm run build` | as written | **PASS** | Vite build 2.5s; chunk warning for `index-*.js` / `statistik-*.js` is pre-existing. |
+
+### New tests added in this wave
+
+- `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs` (7):
+  patient lifecycle, termin lifecycle, praxis_aufgabe insert+status,
+  zahlung create+update_status, app_kv with sync-key exclusion,
+  practice-desktop no-op control.
+- `app/crates/medoc-sync/src/engine.rs::tests`:
+  `master_does_not_overwrite_newer_replica_row` and
+  `newer_master_push_overwrites_older_replica_row` (Slice 6).
+- `app/crates/medoc-sync/src/pairing.rs::tests`:
+  `submit_then_accept_round_trip_issues_token`,
+  `verify_token_rejects_wrong_master_pubkey`,
+  `revoke_clears_permissions_and_marks_revoked`,
+  `reject_keeps_no_token_and_no_permissions`,
+  `second_submit_replaces_pending_row`.
+- `app/crates/medoc-core/tests/license_v2_tests.rs` (6):
+  full round-trip, tampered ciphertext rejection, wrong-device
+  rejection, inner-device mismatch, v1 legacy path, v1 expiry.
+
+### Not run / deferred
+
+- **Live two-device pairing smoke** — needs second physical/VM host; flagged DEFERRED.
+- **Tauri `cargo build -p medoc` cold build** — incremental check via `cargo clippy` covers compilation; no fresh bundle produced.
+- **Mesh peer-list signature verification** — `SyncEngine::run_mesh_sync`
+  compiles and is exercised on the type level only; no live mesh test.
+
+---
+
+## Previous validation (2026-05-26 — report export / import)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Report export unit tests | `npm test -- src/lib/report-export.test.ts src/lib/report-import.test.ts` | **PASS** | 10 tests — builders, CSV/JSON/XML, JSON+XML round-trip import |
+| Full vitest | `npm test` | **PASS** | **168 tests** / 31 files |
+| ESLint | `npm run lint` | **PASS** | |
+| Frontend build | `npm run build` | **PASS** | 3.75s |
+| PDF report markers | `MEDOC_VENDOR_PUBKEY=… cargo test --test pdf_document_tests test_financial_report` | **PASS** | `render_report_pdf` via `render_akte_blocks` |
+| IPC count | `cargo test --test invoke_registration_tests` | **PASS** | **231** commands (`render_report_pdf_command`) |
+
+**Wired pages:** Statistik, Bilanz, Finanzen, Compliance (VVT/DSFA/Retention), Audit-Log, Tagesabschluss (PDF re-export). **Import:** JSON/XML round-trip via `ReportExportToolbar` → `report-import.ts`.
+
+**Still NOT OBSERVED:** live Tauri WKWebView PDF preview for report exports.
+
+## Latest validation (2026-05-26 — deployment + serverless sync)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Workspace `cargo test --tests` | `cd app && MEDOC_* cargo test --workspace --tests` | **PASS** | incl. `medoc-sync` 2 unit tests (`push_ingest_applies_app_kv_row`, allow-list) |
+| Workspace `cargo clippy -D warnings` | as above | **PASS** | |
+| Frontend lint / test / build | `npm run lint && npm test && npm run build` | **PASS** | **158 vitest** (+`deployment-config.test.ts`); build 3.2s |
+| Three binaries still isolated | `cargo build -p medoc -p medoc-lan-server -p medoc-company-server` | **NOT RUN** this session | prior Wave B8 **PASS** still valid |
+
+**New artefacts (evidence):** `app/crates/medoc-sync/`, `docs/architecture/deployment-topologies.md`, `docs/architecture/serverless-sync.md`, Einstellungen → **Bereitstellung & Sync**, LAN routes `/api/v1/sync/*`.
+
+**Still NOT OBSERVED:** live two-device serverless sync; automatic outbox hooks on every repo write; Wave C npm package split.
 
 ## Verified (commands run, outcomes recorded)
 

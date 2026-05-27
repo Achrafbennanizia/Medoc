@@ -22,7 +22,10 @@ pub mod config;
 pub mod discovery;
 pub mod http;
 pub mod jwt;
+pub mod master_license;
+pub mod pairing_http;
 pub mod secrets;
+pub mod sync_http;
 pub mod tls;
 
 pub use config::{LanServerConfigV1, APP_KV_KEY};

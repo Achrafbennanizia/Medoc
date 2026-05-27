@@ -68,7 +68,9 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     { to: "/termine", labelKey: "nav.termine", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", visibility: { kind: "action", action: "patient.read" } },
     { to: "/akten/zu-validieren", labelKey: "nav.akten_zu_validieren", visibility: { kind: "action", action: "patient.read_medical" } },
+    /* Posteingang deaktiviert — Aufgaben unter Verwaltung
     { to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
+    */
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
@@ -98,7 +100,9 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "patienten/:id/rezept/neu": { kind: "action", action: "patient.write_medical" },
     "patienten/:id/rezept/:rezeptId": { kind: "action", action: "patient.write_medical" },
     "akten/zu-validieren": { kind: "action", action: "patient.read_medical" },
+    /* posteingang deaktiviert
     posteingang: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
+    */
     tickets: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
     finanzen: { kind: "action", action: "finanzen.read" },
     "finanzen/neu": { kind: "action", action: "finanzen.write" },
@@ -126,6 +130,7 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     feedback: { kind: "action", action: "dashboard.read" },
     migration: { kind: "action", action: "ops.migration" },
     verwaltung: { kind: "action", action: "verwaltung.read" },
+    "verwaltung/aufgaben": { kind: "action", action: "verwaltung.read" },
     "verwaltung/team": { kind: "action", action: "verwaltung.team.read" },
     "verwaltung/arbeitstage": { kind: "action", action: "verwaltung.praxisplanung.read" },
     "verwaltung/praxisplanung": { kind: "action", action: "verwaltung.praxisplanung.read" },

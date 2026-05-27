@@ -1,9 +1,85 @@
 # Action ledger
 
-**Last updated:** 2026-05-26 (Wave B COMPLETE — three independently-runnable binaries)
+**Last updated:** 2026-05-27 (afternoon: multi-replica conflict + license gate negatives)
 
 ## Now
 
+- **Testing matrix expansion v2 (2026-05-27 afternoon) — DONE**
+  - `medoc-e2e` grew 40 → **56** in-process HTTP integration tests.
+    New files: `multi_replica_roundtrip.rs` (9) covering full HTTP
+    push/pull/freshness conflict scenarios; `license_gate_negatives.rs`
+    (7) covering every negative branch of
+    `master_license::require_master_license` on the LAN HTTP surface
+    (unlicensed, tampered envelope, wrong-device, skip-switch,
+    replica-role exemption).
+  - `medoc-sync/merge.rs` coverage **57.04% → 71.85%** (+14.81 pp).
+    `medoc-lan/master_license.rs` **85.96% → 89.47%**.
+  - All 56/56 e2e tests GREEN in Docker via
+    `bash scripts/validate-docker.sh`.
+
+- **Testing matrix expansion v1 (2026-05-27 morning) — DONE**
+  - `medoc-e2e` doubled from 20 → 40 in-process HTTP integration tests.
+    New files: `revoke_and_rotation.rs` (7), `outbox_clinical_writes.rs`
+    (3), `serverful_lan_client_flows.rs` (10).
+  - Security defect found by the new revoke test and fixed at
+    `medoc-lan::sync_http::verify_activation_for_path` and
+    `medoc-lan::pairing_http::peers` (default-deny via
+    `pairing_request.status`).
+  - Real coverage wired and measured:
+    `npm run test:coverage` (vitest+v8) and `cargo llvm-cov` on the
+    Wave V1 + e2e scope. Numbers recorded in `validation.md` and
+    `phase-handoff.md` — no more aspirational "100%".
+  - Frontend smoke regression fix in `critical-flows.smoke.test.tsx`
+    flow (a).
+  - Full Docker pipeline (`scripts/validate-docker.sh`) GREEN
+    end-to-end on macOS host.
+
+## Now (carried over)
+
+- **Wave V1 — master/slave pairing + license v2 — DONE**
+  - License v2 envelope (perpetual, device-bound, Ed25519-signed + AES-GCM
+    encrypted, persisted in `app_kv`). `app/crates/medoc-core/tests/license_v2_tests.rs`.
+  - Pairing crate (`medoc-sync::pairing`) + LAN routes
+    `/api/v1/pairing/{request,status,master-info,decide,revoke,pending,peers}`.
+  - Master Ed25519 keypair in OS keychain (`medoc-sync::master_keys`).
+  - Activation tokens replace JWT for `/sync/push|pull|status` and
+    `/pairing/peers`; legacy JWT still accepted for older installs.
+  - `ConflictPolicy::MasterWinsWithFreshness` using `updated_at`.
+  - Auto outbox hooks for the 8 allow-listed tables; 7 tests in
+    `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`.
+  - Frontend: replica `pairing-scan.tsx`, master `einstellungen-pairing-inbox.tsx`,
+    `license-activate.tsx`, top-level `LicenseAndPairingGate`.
+
+## Next
+
+- **Pragmatic testing scope continuation** (2026-05-27, time-boxed):
+  - **NOT-RUN this session:** 3-slave conflict matrix
+    (newer-master / newer-replica / simultaneous writes); license tamper
+    + activation-token expiry; tauri-driver (or Playwright on Vite dev
+    server) for 5-10 critical UI flows; proptest for sync engine,
+    license envelope, pairing token sign/verify; coverage rebuild
+    inside Docker (host run was successful, Docker image rebuild
+    deferred).
+  - Coverage targets are still moving — the Wave V1 critical path is at
+    55–100% per file but the workspace TOTAL is 25.61% lines because of
+    untested non-Wave-V1 surface area (PDF rendering, telematik, DSGVO,
+    devices, many `medoc-core/database` repos). "100% coverage" is not
+    achievable in a single follow-up session; needs a multi-week
+    UI/PDF/devices test-writing campaign.
+- **Live two-device verification** of pairing + sync + mesh (needs two
+  physical/VM hosts). Deferred from Slice 8 — scaffolding in place.
+- **Mesh sync hardening** — verify the master-signed peer list in
+  `SyncEngine::run_mesh_sync`, add per-peer `delivered_at` bookkeeping,
+  flip `unstable_mesh` from BEST-EFFORT to supported.
+- **Per-slave RBAC migration** for the remaining LAN routes
+  (currently only `/sync/*` + `/pairing/peers` consume
+  `allowed_actions[]`).
+- **Repository allow-list expansion** beyond the 8 outbox-hooked tables
+  (anamnesebogen, zahnbefund, etc.) — domain review required first.
+- **mDNS pairing** instead of UDP broadcast (cross-subnet support).
+- Long-running: requirements-coverage audit per `AGENTS.md` Phase 1.6.
+
+## Legacy Now (kept for context)
 - **Workspace restructure — see [`restructure-plan.md`](restructure-plan.md):**
   - **Wave A — DONE** `f402f28` — three-system frontend cleanup; 155 tests / 28 files green.
   - **Wave B1 (mapping) — DONE** [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md).

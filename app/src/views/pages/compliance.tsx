@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useT } from "../../lib/i18n";
 import { errorMessage, formatDateTime } from "../../lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { buildComplianceReportBundle } from "../../lib/report-export";
+import { ReportExportToolbar } from "../components/report-export-toolbar";
 import {
     enforceLogRetention,
     generateDsfa,
@@ -202,17 +203,13 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
         }
     }
 
-    function download() {
-        if (!report) return;
-        const text = JSON.stringify(report.data, null, 2);
-        openExportPreview({
-            format: "json",
-            title: "Compliance-Bericht exportieren",
-            hint: `${report.kind.toUpperCase()} · JSON drucken oder als Datei sichern.`,
-            suggestedFilename: `medoc-${report.kind}-${new Date().toISOString().slice(0, 10)}.json`,
-            textBody: text,
-        });
-    }
+    const buildExportBundle = useCallback(() => {
+        if (!report) return null;
+        return buildComplianceReportBundle(
+            report.kind,
+            report.data as VVT | DSFA | LogRetentionReport,
+        );
+    }, [report]);
 
     async function copyStructuredJson() {
         if (!report) return;
@@ -269,9 +266,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                         <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
                             JSON kopieren
                         </Button>
-                        <Button type="button" variant="ghost" onClick={download}>
-                            JSON-Datei…
-                        </Button>
+                        <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
                         <Button type="button" variant="secondary" onClick={printReport}>
                             Bericht drucken
                         </Button>

@@ -70,19 +70,25 @@ pub struct Letterhead<'a> {
 ///
 /// Returns `pb.y` nach dem Briefkopf (kann der Aufrufer für weitere
 /// Positionierung nutzen, ist aber bereits in `pb.y` gesetzt).
+const LEFT_HEADER_WRAP: usize = 46;
+const LEFT_HEADER_MIN_Y: i32 = M_TOP - 88;
+
 pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     // --- 1. Praxis-Block oben links ---------------------------------------
     let mut left_y = M_TOP;
     for (i, line) in lh.praxis_lines.iter().enumerate() {
-        if i == 0 {
-            // Praxisname fett
+        if left_y < LEFT_HEADER_MIN_Y {
+            break;
+        }
+        let chunks = wrap_soft(line, LEFT_HEADER_WRAP);
+        for (ci, chunk) in chunks.iter().enumerate() {
+            if left_y < LEFT_HEADER_MIN_Y {
+                break;
+            }
+            let first = i == 0 && ci == 0;
             pb.y = left_y;
-            pb.text(M_LEFT, 12, true, line);
-            left_y -= 14;
-        } else {
-            pb.y = left_y;
-            pb.text(M_LEFT, 9, false, line);
-            left_y -= 11;
+            pb.text(M_LEFT, if first { 12 } else { 9 }, first, chunk);
+            left_y -= if first { 14 } else { 11 };
         }
     }
 

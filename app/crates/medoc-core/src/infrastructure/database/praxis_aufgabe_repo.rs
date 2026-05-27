@@ -1,5 +1,7 @@
 //! FA-AUFG-01/06 — `praxis_aufgabe` persistence.
-use crate::domain::entities::praxis_aufgabe::{CreatePraxisAufgabe, PraxisAufgabe};
+use crate::domain::entities::praxis_aufgabe::{
+    CreatePraxisAufgabe, PraxisAufgabe, UpdatePraxisAufgabeAdmin,
+};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
@@ -29,9 +31,19 @@ pub async fn insert(
     .bind(data.gesamtkosten)
     .execute(pool)
     .await?;
-    find_by_id(pool, &id)
+    let inserted = find_by_id(pool, &id)
         .await?
-        .ok_or_else(|| AppError::Internal("praxis_aufgabe insert".into()))
+        .ok_or_else(|| AppError::Internal("praxis_aufgabe insert".into()))?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "praxis_aufgabe",
+        &id,
+        "INSERT",
+        &body,
+    )
+    .await?;
+    Ok(inserted)
 }
 
 /// FA-AUFG-02 — automatische Abrechnungs-Aufgabe nach B/U+Leistung.
@@ -257,7 +269,132 @@ pub async fn update_status(
     if n == 0 {
         return Err(AppError::NotFound("Aufgabe".into()));
     }
-    find_by_id(pool, id)
+    let updated = find_by_id(pool, id)
         .await?
-        .ok_or(AppError::NotFound("Aufgabe".into()))
+        .ok_or(AppError::NotFound("Aufgabe".into()))?;
+    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "praxis_aufgabe",
+        id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
+}
+
+/// Verwaltung: alle Aufgaben (neueste zuerst).
+pub async fn list_all_admin(pool: &SqlitePool, limit: i64) -> Result<Vec<PraxisAufgabe>, AppError> {
+    sqlx::query_as::<_, PraxisAufgabe>(
+        "SELECT * FROM praxis_aufgabe ORDER BY datetime(updated_at) DESC LIMIT ?1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+const AUFGABE_STATUSES: &[&str] = &[
+    "OFFEN",
+    "IN_BEARBEITUNG",
+    "ERLEDIGT_REZEPTION",
+    "VALIDIERT",
+    "ZURUECK",
+];
+
+pub async fn update_admin(
+    pool: &SqlitePool,
+    patch: &UpdatePraxisAufgabeAdmin,
+) -> Result<PraxisAufgabe, AppError> {
+    let current = find_by_id(pool, &patch.id)
+        .await?
+        .ok_or(AppError::NotFound("Aufgabe".into()))?;
+
+    let titel = patch
+        .titel
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| current.titel.clone());
+    let body = patch.body.clone().or(current.body.clone());
+    let typ = patch
+        .typ
+        .as_deref()
+        .map(|t| t.trim().to_uppercase())
+        .unwrap_or_else(|| current.typ.clone());
+    let assignee_role = patch
+        .assignee_role
+        .as_ref()
+        .map(|v| {
+            let t = v.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_uppercase())
+            }
+        })
+        .unwrap_or_else(|| current.assignee_role.clone());
+    let assignee_user_id = patch
+        .assignee_user_id
+        .as_ref()
+        .map(|v| {
+            let t = v.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        })
+        .unwrap_or_else(|| current.assignee_user_id.clone());
+    let status = patch
+        .status
+        .as_deref()
+        .map(|s| s.trim().to_uppercase())
+        .unwrap_or_else(|| current.status.clone());
+    if !AUFGABE_STATUSES.iter().any(|s| *s == status) {
+        return Err(AppError::Validation(format!(
+            "Unbekannter Status: {status}"
+        )));
+    }
+
+    let n = sqlx::query(
+        "UPDATE praxis_aufgabe SET
+            titel = ?1,
+            body = ?2,
+            typ = ?3,
+            assignee_role = ?4,
+            assignee_user_id = ?5,
+            status = ?6,
+            updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?7",
+    )
+    .bind(&titel)
+    .bind(&body)
+    .bind(&typ)
+    .bind(&assignee_role)
+    .bind(&assignee_user_id)
+    .bind(&status)
+    .bind(&patch.id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Aufgabe".into()));
+    }
+    let updated = find_by_id(pool, &patch.id)
+        .await?
+        .ok_or(AppError::NotFound("Aufgabe".into()))?;
+    let body_json =
+        serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", patch.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "praxis_aufgabe",
+        &patch.id,
+        "UPDATE",
+        &body_json,
+    )
+    .await?;
+    Ok(updated)
 }

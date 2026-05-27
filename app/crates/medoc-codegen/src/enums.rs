@@ -71,11 +71,8 @@ pub fn run(yaml_path: &Path, ts_out_dir: &Path, sql_out_path: &Path) {
     )
     .expect("write domain_enums_generated.rs");
 
-    fs::write(
-        ts_out_dir.join("enums.generated.ts"),
-        render_ts(&doc.enums),
-    )
-    .expect("write enums.generated.ts");
+    fs::write(ts_out_dir.join("enums.generated.ts"), render_ts(&doc.enums))
+        .expect("write enums.generated.ts");
     fs::write(
         ts_out_dir.join("schemas.enums.generated.ts"),
         render_zod(&doc.enums),

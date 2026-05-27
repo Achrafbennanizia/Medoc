@@ -1,0 +1,18 @@
+# Wave V1 scoped Rust validation (Linux) — skips Tauri desktop link to save disk/time.
+FROM rust:1-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup component add rustfmt clippy llvm-tools-preview
+RUN cargo install cargo-llvm-cov --locked --version 0.6.18
+
+ENV PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+WORKDIR /work/app
+
+COPY docker/ci/run-rust-validate-wave-v1.sh /usr/local/bin/run-rust-validate-wave-v1.sh
+RUN chmod +x /usr/local/bin/run-rust-validate-wave-v1.sh
+
+CMD ["/usr/local/bin/run-rust-validate-wave-v1.sh"]

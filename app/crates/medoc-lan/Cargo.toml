@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 medoc-core = { path = "../medoc-core" }
+medoc-sync = { path = "../medoc-sync" }
 
 # HTTP / TLS stack
 axum = { version = "0.8", features = ["macros", "json"] }

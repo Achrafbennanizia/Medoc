@@ -77,9 +77,15 @@ pub async fn create(pool: &SqlitePool, data: &CreateTermin) -> Result<Termin, Ap
     .execute(pool)
     .await?;
 
-    find_by_id(pool, &id)
+    let inserted = find_by_id(pool, &id)
         .await?
-        .ok_or(AppError::Internal("Insert failed".into()))
+        .ok_or(AppError::Internal("Insert failed".into()))?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "termin", &id, "INSERT", &body,
+    )
+    .await?;
+    Ok(inserted)
 }
 
 pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateTermin) -> Result<Termin, AppError> {
@@ -135,9 +141,15 @@ pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateTermin) -> Result<
     .execute(pool)
     .await?;
 
-    find_by_id(pool, id)
+    let updated = find_by_id(pool, id)
         .await?
-        .ok_or(AppError::Internal("Update failed".into()))
+        .ok_or(AppError::Internal("Update failed".into()))?;
+    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "termin", id, "UPDATE", &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -145,6 +157,14 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .bind(id)
         .execute(pool)
         .await?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "termin",
+        id,
+        "DELETE",
+        &format!("{{\"id\":\"{id}\"}}"),
+    )
+    .await?;
     Ok(())
 }
 

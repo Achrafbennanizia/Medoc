@@ -194,6 +194,7 @@ fn build_datei_submenu<R: Runtime, M: Manager<R>>(
     b.build()
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 fn build_full_menu<R: Runtime, M: Manager<R>>(
     manager: &M,
     pkg: &PackageInfo,

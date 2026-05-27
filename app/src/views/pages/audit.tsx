@@ -1,24 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportAuditCsv, listAuditLogsPaged } from "@/systems/practice-host/controllers/audit.controller";
 import { errorMessage, formatDateTime } from "../../lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { buildAuditReportBundleFromCsv } from "../../lib/report-export";
+import { ReportExportToolbar } from "../components/report-export-toolbar";
 import type { AuditLog } from "../../models/types";
 import { totalPages, type ListResponse } from "../../lib/list-params";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { useToastStore } from "../components/ui/toast-store";
 import { Button } from "../components/ui/button";
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
 
 export function AuditPage() {
-    const toast = useToastStore((s) => s.add);
     const [resp, setResp] = useState<ListResponse<AuditLog> | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
-    const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [breakGlassOnly, setBreakGlassOnly] = useState(false);
@@ -45,27 +43,15 @@ export function AuditPage() {
         void load();
     }, [load]);
 
-    const exportCsv = async () => {
-        setBusy(true);
-        try {
-            const bytes = await exportAuditCsv();
-            const text = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
-            openExportPreview({
-                format: "csv",
-                title: "Audit-Log exportieren",
-                hint: "Komma-getrennt (RFC-4180). Spaltenköpfe sortieren, dann speichern oder drucken.",
-                suggestedFilename: `audit-${new Date().toISOString().slice(0, 10)}.csv`,
-                textBody: text,
-            });
-        } catch (e) {
-            toast(`CSV-Export fehlgeschlagen: ${errorMessage(e)}`, "error");
-        } finally {
-            setBusy(false);
-        }
-    };
+    const total = resp?.total ?? 0;
+
+    const buildExportBundle = useCallback(async () => {
+        const bytes = await exportAuditCsv();
+        const text = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+        return buildAuditReportBundleFromCsv(text, total);
+    }, [total]);
 
     const logs = resp?.items ?? [];
-    const total = resp?.total ?? 0;
     const pages = resp ? totalPages(resp) : 1;
 
     return (
@@ -110,14 +96,12 @@ export function AuditPage() {
                         />
                         Nur Notfallzugriff (Break-Glass)
                     </label>
-                    <button
-                        type="button"
-                        onClick={() => void exportCsv()}
-                        disabled={busy || total === 0 || !!loadError}
-                        className="btn btn-subtle"
-                    >
-                        {busy ? "Export…" : "CSV exportieren"}
-                    </button>
+                    <ReportExportToolbar
+                        buildBundle={buildExportBundle}
+                        defaultFormat="pdf"
+                        disabled={total === 0 || !!loadError}
+                        showImport
+                    />
                 </div>
             </div>
 

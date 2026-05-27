@@ -1,0 +1,20 @@
+# Reproducible frontend validation — mirrors .github/workflows/ci.yml (frontend job).
+# Build: docker build -f docker/ci/Dockerfile.frontend -t medoc-fe-ci .
+# Run:   docker run --rm -v "$PWD:/work" -w /work/app medoc-fe-ci
+
+FROM node:20-bookworm-slim
+
+WORKDIR /work/app
+
+CMD ["bash", "-lc", "\
+  set -euo pipefail; \
+  echo '=== npm ci ==='; \
+  npm ci; \
+  echo '=== npm run lint ==='; \
+  npm run lint; \
+  echo '=== npm test ==='; \
+  npm test; \
+  echo '=== npm run build ==='; \
+  npm run build; \
+  echo '=== PASS ===' \
+"]

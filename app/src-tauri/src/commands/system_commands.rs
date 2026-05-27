@@ -5,6 +5,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::license::{self, LicenseStatus};
+use crate::infrastructure::license_repo;
 use crate::infrastructure::perf;
 use crate::log_system;
 use serde::Serialize;
@@ -12,20 +13,81 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, token))]
-pub fn verify_license(
+#[tracing::instrument(level = "info", skip(pool, session_state, token))]
+pub async fn verify_license(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     token: String,
 ) -> Result<LicenseStatus, AppError> {
     rbac::require_authenticated(&session_state)?;
-    let status = license::verify(&token);
+    let device_id = license_repo::ensure_device_id(&pool).await?;
+    let status = license::verify(&token, &device_id);
     log_system!(
         info,
         event = "LICENSE_CHECK",
         valid = status.valid,
         reason = status.reason.as_deref().unwrap_or(""),
+        format = status.format.as_deref().unwrap_or("none"),
     );
     Ok(status)
+}
+
+/// Verify the supplied token against the local device id; on success
+/// persist it to `app_kv` (`license.v2` or `license.v1` depending on
+/// format). Used by the master license-activate view.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, token))]
+pub async fn activate_license(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    token: String,
+) -> Result<LicenseStatus, AppError> {
+    rbac::require(&session_state, "ops.system")?;
+    let device_id = license_repo::ensure_device_id(&pool).await?;
+    let status = license::verify(&token, &device_id);
+    if !status.valid {
+        log_system!(
+            warn,
+            event = "LICENSE_ACTIVATE_REJECTED",
+            reason = status.reason.as_deref().unwrap_or(""),
+        );
+        return Ok(status);
+    }
+    match status.format.as_deref() {
+        Some("v2") => license_repo::store_v2(&pool, token.trim()).await?,
+        Some("v1") => license_repo::store_v1(&pool, token.trim()).await?,
+        _ => {}
+    }
+    log_system!(
+        info,
+        event = "LICENSE_ACTIVATED",
+        format = status.format.as_deref().unwrap_or(""),
+    );
+    Ok(status)
+}
+
+/// Read the currently-installed license (prefers v2). Returns
+/// `valid=false, reason="Keine Lizenz aktiviert"` when none exists.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn current_license_status(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<LicenseStatus, AppError> {
+    rbac::require_authenticated(&session_state)?;
+    license_repo::current_status(&pool).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn clear_license(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<(), AppError> {
+    rbac::require(&session_state, "ops.system")?;
+    license_repo::clear(&pool).await?;
+    log_system!(info, event = "LICENSE_CLEARED");
+    Ok(())
 }
 
 #[tauri::command]
@@ -184,6 +246,9 @@ pub fn list_detected_photo_viewer_apps(
 macro_rules! register_system_commands {
     () => {
         $crate::commands::system_commands::verify_license,
+        $crate::commands::system_commands::activate_license,
+        $crate::commands::system_commands::current_license_status,
+        $crate::commands::system_commands::clear_license,
         $crate::commands::system_commands::check_for_updates,
         $crate::commands::system_commands::list_detected_photo_viewer_apps,
         $crate::commands::system_commands::system_health_check,

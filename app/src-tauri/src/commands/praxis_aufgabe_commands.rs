@@ -2,7 +2,7 @@
 use crate::application::rbac::{self, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::praxis_aufgabe::{
-    CreatePraxisAufgabe, PraxisAufgabe, TransitionPraxisAufgabeArgs,
+    CreatePraxisAufgabe, PraxisAufgabe, TransitionPraxisAufgabeArgs, UpdatePraxisAufgabeAdmin,
 };
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
@@ -231,6 +231,98 @@ pub async fn count_open_praxis_aufgaben_for_me(
     }
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_praxis_aufgaben_admin(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<PraxisAufgabe>, AppError> {
+    rbac::require(&session_state, "verwaltung.read")?;
+    praxis_aufgabe_repo::list_all_admin(&pool, 500).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn create_praxis_aufgabe_admin(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: CreatePraxisAufgabe,
+) -> Result<PraxisAufgabe, AppError> {
+    let session = rbac::require(&session_state, "verwaltung.read")?;
+    let titel = data.titel.trim().to_string();
+    if titel.is_empty() {
+        return Err(AppError::Validation("Titel darf nicht leer sein.".into()));
+    }
+    patient_repo::find_by_id(&pool, &data.patient_id)
+        .await?
+        .ok_or(AppError::NotFound("Patient".into()))?;
+
+    let mut payload = data;
+    payload.typ = normalize_typ(&payload.typ)?;
+    payload.titel = titel;
+    if payload
+        .assignee_role
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_none()
+        && payload
+            .assignee_user_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_none()
+    {
+        payload.assignee_role = Some("REZEPTION".into());
+    }
+
+    let a = praxis_aufgabe_repo::insert(&pool, &payload, &session.user_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "CREATE",
+        "PraxisAufgabe",
+        Some(&a.id),
+        Some("admin"),
+    )
+    .await
+    .ok();
+    Ok(a)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, patch))]
+pub async fn update_praxis_aufgabe_admin(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    patch: UpdatePraxisAufgabeAdmin,
+) -> Result<PraxisAufgabe, AppError> {
+    let session = rbac::require(&session_state, "verwaltung.read")?;
+    if patch
+        .titel
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|s| s.is_empty())
+    {
+        return Err(AppError::Validation("Titel darf nicht leer sein.".into()));
+    }
+    if let Some(t) = patch.typ.as_deref() {
+        normalize_typ(t)?;
+    }
+    let out = praxis_aufgabe_repo::update_admin(&pool, &patch).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "PraxisAufgabe",
+        Some(&patch.id),
+        Some("admin"),
+    )
+    .await
+    .ok();
+    Ok(out)
+}
+
 #[macro_export]
 macro_rules! register_praxis_aufgabe_commands {
     ($register:ident) => {
@@ -239,6 +331,9 @@ macro_rules! register_praxis_aufgabe_commands {
             $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_for_me,
             $crate::commands::praxis_aufgabe_commands::transition_praxis_aufgabe,
             $crate::commands::praxis_aufgabe_commands::count_open_praxis_aufgaben_for_me,
+            $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_admin,
+            $crate::commands::praxis_aufgabe_commands::create_praxis_aufgabe_admin,
+            $crate::commands::praxis_aufgabe_commands::update_praxis_aufgabe_admin,
         );
     };
 }

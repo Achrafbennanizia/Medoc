@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
+import { LicenseAndPairingGate } from "./views/components/license-and-pairing-gate";
+import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
@@ -20,9 +22,11 @@ const AktenZuValidierenPage = lazy(async () => ({
 const PraxisTicketsPage = lazy(async () => ({
     default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
 }));
+/* Posteingang vorübergehend deaktiviert — Aufgaben-Verwaltung unter /verwaltung/aufgaben
 const PosteingangPage = lazy(async () => ({
     default: (await import("./views/pages/posteingang")).PosteingangPage,
 }));
+*/
 const FinanzenPage = lazy(async () => ({ default: (await import("./views/pages/finanzen")).FinanzenPage }));
 const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pages/zahlung-create")).ZahlungCreatePage }));
 const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
@@ -51,6 +55,9 @@ const VerwaltungFinanzenBerichtePage = lazy(async () => ({
 }));
 const VerwaltungTeamPage = lazy(async () => ({
     default: (await import("./views/pages/verwaltung-team")).VerwaltungTeamPage,
+}));
+const VerwaltungAufgabenPage = lazy(async () => ({
+    default: (await import("./views/pages/verwaltung-aufgaben")).VerwaltungAufgabenPage,
 }));
 const TagesabschlussPage = lazy(async () => ({
     default: (await import("./views/pages/tagesabschluss")).TagesabschlussPage,
@@ -116,7 +123,10 @@ export default function App() {
                     path="/"
                     element={
                         <ProtectedRoute>
-                            <AppLayout />
+                            <LicenseAndPairingGate>
+                                <ReplicaSyncBackground />
+                                <AppLayout />
+                            </LicenseAndPairingGate>
                         </ProtectedRoute>
                     }
                 >
@@ -137,7 +147,9 @@ export default function App() {
                         )}
                     />
                     <Route path="tickets" element={<RoleRoute routePath="tickets"><PraxisTicketsPage /></RoleRoute>} />
+                    {/* Posteingang deaktiviert — siehe /verwaltung/aufgaben
                     <Route path="posteingang" element={<RoleRoute routePath="posteingang"><PosteingangPage /></RoleRoute>} />
+                    */}
                     <Route path="finanzen" element={<RoleRoute routePath="finanzen"><FinanzenPage /></RoleRoute>} />
                     <Route path="finanzen/neu" element={<RoleRoute routePath="finanzen/neu"><ZahlungCreatePage /></RoleRoute>} />
                     <Route path="bestellungen" element={<RoleRoute routePath="bestellungen"><BestellungenPage /></RoleRoute>} />
@@ -151,6 +163,14 @@ export default function App() {
                         element={(
                             <RoleRoute routePath="verwaltung/team">
                                 <VerwaltungTeamPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route
+                        path="verwaltung/aufgaben"
+                        element={(
+                            <RoleRoute routePath="verwaltung/aufgaben">
+                                <VerwaltungAufgabenPage />
                             </RoleRoute>
                         )}
                     />

@@ -98,14 +98,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let pool = medoc_core::infrastructure::database::connection::init_db_headless(&args.data_dir)
-        .await?;
+    let pool =
+        medoc_core::infrastructure::database::connection::init_db_headless(&args.data_dir).await?;
     let jwt_raw = medoc_lan::secrets::ensure_jwt_secret_bytes(&args.data_dir)?;
     let jwt_secret = Arc::new(jwt_raw);
     let instance_id = medoc_lan::secrets::ensure_instance_id(&args.data_dir)?;
     let tls_identity = medoc_lan::tls::ensure_lan_tls_identity(&args.data_dir)?;
 
-    let brute = Arc::new(medoc_core::infrastructure::logging::brute_force::BruteForceTracker::new());
+    let brute =
+        Arc::new(medoc_core::infrastructure::logging::brute_force::BruteForceTracker::new());
     brute
         .hydrate_from_db(&pool)
         .await

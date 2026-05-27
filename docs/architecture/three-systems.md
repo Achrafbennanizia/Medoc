@@ -1,6 +1,6 @@
 # MeDoc — three systems architecture
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-26
 
 ## Systems
 
@@ -61,8 +61,45 @@ Legacy import path `app/src/controllers/*.ts` re-exports from `systems/*` (**Fac
 | **Service Layer** | `application/*`, `domain/services/*` |
 | **Unit of Work** | `sqlx` transactions in command handlers |
 
+## Deployment modes (practice app)
+
+| Mode | Data path | LAN server |
+|------|-----------|------------|
+| `practice_desktop` | Local Tauri + SQLite | Optional embedded on **same** machine |
+| `lan_client` | Remote HTTPS only | Required on **another** host (or same host) |
+| `serverless_peer` | Local SQLite + peer sync | Master exposes sync API; replica needs no server |
+
+Details: [deployment-topologies.md](./deployment-topologies.md), [serverless-sync.md](./serverless-sync.md), [licensing.md](./licensing.md).
+
+## Authentication gates (Slice 3)
+
+`LicenseAndPairingGate` (in `app/src/views/components/`) wraps the
+authenticated layout and enforces two boot-time guards before the UI is
+allowed to render:
+
+| Condition | Gate decision |
+|-----------|---------------|
+| Master device with no `license.v2` envelope in `app_kv` | Force `license-activate.tsx` view. |
+| `serverless_peer` REPLICA without an activation token in the deployment config | Force `pairing-scan.tsx` view (UDP discovery + pairing request). |
+| Otherwise | Render children. |
+
+The gate calls `current_license_status` and `sync_load_deployment` IPCs at
+mount; failures are surfaced as inline UI state and never break navigation.
+
+## Workspace crates (Rust)
+
+| Crate | Role |
+|-------|------|
+| `medoc-core` | Domain + DB |
+| `medoc-lan` / `medoc-lan-server` | LAN API binary |
+| `medoc-company` / `medoc-company-server` | Company portal binary |
+| `medoc-sync` | Outbox replication engine |
+| `src-tauri` (`medoc`) | Tauri practice host |
+
 ## Related docs
 
 - `docs/README-frontend.md` — UI data flow
 - `docs/medoc-company-server.md` — company binary
+- [deployment-topologies.md](./deployment-topologies.md)
+- [serverless-sync.md](./serverless-sync.md)
 - `app/src-tauri/src/systems/mod.rs` — Rust module index

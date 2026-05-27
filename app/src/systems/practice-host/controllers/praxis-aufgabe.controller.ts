@@ -64,6 +64,7 @@ export async function createPraxisAufgabe(data: {
     });
 }
 
+/* Posteingang deaktiviert — Inbox-IPC nicht mehr vom Frontend genutzt
 export async function listPraxisAufgabenForMe(): Promise<PraxisAufgabe[]> {
     return practiceSystem.invoke<PraxisAufgabe[]>("list_praxis_aufgaben_for_me");
 }
@@ -88,4 +89,51 @@ export async function transitionPraxisAufgabe(args: {
 
 export async function countOpenPraxisAufgabenForMe(): Promise<number> {
     return practiceSystem.invoke<number>("count_open_praxis_aufgaben_for_me");
+}
+*/
+
+export async function listPraxisAufgabenAdmin(): Promise<PraxisAufgabe[]> {
+    return practiceSystem.invoke<PraxisAufgabe[]>("list_praxis_aufgaben_admin");
+}
+
+export async function createPraxisAufgabeAdmin(data: {
+    patientId: string;
+    typ: PraxisAufgabeTyp;
+    titel: string;
+    body?: string | null;
+    assigneeRole?: "REZEPTION" | null;
+    assigneeUserId?: string | null;
+}): Promise<PraxisAufgabe> {
+    return practiceSystem.invoke<PraxisAufgabe>("create_praxis_aufgabe_admin", {
+        data: {
+            patient_id: data.patientId,
+            typ: data.typ,
+            titel: data.titel,
+            body: data.body ?? null,
+            assignee_role: data.assigneeRole ?? null,
+            assignee_user_id: data.assigneeUserId ?? null,
+        },
+    });
+}
+
+export async function updatePraxisAufgabeAdmin(patch: {
+    id: string;
+    titel?: string;
+    body?: string | null;
+    typ?: PraxisAufgabeTyp;
+    assigneeRole?: "REZEPTION" | null;
+    assigneeUserId?: string | null;
+    status?: PraxisAufgabeStatus;
+}): Promise<PraxisAufgabe> {
+    return practiceSystem.invoke<PraxisAufgabe>("update_praxis_aufgabe_admin", {
+        patch: {
+            id: patch.id,
+            titel: patch.titel,
+            body: patch.body,
+            typ: patch.typ,
+            assignee_role: patch.assigneeRole ?? null,
+            assignee_user_id: patch.assigneeUserId ?? null,
+            status: patch.status,
+        },
+    });
 }

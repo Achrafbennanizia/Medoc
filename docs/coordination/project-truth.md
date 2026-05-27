@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-05-21  
+**Last updated:** 2026-05-26  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Stable truth (high confidence)
@@ -20,7 +20,14 @@
 - **Praxis document readiness (FE):** `app/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
 - **Validation (fix session):** `npm run lint`, `npm test`, `npm run build` (app/) **passed**; `cargo test --tests` (app/src-tauri) **passed** (`docs/coordination/validation.md`).
-- **Three-system layout (2026-05-21):** FE `app/src/systems/{practice-host,lan,company-portal}/`; Rust `app/src-tauri/src/systems/{practice,lan,company}/`; architecture `docs/architecture/three-systems.md`. Legacy `app/src/controllers/*.ts` re-export stubs.
+- **Three-system layout (2026-05-21):** FE `app/src/systems/{practice-host,lan,company-portal}/`; Rust workspace crates `medoc-core`, `medoc-lan`, `medoc-company`, binaries `medoc`, `medoc-server`, `medoc-company-server`; architecture `docs/architecture/three-systems.md`. Legacy `app/src/controllers/*.ts` removed (Wave A).
+- **Deployment modes (2026-05-26):** `practice_desktop` (local Tauri DB), `lan_client` (HTTPS to remote LAN server), `serverless_peer` (local DB + master/replica outbox sync). Config: `app_kv` `sync.deployment.v1`; engine: `app/crates/medoc-sync/`; docs: `docs/architecture/deployment-topologies.md`, `serverless-sync.md`.
+- **Independent binaries (Wave B8):** `cargo build -p medoc-lan-server` / `medoc-company-server` / `medoc` — no Tauri in headless servers (`docs/coordination/phase-handoff.md`).
+- **License v2 (Wave V1):** Perpetual device-bound license encrypted with AES-GCM-256 (HKDF from `MEDOC_VENDOR_SEED` salted by `device_id`) and signed by `MEDOC_VENDOR_PUBKEY`. Persisted in `app_kv` under `license.v2`; runtime status via `current_license_status` Tauri IPC. Round-trip + rejection tests in `app/crates/medoc-core/tests/license_v2_tests.rs`.
+- **Pairing handshake (Wave V1):** Replicas POST `/api/v1/pairing/request` → master decides via `/decide/{id}` → master mints an Ed25519-signed activation token (`mt2.<payload>.<sig>`) stored in `pairing_request.activation_token` and pushes per-slave `slave_permission` rows. The master signing keypair lives in the OS keychain (`medoc-sync::master_keys`).
+- **Activation-token auth scope (Wave V1):** `jwt_auth_middleware` accepts `mt2.*` bearers only on `/api/v1/sync/{push,pull,status}` and `/api/v1/pairing/peers`; other protected routes reject with 403 (`app/crates/medoc-lan/src/sync_http.rs::verify_activation_for_path`).
+- **Outbox hooks (Wave V1):** Repo write paths in `medoc-core::infrastructure::database::{patient,akte,termin,zahlung,praxis_aufgabe,app_kv}_repo` call `sync_outbox::record_or_noop` which appends one row to `sync_outbox` when `mode = serverless_peer` and the table is in `SYNCED_TABLES`. Internal `sync.*`, `license.*`, `pairing.*` `app_kv` keys are excluded. 7 integration tests + 3 unit tests cover this path.
+- **Conflict resolution (Wave V1):** `ConflictPolicy::MasterWinsWithFreshness` uses `updated_at`. Tested by `master_does_not_overwrite_newer_replica_row` and `newer_master_push_overwrites_older_replica_row` in `medoc_sync::engine::tests`.
 - **Removed:** Root `src/` Next.js reference app and CI job `next-web` (audit remediation TASK 0.1, 2026-05-19). V-Model docs mark historical Next prototype as archive only.
 
 ## Working model (needs confirmation)

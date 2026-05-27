@@ -240,10 +240,10 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("tickets", "STEUERBERATER")).toBe(false);
         expect(routeChildPathAllowed("tickets", "PHARMABERATER")).toBe(false);
     });
-    it("allows posteingang for Arzt and Rezeption only (FA-AUFG-03)", () => {
-        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("posteingang", "STEUERBERATER")).toBe(false);
+    it("posteingang route deaktiviert (ersetzt durch Verwaltung → Aufgaben)", () => {
+        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(false);
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
     });
     it("GAP-01: REZEPTION cannot read medical records action", () => {
         expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);

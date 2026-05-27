@@ -5,7 +5,8 @@ use medoc_lib::infrastructure::clinical_pdf_layout::{
 };
 use medoc_lib::infrastructure::clinical_text_format::format_untersuchung_for_akte_table;
 use medoc_lib::infrastructure::pdf::{
-    render, render_akte_blocks, AktePdfBlock, AktePdfTable, Invoice, InvoiceLine,
+    render, render_akte_blocks, render_report_pdf, AktePdfBlock, AktePdfTable, Invoice,
+    InvoiceLine, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
 };
 
 fn sample_line(description: &str, amount_cents: i64) -> InvoiceLine {
@@ -256,6 +257,42 @@ fn test_discharge_merkblatt_pdf_markers() {
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
     for needle in ["Entlassungs-Merkblatt", "Praxissoftware", "Folgeterminen"] {
+        assert!(s.contains(needle), "missing {needle}");
+    }
+}
+
+#[test]
+fn test_financial_report_pdf_markers() {
+    let input = ReportPdfInput {
+        doc_title: "Bilanzbericht".into(),
+        generated_at: "26.05.2026".into(),
+        practice_name: "Praxis Süd".into(),
+        practice_address: vec!["Str. 2".into()],
+        summary: vec![
+            ReportPdfSummaryRow {
+                label: "Einnahmen (bezahlt)".into(),
+                value: "8.500,00 €".into(),
+            },
+            ReportPdfSummaryRow {
+                label: "Ausstehend".into(),
+                value: "1.200,00 €".into(),
+            },
+        ],
+        sections: vec![ReportPdfSection {
+            title: "Monatlicher Verlauf".into(),
+            headers: vec!["Monat".into(), "Einnahmen".into()],
+            rows: vec![vec!["2026-05".into(), "8.500,00".into()]],
+        }],
+    };
+    let pdf = render_report_pdf(&input).expect("report pdf");
+    let s = String::from_utf8_lossy(&pdf);
+    assert!(pdf.starts_with(b"%PDF"));
+    for needle in [
+        "Bilanzbericht",
+        "Zusammenfassung",
+        "Monatlicher Verlauf",
+        "Seite",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
