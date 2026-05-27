@@ -30,3 +30,4 @@ base64 = "0.22"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+proptest = "1.5"

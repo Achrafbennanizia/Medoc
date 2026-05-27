@@ -1,8 +1,33 @@
 # Action ledger
 
-**Last updated:** 2026-05-27 (afternoon: multi-replica conflict + license gate negatives)
+**Last updated:** 2026-05-27 (evening: proptest harness + 2 new UI smoke flows)
 
 ## Now
+
+- **Testing matrix expansion v3 (2026-05-27 evening) — DONE**
+  - Property-based testing wired and green:
+    - `medoc-core/tests/license_proptests.rs` — 4 invariants × 256
+      cases = **1024 random envelopes** (round-trip valid, wrong-device
+      rejects, single-byte tamper rejects, inner-device mismatch rejects).
+    - `medoc-sync/tests/pairing_token_proptests.rs` — 5 invariants × 256
+      cases = **1280 random activation tokens** (mint→verify, wrong key,
+      body byte-flip, signature byte-flip, wrong version).
+    - `medoc-sync/tests/merge_invariants_proptests.rs` — 3 invariants
+      × 16 cases = **48 random sync-merge scenarios** through a real
+      SQLCipher pool (freshest-wins, order-independence, idempotent
+      apply).
+  - Two new critical UI flows in `critical-flows.smoke.test.tsx`:
+    - (f) login rejection on wrong password surfaces the backend error.
+    - (g) `LicenseActivatePage` renders the activation prompt, accepts
+      a `v2.…` token, and shows the active-license panel.
+    - Fixed a pre-existing test-isolation bug: file-wide `afterEach`
+      now calls `cleanup()` so `<App />` renders don't bleed between
+      describes.
+  - `docker/ci/run-rust-validate-wave-v1.sh` explicitly invokes the
+    three proptest targets so CI logs show the random-case counts.
+  - **Docker re-run NOT RUN** for proptest commits: Docker Desktop VM
+    disk hit 100% mid-link. Local Rust/Frontend validation full GREEN
+    (155+ tests across Wave V1 + e2e + proptests; 169+1 frontend).
 
 - **Testing matrix expansion v2 (2026-05-27 afternoon) — DONE**
   - `medoc-e2e` grew 40 → **56** in-process HTTP integration tests.
