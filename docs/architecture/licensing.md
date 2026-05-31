@@ -1,8 +1,8 @@
 # Licensing (v2: perpetual, device-bound, signed + AES-GCM encrypted)
 
 **Last updated:** 2026-05-26  
-**Crate:** `app/crates/medoc-core` (`infrastructure::license`, `infrastructure::license_repo`)  
-**Tests:** `app/crates/medoc-core/tests/license_v2_tests.rs`
+**Crate:** `crates/medoc-core` (`infrastructure::license`, `infrastructure::license_repo`)  
+**Tests:** `crates/medoc-core/tests/license_v2_tests.rs`
 
 ## TL;DR
 

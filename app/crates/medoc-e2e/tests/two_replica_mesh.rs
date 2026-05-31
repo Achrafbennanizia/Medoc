@@ -51,6 +51,7 @@ async fn pair_replica(
         .to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn configure_replica(
     pool: &sqlx::SqlitePool,
     device_id: &str,

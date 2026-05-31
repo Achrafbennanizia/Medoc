@@ -64,7 +64,6 @@ export async function createPraxisAufgabe(data: {
     });
 }
 
-/* Posteingang deaktiviert — Inbox-IPC nicht mehr vom Frontend genutzt
 export async function listPraxisAufgabenForMe(): Promise<PraxisAufgabe[]> {
     return practiceSystem.invoke<PraxisAufgabe[]>("list_praxis_aufgaben_for_me");
 }
@@ -90,7 +89,6 @@ export async function transitionPraxisAufgabe(args: {
 export async function countOpenPraxisAufgabenForMe(): Promise<number> {
     return practiceSystem.invoke<number>("count_open_praxis_aufgaben_for_me");
 }
-*/
 
 export async function listPraxisAufgabenAdmin(): Promise<PraxisAufgabe[]> {
     return practiceSystem.invoke<PraxisAufgabe[]>("list_praxis_aufgaben_admin");

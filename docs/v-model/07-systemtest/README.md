@@ -14,5 +14,5 @@ Validierung des Gesamtsystems gegen Systemanforderungen (End-to-End, realistisch
 
 ## Referenzen
 
-- Backend-Tests (Rust): `app/src-tauri/tests/`
+- Backend-Tests (Rust): `apps/practice-host/tests/`
 - Manuelle Smoke-Tests: Release-Checkliste unter `releases/`

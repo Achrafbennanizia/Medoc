@@ -7,22 +7,20 @@ import { checkSession, logout, touchSession } from "@/systems/practice-host/cont
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
 import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "@/systems/practice-host/controllers/akte-workflow.controller";
-/* Posteingang deaktiviert
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
-*/
-import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "../../lib/rbac";
-import { useT, useLocale, translateLocale } from "../../lib/i18n";
-import type { Patient } from "../../models/types";
+import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "@/lib/rbac";
+import { useT, useLocale, translateLocale } from "@/lib/i18n";
+import type { Patient } from "@/models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
 import { shouldShowPraxisSetupWizard } from "@/lib/praxis-completeness";
 import { PraxisSetupWizard } from "../components/praxis-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { errorMessage } from "@/lib/utils";
-import { useToastStore } from "../components/ui/toast-store";
-import { ToastContainer } from "../components/ui/toast";
-import { ConfirmDialog, Dialog } from "../components/ui/dialog";
-import { Button } from "../components/ui/button";
-import { Select, Textarea } from "../components/ui/input";
+import { useToastStore } from "@/views/components/ui/toast-store";
+import { ToastContainer } from "@/views/components/ui/toast";
+import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
+import { Button } from "@/views/components/ui/button";
+import { Select, Textarea } from "@/views/components/ui/input";
 import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
@@ -30,13 +28,13 @@ import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
-import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
+import { useDismissibleLayer } from "@/views/components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
 import { allowed } from "@/lib/rbac";
 import { RouteOutletGuard } from "../components/route-outlet-guard";
-import { PageLoading } from "../components/ui/page-status";
+import { PageLoading } from "@/views/components/ui/page-status";
 import { loadClientSettings } from "../../lib/client-settings";
 import {
     hydrateInvoicePraxisFromAppKv,
@@ -227,6 +225,7 @@ export function AppLayout() {
     const [inAppUnread, setInAppUnread] = useState(0);
     const [aktenZuValidierenCount, setAktenZuValidierenCount] = useState(0);
     const [openPraxisTicketsCount, setOpenPraxisTicketsCount] = useState(0);
+    const [openPraxisAufgabenCount, setOpenPraxisAufgabenCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -274,7 +273,7 @@ export function AppLayout() {
         }
         return acc;
     }, [visibleByTo]);
-    const initials = (session?.name ?? "MD").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    const initials = (session?.name ?? "MD").split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
     const profileRoleLine = useMemo(() => {
         const r = session?.rolle;
         if (r === "ARZT") return t("app.role_label.ARZT");
@@ -302,23 +301,30 @@ export function AppLayout() {
         if (rolle !== "ARZT" && rolle !== "REZEPTION") {
             setAktenZuValidierenCount(0);
             setOpenPraxisTicketsCount(0);
+            setOpenPraxisAufgabenCount(0);
             return;
         }
         try {
+            const aufgabenP = countOpenPraxisAufgabenForMe();
             if (rolle === "ARZT") {
-                const [akten, tickets] = await Promise.all([
+                const [akten, tickets, aufgaben] = await Promise.all([
                     countAktenZuValidieren(),
                     countOpenPraxisTicketsForMe(),
+                    aufgabenP,
                 ]);
                 setAktenZuValidierenCount(typeof akten === "number" && akten > 0 ? akten : 0);
                 setOpenPraxisTicketsCount(typeof tickets === "number" && tickets > 0 ? tickets : 0);
+                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             } else {
+                const aufgaben = await aufgabenP;
                 setAktenZuValidierenCount(0);
                 setOpenPraxisTicketsCount(0);
+                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             }
         } catch {
             setAktenZuValidierenCount(0);
             setOpenPraxisTicketsCount(0);
+            setOpenPraxisAufgabenCount(0);
         }
     }, [session?.rolle]);
 
@@ -405,8 +411,8 @@ export function AppLayout() {
     useEffect(() => {
         if (!session?.rolle) return;
         const payload = buildSyncNativeMenuPayload(session.rolle, (key) => translateLocale(locale, key));
-        void syncNativeMenu(payload).catch((err) => {
-            console.error("sync_native_menu failed", err);
+        void syncNativeMenu(payload).catch(() => {
+            /* native menu sync is best-effort */
         });
     }, [session?.rolle, locale]);
 
@@ -591,9 +597,8 @@ export function AppLayout() {
         window.addEventListener("offline", onOffline);
         void checkForUpdates()
             .then((u) => setUpdateAvailable(Boolean(u.update_available)))
-            .catch((e) => {
+            .catch(() => {
                 setUpdateAvailable(false);
-                console.warn("Update check failed", e);
             });
         return () => {
             window.removeEventListener("online", onOnline);
@@ -710,9 +715,13 @@ export function AppLayout() {
             toast("Begründung: mindestens 10 Zeichen.");
             return;
         }
+        if (!bgPatientId.trim()) {
+            toast("Bitte eine Patient-ID angeben.");
+            return;
+        }
         setBgBusy(true);
         try {
-            await breakGlassActivate(bgReason.trim(), bgPatientId || undefined);
+            await breakGlassActivate(bgReason.trim(), bgPatientId.trim());
             toast("Notfallzugriff protokolliert. Zeitfenster aktiv.");
             window.dispatchEvent(new Event("medoc-break-glass-refresh"));
             setBreakOpen(false);
@@ -1074,6 +1083,11 @@ export function AppLayout() {
                                                     {openPraxisTicketsCount > 99 ? "99+" : openPraxisTicketsCount}
                                                 </span>
                                             ) : null}
+                                            {item.to === "/posteingang" && openPraxisAufgabenCount > 0 ? (
+                                                <span className="count" aria-label={`${openPraxisAufgabenCount} Aufgaben`}>
+                                                    {openPraxisAufgabenCount > 99 ? "99+" : openPraxisAufgabenCount}
+                                                </span>
+                                            ) : null}
                                         </NavLink>
                                     );
                                 })}
@@ -1241,14 +1255,14 @@ export function AppLayout() {
                 }
             >
                 <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 12 }}>
-                    Aktivierung wird im Audit- und Security-Log protokolliert. Optional einen Patienten zuordnen.
+                    Aktivierung wird im Audit- und Security-Log protokolliert. Ein konkreter Patient ist erforderlich.
                 </p>
                 <Select
                     id="bg-patient"
-                    label="Patient (optional)"
+                    label="Patient"
                     value={bgPatientId}
                     onChange={(e) => setBgPatientId(e.target.value)}
-                    options={[{ value: "", label: "— kein Bezug auf einen Patienten —" }, ...bgPatients.map((p) => ({ value: p.id, label: p.name }))]}
+                    options={[{ value: "", label: "— Patient wählen —" }, ...bgPatients.map((p) => ({ value: p.id, label: p.name }))]}
                 />
                 <Textarea
                     id="bg-reason"

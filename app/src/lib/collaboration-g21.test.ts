@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildNativeGoMenuItems, NATIVE_GO_MENU_SEP } from "./native-go-menu";
-import { POSTEINGANG_POLL_MS } from "./posteingang-config";
+import { POSTEINGANG_POLL_MS } from "@/lib/posteingang-config";
 import {
     CLINICAL_PATIENT_DETAIL_TABS,
     patientDetailTabBlocked,
     type PatientDetailAkteTab,
 } from "./patient-detail-utils";
-import { allowed, routeChildPathAllowed } from "./rbac";
+import { allowed, routeChildPathAllowed } from "@/lib/rbac";
 
 describe("G21 collaboration contracts", () => {
     it("Posteingang polls every 5 seconds (FA-AUFG-03)", () => {
@@ -33,18 +33,19 @@ describe("G21 collaboration contracts", () => {
         }
     });
 
-    it("REZEPTION can open tickets; posteingang deaktiviert, Aufgaben unter Verwaltung", () => {
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
+    it("REZEPTION can open tickets and posteingang", () => {
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
         expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(true);
     });
 
-    it("REZEPTION native Go menu: tickets ohne Posteingang", () => {
+    it("REZEPTION native Go menu includes posteingang, tickets, and tagesabschluss", () => {
         const paths = buildNativeGoMenuItems("REZEPTION", (k) => k)
             .filter((i) => i.path !== NATIVE_GO_MENU_SEP)
             .map((i) => i.path);
-        expect(paths).not.toContain("/posteingang");
+        expect(paths).toContain("/posteingang");
         expect(paths.indexOf("/tickets")).toBeGreaterThanOrEqual(0);
+        expect(paths).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 
     it("verwaltung/aufgaben route für ARZT und REZEPTION (Verwaltung)", () => {

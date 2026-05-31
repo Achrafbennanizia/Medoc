@@ -8,7 +8,7 @@ import { ReplicaSyncBackground } from "./views/components/replica-sync-backgroun
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
-import { PageLoading } from "./views/components/ui/page-status";
+import { PageLoading } from "@/views/components/ui/page-status";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -22,11 +22,9 @@ const AktenZuValidierenPage = lazy(async () => ({
 const PraxisTicketsPage = lazy(async () => ({
     default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
 }));
-/* Posteingang vorübergehend deaktiviert — Aufgaben-Verwaltung unter /verwaltung/aufgaben
 const PosteingangPage = lazy(async () => ({
     default: (await import("./views/pages/posteingang")).PosteingangPage,
 }));
-*/
 const FinanzenPage = lazy(async () => ({ default: (await import("./views/pages/finanzen")).FinanzenPage }));
 const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pages/zahlung-create")).ZahlungCreatePage }));
 const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
@@ -147,9 +145,7 @@ export default function App() {
                         )}
                     />
                     <Route path="tickets" element={<RoleRoute routePath="tickets"><PraxisTicketsPage /></RoleRoute>} />
-                    {/* Posteingang deaktiviert — siehe /verwaltung/aufgaben
                     <Route path="posteingang" element={<RoleRoute routePath="posteingang"><PosteingangPage /></RoleRoute>} />
-                    */}
                     <Route path="finanzen" element={<RoleRoute routePath="finanzen"><FinanzenPage /></RoleRoute>} />
                     <Route path="finanzen/neu" element={<RoleRoute routePath="finanzen/neu"><ZahlungCreatePage /></RoleRoute>} />
                     <Route path="bestellungen" element={<RoleRoute routePath="bestellungen"><BestellungenPage /></RoleRoute>} />

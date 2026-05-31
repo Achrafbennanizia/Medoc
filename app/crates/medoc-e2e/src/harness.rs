@@ -28,6 +28,7 @@ static E2E_ENV: OnceLock<()> = OnceLock::new();
 
 pub fn ensure_e2e_env() {
     E2E_ENV.get_or_init(|| {
+        std::env::set_var("MEDOC_DEV_SEED", "1");
         std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", TEST_MASTER_SECRET);
         std::env::set_var(
             "MEDOC_DB_KEY",

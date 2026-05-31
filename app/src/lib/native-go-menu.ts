@@ -3,7 +3,7 @@
  * grouped like the sidebar plus Betrieb- und Hilfe-Einträge.
  */
 
-import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "./rbac";
+import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "@/lib/rbac";
 
 export type NativeGoMenuPayloadItem = { path: string; label: string };
 
@@ -16,14 +16,13 @@ const PATH_LABEL_KEYS: Record<string, string> = {
     "/patienten": "nav.patienten",
     "/akten/zu-validieren": "nav.akten_zu_validieren",
     "/tickets": "nav.praxis_tickets",
-    /* Posteingang deaktiviert — siehe /verwaltung/aufgaben
     "/posteingang": "nav.posteingang",
-    */
     "/rezepte": "nav.rezepte",
     "/atteste": "nav.atteste",
     "/statistik": "nav.statistik",
     "/bilanz": "nav.bilanz",
     "/finanzen": "nav.finanzen",
+    "/verwaltung/finanzen-berichte/tagesabschluss": "nav.tagesabschluss",
     "/bestellungen": "nav.bestellungen",
     "/leistungen": "nav.leistungen",
     "/produkte": "nav.produkte",
@@ -42,8 +41,8 @@ const PATH_LABEL_KEYS: Record<string, string> = {
 /** Route groups: separators between groups; within a group, order matches sidebar-style UX. */
 const NATIVE_GO_GROUPS: readonly (readonly string[])[] = [
     ["/", "/termine"],
-    ["/patienten", "/akten/zu-validieren", "/tickets", "/rezepte", "/atteste", "/statistik", "/bilanz"],
-    ["/finanzen", "/bestellungen", "/leistungen", "/produkte"],
+    ["/patienten", "/akten/zu-validieren", "/posteingang", "/tickets", "/rezepte", "/atteste", "/statistik", "/bilanz"],
+    ["/finanzen", "/verwaltung/finanzen-berichte/tagesabschluss", "/bestellungen", "/leistungen", "/produkte"],
     ["/verwaltung"],
     ["/einstellungen"],
     ["/audit", "/ops", "/logs", "/compliance", "/datenschutz", "/migration"],

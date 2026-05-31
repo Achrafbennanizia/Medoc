@@ -1,6 +1,8 @@
 //! SQLCipher key material: OS keychain, optional wrapped file fallback, `MEDOC_DB_KEY` for tests.
 
 use std::path::{Path, PathBuf};
+#[cfg(not(test))]
+use std::sync::OnceLock;
 
 use argon2::{Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -14,11 +16,34 @@ const KEYRING_ACCOUNT: &str = "sqlcipher-key";
 const SALT_FILE: &str = "db-key.salt";
 const WRAP_FILE: &str = "db-key.wrap";
 
-/// 32-byte SQLCipher key for integration tests when `MEDOC_DB_KEY` is unset.
-pub const TEST_SQLCIPHER_KEY: [u8; 32] = [
+#[cfg(test)]
+const TEST_SQLCIPHER_KEY: [u8; 32] = [
     0x6d, 0x65, 0x64, 0x6f, 0x63, 0x2d, 0x74, 0x65, 0x73, 0x74, 0x2d, 0x73, 0x71, 0x6c, 0x63, 0x69,
     0x70, 0x68, 0x65, 0x72, 0x2d, 0x6b, 0x65, 0x79, 0x2d, 0x30, 0x30, 0x30, 0x30, 0x31, 0x32, 0x00,
 ];
+
+#[cfg(not(test))]
+static EPHEMERAL_TEST_POOL_KEY: OnceLock<Zeroizing<Vec<u8>>> = OnceLock::new();
+
+/// Key for encrypted in-memory pools in tests (`MEDOC_DB_KEY` preferred; no fixed secret in release builds).
+pub fn test_pool_key_material() -> Result<Zeroizing<Vec<u8>>, AppError> {
+    if let Some(k) = env_override_key() {
+        return Ok(Zeroizing::new(k));
+    }
+    #[cfg(test)]
+    {
+        Ok(Zeroizing::new(TEST_SQLCIPHER_KEY.to_vec()))
+    }
+    #[cfg(not(test))]
+    {
+        let key = EPHEMERAL_TEST_POOL_KEY.get_or_init(|| {
+            let mut k = vec![0u8; 32];
+            rand::thread_rng().fill_bytes(&mut k);
+            Zeroizing::new(k)
+        });
+        Ok(key.clone())
+    }
+}
 
 pub fn pragma_key_value(key: &[u8]) -> String {
     let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
@@ -218,5 +243,5 @@ fn read_wrap_file(app_dir: &Path, passphrase: &str) -> Result<Vec<u8>, AppError>
 
 #[cfg(test)]
 pub fn test_key_material() -> Zeroizing<Vec<u8>> {
-    Zeroizing::new(env_override_key().unwrap_or_else(|| TEST_SQLCIPHER_KEY.to_vec()))
+    test_pool_key_material().expect("test pool key")
 }

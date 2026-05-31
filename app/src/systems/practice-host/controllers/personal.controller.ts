@@ -87,3 +87,8 @@ export async function setPersonalPermissionOverride(
 export async function deletePersonalPermissionOverride(personalId: string, action: string): Promise<void> {
     return practiceSystem.invoke("delete_personal_permission_override", { personal_id: personalId, action });
 }
+
+/** Entsperrt Brute-Force-Sperre für ein Team-Mitglied (Admin). */
+export async function adminUnlockBruteForce(targetEmail: string): Promise<number> {
+    return practiceSystem.invoke<number>("admin_unlock_brute_force", { target_email: targetEmail.trim() });
+}

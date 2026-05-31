@@ -2,7 +2,7 @@
 
 **Opened:** 2026-05-25
 **Status:** B1 (mapping) — done. B2/B3 — see end of document.
-**Scope:** Maps every `.rs` file in `app/src-tauri/src/` to its target crate after the Cargo-workspace split. Evidence-backed via `Grep` / `Read` on tracked sources.
+**Scope:** Maps every `.rs` file in `apps/practice-host/src/` to its target crate after the Cargo-workspace split. Evidence-backed via `Grep` / `Read` on tracked sources.
 
 ## Target crates
 
@@ -153,7 +153,7 @@ Every file has `#[tauri::command]` and/or `tauri::State`. Includes the `#[macro_
 3. **Tauri leakage in `infrastructure/database/connection.rs`.** Has `init_db(app: &AppHandle)`. Fix: keep `init_db_headless(&Path)` in core; move `init_db` to a `medoc-practice::database` shim.
 4. **Crate-root macros.** `log_security`, `log_system`, `log_device`, `log_migration`, `log_perf` (`infrastructure/logging/mod.rs`) and all `register_*_commands!()` macros are `#[macro_export]`. They resolve at the crate root of whichever crate they're compiled into; once `medoc-core` owns them, consumers must `use medoc_core::log_system;` OR `medoc-practice` re-exports them. Plan: `medoc-practice/src/lib.rs` adds `pub use medoc_core::{log_security, log_system, log_device, log_migration, log_perf};` for backward compatibility during the transition.
 5. **`OUT_DIR` includes in 3 files** (`domain/enums.rs`, `application/rbac.rs`, `infrastructure/license.rs`). All three move into `medoc-core`, so a single `medoc-core/build.rs` produces all three generated files.
-6. **TS file generation from `build.rs`.** The current `build.rs` writes `app/src/lib/rbac.generated.ts` and `app/src/lib/enums.generated.ts`. The relative paths from `medoc-core/build.rs` will be `../../src/lib/` instead of `../src/lib/`. Path constants need updating.
+6. **TS file generation from `build.rs`.** The current `build.rs` writes `apps/practice-host-ui/src/lib/rbac.generated.ts` and `apps/practice-host-ui/src/lib/enums.generated.ts`. The relative paths from `medoc-core/build.rs` will be `../../src/lib/` instead of `../src/lib/`. Path constants need updating.
 
 ---
 
@@ -162,8 +162,8 @@ Every file has `#[tauri::command]` and/or `tauri::State`. Includes the `#[macro_
 User chose `do_b1_b3_now` with "Stop if anything won't build". Concrete B3 steps in priority order:
 
 1. **B3.0** Add `app/Cargo.toml` workspace with members `["src-tauri"]`. Verify `cargo build --workspace` still works as a single-member workspace. (Pure no-op packaging step.)
-2. **B3.1** Add empty `app/crates/medoc-codegen/Cargo.toml` + `src/lib.rs` (empty `pub fn placeholder() {}`). Add to workspace members. Verify build.
-3. **B3.2** Add empty `app/crates/medoc-core/Cargo.toml` + `src/lib.rs` (`pub fn placeholder() {}`). Add to workspace members. Verify build.
+2. **B3.1** Add empty `crates/medoc-codegen/Cargo.toml` + `src/lib.rs` (empty `pub fn placeholder() {}`). Add to workspace members. Verify build.
+3. **B3.2** Add empty `crates/medoc-core/Cargo.toml` + `src/lib.rs` (`pub fn placeholder() {}`). Add to workspace members. Verify build.
 4. **B3.3** STOP HERE.
 
 This delivers the **workspace skeleton** without lifting any source code. Real lifts (B4+) require addressing all six known constraints above and are deferred to a follow-up session.

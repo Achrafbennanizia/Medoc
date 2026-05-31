@@ -10,7 +10,7 @@ import {
     ROUTE_VISIBILITY,
     settingsSectionVisible,
     type Role,
-} from "./rbac";
+} from "@/lib/rbac";
 
 const ROLES = ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const satisfies readonly Role[];
 
@@ -240,9 +240,9 @@ describe("routeChildPathAllowed", () => {
         expect(routeChildPathAllowed("tickets", "STEUERBERATER")).toBe(false);
         expect(routeChildPathAllowed("tickets", "PHARMABERATER")).toBe(false);
     });
-    it("posteingang route deaktiviert (ersetzt durch Verwaltung → Aufgaben)", () => {
-        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(false);
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
+    it("posteingang route for Arzt and Rezeption", () => {
+        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
+        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
     });
     it("GAP-01: REZEPTION cannot read medical records action", () => {

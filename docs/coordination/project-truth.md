@@ -1,31 +1,33 @@
 # Project truth ledger
 
-**Last updated:** 2026-05-26  
+**Last updated:** 2026-05-31  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Stable truth (high confidence)
 
-- **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`app/src-tauri/tauri.conf.json`).
-- **Desktop stack:** React 19 + Vite 6 + TypeScript frontend in `app/`; Rust **edition 2021** backend crate `medoc` with `sqlx` + SQLite (`app/package.json`, `app/src-tauri/Cargo.toml`).
+- **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
+- **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust Tauri crate `medoc` in `apps/practice-host/`; shared crates under `crates/` (`apps/practice-host-ui/package.json`, `apps/practice-host/Cargo.toml`).
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`connection.rs`, `sqlcipher.rs`, `db_key.rs`).
-- **CI scope:** `.github/workflows/ci.yml` — Rust (`app/src-tauri`): fmt, check, test, clippy, cargo-audit (requires `MEDOC_VENDOR_PUBKEY`); desktop frontend (`app`): npm audit, lint, vitest, build. **No** root-level `src/` Next.js tree in repo (2026-05-19).
-- **Vendor Ed25519 pubkey:** Compile-time via `app/src-tauri/build.rs` → `OUT_DIR/pubkey.rs`; used by `license.rs` and `update.rs` (`app/src-tauri/src/infrastructure/crypto/sig.rs`).
+- **Repo layout (Wave D):** Root `Cargo.toml` + `package.json` workspaces. `apps/{practice-host,practice-host-ui}/`, `crates/`, `packages/`. Legacy `app/` stub README only.
+- **CI scope:** `.github/workflows/ci.yml` — Rust at repo root; frontend via root npm workspace (`npm run lint/test/build`).
+- **Vendor Ed25519 pubkey:** Compile-time via `crates/medoc-core/build.rs` → `OUT_DIR/pubkey.rs`; TS codegen → `packages/medoc-shared/src/generated/`.
 - **Update signatures:** `update::evaluate` rejects unsigned/tampered manifests with `UpdateStatus::Error { message: "Signatur ungültig" }`.
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `einstellungen-company-portal-section.tsx`.
-- **LAN API transport:** HTTPS only via self-signed `lan-tls.{crt,key}` under app data dir; SHA-256 fingerprint exposed in status + UDP beacon (`app/src-tauri/src/infrastructure/lan_server/tls.rs`, `lan_commands.rs`).
+- **LAN API transport:** HTTPS only via self-signed `lan-tls.{crt,key}` under app data dir; SHA-256 fingerprint exposed in status + UDP beacon (`crates/medoc-lan/src/tls.rs`, `apps/practice-host/src/commands/lan_commands.rs`).
 - **HTTP CORS:** LAN server uses explicit origin allowlist + 403 gate (`infrastructure/cors_policy.rs`); company server denies all browser `Origin` headers (`company_host/http.rs`).
-- **VVT export (runtime text):** Generated VVT lists SQLite WAL and **explicitly** states DB file currently without SQLCipher plus planned SQLCipher (`app/src-tauri/src/infrastructure/vvt.rs`).
-- **Tauri security:** Content Security Policy set with separate **`devCsp`** for Vite (`localhost` / `127.0.0.1:1420` + websocket) and production **`csp`** without invalid `localhost:*` wildcards (`app/src-tauri/tauri.conf.json`).
-- **GOZ invoice PDF (Rust):** Multipage layout in `app/src-tauri/src/infrastructure/pdf.rs`; optional praxis fields on `Invoice`; integration tests in `tests/pdf_document_tests.rs`.
-- **Praxis document readiness (FE):** `app/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
+- **VVT export (runtime text):** Generated VVT lists SQLite WAL and **explicitly** states DB file currently without SQLCipher plus planned SQLCipher (`crates/medoc-core/src/infrastructure/vvt.rs`).
+- **Tauri security:** Content Security Policy set with separate **`devCsp`** for Vite (`localhost` / `127.0.0.1:1420` + websocket) and production **`csp`** without invalid `localhost:*` wildcards (`apps/practice-host/tauri.conf.json`).
+- **GOZ invoice PDF (Rust):** Multipage layout in `crates/medoc-core/src/infrastructure/pdf.rs`; optional praxis fields on `Invoice`; integration tests in `apps/practice-host/tests/pdf_document_tests.rs`.
+- **Praxis document readiness (FE):** `apps/practice-host-ui/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
-- **Validation (fix session):** `npm run lint`, `npm test`, `npm run build` (app/) **passed**; `cargo test --tests` (app/src-tauri) **passed** (`docs/coordination/validation.md`).
-- **Three-system layout (2026-05-21):** FE `app/src/systems/{practice-host,lan,company-portal}/`; Rust workspace crates `medoc-core`, `medoc-lan`, `medoc-company`, binaries `medoc`, `medoc-server`, `medoc-company-server`; architecture `docs/architecture/three-systems.md`. Legacy `app/src/controllers/*.ts` removed (Wave A).
-- **Deployment modes (2026-05-26):** `practice_desktop` (local Tauri DB), `lan_client` (HTTPS to remote LAN server), `serverless_peer` (local DB + master/replica outbox sync). Config: `app_kv` `sync.deployment.v1`; engine: `app/crates/medoc-sync/`; docs: `docs/architecture/deployment-topologies.md`, `serverless-sync.md`.
+- **Validation (Wave D):** `npm run check` at repo root **passed**; `cargo test --tests` at repo root **passed** (`docs/coordination/validation.md`).
+- **Three-system layout:** FE packages `packages/medoc-system-{practice,lan,company}/`; UI host `apps/practice-host-ui/src/systems/`; Rust workspace crates under `crates/`; binaries `medoc`, `medoc-server`, `medoc-company-server`.
+- **Deployment modes (2026-05-26):** `practice_desktop`, `lan_client`, `serverless_peer`. Engine: `crates/medoc-sync/`.
 - **Independent binaries (Wave B8):** `cargo build -p medoc-lan-server` / `medoc-company-server` / `medoc` — no Tauri in headless servers (`docs/coordination/phase-handoff.md`).
-- **License v2 (Wave V1):** Perpetual device-bound license encrypted with AES-GCM-256 (HKDF from `MEDOC_VENDOR_SEED` salted by `device_id`) and signed by `MEDOC_VENDOR_PUBKEY`. Persisted in `app_kv` under `license.v2`; runtime status via `current_license_status` Tauri IPC. Round-trip + rejection tests in `app/crates/medoc-core/tests/license_v2_tests.rs`.
+- **Frontend npm workspace (Wave C + D):** Root `package.json` workspaces: `apps/practice-host-ui`, `packages/*`. Five `@medoc/*` packages under `packages/`. Imports use `@medoc/*` directly (C.5). `@/systems/{practice-host,lan,company-portal}/*` resolve via tsconfig/vite aliases in `apps/practice-host-ui/`.
+- **License v2 (Wave V1):** Tests in `crates/medoc-core/tests/license_v2_tests.rs`.
 - **Pairing handshake (Wave V1):** Replicas POST `/api/v1/pairing/request` → master decides via `/decide/{id}` → master mints an Ed25519-signed activation token (`mt2.<payload>.<sig>`) stored in `pairing_request.activation_token` and pushes per-slave `slave_permission` rows. The master signing keypair lives in the OS keychain (`medoc-sync::master_keys`).
-- **Activation-token auth scope (Wave V1):** `jwt_auth_middleware` accepts `mt2.*` bearers only on `/api/v1/sync/{push,pull,status}` and `/api/v1/pairing/peers`; other protected routes reject with 403 (`app/crates/medoc-lan/src/sync_http.rs::verify_activation_for_path`).
+- **Activation-token auth scope (Wave V1):** `crates/medoc-lan/src/sync_http.rs::verify_activation_for_path`.
 - **Outbox hooks (Wave V1):** Repo write paths in `medoc-core::infrastructure::database::{patient,akte,termin,zahlung,praxis_aufgabe,app_kv}_repo` call `sync_outbox::record_or_noop` which appends one row to `sync_outbox` when `mode = serverless_peer` and the table is in `SYNCED_TABLES`. Internal `sync.*`, `license.*`, `pairing.*` `app_kv` keys are excluded. 7 integration tests + 3 unit tests cover this path.
 - **Conflict resolution (Wave V1):** `ConflictPolicy::MasterWinsWithFreshness` uses `updated_at`. Tested by `master_does_not_overwrite_newer_replica_row` and `newer_master_push_overwrites_older_replica_row` in `medoc_sync::engine::tests`.
 - **Removed:** Root `src/` Next.js reference app and CI job `next-web` (audit remediation TASK 0.1, 2026-05-19). V-Model docs mark historical Next prototype as archive only.
@@ -61,13 +63,13 @@
 
 | Claim | Evidence | Date |
 | ----- | -------- | ---- |
-| Tauri + versions | `app/package.json`, `app/src-tauri/Cargo.toml`, `app/src-tauri/tauri.conf.json` | 2026-04-19 |
-| SQLite not SQLCipher in connector | `app/src-tauri/src/infrastructure/database/connection.rs` | 2026-04-19 |
-| Frontend routes | `app/src/App.tsx` | 2026-04-19 |
+| Tauri + versions | `apps/practice-host-ui/package.json`, `apps/practice-host/Cargo.toml`, `apps/practice-host/tauri.conf.json` | 2026-05-30 |
+| SQLite not SQLCipher in connector | `crates/medoc-core/src/infrastructure/database/connection.rs` | 2026-04-19 |
+| Frontend routes | `apps/practice-host-ui/src/App.tsx` | 2026-05-30 |
 | CI commands | `.github/workflows/ci.yml` | 2026-04-19 |
 | Build + tests pass | Terminal: `npm run build`, `cargo test --tests` | 2026-04-19 |
-| Vendor pubkey build | `app/src-tauri/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-05-19 |
-| Update signature tests | `app/src-tauri/tests/update_signature_tests.rs` | 2026-05-19 |
+| Vendor pubkey build | `crates/medoc-core/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-05-30 |
+| Update signature tests | `apps/practice-host/tests/update_signature_tests.rs` | 2026-05-30 |
 | CI without next-web | `.github/workflows/ci.yml` | 2026-05-19 |
 | WAAD intake | `docs/requirements-engineering/01a-waad-anforderungen.md`, `01b-traceability-waad.md`, `source/anforderungen-ableitung-waad.pdf` | 2026-04-25 |
 | WAAD-Pflichtenheft delta | `docs/v-model/01-anforderungen/pflichtenheft.md` (FA-AKTE-14..16, FA-DOK-08, FA-LEIST-05, FA-PERS-07/08, NFA-USE-09/10) | 2026-04-25 |

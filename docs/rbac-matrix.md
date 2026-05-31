@@ -1,6 +1,6 @@
 # MeDoc Desktop – Rollen- und Berechtigungsmatrix
 
-**Bezug:** `app/src-tauri/src/application/rbac.rs` (NFA-SEC-03)  
+**Bezug:** `apps/practice-host/src/application/rbac.rs` (NFA-SEC-03)  
 **Stand:** 2026-05-01
 
 Diese Matrix beschreibt die **Tauri-Backend-Autorisierung** (Aktionen `action` in `allowed()`). Befehle rufen `require()` mit der passenden Aktion auf. Nicht aufgeführte Aktionen sind **standardmäßig verweigert** (`_ => false`).
@@ -35,4 +35,4 @@ Diese Matrix beschreibt die **Tauri-Backend-Autorisierung** (Aktionen `action` i
 ## Hinweise
 
 - **Rollen-Strings** in der Session: `ARZT`, `REZEPTION`, `STEUERBERATER`, `PHARMABERATER` (`Role::parse`).
-- Das **Desktop-Frontend** unter `app/src/lib/rbac.ts` spiegelt dieselben `allowed()`-Strings für Navigation und `RoleRoute`; Verwaltungs-Unterpfade sind über `ROUTE_VISIBILITY` feiner als früher (`personal.read` nur noch Personal/Praxis-Kalender).
+- Das **Desktop-Frontend** unter `apps/practice-host-ui/src/lib/rbac.ts` spiegelt dieselben `allowed()`-Strings für Navigation und `RoleRoute`; Verwaltungs-Unterpfade sind über `ROUTE_VISIBILITY` feiner als früher (`personal.read` nur noch Personal/Praxis-Kalender).

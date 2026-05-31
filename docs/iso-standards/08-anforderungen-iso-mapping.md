@@ -22,7 +22,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-62304-01: Software-Entwicklungsplan | ✅ | V-Modell-Dokumentation (docs/v-model/) | Plan über V-Modell-Phasen 1-4 dokumentiert |
 | ISO-62304-02: Formale Anforderungsdokumentation | ✅ | RE-Prozess (docs/requirements-engineering/) | 6 RE-Dokumente mit Traceability-Matrix |
 | ISO-62304-03: Architektur-Dokumentation | ✅ | architecture-design.md, Architekturentwurf | Clean Architecture + MVC dokumentiert |
-| ISO-62304-04: Unit-Implementierung und -Verifikation | ⚠️ | Rust-Tests (`app/src-tauri/tests/`, inline `#[test]`), Frontend-Smoke (`npm test`) | Erweiterung: Abdeckungsziele und Traceability FA→Test dokumentieren |
+| ISO-62304-04: Unit-Implementierung und -Verifikation | ⚠️ | Rust-Tests (`apps/practice-host/tests/`, inline `#[test]`), Frontend-Smoke (`npm test`) | Erweiterung: Abdeckungsziele und Traceability FA→Test dokumentieren |
 | ISO-62304-05: Systemtests | ⚠️ | Akzeptanzkriterien definiert (04-spezifikation.md) | Testdurchführung steht aus |
 | ISO-62304-06: Formaler Freigabeprozess | ✅ | NFA-PROC-01; `docs/process/freigabeprozess.md` | Freigabeprozess dokumentiert; Umsetzung/Traceability im Projekt prüfen |
 | ISO-62304-07: SOUP-Dokumentation | ✅ | NFA-PROC-02; `docs/iso-standards/09-soup-liste.md` | SOUP-Liste vorhanden; bei neuen Abhängigkeiten aktualisieren |
@@ -58,7 +58,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 |-----------------|:------:|-------------------|-----------|
 | ISO-27001-01: RBAC nach Least Privilege | ✅ | NFA-SEC-01, NFA-SEC-02, RBAC-Matrix | Vollständig definiert |
 | ISO-27001-02: Individuelle Benutzerkonten | ✅ | FA-PERS-01, FA-PERS-02 | Jeder Benutzer hat eigenes Konto |
-| ISO-27001-03: Passwort-Hashing | ✅ | NFA-SEC-03 | Argon2id bevorzugt, bcrypt als Fallback — Implementierung in `app/src-tauri` prüfen |
+| ISO-27001-03: Passwort-Hashing | ✅ | NFA-SEC-03 | Argon2id bevorzugt, bcrypt als Fallback — `crates/medoc-core/src/infrastructure/crypto.rs` |
 | ISO-27001-04: Datenbank-Verschlüsselung (AES-256) | ⚠️ | SA-06 (verschlüsselte Speicherung) | SQLCipher muss aktiviert und getestet werden |
 | ISO-27001-05: Protokollierung aller Zugriffe auf Patientendaten | ⚠️ | NFA-SEC-04 (Audit-Log aller Schreiboperationen) | **ERWEITERUNG**: Auch Lesezugriffe auf Patientendaten müssen protokolliert werden |
 | ISO-27001-06: Manipulationssichere Audit-Logs | ⚠️ | NFA-SEC-04 | **ERWEITERUNG**: Audit-Logs dürfen keine Lösch-/Edit-Funktion haben |

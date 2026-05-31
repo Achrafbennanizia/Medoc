@@ -21,9 +21,9 @@ Canonical **vertical order** for list/report modules (Patienten, Bestellungen, F
 
 ## Abbreviations
 
-- Use `app/src/lib/abbreviations.ts` + `ResponsiveLabel` for labels that must shorten in **narrow containers** — not raw CSS ellipsis for semantics.
+- Use `apps/practice-host-ui/src/lib/abbreviations.ts` + `ResponsiveLabel` for labels that must shorten in **narrow containers** — not raw CSS ellipsis for semantics.
 
 ## Breakpoints
 
 - CSS: `--bp-sm` 640px, `--bp-md` 900px, `--bp-lg` 1200px (`index.css`).  
-- TS: `app/src/lib/breakpoints.ts`.
+- TS: `apps/practice-host-ui/src/lib/breakpoints.ts`.

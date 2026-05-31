@@ -1,37 +1,19 @@
 //! TOTP enrollment and login gate tests.
 
 use medoc_lib::application::auth_service::{authenticate, LoginRequest};
-use medoc_lib::infrastructure::database::connection::test_memory_pool;
+use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use medoc_lib::infrastructure::database::personal_repo;
 use medoc_lib::infrastructure::totp;
 
-async fn personal_table(pool: &sqlx::SqlitePool) {
-    sqlx::query(
-        "CREATE TABLE personal (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            passwort_hash TEXT NOT NULL,
-            rolle TEXT NOT NULL,
-            taetigkeitsbereich TEXT,
-            fachrichtung TEXT,
-            telefon TEXT,
-            verfuegbar INTEGER NOT NULL DEFAULT 1,
-            totp_secret TEXT,
-            totp_enrolled_at TEXT,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )",
-    )
-    .execute(pool)
-    .await
-    .unwrap();
+async fn migrated_pool() -> sqlx::SqlitePool {
+    let pool = test_memory_pool().await.expect("pool");
+    run_migrations(&pool).await.expect("migrations");
+    pool
 }
 
 #[tokio::test]
 async fn arzt_without_totp_requires_enrollment() {
-    let pool = test_memory_pool().await.expect("pool");
-    personal_table(&pool).await;
+    let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     sqlx::query(
         "INSERT INTO personal (id, name, email, passwort_hash, rolle)
@@ -60,8 +42,7 @@ async fn arzt_without_totp_requires_enrollment() {
 
 #[tokio::test]
 async fn enrolled_arzt_requires_totp_code() {
-    let pool = test_memory_pool().await.expect("pool");
-    personal_table(&pool).await;
+    let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
     sqlx::query(
@@ -89,8 +70,7 @@ async fn enrolled_arzt_requires_totp_code() {
 
 #[tokio::test]
 async fn enrolled_arzt_logs_in_with_valid_totp() {
-    let pool = test_memory_pool().await.expect("pool");
-    personal_table(&pool).await;
+    let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
     sqlx::query(
@@ -125,8 +105,7 @@ async fn enrolled_arzt_logs_in_with_valid_totp() {
 
 #[tokio::test]
 async fn rezeption_without_totp_can_login() {
-    let pool = test_memory_pool().await.expect("pool");
-    personal_table(&pool).await;
+    let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     sqlx::query(
         "INSERT INTO personal (id, name, email, passwort_hash, rolle)
@@ -151,8 +130,7 @@ async fn rezeption_without_totp_can_login() {
 
 #[tokio::test]
 async fn confirm_enrollment_persists() {
-    let pool = test_memory_pool().await.expect("pool");
-    personal_table(&pool).await;
+    let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
     sqlx::query(

@@ -13,7 +13,6 @@
 Build proof (from repo root):
 
 ```bash
-cd app
 cargo build -p medoc -p medoc-lan-server -p medoc-company-server
 ```
 

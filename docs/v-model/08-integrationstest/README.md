@@ -15,4 +15,4 @@ Nachweis, dass Schnittstellen zwischen Subsystemen (IPC, DB, Plugins, externe Sc
 
 ## Referenzen
 
-- Rust-Integrationstests: `app/src-tauri/tests/`
+- Rust-Integrationstests: `apps/practice-host/tests/`

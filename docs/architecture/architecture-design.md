@@ -19,21 +19,21 @@
 |---------|-------------|---------|
 | Desktop-Shell | Tauri | v2 |
 | Frontend | React + TypeScript + Vite | React 19, Vite 6 |
-| Styling | Tailwind CSS | v3 (`tailwindcss` in `app/package.json`) |
+| Styling | Tailwind CSS | v3 (`tailwindcss` in `apps/practice-host-ui/package.json`) |
 | State Management | Zustand | v5 |
 | Charts | Recharts | v2 |
-| Backend | Rust | Edition 2021 (`app/src-tauri/Cargo.toml`) |
+| Backend | Rust | Edition 2021 (`apps/practice-host/Cargo.toml`) |
 | ORM / DB | sqlx (async) | v0.8 |
 | Datenbank | SQLite (WAL); SQLCipher (NFA-SEC-08) **ausstehend** | SQLite 3 |
 | Auth | Argon2id + bcrypt-Fallback, JWT (lokal) | – |
-| Testing | `cargo test` (Backend); `npm run test` / Vitest im Frontend (`app/package.json`) | – |
+| Testing | `cargo test` (Backend); `npm run test` / Vitest im Frontend (root `npm run check`) | – |
 
 ## 2. Architektur-Überblick
 
 ### Frontend: MVC (Model-View-Controller)
 
 ```
-app/src/
+apps/practice-host-ui/src/
 ├── models/
 │   ├── types.ts               # TypeScript-Interfaces
 │   └── store/
@@ -58,7 +58,7 @@ app/src/
 ### Backend: Clean Architecture (Hexagonal / Ports & Adapters)
 
 ```
-app/src-tauri/src/
+apps/practice-host/src/
 ├── main.rs                    # Tauri App Builder + Plugin Registration
 ├── lib.rs                     # Module Declarations
 ├── commands/                  # 🔌 Interface Layer (Tauri Commands = Ports)
