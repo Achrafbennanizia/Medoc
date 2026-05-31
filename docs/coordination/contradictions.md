@@ -15,7 +15,7 @@
 
 | ID | Resolution | Evidence | Date closed |
 | -- | ---------- | -------- | ----------- |
-| C1a | VVT technical measures: first line states DB file **ohne SQLCipher**; second line **Geplant: SQLCipher** (no longer reads as if encryption were already in place) | `app/src-tauri/src/infrastructure/vvt.rs` `common_tech` | 2026-04-19 |
-| C2 | Architecture markdown aligned with repo: `app/src/`, `app/src-tauri/src/`, stack table | `docs/architecture/architecture-design.md` §1–2; `app/package.json` | 2026-04-19 |
+| C1a | VVT technical measures: first line states DB file **ohne SQLCipher**; second line **Geplant: SQLCipher** (no longer reads as if encryption were already in place) | `apps/practice-host/src/infrastructure/vvt.rs` `common_tech` | 2026-04-19 |
+| C2 | Architecture markdown aligned with repo: `apps/practice-host-ui/src/`, `apps/practice-host/src/`, stack table | `docs/architecture/architecture-design.md` §1–2; root `package.json` | 2026-05-31 |
 | C3 | CI includes Next.js app under `src/` | `.github/workflows/ci.yml` job `next-web` | **Resolved 2026-05-19** — job removed; no `src/package.json` in tree |
-| C4 | Tauri CSP: production `csp` (no dev host wildcards); `devCsp` for Vite on port 1420 + IPC | `app/src-tauri/tauri.conf.json` | 2026-04-19 |
+| C4 | Tauri CSP: production `csp` (no dev host wildcards); `devCsp` for Vite on port 1420 + IPC | `apps/practice-host/tauri.conf.json` | 2026-04-19 |

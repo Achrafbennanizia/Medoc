@@ -27,7 +27,7 @@ use medoc_sync::pairing::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use tauri::{AppHandle, Manager, State};
+use tauri::{Manager, State};
 
 use crate::commands::auth_commands::SessionState;
 use crate::commands::rbac_state::require;

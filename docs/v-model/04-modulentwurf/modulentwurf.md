@@ -1,6 +1,6 @@
 # Phase 4: Modulentwurf
 
-> **Stand der Implementierung:** Das **gebaute und in CI geprüfte Produkt** liegt unter `app/` (**Tauri + React/Vite**, IPC zu Rust/SQLite). Dieses Dokument beschreibt historisch den **Komponentenaufbau der Next.js-Referenzapp** im Verzeichnis `src/` (App Router, NextAuth, Prisma/PostgreSQL). Für UI-/Routing-Reviews des Desktop-Produkts siehe `app/src/App.tsx`, `app/src/views/` und die Controller unter `app/src/controllers/`.
+> **Stand der Implementierung:** Das **gebaute und in CI geprüfte Produkt** liegt unter `app/` (**Tauri + React/Vite**, IPC zu Rust/SQLite). Dieses Dokument beschreibt historisch den **Komponentenaufbau der Next.js-Referenzapp** im Verzeichnis `src/` (App Router, NextAuth, Prisma/PostgreSQL). Für UI-/Routing-Reviews des Desktop-Produkts siehe `apps/practice-host-ui/src/App.tsx`, `apps/practice-host-ui/src/views/` und die Controller unter `apps/practice-host-ui/src/controllers/`.
 
 ## 1. Komponentenhierarchie
 

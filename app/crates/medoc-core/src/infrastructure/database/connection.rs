@@ -74,9 +74,7 @@ fn resolve_sqlcipher_key(
 
 /// Encrypted in-memory pool for integration tests (`MEDOC_DB_KEY` or fixed test key).
 pub async fn test_memory_pool() -> Result<SqlitePool, AppError> {
-    let key = db_key::env_override_key()
-        .map(zeroize::Zeroizing::new)
-        .unwrap_or_else(|| zeroize::Zeroizing::new(db_key::TEST_SQLCIPHER_KEY.to_vec()));
+    let key = db_key::test_pool_key_material()?;
     sqlcipher::open_memory_pool(&key).await
 }
 

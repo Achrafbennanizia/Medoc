@@ -17,7 +17,8 @@ use medoc_core::infrastructure::database::{app_kv_repo, connection};
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
 use medoc_core::infrastructure::license_repo;
 use medoc_e2e::harness::{ensure_e2e_env, slave_pubkey_b64, slave_signing_key, LanHarness};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
+use tokio::sync::Mutex;
 
 /// All tests in this file mutate the process-wide `MEDOC_SKIP_MASTER_LICENSE`
 /// env var (either setting or removing it). cargo-test runs tests in
@@ -114,7 +115,7 @@ async fn wrong_device_license_master_harness() -> LanHarness {
 
 #[tokio::test]
 async fn unlicensed_master_rejects_sync_status_with_403() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     let mut lan = unlicensed_master_harness().await;
     let jwt = lan.login_ops_jwt().await;
     let (status, _) = lan
@@ -125,7 +126,7 @@ async fn unlicensed_master_rejects_sync_status_with_403() {
 
 #[tokio::test]
 async fn unlicensed_master_rejects_pairing_decide_with_403() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     let mut lan = unlicensed_master_harness().await;
     let jwt = lan.login_ops_jwt().await;
     let (status, _) = lan
@@ -141,7 +142,7 @@ async fn unlicensed_master_rejects_pairing_decide_with_403() {
 
 #[tokio::test]
 async fn unlicensed_master_rejects_pairing_submit_with_403() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     let mut lan = unlicensed_master_harness().await;
     let (status, _) = lan
         .json(
@@ -160,7 +161,7 @@ async fn unlicensed_master_rejects_pairing_submit_with_403() {
 
 #[tokio::test]
 async fn tampered_license_master_rejects_sync_status() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     let mut lan = tampered_license_master_harness().await;
     let jwt = lan.login_ops_jwt().await;
     let (status, _) = lan
@@ -171,7 +172,7 @@ async fn tampered_license_master_rejects_sync_status() {
 
 #[tokio::test]
 async fn wrong_device_license_master_rejects_pairing_submit() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     let mut lan = wrong_device_license_master_harness().await;
     let (status, _) = lan
         .json(
@@ -193,7 +194,7 @@ async fn skip_enforcement_env_bypasses_gate_even_without_license() {
     // The kill-switch `MEDOC_SKIP_MASTER_LICENSE=1` is documented in
     // `master_license::skip_enforcement` for ops emergencies. Make sure
     // it actually bypasses the gate so we don't accidentally remove it.
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     ensure_e2e_env();
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
 
@@ -215,7 +216,7 @@ async fn skip_enforcement_env_bypasses_gate_even_without_license() {
 
 #[tokio::test]
 async fn replica_role_in_serverless_peer_does_not_require_master_license() {
-    let _g = env_guard().lock().unwrap();
+    let _g = env_guard().lock().await;
     ensure_e2e_env();
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
     let pool = connection::test_memory_pool().await.expect("pool");

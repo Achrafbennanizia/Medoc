@@ -17,7 +17,7 @@
 | **Mittel** | Beteiligt an Datenverarbeitung oder UI, gepflegt, aber jüngere Codebase |
 | **Hoch** | Kritischer Pfad (Krypto/Persistenz), Sicherheits-relevant, oder unzureichend gepflegt |
 
-Alle Versionen sind in `app/src-tauri/Cargo.lock` und `app/package-lock.json`
+Alle Versionen sind in `Cargo.lock` (repo root) und `package-lock.json`
 fixiert (deterministische Builds).
 
 ---

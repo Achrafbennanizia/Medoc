@@ -2,7 +2,7 @@
 
 Architecture overview: **`docs/README-frontend.md`**.
 
-This checklist applies **one row per routed screen** in `app/src/App.tsx`.  
+This checklist applies **one row per routed screen** in `apps/practice-host-ui/src/App.tsx`.  
 **Global automated gate (this session):** `npm run build` ✅, `npm test` ✅, `cargo test` ✅ (with workspace-local `CARGO_TARGET_DIR`; see `docs/audit-2026-05-followup.md`).
 
 **Column legend**
@@ -75,6 +75,6 @@ This checklist applies **one row per routed screen** in `app/src/App.tsx`.
 | **(b)** | `create_patient` → `get_akte` → `update_zahnbefund` → `set_akte_section_validated` call order |
 | **(c)** | `create_termin` → `update_termin` → `create_zahlung` → `update_zahlung_status` call order |
 
-**SQLite cleanliness for DSGVO:** frontend smoke asserts `dsgvo_erase_patient` IPC + legacy browser key removal; database guarantees are covered by `app/src-tauri/tests/dsgvo_erasure_tests.rs`.
+**SQLite cleanliness for DSGVO:** frontend smoke asserts `dsgvo_erase_patient` IPC + legacy browser key removal; database guarantees are covered by `apps/practice-host/tests/dsgvo_erasure_tests.rs`.
 
 *End of DoD matrix.*

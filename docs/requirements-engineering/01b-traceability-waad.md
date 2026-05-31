@@ -6,7 +6,7 @@
 
 Dieses Dokument bildet jede der **39 WAAD-Anforderungen** auf eine oder mehrere
 verbindliche Pflichtenheft-IDs ab und vermerkt den heutigen Erfüllungsstatus
-auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
+auf Basis von **Code-Evidenz** (Pfade in `app/`, `apps/practice-host/`).
 
 ## Status-Legende
 
@@ -24,14 +24,14 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 
 | WAAD | Pflichtenheft | Status | Code-Evidenz | Bemerkung |
 |---|---|---|---|---|
-| **1.1.1** Stammdaten-UI | FA-PAT-01, FA-PAT-02, NFA-USE-H05, NFA-DESIGN-04 | ✅ COVERED | `app/src/views/pages/patient-create.tsx`, `app/src/views/pages/patient-detail.tsx`, `app/src-tauri/src/commands/patient_commands.rs` | Pflichtfelder, Validierung & responsives Layout vorhanden. |
-| **1.2.1** Termin CRUD + Konflikt + Kalender | FA-TERM-01, FA-TERM-02, FA-TERM-03, FA-TERM-12 | ✅ COVERED | `app/src/views/pages/termine.tsx`, `termin-create.tsx`, `app/src-tauri/src/commands/termin_commands.rs` (`check_conflicts`) | Tag/Woche/Monat-Ansicht; farbkodierte Termine. |
+| **1.1.1** Stammdaten-UI | FA-PAT-01, FA-PAT-02, NFA-USE-H05, NFA-DESIGN-04 | ✅ COVERED | `apps/practice-host-ui/src/views/pages/patient-create.tsx`, `apps/practice-host-ui/src/views/pages/patient-detail.tsx`, `apps/practice-host/src/commands/patient_commands.rs` | Pflichtfelder, Validierung & responsives Layout vorhanden. |
+| **1.2.1** Termin CRUD + Konflikt + Kalender | FA-TERM-01, FA-TERM-02, FA-TERM-03, FA-TERM-12 | ✅ COVERED | `apps/practice-host-ui/src/views/pages/termine.tsx`, `termin-create.tsx`, `apps/practice-host/src/commands/termin_commands.rs` (`check_conflicts`) | Tag/Woche/Monat-Ansicht; farbkodierte Termine. |
 | **1.2.2** Notfall-Sofort-Termin | FA-TERM-04 | ✅ COVERED | `termin-create.tsx` Notfall-Variante; `domain/enums.rs` (`TerminArt::Notfall`) | „Heute"/„Jetzt"-Eingabe in < 3 Klicks. |
 | **1.2.3** Langfrist-Planung + optionale Erinnerung | FA-TERM-05, FA-TERM-11 | 🟡 PARTIAL | Kalender unterstützt Monats-/Jahresnavigation; SMS/E-Mail-Reminder-Pipeline ist als `notifications.rs` gerüstet, aber **kein Versand-Connector aktiv**. | Reminder-Versand bleibt Nice-to-have-Action. |
 | **1.2.4** Termin-Änderung → automatische Benachrichtigung + Vorschläge | FA-TERM-07, FA-TERM-15 | 🟡 PARTIAL | Bestätigungsdialog vorhanden (`patient-detail.tsx`, `termine.tsx`); automatische **Alternativ-Vorschläge** noch nicht generiert. | Vorschlags-Heuristik als nächste Iteration. |
 | **1.3.1** Akte an Arzt weiterleiten + Mehrfach-Empfänger | **FA-AKTE-14 (NEU)** | 🆕 NEW-PH | Bisher implizit über Notiz-/Audit-Spur; expliziter „Akte weiterleiten"-Button + Empfängerliste fehlt. | Pflichtenheft-Erweiterung in dieser Welle: FA-AKTE-14. |
-| **1.3.2** RBAC: Rezeption hat keinen Zugriff auf medizinische Inhalte | FA-AKTE-13, NFA-SEC-01, NFA-SEC-02 | ✅ COVERED | `app/src-tauri/src/application/rbac.rs` — `patient.read_medical` / `patient.write_medical` nur für `Role::Arzt`; `akte_commands.rs::get_akte` nullt Diagnose/Befunde für Nicht-Arzt-Rollen. | Granulare per-Aktenbereich-Konfiguration → siehe 2.1.4. |
-| **1.3.3** Filterbare Termin-Übersicht für Arzt | FA-TERM-08 | ✅ COVERED | `app/src/views/pages/termine.tsx` (Datum/Patient/Status-Filter) | — |
+| **1.3.2** RBAC: Rezeption hat keinen Zugriff auf medizinische Inhalte | FA-AKTE-13, NFA-SEC-01, NFA-SEC-02 | ✅ COVERED | `apps/practice-host/src/application/rbac.rs` — `patient.read_medical` / `patient.write_medical` nur für `Role::Arzt`; `akte_commands.rs::get_akte` nullt Diagnose/Befunde für Nicht-Arzt-Rollen. | Granulare per-Aktenbereich-Konfiguration → siehe 2.1.4. |
+| **1.3.3** Filterbare Termin-Übersicht für Arzt | FA-TERM-08 | ✅ COVERED | `apps/practice-host-ui/src/views/pages/termine.tsx` (Datum/Patient/Status-Filter) | — |
 
 ## ID 2 — Rechte- und Zugriffskontrolle
 
@@ -45,13 +45,13 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | **2.2.2** Akteneinträge erst nach Arzt-Validierung final | FA-AKTE-02, FA-AKTE-03, NFA-SEC-04 | 🟡 PARTIAL | `patient_commands::update_patient` erzwingt Forward-Status-Übergänge; `Untersuchung`/`Behandlung` werden direkt persistiert (kein „PENDING"-Zustand pro Eintrag). | Roadmap: Pending/Draft-Flag pro med. Eintrag. |
 | **2.2.3** Optional: nur Arzt verwaltet med. Inhalte (Sicherheitspräferenz) | NFA-SEC-02, **FA-PERS-07 (NEU)** | 🆕 NEW-PH | Im Default-RBAC bereits so; Konfigurations-Toggle „Strict-Mode" fehlt. | Toggle in Einstellungen geplant. |
 | **2.2.4** Zentrale Berechtigungs-Oberfläche für den Arzt | FA-PERS-02, **FA-PERS-07 (NEU)** | 🟡 PARTIAL | `personal.tsx` setzt Rolle pro Mitarbeiter; per-Resource-Berechtigungs-Matrix-UI fehlt. | Action `A2`. |
-| **2.2.5** Interaktives Arzt-Dashboard | FA-STAT-01, FA-AKTE-13 | ✅ COVERED | `app/src/views/pages/dashboard.tsx`; rollenspezifische Widgets via `rbac.ts`. | — |
+| **2.2.5** Interaktives Arzt-Dashboard | FA-STAT-01, FA-AKTE-13 | ✅ COVERED | `apps/practice-host-ui/src/views/pages/dashboard.tsx`; rollenspezifische Widgets via `rbac.ts`. | — |
 
 ## ID 3 — Ärztliche Behandlung & Dokumentation
 
 | WAAD | Pflichtenheft | Status | Code-Evidenz | Bemerkung |
 |---|---|---|---|---|
-| **3.1.1** Strukturiertes UI für Diagnose / Behandlung / Verlauf | FA-DOK-01, FA-DOK-02, FA-AKTE-08 | ✅ COVERED | `app/src/views/components/UntersuchungComposer.tsx` (klinische Sektionen, `UntersuchungV1` JSON); Behandlungs-Composer in `patient-detail.tsx`. | — |
+| **3.1.1** Strukturiertes UI für Diagnose / Behandlung / Verlauf | FA-DOK-01, FA-DOK-02, FA-AKTE-08 | ✅ COVERED | `apps/practice-host-ui/src/views/components/UntersuchungComposer.tsx` (klinische Sektionen, `UntersuchungV1` JSON); Behandlungs-Composer in `patient-detail.tsx`. | — |
 | **3.1.2** Diagnose / Atteste / Rezepte effizient + Vorlagen + 2D-Anatomie | FA-DOK-04, FA-REZ-01..05, FA-ATT-01..04, FA-ZAHN-01 | ✅ COVERED | `vorlage-editor.tsx`, `vorlagen-rezepte-atteste.tsx`, `rezepte.tsx`, `atteste.tsx`, `DentalChart.tsx` | Schnellzugriff auf Vorlagen vorhanden. |
 | **3.1.3** Versionierte Nachträge mit Zeitstempel + Benutzer | FA-AKTE-03, NFA-SEC-04 | 🟡 PARTIAL | Audit-Log enthält UPDATE-Events mit user_id + timestamp (`akte_commands.rs`); **keine** UI-Diff-Ansicht („Version A vs. B") vorhanden. | Diff-View geplant. |
 | **3.1.4** Anhänge mit Typ / Referenz / Tags | FA-AKTE-04, FA-DOK-06 | 🟡 PARTIAL | Scanner-Workflow existiert (`integration_commands.rs`, `system.controller.ts`); Tag-System für Bilder/PDFs noch nicht persistiert. | Tag-Feld in `dokument`-Tabelle nachziehen. |
@@ -64,8 +64,8 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | **4.1.2** Atteste/Rezepte/Dokumente automatisch archivieren | FA-AKTE-01, FA-REZ-05, FA-ATT-04 | ✅ COVERED | Rezepte/Atteste werden direkt mit `akte_id`/`patient_id` gespeichert. | — |
 | **4.1.3** Physische Dokumente: Typ + ID + Suche | FA-AKTE-04, FA-AKTE-05, NFA-COMP-06 | ✅ COVERED | Scanner-Integration speichert Typ + Dateipfad; Suche über `list-params.ts`. | — |
 | **4.1.4** Belegnummern (Quittungen, Rechnungen, Rezepte), optional Scan | FA-AKTE-05, FA-FIN-01 | ✅ COVERED | Rezept-Nummer (`R-{YYYY}-{seq}`), Behandlungs-Nummer (`B-{YYYY}-{seq}`); Zahlung mit `belegnummer`-Feld. | — |
-| **4.2.1** Konsistente UI + Versionierung | FA-AKTE-03, NFA-DESIGN-01..05, NFA-MAINT-03 | ✅ COVERED | UI-Komponentenbibliothek (`app/src/views/components/ui/`); Audit-Log liefert Versionierung. | — |
-| **4.2.2** Intelligente Suche (Auto-Vervollständigung, Phonemisch) | FA-PAT-05, NFA-USE-H05 | ✅ COVERED | `app/src/lib/string-suggest.ts` (Levenshtein + phonemische Ähnlichkeit), `patienten.tsx` Suchfeld. | — |
+| **4.2.1** Konsistente UI + Versionierung | FA-AKTE-03, NFA-DESIGN-01..05, NFA-MAINT-03 | ✅ COVERED | UI-Komponentenbibliothek (`apps/practice-host-ui/src/views/components/ui/`); Audit-Log liefert Versionierung. | — |
+| **4.2.2** Intelligente Suche (Auto-Vervollständigung, Phonemisch) | FA-PAT-05, NFA-USE-H05 | ✅ COVERED | `apps/practice-host-ui/src/lib/string-suggest.ts` (Levenshtein + phonemische Ähnlichkeit), `patienten.tsx` Suchfeld. | — |
 
 ## ID 5 — Nachsorge & Kommunikation
 
@@ -97,7 +97,7 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | **7.1.1** Vordefinierte Attest-/Rezept-Vorlagen | FA-DOK-04, FA-REZ-02 | ✅ COVERED | `vorlage-editor.tsx`, `vorlagen-rezepte-atteste.tsx`. | — |
 | **7.1.2** Optionslisten für Leistungen / Medikamente / Untersuchungen | FA-DOK-03, FA-LEIST-01, NFA-USE-H06 | ✅ COVERED | `medikamente.ts`, `untersuchung.ts`, `behandlungs-katalog.tsx`. | — |
 | **7.1.3** Strukturierte Formulare + Plausibilität + Eingabehilfen | FA-PAT-01, NFA-USE-H05 | ✅ COVERED | `form-section.tsx`, `tag-input.tsx`, `time-slot-picker.tsx`, Validierungslogik in den Create-Pages. | — |
-| **7.1.4** Parametrische Filter überall (Akte, Leistungen, Kosten) | FA-LEIST-04, FA-FIN-11, FA-PAT-03 | ✅ COVERED | `app/src/lib/list-params.ts`, `app/src-tauri/src/commands/list_params.rs`. | — |
+| **7.1.4** Parametrische Filter überall (Akte, Leistungen, Kosten) | FA-LEIST-04, FA-FIN-11, FA-PAT-03 | ✅ COVERED | `apps/practice-host-ui/src/lib/list-params.ts`, `apps/practice-host/src/commands/list_params.rs`. | — |
 | **7.2.1** Hilfetexte / Tooltips / Tutorials, Einarbeitung ≤ 2 Monate | NFA-USE-05, NFA-USE-H10, **NFA-USE-09 (NEU)** | 🟡 PARTIAL | `hilfe.tsx`, `app-help-dialogs.tsx`, `command-palette.tsx`; **kontextsensitive Tooltips pro Feld** noch nicht systematisch. | NFA-USE-09 fordert Tooltip-Coverage ≥ 80 % der interaktiven Felder. |
 | **7.2.2** Online-Schulungen | — | ⚪ ORG | Außerhalb der Software (Hersteller-Service). | Hinweis im Benutzerhandbuch. |
 | **7.2.3** Learning-by-Doing-Elemente | NFA-USE-H10, **NFA-USE-09 (NEU)** | 🟡 PARTIAL | `command-palette` und Help-Dialoge sind erste Schritte; geführter Onboarding-Wizard pro Rolle fehlt. | Action `A6`. |
@@ -118,7 +118,7 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 
 | WAAD | Pflichtenheft | Status | Code-Evidenz | Bemerkung |
 |---|---|---|---|---|
-| **9.1** Tägliches Backup, verschlüsselt, mit Restore | NFA-SEC-05, NFA-UPD-03 | 🟡 PARTIAL | `app/src-tauri/src/infrastructure/backup.rs` + `ops_commands.rs::backup` vorhanden; **automatischer Tages-Scheduler** noch nicht aktiv. | Action `A8` — Scheduler + Restore-UI. |
+| **9.1** Tägliches Backup, verschlüsselt, mit Restore | NFA-SEC-05, NFA-UPD-03 | 🟡 PARTIAL | `apps/practice-host/src/infrastructure/backup.rs` + `ops_commands.rs::backup` vorhanden; **automatischer Tages-Scheduler** noch nicht aktiv. | Action `A8` — Scheduler + Restore-UI. |
 | **9.2** Zentrales Dashboard für ärztliche Kernaufgaben | FA-STAT-01, FA-AKTE-13 | ✅ COVERED | `dashboard.tsx`. | — |
 | **9.3** Cloud-Anbindung für Hochverfügbarkeit | NFA-SEC-06, NFA-NET-12 | ⚪ ORG / 🟡 PARTIAL | NICE-TO-HAVE; nicht implementiert (lokaler Standalone-/LAN-Modus ist Default). | Roadmap. |
 | **9.4** Ladezeiten < 2 s, Stresstests | NFA-PERF-01, NFA-LOG-06 | 🟡 PARTIAL | Performance-Logging-Schwelle in `infrastructure/logging`; **automatisierter Stresstest** noch nicht eingerichtet. | Action `A9`. |

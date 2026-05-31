@@ -5,6 +5,7 @@ import {
     createPersonal,
     deletePersonal,
     deletePersonalPermissionOverride,
+    adminUnlockBruteForce,
     listPersonal,
     listPersonalPermissionOverrides,
     setPersonalPasswordByAdmin,
@@ -13,20 +14,20 @@ import {
 } from "@/systems/practice-host/controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { errorMessage, formatDate } from "../../lib/utils";
-import type { Personal } from "../../models/types";
-import { Button } from "../components/ui/button";
-import { Card, CardHeader } from "../components/ui/card";
-import { ConfirmDialog } from "../components/ui/dialog";
-import { Input, Select } from "../components/ui/input";
-import { Badge } from "../components/ui/badge";
-import { EmptyState } from "../components/ui/empty-state";
-import { useToastStore } from "../components/ui/toast-store";
-import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { errorMessage, formatDate } from "@/lib/utils";
+import type { Personal } from "@/models/types";
+import { Button } from "@/views/components/ui/button";
+import { Card, CardHeader } from "@/views/components/ui/card";
+import { ConfirmDialog } from "@/views/components/ui/dialog";
+import { Input, Select } from "@/views/components/ui/input";
+import { Badge } from "@/views/components/ui/badge";
+import { EmptyState } from "@/views/components/ui/empty-state";
+import { useToastStore } from "@/views/components/ui/toast-store";
+import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { EditIcon } from "@/lib/icons";
 import { passwordPolicyError } from "@/lib/password-policy";
-import { PasswordPolicyHints } from "../components/password-policy-hints";
+import { PasswordPolicyHints } from "@/views/components/password-policy-hints";
 import type { Rolle } from "@/models/types";
 
 function initialsFromName(name: string) {
@@ -421,6 +422,39 @@ export function PersonalPage() {
                             value={editForm.email}
                             onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                         />
+                        {canWrite ? (
+                            <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (!editForm.email.trim()) {
+                                            toast("E-Mail eingeben.", "error");
+                                            return;
+                                        }
+                                        void (async () => {
+                                            try {
+                                                const n = await adminUnlockBruteForce(editForm.email);
+                                                toast(
+                                                    n > 0
+                                                        ? `Login-Sperre aufgehoben (${n} Einträge).`
+                                                        : "Keine aktive Sperre für diese E-Mail.",
+                                                    n > 0 ? "success" : "info",
+                                                );
+                                            } catch (e) {
+                                                toast(errorMessage(e), "error");
+                                            }
+                                        })();
+                                    }}
+                                >
+                                    Login-Sperre aufheben
+                                </Button>
+                                <span className="card-sub" style={{ margin: 0 }}>
+                                    Brute-Force-Lockout für alle IPs dieses Kontos löschen.
+                                </span>
+                            </div>
+                        ) : null}
                         <Select
                             id="pers-ed-rolle"
                             label="Rolle"

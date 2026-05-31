@@ -1,6 +1,6 @@
 //! Invoice / billing amount rules (authoritative; FE `invoice-leistung.ts` mirrors for UI hints).
 use crate::error::AppError;
-use rand::Rng;
+use rand::{rngs::OsRng, Rng};
 
 const EUR_EPS: f64 = 1e-6;
 
@@ -96,10 +96,10 @@ pub fn praxis_rechnung_pflicht_missing(
         || bank_iban.map(str::trim).filter(|s| !s.is_empty()).is_none()
 }
 
-/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (port of FE `nextRechnungsnummer`).
+/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (legacy client fallback only — prefer `allocate_invoice_document_number`).
 pub fn next_rechnungsnummer(ymd: &str, reserved: &[&str]) -> String {
     let d: String = ymd.chars().filter(|c| c.is_ascii_digit()).collect();
-    let mut rng = rand::thread_rng();
+    let mut rng = OsRng;
     if d.len() < 8 {
         for _ in 0..48 {
             let num = format!(
