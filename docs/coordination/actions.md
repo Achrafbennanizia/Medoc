@@ -207,7 +207,7 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | -------- | --- | ----- | ------------------- |
 | **P0** | GAP-01..04 | REZ clinical leak; Posteingang; FA-AUFG bidirectional | **Mitigated in code** — `redact_*_for_rezeption` (`akte_commands.rs`); REZ patient-detail gates (`canViewClinical` / `canListBehandlungenForZahlung`); G16–G19 Posteingang + manual Aufgabe. **NOT OBSERVED:** live REZ UI audit |
 | **P1** | GAP-05..07 | FA-LEIST-07 Untersuchung; LEIST-06 U; auto Aufgabe | **Done** (G14–G18) |
-| **P2** | GAP-08..12 | Termin SMS/Notfall; REZ nav; Quittung; VDDS/BDT | **GAP-10 Done** (2026-06-02 sidebar); GAP-08/09/11/12 open |
+| **P2** | GAP-08..12 | Termin SMS/Notfall; REZ nav; Quittung; VDDS/BDT | **GAP-10/11 Done**; GAP-08/09/12 open |
 | **P3** | GAP-13..15 | TI/KIM; mobile LAN; Abo live |
 
 **Recommended implementation order:** Phase 1 (GAP-01/02) → Phase 2 (G15/G14-U) → Phase 3 (G16–G18) → Phase 4 (REZ IA).
