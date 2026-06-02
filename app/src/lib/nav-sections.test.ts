@@ -17,4 +17,14 @@ describe("NAV_SECTIONS (G17 sidebar regression)", () => {
         expect(items).toContain("/posteingang");
         expect(items.indexOf("/posteingang")).toBeLessThan(items.indexOf("/tickets"));
     });
+
+    it("Praxis includes tagesabschluss after finanzen (GAP-10 REZ IA)", () => {
+        const praxis = NAV_SECTIONS.find((s) => s.label === "Praxis");
+        expect(praxis).toBeDefined();
+        const items = praxis!.items;
+        expect(items).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
+        expect(items.indexOf("/verwaltung/finanzen-berichte/tagesabschluss")).toBeGreaterThan(
+            items.indexOf("/finanzen"),
+        );
+    });
 });

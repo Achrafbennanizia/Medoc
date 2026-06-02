@@ -71,6 +71,11 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     { to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
+    {
+        to: "/verwaltung/finanzen-berichte/tagesabschluss",
+        labelKey: "nav.tagesabschluss",
+        visibility: { kind: "action", action: "finanzen.read" },
+    },
     { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
     { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "action", action: "finanzen.read" } },
     /* `produkt.read` allows every role in Rust; sidebar matches product scope (exclude Steuerberater). */
