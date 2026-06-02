@@ -13,7 +13,7 @@ Set before every `cargo build` / CI run:
 export MEDOC_VENDOR_PUBKEY="<64 hex chars = 32 raw bytes>"
 ```
 
-The build script (`apps/practice-host/build.rs`) writes `OUT_DIR/pubkey.rs`:
+The build script (`app/src-tauri/build.rs`) writes `OUT_DIR/pubkey.rs`:
 
 ```rust
 pub const VENDOR_PUBKEY: [u8; 32] = […];

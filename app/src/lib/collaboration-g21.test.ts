@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildNativeGoMenuItems, NATIVE_GO_MENU_SEP } from "./native-go-menu";
-import { POSTEINGANG_POLL_MS } from "@/lib/posteingang-config";
+import { POSTEINGANG_POLL_MS } from "./posteingang-config";
 import {
     CLINICAL_PATIENT_DETAIL_TABS,
     patientDetailTabBlocked,
     type PatientDetailAkteTab,
 } from "./patient-detail-utils";
-import { allowed, routeChildPathAllowed } from "@/lib/rbac";
+import { allowed, routeChildPathAllowed } from "./rbac";
 
 describe("G21 collaboration contracts", () => {
     it("Posteingang polls every 5 seconds (FA-AUFG-03)", () => {
@@ -45,7 +45,13 @@ describe("G21 collaboration contracts", () => {
             .map((i) => i.path);
         expect(paths).toContain("/posteingang");
         expect(paths.indexOf("/tickets")).toBeGreaterThanOrEqual(0);
+        expect(paths.indexOf("/posteingang")).toBeLessThan(paths.indexOf("/tickets"));
         expect(paths).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
+    });
+
+    it("GAP-02: REZEPTION has read_documents but not read_medical", () => {
+        expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
+        expect(allowed("patient.read_documents", "REZEPTION")).toBe(true);
     });
 
     it("verwaltung/aufgaben route für ARZT und REZEPTION (Verwaltung)", () => {

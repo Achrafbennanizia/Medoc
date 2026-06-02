@@ -7,7 +7,7 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::pdf::render_template_preview_pdf;
+use crate::infrastructure::pdf_export::render_template_preview_pdf;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

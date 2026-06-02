@@ -27,4 +27,7 @@ cd app && npm ci && npm run build
 
 # Rust-Tests
 cd app/src-tauri && cargo test --tests
+
+# Lokale Tauri-Entwicklung (stabiler SQLCipher-Key + Demo-Seed)
+bash tools/dev-tauri.sh
 ```

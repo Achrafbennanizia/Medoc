@@ -1,7 +1,7 @@
 # Serverless peer sync
 
 **Last updated:** 2026-05-26  
-**Crate:** `crates/medoc-sync`  
+**Crate:** `app/crates/medoc-sync`  
 **HTTP surface:** `POST/GET /api/v1/sync/{push,pull,status}` and
 `/api/v1/pairing/{request,status,master-info,decide,revoke,pending,peers}` on
 the LAN router (`medoc-lan`).
@@ -135,7 +135,7 @@ For `app_kv`, the hook **excludes** internal sync/license/pairing keys
 license envelope do not replicate. The op label is mapped to `UPDATE` for
 upserts to satisfy the existing `sync_outbox.op` CHECK constraint.
 
-Test coverage: `crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
+Test coverage: `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
 (7 tests) and `medoc_core::infrastructure::database::sync_outbox::tests`.
 
 ## Conflict resolution (Slice 6)

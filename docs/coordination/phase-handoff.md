@@ -1,19 +1,31 @@
 # Phase handoff
 
-**Last phase label:** G21 recovery — monolith `app/` restored after Wave D partial delete  
-**Last closed:** 2026-05-31 — Recovered working tree on **`app/` monolith** (git HEAD layout): fixed Wave D import shims (`@medoc@/` → `@/`), re-enabled Posteingang IPC + RBAC, restored CI/Docker/README to `app/` paths; removed broken root `apps/`/`crates/`/`packages/` stubs. **`cd app && npm run check` 172 PASS**; G21 tests **9 PASS**; **`cd app && cargo test --tests` PASS**. G21 manual checklist rows **NOT OBSERVED** — run `bash tools/dev-tauri.sh`.
+**Last phase label:** Docker revalidation GREEN + G21 live checklist prep  
+**Last closed:** 2026-06-01 — Fixed `cargo fmt` import order (`praxis_aufgabe_commands.rs`). **`bash scripts/validate-docker.sh` PASS** (~6.4 min). Enhanced `g21-live-smoke-checklist.md` with dev credentials (`passwort123`, seed emails) and license helper steps. Added nav ordering regression in `collaboration-g21.test.ts`.
 
-**Previous closed:** 2026-05-31 — G21 gap-fix (Posteingang re-wire); Wave D attempt rolled back due to accidental `app/` delete + uncommitted root layout.
+**Previous phase label:** G21 row 4 FE proxy + full-stack validation  
+**Previous closed:** 2026-05-31 — `notifications-popover.smoke.test.tsx`; flaky g21-routing fix. **`npm test` 179 PASS**; **`cargo test --tests` PASS**.
 
-**Previous closed:** 2026-05-31 — Docker partial (e2e blocked by VM I/O); fixed with prune + `CARGO_BUILD_JOBS=1` + `gen_dev_license_once` ignore.
+**Previous phase label:** FA-AUFG-04 notification test (G21 row 4 backend)  
+**Previous closed:** 2026-05-31 — Extracted `praxis_aufgabe_notify`; 2 Rust tests. **`cargo test --test praxis_aufgabe_tests` 5/5 PASS**; **`npm test` 178 PASS**.
 
-**Previous phase label:** Wave D — repo-root restructure (`apps/`, `crates/`, `packages/`)
+**Previous phase label:** G21 sidebar fix + automated proxy completion  
+**Previous closed:** 2026-05-31 — Posteingang was missing from `NAV_SECTIONS` (route/RBAC/badge existed). Added `/posteingang` to Behandlung section. Fixed and validated `g21-routing.smoke.test.tsx` (row 1) and `ops.smoke.test.tsx` (row 7). **`npm test` 178 PASS**.
 
-**Previous phase label:** Wave C.2 — `@medoc/shared` types/schemas/rbac/utils
+**Previous phase label:** Full Docker pipeline GREEN (OOM fix)  
+**Previous closed:** 2026-05-31 — `validate-docker.sh` now uses `--shm-size=4g`, `CARGO_BUILD_JOBS=1`, and shared `medoc-target-linux-e2e` for Rust containers. **`bash scripts/validate-docker.sh` PASS** end-to-end (~7.4 min). **`npm test` 176 PASS** (prior session).
 
-**Previous phase label:** Wave C.1 — npm workspace `@medoc/shared`
+**Previous phase label:** Pro compare sweep — personal admin unlock UI  
+**Previous closed:** 2026-05-31 — Compared remaining ~24 `app/` diffs; ported Login-Sperre UI to `personal.tsx`.
 
-**Previous phase label:** Security audit remediation (L4 unsaved-form guards + H5 seed password change)
+**Previous phase label:** G21 Posteingang re-enabled + clearLicense + GAP verification  
+**Previous closed:** 2026-05-31 — Re-enabled Posteingang UI; wired `clearLicense`; GAP-01 redaction unit tests + GAP-02 contract test.
+
+**Previous phase label:** Phase C — pro compare/fix (no frontend UI layout changes)  
+**Previous closed:** 2026-05-31 — Continued pro→main port after backend/PDF phases: IPC wrappers for `adminUnlockBruteForce`, G21 inbox (`listPraxisAufgabenForMe` / `transitionPraxisAufgabe` / `countOpenPraxisAufgabenForMe`), `clearLicense`; hybrid `gen_dev_license_once` device-id resolution; new `praxis-tickets.smoke.test.tsx`. **Still skipped:** G21 Posteingang UI/routes/RBAC, Docker Wave D paths. **`cargo test --tests` PASS**; **`npm test` 170 PASS + 1 SKIP**.
+
+**Previous phase label:** Backend port from pro/Medoc (no frontend UI changes)  
+**Previous closed:** 2026-05-31 — Ported non-UI improvements from `/Users/achraf/pro/Medoc`: SQLCipher test-key hardening (`db_key.rs`, `connection.rs`), `OsRng` invoice fallback (`pricing.rs`), demo audit-log seeds, e2e harness `MEDOC_DEV_SEED`, tokio `Mutex` in `license_gate_negatives`, migration-based crypto/TOTP tests, `tools/dev-tauri.sh`, dev-only tests (`dev_local_db_password_tests`, `gen_dev_license_once`). **Skipped:** G21 Posteingang UI/routes/RBAC, Docker Wave D path drift (`/work` vs `/work/app`). **`cd app && cargo test --tests` PASS**; **`npm test` 169 PASS + 1 SKIP** (unchanged).
 
 **Previous phase label:** Testing matrix expansion v3 (proptest property invariants + UI smoke expansion)  
 **Previous closed:** 2026-05-27 (evening) — Property-based tests wired across three crates with 12 invariants and **2352 random scenarios** (1024 license envelopes + 1280 activation tokens + 48 sync-merge scenarios). Two new `critical-flows.smoke.test.tsx` flows added: (f) login rejection and (g) license activation; the file-wide `afterEach` now calls `cleanup()` to prevent DOM bleed between describes. Full Wave V1 + e2e + proptest test suite GREEN locally (155+ tests, zero failed); frontend full suite 169 PASS + 1 SKIP (was 167+1). **`bash scripts/validate-docker.sh` NOT RUN** for proptest commits — Docker Desktop's VM disk hit 100% mid-link (`No space left on device`); host validation above is the proxy. Commit `9f1d8a0` (pre-proptest) has the most recent end-to-end Docker GREEN evidence. See [`validation.md`](validation.md) latest block for the full table.
@@ -74,7 +86,7 @@
   - TOTAL workspace: 25.61% → **25.94%** lines (still dragged down by
     the same untested non-Wave-V1 surface: PDF, telematik, DSGVO,
     devices, ~half the `infrastructure/database` repos).
-- Outputs at `target/coverage/{summary.txt,lcov.info}`.
+- Outputs at `app/target/coverage/{summary.txt,lcov.info}`.
 
 **Previous phase label:** Master/slave pairing + License v2 (Wave V1)  
 **Previous closed:** 2026-05-26 — perpetual device-bound encrypted license, master Ed25519 keypair, replica activation tokens, freshness-aware conflict resolution, auto outbox hooks, and BEST-EFFORT mesh scaffolding. See [`actions.md`](actions.md) "Wave V1" entry and [`validation.md`](validation.md) for the per-slice evidence.
@@ -127,7 +139,7 @@
       `medoc-sync/merge.rs` 57.04%, `medoc-sync/engine.rs` 55.06%.
     - `medoc-core/license.rs` 81.31%,
       `medoc-core/database/sync_outbox.rs` 87.85%.
-    Outputs: `target/coverage/summary.txt`, `lcov.info`.
+    Outputs: `app/target/coverage/summary.txt`, `lcov.info`.
 
 ### 2026-05-27 — Unverified / not-run / deferred
 
@@ -151,13 +163,13 @@
 ### Wave V1 — Verified
 
 - `LicenseV2` envelope encrypts + signs against the master's `device_id`;
-  rejection paths covered in `crates/medoc-core/tests/license_v2_tests.rs`.
+  rejection paths covered in `app/crates/medoc-core/tests/license_v2_tests.rs`.
 - Pairing handshake compiles + unit-tests pass (4 tests in
   `medoc_sync::pairing::tests`).
 - Activation tokens authenticate `/sync/{push,pull,status}` and
   `/pairing/peers`. Non-allow-listed routes reject mt2 tokens (403).
 - Outbox hooks recorded for all 8 allow-listed tables — 7 integration
-  tests in `crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
+  tests in `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
   green.
 - `ConflictPolicy::MasterWinsWithFreshness` — 2 new merge tests in
   `medoc_sync::engine::tests` (older master push is rejected; newer
@@ -243,14 +255,14 @@ app/
 | Wave A `f402f28` — drop 41 controller shims + 15 page shims; repoint imports | **PASS** (`npm run lint`, `npm test` 155/28, `npm run build`) |
 | Wave B1 — per-module crate mapping document [`wave-b-crate-mapping.md`](wave-b-crate-mapping.md) | **DONE** (evidence-backed; 6 constraints catalogued) |
 | Wave B3 `a1196d3` — workspace skeleton (`app/Cargo.toml` + 2 empty placeholder crates) | **PASS** (`cargo check --workspace`, `cargo test --workspace --tests`, `cargo clippy --workspace -D warnings`) |
-| Wave C prep — `apps/practice-host-ui/src/lib/*` category mapping [`wave-c-package-mapping.md`](wave-c-package-mapping.md) | **DONE** (97 files triaged) |
+| Wave C prep — `app/src/lib/*` category mapping [`wave-c-package-mapping.md`](wave-c-package-mapping.md) | **DONE** (97 files triaged) |
 | Wave B2.a `5696bea` — move `Role` enum to `domain::rbac`; close inverted dep from `workflow_transitions` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests) |
 | Wave B2.b `65fbcfc` — extract `require`/`require_authenticated`/`require_one_of` into `commands::rbac_state` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests) |
 | Wave B2.c `04843bf` — remove Tauri dep from `infrastructure::database::connection`; add `commands::db_setup_commands::init_db_from_app` | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; `connection.rs` `grep tauri` empty) |
 | Wave B4 `5f09d58` — lift `build/{enums,rbac}_codegen.rs` into `medoc-codegen` lib crate; thin `build.rs` caller; latent `.gitignore` `build/` bug fixed | **PASS** (`cargo check/clippy/test --workspace`, 159 tests; generated TS / RS / SQL byte-identical) |
 | Wave B5.0 `a74fd82` — give `medoc_codegen::{enums,rbac}::run` explicit `yaml_path` + `ts_out_dir` (+ `sql_out_path`) parameters (prereq for codegen migration across crates) | **PASS** (159 tests; generated artefacts byte-identical) |
-| Wave B5.1 `6aef090` — move `AppError` into `medoc-core::error`; `apps/practice-host/src/error.rs` becomes `pub use` shim; first true cross-crate source lift | **PASS** (159 tests; `medoc-core` is now a load-bearing dep of `medoc`) |
-| Wave B5.2 `2c0307c` — move entire `domain/` (24 files, entities + enums + rbac + repositories + services) into `medoc-core/src/domain/`; new `medoc-core/build.rs` drives enums codegen; `apps/practice-host/src/domain.rs` shim re-exports everything | **PASS** (159 tests; generated artefacts byte-identical) |
+| Wave B5.1 `6aef090` — move `AppError` into `medoc-core::error`; `app/src-tauri/src/error.rs` becomes `pub use` shim; first true cross-crate source lift | **PASS** (159 tests; `medoc-core` is now a load-bearing dep of `medoc`) |
+| Wave B5.2 `2c0307c` — move entire `domain/` (24 files, entities + enums + rbac + repositories + services) into `medoc-core/src/domain/`; new `medoc-core/build.rs` drives enums codegen; `app/src-tauri/src/domain.rs` shim re-exports everything | **PASS** (159 tests; generated artefacts byte-identical) |
 | Wave B6.0 `8e1f8b5` — pre-lift untanglings (`BreakGlassState` → `medoc-core::break_glass`, `PermissionOverride` → `medoc-core::domain::rbac`, `lan_server::discovery` → `medoc-core::discovery`) | **PASS** (159 tests; resolves 3 upward `use crate::*` edges before bulk lift) |
 | Wave B6.1 `975f96c` — bulk-lift ~50 non-Tauri infrastructure files (backup, clinical_*, cors_policy, crypto/, database/, devices/, dsfa/dsgvo, license, logging/, migration, notifications, payment, pdf*, perf, photo_viewer_scan, retention, secret_store, telematik, totp, update, vvt) + `migrations/` directory into `medoc-core`; vendor pubkey codegen relocated to `medoc-core/build.rs` (third OUT_DIR migration after enums + RBAC) | **PASS** (159 tests; macros `log_*!` re-exported at practice crate root) |
 | Wave B7.0 `5f82295` — lift `application/` (10 files) + `infrastructure/company_portal/` (3 files) into `medoc-core`; RBAC codegen moved to `medoc-core/build.rs`; practice's `application.rs` becomes a 17-line facade with a `rbac` shim that merges medoc-core's matrix with practice's Tauri-State guards | **PASS** (159 tests; medoc-codegen build-dep removed from practice crate) |
@@ -274,14 +286,14 @@ app/
 
 ### Understanding delta (Wave A)
 
-- `apps/practice-host-ui/src/controllers/*.ts` no longer exists. Every consumer now imports directly from `@/systems/{practice-host,lan,company-portal}/controllers/*`.
+- `app/src/controllers/*.ts` no longer exists. Every consumer now imports directly from `@/systems/{practice-host,lan,company-portal}/controllers/*`.
 - 15 view-page re-export shims (`einstellungen-*-section.tsx`, `einstellungen-lan-host.tsx`, `einstellungen-company-portal-section.tsx`, `einstellungen-praxis-billing.tsx`, `patient-detail.tsx`) deleted; consumers (notably `einstellungen.tsx`, `App.tsx` lazy import, intra-system relative imports) repointed.
 - `systems-structure.test.ts` now asserts the new layout instead of the legacy shims.
 - `views/pages/` still contains ~53 not-yet-migrated pages (termine, dashboard, personal, verwaltung-*, etc.). These remain at their current path until a later wave decides to move them into `systems/practice-host/pages/`.
 
 ### Must happen next
 
-**Wave B closed `ed362bc` (2026-05-26).** Eight successive commits (B6.0, B6.1, B7.0, B7.1, B7.2, B8) lifted the entire shared backend out of `apps/practice-host/` and produced three independent Cargo crates that build standalone binaries. Validation green at every step (159 tests / 0 fail).
+**Wave B closed `ed362bc` (2026-05-26).** Eight successive commits (B6.0, B6.1, B7.0, B7.1, B7.2, B8) lifted the entire shared backend out of `app/src-tauri/` and produced three independent Cargo crates that build standalone binaries. Validation green at every step (159 tests / 0 fail).
 
 #### The user-facing payoff (verified)
 
@@ -309,7 +321,7 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 #### Outstanding work (Waves C + D, independent of each other)
 
 1. **Wave C — npm workspace split (frontend).**  
-   `apps/practice-host-ui/src/` is still a single TypeScript tree. The mapping document `docs/coordination/wave-c-package-mapping.md` already triages all 97 files in `apps/practice-host-ui/src/lib/`. Goal: split into `@medoc/shared`, `@medoc/ui`, `@medoc/system-practice`, `@medoc/system-lan` (a future browser/tablet client for the LAN server), `@medoc/system-company`. Steps: (a) introduce `app/package.json` workspaces; (b) move shared types out first; (c) per-system Vite roots; (d) per-system smoke tests.
+   `app/src/` is still a single TypeScript tree. The mapping document `docs/coordination/wave-c-package-mapping.md` already triages all 97 files in `app/src/lib/`. Goal: split into `@medoc/shared`, `@medoc/ui`, `@medoc/system-practice`, `@medoc/system-lan` (a future browser/tablet client for the LAN server), `@medoc/system-company`. Steps: (a) introduce `app/package.json` workspaces; (b) move shared types out first; (c) per-system Vite roots; (d) per-system smoke tests.
 
 2. **Wave D — repo-root restructure.**  
    Promote the workspace from `app/` into root: `apps/{practice,lan,company}/`, `crates/{medoc-*}/`, `packages/{shared,ui,system-*}/`, `tools/`. Updates required: CI workflow (`.github/workflows/ci.yml`), README, `AGENTS.md`, every `docs/coordination/*.md` path reference. Highest blast radius — should run last.
@@ -321,11 +333,11 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 #### Continuity notes for the next session
 
-- **`MEDOC_VENDOR_PUBKEY`** is now required at build time for **medoc-core** (it generates `pubkey.rs` in `OUT_DIR`). CI value: `79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`. The variable is read by `medoc-core/build.rs` (was `apps/practice-host/build.rs` before B6.1).
-- **Disk space:** `target/debug/incremental/` was cleared mid-Wave-B6 (it had grown to 15 GB). Future bulk lifts may need the same cleanup.
+- **`MEDOC_VENDOR_PUBKEY`** is now required at build time for **medoc-core** (it generates `pubkey.rs` in `OUT_DIR`). CI value: `79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`. The variable is read by `medoc-core/build.rs` (was `app/src-tauri/build.rs` before B6.1).
+- **Disk space:** `app/target/debug/incremental/` was cleared mid-Wave-B6 (it had grown to 15 GB). Future bulk lifts may need the same cleanup.
 - **No coordination contradictions** detected between the lifted code and the docs; the only stale paths are in `docs/coordination/wave-b-crate-mapping.md` (mentions migrations as still-in-src-tauri — but they're now in medoc-core; minor).
 
-3. **Wave B8 — binary crates.** `bin/medoc-server.rs` and `bin/medoc-company-server.rs` move into `crates/medoc-{lan,company}-server/src/main.rs` (or similar). Practice-host `medoc` crate keeps only `lib.rs` + `main.rs` + `commands/` + `systems/` and uses `medoc_core` + `medoc_lan` (for the embedded LAN server) as deps.
+3. **Wave B8 — binary crates.** `bin/medoc-server.rs` and `bin/medoc-company-server.rs` move into `app/crates/medoc-{lan,company}-server/src/main.rs` (or similar). Practice-host `medoc` crate keeps only `lib.rs` + `main.rs` + `commands/` + `systems/` and uses `medoc_core` + `medoc_lan` (for the embedded LAN server) as deps.
 
 4. **Other constraints to revisit during B6/B7** (not blockers yet):
    - `application/audit_chain_guard::blocks_ops()` is called from `commands::rbac_state::require` (Wave B2.b). If `audit_chain_guard.rs` later moves to `medoc-core`, the call stays where it is; only `commands::rbac_state` lives in the practice crate. Verify before splitting `application/`.
@@ -339,12 +351,12 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 ### Continuity tokens for the next Wave B session
 
-- The workspace root is repo-root `Cargo.toml`. Invoke cargo from the repository root (`cargo check --workspace`).
+- The workspace root is `app/Cargo.toml`. Always invoke cargo from there (`cd app && cargo check --workspace`).
 - Required env for any `cargo {check,test,clippy}` invocation:
   - `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`
   - `MEDOC_DB_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`
   - `MEDOC_AUDIT_KEY="k9-medoc-test-audit-key-32bytes!"`
-- Latent gotcha (resolved by B4): `.gitignore:52` matches `build/` globally → any new `build/` subdir under `apps/practice-host/` will silently disappear from version control. Prefer workspace crates under `crates/` for build-time logic.
+- Latent gotcha (resolved by B4): `.gitignore:52` matches `build/` globally → any new `build/` subdir under `app/src-tauri/` will silently disappear from version control. Prefer workspace crates under `app/crates/` for build-time logic.
 
 
 
@@ -365,7 +377,7 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 | Item | Status |
 |------|--------|
-| `apps/practice-host-ui/src/systems/*` + `apps/practice-host/src/systems/*` | **PASS** — ports/adapters/facade |
+| `app/src/systems/*` + `app/src-tauri/src/systems/*` | **PASS** — ports/adapters/facade |
 | `npm lint` / `npm test` (142) / `npm run build` | **PASS** |
 | `cargo fmt --check` / `cargo test --tests` | **PASS** (CI vendor pubkey) |
 | `cargo clippy --all-targets -D warnings` | **PASS** | 2026-05-21 |
@@ -535,7 +547,7 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 ### Phase 3.1 — sqlx file migrations (2026-05-19)
 
-- **`sqlx` feature `migrate`**; `apps/practice-host/migrations/0001_initial_schema.sql` (~470 lines, full baseline DDL).
+- **`sqlx` feature `migrate`**; `app/src-tauri/migrations/0001_initial_schema.sql` (~470 lines, full baseline DDL).
 - **`run_migrations`:** fresh DB (no `patient` table) → `sqlx::migrate!` + `run_rust_only_migrations` + gated `seed_demo_data`; existing DB → `run_legacy_embedded_migrations` (unchanged upgrade path).
 - **Demo seed:** `cfg!(test)`, `MEDOC_DEV_SEED=1`, or `--dev-seed` via `should_run_demo_seed()`.
 - **Deferred:** separate `0002_seed_dev.sql`; CI schema-drift job.
@@ -574,7 +586,7 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 ### Phase 3.4 — RBAC YAML codegen (2026-05-20)
 
 - **`config/rbac.yaml`** — permissions + role_sets (37 actions).
-- **`build/rbac_codegen.rs`** — generates `OUT_DIR/rbac_generated.rs` + `apps/practice-host-ui/src/lib/rbac.generated.ts` on `cargo build`.
+- **`build/rbac_codegen.rs`** — generates `OUT_DIR/rbac_generated.rs` + `app/src/lib/rbac.generated.ts` on `cargo build`.
 - **`rbac.rs` / `rbac.ts`** — delegate to generated matrix; route/nav config stays hand-written.
 
 | Command | Result |

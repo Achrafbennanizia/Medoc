@@ -1,0 +1,17 @@
+# Multi-device port-based backend e2e (master + company servers + HTTP clients).
+FROM rust:1-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup component add rustfmt clippy
+
+ENV PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+WORKDIR /work/app
+
+COPY docker/ci/run-multi-device-port-e2e.sh /usr/local/bin/run-multi-device-port-e2e.sh
+RUN chmod +x /usr/local/bin/run-multi-device-port-e2e.sh
+
+CMD ["/usr/local/bin/run-multi-device-port-e2e.sh"]

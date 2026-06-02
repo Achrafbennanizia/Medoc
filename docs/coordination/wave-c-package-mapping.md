@@ -1,8 +1,8 @@
 # Wave C — frontend package mapping
 
 **Opened:** 2026-05-25
-**Status:** Wave C.5 done — legacy shims removed; imports use `@medoc/*` directly (2026-05-29).
-**Scope:** Categorizes `apps/practice-host-ui/src/lib/`, `apps/practice-host-ui/src/models/`, `apps/practice-host-ui/src/views/components/`, `apps/practice-host-ui/src/services/` for the npm-workspace split. Evidence: `ls`, `Grep` on tracked sources.
+**Status:** prep only (analysis). Execution deferred until after Wave B.
+**Scope:** Categorizes `app/src/lib/`, `app/src/models/`, `app/src/views/components/`, `app/src/services/` for the npm-workspace split. Evidence: `ls`, `Grep` on tracked sources.
 
 ## Target npm packages (after Wave D)
 
@@ -13,12 +13,12 @@
 | `@medoc/system-practice` | Practice-host controllers + ports + adapters + pages | @medoc/shared, @medoc/ui, @tauri-apps/api (in tauri adapter only) |
 | `@medoc/system-lan` | LAN controllers + page | @medoc/shared, @medoc/ui |
 | `@medoc/system-company` | Company-portal controllers + page | @medoc/shared, @medoc/ui |
-| `apps/practice-host-ui` | The Tauri-bound React app (current `apps/practice-host-ui/src/`) | every above |
+| `apps/practice-host-ui` | The Tauri-bound React app (current `app/src/`) | every above |
 | `apps/lan-web-client` (optional) | Pure browser client targeting LAN HTTPS | @medoc/shared, @medoc/ui, @medoc/system-practice (HttpPracticeAdapter only) |
 
 ---
 
-## `apps/practice-host-ui/src/lib/` mapping (97 files)
+## `app/src/lib/` mapping (97 files)
 
 ### Generated → `@medoc/shared/src/generated/` (3 files)
 
@@ -66,18 +66,18 @@ Plus matching `*.test.ts` files.
 
 ---
 
-## `apps/practice-host-ui/src/models/` (UNVERIFIED — not enumerated in this prep)
+## `app/src/models/` (UNVERIFIED — not enumerated in this prep)
 
 Likely candidates: `types.ts` → `@medoc/shared/src/types/`. `store/auth-store.ts` etc. → `apps/practice-host-ui/src/store/` (zustand state) or `@medoc/system-practice` if cross-page.
 
-## `apps/practice-host-ui/src/views/components/` (UNVERIFIED — large, deferred)
+## `app/src/views/components/` (UNVERIFIED — large, deferred)
 
 Each component to be classified:
 - Pure presentational (Button, Input, Dialog, …) → `@medoc/ui`
 - System-aware (PatientAkteWorkflowDialogs, …) → `@medoc/system-practice/src/components/`
 - Layout (AppLayout) → `apps/practice-host-ui/src/views/layouts/`
 
-## `apps/practice-host-ui/src/views/pages/` (~53 not yet migrated)
+## `app/src/views/pages/` (~53 not yet migrated)
 
 Same triage: each page moves to either `@medoc/system-practice/src/pages/`, `@medoc/system-lan/src/pages/`, or `@medoc/system-company/src/pages/`. Pages still under `views/pages/` after Wave A are practice-host pages (LAN + company already moved). So default assignment: `@medoc/system-practice/src/pages/`.
 

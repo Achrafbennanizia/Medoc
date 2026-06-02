@@ -5,7 +5,8 @@ Eigenständiges **Hersteller-Backend** (Demo/On-Prem) für Abo-Kennzahlen, Integ
 ## Build & Start
 
 ```bash
-cargo run -p medoc-company-server -- --data-dir ./tmp-company-data
+cd app/src-tauri
+cargo run --bin medoc-company-server -- --data-dir ./tmp-company-data
 ```
 
 | Argument | Bedeutung |

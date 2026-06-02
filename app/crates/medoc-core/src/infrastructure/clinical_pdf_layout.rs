@@ -215,19 +215,91 @@ pub fn render_clinical_layout(doc: &ClinicalPdfLayout) -> Result<Vec<u8>, AppErr
         _ => render_generic(&mut pb, doc),
     }
 
-    // Datenschutz-Footer auf der letzten Seite (außer für Quittung — die ist
-    // ein steuerlicher Beleg, kein Behandlungsdokument)
-    if doc.kind != "quittung" {
-        pb.ensure_space(40);
-        pb.advance(12);
-        pb.hline(M_LEFT, M_RIGHT);
-        pb.advance(10);
-        pb.text(M_LEFT, 7, false,
-            "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an Berechtigte.");
-    }
+    emit_clinical_privacy_footer(&mut pb, &doc.kind);
 
     let pages = pb.finish();
     emit_multipage_pdf(&pages, &format!("{} {}", doc.kind, doc.document_title))
+}
+
+/// Plain preview when the frontend sends `bodyLines` only (no `layoutJson`).
+/// Uses the same letterhead + footer stack as structured clinical exports.
+pub fn render_plain_preview(
+    kind: &str,
+    template_name: &str,
+    fusszeile: &str,
+    body_pt: i32,
+    body_lines: &[String],
+) -> Result<Vec<u8>, AppError> {
+    let fs = body_pt.clamp(8, 18);
+    let wrap_cols = 86usize.saturating_sub((18 - fs) as usize * 2);
+
+    let cleaned: Vec<String> = body_lines
+        .iter()
+        .map(|l| super::clinical_text_format::plain_text_for_pdf(l))
+        .collect();
+
+    let praxis_lines: Vec<String> = cleaned
+        .first()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| vec![s.clone()])
+        .unwrap_or_default();
+    let body_start = if praxis_lines.is_empty() { 0 } else { 1 };
+
+    let mut pb = PageBuilder::new();
+    let lh = Letterhead {
+        praxis_lines: &praxis_lines,
+        meta_rows: &[],
+        address_lines: &[],
+        header_right_lines: &[],
+        show_sender_hint: false,
+    };
+    emit_letterhead(&mut pb, &lh);
+
+    pb.text(M_LEFT, 14, true, template_name);
+    pb.advance(18);
+    pb.text(M_LEFT, 9, false, &format!("Dokumenttyp: {kind}"));
+    pb.advance(14);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(16);
+
+    for raw in &cleaned[body_start..] {
+        if raw.trim().is_empty() {
+            pb.advance(fs / 2);
+            continue;
+        }
+        pb.paragraph(raw, fs, wrap_cols, 0);
+    }
+
+    if !fusszeile.trim().is_empty() {
+        pb.advance(8);
+        pb.hline(M_LEFT, M_RIGHT);
+        pb.advance(10);
+        for chunk in wrap_soft(fusszeile.trim(), wrap_cols) {
+            pb.text(M_LEFT, 8, false, &chunk);
+            pb.advance(11);
+        }
+    }
+
+    emit_clinical_privacy_footer(&mut pb, kind);
+
+    let pages = pb.finish();
+    emit_multipage_pdf(&pages, &format!("Vorschau {template_name}"))
+}
+
+fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str) {
+    if kind == "quittung" {
+        return;
+    }
+    pb.ensure_space(40);
+    pb.advance(12);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(10);
+    pb.text(
+        M_LEFT,
+        7,
+        false,
+        "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an Berechtigte.",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1229,5 +1301,26 @@ mod tests {
             "expected multi-page PDF, got {} pages",
             page_objs
         );
+    }
+
+    #[test]
+    fn plain_preview_uses_clinical_library_letterhead_and_footer() {
+        let pdf = render_plain_preview(
+            "attest",
+            "Standardvorlage",
+            "Mit freundlichen Grüßen",
+            11,
+            &[
+                "Zahnarztpraxis Nord".into(),
+                "Patient: Max Mustermann".into(),
+                "Diagnose: K02.1".into(),
+            ],
+        )
+        .unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        assert!(text.contains("Standardvorlage"));
+        assert!(text.contains("Seite 1 von 1") || text.contains("(Seite"));
+        assert!(text.contains("630f") || text.contains("DSGVO"));
     }
 }

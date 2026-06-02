@@ -8,6 +8,7 @@ export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33
 export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
 export MEDOC_AUDIT_KEY="${MEDOC_AUDIT_KEY:-k9-medoc-test-audit-key-32bytes!}"
 export MEDOC_PAIRING_MASTER_SECRET="${MEDOC_PAIRING_MASTER_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
 
 echo "=== Wave V1 scoped unit/integration (baseline) ==="
 cargo test -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server \

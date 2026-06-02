@@ -3,7 +3,7 @@
  * grouped like the sidebar plus Betrieb- und Hilfe-Einträge.
  */
 
-import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "@/lib/rbac";
+import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "./rbac";
 
 export type NativeGoMenuPayloadItem = { path: string; label: string };
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd /work
+cd /work/app
 
 echo "=== cargo fmt --check ==="
 cargo fmt --all -- --check

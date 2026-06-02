@@ -2,7 +2,7 @@
 
 **Scope:** Discovery only (no application code changes in this phase).  
 **Date:** 2026-05-02  
-**Evidence base:** Files cited below were read or searched in the workspace; path `src/...` in the work order maps to **`apps/practice-host-ui/src/...`** in this repository.
+**Evidence base:** Files cited below were read or searched in the workspace; path `src/...` in the work order maps to **`app/src/...`** in this repository.
 
 ---
 
@@ -16,21 +16,21 @@
 | Sequence diagram | `docs/uml/03-sequence-diagram.md` |
 | Activity diagram | `docs/uml/04-activity-diagram.md` |
 | ISO 22600 / DSGVO notes | `docs/iso-standards/07-iso-22600-dsgvo.md` |
-| Backend RBAC | `apps/practice-host/src/application/rbac.rs` |
-| Frontend RBAC + nav | `apps/practice-host-ui/src/lib/rbac.ts` |
-| Dashboard | `apps/practice-host-ui/src/views/pages/dashboard.tsx` |
-| Patient list | `apps/practice-host-ui/src/views/pages/patienten.tsx` |
-| Patient detail | `apps/practice-host-ui/src/views/pages/patient-detail.tsx` (substantial portions + targeted search) |
-| Termine | `apps/practice-host-ui/src/views/pages/termine.tsx` (header + domain constants) |
-| Finanzen | `apps/practice-host-ui/src/views/pages/finanzen.tsx` (header + helpers) |
-| Zahlung | `apps/practice-host-ui/src/controllers/zahlung.controller.ts`, `apps/practice-host-ui/src/views/pages/zahlung-create-panel.tsx` |
-| Termin / Patient API | `apps/practice-host-ui/src/controllers/termin.controller.ts`, `apps/practice-host-ui/src/controllers/patient.controller.ts` |
-| Akte validation | `apps/practice-host-ui/src/lib/akte-validation.ts`, `apps/practice-host-ui/src/controllers/validation.controller.ts` |
-| Plan-next-termin | `apps/practice-host-ui/src/lib/plan-next-termin.ts`, `apps/practice-host-ui/src/controllers/plan-next-termin.controller.ts` |
-| Layout / sidebar | `apps/practice-host-ui/src/views/layouts/app-layout.tsx` |
-| Login | `apps/practice-host-ui/src/views/pages/login.tsx` |
-| Akte / Rezept / Attest commands | `apps/practice-host/src/commands/akte_commands.rs`, `rezept_commands.rs`, `attest_commands.rs`, `akte_next_termin_commands.rs`, `akte_validation_commands.rs` |
-| Behandlung entity | `apps/practice-host/src/domain/entities/behandlung.rs` |
+| Backend RBAC | `app/src-tauri/src/application/rbac.rs` |
+| Frontend RBAC + nav | `app/src/lib/rbac.ts` |
+| Dashboard | `app/src/views/pages/dashboard.tsx` |
+| Patient list | `app/src/views/pages/patienten.tsx` |
+| Patient detail | `app/src/views/pages/patient-detail.tsx` (substantial portions + targeted search) |
+| Termine | `app/src/views/pages/termine.tsx` (header + domain constants) |
+| Finanzen | `app/src/views/pages/finanzen.tsx` (header + helpers) |
+| Zahlung | `app/src/controllers/zahlung.controller.ts`, `app/src/views/pages/zahlung-create-panel.tsx` |
+| Termin / Patient API | `app/src/controllers/termin.controller.ts`, `app/src/controllers/patient.controller.ts` |
+| Akte validation | `app/src/lib/akte-validation.ts`, `app/src/controllers/validation.controller.ts` |
+| Plan-next-termin | `app/src/lib/plan-next-termin.ts`, `app/src/controllers/plan-next-termin.controller.ts` |
+| Layout / sidebar | `app/src/views/layouts/app-layout.tsx` |
+| Login | `app/src/views/pages/login.tsx` |
+| Akte / Rezept / Attest commands | `app/src-tauri/src/commands/akte_commands.rs`, `rezept_commands.rs`, `attest_commands.rs`, `akte_next_termin_commands.rs`, `akte_validation_commands.rs` |
+| Behandlung entity | `app/src-tauri/src/domain/entities/behandlung.rs` |
 
 **Note:** Work order paths `docs/02-use-case-diagram.md` etc. live under **`docs/uml/`** in this repo.
 
@@ -148,7 +148,7 @@ For each activity: **needed affordances**, **what exists today**, **gaps**.
 
 | Area | Location | Role usage |
 |------|----------|------------|
-| **Login** | `apps/practice-host-ui/src/views/pages/login.tsx` | No role chips in current file; text says role comes from account — Phase 1 adds **post-login gate** + toast. |
+| **Login** | `app/src/views/pages/login.tsx` | No role chips in current file; text says role comes from account — Phase 1 adds **post-login gate** + toast. |
 | **Sidebar labels / profile** | `app-layout.tsx` | `profileRoleLine` maps `STEUERBERATER` / `PHARMABERATER` via i18n |
 | **Nav definitions** | `rbac.ts` `NAV_ITEM_DEFINITIONS`, `ROUTE_VISIBILITY` | many `roles: ["ARZT","STEUERBERATER"]`, produkte includes `PHARMABERATER`, `einstellungen` includes both, etc. |
 | **Command palette / native menu** | `command-palette-data.ts`, `native-go-menu.ts`, tests | STEUERBERATER / PHARMABERATER paths |
@@ -206,7 +206,7 @@ For each activity: **needed affordances**, **what exists today**, **gaps**.
 
 ## F. RBAC additions (proposed)
 
-Add to **both** `apps/practice-host/src/application/rbac.rs` and `apps/practice-host-ui/src/lib/rbac.ts` (with tests in `rbac.test.ts`).
+Add to **both** `app/src-tauri/src/application/rbac.rs` and `app/src/lib/rbac.ts` (with tests in `rbac.test.ts`).
 
 | Action | Purpose | Proposed roles |
 |--------|---------|----------------|

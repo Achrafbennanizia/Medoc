@@ -1,147 +1,162 @@
 # Validation ledger
 
-**Last updated:** 2026-05-31 (G21 recovery — `app/` monolith restored)
+**Last updated:** 2026-06-02 (13 port tests — SyncEngine push/pull + mesh)
 
-## Recovery session (2026-05-31)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Frontend | `cd app && npm run check` | **PASS** | 172 tests |
-| G21 automated | `npm test -- collaboration-g21 posteingang.smoke praxis-tickets.smoke` | **PASS** | 9 tests |
-| Rust | `cd app && cargo test --tests` | **PASS** | `dev_local_db_password_tests` `#[ignore]` (dev-only local DB) |
-| CI/Docker paths | restored from git HEAD | **DONE** | `app/` monolith; removed broken root Wave D stubs |
-| G21 manual checklist | [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) | **NOT OBSERVED** | Use `bash tools/dev-tauri.sh` |
-| Docker validate | `bash scripts/validate-docker.sh` | **NOT RUN** | Prior run GREEN before accidental delete |
-
-## G21 gap-fix session (2026-05-31)
+## Multi-device port e2e (2026-06-02)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Frontend | `npm run check` | **PASS** | 176 tests (G21 smoke expansion) |
-| Posteingang route | `App.tsx` `/posteingang` route | **PASS** | Was still commented out despite page/RBAC restore |
-| Tauri dev | `MEDOC_*=… npm run tauri:dev -w medoc` | **PASS** | Fixed `beforeDevCommand` → `npm run dev` (cwd = `apps/practice-host-ui`); Vite :1420 + `target/debug/medoc` APP_START/DB_READY/LOGIN_SUCCESS |
-| G21 manual checklist | [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) | **NOT OBSERVED** | App launched; Posteingang nav rows need human tick |
+| Port-based multi-service | `bash scripts/validate-docker-multi-device.sh` | **PASS** | **13/13** active tests; ~19s; includes SyncEngine + mesh |
+| Serverless push | `port_sync_engine_push_to_master_propagates_patient` | **PASS** | Replica local outbox → `push_to_master` → master JWT `/patienten` |
+| Serverless pull | `port_sync_engine_pull_from_master_applies_to_replica_db` | **PASS** | Master seed outbox → `pull_from_master` → replica SQLite |
+| Mesh replica→replica | `port_mesh_sync_delivers_app_kv_to_peer_replica` | **PASS** | Two `medoc-server` replicas :8788/:8789 + `run_mesh_sync` |
+| Security | revoke / spoofed push | **PASS** | 204 revoke, 403 revoked push, 403 device mismatch |
 
-**Wired this session:** Posteingang IPC + route + nav badge; `admin_unlock_brute_force`; `clear_license`; KIM/payment stubs; FA-TERM-04 emergency toolbar default; REZ tagesabschluss nav.
-
-## Post-cleanup host revalidation (2026-05-31)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Docker volumes removed | `docker volume rm medoc-*` | **DONE** | 4 named volumes; ~12 GiB in Docker VM |
-| Rust (cold rebuild) | `cargo fmt/check/clippy/test --tests` | **PASS** | After `cargo clean` |
-| Frontend | `npm run check` | **PASS** | 173+1 |
-| Tauri smoke | `npm run tauri:build -w medoc -- --debug --no-bundle` | **PASS** | Fixed CLI cwd (`apps/practice-host/`) |
-| G21 automated | `collaboration-g21.test.ts` + rbac | **PASS** | Manual checklist rows **NOT OBSERVED** |
-
-## Docker validation (2026-05-31)
-
-| Stage | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Frontend | `Dockerfile.frontend` container | **PASS** | lint + test + build in Node 20 Linux |
-| Wave V1 Rust | `run-rust-validate-wave-v1.sh` in Linux container | **PASS** | `CARGO_BUILD_JOBS=1`; proptests included |
-| E2e | `run-e2e-wave-v1.sh` in Linux container | **PASS** | ~5 min; 56 e2e + headless server smoke |
-| Full script (single run) | `bash scripts/validate-docker.sh` | **PASS** | 2026-05-31 after disk cleanup (~29 GiB free); end-to-end ~14 min |
-
-## Full GitHub CI Rust matrix (2026-05-31 macOS host)
+## Multi-device port e2e (2026-06-01)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Rust fmt | `cargo fmt --all -- --check` | **PASS** | |
-| Full clippy | `cargo clippy --all-targets -- -D warnings` | **PASS** | Fixed `license_gate_negatives.rs` (tokio mutex), `two_replica_mesh.rs` |
-| Full integration tests | `cargo test --tests` | **PASS** | ~192s |
-| cargo audit | `cargo audit` | **NOT RUN** | Binary not installed locally; CI job configured |
-| Docker full pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | Docker daemon not running |
+| Port-based multi-service | `bash scripts/validate-docker-multi-device.sh` | **PASS** | 6/6 active tests in `multi_device_port_http.rs`; ~13s in container |
+| Company LAN proxy fix | `docker/ci/run-multi-device-port-e2e.sh` | **PASS** | Export `MEDOC_COMPANY_API_BASE` / `MEDOC_COMPANY_API_KEY` **before** starting `medoc-server` |
+| API catalog | `docs/coordination/multi-device-api-catalog.md` | **DONE** | LAN + company + sync/pairing surfaces documented |
 
-## Full local CI proxy (2026-05-31 macOS host)
+## G21 Rust E2E + nav regression (2026-06-01)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Rust fmt | `cargo fmt --all -- --check` | **PASS** | After `cargo fmt --all` + clippy fixes |
-| Wave V1 clippy | `cargo clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server --all-targets -- -D warnings` | **PASS** | |
-| Wave V1 Rust tests | `docker/ci/run-rust-validate-wave-v1.sh` (host) | **PASS** | ~207s; incl. proptests |
-| Wave V1 e2e | `docker/ci/run-e2e-wave-v1.sh` (host) | **PASS** | ~131s; 56 e2e + headless server smoke |
-| Frontend | `npm run check` | **PASS** | 173+1 |
-| Docker full pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | Docker daemon not running |
+| G21 rows 3–4 backend E2E | `g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation` | **PASS** | Create → REZ inbox → erledigt → notify → pending validation |
+| Sidebar config extract | `nav-sections.ts` + `nav-sections.test.ts` | **PASS** | Prevents `/posteingang` missing from `NAV_SECTIONS` |
+| Frontend | `npm test` | **PASS** | **181 passed** (+2) |
 
-## Local CI proxy (2026-05-31 local — superseded by block above)
-
-## Post–Wave D docs sweep + Rust revalidation (2026-05-31 local)
+## Docker revalidation (2026-06-01)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Rust integration tests | `cargo test --tests` | **PASS** | Full workspace; ~137s; env: `MEDOC_VENDOR_PUBKEY`, `MEDOC_DB_KEY`, `MEDOC_AUDIT_KEY` |
-| Docs path sweep | bulk update 31 `.md` files | **DONE** | `app/src-tauri` → `apps/practice-host/`, etc.; `restructure-plan.md` unchanged |
-| Docker full pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | Docker daemon not running |
+| Rust fmt (Docker) | `cargo fmt --check` in container | **FAIL → FIX → PASS** | Import order in `praxis_aufgabe_commands.rs` |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PASS** | ~6.4 min; FE + Rust Wave V1 + e2e + headless HTTPS smoke |
 
-## Post–Wave D docs + Docker retry (2026-05-31 local)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Frontend check | `npm run check` | **PASS** | lint + build + test; 173 passed + 1 skipped |
-| Docker full pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | Docker daemon not running |
-
-## Post–Wave D test hygiene (2026-05-30 local)
+## Notifications popover + full stack (2026-05-31)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Rust integration tests | `cargo test --tests` | **PASS** | After migration-based auth tests + `MEDOC_DEV_SEED=1` in e2e harness |
+| G21 row 4 FE proxy | `notifications-popover.smoke.test.tsx` | **PASS** | Arzt popover renders `PRAXIS_AUFGABE_ERLEDIGT` |
+| G21 row 1 flake fix | `g21-routing.smoke.test.tsx` | **PASS** | `findByText` + `setDeploymentModeCache("practice_desktop")` |
+| Posteingang erledigen smoke | `posteingang.smoke.test.tsx` | **PASS** | Asserts `erledigtNotiz` sent (FA-AUFG-04) |
+| Dev license helper | `cargo test --test gen_dev_license_once print_dev_licenses -- --ignored` | **PASS** | Resolved device id from local `medoc.db` |
+| Full Rust integration | `cargo test --tests` | **PASS** | All suites green (~2.8 min) |
+| Frontend | `npm test` / `lint` / `build` | **PASS** | **179** / zero warnings / Vite OK |
 
-## Wave D validation (2026-05-30 local)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| npm install (root workspace) | `npm install` | **PASS** | Lockfile regenerated for root workspaces |
-| Frontend lint | `npm run lint` | **PASS** | |
-| Frontend tests | `npm test` | **PASS** | 173 passed + 1 skipped (+1 Wave D layout test) |
-| Frontend build | `npm run build` | **PASS** | |
-| Rust check | `cargo check --all-targets` | **PASS** | Root workspace; `MEDOC_VENDOR_PUBKEY` set |
-| Rust tests | `cargo test --tests` | **PASS** | Full workspace; env: `MEDOC_VENDOR_PUBKEY`, `MEDOC_DB_KEY`, `MEDOC_AUDIT_KEY` |
-| Docker full pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | |
-
-## Wave C.5 validation (2026-05-29 local)
+## FA-AUFG-04 notification (G21 row 4 backend) (2026-05-31)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Frontend lint | `npm run lint` | **PASS** | Removed ESLint shim override |
-| Frontend tests | `npm test` | **PASS** | 172 passed + 1 skipped |
-| Frontend build | `npm run build` | **PASS** | `tsc && vite build` |
+| Notify helper extracted | `praxis_aufgabe_notify.rs` | **PASS** | Used by `transition_praxis_aufgabe` command |
+| G21 row 4 backend | `cargo test --test praxis_aufgabe_tests` | **PASS** | 5/5; `PRAXIS_AUFGABE_ERLEDIGT` + skip when creator completes own task |
+| Frontend full suite | `cd app && npm test` | **PASS** | **178 passed** (unchanged) |
 
-## Wave C.4 validation (2026-05-29 local)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| npm install (workspaces) | `npm install` | **PASS** | 3 system packages linked |
-| Frontend lint | `npm run lint` | **PASS** | |
-| Frontend tests | `npm test` | **PASS** | 171 passed + 1 skipped; `termin-draft` test runs from package |
-| Frontend build | `npm run build` | **PASS** | |
-
-## Wave C.3 validation (2026-05-29 local)
+## G21 sidebar + automated proxies (2026-05-31)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| npm install (workspaces) | `npm install` | **PASS** | `@medoc/ui` linked; depends on `@medoc/shared` |
-| Frontend lint | `npm run lint` | **PASS** | ESLint override for Wave C shim re-exports |
-| Frontend tests | `npm test` | **PASS** | 171 passed + 1 skipped (+1 `@medoc/ui` structure test) |
-| Frontend build | `npm run build` | **PASS** | |
+| Posteingang in sidebar | code review + `g21-routing.smoke.test.tsx` | **PASS** | `/posteingang` added to `NAV_SECTIONS` in `app-layout.tsx` (route/RBAC existed; nav item was missing) |
+| G21 row 1 proxy | `g21-routing.smoke.test.tsx` | **PASS** | REZEPTION login → sidebar Posteingang → empty state |
+| G21 row 7 proxy | `ops.smoke.test.tsx` | **PASS** | validate backup → restore confirm → reload hint |
+| Frontend full suite | `cd app && npm test` | **PASS** | **178 passed** (+2 new smokes) |
 
-## Wave C.2 validation (2026-05-29 local)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Frontend lint | `npm run lint` | **PASS** | |
-| Frontend tests | `npm test` | **PASS** | 170 passed + 1 skipped |
-| Frontend build | `npm run build` | **PASS** | types/schemas/rbac/utils via `@medoc/shared` shims |
-
-## Wave C.1 validation (2026-05-29 local)
+## Full Docker pipeline (2026-05-31)
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| npm install (workspaces) | `npm install` | **PASS** | `@medoc/shared` linked under `packages/` |
-| Frontend lint | `npm run lint` | **PASS** | Fixed 2 pre-existing unused-var errors in app-layout + finanz-werkzeuge |
-| Frontend tests | `npm test` | **PASS** | 170 passed + 1 skipped (was 169+1; +1 systems-structure Wave C test) |
-| Frontend build | `npm run build` | **PASS** | `tsc && vite build` ~2.4s |
-| Rust codegen path | `MEDOC_VENDOR_PUBKEY=… cargo check -p medoc-core` | **PASS** | TS output dir = `packages/medoc-shared/src/generated/` |
+| Full CI pipeline | `bash scripts/validate-docker.sh` | **PASS** | FE + Rust Wave V1 + e2e + headless server; ~7.4 min |
+| Fix applied | `scripts/validate-docker.sh` | — | `--shm-size=4g`, `CARGO_BUILD_JOBS=1`, shared `medoc-target-linux-e2e` volume for Rust containers |
+
+## G21 automated proxy + host e2e wave (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| New G21 smokes | `npm test` | **PASS** | **178 passed** (+5 total G21 proxies: workflow dialog, akte subnav, g21-routing, ops) |
+| Headless server smoke | host `medoc-server` + curl | **PASS** | `/health` + `/pairing/master-info` |
+| Docker e2e container | `docker run medoc-e2e:latest` | **FAIL (OOM)** | Linker SIGKILL during e2e compile; Wave V1 tests in container pass first |
+
+### New smoke tests
+
+- `patient-akte-workflow-dialogs.smoke.test.tsx` — G21 row 3
+- `patient-detail-akte-subnav.smoke.test.tsx` — G21 rows 5–6
+- `g21-routing.smoke.test.tsx` — G21 row 1
+- `ops.smoke.test.tsx` — G21 row 7
+
+## Docker + host revalidation (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Frontend lint | `cd app && npm run lint` | **PASS** | ESLint zero warnings |
+| Frontend build | `cd app && npm run build` | **PASS** | Vite production build |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** | Fixed 3 files (was failing Docker Rust step) |
+| Wave V1 clippy (host) | `cargo clippy -p medoc-core … -D warnings` | **PASS** | Proxy for Docker Rust image |
+| medoc-e2e (host) | `cargo test -p medoc-e2e --tests` | **PASS** | 56/56 (all `test result: ok`) |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PARTIAL** | FE image **PASS**; Rust fmt **PASS** after fix; E2E container **OOM (exit 137)** mid-compile — host e2e is proxy |
+
+### rustfmt fixes (Docker blocker)
+
+- `app/crates/medoc-core/src/application/akte/rezeption_redact.rs`
+- `app/crates/medoc-core/src/infrastructure/pdf_export.rs`
+- `app/crates/medoc-core/tests/gen_dev_license_once.rs`
+
+## Pro compare validation (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust integration + e2e + proptests | `MEDOC_VENDOR_PUBKEY=… cargo test --tests` | **PASS** | Full suite green |
+| Frontend | `npm test` | **PASS** | 173 passed |
+
+### Remaining pro vs main app diffs (intentional)
+
+| Area | Keep |
+| ---- | ---- |
+| PDF stack | **main** — `pdf_export.rs`, `render_plain_preview`, shared privacy footer |
+| Licensing | **main** — bootstrap `activate_license`, V2 UI, `clearLicense` |
+| Break-glass | **main** — optional patient ID |
+| Dev license helper | **main** — hybrid device-id resolution |
+| GAP tests | **main** — `rezeption_redact` unit tests |
+| Docker CI scripts | **main** — monolith `app/` paths (pro Wave D `/work` drift wrong here) |
+
+## G21 + license + GAP validation (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| GAP-01 redaction unit tests | `cargo test -p medoc-core gap01` | **PASS** | 3 tests in `rezeption_redact.rs` |
+| Frontend full suite | `cd app && npm test` | **PASS** | **173 passed** (0 skipped; Posteingang smoke active) |
+| Rust integration + e2e | `MEDOC_VENDOR_PUBKEY=… cargo test --tests` | **NOT RUN** (this block) | Prior Phase C run PASS |
+
+### Changes
+
+- G21 Posteingang: route, nav, badge polling, page, native Go menu
+- `clearLicense` wired in Einstellungen (requires `ops.system`)
+- GAP-01/02: redaction tests + collaboration contract tests
+
+## Phase C compare/fix validation (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust integration + e2e + proptests | `cd app && MEDOC_VENDOR_PUBKEY=… cargo test --tests` | **PASS** | All suites green |
+| Frontend (unchanged UI layout) | `cd app && npm test` | **PASS** | **170 passed + 1 skipped** (+1 `praxis-tickets.smoke.test.tsx`) |
+| Docker pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | — |
+
+### Phase C ports (non-UI)
+
+- `personal.controller.ts` — `adminUnlockBruteForce` IPC wrapper
+- `praxis-aufgabe.controller.ts` — re-enabled inbox IPC (`listPraxisAufgabenForMe`, `transitionPraxisAufgabe`, `countOpenPraxisAufgabenForMe`); Posteingang page still disabled
+- `system.controller.ts` + `settings-page.controller.ts` — `clearLicense` IPC wrapper
+- `gen_dev_license_once.rs` — hybrid device id: `MEDOC_DEVICE_ID` → `lan-instance-id.txt` → DB
+- `praxis-tickets.smoke.test.tsx` — Posteingang banner link smoke (G21 checklist row 8)
+
+## Backend port validation (2026-05-31)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust integration + e2e + proptests | `cd app && cargo test --tests` | **PASS** | All suites green; 2 new ignored dev tests |
+| Frontend (unchanged UI) | `cd app && npm test` | **PASS** | 169 passed + 1 skipped (Posteingang smoke still disabled) |
+| Docker pipeline | `bash scripts/validate-docker.sh` | **NOT RUN** | — |
 
 ## Re-validation (2026-05-27 22:13 local — unchanged working tree, all host checks GREEN)
 
@@ -217,18 +232,18 @@ Environment (host, macOS Darwin 25.4.0): `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MED
 | `medoc-e2e` full | `cargo test -p medoc-e2e --tests` | **40/40 PASS** | Up from 20 — added `revoke_and_rotation.rs` (7), `outbox_clinical_writes.rs` (3), `serverful_lan_client_flows.rs` (10). |
 | Wave V1 clippy | `cargo clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server -p medoc-company -p medoc-company-server --all-targets -- -D warnings` | **PASS** | No new warnings. |
 | Frontend coverage | `npm run test:coverage` (vite config + `@vitest/coverage-v8`) | **PASS** | Lines 14.65% (6867/46873), Branches 57.57%, Functions 35.57%. Honest baseline — most UI screens have no unit tests. |
-| Rust coverage | `cargo llvm-cov` (workspace, scoped to Wave V1 tests + e2e) | **PASS** | TOTAL 25.61% lines; Wave V1 critical path 55–100% (see breakdown in `phase-handoff.md`). Reports written to `target/coverage/{summary.txt,lcov.info}`. |
+| Rust coverage | `cargo llvm-cov` (workspace, scoped to Wave V1 tests + e2e) | **PASS** | TOTAL 25.61% lines; Wave V1 critical path 55–100% (see breakdown in `phase-handoff.md`). Reports written to `app/target/coverage/{summary.txt,lcov.info}`. |
 
 ### Security fix: revoked-slave bypass on `/sync/*` and `/pairing/peers`
 
-- **Where:** `crates/medoc-lan/src/sync_http.rs::verify_activation_for_path` (lines ~121–157) and `crates/medoc-lan/src/pairing_http.rs::peers` (lines ~205–225).
+- **Where:** `app/crates/medoc-lan/src/sync_http.rs::verify_activation_for_path` (lines ~121–157) and `app/crates/medoc-lan/src/pairing_http.rs::peers` (lines ~205–225).
 - **Old behaviour:** when the master revoked a slave via `pairing::revoke`, `slave_permission` rows were deleted. The gate then did `if !actions.is_empty() && !actions.iter().any(...) { 403 }` — i.e. it **skipped the rejection** in the now-empty case and trusted the token's baked-in `allowed_actions` claim. Mt2 activation tokens are perpetual until the master Ed25519 signing key rotates, so the bypass was effectively forever.
 - **New behaviour:** consult `pairing_request.status`. `REVOKED` → 403. No row at all → mesh-peer case (sibling pushing to us); still pass via the master signature, because we are not this device's master and never had its permission rows. Otherwise verify the action against live `slave_permission` rows.
 - **Regression tests:** `revoke_and_rotation::revoked_action_rejects_sync_status_even_with_valid_token` (was failing before the fix; now passes), `revoke_and_rotation::revoked_slave_cannot_access_pairing_peers_either` (new), `two_replica_mesh::mesh_push_delivers_outbox_entry_to_peer_replica` (broke under the first attempt at the fix, passes again under the refined gate).
 
 ### Frontend regression fix
 
-- **Where:** `apps/practice-host-ui/src/critical-flows.smoke.test.tsx` flow (a).
+- **Where:** `app/src/critical-flows.smoke.test.tsx` flow (a).
 - **Symptom:** `LicenseAndPairingGate` + `ReplicaSyncBackground` now invoke `current_license_status` and `sync_get_status` during boot. The mock returned `undefined`, the gate failed, and the dashboard greeting never rendered → "Unable to find role=heading".
 - **Fix:** added both mocks. Flow (a) now passes against the unmodified production gate.
 
@@ -263,7 +278,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MEDOC_DB_KEY=0123456789abcdef�
 | Docker E2E all systems | `./scripts/validate-docker-e2e.sh` | **PASS** | Linux ~77s: scoped crate tests + `medoc-e2e` 19/19 + headless smoke |
 | Full Docker validate (frontend + scoped + e2e) | `./scripts/validate-docker.sh` | **PASS** | Includes e2e phase after Wave V1 scoped Rust. |
 
-### E2E coverage (`crates/medoc-e2e/tests/`)
+### E2E coverage (`app/crates/medoc-e2e/tests/`)
 
 | File | Cases |
 | ---- | ----- |
@@ -358,20 +373,20 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 
 ### New tests added in this wave
 
-- `crates/medoc-core/tests/sync_outbox_hooks_tests.rs` (7):
+- `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs` (7):
   patient lifecycle, termin lifecycle, praxis_aufgabe insert+status,
   zahlung create+update_status, app_kv with sync-key exclusion,
   practice-desktop no-op control.
-- `crates/medoc-sync/src/engine.rs::tests`:
+- `app/crates/medoc-sync/src/engine.rs::tests`:
   `master_does_not_overwrite_newer_replica_row` and
   `newer_master_push_overwrites_older_replica_row` (Slice 6).
-- `crates/medoc-sync/src/pairing.rs::tests`:
+- `app/crates/medoc-sync/src/pairing.rs::tests`:
   `submit_then_accept_round_trip_issues_token`,
   `verify_token_rejects_wrong_master_pubkey`,
   `revoke_clears_permissions_and_marks_revoked`,
   `reject_keeps_no_token_and_no_permissions`,
   `second_submit_replaces_pending_row`.
-- `crates/medoc-core/tests/license_v2_tests.rs` (6):
+- `app/crates/medoc-core/tests/license_v2_tests.rs` (6):
   full round-trip, tampered ciphertext rejection, wrong-device
   rejection, inner-device mismatch, v1 legacy path, v1 expiry.
 
@@ -408,7 +423,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Frontend lint / test / build | `npm run lint && npm test && npm run build` | **PASS** | **158 vitest** (+`deployment-config.test.ts`); build 3.2s |
 | Three binaries still isolated | `cargo build -p medoc -p medoc-lan-server -p medoc-company-server` | **NOT RUN** this session | prior Wave B8 **PASS** still valid |
 
-**New artefacts (evidence):** `crates/medoc-sync/`, `docs/architecture/deployment-topologies.md`, `docs/architecture/serverless-sync.md`, Einstellungen → **Bereitstellung & Sync**, LAN routes `/api/v1/sync/*`.
+**New artefacts (evidence):** `app/crates/medoc-sync/`, `docs/architecture/deployment-topologies.md`, `docs/architecture/serverless-sync.md`, Einstellungen → **Bereitstellung & Sync**, LAN routes `/api/v1/sync/*`.
 
 **Still NOT OBSERVED:** live two-device serverless sync; automatic outbox hooks on every repo write; Wave C npm package split.
 
@@ -617,26 +632,12 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Frontend production build | `cd app && npm run build` | **PASS** | 2026-05-02 | Einstellungen cull + neue Client-Settings (`idleLogout`, Tagesabschluss-Toast, VN-Suche, …); `search_patienten` optional arg; Hilfe-Route `/hilfe` |
 | Frontend unit tests | `cd app && npm test -- --run` | **PASS** | 2026-05-02 | 90 tests |
 
-## 2026-05-28 — Security audit remediation (session 4: L4 + H5 follow-up)
-
-| Check | Command | Result | Notes |
-| ----- | ------- | ------ | ----- |
-| Rust check | `cd app && cargo check -p medoc` | **PASS** | After `PasswordChangeRequired`, LAN error mapping, unsaved-form guard IPC |
-| medoc-core lib tests | `cd app && cargo test -p medoc-core --lib` | **PASS** | 63/63 — fixed migration order for `passwort_aendern_erforderlich` column before seed |
-| db_migrations_tests | `cd app && cargo test --test db_migrations_tests` | **PASS** | 5/5 |
-| rbac_tests | `cd app && cargo test --test rbac_tests` | **PASS** | 10/10 |
-| Frontend rbac | `cd app && npm test -- --run src/lib/rbac.test.ts` | **PASS** | 31/31 |
-| Full `npm test` | — | **NOT RUN** | Scoped to rbac this session |
-| Docker validate | `bash scripts/validate-docker.sh` | **NOT RUN** | — |
-
 ## Pending / not yet run
 
 | Check | Why pending | Blocker |
 | ----- | ----------- | ------- |
-| G21 manual smokes | NOT OBSERVED | Human in Tauri via `bash tools/dev-tauri.sh` |
-| `bash scripts/validate-docker.sh` | NOT RUN this recovery session | Optional; CI paths restored to `app/` |
-| Wave D root restructure | Deferred | Prior attempt deleted uncommitted tree; needs dedicated migration + commit |
 | `tauri build` full bundle | Not run this session | Optional heavy check |
+| E2E | NOT RUN | No runner invoked |
 | Code-evidence sweep for WAAD-derived NEW-PH IDs (`FA-AKTE-14/15/16`, `FA-DOK-08`, `FA-LEIST-05`, `FA-PERS-07/08`, `NFA-USE-09/10`) | Implementation pending (see `actions.md` A2–A13) | Implementation tasks |
 | 5-client load smoke (WAAD 9.4 / `NFA-PERF-04`) | No multi-client harness yet | Test harness for parallel Tauri sessions (Action A9) |
 
@@ -647,16 +648,16 @@ or file inspection that was performed.
 
 | WAAD-ID(s) | Question | Evidence | Verdict |
 | ---------- | -------- | -------- | ------- |
-| 1.2.1 / 8.1 | RBAC roles enforced for medical data? | `apps/practice-host/src/application/rbac.rs` defines `Role` + `allowed`; `akte_commands.rs:27` strips `diagnose`/`befunde` for non-ARZT roles | ✅ **VERIFIED** |
+| 1.2.1 / 8.1 | RBAC roles enforced for medical data? | `app/src-tauri/src/application/rbac.rs` defines `Role` + `allowed`; `akte_commands.rs:27` strips `diagnose`/`befunde` for non-ARZT roles | ✅ **VERIFIED** |
 | 1.2.2 | Per-personal granular permission overrides? | `rg "personal_permission|permission_override" app` → **0 hits**. Only role-based RBAC exists | 🔴 **PENDING** — covered by new `FA-PERS-07` |
 | 1.3.1 | "Akte an Arzt weiterleiten" UI? | `rg "weiterleit\|forward.*akte" app/src` → only Labor-Auftragsweiterleitung in `einstellungen.tsx`. No Akte-Weiterleitung UI | 🔴 **PENDING** — covered by new `FA-AKTE-14` |
-| 1.4 | Internal note/ticket Rezeption→Arzt? | `rg "personal_ticket\|ticket.*system\|inbox.*arzt\|notiz.*system" app` → only i18n string in `apps/practice-host-ui/src/lib/i18n.ts`. No domain entity, no UI | 🔴 **PENDING** — covered by new `FA-PERS-08` |
+| 1.4 | Internal note/ticket Rezeption→Arzt? | `rg "personal_ticket\|ticket.*system\|inbox.*arzt\|notiz.*system" app` → only i18n string in `app/src/lib/i18n.ts`. No domain entity, no UI | 🔴 **PENDING** — covered by new `FA-PERS-08` |
 | 1.5 / NFA-USE-H10 | In-app help / tooltip / onboarding? | `rg "tooltip\|onboarding\|tutorial\|help.*dialog" app/src` → matches in `feedback.tsx`, `compliance.tsx`, `app-layout.tsx`, `hilfe.tsx`, `DentalMiniBar.tsx`. Generic Hilfe-Page exists; per-route walkthrough does not | 🟡 **PARTIAL** — `NFA-USE-09` formalises walkthrough |
-| 2.1.1 / 2.2.1 | Akten-Status `VALIDIERT` + read-audit-log? | `apps/practice-host/src/infrastructure/database/connection.rs` defines status `VALIDIERT`; `audit_repo.rs` + `akte_commands.rs` log read access | 🟡 **PARTIAL** — Status & audit OK, but separate Validierungs-Queue UI missing (`FA-AKTE-15`) |
+| 2.1.1 / 2.2.1 | Akten-Status `VALIDIERT` + read-audit-log? | `app/src-tauri/src/infrastructure/database/connection.rs` defines status `VALIDIERT`; `audit_repo.rs` + `akte_commands.rs` log read access | 🟡 **PARTIAL** — Status & audit OK, but separate Validierungs-Queue UI missing (`FA-AKTE-15`) |
 | 5.1.1 | Patient-Discharge-Summary / Merkblatt? | `rg "discharge\|merkblatt\|nachsorge" app` → only seed strings in `connection.rs`. No PDF generator | 🔴 **PENDING** — covered by new `FA-DOK-08` |
 | 6.1.2 / 6.2.4 | Arzt-Freigabe vor Abrechnung? | `rg "freigegeben_von_arzt\|approval\|approve.*leistung" app/src-tauri` → **0 hits**. Leistung-Eintrag wird ohne Freigabe-Flag erfasst | 🔴 **PENDING** — covered by new `FA-LEIST-05` |
 | 7.3.3 | Akten-Vollständigkeits-Indikator? | `rg "akte.*completeness\|complete.*akte\|missing.*pflicht" app/src` → no dedicated lib | 🔴 **PENDING** — covered by new `FA-AKTE-16` |
-| 7.4 | Konfigurierbares Autocomplete? | `apps/practice-host-ui/src/lib/string-suggest.ts` exists for Patient-Suche; vocabulary not yet praxis-extensible via `app_kv` | 🟡 **PARTIAL** — `NFA-USE-10` formalises extension |
+| 7.4 | Konfigurierbares Autocomplete? | `app/src/lib/string-suggest.ts` exists for Patient-Suche; vocabulary not yet praxis-extensible via `app_kv` | 🟡 **PARTIAL** — `NFA-USE-10` formalises extension |
 | 8.4 | Backup / Restore? | `rg "backup\|wiederherstell\|restore.*db" app` → matches `backup.rs`, `ops_commands.rs` | ✅ **VERIFIED** |
 | 9.4 | 5 parallele Clients ohne spürbare Verlangsamung? | Architektur-Vorgabe (Tauri+SQLite-WAL) erfüllt; Last-Test nicht durchgeführt | 🟡 **PARTIAL** — Last-Test offen (siehe N3) |
 

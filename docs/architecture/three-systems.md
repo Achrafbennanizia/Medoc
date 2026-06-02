@@ -1,14 +1,14 @@
 # MeDoc — three systems architecture
 
-**Last updated:** 2026-05-31 (Wave D layout)
+**Last updated:** 2026-05-26
 
 ## Systems
 
 | # | System | Rust | FE module | Binary | Database |
 |---|--------|------|-----------|--------|----------|
-| 1 | **Practice Host** | `apps/practice-host/src/systems/practice/` + `crates/medoc-core/` | `apps/practice-host-ui/src/systems/practice-host/` | `medoc` (Tauri) | `medoc.db` |
-| 2 | **LAN** | `apps/practice-host/src/systems/lan/` + `crates/medoc-lan/` | `apps/practice-host-ui/src/systems/lan/` | `medoc-server` (+ embedded) | same `medoc.db` |
-| 3 | **Company** | `apps/practice-host/src/systems/company/` + `crates/medoc-company/` | `apps/practice-host-ui/src/systems/company-portal/` | `medoc-company-server` | `company.db` |
+| 1 | **Practice Host** | `src-tauri/src/systems/practice/` | `app/src/systems/practice-host/` | `medoc` (Tauri) | `medoc.db` |
+| 2 | **LAN** | `src-tauri/src/systems/lan/` | `app/src/systems/lan/` | `medoc-server` (+ embedded) | same `medoc.db` |
+| 3 | **Company** | `src-tauri/src/systems/company/` | `app/src/systems/company-portal/` | `medoc-company-server` | `company.db` |
 
 ## Boundaries (SOLID)
 
@@ -27,7 +27,7 @@ React views
   → Rust: Practice IPC | LAN HTTP | Company HTTP
 ```
 
-Legacy import path `apps/practice-host-ui/src/controllers/*.ts` re-exports from `systems/*` (**Facade**).
+Legacy import path `app/src/controllers/*.ts` re-exports from `systems/*` (**Facade**).
 
 ## Goethe / Gang of Four — pattern map
 
@@ -57,8 +57,8 @@ Legacy import path `apps/practice-host-ui/src/controllers/*.ts` re-exports from 
 | **Strategy** | RBAC `allowed(perm, role)`, pricing rules |
 | **Template Method** | Domain service + repo hooks |
 | **Visitor** | *(reserved — export pipelines)* |
-| **Repository** | `crates/medoc-core/src/infrastructure/database/*_repo.rs` |
-| **Service Layer** | `crates/medoc-core/src/application/*`, `domain/services/*` |
+| **Repository** | `infrastructure/database/*_repo.rs` |
+| **Service Layer** | `application/*`, `domain/services/*` |
 | **Unit of Work** | `sqlx` transactions in command handlers |
 
 ## Deployment modes (practice app)
@@ -73,7 +73,7 @@ Details: [deployment-topologies.md](./deployment-topologies.md), [serverless-syn
 
 ## Authentication gates (Slice 3)
 
-`LicenseAndPairingGate` (in `apps/practice-host-ui/src/views/components/`) wraps the
+`LicenseAndPairingGate` (in `app/src/views/components/`) wraps the
 authenticated layout and enforces two boot-time guards before the UI is
 allowed to render:
 
@@ -94,7 +94,7 @@ mount; failures are surfaced as inline UI state and never break navigation.
 | `medoc-lan` / `medoc-lan-server` | LAN API binary |
 | `medoc-company` / `medoc-company-server` | Company portal binary |
 | `medoc-sync` | Outbox replication engine |
-| `apps/practice-host` (`medoc`) | Tauri practice host |
+| `src-tauri` (`medoc`) | Tauri practice host |
 
 ## Related docs
 
@@ -102,4 +102,4 @@ mount; failures are surfaced as inline UI state and never break navigation.
 - `docs/medoc-company-server.md` — company binary
 - [deployment-topologies.md](./deployment-topologies.md)
 - [serverless-sync.md](./serverless-sync.md)
-- `apps/practice-host/src/systems/mod.rs` — Rust module index
+- `app/src-tauri/src/systems/mod.rs` — Rust module index

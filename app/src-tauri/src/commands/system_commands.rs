@@ -42,7 +42,9 @@ pub async fn activate_license(
     session_state: State<'_, SessionState>,
     token: String,
 ) -> Result<LicenseStatus, AppError> {
-    rbac::require(&session_state, "ops.system")?;
+    // Bootstrap gate: user is already authenticated; token is vendor-signed + device-bound.
+    // Do not require `ops.system` — a broken audit chain would block first-time activation.
+    rbac::require_authenticated(&session_state)?;
     let device_id = license_repo::ensure_device_id(&pool).await?;
     let status = license::verify(&token, &device_id);
     if !status.valid {

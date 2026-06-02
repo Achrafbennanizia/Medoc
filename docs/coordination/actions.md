@@ -1,22 +1,31 @@
 # Action ledger
 
-**Last updated:** 2026-05-31 (G21 recovery on `app/` monolith)
+**Last updated:** 2026-06-02 (serverless sync + mesh port tests **PASS**)
 
 ## Now
 
-1. **G21 manual Tauri smokes** — [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md); run `bash tools/dev-tauri.sh`, tick rows 1–8.
-2. **Commit G21 + recovery fixes** — large uncommitted diff under `app/`; Wave D root layout deferred until a dedicated migration commit.
-3. **P0 security gaps** — GAP-01/02 (REZ billing/rezept leak) per [`10-master-feature-workflow-audit.md`](../uml/10-master-feature-workflow-audit.md).
+1. **Live G21 Tauri smoke** — `bash tools/g21-dev-smoke.sh`. Checklist: `docs/coordination/g21-live-smoke-checklist.md`.
 
 ## Done (this session)
 
-- **Workspace recovery:** restored `app/` from git + G21 fragments; removed broken root `apps/`/`crates/`/`packages/`; CI/Docker/README/`tools/dev-tauri.sh` point at `app/` again.
-- **G21 FE:** Posteingang route, IPC controllers, RBAC nav, sidebar badge, smoke tests **9 PASS**.
-- **Host validation:** `cd app && npm run check` **172 PASS**; `cd app && cargo test --tests` **PASS** (`dev_local_db_password_tests` ignored — dev-only).
+- **Serverless sync port coverage:** 7 new tests — `SyncEngine::push_to_master`, `pull_from_master`, mesh replica→replica (8788/8789), pairing status poll, freshness conflict, revoke + spoof guards.
+- **Master seed:** `prepare_master_data_dir` enables `serverless_peer` MASTER + seed patient for pull propagation.
+- **Validation:** `bash scripts/validate-docker-multi-device.sh` **13/13 PASS** (~19s).
 
-## Next (product)
+## Done (prior — multi-device port e2e)
+- **Rustfmt:** `praxis_aufgabe_tests.rs` formatted (Docker fmt gate).
+- **Truth ledger:** `project-truth.md` updated with merge completion + validation snapshot.
 
-## Done (prior)
+## Done (prior — G21 E2E + nav)
+
+- **IPC wrappers from pro:** `adminUnlockBruteForce`, G21 inbox trio, `clearLicense` (+ settings re-export).
+- **Dev tooling:** `gen_dev_license_once` hybrid device-id resolution.
+- **Test:** `praxis-tickets.smoke.test.tsx` (Posteingang link banner).
+- **Validation:** `cargo test --tests` PASS; `npm test` **170+1 SKIP**.
+
+## Done (prior session — backend port)
+
+## Done (prior — 2026-05-27 evening)
   - Property-based testing wired and green:
     - `medoc-core/tests/license_proptests.rs` — 4 invariants × 256
       cases = **1024 random envelopes** (round-trip valid, wrong-device
@@ -75,7 +84,7 @@
 
 - **Wave V1 — master/slave pairing + license v2 — DONE**
   - License v2 envelope (perpetual, device-bound, Ed25519-signed + AES-GCM
-    encrypted, persisted in `app_kv`). `crates/medoc-core/tests/license_v2_tests.rs`.
+    encrypted, persisted in `app_kv`). `app/crates/medoc-core/tests/license_v2_tests.rs`.
   - Pairing crate (`medoc-sync::pairing`) + LAN routes
     `/api/v1/pairing/{request,status,master-info,decide,revoke,pending,peers}`.
   - Master Ed25519 keypair in OS keychain (`medoc-sync::master_keys`).
@@ -83,7 +92,7 @@
     `/pairing/peers`; legacy JWT still accepted for older installs.
   - `ConflictPolicy::MasterWinsWithFreshness` using `updated_at`.
   - Auto outbox hooks for the 8 allow-listed tables; 7 tests in
-    `crates/medoc-core/tests/sync_outbox_hooks_tests.rs`.
+    `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`.
   - Frontend: replica `pairing-scan.tsx`, master `einstellungen-pairing-inbox.tsx`,
     `license-activate.tsx`, top-level `LicenseAndPairingGate`.
 
@@ -134,10 +143,8 @@
     - `cargo build -p medoc-company-server` → `target/debug/medoc-company-server` (19 MB, no Tauri, no LAN compiled)
     - `cargo build -p medoc`                → `target/debug/medoc` (82 MB, Tauri desktop)
   - **Wave C prep — DONE** [`wave-c-package-mapping.md`](wave-c-package-mapping.md). 97 files triaged.
-  - **Wave C.1 — DONE (2026-05-29)** — `@medoc/shared` npm package + codegen redirect + shims.
-  - **Wave C.4 — DONE (2026-05-29)** — `@medoc/system-{practice,lan,company}` npm packages + path aliases.
-  - **Wave C.5 — NOT STARTED** (import rewrite + shim removal).
-  - **Wave D (repo-root restructure) — NOT STARTED.** Depends on Wave C.
+  - **Wave C (npm workspace split) — NOT STARTED.** Independent of B.
+  - **Wave D (repo-root restructure) — NOT STARTED.** Depends on B + C.
 - The user's "3 fully separated models" goal is **DELIVERED** — see [`phase-handoff.md`](phase-handoff.md) for the binary verification matrix.
 
 ## Done (2026-05-22 three-system wave)
@@ -149,7 +156,7 @@
 
 ## Done (2026-05-21 three-system wave)
 
-- **Structure:** `apps/practice-host-ui/src/systems/{practice-host,lan,company-portal}/`, `apps/practice-host/src/systems/{practice,lan,company}/`, `docs/architecture/three-systems.md`
+- **Structure:** `app/src/systems/{practice-host,lan,company-portal}/`, `app/src-tauri/src/systems/{practice,lan,company}/`, `docs/architecture/three-systems.md`
 - **Patient feature folder:** `systems/practice-host/pages/patient-detail/` (17 modules); stub `views/pages/patient-detail.tsx`
 - **Validation:** `systems-structure.test.ts`; smoke IPC assert fix; transport delegate for Vitest
 - **`HttpPracticeAdapter` + `practice-transport` factory** — `systems/practice-host/adapters/`
@@ -243,9 +250,6 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 
 | ID | Outcome | Date |
 | -- | ------- | ---- |
-| AUDIT-L4 | Unsaved-changes guards (`useUnsavedFormGuard`) on zahlung/termin/rezepte/patient-create | 2026-05-28 |
-| AUDIT-H5 | Seed accounts force password change on first login (`passwort_aendern_erforderlich`) | 2026-05-28 |
-| AUDIT-C1–L6 | Full security audit remediation batch (prior sessions) | 2026-05-28 |
 | G7–G10, G8–G9, CAL2 | Queue items wired + validated | 2026-05-21 |
 | G21a | Collaboration unit + Posteingang poll smoke tests | 2026-05-21 |
 | G20, G17-fix | Posteingang sidebar + route guard; tickets→Posteingang banner | 2026-05-21 |

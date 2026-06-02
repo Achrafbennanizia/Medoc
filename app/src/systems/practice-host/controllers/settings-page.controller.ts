@@ -30,6 +30,9 @@ export {
     type HealthCheck,
     type LicenseStatus,
     verifyLicense,
+    activateLicense,
+    currentLicenseStatus,
+    clearLicense,
 } from "./system.controller";
 
 export {

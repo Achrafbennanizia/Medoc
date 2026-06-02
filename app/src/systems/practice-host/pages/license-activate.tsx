@@ -74,7 +74,13 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                 toast(`Lizenz ungültig: ${result.reason ?? "unbekannter Grund"}`, "error");
             }
         } catch (e) {
-            toast(`Aktivierung: ${errorMessage(e)}`, "error");
+            const msg = errorMessage(e);
+            toast(
+                msg.toLowerCase().includes("forbidden") || msg.toLowerCase().includes("verboten")
+                    ? `Aktivierung nicht möglich: ${msg}. Bitte erneut anmelden oder Administrator kontaktieren.`
+                    : `Aktivierung: ${msg}`,
+                "error",
+            );
         } finally {
             setBusy(false);
         }

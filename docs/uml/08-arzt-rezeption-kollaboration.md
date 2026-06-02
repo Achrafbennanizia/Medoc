@@ -345,6 +345,6 @@ Diese Punkte sind **noch nicht** als ein durchgängiger UI-Workflow geschlossen 
 |----------|------|
 | RBAC | `config/rbac.yaml`, `docs/rbac-matrix.md` |
 | Reception Discovery | `docs/reception-discovery.md` |
-| IPC Workflow | `apps/practice-host/src/commands/akte_workflow_commands.rs` |
-| UI Queue | `apps/practice-host-ui/src/views/pages/akten-zu-validieren.tsx` |
-| Billing Release | `apps/practice-host/src/domain/services/pricing.rs`, `apps/practice-host-ui/src/lib/billing-release.ts` |
+| IPC Workflow | `app/src-tauri/src/commands/akte_workflow_commands.rs` |
+| UI Queue | `app/src/views/pages/akten-zu-validieren.tsx` |
+| Billing Release | `app/src-tauri/src/domain/services/pricing.rs`, `app/src/lib/billing-release.ts` |

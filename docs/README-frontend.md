@@ -1,6 +1,6 @@
 # MeDoc desktop frontend — architecture cheat sheet
 
-Paths are relative to `apps/practice-host-ui/` unless noted.
+Paths are relative to `app/` unless noted.
 
 ## Stack
 
@@ -8,15 +8,14 @@ Paths are relative to `apps/practice-host-ui/` unless noted.
 - React Router 7
 - Zustand for client state
 - Tauri 2 WebView for IPC (`@tauri-apps/api`)
-- Shared npm packages: `@medoc/shared`, `@medoc/ui`, `@medoc/system-*` under `packages/`
 
 ## Three systems (2026-05)
 
 | System | FE path | Rust path |
 |--------|---------|-----------|
-| Practice Host | `src/systems/practice-host/` | `apps/practice-host/src/systems/practice/` |
-| LAN | `src/systems/lan/` | `apps/practice-host/src/systems/lan/` + `crates/medoc-lan/` |
-| Company portal | `src/systems/company-portal/` | `apps/practice-host/src/systems/company/` + `crates/medoc-company/` |
+| Practice Host | `src/systems/practice-host/` | `src-tauri/src/systems/practice/` |
+| LAN | `src/systems/lan/` | `src-tauri/src/systems/lan/` |
+| Company portal | `src/systems/company-portal/` | `src-tauri/src/systems/company/` |
 
 See `docs/architecture/three-systems.md` for boundaries, SOLID, and the Gang-of-Four pattern map.
 
@@ -26,11 +25,11 @@ See `docs/architecture/three-systems.md` for boundaries, SOLID, and the Gang-of-
 2. **Controllers** live under `src/systems/<system>/controllers/`. Legacy `src/controllers/*.ts` re-exports them unchanged.
 3. **Ports + adapters** — `practiceSystem.invoke`, `lanSystem.*`, `companySystem.*` (`src/systems/registry.ts`).
 4. **Transport** — `src/services/tauri.service.ts` (used only by adapters via `systems/shared/transport/`).
-4. **Validation** — User-boundary DTOs use Zod from `@medoc/shared/schemas`. Enum literals from `@medoc/shared/types`. Controllers use `parseOrThrow` before IPC where applicable.
+4. **Validation** — User-boundary DTOs use Zod in `src/lib/schemas.ts`. Enum literals are imported from `src/models/types.ts` (aligned with Rust `enums.rs` / SQLite `CHECK`s). Controllers use `parseOrThrow` before IPC where applicable.
 
 ## RBAC and routing
 
-- **Capabilities** — `@medoc/shared/rbac` (`allowed()`, `ROUTE_VISIBILITY`, `routeChildPathAllowed`). Mirrors `crates/medoc-core/src/application/rbac.rs` for IPC enforcement.
+- **Capabilities** — `src/lib/rbac.ts` (`allowed()`, `ROUTE_VISIBILITY`, `routeChildPathAllowed`). Mirrors `app/src-tauri/src/application/rbac.rs` for IPC enforcement.
 - **Route guard** — `views/components/role-route.tsx` uses `routeChildPathAllowed(routePath, rolle)` to block deep links.
 - **Session** — `views/components/session-gate.tsx` hydrates Zustand via `get_session` on startup. `models/store/auth-store.ts` holds `session` + `sessionChecked`.
 
@@ -43,7 +42,7 @@ See `docs/architecture/three-systems.md` for boundaries, SOLID, and the Gang-of-
 
 ## Design system
 
-- **Primitives** — `@medoc/ui/*` (Button, Input, Dialog, Card, …).
+- **Primitives** — `views/components/ui/*` (Button, Input, Dialog, Card, …).
 - **Global styles** — `src/index.css` (large utility + design-token surface).
 - **Icons** — `src/lib/icons.tsx` (SVG set used across nav and actions).
 - **i18n** — `src/lib/i18n.ts` (`useT`, locale keys `page.*`).

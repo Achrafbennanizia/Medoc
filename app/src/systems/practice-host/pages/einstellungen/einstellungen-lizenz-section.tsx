@@ -15,6 +15,11 @@ export type EinstellungenLizenzSectionProps = {
     licenseToken: string;
     onLicenseTokenChange: (value: string) => void;
     licenseStatus: LicenseStatus | null;
+    licBusy: boolean;
+    onVerifyLicense: () => void | Promise<void>;
+    onActivateLicense: () => void | Promise<void>;
+    canClearLicense?: boolean;
+    onClearLicense?: () => void | Promise<void>;
 };
 
 export function EinstellungenLizenzSection({
@@ -23,8 +28,16 @@ export function EinstellungenLizenzSection({
     licenseToken,
     onLicenseTokenChange,
     licenseStatus,
+    licBusy,
+    onVerifyLicense,
+    onActivateLicense,
+    canClearLicense = false,
+    onClearLicense,
 }: EinstellungenLizenzSectionProps) {
     const toast = useToastStore((s) => s.add);
+
+    const activeV2 = licenseStatus?.valid ? licenseStatus.licenseV2 : null;
+    const activeV1 = licenseStatus?.valid ? licenseStatus.license : null;
 
     const portalLicId =
         typeof portalSummary?.practice_slug === "string" && portalSummary.practice_slug.trim()
@@ -52,7 +65,7 @@ export function EinstellungenLizenzSection({
             <section className="settings-subcard settings-license-hero-wrap" style={{ overflow: "hidden", padding: 0 }}>
                 <div className="settings-license-hero">
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                        <span className="settings-pill-accent">{portalFetchBusy ? "…" : "Aktiv"}</span>
+                        <span className="settings-pill-accent">{portalFetchBusy ? "…" : licenseStatus?.valid ? "Aktiv" : "Inaktiv"}</span>
                         <span style={{ fontSize: 12, color: "var(--fg-3)" }}>Ihr Plan</span>
                     </div>
                     <p style={{ margin: "12px 0 0", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em" }}>
@@ -104,8 +117,15 @@ export function EinstellungenLizenzSection({
                         <Button
                             type="button"
                             onClick={async () => {
-                                const p = await openSubscriptionPortal();
-                                window.open(p.url, "_blank", "noopener,noreferrer");
+                                try {
+                                    const p = await openSubscriptionPortal();
+                                    window.open(p.url, "_blank", "noopener,noreferrer");
+                                } catch {
+                                    toast(
+                                        "Abo-Portal derzeit nicht verfügbar (offline oder nicht konfiguriert).",
+                                        "info",
+                                    );
+                                }
                             }}
                         >
                             Plan wechseln
@@ -176,6 +196,21 @@ export function EinstellungenLizenzSection({
                 </div>
                 <div className="settings-row">
                     <div>
+                        <b>Desktop-Lizenz</b>
+                        <div className="settings-row-muted">
+                            {activeV2
+                                ? `${activeV2.edition} · Gerät ${activeV2.deviceId.slice(0, 8)}… · ${activeV2.customerId}`
+                                : activeV1
+                                  ? `${activeV1.edition} · ${activeV1.customerId}`
+                                  : "Keine gültige Lizenz hinterlegt"}
+                        </div>
+                    </div>
+                    <span className={licenseStatus?.valid ? "settings-pill-green" : "settings-pill-gray"}>
+                        {licenseStatus?.valid ? "Aktiv" : "Inaktiv"}
+                    </span>
+                </div>
+                <div className="settings-row">
+                    <div>
                         <b>KBV-Zulassung</b>
                         <div className="settings-row-muted">Zugelassen bis 31.12.2027</div>
                     </div>
@@ -193,11 +228,41 @@ export function EinstellungenLizenzSection({
                 <div className="card-pad" style={{ paddingTop: 0 }}>
                     <Input
                         id="lic-token-card"
-                        label="Lizenz-Token prüfen"
+                        label="Lizenz-Token"
                         value={licenseToken}
                         onChange={(e) => onLicenseTokenChange(e.target.value)}
-                        placeholder="Token einfügen"
+                        placeholder="v2.… oder v1-Token einfügen"
                     />
+                    <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={licBusy || !licenseToken.trim()}
+                            loading={licBusy}
+                            onClick={() => void onVerifyLicense()}
+                        >
+                            Prüfen
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={licBusy || !licenseToken.trim()}
+                            loading={licBusy}
+                            onClick={() => void onActivateLicense()}
+                        >
+                            Aktivieren
+                        </Button>
+                        {canClearLicense && licenseStatus?.valid && onClearLicense ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={licBusy}
+                                loading={licBusy}
+                                onClick={() => void onClearLicense()}
+                            >
+                                Lizenz entfernen
+                            </Button>
+                        ) : null}
+                    </div>
                     {licenseStatus ? (
                         <p
                             style={{
@@ -206,7 +271,9 @@ export function EinstellungenLizenzSection({
                                 fontSize: 13,
                             }}
                         >
-                            {licenseStatus.valid ? "Lizenz gültig" : `Ungültig: ${licenseStatus.reason ?? "Fehler"}`}
+                            {licenseStatus.valid
+                                ? `Lizenz gültig (${licenseStatus.format ?? "?"})`
+                                : `Ungültig: ${licenseStatus.reason ?? "Fehler"}`}
                         </p>
                     ) : null}
                 </div>

@@ -12,6 +12,9 @@ import {
     type HealthCheck,
     type LicenseStatus,
     verifyLicense,
+    activateLicense,
+    currentLicenseStatus,
+    clearLicense,
 } from "@/systems/practice-host/controllers/settings-page.controller";
 import { useLocale } from "../../lib/i18n";
 import {
@@ -94,6 +97,7 @@ export function EinstellungenPage() {
     const toast = useToastStore((s) => s.add);
     const canMigration = can("ops.migration");
     const canLanHost = can("ops.system");
+    const canClearLicense = can("ops.system");
 
     const hydrateConfirmations = useUiPreferencesStore((s) => s.hydrate);
 
@@ -164,7 +168,11 @@ export function EinstellungenPage() {
                 // Portal optional (offline / no company host): `null` is intentional, not a silent failure.
                 if (activeSection === "lizenz") {
                     const sum = await companyPortalFetchSummary().catch(() => null);
-                    if (!cancelled && sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
+                    const lic = await currentLicenseStatus().catch(() => null);
+                    if (!cancelled) {
+                        if (sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
+                        if (lic) setLicenseStatus(lic);
+                    }
                 } else if (activeSection === "integrationen") {
                     const [sum, integ] = await Promise.all([
                         companyPortalFetchSummary().catch(() => null),
@@ -240,6 +248,43 @@ export function EinstellungenPage() {
             toast(st.valid ? "Lizenz gültig" : `Ungültig: ${st.reason ?? "—"}`, st.valid ? "success" : "info");
         } catch (e) {
             toast(`Fehler: ${(e as Error).message ?? e}`);
+        } finally {
+            setLicBusy(false);
+        }
+    }
+
+    async function handleActivateLicense() {
+        if (!licenseToken.trim()) return;
+        setLicBusy(true);
+        try {
+            const st = await activateLicense(licenseToken.trim());
+            setLicenseStatus(st);
+            if (st.valid) {
+                toast("Lizenz aktiviert", "success");
+                setLicenseToken("");
+            } else {
+                toast(`Aktivierung fehlgeschlagen: ${st.reason ?? "—"}`, "error");
+            }
+        } catch (e) {
+            toast(`Fehler: ${(e as Error).message ?? e}`, "error");
+        } finally {
+            setLicBusy(false);
+        }
+    }
+
+    async function handleClearLicense() {
+        if (!window.confirm("Desktop-Lizenz wirklich entfernen? Die App startet danach wieder im Aktivierungsmodus.")) {
+            return;
+        }
+        setLicBusy(true);
+        try {
+            await clearLicense();
+            const st = await currentLicenseStatus();
+            setLicenseStatus(st);
+            setLicenseToken("");
+            toast("Lizenz entfernt", "success");
+        } catch (e) {
+            toast(`Fehler: ${(e as Error).message ?? e}`, "error");
         } finally {
             setLicBusy(false);
         }
@@ -385,6 +430,11 @@ export function EinstellungenPage() {
                             licenseToken={licenseToken}
                             onLicenseTokenChange={setLicenseToken}
                             licenseStatus={licenseStatus}
+                            licBusy={licBusy}
+                            onVerifyLicense={handleVerifyLicense}
+                            onActivateLicense={handleActivateLicense}
+                            canClearLicense={canClearLicense}
+                            onClearLicense={handleClearLicense}
                         />
                     ) : null}
 

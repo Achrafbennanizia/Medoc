@@ -15,7 +15,7 @@
 
 pub use medoc_core::application::{
     akte, app_kv_policy, audit_chain_guard, auth_service, break_glass, own_profile,
-    termin_hint_fulfillment,
+    praxis_aufgabe_notify, termin_hint_fulfillment,
 };
 
 pub mod rbac {
