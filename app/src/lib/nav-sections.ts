@@ -7,5 +7,8 @@ export const NAV_SECTIONS: NavSectionDefinition[] = [
         label: "Behandlung",
         items: ["/patienten", "/akten/zu-validieren", "/posteingang", "/tickets", "/rezepte", "/statistik"],
     },
-    { label: "Praxis", items: ["/finanzen", "/bestellungen", "/verwaltung", "/einstellungen"] },
+    {
+        label: "Praxis",
+        items: ["/finanzen", "/verwaltung/finanzen-berichte/tagesabschluss", "/bestellungen", "/verwaltung", "/einstellungen"],
+    },
 ];

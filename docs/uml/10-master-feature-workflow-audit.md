@@ -1,6 +1,6 @@
 # MeDoc — Master Feature & Workflow Audit
 
-**Stand:** 2026-05-21  
+**Stand:** 2026-06-02 (reconciled with G14–G19, G21, multi-device e2e)  
 **Ziel:** Vollständige Abbildung von **Pflichtenheft (FA/NFA)** ↔ **Implementierung (Routes + IPC)** ↔ **Behavioral Diagrams**, inkl. **Lücken, Widersprüche und Umsetzungsroadmap**.
 
 **Quellen (gelesen / `rg`):**  
@@ -97,22 +97,22 @@ flowchart TB
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
 | Zahlungen | `/finanzen`, `/finanzen/neu`, Akte Tab `zahl` | FA-FIN-01..11, FA-LEIST-05 | 🟡 | CRUD ✅; Freigabe B/U ✅ |
-| Auto offene Buchung | nach Behandlung save | FA-LEIST-06 | 🟡 | **Nur Behandlung** ✅ (`ensure_open_booking_*`); **Untersuchung 🔴** |
-| Untersuchung Preis | — | FA-LEIST-07 | 🔴 | Schema + UI fehlen |
+| Auto offene Buchung | nach Behandlung save | FA-LEIST-06 | ✅ | Behandlung + Untersuchung (`ensure_open_booking_for_billable_*`, G14/G15) |
+| Untersuchung Preis | — | FA-LEIST-07 | ✅ | Schema + `UntersuchungBillingFields` + zahl tab (G15); live UI **NOT OBSERVED** |
 | Leistungskatalog | `/leistungen`, verwaltung | FA-LEIST-01..04 | ✅ | — |
 | GOZ Rechnung PDF | verwaltung finanz-werkzeuge | FA-FIN-06, FA-AKTE-06 | ✅ | Praxis completeness gate |
 | Bilanz | `/bilanz` | FA-FIN-07..10 | ✅ | Snapshots |
-| Tagesabschluss | `.../tagesabschluss` | FA-FIN-02 | 🟡 | Versteckt unter Verwaltung — REZ-IA-Lücke |
+| Tagesabschluss | `.../tagesabschluss` | FA-FIN-02 | ✅ | Sidebar + native Go menu (GAP-10, 2026-06-02); live UI **NOT OBSERVED** |
 | Statistik | `/statistik` | FA-STAT, WAAD 9.5 | 🟡 | Charts ✅; Krankheitsbild Proxy |
 
 ### 2.5 Kollaboration Arzt ↔ Rezeption
 
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
-| Tickets | `/tickets` | FA-PERS-08 | 🟡 | Nur **REZ→ARZT**; Arzt schließt ohne REZ-Erledigung |
-| Aufgaben (Soll) | `/posteingang` (geplant) | FA-AUFG-01..06 | 🔴 | Bidirektional + Validierung fehlt |
-| Plan-next-Termin | Aktenkopf | NFA-USE / WAAD | 🟡 | SQLite ✅; kein Posteingang; `internalNote` Leak-Risiko REZ |
-| Benachrichtigungen | Header / Dashboard | — | 🟡 | `in_app_notification` ✅; kein zentraler Posteingang |
+| Tickets | `/tickets` | FA-PERS-08 | 🟡 | Legacy REZ→ARZT; banner → Posteingang (G20) |
+| Aufgaben | `/posteingang` | FA-AUFG-01..06 | ✅ | Bidirektional + notify + poll (G16–G19); live Tauri **NOT OBSERVED** |
+| Plan-next-Termin | Aktenkopf | NFA-USE / WAAD | 🟡 | SQLite ✅; REZ tab guards + redaction (GAP-01 mitigated) |
+| Benachrichtigungen | Header / Dashboard | — | ✅ | `PRAXIS_AUFGABE_ERLEDIGT` popover + Posteingang queue |
 
 ### 2.6 Personal, Lager, Verträge
 
@@ -240,12 +240,12 @@ flowchart TB
 |---------|-----|------|
 | Arzt speichert Behandlung + Leistung | ✅ `ensure_open_booking_for_billable_behandlung` | ✅ |
 | Tab `zahl` öffnen | ✅ `openZahlTabAfterBillableBehandlung` | ✅ |
-| Gleiches für **Untersuchung** | 🔴 | FA-LEIST-07 + erweitern LEIST-06 |
-| Aufgabe an REZ | 🔴 | FA-AUFG-02 |
+| Gleiches für **Untersuchung** | ✅ | FA-LEIST-07 + erweitern LEIST-06 |
+| Aufgabe an REZ | ✅ | FA-AUFG-02 (`ensure_abrechnung_aufgabe_for_clinical_line`, manual dialog) |
 
-### 5.2 Aufgabenzyklus (🔴 geplant)
+### 5.2 Aufgabenzyklus (✅ implementiert, live smoke pending)
 
-Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollaboration.md) State + Sequence.
+Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollaboration.md) State + Sequence. Automated coverage: `collaboration-g21.test.ts`, `posteingang.smoke.test.tsx`, `praxis_aufgabe_tests.rs`.
 
 ### 5.3 Rezeption ohne Medizin (❌ Widerspruch)
 
@@ -253,8 +253,8 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 |-------------|----------|---------|
 | NFA-SEC-02 REZ kein medical write | ✅ `write_medical` denied | OK |
 | REZ keine Diagnose sehen | 🟡 `get_akte` redacted | OK |
-| REZ Zahlung Zuordnung | ❌ | `list_behandlungen` liefert **volle** klinische Felder an REZ (`patient.behandlungen_list_for_zahlung`) |
-| REZ Rezept-Tab | ❌ | `patient-detail` lädt `list_rezepte` → 403 oder Leak |
+| REZ Zahlung Zuordnung | 🟡 mitigated | `redact_*_for_rezeption` + unit tests (`gap01`); live REZ audit **NOT OBSERVED** |
+| REZ Rezept-Tab | 🟡 mitigated | `canViewClinical` tab guards; live REZ audit **NOT OBSERVED** |
 
 ---
 
@@ -264,18 +264,18 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 
 | ID | Gap | FA | Fix |
 |----|-----|-----|-----|
-| GAP-01 | REZ sieht klinische Texte in Behandlung-Listen für Zahlung | NFA-SEC-02 | `akte_list_billing` DTO; neues RBAC `patient.read_billing` |
-| GAP-02 | REZ patient-detail lädt Rezepte/Atteste (medical IPC) | FA-REZ/ATT | Role-guard im `load()`; Druck-only IPC |
-| GAP-03 | Kein Posteingang; verteilte Signale (Ticket, Plan-Hint) | FA-AUFG-03 | `/posteingang` + unified queue |
-| GAP-04 | Arzt→REZ Aufgaben fehlen | FA-AUFG-02..05 | `praxis_aufgabe` + Statusmaschine |
+| GAP-01 | REZ sieht klinische Texte in Behandlung-Listen für Zahlung | NFA-SEC-02 | **Mitigated** — `rezeption_redact.rs` + tests; live audit pending |
+| GAP-02 | REZ patient-detail lädt Rezepte/Atteste (medical IPC) | FA-REZ/ATT | **Mitigated** — tab guards; live audit pending |
+| GAP-03 | Kein Posteingang; verteilte Signale | FA-AUFG-03 | **Done** — `/posteingang` + poll + nav (G17) |
+| GAP-04 | Arzt→REZ Aufgaben fehlen | FA-AUFG-02..05 | **Done** — `praxis_aufgabe` + notify (G16–G19) |
 
 ### P1 — Abrechnung & Leistung (Ihr Fokus)
 
 | ID | Gap | FA | Fix |
 |----|-----|-----|-----|
-| GAP-05 | Untersuchung ohne `gesamtkosten`/`leistungsname` | FA-LEIST-07 | Migration + Composer UI |
-| GAP-06 | LEIST-06 nur Behandlung | FA-LEIST-06/07 | `ensure_open_booking_for_untersuchung` + FE hook |
-| GAP-07 | Auto-Aufgabe ABRECHNUNG bei Leistung | FA-AUFG-02, G18 | On save hook |
+| GAP-05 | Untersuchung ohne `gesamtkosten`/`leistungsname` | FA-LEIST-07 | **Done** (G15) |
+| GAP-06 | LEIST-06 nur Behandlung | FA-LEIST-06/07 | **Done** (G14/G15) |
+| GAP-07 | Auto-Aufgabe ABRECHNUNG bei Leistung | FA-AUFG-02, G18 | **Done** (G18) |
 
 ### P2 — UX / Vollständigkeit MUST
 
@@ -283,7 +283,7 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 |----|-----|-----|-----|
 | GAP-08 | Termin SMS/E-Mail | FA-TERM-11 | Notification pipeline (deferred ok if SHOULD) |
 | GAP-09 | Notfall-Termin <3 Klicks | FA-TERM-04 | Flag default or restore toolbar |
-| GAP-10 | REZ Tagesabschluss nicht in Sidebar | FA-FIN-02 | Nav IA für REZ |
+| GAP-10 | REZ Tagesabschluss nicht in Sidebar | FA-FIN-02 | **Done** — `nav-sections.ts` + `NAV_ITEM_DEFINITIONS` (2026-06-02) |
 | GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | PDF pipeline von Zahlung |
 | GAP-12 | VDDS/BDT Migration | FA-MIG-01/02 | Parser + wizard steps |
 
@@ -301,7 +301,7 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 
 | # | Dokument sagt | Code sagt | Severity |
 |---|---------------|-----------|----------|
-| M1 | `06-validierung.md` viele Gruppen ✅ | WAAD-Matrix 🟡/🔴 für LEIST/AUFG | **Hoch** — Validierungsdoc zu optimistisch |
+| M1 | `06-validierung.md` viele Gruppen ✅ | WAAD-Matrix 🟡/🔴 für LEIST/AUFG | **Resolved 2026-06-02** — LEIST/AUFG done; doc rows updated |
 | M2 | `architecture-design.md` SQLCipher „ausstehend“ | `sqlcipher.rs` + `DbSetupGate` ✅ | Mittel — Archivdoc |
 | M3 | ISO doc REZ „medizinisch lesen“ | Produktziel: REZ minimiert | **Hoch** — Policy |
 | M4 | FA-PERS-08 = vollständiges Ticket-System | Nur REZ→ARZT, kein VALIDIERT durch Arzt nach REZ | Mittel |
@@ -332,7 +332,7 @@ flowchart LR
 | **5** | Notfall flag, SMS stub honest, migration profiles | FA-TERM, FA-MIG | MUST-Lücken reduzieren |
 | **6** | Integration capability truth + LAN mobile | NFA-NET, FA-DEV | Keine falschen Live-Buttons |
 
-**Ledger:** `docs/coordination/actions.md` — G14 **Done** (Behandlung); G15–G18 **Open**.
+**Ledger:** `docs/coordination/actions.md` — G14–G19 **Done**; GAP-10 **Done** (2026-06-02).
 
 ---
 
