@@ -100,7 +100,7 @@ Code-Stand**. Die vollständige Trace-Matrix mit Datei-/Zeilennachweisen liegt i
 | 3 Medizinische Dokumentation | 3.1, 3.2, 3.3, 3.4 | FA-AKTE-01..09, FA-ZAHN-01..07, FA-DOK-01..06 | ✅ VERIFIED | Anamnese, Zahnschema, Behandlungs-Erfassung implementiert (`patient-detail.tsx`, `DentalChart.tsx`, `UntersuchungComposer.tsx`) |
 | 4 Termine | 4.1, 4.2, 4.3 | FA-TERM-01..16 | ✅ VERIFIED | Konfliktprüfung, Notfall, Erinnerung (Pipeline `notifications.rs`) |
 | 5 Discharge / Nachsorge | 5.1.1 | FA-DOK-08 | ✅ VERIFIED | `discharge-merkblatt-dialog.tsx`; PDF test `test_discharge_merkblatt_pdf_markers` (G4) |
-| 6 Kostenverwaltung | 6.1.1, 6.1.2, 6.2.1..4 | FA-FIN-01..08, FA-LEIST-01..07, FA-AUFG-01..06 | 🟡 PARTIAL | **FA-LEIST-05 ✅**; **FA-LEIST-06 🟡** nur Behandlung; **FA-LEIST-07 🔴**; **FA-AUFG ✅** Posteingang wired (2026-05-31) — siehe [`10-master-feature-workflow-audit.md`](../uml/10-master-feature-workflow-audit.md) |
+| 6 Kostenverwaltung | 6.1.1, 6.1.2, 6.2.1..4 | FA-FIN-01..08, FA-LEIST-01..07, FA-AUFG-01..06 | 🟡 PARTIAL | **FA-LEIST-05 ✅**; **FA-LEIST-06 🟡** nur Behandlung (`ensure_open_booking_*`); **FA-LEIST-07 🔴**; **FA-AUFG 🔴** — siehe [`10-master-feature-workflow-audit.md`](../uml/10-master-feature-workflow-audit.md) |
 | 7 UI/UX | 7.1, 7.2, 7.3.1..3, 7.4 | NFA-USE-01..10, FA-AKTE-16 | 🟡 PARTIAL | Design/Toast/i18n; `akte-completeness.ts`; autocomplete toggle (G7); onboarding coachmark (G6) |
 | 8 IT-Sicherheit | 8.1, 8.2, 8.3, 8.4 | NFA-SEC-01..09, NFA-DATA-01 | ✅ / 🟡 | SQLCipher + `DbSetupGate` (A1); RBAC, audit chain, backup+restore (G2); VVT text may lag runtime |
 | 9 Performance / Plattform | 9.1, 9.2, 9.3, 9.4, 9.5 | NFA-PERF-01..06, SA-01..08 | ✅ / 🟡 | 9.1 restore UI; 9.5 Krankheitsbild panel (`statistik.tsx` G8); 9.4 Last-Test → G11 |

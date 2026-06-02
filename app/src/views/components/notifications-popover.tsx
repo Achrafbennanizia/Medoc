@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { de, enUS } from "date-fns/locale";
-import { useToastStore } from "@/views/components/ui/toast-store";
+import { useToastStore } from "./ui/toast-store";
 import { CheckIcon, PackageIcon, PillIcon, SparkleIcon, ChevronRightIcon } from "@/lib/icons";
 import {
     listInAppNotifications,

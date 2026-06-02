@@ -5,7 +5,7 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::pdf::{render_report_pdf, ReportPdfInput};
+use crate::infrastructure::pdf_export::{render_report_pdf, ReportPdfInput};
 
 /// Structured practice report → PDF bytes (same renderer as Akte / Merkblatt).
 #[tauri::command]

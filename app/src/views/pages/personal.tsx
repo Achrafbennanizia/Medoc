@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import {
+    adminUnlockBruteForce,
     createPersonal,
     deletePersonal,
     deletePersonalPermissionOverride,
-    adminUnlockBruteForce,
     listPersonal,
     listPersonalPermissionOverrides,
     setPersonalPasswordByAdmin,
@@ -14,20 +14,20 @@ import {
 } from "@/systems/practice-host/controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { errorMessage, formatDate } from "@/lib/utils";
-import type { Personal } from "@/models/types";
-import { Button } from "@/views/components/ui/button";
-import { Card, CardHeader } from "@/views/components/ui/card";
-import { ConfirmDialog } from "@/views/components/ui/dialog";
-import { Input, Select } from "@/views/components/ui/input";
-import { Badge } from "@/views/components/ui/badge";
-import { EmptyState } from "@/views/components/ui/empty-state";
-import { useToastStore } from "@/views/components/ui/toast-store";
-import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
+import { errorMessage, formatDate } from "../../lib/utils";
+import type { Personal } from "../../models/types";
+import { Button } from "../components/ui/button";
+import { Card, CardHeader } from "../components/ui/card";
+import { ConfirmDialog } from "../components/ui/dialog";
+import { Input, Select } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
+import { useToastStore } from "../components/ui/toast-store";
+import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungBackButton } from "../components/verwaltung-back-button";
 import { EditIcon } from "@/lib/icons";
 import { passwordPolicyError } from "@/lib/password-policy";
-import { PasswordPolicyHints } from "@/views/components/password-policy-hints";
+import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Rolle } from "@/models/types";
 
 function initialsFromName(name: string) {

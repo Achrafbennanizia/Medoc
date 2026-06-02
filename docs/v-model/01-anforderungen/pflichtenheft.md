@@ -106,7 +106,7 @@ zentrale Hersteller-Server.
 | FA-AKTE-13 | Buttons „Akte validieren" und „Neue erstellen" direkt in Aktenansicht (nur Arzt-Rolle) | MUST | Nur für Rolle ARZT sichtbar; Aktion mit Bestätigung |
 | FA-AKTE-14 | „Akte an Arzt weiterleiten"-Aktion (Liste/Dropdown, Mehrfachauswahl möglich); erzeugt einen Eintrag in der Validierungs-Queue (FA-AKTE-15) und im Audit-Log | SHOULD | Aktionsmenü oder Button in der Aktenansicht der Rezeption; Empfängerliste enthält alle Personal-Datensätze mit Rolle ARZT (WAAD 1.3.1) |
 | FA-AKTE-15 | Validierungs-Queue-Seite („Zu validieren") für Arzt-Rolle: Liste aller Akten / Einträge mit Status `IN_BEARBEITUNG`, sortiert nach Wartezeit; Klick öffnet die Akte | MUST | Eigene Route + Sidebar-Eintrag; sichtbar nur für ARZT; Anzahl der wartenden Einträge als Badge im Sidebar (WAAD 2.2.1) |
-| FA-AKTE-16 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (z. B. Anamnesebogen, Versicherungsblock, Zahnschema-Initialbefund) mit „Springen zu …"-Link | NICE TO HAVE | Heuristik definiert in `apps/practice-host-ui/src/lib/akte-completeness.ts`; Anzeige in Aktenkopf; Vorab-Durchführbarkeitsanalyse dokumentiert (WAAD 7.3.3) |
+| FA-AKTE-16 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (z. B. Anamnesebogen, Versicherungsblock, Zahnschema-Initialbefund) mit „Springen zu …"-Link | NICE TO HAVE | Heuristik definiert in `app/src/lib/akte-completeness.ts`; Anzeige in Aktenkopf; Vorab-Durchführbarkeitsanalyse dokumentiert (WAAD 7.3.3) |
 
 ### 3.4 Zahnschema (FA-ZAHN)
 
@@ -416,8 +416,8 @@ MeDoc muss die **10 Nielsen-Heuristiken** als formale Qualitätskriterien erfül
 | NFA-USE-06 | Farbkodierungen müssen zusätzlich Textlabels besitzen (Barrierefreiheit) | SHOULD | Jeder farbkodierte Zustand hat ein sichtbares Textlabel oder Tooltip |
 | NFA-USE-07 | Bestätigungsdialoge auch für Änderungen/Updates („Änderung bestätigen") — nicht nur für destruktive Aktionen | MUST | Jede Bearbeitungsaktion zeigt Bestätigungsdialog vor Speichern |
 | NFA-USE-08 | Toast-/Banner-Nachrichten nach jeder CRUD-Operation (Erfolg/Fehler) | MUST | z. B. „Termin wurde gespeichert", „Akte wurde gelöscht" als visuelles Feedback |
-| NFA-USE-09 | Kontextsensitive Tooltip-/Onboarding-Layer auf jeder Hauptseite: Erstbenutzer können einen kurzen, abdismissbaren Walkthrough starten, der die wichtigsten Aktionen jeder Seite erklärt | SHOULD | Walkthrough in `apps/practice-host-ui/src/views/components/app-help-dialogs.tsx`; pro-Rolle/pro-Seite-Schlüssel im `app_kv`-Store gespeichert (`onboarding.<route>.dismissed`); jederzeit über `?`-Icon erneut startbar (WAAD 1.5, NFA-USE-H10) |
-| NFA-USE-10 | Konfigurierbares Autocomplete-/Vorschlags-Verhalten: Pflichtfelder mit kontrollierten Vokabularen (Stadt, Versicherung, Diagnose-Kürzel, Behandlungs-Kategorie) bieten Inline-Vorschläge; Vokabular kann pro Praxis erweitert werden | SHOULD | Vokabular-Quellen in `apps/practice-host-ui/src/lib/string-suggest.ts`; praxis-spezifische Erweiterungen in `app_kv`; Vorschlagsliste case-insensitive, beste-Treffer zuerst (WAAD 7.4) |
+| NFA-USE-09 | Kontextsensitive Tooltip-/Onboarding-Layer auf jeder Hauptseite: Erstbenutzer können einen kurzen, abdismissbaren Walkthrough starten, der die wichtigsten Aktionen jeder Seite erklärt | SHOULD | Walkthrough in `app/src/views/components/app-help-dialogs.tsx`; pro-Rolle/pro-Seite-Schlüssel im `app_kv`-Store gespeichert (`onboarding.<route>.dismissed`); jederzeit über `?`-Icon erneut startbar (WAAD 1.5, NFA-USE-H10) |
+| NFA-USE-10 | Konfigurierbares Autocomplete-/Vorschlags-Verhalten: Pflichtfelder mit kontrollierten Vokabularen (Stadt, Versicherung, Diagnose-Kürzel, Behandlungs-Kategorie) bieten Inline-Vorschläge; Vokabular kann pro Praxis erweitert werden | SHOULD | Vokabular-Quellen in `app/src/lib/string-suggest.ts`; praxis-spezifische Erweiterungen in `app_kv`; Vorschlagsliste case-insensitive, beste-Treffer zuerst (WAAD 7.4) |
 
 ### 4.3 Performance (NFA-PERF)
 

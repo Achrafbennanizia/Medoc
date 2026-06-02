@@ -877,8 +877,8 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
 // ===========================================================================
 
 /// Vorschau-Renderer: nutzt entweder ein strukturiertes Layout
-/// (`layout_json`, siehe `clinical_pdf_layout`) oder fällt auf eine schlanke
-/// Zeilenliste zurück.
+/// (`layout_json`, siehe `clinical_pdf_layout`) oder die gleiche Briefkopf-/Footer-
+/// Bibliothek über [`clinical_pdf_layout::render_plain_preview`].
 pub fn render_template_preview_pdf(
     kind: &str,
     template_name: &str,
@@ -893,38 +893,13 @@ pub fn render_template_preview_pdf(
         return super::clinical_pdf_layout::render_clinical_layout(&layout);
     }
 
-    let fs = body_pt.clamp(8, 18);
-    let wrap_cols = 86usize.saturating_sub((18 - fs) as usize * 2);
-
-    let mut pb = PageBuilder::new();
-    pb.text(M_LEFT, 14, true, &format!("Druckvorschau: {template_name}"));
-    pb.advance(18);
-    pb.text(M_LEFT, 9, false, &format!("Dokumenttyp: {kind}"));
-    pb.advance(14);
-    pb.hline(M_LEFT, M_RIGHT);
-    pb.advance(16);
-
-    for raw in body_lines {
-        let display = super::clinical_text_format::plain_text_for_pdf(raw);
-        if display.trim().is_empty() {
-            pb.advance(fs / 2);
-            continue;
-        }
-        pb.paragraph(&display, fs, wrap_cols, 0);
-    }
-
-    if !fusszeile.trim().is_empty() {
-        pb.advance(8);
-        pb.hline(M_LEFT, M_RIGHT);
-        pb.advance(10);
-        for chunk in wrap_soft(fusszeile, wrap_cols) {
-            pb.text(M_LEFT, 8, false, &chunk);
-            pb.advance(11);
-        }
-    }
-
-    let pages = pb.finish();
-    emit_multipage_pdf(&pages, &format!("Vorschau {template_name}"))
+    super::clinical_pdf_layout::render_plain_preview(
+        kind,
+        template_name,
+        fusszeile,
+        body_pt,
+        body_lines,
+    )
 }
 
 // ===========================================================================

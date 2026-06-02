@@ -3,15 +3,25 @@ import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.
 export interface LicenseStatus {
     valid: boolean;
     reason: string | null;
+    format?: string | null;
     license: {
-        customer_id: string;
+        customerId: string;
         edition: string;
-        issued_at: string;
-        expires_at: string;
-        max_users: number;
+        issuedAt: string;
+        expiresAt: string;
+        maxUsers: number;
         modules: string[];
     } | null;
-    days_until_expiry: number | null;
+    licenseV2?: {
+        customerId: string;
+        edition: string;
+        deviceId: string;
+        activatedAt: string;
+        maxUsers: number;
+        modules: string[];
+        editionFeatures: string[];
+    } | null;
+    daysUntilExpiry: number | null;
 }
 
 export interface UpdateInfo {
@@ -23,6 +33,14 @@ export interface UpdateInfo {
 
 export const verifyLicense = (token: string) =>
     practiceSystem.invoke<LicenseStatus>("verify_license", { token });
+
+export const activateLicense = (token: string) =>
+    practiceSystem.invoke<LicenseStatus>("activate_license", { token });
+
+export const currentLicenseStatus = () =>
+    practiceSystem.invoke<LicenseStatus>("current_license_status");
+
+export const clearLicense = () => practiceSystem.invoke<void>("clear_license");
 
 export const checkForUpdates = () =>
     practiceSystem.invoke<UpdateInfo>("check_for_updates");

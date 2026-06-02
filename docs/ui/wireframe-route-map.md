@@ -1,6 +1,6 @@
 # Wireframe ↔ route map (Figma + prototype)
 
-Use this table to close the remaining ~30% gap between **`Untitled-2.fig`**, the **Downloads prototype** (`view-*.jsx`, `MeDoc.html`), and the **shipped app** under `apps/practice-host-ui/src/`.
+Use this table to close the remaining ~30% gap between **`Untitled-2.fig`**, the **Downloads prototype** (`view-*.jsx`, `MeDoc.html`), and the **shipped app** under `app/src/`.
 
 ## How to attach Figma evidence
 
@@ -10,7 +10,7 @@ Use this table to close the remaining ~30% gap between **`Untitled-2.fig`**, the
 
 ## Route table
 
-| URL path | RBAC `routePath` / key | Page component (`apps/practice-host-ui/src/views/pages/`) | Prototype hint (Downloads) | Figma frame *(fill in)* | PNG *(optional)* | Parity notes |
+| URL path | RBAC `routePath` / key | Page component (`app/src/views/pages/`) | Prototype hint (Downloads) | Figma frame *(fill in)* | PNG *(optional)* | Parity notes |
 |----------|-------------------------|----------------------------------------|----------------------------|-------------------------|------------------|--------------|
 | `/login` | _(outside layout)_ | `login.tsx` | `view-auth.jsx`, `MeDoc.html` | | | |
 | `/` | `""` | `dashboard.tsx` | `view-dashboard.jsx` | | | KPIs use real stats; Freigaben/Bestellungen honest placeholders |
@@ -49,13 +49,13 @@ Use this table to close the remaining ~30% gap between **`Untitled-2.fig`**, the
 
 | Concern | Code | Prototype |
 |--------|------|-----------|
-| Sidebar + top bar | `apps/practice-host-ui/src/views/layouts/app-layout.tsx` | `shell.jsx`, `app.jsx`, `MeDoc.html` |
-| Icons | `apps/practice-host-ui/src/lib/icons.tsx` | `icons.jsx` |
-| Tokens / motion | `apps/practice-host-ui/src/index.css` | `MeDoc.html` |
+| Sidebar + top bar | `app/src/views/layouts/app-layout.tsx` | `shell.jsx`, `app.jsx`, `MeDoc.html` |
+| Icons | `app/src/lib/icons.tsx` | `icons.jsx` |
+| Tokens / motion | `app/src/index.css` | `MeDoc.html` |
 
 ## Status legend
 
-- **Shipped** — route exists in `apps/practice-host-ui/src/App.tsx` and has a page module.
+- **Shipped** — route exists in `app/src/App.tsx` and has a page module.
 - **Partial** — behaviour or layout intentionally thinner than wireframe (called out in notes).
 - **Blocked** — needs backend or Figma decision.
 

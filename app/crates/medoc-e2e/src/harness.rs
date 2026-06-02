@@ -8,14 +8,20 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, Response, StatusCode};
 use axum::Router;
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
-use chrono::{TimeZone, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
 use http_body_util::BodyExt;
+use medoc_core::domain::entities::patient::CreatePatient;
+use medoc_core::domain::enums::Geschlecht;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
 use medoc_core::infrastructure::license_repo;
 use medoc_core::infrastructure::logging::brute_force::BruteForceTracker;
 use medoc_lan::LanSystemFactory;
+use medoc_sync::deployment::{
+    DeploymentMode, DeviceRole, SyncDeploymentConfig, APP_KV_DEVICE_ID_KEY,
+};
+use medoc_sync::engine::SyncEngine;
 use medoc_sync::master_keys;
 use sqlx::SqlitePool;
 use tower::ServiceExt;
@@ -80,6 +86,137 @@ pub async fn seed_test_master_license(pool: &SqlitePool) {
     license_repo::store_v2(pool, &envelope)
         .await
         .expect("store license");
+}
+
+/// Seed demo Arzt TOTP so LAN login accepts code `123456` (enrollment uses fixed test path).
+pub async fn enroll_seed_arzt_totp(pool: &SqlitePool) {
+    use medoc_core::infrastructure::database::personal_repo;
+    use medoc_core::infrastructure::totp;
+    let (secret, _) = totp::generate_enrollment("ahmed@praxis.de").expect("totp enroll");
+    personal_repo::set_totp_pending_secret(pool, "seed-arzt-001", &secret)
+        .await
+        .expect("pending totp");
+    personal_repo::confirm_totp_enrollment(pool, "seed-arzt-001")
+        .await
+        .expect("confirm totp");
+}
+
+/// Patient row seeded on the master for `pull_from_master` port tests.
+pub const PORT_MASTER_SEED_PATIENT_NAME: &str = "Master Seed Pull Patient";
+
+/// Initialize a headless master data directory (migrations, demo seed, license, TOTP).
+pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
+    ensure_e2e_env();
+    std::fs::create_dir_all(data_dir).expect("mkdir master data dir");
+    let _ = medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(data_dir);
+    let pool = medoc_core::infrastructure::database::connection::init_db_headless(data_dir)
+        .await
+        .expect("init_db_headless");
+    seed_test_master_license(&pool).await;
+    enroll_seed_arzt_totp(&pool).await;
+    let portal_cfg = serde_json::json!({
+        "base_url": "",
+        "practice_slug": "demo-praxis",
+        "api_key": ""
+    });
+    medoc_core::infrastructure::database::app_kv_repo::set(
+        &pool,
+        medoc_core::infrastructure::company_portal::config::COMPANY_PORTAL_KV_KEY,
+        &portal_cfg.to_string(),
+    )
+    .await
+    .expect("company portal kv");
+
+    let deploy = SyncDeploymentConfig {
+        schema_version: 1,
+        mode: DeploymentMode::ServerlessPeer,
+        role: DeviceRole::Master,
+        device_label: "E2E Master".into(),
+        ..Default::default()
+    };
+    SyncEngine::set_deployment(&pool, deploy)
+        .await
+        .expect("serverless master deployment");
+
+    medoc_core::infrastructure::database::patient_repo::create(
+        &pool,
+        &CreatePatient {
+            name: PORT_MASTER_SEED_PATIENT_NAME.into(),
+            geburtsdatum: NaiveDate::from_ymd_opt(1985, 4, 21).unwrap(),
+            geschlecht: Geschlecht::Weiblich,
+            versicherungsnummer: "V-PORT-PULL-1".into(),
+            telefon: None,
+            email: None,
+            adresse: None,
+        },
+    )
+    .await
+    .expect("seed master patient for pull sync");
+}
+
+/// Open an on-disk headless SQLite pool (same file the LAN server uses).
+pub async fn open_headless_pool(data_dir: &std::path::Path) -> SqlitePool {
+    ensure_e2e_env();
+    medoc_core::infrastructure::database::connection::init_db_headless(data_dir)
+        .await
+        .expect("open headless pool")
+}
+
+/// Configure a replica data directory for `SyncEngine` push/pull/mesh over real HTTPS.
+pub async fn prepare_replica_data_dir(
+    data_dir: &std::path::Path,
+    device_id: &str,
+    label: &str,
+    master_base_url: &str,
+    master_pubkey: &str,
+    master_device_id: &str,
+    activation_token: &str,
+    unstable_mesh: bool,
+) {
+    ensure_e2e_env();
+    std::fs::create_dir_all(data_dir).expect("mkdir replica data dir");
+    let _ = medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(data_dir);
+    let pool = open_headless_pool(data_dir).await;
+    medoc_sync::schema::ensure_sync_tables(&pool)
+        .await
+        .expect("sync schema");
+    medoc_core::infrastructure::database::app_kv_repo::set(&pool, APP_KV_DEVICE_ID_KEY, device_id)
+        .await
+        .expect("replica device id");
+    let cfg = SyncDeploymentConfig {
+        schema_version: 1,
+        mode: DeploymentMode::ServerlessPeer,
+        role: DeviceRole::Replica,
+        master_base_url: master_base_url.to_string(),
+        master_cert_sha256: String::new(),
+        device_label: label.to_string(),
+        activation_token: activation_token.to_string(),
+        master_pubkey: master_pubkey.to_string(),
+        master_device_id: master_device_id.to_string(),
+        unstable_mesh,
+        ..Default::default()
+    };
+    SyncEngine::set_deployment(&pool, cfg)
+        .await
+        .expect("replica deployment");
+    medoc_sync::repo::ensure_local_device(&pool, label)
+        .await
+        .expect("replica local device");
+}
+
+/// Patch mesh peer URL on the master DB (same-host multi-port replicas).
+pub async fn patch_replica_peer_url(
+    master_data_dir: &std::path::Path,
+    device_id: &str,
+    peer_base_url: &str,
+) {
+    let pool = open_headless_pool(master_data_dir).await;
+    sqlx::query("UPDATE sync_device SET peer_base_url = ?1 WHERE device_id = ?2")
+        .bind(peer_base_url)
+        .bind(device_id)
+        .execute(&pool)
+        .await
+        .expect("patch replica peer_base_url");
 }
 
 pub async fn fresh_practice_pool() -> SqlitePool {

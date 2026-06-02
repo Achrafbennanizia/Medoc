@@ -7,9 +7,8 @@ use crate::domain::entities::praxis_aufgabe::{
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    audit_repo, in_app_notification_repo, patient_repo, personal_repo, praxis_aufgabe_repo,
+    audit_repo, patient_repo, personal_repo, praxis_aufgabe_repo,
 };
-use serde_json::json;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -175,33 +174,15 @@ pub async fn transition_praxis_aufgabe(
     )
     .await?;
 
-    if st == "ERLEDIGT_REZEPTION" && current.created_by != session.user_id {
-        let pname = patient_repo::find_by_id(&pool, &current.patient_id)
-            .await?
-            .map(|p| p.name)
-            .unwrap_or_default();
-        let title = format!("Aufgabe erledigt: {pname}");
-        let body = args
-            .erledigt_notiz
-            .as_deref()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or("Rezeption hat die Aufgabe erledigt.");
-        let pay = json!({
-            "aufgabeId": out.id,
-            "patientId": current.patient_id,
-            "typ": current.typ,
-        })
-        .to_string();
-        in_app_notification_repo::insert(
-            &pool,
-            &current.created_by,
-            "PRAXIS_AUFGABE_ERLEDIGT",
-            &title,
-            body,
-            Some(&pay),
-        )
-        .await?;
-    }
+    crate::application::praxis_aufgabe_notify::notify_creator_if_aufgabe_erledigt_by_other(
+        &pool,
+        &current,
+        &out,
+        &st,
+        &session.user_id,
+        args.erledigt_notiz.as_deref(),
+    )
+    .await?;
 
     audit_repo::create(
         &pool,

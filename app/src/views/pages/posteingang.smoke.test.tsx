@@ -102,6 +102,9 @@ describe("Posteingang smoke (G21)", () => {
         });
         expect(screen.getByText("Test Aufgabe")).toBeInTheDocument();
 
+        fireEvent.change(screen.getByLabelText(/Erledigt-Notiz/i), {
+            target: { value: "Kasse erfasst" },
+        });
         fireEvent.click(screen.getByRole("button", { name: /Erledigen/i }));
         await act(async () => {
             await Promise.resolve();
@@ -109,7 +112,7 @@ describe("Posteingang smoke (G21)", () => {
         expect(transitionPraxisAufgabe).toHaveBeenCalledWith({
             id: "aufg-1",
             status: "ERLEDIGT_REZEPTION",
-            erledigtNotiz: undefined,
+            erledigtNotiz: "Kasse erfasst",
         });
     });
 });

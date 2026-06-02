@@ -6,7 +6,7 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::pdf::{render, Invoice, InvoiceLine};
+use crate::infrastructure::pdf_export::{render, Invoice, InvoiceLine};
 use crate::log_system;
 
 #[derive(Debug, Deserialize)]

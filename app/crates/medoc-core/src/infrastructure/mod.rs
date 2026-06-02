@@ -24,6 +24,7 @@ pub mod notifications;
 pub mod payment;
 pub mod pdf;
 pub mod pdf_core;
+pub mod pdf_export;
 pub mod pdf_letterhead;
 pub mod perf;
 pub mod photo_viewer_scan;

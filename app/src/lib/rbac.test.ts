@@ -10,7 +10,7 @@ import {
     ROUTE_VISIBILITY,
     settingsSectionVisible,
     type Role,
-} from "@/lib/rbac";
+} from "./rbac";
 
 const ROLES = ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const satisfies readonly Role[];
 

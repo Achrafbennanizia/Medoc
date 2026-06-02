@@ -37,7 +37,7 @@
 |------------|-------------|
 | Desktop-Shell | Tauri 2 |
 | Frontend | React 19 + TypeScript + Vite 6 + `react-router-dom` |
-| Styling | Tailwind CSS 3 + `apps/practice-host-ui/src/index.css` |
+| Styling | Tailwind CSS 3 + `app/src/index.css` |
 | State | Zustand |
 | Backend / IPC | Rust 2021, Tauri-Commands, `sqlx` + SQLite (WAL) |
 | Auth (lokal) | Argon2id (bcrypt-Fallback) + Sitzung; Rollen ARZT/REZEPTION/… |

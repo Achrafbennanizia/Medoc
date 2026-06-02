@@ -10,8 +10,8 @@ Verifikation einzelner Module / Funktionen gegen die im Modulentwurf beschrieben
 
 | Modul / Komponente (Doku) | Testart | Ort im Repo |
 |---------------------------|---------|-------------|
-| RBAC, Crypto, Payment, … | Rust `#[test]` | `apps/practice-host/tests/*.rs`, `src/**` inline tests |
-| UI / Hooks | Vitest (`npm test`) | `apps/practice-host-ui/src/**/*.test.ts(x)` |
+| RBAC, Crypto, Payment, … | Rust `#[test]` | `app/src-tauri/tests/*.rs`, `src/**` inline tests |
+| UI / Hooks | Vitest (`npm test`) | `app/src/**/*.test.ts(x)` |
 
 ## Referenzen
 
