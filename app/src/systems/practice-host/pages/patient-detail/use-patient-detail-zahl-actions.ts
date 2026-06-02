@@ -1,12 +1,8 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import type { Behandlung, Patient, Untersuchung, Zahlung, ZahlungsArt } from "@/models/types";
-import { allocateQuittungNummer } from "@/systems/practice-host/controllers/invoice.controller";
 import { createZahlung, deleteZahlung, updateZahlung } from "@/systems/practice-host/controllers/zahlung.controller";
-import {
-    bundleQuittungExport,
-    suggestQuittungExportBasename,
-    type ClinicalDocumentExportBundle,
-} from "@/lib/document-print-html";
+import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
+import { buildQuittungExportForZahlung } from "@/lib/quittung-export-flow";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { PATIENT_DETAIL_TOAST_UNDO_MS } from "@/lib/patient-detail-utils";
@@ -23,7 +19,6 @@ import {
     sumZahlungenForBehandlung,
     type ZahlZuordnungSummaryRow,
 } from "@/lib/zahlung-buchung";
-import { zahlungLocalYmd } from "@/lib/tagesabschluss";
 import { formatCurrency } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -262,14 +257,11 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
 
     const handlePrintQuittung = async (z: Zahlung) => {
         if (!ensurePraxisForDocument("quittung") || !patient) return;
-        const ymd = zahlungLocalYmd(z.created_at);
-        const nr = await allocateQuittungNummer(ymd);
-        setHtmlDocExport({
-            kind: "quittung",
-            bundle: bundleQuittungExport(z, patient, behandlungen, untersuchungen, nr),
-            suggestedBasename: suggestQuittungExportBasename(z),
-            exportPreviewTitle: `Quittung — ${patient.name}`,
-        });
+        try {
+            setHtmlDocExport(await buildQuittungExportForZahlung(z));
+        } catch (e) {
+            toast(`Quittung: ${e instanceof Error ? e.message : String(e)}`, "error");
+        }
     };
 
     const handlePrintQuittungFromSummeRow = (row: ZahlZuordnungSummaryRow) => {

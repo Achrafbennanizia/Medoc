@@ -17,6 +17,14 @@ import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { FilterIcon, MoreIcon, NAV_ICONS } from "@/lib/icons";
+import type { DocumentKind } from "@/lib/document-template-schema";
+import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
+import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
+import { buildQuittungExportForZahlung, QUITTUNG_DOCUMENT_KIND } from "@/lib/quittung-export-flow";
+import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
+import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
+import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
+import { PraxisReadinessDialog } from "@/views/components/praxis-readiness-dialog";
 
 const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
     { value: "OFFEN", label: "Offen" },
@@ -186,6 +194,14 @@ export function FinanzenPage() {
     const [statusUpdatingBestellId, setStatusUpdatingBestellId] = useState<string | null>(null);
     const [listLoading, setListLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [quittungBusyId, setQuittungBusyId] = useState<string | null>(null);
+    const [praxisGuardKind, setPraxisGuardKind] = useState<DocumentKind | null>(null);
+    const [htmlDocExport, setHtmlDocExport] = useState<{
+        kind: HtmlExportDocumentKind;
+        bundle: ClinicalDocumentExportBundle;
+        suggestedBasename: string;
+        exportPreviewTitle: string;
+    } | null>(null);
     const toast = useToastStore((s) => s.add);
 
     const load = useCallback(async (opts?: { initial?: boolean }) => {
@@ -288,6 +304,22 @@ export function FinanzenPage() {
             </div>
         );
     }
+
+    const handleQuittungExport = async (z: Zahlung) => {
+        const readiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), QUITTUNG_DOCUMENT_KIND);
+        if (!readiness.ready) {
+            setPraxisGuardKind(QUITTUNG_DOCUMENT_KIND);
+            return;
+        }
+        setQuittungBusyId(z.id);
+        try {
+            setHtmlDocExport(await buildQuittungExportForZahlung(z));
+        } catch (e) {
+            toast(`Quittung: ${errorMessage(e)}`, "error");
+        } finally {
+            setQuittungBusyId(null);
+        }
+    };
 
     const handleBestellStatusChange = async (b: Bestellung, status: BestellStatus) => {
         if (status === b.status) return;
@@ -608,12 +640,24 @@ export function FinanzenPage() {
                                                 <Badge variant={st.variant}>{st.label}</Badge>
                                             </td>
                                             <td>
-                                                <div className="finanzen-row-go">
+                                                <div className="finanzen-row-go" style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                                                    {(z.status === "BEZAHLT" || z.status === "TEILBEZAHLT") && canReadFinanzen ? (
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            title="Quittung exportieren"
+                                                            disabled={quittungBusyId === z.id}
+                                                            onClick={() => void handleQuittungExport(z)}
+                                                        >
+                                                            Quittung
+                                                        </Button>
+                                                    ) : null}
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="ghost"
-                                                        title="Aktionen"
+                                                        title="Zur Patientenakte (Zahlungen)"
                                                         onClick={() => navigate(`/patienten/${z.patient_id}#zahl`)}
                                                         aria-label="Zur Patientenakte"
                                                     >
@@ -631,6 +675,23 @@ export function FinanzenPage() {
             </div>
             </div>
             </div>
+
+            <PraxisReadinessDialog
+                open={praxisGuardKind != null}
+                documentKind={praxisGuardKind ?? "quittung"}
+                result={checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), praxisGuardKind ?? "quittung")}
+                onClose={() => setPraxisGuardKind(null)}
+            />
+            {htmlDocExport ? (
+                <HtmlDocumentExportPickerDialog
+                    open
+                    onClose={() => setHtmlDocExport(null)}
+                    templateKind={htmlDocExport.kind}
+                    exportPreviewTitle={htmlDocExport.exportPreviewTitle}
+                    suggestedBasename={htmlDocExport.suggestedBasename}
+                    bundle={htmlDocExport.bundle}
+                />
+            ) : null}
 
         </div>
     );

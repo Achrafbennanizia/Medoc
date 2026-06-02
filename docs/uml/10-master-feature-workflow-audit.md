@@ -284,7 +284,7 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 | GAP-08 | Termin SMS/E-Mail | FA-TERM-11 | Notification pipeline (deferred ok if SHOULD) |
 | GAP-09 | Notfall-Termin <3 Klicks | FA-TERM-04 | Flag default or restore toolbar |
 | GAP-10 | REZ Tagesabschluss nicht in Sidebar | FA-FIN-02 | **Done** — `nav-sections.ts` + `NAV_ITEM_DEFINITIONS` (2026-06-02) |
-| GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | PDF pipeline von Zahlung |
+| GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | **Done** — `/finanzen` + Patientenakte Tab `zahl` via `quittung-export-flow.ts` (2026-06-02) |
 | GAP-12 | VDDS/BDT Migration | FA-MIG-01/02 | Parser + wizard steps |
 
 ### P3 — Stubs / später
