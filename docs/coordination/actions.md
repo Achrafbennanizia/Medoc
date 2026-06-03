@@ -1,10 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-06-02 (serverless sync + mesh port tests **PASS**)
+**Last updated:** 2026-06-02 (GAP-10/11 done; 08/09/12 skipped; G21 verify script)
 
 ## Now
 
-1. **Live G21 Tauri smoke** — `bash tools/g21-dev-smoke.sh`. Checklist: `docs/coordination/g21-live-smoke-checklist.md`.
+1. **G21b live Tauri smoke** — run automated proxies first, then manual checklist:
+   - `bash tools/g21-verify-automated.sh`
+   - `bash tools/g21-dev-smoke.sh` → [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
+
+## Done (2026-06-02 gap sweep)
+
+- **GAP-10:** Tagesabschluss in sidebar (`nav-sections.ts`).
+- **GAP-11:** Quittung from `/finanzen` + shared `quittung-export-flow.ts`.
+- **GAP-01/02:** Automated proxy closure — `collaboration-g21.test.ts` + Rust `rezeption_redact`.
+- **Deferrals doc:** [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) (skips 08/09/12; P3 deferred).
+- **Traceability refresh:** `01b-traceability-waad.md` reconciled for FA-AKTE-15, FA-DOK-08, FA-LEIST-06, etc.
 
 ## Done (this session)
 
@@ -205,10 +215,10 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 
 | Priority | IDs | Theme | Status (2026-05-21) |
 | -------- | --- | ----- | ------------------- |
-| **P0** | GAP-01..04 | REZ clinical leak; Posteingang; FA-AUFG bidirectional | **Mitigated in code** — `redact_*_for_rezeption` (`akte_commands.rs`); REZ patient-detail gates (`canViewClinical` / `canListBehandlungenForZahlung`); G16–G19 Posteingang + manual Aufgabe. **NOT OBSERVED:** live REZ UI audit |
+| **P0** | GAP-01..04 | REZ clinical leak; Posteingang; FA-AUFG bidirectional | **Done (proxy)** — GAP-01/02 automated + Rust redaction; GAP-03/04 G16–G19; G21b live **pending** |
 | **P1** | GAP-05..07 | FA-LEIST-07 Untersuchung; LEIST-06 U; auto Aufgabe | **Done** (G14–G18) |
-| **P2** | GAP-08..12 | Termin SMS/Notfall; REZ nav; Quittung; VDDS/BDT | **GAP-10/11 Done**; GAP-08/09/12 open |
-| **P3** | GAP-13..15 | TI/KIM; mobile LAN; Abo live |
+| **P2** | GAP-08..12 | Termin SMS/Notfall; REZ nav; Quittung; VDDS/BDT | **GAP-10/11 Done**; **GAP-08/09/12 skipped v0.1** |
+| **P3** | GAP-13..15 | TI/KIM; mobile LAN; Abo live | **Deferred v0.1** — [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) |
 
 **Recommended implementation order:** Phase 1 (GAP-01/02) → Phase 2 (G15/G14-U) → Phase 3 (G16–G18) → Phase 4 (REZ IA).
 

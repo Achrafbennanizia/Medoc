@@ -264,8 +264,8 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 
 | ID | Gap | FA | Fix |
 |----|-----|-----|-----|
-| GAP-01 | REZ sieht klinische Texte in Behandlung-Listen für Zahlung | NFA-SEC-02 | **Mitigated** — `rezeption_redact.rs` + tests; live audit pending |
-| GAP-02 | REZ patient-detail lädt Rezepte/Atteste (medical IPC) | FA-REZ/ATT | **Mitigated** — tab guards; live audit pending |
+| GAP-01 | REZ sieht klinische Texte in Behandlung-Listen für Zahlung | NFA-SEC-02 | **Done (proxy)** — `rezeption_redact.rs` + `collaboration-g21.test.ts` + Rust tests |
+| GAP-02 | REZ patient-detail lädt Rezepte/Atteste (medical IPC) | FA-REZ/ATT | **Done (proxy)** — `read_documents` for print; clinical gated on `read_medical`; tab guards |
 | GAP-03 | Kein Posteingang; verteilte Signale | FA-AUFG-03 | **Done** — `/posteingang` + poll + nav (G17) |
 | GAP-04 | Arzt→REZ Aufgaben fehlen | FA-AUFG-02..05 | **Done** — `praxis_aufgabe` + notify (G16–G19) |
 
@@ -281,19 +281,19 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 
 | ID | Gap | FA | Fix |
 |----|-----|-----|-----|
-| GAP-08 | Termin SMS/E-Mail | FA-TERM-11 | Notification pipeline (deferred ok if SHOULD) |
-| GAP-09 | Notfall-Termin <3 Klicks | FA-TERM-04 | Flag default or restore toolbar |
+| GAP-08 | Termin SMS/E-Mail | FA-TERM-11 | **Skipped v0.1** — see [`gap-deferrals-v0.1.md`](../coordination/gap-deferrals-v0.1.md) |
+| GAP-09 | Notfall-Termin <3 Klicks | FA-TERM-04 | **Skipped v0.1** — CAL2 flag |
 | GAP-10 | REZ Tagesabschluss nicht in Sidebar | FA-FIN-02 | **Done** — `nav-sections.ts` + `NAV_ITEM_DEFINITIONS` (2026-06-02) |
 | GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | **Done** — `/finanzen` + Patientenakte Tab `zahl` via `quittung-export-flow.ts` (2026-06-02) |
-| GAP-12 | VDDS/BDT Migration | FA-MIG-01/02 | Parser + wizard steps |
+| GAP-12 | VDDS/BDT Migration | FA-MIG-01/02 | **Skipped v0.1** — CSV ✅; BDT stub |
 
 ### P3 — Stubs / später
 
 | ID | Gap | FA |
 |----|-----|-----|
-| GAP-13 | TI/KIM/E-Rezept live | FA-DEV |
-| GAP-14 | Mobile REZ feature parity LAN | NFA-NET-05 |
-| GAP-15 | Abo payment production | FA-PAY |
+| GAP-13 | TI/KIM/E-Rezept live | FA-DEV | **Deferred v0.1** — `integration-capabilities.ts` |
+| GAP-14 | Mobile REZ feature parity LAN | NFA-NET-05 | **Deferred v0.1** |
+| GAP-15 | Abo payment production | FA-PAY | **Deferred v0.1** — company `_demo` |
 
 ---
 

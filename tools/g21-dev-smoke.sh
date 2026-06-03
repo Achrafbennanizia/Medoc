@@ -13,6 +13,7 @@ Demo logins (password for all: passwort123)
   ARZT       ahmed@praxis.de
 
 Rows to verify (mark in checklist):
+  0    Run: bash tools/g21-verify-automated.sh  (must PASS)
   1–2  REZ  Sidebar → Posteingang, wait ≥6s poll
   3–4  ARZT create Aufgabe → REZ erledigen → ARZT notification bell
   5–6  REZ  Patientenakte clinical tabs blocked; Kundenleistungen OK

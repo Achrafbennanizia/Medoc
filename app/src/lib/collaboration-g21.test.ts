@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildNativeGoMenuItems, NATIVE_GO_MENU_SEP } from "./native-go-menu";
+import { NAV_SECTIONS } from "./nav-sections";
 import { POSTEINGANG_POLL_MS } from "./posteingang-config";
 import {
     CLINICAL_PATIENT_DETAIL_TABS,
@@ -52,6 +53,26 @@ describe("G21 collaboration contracts", () => {
     it("GAP-02: REZEPTION has read_documents but not read_medical", () => {
         expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
         expect(allowed("patient.read_documents", "REZEPTION")).toBe(true);
+    });
+
+    it("GAP-01: REZ loads billing B/U via behandlungen_list_for_zahlung, not read_medical", () => {
+        expect(allowed("patient.behandlungen_list_for_zahlung", "REZEPTION")).toBe(true);
+        expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
+    });
+
+    it("GAP-01/02: REZ patient-detail IPC contract (load gates)", () => {
+        const role = "REZEPTION" as const;
+        const wouldLoadClinical = allowed("patient.read_medical", role);
+        const wouldLoadRezepteAtteste = allowed("patient.read_documents", role);
+        const wouldLoadBillingLines = allowed("patient.behandlungen_list_for_zahlung", role);
+        expect(wouldLoadClinical).toBe(false);
+        expect(wouldLoadRezepteAtteste).toBe(true);
+        expect(wouldLoadBillingLines).toBe(true);
+    });
+
+    it("Praxis sidebar includes tagesabschluss for finanzen.read roles (GAP-10)", () => {
+        const praxis = NAV_SECTIONS.find((s) => s.label === "Praxis");
+        expect(praxis?.items).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 
     it("verwaltung/aufgaben route für ARZT und REZEPTION (Verwaltung)", () => {
