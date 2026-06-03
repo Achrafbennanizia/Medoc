@@ -2,7 +2,7 @@
 
 **Quelle:** `docs/requirements-engineering/01a-waad-anforderungen.md`
 **Pflichtenheft (Master):** `docs/v-model/01-anforderungen/pflichtenheft.md`
-**Stand:** 2026-04-25
+**Stand:** 2026-04-25 (transcript) · **Reconciled:** 2026-06-02 — see [`gap-deferrals-v0.1.md`](../coordination/gap-deferrals-v0.1.md) and [`10-master-feature-workflow-audit.md`](../uml/10-master-feature-workflow-audit.md)
 
 Dieses Dokument bildet jede der **39 WAAD-Anforderungen** auf eine oder mehrere
 verbindliche Pflichtenheft-IDs ab und vermerkt den heutigen Erfüllungsstatus
@@ -41,7 +41,7 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | **2.1.2** Rezeption ohne med. Schreibzugriff | NFA-SEC-02 | ✅ COVERED | `rbac.rs` — alle `*.write_medical`-Aktionen nur für ARZT. | — |
 | **2.1.3** Nur Arzt schreibt med. Inhalte | NFA-SEC-02 | ✅ COVERED | wie oben | — |
 | **2.1.4** Standard: Akte für Rezeption sichtbar (read-only), Arzt kann deaktivieren | **FA-PERS-07 (NEU)** | 🆕 NEW-PH | Heute: Rezeption hat global lesenden Zugriff auf administrative Akte; per-Patient-Toggle fehlt. | Action `A2`. |
-| **2.2.1** Validierungs-Interface für noch zu prüfende Akten | FA-AKTE-02, **FA-AKTE-15 (NEU)** | 🟡 PARTIAL | Status-Modell `IN_BEARBEITUNG → VALIDIERT` existiert (`patientenakte.status`); Validate-Button in `patient-detail.tsx`; **dedizierte Queue-Seite** „Zu validieren" fehlt. | FA-AKTE-15 dokumentiert die Queue-Seite. |
+| **2.2.1** Validierungs-Interface für noch zu prüfende Akten | FA-AKTE-02, **FA-AKTE-15 (NEU)** | ✅ COVERED | `/akten/zu-validieren`, nav badge (G1, 2026-05-21) |
 | **2.2.2** Akteneinträge erst nach Arzt-Validierung final | FA-AKTE-02, FA-AKTE-03, NFA-SEC-04 | 🟡 PARTIAL | `patient_commands::update_patient` erzwingt Forward-Status-Übergänge; `Untersuchung`/`Behandlung` werden direkt persistiert (kein „PENDING"-Zustand pro Eintrag). | Roadmap: Pending/Draft-Flag pro med. Eintrag. |
 | **2.2.3** Optional: nur Arzt verwaltet med. Inhalte (Sicherheitspräferenz) | NFA-SEC-02, **FA-PERS-07 (NEU)** | 🆕 NEW-PH | Im Default-RBAC bereits so; Konfigurations-Toggle „Strict-Mode" fehlt. | Toggle in Einstellungen geplant. |
 | **2.2.4** Zentrale Berechtigungs-Oberfläche für den Arzt | FA-PERS-02, **FA-PERS-07 (NEU)** | 🟡 PARTIAL | `personal.tsx` setzt Rolle pro Mitarbeiter; per-Resource-Berechtigungs-Matrix-UI fehlt. | Action `A2`. |
@@ -71,10 +71,10 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 
 | WAAD | Pflichtenheft | Status | Code-Evidenz | Bemerkung |
 |---|---|---|---|---|
-| **5.1.1** Patientenmerkblatt am Behandlungsende | **FA-DOK-08 (NEU)** | 🆕 NEW-PH | Heute existiert PDF-Akten-Export, aber kein dedizierter „Discharge Summary"/Nachsorge-Beipackzettel. | Pflichtenheft-Erweiterung; Implementierung als Action `A3`. |
+| **5.1.1** Patientenmerkblatt am Behandlungsende | **FA-DOK-08 (NEU)** | ✅ COVERED | `discharge-merkblatt-dialog.tsx`; PDF test (G4, 2026-05-21) |
 | **5.1.2** Reduzierte Komm. Rezeption ↔ Arzt durch Automatisierung | FA-AKTE-02, NFA-USE-UE02 | 🟡 PARTIAL | Validate-Workflow + Audit-Spur; explizite „digitale Weiterleitung" → siehe 1.3.1. | — |
 | **5.2.1** Rezeption informiert Patient (basierend auf Arzt-Freigabe) | FA-REZ-04, FA-ATT-03, FA-AKTE-06 | ✅ COVERED | Rezept-/Attest-Druck + PDF; Akte-PDF (`export_akte_pdf`). | — |
-| **5.2.2** Ticket-/Notiz-System für Rückfragen → Arzt | **FA-PERS-08 (NEU)** | 🆕 NEW-PH | Heute existiert nur eine globale Feedback-Seite (`feedback.tsx`); kein Patient/Akte-bezogenes Ticket. | Pflichtenheft-Erweiterung; Implementierung als Action `A4` (NICE TO HAVE). |
+| **5.2.2** Ticket-/Notiz-System für Rückfragen → Arzt | **FA-PERS-08 (NEU)** | ✅ COVERED | `/tickets` + `/posteingang` (`praxis_aufgabe`, G16–G19) |
 | **5.2.3** PDFs aus Akte erzeugen | FA-AKTE-06, NFA-COMP-02 | ✅ COVERED | `akte_commands::export_akte_pdf`, `pdf.rs::render_akte`. | — |
 
 ## ID 6 — Leistungen & Kostenmanagement
@@ -103,7 +103,7 @@ auf Basis von **Code-Evidenz** (Pfade in `app/`, `app/src-tauri/`).
 | **7.2.3** Learning-by-Doing-Elemente | NFA-USE-H10, **NFA-USE-09 (NEU)** | 🟡 PARTIAL | `command-palette` und Help-Dialoge sind erste Schritte; geführter Onboarding-Wizard pro Rolle fehlt. | Action `A6`. |
 | **7.3.1** Pflichtfelder, Autovervollständigung, Validierung — Auto-Vervollständigung deaktivierbar | NFA-USE-H05, **NFA-USE-10 (NEU)** | 🟡 PARTIAL | Validierung umfassend; Toggle „Auto-Vervollständigung deaktivieren" als Benutzerpräferenz fehlt. | NFA-USE-10 dokumentiert Toggle. |
 | **7.3.2** Korrekturen durch Arzt | FA-AKTE-03, NFA-SEC-04 | ✅ COVERED | Audit-Log + Update-Berechtigung für ARZT. | — |
-| **7.3.3** Markierung unvollständiger Einträge / Versionsvergleich | **FA-AKTE-16 (NEU)** | 🆕 NEW-PH | Heute keine systematische Vollständigkeits-Indikation; Pflicht: Durchführbarkeitsanalyse vorab. | Erst Spike, dann Implementierung — Action `A7`. |
+| **7.3.3** Markierung unvollständiger Einträge / Versionsvergleich | **FA-AKTE-16 (NEU)** | ✅ COVERED | `akte-completeness.ts` (G6/A7) |
 
 ## ID 8 — Design & UI
 
@@ -153,7 +153,7 @@ einen eindeutigen Implementierungsauftrag (siehe `pflichtenheft.md` und
 | **FA-AKTE-16** | 7.3.3 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (Anamnese, Versicherungsblock, etc.) mit Klick-zu-Springen-Link. |
 | **FA-DOK-08** | 5.1.1 | Patienten-Nachsorge-Merkblatt (Discharge Summary) am Behandlungsende: Medikation + Kontrolltermin + Facharztüberweisung als druckbares PDF. |
 | **FA-LEIST-05** | 6.1.2, 6.2.4 | „Arzt-Freigabe" auf **Behandlung/Untersuchung** (`freigegeben_von_arzt_id`, `freigegeben_am`) vor Zahlung; nicht auf Katalog-`leistung`. |
-| **FA-LEIST-06** | 6.1.2, 6.2.4 (Erweiterung) | Nach Leistung auf B/U: Abrechnungs-Tab + offene Buchung (`AUSSTEHEND`); implizite Freigabe beim Leistungsspeichern. | 🔴 **NEW-PH** | Kein Auto-Navigation/`create_zahlung` nach `create_behandlung`/`create_untersuchung` (2026-05-21). Soll: `patient-detail` Tab `zahl`, `zahlung-buchung.ts`, optional `zahlung_repo::create`. |
+| **FA-LEIST-06** | 6.1.2, 6.2.4 (Erweiterung) | Nach Leistung auf B/U: Abrechnungs-Tab + offene Buchung (`AUSSTEHEND`); implizite Freigabe beim Leistungsspeichern. | ✅ **Done** (G14/G15, 2026-05-21) |
 | **FA-PERS-07** | 2.1.1, 2.1.4, 2.2.3, 2.2.4 | Granulare Berechtigungs-Oberfläche („Strict-Mode" / per-Patient-/per-Aktenbereich-Toggles, vom Arzt änderbar). |
 | **FA-PERS-08** | 5.2.2 | Ticket-/Notiz-System: Rezeption legt eine an einen Arzt adressierte Notiz pro Patient/Akte an, mit Status `OFFEN/IN_BEARBEITUNG/ERLEDIGT`. |
 | **NFA-USE-09** | 7.2.1, 7.2.3 | Tooltip-Coverage ≥ 80 % aller interaktiven Felder; geführter Onboarding-Wizard pro Rolle. |

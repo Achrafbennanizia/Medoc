@@ -4,6 +4,14 @@
 
 ## Prerequisites
 
+**Step 0 — automated proxies (must PASS before manual rows):**
+
+```bash
+bash tools/g21-verify-automated.sh
+```
+
+Then launch the app:
+
 ```bash
 bash tools/g21-dev-smoke.sh
 # optional: MEDOC_PRINT_LICENSE=1 bash tools/g21-dev-smoke.sh
@@ -56,4 +64,5 @@ Paste the **V2 LICENSE** into the activation screen or Einstellungen → Lizenz.
 - `app/src/systems/practice-host/pages/patient-detail/patient-detail-akte-subnav.smoke.test.tsx` (rows 5–6 proxy)
 - `app/src/g21-routing.smoke.test.tsx` (row 1 proxy — REZEPTION sidebar → Posteingang)
 - `app/src/views/pages/ops.smoke.test.tsx` (row 7 proxy — backup validate/restore)
-- `app/src/lib/rbac.test.ts` (GAP-01, posteingang route)
+- `app/src/lib/quittung-export-flow.test.ts` (GAP-11 Finanzen Quittung)
+- `bash tools/g21-verify-automated.sh` — runs all proxies + Rust G21/redaction in one command

@@ -6,7 +6,8 @@
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 
 - **Status:** Application-code port from `/Users/achraf/pro/Medoc` is **complete** for this tree. Main is **ahead** on PDF export stack, licensing UI/V2 bootstrap, GAP-01/02 tests, break-glass, dev license helper, Docker monolith paths.
-- **G21 Posteingang:** Route `/posteingang`, RBAC, sidebar (`lib/nav-sections.ts`), badge polling, native Go menu — **verified in code**; live Tauri walkthrough **NOT OBSERVED** (`docs/coordination/g21-live-smoke-checklist.md`).
+- **G21 Posteingang:** Route `/posteingang`, RBAC, sidebar (`lib/nav-sections.ts`), badge polling, native Go menu — **verified in code**; live Tauri walkthrough **NOT OBSERVED** (`docs/coordination/g21-live-smoke-checklist.md`). Automated gate: `bash tools/g21-verify-automated.sh`.
+- **Gap register (2026-06-02):** GAP-01–07, 10–11 **closed (code + automated proxy)**; GAP-08/09/12 **skipped v0.1**; GAP-13–15 **deferred** — [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md).
 - **G21 automated proxies:** 181 vitest + Rust `praxis_aufgabe_tests` (incl. `g21_arzt_to_rez_flow_*`); checklist rows 1–8 covered at FE/IPC level.
 - **Validation (2026-06-01):** `npm test` **181 PASS**; `cargo test --tests` **PASS**; `bash scripts/validate-docker.sh` **PASS** (~6.4 min).
 - **Dev launch:** `bash tools/dev-tauri.sh` or `bash tools/g21-dev-smoke.sh` (prints credentials + optional `MEDOC_PRINT_LICENSE=1`).
