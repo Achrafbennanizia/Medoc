@@ -24,7 +24,7 @@ docker run "${DOCKER_RUST_RUN[@]}" \
   -v "$ROOT:/work" \
   -v medoc-cargo-registry:/usr/local/cargo/registry \
   -v medoc-cargo-git:/usr/local/cargo/git \
-  -v medoc-target-linux-e2e:/work/app/target \
+  -v medoc-target-linux-e2e:/work/target \
   medoc-multi-device-e2e:latest
 
 echo ""

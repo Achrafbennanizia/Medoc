@@ -76,7 +76,9 @@ flowchart LR
 | ---- | ------------ | ---- |
 | Replica local outbox → master DB | `SyncEngine::push_to_master` → `POST /sync/push` | `port_sync_engine_push_to_master_propagates_patient` |
 | Master outbox → replica local DB | `SyncEngine::pull_from_master` → `POST /sync/pull` | `port_sync_engine_pull_from_master_applies_to_replica_db` |
-| Replica A outbox → replica B DB (mesh) | `SyncEngine::run_mesh_sync` → peer `POST /sync/push` | `port_mesh_sync_delivers_app_kv_to_peer_replica` |
+| Replica A outbox → replica B DB (mesh) | `SyncEngine::run_mesh_sync` → peer `POST /sync/push` | `port_mesh_sync_delivers_app_kv_to_peer_replica` (incl. idempotent re-run) |
+| Tier-1 `rezept` push | `POST /sync/push` activation token | `port_sync_rezept_push_applies_on_master` |
+| Tier-1 `praxis_ticket` push | `POST /sync/push` activation token | `port_sync_praxis_ticket_push_applies_on_master` |
 | Freshness conflict on master | two `POST /sync/push` with competing `updated_at` | `port_two_replicas_freshness_conflict_over_https` |
 | Token/device binding | `POST /sync/push` with wrong `fromDeviceId` | `port_push_spoofed_from_device_id_forbidden` |
 
@@ -90,7 +92,7 @@ Mesh topology: orchestrator exports `MEDOC_MASTER_DATA_DIR`; test spawns replica
 
 | Method | Path | Headers | Response | Test |
 | ------ | ---- | ------- | -------- | ---- |
-| GET | `/health` | — | `{ "service": "medoc-company-server" }` | `port_company_server_health_and_practice_api` |
+| GET | `/health` | — | `{ "service": "medoc-company-server", "_demo": true, "banner": "…" }` | `port_company_server_health_and_practice_api` |
 | GET | `/v1/summary` | `X-Practice-Slug`, `Authorization: Bearer sk_…` | `{ practice_slug, display_name, … }` | same |
 | GET | `/v1/feature-flags` | same | `{ _demo: true, … }` | in-process `company_portal.rs` |
 | GET | `/v1/integrations/status` | same | integrations JSON | in-process |
@@ -142,5 +144,20 @@ VALIDATE_DOCKER_MULTI_DEVICE=1 bash scripts/validate-docker.sh
 | Multi-replica mesh TCP | `two_replica_mesh.rs` | ✓ (8788/8789 replicas) |
 | UDP discovery :47830 | not tested | not tested |
 | Tauri desktop FE | not tested | not tested (backend-only) |
+
+---
+
+## W8 — Two-host live verification (T-S2)
+
+Automated proxy: `bash tools/two-device-sync-smoke.sh` → Docker port suite (16+ tests).
+
+Manual checklist (second device / VM):
+
+1. Master: `medoc-server` + license + pairing inbox accept.
+2. Replica: `serverless_peer` + REPLICA role → pairing scan or paste master URL.
+3. Create `praxis_ticket` + `rezept` on replica → verify on master after sync.
+4. Revoke replica → `POST /sync/push` returns 403.
+
+See [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) for Tauri UI rows.
 
 **DB verification:** Port tests assert master-side effects via `GET /api/v1/patienten` (JWT) and replica-side via `POST /api/v1/sync/pull` entries — no direct SQLite access from tests when using external binaries.

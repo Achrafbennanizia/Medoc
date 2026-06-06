@@ -30,10 +30,10 @@ EOF
 if [[ "${MEDOC_PRINT_LICENSE:-}" == "1" ]]; then
   echo "=== Dev license (V2) ==="
   (
-    cd "$ROOT/app"
+    cd "$ROOT"
     export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
     export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
-    cargo test --test gen_dev_license_once print_dev_licenses -- --ignored --nocapture 2>&1 \
+    cargo test -p medoc-core --test gen_dev_license_once print_dev_licenses -- --ignored --nocapture 2>&1 \
       | sed -n '/--- V2 LICENSE/,/--- V1 LICENSE/p' | head -n -1
   ) || echo "(license helper failed — activate manually via Einstellungen → Lizenz)"
   echo

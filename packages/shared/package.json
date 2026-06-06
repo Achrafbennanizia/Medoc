@@ -1,0 +1,21 @@
+{
+    "name": "@medoc/shared",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "MeDoc shared TypeScript — schemas, domain helpers, stores (no Tauri, no system UI).",
+    "exports": {
+        "./lib/*": "./src/lib/*",
+        "./models/*": "./src/models/*"
+    },
+    "dependencies": {
+        "clsx": "^2.1.1",
+        "date-fns": "^4.1.0",
+        "tailwind-merge": "^3.3.0",
+        "zod": "^3.25.67",
+        "zustand": "^5.0.5"
+    },
+    "peerDependencies": {
+        "react": "^19.1.0"
+    }
+}

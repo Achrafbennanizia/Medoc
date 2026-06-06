@@ -3,7 +3,7 @@
 # Use when disk is tight or for faster CI smoke on pairing/sync/license.
 set -euo pipefail
 
-cd /work/app
+cd /work
 
 export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
 export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
@@ -27,7 +27,16 @@ echo "=== targeted Wave V1 integration tests ==="
 cargo test -p medoc-core --test license_v2_tests
 cargo test -p medoc-core --test sync_outbox_hooks_tests
 cargo test -p medoc-sync --lib
-cargo test -p medoc-e2e --tests
+echo "=== medoc-e2e in-process (excludes port-based multi_device_port_http) ==="
+shopt -s nullglob
+for f in crates/test/medoc-e2e/tests/*.rs; do
+  base="$(basename "$f" .rs)"
+  if [[ "$base" == "multi_device_port_http" ]]; then
+    continue
+  fi
+  echo "--- medoc-e2e --test ${base} ---"
+  cargo test -p medoc-e2e --test "$base"
+done
 
 echo "=== property-based tests (proptest) ==="
 cargo test -p medoc-core --test license_proptests
@@ -39,7 +48,7 @@ cargo test -p medoc-sync --test merge_invariants_proptests
 if [[ "${MEDOC_COVERAGE:-0}" == "1" ]]; then
   if command -v cargo-llvm-cov >/dev/null 2>&1; then
     echo "=== cargo llvm-cov (Wave V1 crates + e2e) ==="
-    mkdir -p /work/app/target/coverage
+    mkdir -p /work/target/coverage
     cargo llvm-cov clean --workspace
     cargo llvm-cov --no-report \
       -p medoc-sync -p medoc-lan -p medoc-lan-server \
@@ -52,8 +61,8 @@ if [[ "${MEDOC_COVERAGE:-0}" == "1" ]]; then
     cargo llvm-cov --no-report \
       -p medoc-e2e --tests
     cargo llvm-cov report --summary-only --ignore-filename-regex 'tests?/' \
-      | tee /work/app/target/coverage/summary.txt
-    cargo llvm-cov report --lcov --output-path /work/app/target/coverage/lcov.info
+      | tee /work/target/coverage/summary.txt
+    cargo llvm-cov report --lcov --output-path /work/target/coverage/lcov.info
   else
     echo "cargo-llvm-cov not installed; skipping coverage."
   fi

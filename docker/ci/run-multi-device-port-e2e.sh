@@ -8,7 +8,7 @@
 #   bash docker/ci/run-multi-device-port-e2e.sh
 set -euo pipefail
 
-cd /work/app
+cd /work
 
 export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
 export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"

@@ -1,12 +1,41 @@
 # Action ledger
 
-**Last updated:** 2026-06-02 (GAP-10/11 done; 08/09/12 skipped; G21 verify script)
+**Last updated:** 2026-06-06 (repo-root restructure R9–R10 complete)
+
+## Done (2026-06-06 restructure + lan-web)
+
+- **R9:** `apps/`, `crates/`, `packages/` at repo root; root Cargo + npm workspaces.
+- **R10:** `apps/lan-web-client` (browser LAN client, port 1421).
+- **Dead code:** removed ~120 archived/unwired files (`archive_flat`, orphan systems modules, stale barrels).
+- **Docker:** `validate-docker.sh` PASS; multi-device **17/17**; optional `VALIDATE_DOCKER_FULL=1` for Tauri link.
+- **Validation:** `npm test` **232 PASS**; `npm run build` PASS; `cargo check -p medoc` PASS.
 
 ## Now
 
-1. **G21b live Tauri smoke** — run automated proxies first, then manual checklist:
-   - `bash tools/g21-verify-automated.sh`
-   - `bash tools/g21-dev-smoke.sh` → [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
+1. **G21b live Tauri smoke** — sign rows 1–9 in [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
+2. **Optional:** `MEDOC_LAN_E2E=1 npm run test:playwright` with live `medoc-server`
+3. **T-U1 Rust:** `engine.rs` / `repo.rs` coverage still partial (XL follow-up)
+
+## Done (2026-06-02 MVP plan completion)
+
+- **Docs:** Plan + test scope linked; LAN client deployment guide; multi-device catalog Tier-1 rows.
+- **MS-5:** Company `GET /health` returns `_demo` banner JSON.
+- **Tier-1 hooks:** `rezept` + `praxis_ticket` in `sync_outbox_hooks_tests.rs`.
+- **Port e2e:** `port_sync_rezept_push_applies_on_master`, `port_sync_praxis_ticket_push_applies_on_master`; mesh duplicate guard.
+- **W7/T-S3:** Playwright JWT login test; TLS/CORS doc.
+- **W8/T-S2:** `two-device-sync-smoke.sh` Tier-1 + live steps.
+- **UX:** Migration CSV MVP copy; REZ bestellungen policy in i18n/onboarding; export-preview unit test.
+- **T-U2:** `pairing.controller.test.ts`, expanded `deployment-config.test.ts`.
+
+## Done (2026-06-02 MVP serverless execution)
+
+- **Phase 0:** `mvp-cost-priority-plan.md`, `mvp-test-scope.md`; G21 verify GREEN; **188** Vitest.
+- **MS-3 Tier-1:** 7 synced tables + hooks; `sync_peer_vector` mesh delivery.
+- **MS-6:** `patient.read` / `termin.read` activation-token routes + pairing inbox.
+- **UX:** SyncStatusBadge, sync error toasts, pairing URL fallback.
+- **T-I1:** +6 Rust e2e (75+ total in-process).
+- **T-S2/T-S3:** `two-device-sync-smoke.sh`; Playwright LAN (opt-in).
+- **Docs:** `serverless-sync.md` updated.
 
 ## Done (2026-06-02 gap sweep)
 

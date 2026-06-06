@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+
+# MeDoc Cargo workspace (repo root).
+# Three independently runnable systems — see crates/README.md
+
+members = [
+    "apps/practice-host",
+    "crates/app/medoc-practice",
+    "crates/server/lan/medoc-lan",
+    "crates/server/lan/medoc-lan-server",
+    "crates/server/company/medoc-company",
+    "crates/server/company/medoc-company-server",
+    "crates/shared/medoc-core",
+    "crates/shared/medoc-sync",
+    "crates/shared/medoc-codegen",
+    "crates/test/medoc-e2e",
+]
+
+[workspace.metadata.medoc.systems]
+practice = "apps/practice-host"
+lan = "crates/server/lan/medoc-lan-server"
+company = "crates/server/company/medoc-company-server"

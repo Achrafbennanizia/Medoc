@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "target": "ES2021",
+        "lib": ["ES2021", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "strict": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/systems/practice-host/adapters/tauri-practice.adapter": ["./src/practice-http-shim.ts"],
+            "@/systems/practice-host/adapters/practice-transport": ["./src/practice-http-shim.ts"],
+            "@/lib/*": ["../../packages/shared/src/lib/*"],
+            "@/models/*": ["../../packages/shared/src/models/*"],
+            "@/views/components/ui/*": ["../../packages/ui/src/*"],
+            "@/systems/practice-host/*": ["../../packages/app/practice-host/src/*"],
+            "@/systems/lan/*": ["../../packages/server/lan/src/*"],
+            "@medoc/shared/*": ["../../packages/shared/src/*"],
+            "@medoc/ui/*": ["../../packages/ui/src/*"],
+            "@medoc/system-practice/*": ["../../packages/app/practice-host/src/*"],
+            "@medoc/system-lan/*": ["../../packages/server/lan/src/*"],
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src"]
+}

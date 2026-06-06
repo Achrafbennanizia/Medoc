@@ -65,7 +65,7 @@ Created by `ensure_sync_replication_tables` in `medoc-core` migrations:
 
 `merge.rs` only applies:
 
-`patient`, `patientenakte`, `termin`, `behandlung`, `untersuchung`, `zahlung`, `app_kv`, `praxis_aufgabe`
+`patient`, `patientenakte`, `termin`, `behandlung`, `untersuchung`, `zahlung`, `app_kv`, `praxis_aufgabe`, `anamnesebogen`, `zahnbefund`, `rezept`, `attest`, `leistung`, `in_app_notification`, `praxis_ticket`
 
 Extend deliberately with domain review — not open SQL.
 
@@ -158,15 +158,15 @@ Tests live in `medoc_sync::engine::tests` —
 ## Mesh sync (BEST-EFFORT, behind `unstable_mesh`)
 
 - Master serves a signed peer list at `GET /api/v1/pairing/peers` (Ed25519
-  signature in the response body).
-- `SyncEngine::run_mesh_sync` reads the deployment's `unstable_mesh` flag,
-  fetches `/pairing/peers`, then POSTs the replica's pending outbox to each
-  peer that advertises a `peer_base_url` in `sync_device`.
-- Per-peer `delivered_at` bookkeeping is **NOT** wired (the canonical
-  master push still owns delivery). Signature verification of the peer
-  list is **NOT** wired yet either; reused public key is available via
-  `master_keys::pubkey_b64`.
-- Live two-replica verification is **DEFERRED**; scaffolding exists.
+  signature in the response body). Replicas verify via `fetch_peer_list`
+  against pinned `master_pubkey`.
+- `SyncEngine::run_mesh_sync` reads `unstable_mesh`, fetches `/pairing/peers`,
+  then POSTs undelivered outbox rows to each peer (tracked in
+  `sync_peer_vector` — per-target `through_seq`).
+- Master push still uses `sync_outbox.delivered_at`; mesh uses
+  `sync_peer_vector` so repeated mesh cycles do not re-push the same seq.
+- Port e2e: `port_mesh_sync_delivers_app_kv_to_peer_replica` in
+  `multi_device_port_http.rs`; unit: `mesh_peer_delivery.rs`.
 
 ## Future work (not in v1)
 
