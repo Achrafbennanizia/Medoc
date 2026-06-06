@@ -1,0 +1,25 @@
+{
+    "name": "medoc-workspace",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "workspaces": [
+        "apps/practice-host-ui",
+        "apps/lan-web-client",
+        "packages/shared",
+        "packages/ui",
+        "packages/app/practice-host",
+        "packages/server/lan",
+        "packages/server/company"
+    ],
+    "scripts": {
+        "dev": "npm run dev -w medoc",
+        "build": "npm run build -w medoc",
+        "lint": "npm run lint -w medoc",
+        "test": "npm run test -w medoc",
+        "check": "npm run check -w medoc",
+        "tauri": "npm run tauri -w medoc",
+        "dev:lan-web": "npm run dev -w medoc-lan-web-client",
+        "build:lan-web": "npm run build -w medoc-lan-web-client"
+    }
+}

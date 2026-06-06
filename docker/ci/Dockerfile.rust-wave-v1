@@ -10,7 +10,7 @@ RUN cargo install cargo-llvm-cov --locked --version 0.6.18
 
 ENV PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-WORKDIR /work/app
+WORKDIR /work
 
 COPY docker/ci/run-rust-validate-wave-v1.sh /usr/local/bin/run-rust-validate-wave-v1.sh
 RUN chmod +x /usr/local/bin/run-rust-validate-wave-v1.sh

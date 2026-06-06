@@ -1,0 +1,75 @@
+use sqlx::SqlitePool;
+use uuid::Uuid;
+
+use crate::domain::entities::attest::{Attest, CreateAttest};
+use crate::error::AppError;
+
+pub async fn find_for_patient(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Vec<Attest>, AppError> {
+    let rows = sqlx::query_as::<_, Attest>(
+        "SELECT * FROM attest WHERE patient_id = ?1 ORDER BY ausgestellt_am DESC",
+    )
+    .bind(patient_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Attest>, AppError> {
+    let row = sqlx::query_as::<_, Attest>("SELECT * FROM attest WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row)
+}
+
+pub async fn create(pool: &SqlitePool, data: &CreateAttest) -> Result<Attest, AppError> {
+    let id = Uuid::new_v4().to_string();
+    let erst_oder_folge = data
+        .erst_oder_folge
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("ERST");
+    sqlx::query(
+        "INSERT INTO attest (
+            id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis,
+            icd10_code, erst_oder_folge, arbeitgeber, ausstellender_arzt_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+    )
+    .bind(&id)
+    .bind(&data.patient_id)
+    .bind(&data.arzt_id)
+    .bind(&data.typ)
+    .bind(&data.inhalt)
+    .bind(data.gueltig_von)
+    .bind(data.gueltig_bis)
+    .bind(&data.icd10_code)
+    .bind(erst_oder_folge)
+    .bind(&data.arbeitgeber)
+    .bind(&data.ausstellender_arzt_id)
+    .execute(pool)
+    .await?;
+    let inserted = find_by_id(pool, &id)
+        .await?
+        .ok_or(AppError::Internal("Attest create failed".into()))?;
+    let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "attest", &id, "INSERT", &body,
+    )
+    .await?;
+    Ok(inserted)
+}
+
+pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM attest WHERE id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "attest", id, "DELETE", "{}",
+    )
+    .await?;
+    Ok(())
+}

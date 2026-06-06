@@ -2,7 +2,7 @@
 # Wave V1 end-to-end validation inside Docker (Linux).
 set -euo pipefail
 
-cd /work/app
+cd /work
 
 export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
 export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
@@ -15,8 +15,16 @@ cargo test -p medoc-core -p medoc-sync -p medoc-lan -p medoc-lan-server \
   -p medoc-company -p medoc-company-server --tests
 
 echo ""
-echo "=== medoc-e2e HTTP integration (all systems) ==="
-cargo test -p medoc-e2e --tests
+echo "=== medoc-e2e HTTP integration (in-process; excludes port-based multi-device) ==="
+shopt -s nullglob
+for f in crates/test/medoc-e2e/tests/*.rs; do
+  base="$(basename "$f" .rs)"
+  if [[ "$base" == "multi_device_port_http" ]]; then
+    continue
+  fi
+  echo "--- medoc-e2e --test ${base} ---"
+  cargo test -p medoc-e2e --test "$base"
+done
 
 echo ""
 echo "=== Two-replica mesh + license gate (medoc-e2e) ==="

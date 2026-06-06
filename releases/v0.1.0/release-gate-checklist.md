@@ -13,8 +13,12 @@ checked off or have an explicit waiver linked in `docs/post-market/capa-tracking
 
 - [ ] `cd app/src-tauri && cargo test --all-features`
 - [ ] `cd app && npm test`
-- [ ] Coverage report archived in `releases/v0.1.0/coverage/`
+- [ ] `bash tools/g21-verify-automated.sh` GREEN
+- [ ] `bash tools/two-device-sync-smoke.sh` (or Docker multi-device) GREEN — **automated proxy** via `scripts/validate-docker-multi-device.sh`
+- [ ] Optional LAN browser: `MEDOC_LAN_E2E=1 npm run test:playwright` with `medoc-server` running — see `docs/architecture/lan-client-deployment.md`
+- [ ] Coverage report archived in `releases/v0.1.0/coverage/` (MVP scope: `docs/coordination/mvp-test-scope.md`) — **scoped allow-list, not whole workspace**
 - [ ] Manual smoke test: patient → termin → akte → zahlung → backup → restore
+- [ ] Serverless: pair replica → push/pull → revoke (see `g21-live-smoke-checklist.md`)
 
 ## 3. Security
 

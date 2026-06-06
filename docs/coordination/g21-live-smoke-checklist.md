@@ -52,6 +52,7 @@ Paste the **V2 LICENSE** into the activation screen or Einstellungen → Lizenz.
 | 6 | REZEPTION | Tab **Kundenleistungen** (Zahl) | Payment view; no clinical freitext fields | ☐ |
 | 7 | ARZT | **Einstellungen → Betrieb** → Backup wählen → Prüfen → Wiederherstellen | Confirm dialog; success message; reload hint | ☐ |
 | 8 | ARZT | **Praxis-Tickets** | Banner links to Posteingang; legacy tickets still work | ☐ |
+| 9 | ARZT + REPLICA | **Serverless pairing (W8)** — Master: Einstellungen → Pairing → accept replica. Replica: `serverless_peer` + pairing scan or paste master URL → sync | Patient + `praxis_ticket` visible on master after sync; revoke blocks push (403) | ☐ |
 
 **Automated coverage (not a substitute for rows above):**
 
@@ -66,3 +67,5 @@ Paste the **V2 LICENSE** into the activation screen or Einstellungen → Lizenz.
 - `app/src/views/pages/ops.smoke.test.tsx` (row 7 proxy — backup validate/restore)
 - `app/src/lib/quittung-export-flow.test.ts` (GAP-11 Finanzen Quittung)
 - `bash tools/g21-verify-automated.sh` — runs all proxies + Rust G21/redaction in one command
+- `bash scripts/validate-docker-multi-device.sh` — **17/17** port e2e (Tier-1 `rezept` + `praxis_ticket`, mesh, RBAC)
+- `bash tools/two-device-sync-smoke.sh` — Docker proxy + live 2-host steps for row 9

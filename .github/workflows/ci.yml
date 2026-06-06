@@ -11,9 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: app/src-tauri
+        working-directory: .
     env:
-      # 32-byte Ed25519 verifying key (hex). CI/test builds only — production keys via ops secret store.
       MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
       MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
@@ -28,15 +27,15 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri -> target
+          workspaces: . -> target
       - name: cargo fmt
         run: cargo fmt --all -- --check
       - name: cargo check
-        run: cargo check --all-targets
+        run: cargo check --workspace --all-targets
       - name: cargo test
-        run: cargo test --tests
+        run: cargo test --workspace --tests
       - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Install cargo-audit
         uses: baptiste0928/cargo-install@v3
         with:
@@ -50,18 +49,18 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: app
+        working-directory: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm audit --omit=dev
       - run: npm run lint
-      - run: npm test
+      - run: npm run test
       - run: npm run build
 
   tauri-smoke:
@@ -70,7 +69,7 @@ jobs:
     needs: [rust, frontend]
     defaults:
       run:
-        working-directory: app
+        working-directory: .
     env:
       MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
     steps:
@@ -79,7 +78,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - name: System deps for Tauri
         run: |
@@ -87,7 +86,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri -> target
+          workspaces: . -> target
       - run: npm ci
       - name: tauri build (debug, no bundle)
         run: npm run tauri build -- --debug --no-bundle

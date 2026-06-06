@@ -17,11 +17,11 @@ OUT="$ROOT/releases/$VERSION"
 mkdir -p "$OUT"
 
 echo "▶ Generating Rust SBOM …"
-( cd "$ROOT/app/src-tauri" \
+( cd "$ROOT" \
     && cargo cyclonedx --format json --override-filename "$OUT/sbom-rust" )
 
 echo "▶ Generating Node SBOM …"
-( cd "$ROOT/app" \
+( cd "$ROOT" \
     && cyclonedx-npm --output-file "$OUT/sbom-node.json" --output-format JSON )
 
 echo "✔ SBOMs written to $OUT"

@@ -26,7 +26,7 @@ echo ""
 echo "========== FRONTEND (Docker / Node 20) =========="
 docker run --rm \
   -v "$ROOT:/work" \
-  -v medoc-node-modules:/work/app/node_modules \
+  -v medoc-node-modules:/work/node_modules \
   medoc-fe-ci:latest
 
 echo ""
@@ -35,7 +35,7 @@ docker run "${DOCKER_RUST_RUN[@]}" \
   -v "$ROOT:/work" \
   -v medoc-cargo-registry:/usr/local/cargo/registry \
   -v medoc-cargo-git:/usr/local/cargo/git \
-  -v medoc-target-linux-e2e:/work/app/target \
+  -v medoc-target-linux-e2e:/work/target \
   medoc-rust-wave-v1:latest
 
 echo ""
@@ -45,10 +45,10 @@ docker run "${DOCKER_RUST_RUN[@]}" \
   -v "$ROOT:/work" \
   -v medoc-cargo-registry:/usr/local/cargo/registry \
   -v medoc-cargo-git:/usr/local/cargo/git \
-  -v medoc-target-linux-e2e:/work/app/target \
+  -v medoc-target-linux-e2e:/work/target \
   medoc-e2e:latest
 
-if [[ "${VALIDATE_DOCKER_MULTI_DEVICE:-}" == "1" ]]; then
+if [[ "${VALIDATE_DOCKER_MULTI_DEVICE:-1}" == "1" ]]; then
   echo ""
   echo "========== MULTI-DEVICE PORT E2E (Docker / Linux) =========="
   docker build -f docker/ci/Dockerfile.multi-device-e2e -t medoc-multi-device-e2e:latest .
@@ -56,7 +56,7 @@ if [[ "${VALIDATE_DOCKER_MULTI_DEVICE:-}" == "1" ]]; then
     -v "$ROOT:/work" \
     -v medoc-cargo-registry:/usr/local/cargo/registry \
     -v medoc-cargo-git:/usr/local/cargo/git \
-    -v medoc-target-linux-e2e:/work/app/target \
+    -v medoc-target-linux-e2e:/work/target \
     medoc-multi-device-e2e:latest
 fi
 
@@ -69,7 +69,7 @@ if [[ "${VALIDATE_DOCKER_FULL:-}" == "1" ]]; then
     -v "$ROOT:/work" \
     -v medoc-cargo-registry:/usr/local/cargo/registry \
     -v medoc-cargo-git:/usr/local/cargo/git \
-    -v medoc-target-linux:/work/app/target \
+    -v medoc-target-linux:/work/target \
     medoc-rust-ci:latest
 fi
 

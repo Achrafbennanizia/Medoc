@@ -1,0 +1,56 @@
+{
+    "compilerOptions": {
+        "target": "ES2021",
+        "useDefineForClassFields": true,
+        "lib": [
+            "ES2021",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "isolatedModules": true,
+        "moduleDetection": "force",
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/lib/mac-window-drag": ["./src/platform/mac-window-drag.ts"],
+            "@/lib/akte-anlagen": ["./src/platform/akte-anlagen.ts"],
+            "@/lib/native-app-menu-bridge": ["./src/platform/native-app-menu-bridge.ts"],
+            "@/lib/*": ["../../packages/shared/src/lib/*"],
+            "@/models/*": ["../../packages/shared/src/models/*"],
+            "@/views/components/ui/*": ["../../packages/ui/src/*"],
+            "@/systems/practice-host/*": ["../../packages/app/practice-host/src/*"],
+            "@/systems/lan/*": ["../../packages/server/lan/src/*", "./src/systems/lan/*"],
+            "@/systems/company-portal/*": [
+                "../../packages/server/company/src/*",
+                "./src/systems/company-portal/*"
+            ],
+            "@medoc/shared/*": ["../../packages/shared/src/*"],
+            "@medoc/ui/*": ["../../packages/ui/src/*"],
+            "@medoc/system-practice/*": ["../../packages/app/practice-host/src/*"],
+            "@medoc/system-lan/*": ["../../packages/server/lan/src/*"],
+            "@medoc/system-company/*": ["../../packages/server/company/src/*"],
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": [
+        "src",
+        "../../packages/**/src"
+    ],
+    "exclude": [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "../../packages/**/*.test.ts",
+        "../../packages/**/*.test.tsx"
+    ]
+}

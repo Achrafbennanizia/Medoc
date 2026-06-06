@@ -1,0 +1,21 @@
+{
+    "name": "@medoc/system-practice",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "MeDoc practice-host system — Tauri IPC controllers, pages, deployment config.",
+    "exports": {
+        "./*": "./src/*"
+    },
+    "dependencies": {
+        "@medoc/shared": "0.1.0",
+        "@medoc/ui": "0.1.0",
+        "@medoc/system-lan": "0.1.0",
+        "@tauri-apps/api": "^2.5.0"
+    },
+    "peerDependencies": {
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "react-router-dom": "^7.6.1"
+    }
+}

@@ -9,7 +9,7 @@ RUN rustup component add rustfmt clippy
 
 ENV PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-WORKDIR /work/app
+WORKDIR /work
 
 COPY docker/ci/run-e2e-wave-v1.sh /usr/local/bin/run-e2e-wave-v1.sh
 RUN chmod +x /usr/local/bin/run-e2e-wave-v1.sh

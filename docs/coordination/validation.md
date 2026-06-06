@@ -1,6 +1,120 @@
 # Validation ledger
 
-**Last updated:** 2026-06-02 (13 port tests — SyncEngine push/pull + mesh)
+**Last updated:** 2026-06-06 (Docker revalidation + lan-web session restore)
+
+## Final dead-code cleanup + Docker FULL (2026-06-06)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| 2nd dead-code pass | `find apps/practice-host -name 'archive*'` | **0 files** (52+4+3 removed) |
+| npm test | `npm test` | **232 PASS** |
+| npm build | `npm run build` | **PASS** |
+| lan_tls_tests | `cargo test -p medoc --test lan_tls_tests` | **PASS** (added `rustls` dev-dep) |
+| Docker standard | `bash scripts/validate-docker.sh` | **PASS** (in FULL run, before Tauri stage) |
+| Docker FULL Tauri | `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` | **FAIL then FIX** — `cors_policy_tests` missing `axum`/`tower` dev-deps; added to `apps/practice-host/Cargo.toml`. Re-run **NOT RUN** after fix (~15 min) |
+
+---
+
+## Docker revalidation post repo-root (2026-06-06)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PASS** | ~8.1 min |
+| Frontend in Docker | lint + test + build + lan-web | **PASS** | includes `validate-lan-web-client.sh` |
+| Rust Wave V1 scoped | fmt + clippy + tests + in-process e2e | **PASS** | excludes `multi_device_port_http` |
+| E2E Wave V1 | `Dockerfile.e2e` | **PASS** | headless server smoke |
+| Multi-device port e2e | 17 port tests over live HTTPS | **PASS** | `medoc_server_bin()` path fix |
+
+**Fixes applied:** `run-rust-validate-wave-v1.sh` + `run-e2e-wave-v1.sh` skip port tests without servers; `port_client.rs` binary path `../../../target/`; Docker volumes `/work/target` (not `/work/app/target`).
+
+---
+
+## Full-stack tier separation R8 (2026-06-06)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| FE tier isolation | `app/scripts/validate-fe-three-systems.sh` | **PASS** | No `@tauri-apps` in server/shared packages |
+| Vitest | `cd app && npm test` | **PASS** | 402 tests (includes symlink duplicate paths) |
+| FE build | `cd app && npm run build` | **PASS** | tsc + vite |
+| Rust three-system | `app/scripts/validate-three-systems.sh` | **PASS** | from R7 |
+
+---
+
+## Post-R10 cleanup (2026-06-06)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Legacy app cleanup | `du app/*` | **PASS** — only README + docs (~8 KB) |
+| project-truth paths | manual review | **PASS** — `apps/`, `crates/` refs |
+| LAN web build | `./scripts/validate-lan-web-client.sh` | **PASS** (session restore + patient detail) |
+| FE tier isolation | `./scripts/validate-fe-three-systems.sh` | **PASS** |
+| Practice tests | `npm test` | **232 PASS** |
+| Practice build | `npm run build` | **PASS** |
+
+---
+
+## LAN web client R10 (2026-06-06)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| LAN web build | `./scripts/validate-lan-web-client.sh` | **PASS** |
+| No Tauri in lan-web | `rg @tauri-apps apps/lan-web-client` | **PASS** (0 hits) |
+| Practice tests | `npm test` | **232 PASS** |
+| Practice build | `npm run build` | **PASS** |
+
+---
+
+## Repo-root promotion R9 (2026-06-06)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Rust workspace | `cargo check --workspace` | **PASS** |
+| Three-system Rust | `./scripts/validate-three-systems.sh` | **PASS** |
+| FE tier isolation | `./scripts/validate-fe-three-systems.sh` | **PASS** |
+| Vitest | `npm test` (from root) | **232 PASS** (deduped symlink tests) |
+| FE build | `npm run build` | **PASS** |
+
+---
+
+## Full-stack tier separation R8 (2026-06-06)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| FE tier isolation | `app/scripts/validate-fe-three-systems.sh` | **PASS** |
+| Vitest | `cd app && npm test` | **402 PASS** (pre-dedup) |
+
+---
+
+## Rust tier separation R7 (2026-06-06)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Workspace compile | `cargo check --workspace` | **PASS** | All members after `crates/{app,server,shared,test}/` move |
+| Three-system isolation | `app/scripts/validate-three-systems.sh` | **PASS** | `medoc`, `medoc-lan-server`, `medoc-company-server` build independently |
+| No Tauri in LAN server | `cargo tree -p medoc-lan-server -i tauri` | **PASS** | No match (exit 101 = not in tree) |
+| Sync unit tests | `cargo test -p medoc-sync --lib` | **PASS** | 10/10 |
+| IPC registration | `cargo test -p medoc --test invoke_registration_tests` | **PASS** | 1/1 |
+
+---
+
+**Previous update:** 2026-06-02 (MVP plan completion pass)
+
+## MVP plan completion (2026-06-02)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| G21 automated proxy | `bash tools/g21-verify-automated.sh` | **PASS** | Pre-live checklist gate |
+| Vitest | `cd app && npm test` | **PASS** | **194** tests (+ pairing, export-preview, deployment-config) |
+| Outbox hooks Tier-1 | `cargo test --test sync_outbox_hooks_tests` | **PASS** | **9/9** incl. `rezept`, `praxis_ticket` |
+| Rust e2e count | `cargo test -p medoc-e2e --tests -- --list` | **PASS** | **85** HTTP integration tests (target met) |
+| Port e2e count | `multi_device_port_http.rs` | **PASS** | **18** tests incl. Tier-1 + RBAC + mesh idempotency |
+| Tier-1 in-process push | `cargo test -p medoc-e2e --test tier1_http_push` | **PASS** | **5/5** rezept, ticket, attest, leistung, notification |
+| Docker multi-device | `bash scripts/validate-docker-multi-device.sh` | **PASS** | **17/17** port tests (~40s) |
+| Two-device smoke proxy | `bash tools/two-device-sync-smoke.sh` | **PASS** | Delegates to Docker port suite |
+| MVP FE unit (T-U2) | `cd app && npm run test:mvp-coverage` | **PASS** | **100%** on 5 scoped modules (22 tests) |
+| MVP Rust unit (T-U1) | `cargo llvm-cov -p medoc-sync --summary-only` | **PARTIAL** | `pairing.rs` ~86%, `merge.rs` ~62%, `engine.rs` ~26% |
+| Playwright LAN | `MEDOC_LAN_E2E=1 npm run test:playwright` | **NOT RUN** | Requires live `medoc-server` |
+| G21b live Tauri | Manual checklist row 1–9 | **NOT OBSERVED** | `g21-live-smoke-checklist.md` unsigned |
 
 ## Multi-device port e2e (2026-06-02)
 

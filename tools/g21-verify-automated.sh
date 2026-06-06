@@ -2,21 +2,21 @@
 # Run all automated G21 / collaboration proxies before the live Tauri checklist (G21b).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT/app"
+cd "$ROOT"
 
 echo "=== G21 automated proxy suite ==="
 
 npm test -- --run \
-  src/lib/collaboration-g21.test.ts \
-  src/lib/nav-sections.test.ts \
-  src/lib/quittung-export-flow.test.ts \
-  src/g21-routing.smoke.test.tsx \
-  src/views/pages/posteingang.smoke.test.tsx \
-  src/views/pages/praxis-tickets.smoke.test.tsx \
-  src/views/pages/ops.smoke.test.tsx \
-  src/views/components/patient-akte-workflow-dialogs.smoke.test.tsx \
-  src/systems/practice-host/pages/patient-detail/patient-detail-akte-subnav.smoke.test.tsx \
-  src/views/components/notifications-popover.smoke.test.tsx
+  packages/shared/src/lib/collaboration-g21.test.ts \
+  packages/shared/src/lib/nav-sections.test.ts \
+  packages/shared/src/lib/quittung-export-flow.test.ts \
+  apps/practice-host-ui/src/g21-routing.smoke.test.tsx \
+  apps/practice-host-ui/src/views/pages/posteingang.smoke.test.tsx \
+  apps/practice-host-ui/src/views/pages/praxis-tickets.smoke.test.tsx \
+  apps/practice-host-ui/src/views/pages/ops.smoke.test.tsx \
+  apps/practice-host-ui/src/views/components/patient-akte-workflow-dialogs.smoke.test.tsx \
+  packages/app/practice-host/src/pages/patient-detail/patient-detail-akte-subnav.smoke.test.tsx \
+  apps/practice-host-ui/src/views/components/notifications-popover.smoke.test.tsx
 
 echo ""
 echo "=== Rust G21 backend flow ==="

@@ -1,0 +1,143 @@
+//! Rust-only migration steps awkward to express in plain SQL.
+
+use sqlx::sqlite::SqlitePool;
+
+use crate::error::AppError;
+
+use super::sync_tables;
+
+pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError> {
+    let produkt_id_col: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('lieferant_pharma_vorlage') WHERE name = 'produkt_id'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if produkt_id_col == 0 {
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("DROP TABLE IF EXISTS lieferant_pharma_vorlage")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE TABLE lieferant_pharma_vorlage (
+            id TEXT PRIMARY KEY,
+            lieferant_id TEXT NOT NULL REFERENCES lieferant_stamm(id),
+            pharmaberater_id TEXT NOT NULL REFERENCES pharmaberater_stamm(id),
+            produkt_id TEXT NOT NULL REFERENCES produkt(id),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            aktiv INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(lieferant_id, pharmaberater_id, produkt_id)
+        )",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    }
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM personal")
+        .fetch_one(pool)
+        .await?;
+    if count.0 == 0 {
+        let hash = bcrypt::hash("passwort123", 12)
+            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+        sqlx::query(
+            "INSERT INTO personal (id, name, email, passwort_hash, rolle, fachrichtung)
+             VALUES ('seed-arzt-001', 'Dr. Ahmed R.', 'ahmed@praxis.de', ?1, 'ARZT', 'Zahnmedizin')",
+        )
+        .bind(&hash)
+        .execute(pool)
+        .await?;
+        let hash2 = bcrypt::hash("passwort123", 12)
+            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+        sqlx::query(
+            "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+             VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION')",
+        )
+        .bind(&hash2)
+        .execute(pool)
+        .await?;
+    }
+
+    let ins = sqlx::query(
+        "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.billing_freigabe_legacy_v1', '1')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if ins.rows_affected() > 0 {
+        let _ = sqlx::query(
+            r#"UPDATE behandlung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(
+                   freigegeben_am,
+                   COALESCE(NULLIF(TRIM(behandlung_datum), ''), datetime(created_at))
+                 )
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+        let _ = sqlx::query(
+            r#"UPDATE untersuchung SET
+                 freigegeben_von_arzt_id = COALESCE(
+                   freigegeben_von_arzt_id,
+                   (SELECT id FROM personal WHERE rolle = 'ARZT' ORDER BY datetime(created_at) ASC LIMIT 1)
+                 ),
+                 freigegeben_am = COALESCE(freigegeben_am, datetime(created_at))
+               WHERE freigegeben_von_arzt_id IS NULL OR freigegeben_am IS NULL"#,
+        )
+        .execute(pool)
+        .await;
+    }
+
+    let ins_aufg = sqlx::query(
+        "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.praxis_ticket_to_aufgabe_v1', '1')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if ins_aufg.rows_affected() > 0 {
+        let _ = sqlx::query(
+            r#"INSERT INTO praxis_aufgabe (
+                id, patient_id, typ, titel, body, assignee_user_id, created_by, status,
+                legacy_ticket_id, created_at, updated_at
+            )
+            SELECT
+                t.id,
+                t.patient_id,
+                'SONSTIGES',
+                CASE WHEN length(t.body) > 80 THEN substr(t.body, 1, 80) || '…' ELSE t.body END,
+                t.body,
+                t.to_arzt_id,
+                t.from_user_id,
+                CASE t.status
+                    WHEN 'ERLEDIGT' THEN 'VALIDIERT'
+                    WHEN 'IN_BEARBEITUNG' THEN 'IN_BEARBEITUNG'
+                    ELSE 'OFFEN'
+                END,
+                t.id,
+                t.created_at,
+                t.updated_at
+            FROM praxis_ticket t
+            WHERE NOT EXISTS (
+                SELECT 1 FROM praxis_aufgabe a WHERE a.legacy_ticket_id = t.id
+            )"#,
+        )
+        .execute(pool)
+        .await;
+    }
+    sync_tables::ensure_sync_replication_tables(pool).await?;
+
+    Ok(())
+}

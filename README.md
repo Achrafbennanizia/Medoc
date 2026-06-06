@@ -1,33 +1,52 @@
 # MeDoc
 
-Monorepo für **MeDoc** (Zahnarztpraxis-Management).
+Monorepo for **MeDoc** (Zahnarztpraxis-Management) — three independently runnable systems.
 
-## Produkt (CI / Release)
+## Repository layout
 
-**Das auslieferbare Produkt ist ausschließlich die Tauri-Desktop-App unter `app/`.** Es gibt kein separates Web-Frontend oder `src/`-Root-Paket im Release-Pfad; alle UI-, IPC- und Datenbankpfade liegen in `app/`.
+```
+Medoc/
+├── apps/
+│   ├── practice-host/       Tauri desktop binary (`medoc`)
+│   ├── practice-host-ui/    React + Vite (Tauri shell)
+│   └── lan-web-client/      Browser client → LAN HTTPS (no Tauri)
+├── crates/                  Rust workspace (app / server / shared)
+├── packages/                npm workspace (shared / ui / system-*)
+├── Cargo.toml               Rust workspace root
+└── package.json             npm workspace root
+```
 
-| Pfad | Rolle |
-| ---- | ----- |
-| **`app/`** | **Tauri 2**-Desktop: React + Vite (`app/src/`), Rust-Backend (`app/src-tauri/`), lokale SQLite (`medoc.db`, SQLCipher) |
-| **`docs/`** | V-Modell, Anforderungen, Architektur, Koordination (`docs/coordination/`) |
-| **`config/`** | Codegen-Quellen (z. B. `rbac.yaml`, `enums.yaml`) |
-
-CI (`.github/workflows/ci.yml`): `cargo check` / `cargo test` in `app/src-tauri`, `npm run lint` / `npm test` / `npm run build` in `app/`.
-
-## Dokumentation
-
-- V-Modell und Anforderungen: [`docs/v-model/`](docs/v-model/)
-- Architektur (Desktop): [`docs/architecture/architecture-design.md`](docs/architecture/architecture-design.md)
-
-## Kurzkommandos
+## Quick start
 
 ```bash
-# Desktop-Frontend bauen
-cd app && npm ci && npm run build
+export MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+export MEDOC_DB_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+export MEDOC_AUDIT_KEY="k9-medoc-test-audit-key-32bytes!"
 
-# Rust-Tests
-cd app/src-tauri && cargo test --tests
+npm ci
+npm run dev              # practice desktop UI (Vite :1420)
+npm run tauri dev        # full Tauri app
+npm run dev:lan-web      # LAN browser client (:1421)
 
-# Lokale Tauri-Entwicklung (stabiler SQLCipher-Key + Demo-Seed)
-bash tools/dev-tauri.sh
+cargo check --workspace
+cargo run -p medoc-lan-server
+cargo run -p medoc-company-server
 ```
+
+## Validation
+
+```bash
+./scripts/validate-three-systems.sh
+./scripts/validate-fe-three-systems.sh
+./scripts/validate-lan-web-client.sh
+npm test && npm run build
+```
+
+CI: `.github/workflows/ci.yml` (repo root).
+
+Legacy `app/` directory — see [`app/README.md`](app/README.md).
+
+## Documentation
+
+- Architecture: [`docs/architecture/three-systems.md`](docs/architecture/three-systems.md)
+- Coordination ledgers: [`docs/coordination/`](docs/coordination/)

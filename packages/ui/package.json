@@ -1,0 +1,18 @@
+{
+    "name": "@medoc/ui",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "MeDoc shared React UI primitives (design system).",
+    "exports": {
+        "./*": "./src/*"
+    },
+    "dependencies": {
+        "clsx": "^2.1.1",
+        "tailwind-merge": "^3.3.0"
+    },
+    "peerDependencies": {
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0"
+    }
+}

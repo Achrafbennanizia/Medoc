@@ -1,6 +1,97 @@
 # Phase handoff
 
-**Last phase label:** Docker revalidation GREEN + G21 live checklist prep  
+**Last phase label:** Final cleanup + optional Docker full (2026-06-06)  
+**Last closed:** Second dead-code pass (~60 files); `VALIDATE_DOCKER_FULL=1` started; actions.md updated.
+
+### Verified (2026-06-06 — final cleanup)
+
+- **Dead code (2nd pass):** re-deleted 52 `archive_flat` + 4 orphan `systems/` + 3 FE barrels + stale `.cursor/rules/Untitled`.
+- **Config:** ESLint ignore `src-tauri` → `../practice-host`; `medoc-core/infrastructure/mod.rs` stale comments removed.
+- **Tests:** `npm test` **232 PASS**; `npm run build` PASS; added `rustls` dev-dep for `lan_tls_tests`.
+- **Docker full:** `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` — see validation.md.
+
+### Next
+
+1. G21 live Tauri smoke (manual).
+2. Expand lan-web only if product needs more routes.
+
+---
+
+**Previous phase label:** LAN web profile + dead code cleanup (2026-06-06)  
+**Last closed:** Profil tab in lan-web; removed ~58 archived/uncompiled source files.
+
+### Verified (2026-06-06 — Docker + lan-web)
+
+- **Docker fix:** `run-e2e-wave-v1.sh` skips `multi_device_port_http` (needs live servers); target volume `/work/target`; multi-device enabled by default in `validate-docker.sh`.
+- **LAN web:** session restore on reload, logout, patient search + detail panel.
+- **Local:** `validate-lan-web-client.sh` PASS; `npm test` **232 PASS**; `npm run build` PASS.
+- **Docker:** `bash scripts/validate-docker.sh` **PASS** (~8.1 min) — frontend + lan-web + Rust Wave V1 + e2e + multi-device **17/17**.
+
+### Verified (2026-06-06 — profile + dead code cleanup)
+
+- **LAN web:** Profil tab via `getOwnProfile()` → `GET /api/v1/me`.
+- **Dead code removed:** 52 `archive_flat` files, 3 `archive_monolith`, 2 legacy shims, stale `app/docs/`, orphan FE re-export.
+- **Validation:** `cargo check` PASS; `validate-lan-web-client.sh` PASS; `npm test` **232 PASS**; `npm run build` PASS.
+
+### Next
+
+1. Optional: `VALIDATE_DOCKER_FULL=1` for Tauri link in Docker.
+2. Further lan-web routes as needed.
+
+---
+
+**Previous phase label:** Docker revalidation + lan-web session restore (2026-06-06)  
+**Last closed:** `project-truth.md` path refresh; legacy `app/` artifacts removed (~6.5 GB); lan-web termine view.
+
+### Verified (2026-06-06 — post-R10)
+
+- **`project-truth.md`:** paths updated to `apps/`, `crates/`, repo-root CI/npm.
+- **Cleanup:** removed stale `app/{target,node_modules,dist,coverage,test-results}`; `app/` is README + docs only.
+- **LAN web:** login + Patienten + Termine (by date); `list_termine_by_date` HTTP route alias.
+- **Validation:** `validate-lan-web-client.sh` PASS; `validate-fe-three-systems.sh` PASS; `npm test` **232 PASS**; `npm run build` PASS.
+
+### Next
+
+1. Run `bash scripts/validate-docker.sh` after path migration (**NOT RUN**).
+2. Further lan-web routes (patient detail, session restore on reload).
+
+---
+
+**Previous phase label:** LAN web client R10 (2026-06-06)  
+**Last closed:** Browser-only `apps/lan-web-client`; Docker/tools paths updated for repo root.
+
+### Verified (2026-06-06 — R10)
+
+- **`apps/lan-web-client`:** Vite app on `:1421`, `HttpPracticeAdapter` shim, no `@tauri-apps`.
+- **Docker/scripts:** `docker/ci/*`, `validate-docker.sh`, `tools/*`, `generate-sbom.sh` → repo-root paths.
+- **Validation:** `validate-lan-web-client.sh` PASS; `npm test` **232 PASS**; practice-host `npm run build` PASS.
+
+### Next
+
+1. Expand lan-web-client routes (beyond login + patient list).
+2. Run `bash scripts/validate-docker.sh` after path migration (**NOT RUN** this session).
+
+---
+
+**Previous phase label:** Repo-root promotion R9 (2026-06-06)  
+**Last closed:** `apps/`, `crates/`, `packages/` at repository root; root Cargo + npm workspaces.
+
+### Verified (2026-06-06 — R9)
+
+- **Layout:** `apps/{practice-host,practice-host-ui}`, `crates/`, `packages/` at repo root.
+- **Workspaces:** root `Cargo.toml`, root `package.json` with npm workspaces.
+- **CI:** `.github/workflows/ci.yml` updated to repo-root paths.
+- **Codegen:** `medoc-core/build.rs` TS output → `packages/shared/src/lib/`.
+- **Validation:** `cargo check --workspace` PASS; `validate-three-systems.sh` PASS; `validate-fe-three-systems.sh` PASS; `npm test` **232 PASS**; `npm run build` PASS.
+
+### Next
+
+1. **R10:** standalone `lan-web-client` app (browser-only, no Tauri).
+2. Update Docker/scripts still referencing `app/` paths.
+
+---
+
+**Previous phase label:** Docker revalidation GREEN + G21 live checklist prep  
 **Last closed:** 2026-06-01 — Fixed `cargo fmt` import order (`praxis_aufgabe_commands.rs`). **`bash scripts/validate-docker.sh` PASS** (~6.4 min). Enhanced `g21-live-smoke-checklist.md` with dev credentials (`passwort123`, seed emails) and license helper steps. Added nav ordering regression in `collaboration-g21.test.ts`.
 
 **Previous phase label:** G21 row 4 FE proxy + full-stack validation  
