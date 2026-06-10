@@ -55,6 +55,7 @@ export type ExportPickerAkteProps = {
     patientId: string;
     patient: Patient | null;
     canViewClinical: boolean;
+    canReadDocuments: boolean;
     canReadFinanzen: boolean;
     canAuditRead: boolean;
 };
@@ -78,6 +79,7 @@ function AkteExportPickerInner({
     patientId,
     patient,
     canViewClinical,
+    canReadDocuments,
     canReadFinanzen,
     canAuditRead,
 }: ExportPickerAkteProps) {
@@ -134,6 +136,7 @@ function AkteExportPickerInner({
         const d = defaultAkteExportSections();
         for (const row of AKTE_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) d[row.key] = false;
+            if (row.needsDocuments && !canReadDocuments) d[row.key] = false;
             if (row.needsFinanzen && !canReadFinanzen) d[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) d[row.key] = false;
         }
@@ -141,7 +144,7 @@ function AkteExportPickerInner({
         setFormat("pdf");
         setFileName(suggestAkteExportFilenames(patient, "pdf")[0]);
         setFolderOnce(null);
-    }, [open, patient, canViewClinical, canReadFinanzen, canAuditRead]);
+    }, [open, patient, canViewClinical, canReadDocuments, canReadFinanzen, canAuditRead]);
 
     useEffect(() => {
         if (!patient || !open) return;
@@ -185,6 +188,7 @@ function AkteExportPickerInner({
         const secForRust: AkteExportSectionsState = { ...sections };
         for (const row of AKTE_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) secForRust[row.key] = false;
+            if (row.needsDocuments && !canReadDocuments) secForRust[row.key] = false;
             if (row.needsFinanzen && !canReadFinanzen) secForRust[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) secForRust[row.key] = false;
         }
@@ -219,6 +223,7 @@ function AkteExportPickerInner({
         patientId,
         sections,
         canViewClinical,
+        canReadDocuments,
         canReadFinanzen,
         canAuditRead,
         patient,
@@ -243,6 +248,7 @@ function AkteExportPickerInner({
         const secForRust: AkteExportSectionsState = { ...sections };
         for (const row of AKTE_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) secForRust[row.key] = false;
+            if (row.needsDocuments && !canReadDocuments) secForRust[row.key] = false;
             if (row.needsFinanzen && !canReadFinanzen) secForRust[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) secForRust[row.key] = false;
         }
@@ -406,9 +412,10 @@ function AkteExportPickerInner({
                         <div className="col" style={{ gap: 10 }}>
                             {AKTE_EXPORT_SECTION_META.map((row) => {
                                 const disMed = row.needsMedical && !canViewClinical;
+                                const disDoc = row.needsDocuments && !canReadDocuments;
                                 const disFin = row.needsFinanzen && !canReadFinanzen;
                                 const disAudit = row.needsAuditRead && !canAuditRead;
-                                const dis = disMed || disFin || disAudit;
+                                const dis = disMed || disDoc || disFin || disAudit;
                                 return (
                                     <label
                                         key={row.key}
@@ -471,8 +478,8 @@ function AkteExportPickerInner({
 export type HtmlExportDocumentKind = Extract<DocumentKind, "attest" | "rezept" | "quittung">;
 
 const CLINICAL_EXPORT_FORMAT_OPTS: { value: ExportFileFormat; label: string }[] = [
-    { value: "pdf", label: "PDF" },
-    { value: "csv", label: "CSV" },
+    { value: "pdf", label: "PDF (druckfertig)" },
+    { value: "csv", label: "CSV (Semikolon)" },
     { value: "json", label: "JSON" },
     { value: "xml", label: "XML" },
 ];

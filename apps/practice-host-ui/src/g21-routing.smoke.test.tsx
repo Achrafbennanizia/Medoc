@@ -7,6 +7,7 @@ import { useAuthStore } from "@/models/store/auth-store";
 import App from "@/App";
 import { setDeploymentModeCache } from "@/systems/practice-host/adapters/practice-transport";
 import { tauriInvoke } from "@/services/tauri.service";
+import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
@@ -75,6 +76,8 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return SYNC_STATUS;
             case "current_license_status":
                 return { valid: true, format: "v2" };
+            case "verbund_status_cmd":
+                return VERBUND_STATUS_READY;
             case "get_dashboard_stats":
                 return {
                     patienten_gesamt: 0,
@@ -91,6 +94,9 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
             case "count_unread_in_app_notifications":
                 return 0;
             case "list_praxis_aufgaben_for_me":
+            case "list_praxis_tickets_for_me":
+                return [];
+            case "list_aufgabe_team_directory":
                 return [];
             default:
                 throw new Error(`unmocked IPC in G21 routing smoke: ${cmd}`);
@@ -114,7 +120,7 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         mockAuthedRezeptionIpc(sessionHold);
     });
 
-    it("REZEPTION can open Posteingang from sidebar without access denied", async () => {
+    it("REZEPTION can open Praxis-Tickets (Aufgaben integriert) without access denied", async () => {
         const user = userEvent.setup();
         render(<App />);
 
@@ -129,9 +135,9 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         expect(await screen.findByRole("heading", { name: /Guten Morgen, Aya M\./ })).toBeInTheDocument();
 
         const aside = screen.getByRole("complementary");
-        await user.click(within(aside).getByRole("link", { name: /Posteingang/i }));
+        await user.click(within(aside).getByRole("link", { name: /Praxis-Aufgaben/i }));
 
-        expect(await screen.findByRole("heading", { name: "Posteingang" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /Praxis-Aufgaben/i })).toBeInTheDocument();
         expect(await screen.findByText(/Keine offenen Aufgaben/i)).toBeInTheDocument();
 
         await waitFor(() => {

@@ -283,11 +283,22 @@ cargo build -p medoc-lan-server -p medoc-company-server -p medoc
 ./scripts/validate-fe-three-systems.sh
 ./scripts/validate-lan-web-client.sh
 npm test && npm run build
+
+# Docker Wave V1 scoped (Linux; verified 2026-06-06)
+docker build -f docker/ci/Dockerfile.rust-wave-v1 -t medoc-rust-wave-v1:latest .
+docker run --rm --shm-size=4g -e CARGO_BUILD_JOBS=1 \
+  -v "$PWD:/work" -v medoc-cargo-registry:/usr/local/cargo/registry \
+  -v medoc-cargo-git:/usr/local/cargo/git -v medoc-target-linux-e2e:/work/target \
+  medoc-rust-wave-v1:latest
+
+# Full Docker pipeline (+ optional VALIDATE_DOCKER_FULL=1 for Tauri)
+bash scripts/validate-docker.sh
 ```
 
 ---
 
 ## Remaining risks
 
-- **medoc-e2e port tests** require a live HTTPS listener on `:8787` — failures with `Connection refused` are environmental, not structural regressions.
+- **medoc-e2e port tests** require a live HTTPS listener on `:8787` — failures with `Connection refused` are environmental, not structural regressions. In-process Wave V1 Docker excludes `multi_device_port_http`; use `validate-docker-multi-device.sh` for live port coverage.
 - **Legacy embedded migrations** remain large (~1100 lines) — further split by schema version is possible but low ROI until sqlx migration path dominates new installs.
+- **`VALIDATE_DOCKER_FULL=1`** (Tauri link in Linux container) — not re-run after dev-deps fix; optional gate separate from Wave V1 scoped image.

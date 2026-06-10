@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { Card, CardHeader } from "../components/ui/card";
 import { listZahlungen, getBilanz } from "@/systems/practice-host/controllers/zahlung.controller";
 import { listBilanzSnapshots, deleteBilanzSnapshot, type BilanzSnapshot } from "@/systems/practice-host/controllers/bilanz-snapshot.controller";
@@ -97,19 +97,22 @@ export function BilanzPage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            {canBackVerwaltung ? (
-                <div>
-                    <VerwaltungBackButton />
-                </div>
-            ) : null}
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-                <h2 className="page-title" style={{ margin: 0 }}>Bilanz</h2>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
-                    <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
-                </div>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                showBack={canBackVerwaltung}
+                title="Bilanz"
+                actions={
+                    <>
+                        <ReportExportToolbar
+                            dialogTitle="Export — Bilanz"
+                            buildBundle={buildExportBundle}
+                            defaultFormat="pdf"
+                            showImport
+                        />
+                        <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
+                    </>
+                }
+            />
 
             <div
                 style={{
@@ -164,7 +167,8 @@ export function BilanzPage() {
                         Noch keine Snapshots erfasst. Mit „Neuer Bilanz“ einen Abschluss erstellen.
                     </p>
                 ) : (
-                    <table className="tbl">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>Erstellt</th>
@@ -194,6 +198,7 @@ export function BilanzPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </Card>
 
@@ -212,7 +217,8 @@ export function BilanzPage() {
                 {zahlungen.length === 0 ? (
                     <p className="text-body text-on-surface-variant">Keine Zahlungen.</p>
                 ) : (
-                    <table className="tbl">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>Datum</th><th>Status</th><th>Betrag</th>
@@ -228,6 +234,7 @@ export function BilanzPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </Card>
         </div>

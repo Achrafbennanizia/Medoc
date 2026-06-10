@@ -9,13 +9,6 @@ const VERWALTUNG_LINKS: VerwaltungTocLink[] = [
         requires: "verwaltung/team",
     },
     {
-        title: "Praxis-Aufgaben",
-        desc: "Aufgaben anlegen, Mitarbeitern zuweisen und Status verwalten.",
-        href: "/verwaltung/aufgaben",
-        iconKey: "/termine",
-        requires: "verwaltung/aufgaben",
-    },
-    {
         title: "Finanzen & Berichte",
         desc: "Rechnung, Tagesabschluss, Bilanzen und weitere Werkzeuge.",
         href: "/verwaltung/finanzen-berichte",

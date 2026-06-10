@@ -43,6 +43,8 @@ const toneFg: Record<Tone, string> = {
 
 function toneForKind(kind: string): Tone {
     if (kind === "plan_hint_fulfilled") return "green";
+    if (kind === "PRAXIS_AUFGABE_ZURUECK") return "orange";
+    if (kind === "PRAXIS_AUFGABE_ERLEDIGT") return "blue";
     if (kind.includes("rezept") || kind.includes("pill")) return "orange";
     if (kind.includes("lager") || kind.includes("bestell")) return "red";
     return "blue";
@@ -130,10 +132,22 @@ export function NotificationsPopover({
         }
         try {
             if (row.raw.payload_json) {
-                const p = JSON.parse(row.raw.payload_json) as { termin_id?: string };
+                const p = JSON.parse(row.raw.payload_json) as {
+                    termin_id?: string;
+                    aufgabeId?: string;
+                };
                 if (p.termin_id) {
                     onClose();
                     navigate("/termine");
+                    return;
+                }
+                if (
+                    p.aufgabeId &&
+                    (row.raw.kind === "PRAXIS_AUFGABE_ERLEDIGT" ||
+                        row.raw.kind === "PRAXIS_AUFGABE_ZURUECK")
+                ) {
+                    onClose();
+                    navigate("/tickets");
                     return;
                 }
             }

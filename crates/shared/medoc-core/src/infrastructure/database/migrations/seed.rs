@@ -55,13 +55,12 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
     sqlx::query(
         "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon) VALUES
-        ('seed-arzt-002', 'Dr. Sarah Klein', 'sarah@praxis.de', ?1, 'ARZT', 'Oralchirurgie', 'Oralchirurgie', '+49 421 900100'),
-        ('seed-ctl-001', 'Jonas Weber', 'jonas@praxis.de', ?1, 'STEUERBERATER', 'Abrechnung', NULL, '+49 421 900200'),
-        ('seed-pharma-001', 'Nina Albrecht', 'nina@praxis.de', ?1, 'PHARMABERATER', 'Produktberatung', NULL, '+49 421 900300')",
+        ('seed-arzt-002', 'Dr. Sarah Klein', 'sarah@praxis.de', ?1, 'ARZT', 'Oralchirurgie', 'Oralchirurgie', '+49 421 900100')",
     )
     .bind(&hash)
     .execute(pool)
     .await?;
+    // TODO(deferred-roles): seed-ctl-001 (STEUERBERATER), seed-pharma-001 (PHARMABERATER) — todos-deferred-roles.md
     // Ensure FK-referenced demo staff exists even when personal already had rows.
     sqlx::query(
         "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, fachrichtung) VALUES
@@ -314,20 +313,8 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
         .await?;
     }
 
-    let audit_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
-        .fetch_one(pool)
-        .await?;
-    if audit_count.0 == 0 {
-        sqlx::query(
-            "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac) VALUES
-            ('seed-audit-001','seed-arzt-001','LOGIN','SESSION',NULL,'Demo-Login zum Systemstart',NULL,''),
-            ('seed-audit-002','seed-arzt-001','CREATE','PATIENT','seed-pat-001','Patient Lena Hoffmann angelegt',NULL,''),
-            ('seed-audit-003','seed-rez-001','CREATE','TERMIN','seed-ter-001','Erstbesuch fuer Lena Hoffmann geplant',NULL,''),
-            ('seed-audit-004','seed-ctl-001','UPDATE','ZAHLUNG','seed-zahl-002','Rechnungsstatus geprueft',NULL,'')",
-        )
-        .execute(pool)
-        .await?;
-    }
+    // Audit trail rows are created at runtime via `audit_repo::create` (HMAC chain).
+    // Do not seed `audit_log` — placeholder rows with empty `hmac` break startup verification.
 
     // Additional demo density for UI/UX testing even on existing databases.
     sqlx::query(
@@ -378,14 +365,6 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "INSERT OR IGNORE INTO attest (id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis) VALUES
         ('seed-att-003','seed-pat-007','seed-arzt-002','Behandlungsbestaetigung','Bestaetigung ueber erfolgte zahnmedizinische Beratung.',date('now','localtime'),date('now','localtime','+30 day'))",
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        "INSERT OR IGNORE INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac) VALUES
-        ('seed-audit-005','seed-arzt-002','CREATE','TERMIN','seed-ter-010','Neupatiententermin angelegt',NULL,''),
-        ('seed-audit-006','seed-ctl-001','UPDATE','ZAHLUNG','seed-zahl-007','Teilzahlung verbucht',NULL,'')",
     )
     .execute(pool)
     .await?;

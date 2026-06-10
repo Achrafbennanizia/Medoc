@@ -137,7 +137,130 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .execute(pool)
         .await;
     }
+    let aufgabe_patient_notnull: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('praxis_aufgabe') WHERE name = 'patient_id' AND \"notnull\" = 1",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if aufgabe_patient_notnull > 0 {
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE TABLE praxis_aufgabe_patient_optional (
+                id TEXT PRIMARY KEY,
+                patient_id TEXT REFERENCES patient(id) ON DELETE SET NULL,
+                typ TEXT NOT NULL DEFAULT 'SONSTIGES',
+                titel TEXT NOT NULL,
+                body TEXT,
+                assignee_role TEXT,
+                assignee_user_id TEXT REFERENCES personal(id) ON DELETE SET NULL,
+                created_by TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+                behandlung_id TEXT,
+                untersuchung_id TEXT,
+                leistungsname TEXT,
+                gesamtkosten REAL,
+                zahlung_id TEXT,
+                erledigt_notiz TEXT,
+                zurueck_begruendung TEXT,
+                status TEXT NOT NULL DEFAULT 'OFFEN',
+                legacy_ticket_id TEXT UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query("INSERT INTO praxis_aufgabe_patient_optional SELECT * FROM praxis_aufgabe")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("DROP TABLE praxis_aufgabe")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("ALTER TABLE praxis_aufgabe_patient_optional RENAME TO praxis_aufgabe")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_rezeption ON praxis_aufgabe(assignee_role, status, datetime(created_at) DESC)",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_assignee ON praxis_aufgabe(assignee_user_id, status, datetime(created_at) DESC)",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_creator ON praxis_aufgabe(created_by, status, datetime(updated_at) DESC)",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+    }
+
+    let kommentar_table: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'praxis_aufgabe_kommentar'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if kommentar_table == 0 {
+        sqlx::query(
+            "CREATE TABLE praxis_aufgabe_kommentar (
+                id TEXT PRIMARY KEY,
+                aufgabe_id TEXT NOT NULL REFERENCES praxis_aufgabe(id) ON DELETE CASCADE,
+                author_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_kommentar_aufgabe
+             ON praxis_aufgabe_kommentar(aufgabe_id, datetime(created_at) ASC)",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    }
+
+    for (sql, col) in [(
+        "ALTER TABLE device_session ADD COLUMN trusted_at TEXT",
+        "trusted_at",
+    )] {
+        match sqlx::query(sql).execute(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("duplicate column") {
+                    tracing::debug!(
+                        target: "medoc::system",
+                        event = "MIGRATION_COLUMN_EXISTS",
+                        column = col
+                    );
+                } else {
+                    return Err(AppError::Database(e));
+                }
+            }
+        }
+    }
+
     sync_tables::ensure_sync_replication_tables(pool).await?;
+    super::verbund_tables::ensure_verbund_tables(pool).await?;
 
     Ok(())
 }

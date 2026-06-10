@@ -22,20 +22,22 @@ import {
 } from "@/lib/confirmation-preferences";
 import { errorMessage } from "@/lib/utils";
 import { persistAutocompleteSuggestionsToPraxisKv } from "@/lib/praxis-search-prefs-sync";
+import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
 import type { PraxisPraeferenzen } from "@/lib/praxis-praeferenzen-storage";
 import { useUiPreferencesStore } from "@/models/store/ui-preferences-store";
 import { Button } from "@/views/components/ui/button";
 import { Input, Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useRbac } from "@/lib/use-rbac";
 
 type WorkflowPrefs = NonNullable<ClientSettingsV1["workflows"]>;
 type SearchPrefs = NonNullable<ClientSettingsV1["search"]>;
 
-function cycleAreaOverride(cur: AreaOverride | undefined): AreaOverride {
-    if (cur == null || cur === "inherit") return "modal";
-    if (cur === "modal") return "inline";
-    return "inherit";
-}
+const AREA_OVERRIDE_OPTIONS: readonly { value: AreaOverride; label: string }[] = [
+    { value: "inherit", label: "Standard" },
+    { value: "modal", label: "Modal" },
+    { value: "inline", label: "Inline" },
+];
 
 function modeDisplayLabel(prefs: ConfirmationPrefs, key: ConfirmationAreaKey): string {
     const o = prefs.areas[key];
@@ -70,6 +72,7 @@ export function EinstellungenArbeitsablaeufeSection({
     rolle: rolleRaw,
 }: EinstellungenArbeitsablaeufeSectionProps) {
     const toast = useToastStore((s) => s.add);
+    const { canOpsSystem } = useRbac();
     const rolle = parseRole(rolleRaw);
     const [onboardingPct, setOnboardingPct] = useState<number | null>(null);
 
@@ -92,18 +95,38 @@ export function EinstellungenArbeitsablaeufeSection({
     }, [refreshOnboardingPct]);
     const confirmations = useUiPreferencesStore((s) => s.confirmations);
     const hydratedUi = useUiPreferencesStore((s) => s.hydrated);
+    const hydrateUiPrefs = useUiPreferencesStore((s) => s.hydrate);
     const setDefaultConfirmationMode = useUiPreferencesStore((s) => s.setDefaultConfirmationMode);
     const setAreaConfirmationOverride = useUiPreferencesStore((s) => s.setAreaConfirmationOverride);
 
+    useEffect(() => {
+        if (!hydratedUi) void hydrateUiPrefs();
+    }, [hydratedUi, hydrateUiPrefs]);
+
+    const persistConfirmationChange = async (action: () => Promise<void>, okMessage: string) => {
+        try {
+            await action();
+            toast(okMessage, "success");
+        } catch (e) {
+            toast(`Einstellung nicht gespeichert: ${errorMessage(e)}`, "error");
+        }
+    };
+
     return (
-        <section className="settings-subcard">
+        <section className="settings-subcard settings-subcard--segment-safe">
             <div className="card-head">
                 <div>
                     <div className="card-title">Arbeitsabläufe</div>
-                    <div className="card-sub">Termine, Suche, Sicherheitsabfragen</div>
+                    <div className="card-sub">
+                        {canOpsSystem
+                            ? "Termine, Suche, Sicherheitsabfragen"
+                            : "Termine, Tagesabschluss-Erinnerung, Patientensuche"}
+                    </div>
                 </div>
             </div>
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {canOpsSystem ? (
+                <>
                 <h3 className="text-title" style={{ margin: 0, fontSize: 15 }}>Terminregeln (Praxis-Präferenzen)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input
@@ -180,6 +203,9 @@ export function EinstellungenArbeitsablaeufeSection({
                         Speichern
                     </Button>
                 </div>
+
+                </>
+                ) : null}
 
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <Select
@@ -272,6 +298,7 @@ export function EinstellungenArbeitsablaeufeSection({
                     />
                 </div>
 
+                {canOpsSystem ? (
                 <div className="settings-row" style={{ marginTop: 10 }}>
                     <div>
                         <b>Autocomplete-Vorschläge</b>
@@ -303,6 +330,7 @@ export function EinstellungenArbeitsablaeufeSection({
                         aria-label="Autocomplete-Vorschläge"
                     />
                 </div>
+                ) : null}
 
                 {rolle ? (
                     <div className="settings-row" style={{ marginTop: 10 }}>
@@ -339,6 +367,7 @@ export function EinstellungenArbeitsablaeufeSection({
                     </div>
                 ) : null}
 
+                {CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED ? (
                 <div className="settings-row" style={{ marginTop: 10 }}>
                     <div>
                         <b>Termin: Pause / Notfall-Werkzeuge</b>
@@ -362,83 +391,106 @@ export function EinstellungenArbeitsablaeufeSection({
                         aria-label="Pause und Notfall-Werkzeuge in Terminkalender"
                     />
                 </div>
+                ) : null}
 
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
-                    <div className="card-head" style={{ paddingTop: 0 }}>
+                    <div className="card-head" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0, borderBottom: "none" }}>
                         <div>
                             <div className="card-title">Bestätigung bei kritischen Aktionen (Akte)</div>
-                            <div className="card-sub">Ein Klick pro Zeile wechselt Standard → Modal → Inline → Standard</div>
+                            <div className="card-sub">
+                                Steuert, ob Löschen und Bearbeiten in der Patientenakte als Dialog (Modal) oder als Panel in der Akte
+                                (Inline) erscheinen. Gilt praxisweit in der Datenbank.
+                            </div>
                         </div>
                     </div>
                     {!hydratedUi ? (
                         <p className="card-sub" style={{ margin: "0 0 12px" }}>Lade Einstellungen …</p>
                     ) : (
                         <>
-                            <div className="settings-row" style={{ marginBottom: 10 }}>
+                            <div className="settings-row" style={{ marginBottom: 10, borderTop: "none", paddingTop: 0 }}>
                                 <div>
                                     <b>Globaler Standard</b>
-                                    <div className="card-sub">wenn „Standard“ in der Tabelle</div>
+                                    <div className="card-sub">wenn ein Bereich auf „Standard“ steht</div>
                                 </div>
-                                <div className="row" style={{ gap: 8 }}>
-                                    <Button
+                                <div className="seg" role="group" aria-label="Globaler Bestätigungsmodus">
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant={confirmations.defaultMode === "modal" ? "secondary" : "ghost"}
+                                        aria-pressed={confirmations.defaultMode === "modal"}
                                         onClick={() =>
-                                            void setDefaultConfirmationMode("modal").then(() => toast("Standard: Modal", "info"))
+                                            void persistConfirmationChange(
+                                                () => setDefaultConfirmationMode("modal"),
+                                                "Standard: Modal",
+                                            )
                                         }
                                     >
                                         Modal
-                                    </Button>
-                                    <Button
+                                    </button>
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant={confirmations.defaultMode === "inline" ? "secondary" : "ghost"}
+                                        aria-pressed={confirmations.defaultMode === "inline"}
                                         onClick={() =>
-                                            void setDefaultConfirmationMode("inline").then(() => toast("Standard: Inline", "info"))
+                                            void persistConfirmationChange(
+                                                () => setDefaultConfirmationMode("inline"),
+                                                "Standard: Inline",
+                                            )
                                         }
                                     >
                                         Inline
-                                    </Button>
+                                    </button>
                                 </div>
                             </div>
-                            <div className="tbl-scroll">
-                                <table className="tbl" style={{ fontSize: 13 }}>
+                            <div className="tbl-scroll settings-confirm-table-wrap">
+                                <table className="tbl tbl-settings-confirm" style={{ fontSize: 13 }}>
                                     <thead>
                                         <tr>
                                             <th scope="col">Bereich</th>
-                                            <th scope="col">Modus</th>
-                                            <th scope="col" style={{ width: 120 }}>
-                                                Wechseln
+                                            <th scope="col">Aktuell</th>
+                                            <th scope="col" style={{ width: 180 }}>
+                                                Modus
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {CONFIRMATION_AREA_KEYS.map((key: ConfirmationAreaKey) => (
-                                            <tr key={key}>
-                                                <td>{CONFIRMATION_AREA_LABELS[key]}</td>
-                                                <td>{modeDisplayLabel(confirmations, key)}</td>
-                                                <td>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() =>
-                                                            void (async () => {
-                                                                const next = cycleAreaOverride(confirmations.areas[key]);
-                                                                await setAreaConfirmationOverride(key, next);
-                                                                toast(
-                                                                    `${CONFIRMATION_AREA_LABELS[key]}: ${next === "inherit" ? "Standard" : next === "modal" ? "Modal" : "Inline"}`,
-                                                                    "info",
-                                                                );
-                                                            })()
-                                                        }
-                                                    >
-                                                        Nächster
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {CONFIRMATION_AREA_KEYS.map((key: ConfirmationAreaKey) => {
+                                            const override = confirmations.areas[key] ?? "inherit";
+                                            return (
+                                                <tr key={key}>
+                                                    <td>{CONFIRMATION_AREA_LABELS[key]}</td>
+                                                    <td>{modeDisplayLabel(confirmations, key)}</td>
+                                                    <td className="settings-confirm-select-cell">
+                                                        <Select
+                                                            id={`confirm-mode-${key}`}
+                                                            className="settings-confirm-select min-w-0"
+                                                            aria-label={`Modus: ${CONFIRMATION_AREA_LABELS[key]}`}
+                                                            value={override}
+                                                            onChange={(e) =>
+                                                                void persistConfirmationChange(
+                                                                    () =>
+                                                                        setAreaConfirmationOverride(
+                                                                            key,
+                                                                            e.target.value as AreaOverride,
+                                                                        ),
+                                                                    `${CONFIRMATION_AREA_LABELS[key]}: ${
+                                                                        e.target.value === "inherit"
+                                                                            ? "Standard"
+                                                                            : e.target.value === "modal"
+                                                                              ? "Modal"
+                                                                              : "Inline"
+                                                                    }`,
+                                                                )
+                                                            }
+                                                            options={AREA_OVERRIDE_OPTIONS.map((o) => ({
+                                                                value: o.value,
+                                                                label:
+                                                                    o.value === "inherit"
+                                                                        ? `Standard (${confirmations.defaultMode === "modal" ? "Modal" : "Inline"})`
+                                                                        : o.label,
+                                                            }))}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

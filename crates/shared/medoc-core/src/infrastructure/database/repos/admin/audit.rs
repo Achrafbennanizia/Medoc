@@ -118,6 +118,34 @@ pub async fn find_paginated(
     Ok((rows, total.0))
 }
 
+/// Recent audit rows for a user filtered by action names (newest first).
+pub async fn find_recent_for_user_actions(
+    pool: &SqlitePool,
+    user_id: &str,
+    actions: &[&str],
+    limit: i64,
+) -> Result<Vec<AuditLog>, AppError> {
+    if actions.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = actions
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("?{}", i + 2))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "SELECT * FROM audit_log WHERE user_id = ?1 AND action IN ({placeholders}) ORDER BY created_at DESC LIMIT ?{}",
+        actions.len() + 2
+    );
+    let mut q = sqlx::query_as::<_, AuditLog>(&sql).bind(user_id);
+    for action in actions {
+        q = q.bind(*action);
+    }
+    q = q.bind(limit);
+    Ok(q.fetch_all(pool).await?)
+}
+
 /// Auditzeilen, die sich auf eine Patienten-ID beziehen (`entity_id` im Log).
 pub async fn find_for_patient_entity(
     pool: &SqlitePool,
@@ -204,6 +232,50 @@ type AuditRow = (
     Option<String>,
     String,
 );
+
+/// Removes legacy demo rows and other placeholders that were inserted without a
+/// valid HMAC chain (e.g. historical seed SQL). Safe to run on every startup.
+pub async fn purge_legacy_placeholder_audit_rows(pool: &SqlitePool) -> Result<u64, AppError> {
+    let result = sqlx::query(
+        "DELETE FROM audit_log WHERE hmac IS NULL OR hmac = '' OR id LIKE 'seed-audit-%'",
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Deletes the broken row and all subsequent audit entries so verification can succeed again.
+pub async fn truncate_audit_chain_from(
+    pool: &SqlitePool,
+    broken_id: &str,
+) -> Result<u64, AppError> {
+    let result = sqlx::query(
+        "DELETE FROM audit_log WHERE rowid >= (SELECT rowid FROM audit_log WHERE id = ?1 LIMIT 1)",
+    )
+    .bind(broken_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Purges placeholders, then truncates from each broken row until the chain verifies.
+pub async fn repair_broken_audit_chain(pool: &SqlitePool) -> Result<u64, AppError> {
+    let mut total = purge_legacy_placeholder_audit_rows(pool).await?;
+    const MAX_ROUNDS: u32 = 256;
+    for _ in 0..MAX_ROUNDS {
+        match verify_chain(pool).await? {
+            None => return Ok(total),
+            Some(broken_id) => {
+                let n = truncate_audit_chain_from(pool, &broken_id).await?;
+                if n == 0 {
+                    return Ok(total);
+                }
+                total += n;
+            }
+        }
+    }
+    Ok(total)
+}
 
 /// Verify the integrity of the entire audit-log chain.
 /// Returns `Ok(broken_at)` where `broken_at` is `None` if the chain is intact,

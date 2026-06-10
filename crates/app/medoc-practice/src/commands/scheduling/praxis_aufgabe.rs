@@ -1,8 +1,10 @@
 //! FA-AUFG-01..06 — Praxis-Aufgaben (bidirektional, Statusmaschine).
-use crate::application::rbac::{self, Role};
+use crate::application::auth_service::Session;
+use crate::application::rbac::{self, effective_allowed, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::praxis_aufgabe::{
-    CreatePraxisAufgabe, PraxisAufgabe, TransitionPraxisAufgabeArgs, UpdatePraxisAufgabeAdmin,
+    AddPraxisAufgabeKommentarArgs, CreatePraxisAufgabe, PraxisAufgabe, PraxisAufgabeKommentar,
+    TransitionPraxisAufgabeArgs, UpdatePraxisAufgabeAdmin,
 };
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
@@ -13,6 +15,28 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 const AUFGABE_TYPS: &[&str] = &["ABRECHNUNG", "TERMIN", "DRUCK", "STAMMDATEN", "SONSTIGES"];
+
+/// Posteingang visibility or Praxis-Aufgaben admin (`verwaltung.read`).
+fn assert_aufgabe_readable(
+    session: &Session,
+    role: Role,
+    a: &PraxisAufgabe,
+) -> Result<(), AppError> {
+    if effective_allowed("verwaltung.read", role, &session.permission_overrides) {
+        return Ok(());
+    }
+    crate::domain::services::aufgabe_visibility::assert_user_can_view_aufgabe(
+        a,
+        &session.user_id,
+        role,
+    )
+}
+
+fn normalize_patient_id(raw: Option<&str>) -> Option<String> {
+    raw.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
 
 fn normalize_typ(raw: &str) -> Result<String, AppError> {
     let t = raw.trim().to_uppercase();
@@ -39,22 +63,40 @@ pub async fn create_praxis_aufgabe(
     if titel.is_empty() {
         return Err(AppError::Validation("Titel darf nicht leer sein.".into()));
     }
-    patient_repo::find_by_id(&pool, &data.patient_id)
+    let patient_id = normalize_patient_id(data.patient_id.as_deref());
+    let pid = patient_id
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("Patient erforderlich.".into()))?;
+    patient_repo::find_by_id(&pool, pid)
         .await?
         .ok_or(AppError::NotFound("Patient".into()))?;
 
     let mut payload = data;
+    payload.patient_id = patient_id;
     payload.typ = normalize_typ(&payload.typ)?;
     payload.titel = titel;
 
     match role {
         Role::Arzt => {
-            if payload.assignee_role.as_deref() != Some("REZEPTION") {
-                return Err(AppError::Validation(
-                    "Arzt legt Aufgaben an die Rezeption an (assigneeRole = REZEPTION).".into(),
-                ));
+            if let Some(rid) = payload
+                .assignee_user_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                let rez = personal_repo::find_by_id(&pool, rid)
+                    .await?
+                    .ok_or(AppError::NotFound("Personal".into()))?;
+                if !rez.rolle.eq_ignore_ascii_case("REZEPTION") {
+                    return Err(AppError::Validation(
+                        "Ziel muss ein Rezeptions-Mitarbeiter sein.".into(),
+                    ));
+                }
+                payload.assignee_role = None;
+            } else {
+                payload.assignee_role = Some("REZEPTION".into());
+                payload.assignee_user_id = None;
             }
-            payload.assignee_user_id = None;
         }
         Role::Rezeption => {
             let aid = payload
@@ -99,17 +141,10 @@ pub async fn list_praxis_aufgaben_for_me(
     let session = rbac::require_authenticated(&session_state)?;
     let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
     match role {
-        Role::Rezeption => praxis_aufgabe_repo::list_posteingang_rezeption(&pool, 200).await,
-        Role::Arzt => {
-            let mut rows =
-                praxis_aufgabe_repo::list_posteingang_arzt(&pool, &session.user_id, 200).await?;
-            let pending =
-                praxis_aufgabe_repo::list_pending_validation(&pool, &session.user_id, 200).await?;
-            rows.extend(pending);
-            rows.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-            rows.dedup_by_key(|a| a.id.clone());
-            Ok(rows)
+        Role::Rezeption => {
+            praxis_aufgabe_repo::list_for_user(&pool, &session.user_id, true, 200).await
         }
+        Role::Arzt => praxis_aufgabe_repo::list_for_user(&pool, &session.user_id, false, 200).await,
         _ => Err(AppError::Unauthorized),
     }
 }
@@ -128,6 +163,22 @@ pub async fn transition_praxis_aufgabe(
         .await?
         .ok_or(AppError::NotFound("Aufgabe".into()))?;
 
+    let can_admin_status =
+        effective_allowed("aufgabe.status.admin", role, &session.permission_overrides);
+    if !can_admin_status {
+        crate::domain::services::aufgabe_visibility::assert_user_can_view_aufgabe(
+            &current,
+            &session.user_id,
+            role,
+        )?;
+    }
+
+    let can_fulfill_status = effective_allowed(
+        "aufgabe.status.fulfill",
+        role,
+        &session.permission_overrides,
+    );
+
     workflow_transitions::praxis_aufgabe_status_transition(
         &current.status,
         &st,
@@ -136,6 +187,8 @@ pub async fn transition_praxis_aufgabe(
         current.assignee_user_id.as_deref(),
         &current.created_by,
         &session.user_id,
+        can_fulfill_status,
+        can_admin_status,
     )?;
 
     if st == "ERLEDIGT_REZEPTION" {
@@ -183,6 +236,15 @@ pub async fn transition_praxis_aufgabe(
         args.erledigt_notiz.as_deref(),
     )
     .await?;
+    crate::application::praxis_aufgabe_notify::notify_assignees_if_aufgabe_zurueck(
+        &pool,
+        &current,
+        &out,
+        &st,
+        &session.user_id,
+        args.zurueck_begruendung.as_deref(),
+    )
+    .await?;
 
     audit_repo::create(
         &pool,
@@ -206,8 +268,12 @@ pub async fn count_open_praxis_aufgaben_for_me(
     let session = rbac::require_authenticated(&session_state)?;
     let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
     match role {
-        Role::Rezeption => praxis_aufgabe_repo::count_open_for_rezeption(&pool).await,
-        Role::Arzt => praxis_aufgabe_repo::count_open_for_arzt(&pool, &session.user_id).await,
+        Role::Rezeption => {
+            praxis_aufgabe_repo::count_open_for_user(&pool, &session.user_id, true).await
+        }
+        Role::Arzt => {
+            praxis_aufgabe_repo::count_open_for_user(&pool, &session.user_id, false).await
+        }
         _ => Ok(0),
     }
 }
@@ -234,11 +300,15 @@ pub async fn create_praxis_aufgabe_admin(
     if titel.is_empty() {
         return Err(AppError::Validation("Titel darf nicht leer sein.".into()));
     }
-    patient_repo::find_by_id(&pool, &data.patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patient".into()))?;
+    let patient_id = normalize_patient_id(data.patient_id.as_deref());
+    if let Some(pid) = patient_id.as_deref() {
+        patient_repo::find_by_id(&pool, pid)
+            .await?
+            .ok_or(AppError::NotFound("Patient".into()))?;
+    }
 
     let mut payload = data;
+    payload.patient_id = patient_id;
     payload.typ = normalize_typ(&payload.typ)?;
     payload.titel = titel;
     if payload
@@ -279,6 +349,7 @@ pub async fn update_praxis_aufgabe_admin(
     patch: UpdatePraxisAufgabeAdmin,
 ) -> Result<PraxisAufgabe, AppError> {
     let session = rbac::require(&session_state, "verwaltung.read")?;
+    let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
     if patch
         .titel
         .as_deref()
@@ -290,6 +361,20 @@ pub async fn update_praxis_aufgabe_admin(
     if let Some(t) = patch.typ.as_deref() {
         normalize_typ(t)?;
     }
+    if let Some(next_status) = patch.status.as_deref() {
+        let current = praxis_aufgabe_repo::find_by_id(&pool, &patch.id)
+            .await?
+            .ok_or(AppError::NotFound("Aufgabe".into()))?;
+        let st = next_status.trim().to_uppercase();
+        if st != current.status.trim().to_uppercase()
+            && !effective_allowed("aufgabe.status.admin", role, &session.permission_overrides)
+        {
+            return Err(AppError::Unauthorized);
+        }
+        if st != current.status.trim().to_uppercase() {
+            workflow_transitions::praxis_aufgabe_admin_status_transition(&current.status, &st)?;
+        }
+    }
     let out = praxis_aufgabe_repo::update_admin(&pool, &patch).await?;
     audit_repo::create(
         &pool,
@@ -298,6 +383,55 @@ pub async fn update_praxis_aufgabe_admin(
         "PraxisAufgabe",
         Some(&patch.id),
         Some("admin"),
+    )
+    .await
+    .ok();
+    Ok(out)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_praxis_aufgabe_kommentare(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    aufgabe_id: String,
+) -> Result<Vec<PraxisAufgabeKommentar>, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
+    let current = praxis_aufgabe_repo::find_by_id(&pool, &aufgabe_id)
+        .await?
+        .ok_or(AppError::NotFound("Aufgabe".into()))?;
+    assert_aufgabe_readable(&session, role, &current)?;
+    praxis_aufgabe_repo::list_kommentare(&pool, &aufgabe_id, 200).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, args))]
+pub async fn add_praxis_aufgabe_kommentar(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    args: AddPraxisAufgabeKommentarArgs,
+) -> Result<PraxisAufgabeKommentar, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
+    let current = praxis_aufgabe_repo::find_by_id(&pool, &args.aufgabe_id)
+        .await?
+        .ok_or(AppError::NotFound("Aufgabe".into()))?;
+    assert_aufgabe_readable(&session, role, &current)?;
+    let out = praxis_aufgabe_repo::insert_kommentar(
+        &pool,
+        &args.aufgabe_id,
+        &session.user_id,
+        &args.body,
+    )
+    .await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "CREATE",
+        "PraxisAufgabeKommentar",
+        Some(&out.id),
+        Some(&args.aufgabe_id),
     )
     .await
     .ok();
@@ -315,6 +449,8 @@ macro_rules! register_praxis_aufgabe_commands {
             $crate::commands::praxis_aufgabe_commands::list_praxis_aufgaben_admin,
             $crate::commands::praxis_aufgabe_commands::create_praxis_aufgabe_admin,
             $crate::commands::praxis_aufgabe_commands::update_praxis_aufgabe_admin,
+            $crate::commands::praxis_aufgabe_commands::list_praxis_aufgabe_kommentare,
+            $crate::commands::praxis_aufgabe_commands::add_praxis_aufgabe_kommentar,
         );
     };
 }

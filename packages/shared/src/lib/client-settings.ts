@@ -10,13 +10,15 @@ import {
     readLegacyAccentFromStorage,
     type AccentId,
 } from "./accent-preset";
+import { normalizeFontStack, type FontStackId } from "./font-stack-preset";
+
+export type { FontStackId } from "./font-stack-preset";
+export { normalizeFontStack } from "./font-stack-preset";
 
 export type DensityId = "compact" | "cozy" | "spacious";
 
 /** Standard-Ansicht Terminübersicht (`/termine`). */
 export type TermineKalenderAnsicht = "tag" | "woche" | "monat";
-
-export type FontStackId = "inter" | "system";
 
 /** Erscheinungsbild: Hell / Dunkel / System (letzteres folgt `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
@@ -29,7 +31,7 @@ export type ClientSettingsV1 = {
         /** Bei hellem Erscheinungsbild: nur Seitenleiste dunkel. */
         darkSidebar: boolean;
         density: DensityId;
-        /** «Systemschrift» vs Inter — steuert `html[data-font-stack]`. */
+        /** Schriftart — steuert `html[data-font-stack]`. */
         fontStack?: FontStackId;
         /** Marken-Akzent (CSS --accent / --accent-soft / --accent-ink). */
         accentPreset?: AccentId;
@@ -211,7 +213,7 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     const accent = normalizeAccentId(s.appearance?.accentPreset);
     applyAccentPresetToDocument(accent, resolved);
     mirrorAccentToLegacyStorage(accent);
-    const fs = s.appearance?.fontStack === "system" ? "system" : "inter";
+    const fs = normalizeFontStack(s.appearance?.fontStack);
     document.documentElement.dataset.fontStack = fs;
 }
 

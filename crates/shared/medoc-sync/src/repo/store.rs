@@ -14,15 +14,38 @@ use super::types::{OutboxEntry, SyncPeer, SyncStatusSnapshot, SYNCED_TABLES};
 
 pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<String, AppError> {
     ensure_sync_tables(pool).await?;
+    let display_name = if label.is_empty() {
+        "Dieses Gerät"
+    } else {
+        label
+    };
     let existing =
         medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await?;
     if let Some(id) = existing.filter(|s| !s.is_empty()) {
-        register_device_row(pool, &id, label, DeviceRole::Master, true, None, None).await?;
+        register_device_row(
+            pool,
+            &id,
+            display_name,
+            DeviceRole::Master,
+            true,
+            None,
+            None,
+        )
+        .await?;
         return Ok(id);
     }
     let id = Uuid::new_v4().to_string();
     medoc_core::infrastructure::database::app_kv_repo::set(pool, APP_KV_DEVICE_ID_KEY, &id).await?;
-    register_device_row(pool, &id, label, DeviceRole::Master, true, None, None).await?;
+    register_device_row(
+        pool,
+        &id,
+        display_name,
+        DeviceRole::Master,
+        true,
+        None,
+        None,
+    )
+    .await?;
     Ok(id)
 }
 

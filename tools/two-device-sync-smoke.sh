@@ -1,32 +1,39 @@
 #!/usr/bin/env bash
 # Two-device serverless sync smoke — headless proxy for T-S2 / W8.
 #
-# Usage (host A = master):
-#   export MEDOC_MASTER_URL=https://127.0.0.1:8787
-#   export MEDOC_MASTER_DATA_DIR=/tmp/medoc-master-smoke
+# Usage (automated — default):
 #   bash tools/two-device-sync-smoke.sh
 #
-# Requires: medoc-server running on MEDOC_MASTER_URL, license activated, pairing enabled.
-# Live Tauri sign-off: docs/coordination/g21-live-smoke-checklist.md (serverless rows).
+# Live Tauri sign-off (second host): docs/coordination/g21-live-smoke-checklist.md
+#
+# Env:
+#   AUTO_ONLY=1     — exit after automated checks (default)
+#   AUTO_ONLY=0     — print manual live steps after automated proxy
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-MASTER_URL="${MEDOC_MASTER_URL:-https://127.0.0.1:8787}"
-MASTER_DATA_DIR="${MEDOC_MASTER_DATA_DIR:-/tmp/medoc-two-device-master}"
+AUTO_ONLY="${AUTO_ONLY:-1}"
 
 echo "== Two-device sync smoke (W8 / T-S2) =="
-echo "Master URL: $MASTER_URL"
 echo "Tier-1 tables: patient, termin, rezept, praxis_ticket, praxis_aufgabe (+ 10 more)"
 
+export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
+
 if [[ -x "$ROOT/scripts/validate-docker-multi-device.sh" ]]; then
-  echo "Running Docker port e2e proxy (16+ tests incl. rezept + praxis_ticket)..."
+  echo "Running Docker port e2e proxy (17 tests incl. rezept + praxis_ticket + mesh)..."
   bash "$ROOT/scripts/validate-docker-multi-device.sh"
 else
   echo "WARN: validate-docker-multi-device.sh not found — running in-process e2e subset"
-  export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
   cargo test -p medoc-e2e --test activation_token_rbac --test three_replica_conflict_matrix --test mesh_peer_delivery
+fi
+
+echo ""
+echo "=== PASS (automated two-device proxy) ==="
+
+if [[ "$AUTO_ONLY" == "1" ]]; then
+  exit 0
 fi
 
 echo ""

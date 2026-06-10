@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon } from "@/lib/icons";
 import type { PraxisArbeitszeitenConfig, PraxisDayKey, PraxisDayPlan } from "@/lib/praxis-planning";
 import { loadPraxisArbeitszeitenConfig, savePraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/praxis-arbeitszeiten-validation";
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { useRbac } from "@/lib/use-rbac";
 import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 
 const DAY_ORDER: readonly PraxisDayKey[] = ["mo", "di", "mi", "do", "fr", "sa", "so"];
@@ -81,6 +82,7 @@ export function ArbeitszeitenPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const tr = useT();
+    const { canWritePraxisplanung } = useRbac();
     const [storedCfg, setStoredCfg] = useState<PraxisArbeitszeitenConfig | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<string>(PRACTICE_PROFILE_KEY);
     const [plan, setPlan] = useState<ArbeitszeitenPlan>(() => clonePlan(defaultPlan));
@@ -245,39 +247,40 @@ export function ArbeitszeitenPage() {
             : (aerzte.find((x) => x.id === selectedProfile)?.name ?? selectedProfile);
 
     return (
-        <div className="arbeitszeiten-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title" style={{ margin: 0 }}>{tr("page.arbeitszeiten.title")}</h2>
-                    <p className="page-sub" style={{ marginTop: 4 }}>
-                        {formatTpl(tr("page.arbeitszeiten.active_days"), { count: activeDays })}
-                    </p>
-                    <p className="page-sub" style={{ marginTop: 4 }}>
-                        {editing ? tr("page.arbeitszeiten.subtitle_editing") : tr("page.arbeitszeiten.subtitle_readonly")}
-                    </p>
-                </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {!editing ? (
-                        <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-                            <EditIcon size={14} />
-                            {" "}
-                            {tr("page.arbeitszeiten.edit")}
-                        </Button>
-                    ) : (
-                        <>
-                            <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saving}>
-                                {tr("page.arbeitszeiten.cancel")}
+        <div className="arbeitszeiten-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title={tr("page.arbeitszeiten.title")}
+                subtitle={
+                    <>
+                        <p className="page-sub" style={{ marginTop: 0 }}>
+                            {formatTpl(tr("page.arbeitszeiten.active_days"), { count: activeDays })}
+                        </p>
+                        <p className="page-sub" style={{ marginTop: 4 }}>
+                            {editing ? tr("page.arbeitszeiten.subtitle_editing") : tr("page.arbeitszeiten.subtitle_readonly")}
+                        </p>
+                    </>
+                }
+                actions={
+                    canWritePraxisplanung ? (
+                        !editing ? (
+                            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+                                <EditIcon size={14} />
+                                {" "}
+                                {tr("page.arbeitszeiten.edit")}
                             </Button>
-                            <Button type="button" onClick={() => void save()} disabled={saving} loading={saving}>
-                                {tr("page.arbeitszeiten.save")}
-                            </Button>
-                        </>
-                    )}
-                </div>
-            </div>
+                        ) : (
+                            <>
+                                <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saving}>
+                                    {tr("page.arbeitszeiten.cancel")}
+                                </Button>
+                                <Button type="button" onClick={() => void save()} disabled={saving} loading={saving}>
+                                    {tr("page.arbeitszeiten.save")}
+                                </Button>
+                            </>
+                        )
+                    ) : null
+                }
+            />
 
             <div className="card card-pad">
                 <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.arbeitszeiten.behandler_section_title")}</h2>

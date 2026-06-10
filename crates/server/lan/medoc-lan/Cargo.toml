@@ -44,3 +44,14 @@ sqlx = { version = "0.8", default-features = false, features = [
 ] }
 # Pulls in the same SQLCipher-enabled sqlite as the practice + medoc-core crates.
 libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+axum = { version = "0.8", features = ["macros", "json"] }
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+serde_json = "1"
+base64 = { version = "0.22", features = ["std"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+chrono = { version = "0.4", features = ["serde"] }
+serial_test = "3"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Card, CardHeader } from "../components/ui/card";
@@ -564,31 +564,26 @@ export function VerwaltungVertraegePage() {
     })();
 
     return (
-        <div className="verwaltung-menu-page animate-fade-in">
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Verträge</h2>
-                    <p className="page-sub" style={{ maxWidth: 640, marginTop: 4 }}>
-                        Laufende Kosten: Betrag pro Tag, Woche, Monat oder Jahr; unbefristet oder mit Laufzeit — Liste links, Details rechts.
-                    </p>
-                </div>
-                {canWrite ? (
-                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                        {creating ? "Abbrechen" : "+ Vertrag erfassen"}
-                    </Button>
-                ) : null}
-            </div>
+        <div className="verwaltung-menu-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title="Verträge"
+                subtitle="Laufende Kosten: Betrag pro Tag, Woche, Monat oder Jahr; unbefristet oder mit Laufzeit — Liste links, Details rechts."
+                actions={
+                    canWrite ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                            {creating ? "Abbrechen" : "+ Vertrag erfassen"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             {!hydrated ? (
                 <p className="page-sub" style={{ margin: 0 }}>Lade Verträge…</p>
             ) : (
                 <div className="produkte-workspace">
                     <div className="produkte-workspace__list">
-                        <div className="card produkte-table-card" style={{ overflow: "auto" }}>
-                            <table className="tbl produkte-tbl" style={{ minWidth: 600 }}>
+                        <div className="card produkte-table-card tbl-data-card tbl-scroll">
+                            <table className="tbl produkte-tbl tbl-fluid">
                                 <thead>
                                     <tr>
                                         <th scope="col" style={{ width: 40 }} aria-hidden> </th>

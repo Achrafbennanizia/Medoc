@@ -16,6 +16,8 @@ import {
 } from "@/systems/practice-host/controllers/compliance.controller";
 import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 type ReportKind = "vvt" | "dsfa" | "retention";
 
@@ -226,7 +228,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+        <div className={`${embedded ? "" : "praxis-workspace-page "}animate-fade-in`}>
             <style>{`
                 @media print {
                     .compliance-no-print { display: none !important; }
@@ -234,51 +236,57 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 }
             `}</style>
 
-            <header>
-                <h1 className="page-title">{t("nav.compliance") || "Compliance"}</h1>
-                <p style={{ color: "var(--fg-3)", fontSize: 14 }}>
-                    DSGVO Art. 30 (VVT), Art. 35 (DSFA), Log-Retention
-                </p>
-            </header>
+            <WorkspacePageHeader
+                className="compliance-no-print"
+                titleLevel="h1"
+                title={t("nav.compliance") || "Compliance"}
+                subtitle="DSGVO Art. 30 (VVT), Art. 35 (DSFA), Log-Retention"
+                actions={
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        {!embedded ? (
+                            <>
+                                <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
+                                    {t("compliance.cta_feedback")}
+                                </Button>
+                                <Button type="button" variant="secondary" onClick={() => navigate("/hilfe")}>
+                                    {t("compliance.cta_hilfe")}
+                                </Button>
+                            </>
+                        ) : null}
+                        <Button type="button" onClick={() => run("vvt")} disabled={loading}>
+                            VVT generieren
+                        </Button>
+                        <Button type="button" onClick={() => run("dsfa")} disabled={loading}>
+                            DSFA generieren
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => run("retention")} disabled={loading}>
+                            Log-Retention durchsetzen
+                        </Button>
+                        {report ? (
+                            <>
+                                <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
+                                    JSON kopieren
+                                </Button>
+                                <ReportExportToolbar
+                                    dialogTitle="Export — Compliance"
+                                    buildBundle={buildExportBundle}
+                                    defaultFormat="pdf"
+                                    showImport
+                                />
+                                <Button type="button" variant="secondary" onClick={printReport}>
+                                    Bericht drucken
+                                </Button>
+                            </>
+                        ) : null}
+                    </div>
+                }
+            />
 
-            <div className="compliance-no-print row" style={{ gap: 8, flexWrap: "wrap" }}>
-                {!embedded ? (
-                    <>
-                        <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
-                            {t("compliance.cta_feedback")}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => navigate("/hilfe")}>
-                            {t("compliance.cta_hilfe")}
-                        </Button>
-                    </>
-                ) : null}
-                <Button type="button" onClick={() => run("vvt")} disabled={loading}>
-                    VVT generieren
-                </Button>
-                <Button type="button" onClick={() => run("dsfa")} disabled={loading}>
-                    DSFA generieren
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => run("retention")} disabled={loading}>
-                    Log-Retention durchsetzen
-                </Button>
-                {report ? (
-                    <>
-                        <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
-                            JSON kopieren
-                        </Button>
-                        <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
-                        <Button type="button" variant="secondary" onClick={printReport}>
-                            Bericht drucken
-                        </Button>
-                    </>
-                ) : null}
-            </div>
-
-            {error && (
-                <div role="alert" className="card card-pad compliance-no-print" style={{ color: "var(--red)" }}>
+            {error ? (
+                <DismissibleNotice variant="error" role="alert" className="compliance-no-print" title="Fehler">
                     {error}
-                </div>
-            )}
+                </DismissibleNotice>
+            ) : null}
 
             {report && (
                 <div className="card card-pad compliance-report-print">

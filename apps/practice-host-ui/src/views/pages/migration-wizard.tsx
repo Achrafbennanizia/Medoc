@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useT } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { Input } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
@@ -113,11 +114,12 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <header>
-                <h1 className="page-title">{t("page.migration.title")}</h1>
-                <p style={{ color: "var(--fg-3)", fontSize: 14, maxWidth: 720 }}>{t("page.migration.intro")}</p>
-            </header>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={t("page.migration.title")}
+                subtitle={t("page.migration.intro")}
+            />
 
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }} aria-hidden>
                 {Array.from({ length: STEP_COUNT }, (_, i) => (

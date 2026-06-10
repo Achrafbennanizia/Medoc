@@ -27,6 +27,11 @@ export function patientDetailTabBlocked(tab: PatientDetailAkteTab, canViewClinic
     return (CLINICAL_PATIENT_DETAIL_TABS as readonly PatientDetailAkteTab[]).includes(tab);
 }
 
+/** Whether the akte sub-nav tab should render (RBAC: hide blocked tabs for REZEPTION). */
+export function patientDetailTabVisible(tab: PatientDetailAkteTab, canViewClinical: boolean): boolean {
+    return !patientDetailTabBlocked(tab, canViewClinical);
+}
+
 export type RezeptWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 export type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 

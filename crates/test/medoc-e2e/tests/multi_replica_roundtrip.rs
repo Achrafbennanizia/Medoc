@@ -53,19 +53,8 @@ async fn pair_replica(lan: &mut LanHarness, jwt: &str, seed: u8, device_id: &str
     assert_eq!(status, StatusCode::OK, "submit: {submitted:?}");
     let request_id = submitted["id"].as_str().expect("id").to_string();
 
-    let (status, decided) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(jwt),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "decide: {decided:?}");
-    decided["activationToken"]
-        .as_str()
-        .expect("activation token")
-        .to_string()
+    lan.pairing_decide_accept_and_confirm(&request_id, jwt)
+        .await
 }
 
 fn patient_entry(

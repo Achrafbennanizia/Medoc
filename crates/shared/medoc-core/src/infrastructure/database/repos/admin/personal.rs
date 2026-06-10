@@ -1,5 +1,5 @@
 use crate::domain::entities::personal::{CreatePersonal, UpdatePersonal};
-use crate::domain::entities::{AerztSummary, Personal};
+use crate::domain::entities::{AerztSummary, AufgabeTeamMember, Personal};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
@@ -7,6 +7,29 @@ use sqlx::SqlitePool;
 pub async fn find_arzt_summaries(pool: &SqlitePool) -> Result<Vec<AerztSummary>, AppError> {
     let rows = sqlx::query_as::<_, AerztSummary>(
         "SELECT id, name FROM personal WHERE UPPER(rolle) = 'ARZT' ORDER BY name",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Arzt + Rezeption names for Praxis-Aufgaben UI (no `personal.read` required).
+pub async fn find_user_ids_by_role(pool: &SqlitePool, role: &str) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM personal WHERE UPPER(rolle) = UPPER(?1) ORDER BY name")
+            .bind(role)
+            .fetch_all(pool)
+            .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
+pub async fn find_aufgabe_team_summaries(
+    pool: &SqlitePool,
+) -> Result<Vec<AufgabeTeamMember>, AppError> {
+    let rows = sqlx::query_as::<_, AufgabeTeamMember>(
+        "SELECT id, name, rolle FROM personal
+         WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')
+         ORDER BY name",
     )
     .fetch_all(pool)
     .await?;

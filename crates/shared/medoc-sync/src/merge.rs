@@ -354,4 +354,15 @@ mod tests {
             assert!(sanitize_table(table).is_ok(), "{table}");
         }
     }
+
+    #[test]
+    fn parse_ts_str_handles_rfc3339_and_sqlite_naive() {
+        use super::parse_ts_str;
+        assert!(parse_ts_str("2099-01-01T00:00:00Z").is_some());
+        assert!(parse_ts_str("2099-01-01 00:00:00").is_some());
+        assert!(parse_ts_str("2099-01-01 00:00:00.123").is_some());
+        assert!(parse_ts_str("").is_none());
+        assert!(parse_ts_str("   ").is_none());
+        assert!(parse_ts_str("not-a-date").is_none());
+    }
 }

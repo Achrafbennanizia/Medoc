@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n";
 import { AboutAppDialog } from "../components/app-help-dialogs";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 export type HilfePageProps = {
     /** In Einstellungen eingebettet: keine Sprünge zu anderen Routen */
@@ -33,11 +34,12 @@ export function HilfePage({ embedded = false }: HilfePageProps = {}) {
     );
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <header>
-                <h1 className="page-title">{t("page.hilfe.title")}</h1>
-                <p style={{ color: "var(--fg-3)", fontSize: 14, maxWidth: 720, lineHeight: 1.55 }}>{t("page.hilfe.intro")}</p>
-            </header>
+        <div className={`${embedded ? "" : "praxis-workspace-page "}animate-fade-in`}>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={t("page.hilfe.title")}
+                subtitle={t("page.hilfe.intro")}
+            />
 
             <Card>
                 <CardHeader title={t("page.hilfe.section_shortcuts")} />

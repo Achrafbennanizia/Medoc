@@ -10,8 +10,10 @@ import {
 } from "@/systems/practice-host/controllers/logging.controller";
 import { Button } from "../components/ui/button";
 import { errorMessage } from "@/lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { ExportIcon } from "@/lib/icons";
+import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 
@@ -23,6 +25,7 @@ export function LoggingPage() {
     const [message, setMessage] = useState<string | null>(null);
     const [initLoading, setInitLoading] = useState(true);
     const [initError, setInitError] = useState<string | null>(null);
+    const [exportPickerOpen, setExportPickerOpen] = useState(false);
 
     const loadMeta = useCallback(async () => {
         setInitLoading(true);
@@ -57,24 +60,16 @@ export function LoggingPage() {
         }
     }
 
-    async function handleExport() {
-        setBusy(true);
-        setMessage(null);
-        try {
-            const bytes = await exportLogs();
-            openExportPreview({
-                format: "zip",
-                title: "Log-Export",
-                hint: "Letzte 7 Tage, maskierte Protokolldateien. ZIP-Vorschau nicht tabellarisch.",
-                suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
-                binaryBody: new Uint8Array(bytes),
-            });
-        } catch (e: unknown) {
-            setMessage(`Export fehlgeschlagen: ${errorMessage(e)}`);
-        } finally {
-            setBusy(false);
-        }
-    }
+    const resolveLogExport = useCallback(async () => {
+        const bytes = await exportLogs();
+        return {
+            exportTitle: "Log-Export",
+            hint: "Letzte 7 Tage, maskierte Protokolldateien.",
+            suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
+            binaryBody: new Uint8Array(bytes),
+            mime: "application/zip",
+        };
+    }, []);
 
     async function handleVerify() {
         setBusy(true);
@@ -95,24 +90,24 @@ export function LoggingPage() {
 
     if (initLoading) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-                <h2 className="page-title">Logs &amp; Observability</h2>
+            <div className="praxis-workspace-page animate-fade-in">
+                <WorkspacePageHeader title="Logs & Observability" />
                 <PageLoading label="Log-Einstellungen werden geladen…" />
             </div>
         );
     }
     if (initError) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-                <h2 className="page-title">Logs &amp; Observability</h2>
+            <div className="praxis-workspace-page animate-fade-in">
+                <WorkspacePageHeader title="Logs & Observability" />
                 <PageLoadError message={initError} onRetry={() => void loadMeta()} />
             </div>
         );
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <h2 className="page-title">Logs &amp; Observability</h2>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader title="Logs & Observability" />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <h3 className="text-title">Log-Level</h3>
@@ -151,8 +146,8 @@ export function LoggingPage() {
                     Support-Anfragen. Sensible Werte werden automatisch maskiert
                     (NFA-LOG-09).
                 </p>
-                <Button type="button" variant="secondary" onClick={() => void handleExport()} disabled={busy}>
-                    Logs als ZIP exportieren
+                <Button type="button" variant="secondary" onClick={() => setExportPickerOpen(true)} disabled={busy}>
+                    <ExportIcon size={14} /> Exportieren
                 </Button>
             </div>
 
@@ -170,6 +165,15 @@ export function LoggingPage() {
             {message && (
                 <div className="card card-pad">{message}</div>
             )}
+            <DataExportPickerDialog
+                open={exportPickerOpen}
+                onClose={() => setExportPickerOpen(false)}
+                title="Export — Logs"
+                description="ZIP-Archiv der letzten 7 Tage (maskiert)."
+                formats={[{ value: "zip", label: "ZIP-Archiv" }]}
+                defaultFormat="zip"
+                resolvePayload={resolveLogExport}
+            />
         </div>
     );
 }

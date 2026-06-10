@@ -48,6 +48,9 @@ fixiert (deterministische Builds).
 | `regex` | 1 | Pattern-Matching | Apache-2.0/MIT | Niedrig | Backtracking begrenzt |
 | `dirs` | 5 | OS-Pfad-Auflösung | Apache-2.0/MIT | Niedrig | Read-only Helper |
 | `filetime` (dev) | 0.2 | Test-Helfer | Apache-2.0/MIT | Niedrig | Nur Tests |
+| `snow` | 0.9 | **Noise XX/KK Handshake (Geräteverbund L5)** | Apache-2.0/MIT | **Hoch** | Pin in `Cargo.lock`, `cargo audit`, LAN-only bind guard |
+| `mdns-sd` | 0.11 | **mDNS `_medoc-verbund._tcp` Discovery** | Apache-2.0/MIT | **Hoch** | Keine Patientendaten in TXT; nur Cluster-Metadaten |
+| `ciborium` | 0.2 | **CBOR Wire-Codec (Geräteverbund L6/L7)** | Apache-2.0/MIT | **Hoch** | Length-prefixed frames, max 4 MiB |
 
 ### Transitive Dependencies
 Werden über `cargo tree` reproduzierbar erfasst. CI-Job `cargo audit` läuft

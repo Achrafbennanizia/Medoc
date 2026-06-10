@@ -287,7 +287,8 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
             user_agent TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-            ended_at TEXT
+            ended_at TEXT,
+            trusted_at TEXT
         )",
     )
     .execute(pool)
@@ -955,7 +956,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS praxis_aufgabe (
             id TEXT PRIMARY KEY,
-            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            patient_id TEXT REFERENCES patient(id) ON DELETE SET NULL,
             typ TEXT NOT NULL DEFAULT 'SONSTIGES',
             titel TEXT NOT NULL,
             body TEXT,
@@ -989,6 +990,24 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     .await?;
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_creator ON praxis_aufgabe(created_by, status, datetime(updated_at) DESC)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS praxis_aufgabe_kommentar (
+            id TEXT PRIMARY KEY,
+            aufgabe_id TEXT NOT NULL REFERENCES praxis_aufgabe(id) ON DELETE CASCADE,
+            author_id TEXT NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_praxis_aufgabe_kommentar_aufgabe
+         ON praxis_aufgabe_kommentar(aufgabe_id, datetime(created_at) ASC)",
     )
     .execute(pool)
     .await?;

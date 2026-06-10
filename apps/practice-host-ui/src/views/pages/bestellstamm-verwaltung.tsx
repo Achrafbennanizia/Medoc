@@ -21,7 +21,7 @@ import { Input, Select } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { TrashIcon } from "@/lib/icons";
 import { ProduktFormFields } from "../components/produkt-form-shared";
 import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt-form-model";
@@ -221,23 +221,24 @@ export function BestellstammVerwaltungPage() {
     if (status === "loading") return <PageLoading label="Stammdaten werden geladen…" />;
     if (status === "error" && loadError) {
         return (
-            <div className="animate-fade-in--sticky-safe space-y-4">
-                <VerwaltungBackButton />
+            <div className="praxis-workspace-page animate-fade-in--sticky-safe">
+                <VerwaltungPageHeader title="Bestell-Stammdaten" />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-            <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <VerwaltungBackButton />
-                <h1 className="page-title" style={{ margin: 0 }}>Bestell-Stammdaten</h1>
-            </div>
-            <p className="page-sub" style={{ maxWidth: 720, margin: 0 }}>
-                Lieferanten und Pharmaberater/Kontakte vordefinieren; Kombinationen erscheinen als Schnellwahl in{" "}
-                <b>Neue Bestellung</b>. Freie Eingabe bleibt möglich.
-            </p>
+        <div className="praxis-workspace-page animate-fade-in--sticky-safe">
+            <VerwaltungPageHeader
+                titleLevel="h1"
+                title="Bestell-Stammdaten"
+                subtitle={
+                    <>
+                        Lieferanten und Pharmaberater/Kontakte vordefinieren; Kombinationen erscheinen als Schnellwahl in <b>Neue Bestellung</b>. Freie Eingabe bleibt möglich.
+                    </>
+                }
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="card card-pad">
@@ -403,8 +404,8 @@ export function BestellstammVerwaltungPage() {
                 </div>
 
                 {vorlagen.length > 0 ? (
-                    <div style={{ overflowX: "auto", marginTop: 16 }}>
-                        <table className="tbl">
+                    <div style={{ overflowX: "auto", marginTop: 16 }} className="tbl-scroll">
+                        <table className="tbl tbl-fluid">
                             <thead>
                                 <tr>
                                     <th>Lieferant</th>

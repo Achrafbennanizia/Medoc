@@ -3,7 +3,7 @@
  *
  * Tauri v2 transforms snake_case Rust arg names to camelCase at the IPC boundary.
  * This module defines the canonical FE-side TypeScript contract; matching Rust
- * structs live in `app/src-tauri/src/commands/list_params.rs`.
+ * structs live in `crates/app/medoc-practice/src/commands/list_params.rs`.
  */
 
 export interface ListParams {

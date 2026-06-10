@@ -32,7 +32,7 @@ import { Input, Textarea, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
 const todayYmd = () => new Date().toISOString().slice(0, 10);
 
@@ -333,16 +333,16 @@ export function VerwaltungFinanzWerkzeugePage() {
 
     if (loading) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <h2 className="page-title">Rechnung (PDF)</h2>
+            <div className="praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader titleLevel="h1" title="Rechnung (PDF)" />
                 <PageLoading label="Daten werden geladen…" />
             </div>
         );
     }
     if (loadError) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <h2 className="page-title">Rechnung (PDF)</h2>
+            <div className="praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader titleLevel="h1" title="Rechnung (PDF)" />
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             </div>
         );
@@ -350,12 +350,12 @@ export function VerwaltungFinanzWerkzeugePage() {
 
     if (!canReadFinanzen) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <div>
-                    <VerwaltungBackButton />
-                </div>
-                <h1 className="page-title" style={{ margin: 0 }}>Rechnung (PDF)</h1>
-                <p className="page-sub" style={{ margin: 0 }}>Keine Berechtigung Finanzen (Lesen).</p>
+            <div className="praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader
+                    titleLevel="h1"
+                    title="Rechnung (PDF)"
+                    subtitle="Keine Berechtigung Finanzen (Lesen)."
+                />
             </div>
         );
     }
@@ -599,20 +599,13 @@ export function VerwaltungFinanzWerkzeugePage() {
             : emptyDetail;
 
     return (
-        <div className="rechnung-pdf-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h1 className="page-title" style={{ margin: 0 }}>Rechnung (PDF)</h1>
-                    <p className="page-sub" style={{ maxWidth: 720, marginTop: 8 }}>
-                        Teil von
-                        {" "}
-                        <strong>Finanzen &amp; Berichte</strong>
-                        {" "}
-                        — Rechnung aus dem Druck-Backend, Leistung aus der Akte; Verlauf in SQLite. Tagesbericht/Abgleich:
-                        {" "}
+        <div className="rechnung-pdf-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                titleLevel="h1"
+                title="Rechnung (PDF)"
+                subtitle={
+                    <>
+                        Teil von <strong>Finanzen &amp; Berichte</strong> — Rechnung aus dem Druck-Backend, Leistung aus der Akte; Verlauf in SQLite. Tagesbericht/Abgleich:{" "}
                         <button
                             type="button"
                             style={{ color: "var(--accent, #0a6)", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}
@@ -621,14 +614,16 @@ export function VerwaltungFinanzWerkzeugePage() {
                             Tagesabschluss
                         </button>
                         .
-                    </p>
-                </div>
-                {canWriteZahlung ? (
-                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                        {creating ? "Neue Rechnung abbrechen" : "+ Neue Rechnung"}
-                    </Button>
-                ) : null}
-            </div>
+                    </>
+                }
+                actions={
+                    canWriteZahlung ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                            {creating ? "Neue Rechnung abbrechen" : "+ Neue Rechnung"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list">
@@ -639,7 +634,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                         </p>
                     ) : (
                         <div className="card produkte-table-card" style={{ overflow: "auto" }}>
-                            <table className="tbl produkte-tbl" style={{ minWidth: 420, fontSize: 14, margin: 0 }}>
+                            <table className="tbl produkte-tbl tbl-fluid" style={{ fontSize: 14, margin: 0 }}>
                                 <thead>
                                     <tr>
                                         <th scope="col" style={{ textAlign: "left" }}>Rechnung</th>

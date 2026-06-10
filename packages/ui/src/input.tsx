@@ -1,5 +1,6 @@
 import {
     type ChangeEvent,
+    type CSSProperties,
     type InputHTMLAttributes,
     type MutableRefObject,
     type SelectHTMLAttributes,
@@ -7,25 +8,30 @@ import {
     forwardRef,
     useCallback,
     useId,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useDismissibleLayer } from "./use-dismissible-layer";
 
 /* ── Text Input ── */
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     label?: string;
+    hint?: string;
     error?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-    ({ className, label, error, id, "aria-describedby": ariaDescribedBy, ...props }, ref) => {
+    ({ className, label, hint, error, id, "aria-describedby": ariaDescribedBy, ...props }, ref) => {
         const genId = useId();
         const inputId = id ?? genId;
         const errorId = `${inputId}-error`;
-        const describedBy =
-            error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
+        const hintId = hint ? `${inputId}-hint` : undefined;
+        const describedBy = [error ? errorId : null, hint ? hintId : null, ariaDescribedBy]
+            .filter(Boolean)
+            .join(" ") || undefined;
 
         return (
             <div className={error ? "ui-field-wrap input-wrap--error" : "ui-field-wrap"}>
@@ -34,13 +40,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                         {label}
                     </label>
                 )}
+                {hint ? (
+                    <p id={hintId} className="ui-field-hint">
+                        {hint}
+                    </p>
+                ) : null}
                 <input
                     ref={ref}
                     id={inputId}
                     className={["input-edit", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
                     {...props}
                     aria-invalid={error ? true : undefined}
-                    aria-describedby={describedBy || undefined}
+                    aria-describedby={describedBy}
                 />
                 {error && (
                     <p id={errorId} className="ui-field-error-msg">
@@ -56,21 +67,85 @@ Input.displayName = "Input";
 /* ── Select ── */
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
     label?: string;
+    hint?: string;
     error?: string;
     options: { value: string; label: string }[];
+    /** Render dropdown in a body portal (tables / overflow containers). */
+    menuPortal?: boolean;
+    menuClassName?: string;
+}
+
+function SelectMenu({
+    selectId,
+    options,
+    selectedValue,
+    className,
+    style,
+    onChoose,
+}: {
+    selectId: string;
+    options: { value: string; label: string }[];
+    selectedValue: string;
+    className?: string;
+    style?: CSSProperties;
+    onChoose: (value: string) => void;
+}) {
+    return (
+        <div
+            className={["select-menu", className].filter(Boolean).join(" ")}
+            style={style}
+            role="listbox"
+            aria-labelledby={selectId}
+        >
+            {options.map((o) => {
+                const active = o.value === selectedValue;
+                return (
+                    <button
+                        key={o.value}
+                        type="button"
+                        className={`select-option ${active ? "active" : ""}`}
+                        role="option"
+                        aria-selected={active}
+                        onClick={() => onChoose(o.value)}
+                    >
+                        {o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-    ({ className, label, error, id, options, "aria-describedby": ariaDescribedBy, ...props }, ref) => {
+    (
+        {
+            className,
+            label,
+            hint,
+            error,
+            id,
+            options,
+            menuPortal = false,
+            menuClassName,
+            "aria-describedby": ariaDescribedBy,
+            ...props
+        },
+        ref,
+    ) => {
         const genId = useId();
         const selectId = id ?? genId;
         const errorId = `${selectId}-error`;
-        const describedBy =
-            error && ariaDescribedBy ? `${errorId} ${ariaDescribedBy}` : error ? errorId : ariaDescribedBy;
+        const hintId = hint ? `${selectId}-hint` : undefined;
+        const describedBy = [error ? errorId : null, hint ? hintId : null, ariaDescribedBy]
+            .filter(Boolean)
+            .join(" ") || undefined;
 
         const [open, setOpen] = useState(false);
         const rootRef = useRef<HTMLDivElement>(null);
+        const triggerRef = useRef<HTMLButtonElement>(null);
+        const menuPortalRef = useRef<HTMLDivElement>(null);
         const innerSelectRef = useRef<HTMLSelectElement | null>(null);
+        const [portalMenuStyle, setPortalMenuStyle] = useState<CSSProperties | undefined>();
 
         const setSelectRef = useCallback(
             (el: HTMLSelectElement | null) => {
@@ -84,6 +159,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         useDismissibleLayer({
             open,
             rootRef,
+            containRefs: menuPortal ? [menuPortalRef] : undefined,
             onDismiss: () => setOpen(false),
         });
 
@@ -101,6 +177,41 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
         const selectedLabel =
             options.find((o) => o.value === selectedValue)?.label ?? options[0]?.label ?? "";
+
+        useLayoutEffect(() => {
+            if (!open || !menuPortal) {
+                setPortalMenuStyle(undefined);
+                return;
+            }
+            const update = () => {
+                const trigger = triggerRef.current;
+                if (!trigger) return;
+                const rect = trigger.getBoundingClientRect();
+                const viewportPad = 12;
+                const maxWidth = Math.min(224, window.innerWidth - viewportPad * 2);
+                const width = Math.max(rect.width, 160);
+                let left = rect.left;
+                if (left + width > window.innerWidth - viewportPad) {
+                    left = window.innerWidth - viewportPad - width;
+                }
+                left = Math.max(viewportPad, left);
+                setPortalMenuStyle({
+                    position: "fixed",
+                    top: rect.bottom + 6,
+                    left,
+                    width,
+                    maxWidth,
+                    zIndex: 10050,
+                });
+            };
+            update();
+            window.addEventListener("resize", update);
+            window.addEventListener("scroll", update, true);
+            return () => {
+                window.removeEventListener("resize", update);
+                window.removeEventListener("scroll", update, true);
+            };
+        }, [open, menuPortal, options.length, selectedValue]);
 
         const dispatchSyntheticChange = (nextValue: string) => {
             const sel = innerSelectRef.current;
@@ -140,8 +251,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         {label}
                     </label>
                 )}
-                <div className="select-wrap">
+                {hint ? (
+                    <p id={hintId} className="ui-field-hint">
+                        {hint}
+                    </p>
+                ) : null}
+                <div className={["select-wrap", open && menuPortal ? "select-wrap--menu-portal-open" : ""].filter(Boolean).join(" ")}>
                     <button
+                        ref={triggerRef}
                         id={selectId}
                         type="button"
                         className={["input-edit", "select-edit", "select-trigger", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
@@ -171,26 +288,31 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                             </option>
                         ))}
                     </select>
-                    {open && (
-                        <div className="select-menu" role="listbox" aria-labelledby={selectId}>
-                            {options.map((o) => {
-                                const active = o.value === selectedValue;
-                                return (
-                                    <button
-                                        key={o.value}
-                                        type="button"
-                                        className={`select-option ${active ? "active" : ""}`}
-                                        role="option"
-                                        aria-selected={active}
-                                        onClick={() => chooseValue(o.value)}
-                                    >
-                                        {o.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                    {open && !menuPortal ? (
+                        <SelectMenu
+                            selectId={selectId}
+                            options={options}
+                            selectedValue={selectedValue}
+                            className={menuClassName}
+                            onChoose={chooseValue}
+                        />
+                    ) : null}
                 </div>
+                {open && menuPortal && portalMenuStyle
+                    ? createPortal(
+                          <div ref={menuPortalRef}>
+                              <SelectMenu
+                                  selectId={selectId}
+                                  options={options}
+                                  selectedValue={selectedValue}
+                                  className={["select-menu--portal", menuClassName].filter(Boolean).join(" ")}
+                                  style={portalMenuStyle}
+                                  onChoose={chooseValue}
+                              />
+                          </div>,
+                          document.body,
+                      )
+                    : null}
                 {error && (
                     <p id={errorId} className="ui-field-error-msg">
                         {error}

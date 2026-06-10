@@ -4,6 +4,7 @@ import { Button } from "../components/ui/button";
 import { PatientComboField } from "../components/patient-combo-field";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     dsgvoExportPatient,
@@ -13,7 +14,7 @@ import {
 import type { Patient } from "../../models/types";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import { errorMessage, formatTpl } from "@/lib/utils";
-import { openExportPreview } from "../../models/store/export-preview-store";
+import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
 import { useT } from "@/lib/i18n";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -36,6 +37,7 @@ export function DatenschutzPage() {
     const [patientsError, setPatientsError] = useState<string | null>(null);
     const [tablePage, setTablePage] = useState(0);
     const [patientPickId, setPatientPickId] = useState("");
+    const [exportPatient, setExportPatient] = useState<Patient | null>(null);
     const toast = useToastStore((s) => s.add);
 
     const loadPatients = useCallback(async () => {
@@ -68,24 +70,17 @@ export function DatenschutzPage() {
     const safePage = Math.min(tablePage, pageCount - 1);
     const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
-    async function handleExport(p: Patient) {
-        setBusyId(p.id);
-        try {
-            const data = await dsgvoExportPatient(p.id);
-            const json = JSON.stringify(data, null, 2);
-            openExportPreview({
-                format: "json",
-                title: t("page.datenschutz.dialog_preview_title"),
-                hint: `DSGVO-Datenpaket für ${p.name} · JSON strukturiert drucken oder speichern.`,
-                suggestedFilename: `dsgvo-export-${p.id}.json`,
-                textBody: json,
-            });
-        } catch (e) {
-            toast(`${t("page.datenschutz.toast_error_prefix")} ${errorMessage(e)}`);
-        } finally {
-            setBusyId(null);
-        }
-    }
+    const resolveDsgvoExport = useCallback(async () => {
+        if (!exportPatient) return null;
+        const data = await dsgvoExportPatient(exportPatient.id);
+        return {
+            exportTitle: t("page.datenschutz.dialog_preview_title"),
+            hint: `DSGVO-Datenpaket für ${exportPatient.name}`,
+            suggestedFilename: `dsgvo-export-${exportPatient.id}.json`,
+            textBody: JSON.stringify(data, null, 2),
+            mime: "application/json;charset=utf-8",
+        };
+    }, [exportPatient, t]);
 
     async function handleErase() {
         if (!confirmErase) return;
@@ -105,13 +100,18 @@ export function DatenschutzPage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <h2 className="page-title">{t("page.datenschutz.title")}</h2>
-            <p style={{ color: "var(--fg-3)", fontSize: 14 }}>
-                {t("page.datenschutz.intro_prefix")}
-                <em>{t("page.datenschutz.intro_em")}</em>
-                {t("page.datenschutz.intro_suffix")}
-            </p>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                title={t("page.datenschutz.title")}
+                back={{ to: "/einstellungen", label: "Einstellungen" }}
+                subtitle={
+                    <>
+                        {t("page.datenschutz.intro_prefix")}
+                        <em>{t("page.datenschutz.intro_em")}</em>
+                        {t("page.datenschutz.intro_suffix")}
+                    </>
+                }
+            />
 
             <Card className="card-pad">
                 <CardHeader title={t("page.datenschutz.card_search")} />
@@ -137,8 +137,9 @@ export function DatenschutzPage() {
             ) : filtered.length === 0 ? (
                 <EmptyState icon="👥" title={t("page.datenschutz.empty_title")} description={t("page.datenschutz.empty_desc")} />
             ) : (
-                <div className="card">
-                    <table className="tbl">
+                <div className="card tbl-data-card">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>{t("page.datenschutz.col.name")}</th>
@@ -152,7 +153,7 @@ export function DatenschutzPage() {
                                     <td>{p.name}</td>
                                     <td>{p.status}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                        <Button size="sm" onClick={() => handleExport(p)} disabled={busyId === p.id}>
+                                        <Button size="sm" onClick={() => setExportPatient(p)} disabled={busyId === p.id}>
                                             {t("page.datenschutz.export_json")}
                                         </Button>
                                         <Button size="sm" variant="danger" onClick={() => setConfirmErase(p)} disabled={busyId === p.id}>
@@ -163,6 +164,7 @@ export function DatenschutzPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     {totalFiltered > 0 ? (
                         <div className="card-pad" style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
                             <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -218,6 +220,15 @@ export function DatenschutzPage() {
                     </ul>
                 </Card>
             )}
+            <DataExportPickerDialog
+                open={exportPatient != null}
+                onClose={() => setExportPatient(null)}
+                title="Export — DSGVO-Datenpaket"
+                description="JSON-Auskunft nach Art. 15 DSGVO — Format und Speicherort."
+                formats={[{ value: "json", label: "JSON" }]}
+                defaultFormat="json"
+                resolvePayload={resolveDsgvoExport}
+            />
         </div>
     );
 }

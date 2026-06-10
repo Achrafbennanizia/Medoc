@@ -3,6 +3,14 @@
 > **Kanonische Desktop-Implementierung:** Das in CI gebaute Produkt liegt unter **`app/`** (Tauri 2 + React + Vite, Rust-Backend). Verbindlicher Architekturüberblick: **`docs/architecture/architecture-design.md`**.  
 > **Historisch / separater Prototyp:** Das untenstehende Verzeichnis **`src/`** (Next.js App Router, Prisma, PostgreSQL) beschreibt einen **älteren Web-Prototyp** — nicht den aktuellen Tauri-Stand. Nutzung nur für Vergleich oder Migration; Traceability zur Abnahme bitte gegen **`app/`** und das Pflichtenheft.
 
+## 0. Geräteverbund & „kein öffentliches Netz“
+
+Die Anforderung „nicht über öffentliche Netze erreichbar“ wird für den **Geräteverbund** technisch durch den **Private-Bind-Guard** umgesetzt (`medoc-sync/src/net/bind_guard.rs`): der TCP-Listener (Port 49300) bindet nur an RFC1918-, Link-Local- und ULA-Adressen. Globale Routable-Binds werden abgelehnt. mDNS-Metadaten enthalten keine Patientendaten. Vollständige Spezifikation: [`feature-geraeteverbund.md`](feature-geraeteverbund.md).
+
+**Hybrid-Netz (Pflichtenheft NFA-NET-04/05):** Desktop-Instanzen koppeln per **Noise** (:49300). Browser-Rezeption nutzt weiterhin **`medoc-lan` HTTPS** (:8787) — kein Noise im Browser. Migration betrifft nur **HTTP-Pairing-Endpunkte**, nicht den Web-UI-Host.
+
+---
+
 ## 1. Projektstruktur
 
 ```

@@ -4,15 +4,17 @@ import { Input, Select } from "../components/ui/input";
 import { Card, CardHeader } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { useToastStore } from "../components/ui/toast-store";
 import type { PraxisClosureMode, PraxisClosureRule } from "@/lib/praxis-planning";
 import { loadPraxisArbeitszeitenConfig, savePraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
 import { errorMessage } from "@/lib/utils";
+import { useRbac } from "@/lib/use-rbac";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
 export function SonderSperrzeitenPage() {
     const toast = useToastStore((s) => s.add);
+    const { canWritePraxisplanung } = useRbac();
     const [closures, setClosures] = useState<PraxisClosureRule[]>([]);
     const [loading, setLoading] = useState(true);
     const [closureDate, setClosureDate] = useState("");
@@ -336,6 +338,7 @@ export function SonderSperrzeitenPage() {
                         title={r.date}
                         subtitle={r.mode === "FULL_DAY" ? "Ganzer Tag gesperrt" : "Benutzerdefinierte Zeit"}
                         action={
+                            canWritePraxisplanung ? (
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={startEditSelected}>
                                     <EditIcon size={14} /> Bearbeiten
@@ -344,6 +347,7 @@ export function SonderSperrzeitenPage() {
                                     <TrashIcon size={14} /> Entfernen
                                 </Button>
                             </div>
+                            ) : undefined
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
@@ -369,21 +373,18 @@ export function SonderSperrzeitenPage() {
     if (loading) return <PageLoading label="Sperrzeiten werden geladen…" />;
 
     return (
-        <div className="produkte-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Sonder-Sperrzeiten</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Sperrungen für die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte).
-                    </p>
-                </div>
-                <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? closeForm : openForm}>
-                    {creating ? "Formular schließen" : "+ Neue Sperrregel"}
-                </Button>
-            </div>
+        <div className="produkte-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title="Sonder-Sperrzeiten"
+                subtitle="Sperrungen für die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte)."
+                actions={
+                    canWritePraxisplanung ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? closeForm : openForm}>
+                            {creating ? "Formular schließen" : "+ Neue Sperrregel"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list">
@@ -392,8 +393,8 @@ export function SonderSperrzeitenPage() {
                             <EmptyState icon="🚫" title="Keine Sonder-Sperrzeiten" description="Rechts eine neue Regel anlegen." />
                         </Card>
                     ) : (
-                        <div className="card produkte-table-card" style={{ overflow: "auto" }}>
-                            <table className="tbl produkte-tbl" style={{ minWidth: 520 }}>
+                        <div className="card produkte-table-card tbl-data-card tbl-scroll">
+                            <table className="tbl tbl-fluid">
                                 <thead>
                                     <tr>
                                         <th scope="col">Datum</th>

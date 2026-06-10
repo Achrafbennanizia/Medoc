@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { NAV_ICONS } from "@/lib/icons";
 import { routeChildPathAllowed } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { VerwaltungBackButton } from "./verwaltung-back-button";
+import { VerwaltungPageHeader } from "./verwaltung-page-header";
 
 export type VerwaltungTocLink = {
     title: string;
@@ -38,16 +38,11 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
     const useIcons = visible.some((l) => Boolean(l.iconKey));
 
     return (
-        <div className="verwaltung-menu-page animate-fade-in">
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head page-head--verwaltung-toc">
-                <div>
-                    <h2 className="page-title">{title}</h2>
-                    <p className="page-sub page-sub--verwaltung-toc">{subtitle}</p>
-                </div>
-            </div>
+        <div className="verwaltung-menu-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title={title}
+                subtitle={<span className="page-sub--verwaltung-toc">{subtitle}</span>}
+            />
 
             <div className="card verwaltung-toc-table-card">
                 <table className="tbl verwaltung-toc-table">

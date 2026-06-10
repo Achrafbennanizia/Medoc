@@ -1,4 +1,5 @@
 use crate::application::auth_service::{self, LoginRequest, Session};
+use crate::application::device_session_service;
 use crate::application::rbac;
 use crate::error::AppError;
 use crate::infrastructure::database::personal_repo;
@@ -100,6 +101,19 @@ pub async fn login(
             return Err(e);
         }
     };
+    // TODO(deferred-roles): remove when STEUERBERATER / PHARMABERATER are re-enabled.
+    if !rbac::Role::parse(&session.rolle)
+        .map(|r| !r.is_deferred())
+        .unwrap_or(false)
+        || !rbac::is_login_role_allowed(&session.rolle)
+    {
+        log_security!(warn,
+            event = "LOGIN_BLOCKED_DEFERRED_ROLE",
+            subject = %redact_login_identifier(&email),
+            role = %session.rolle,
+        );
+        return Err(AppError::Unauthorized);
+    }
     brute_force
         .0
         .record_success(Some(pool_ref), &brute_key)
@@ -230,7 +244,7 @@ pub async fn list_my_device_sessions(
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<device_session_repo::DeviceSessionRow>, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    device_session_repo::list_active_for_user(
+    device_session_service::list_enriched_for_user(
         &pool,
         &session.user_id,
         session.device_session_id.as_deref(),
@@ -250,7 +264,89 @@ pub async fn revoke_my_other_device_sessions(
         .device_session_id
         .as_deref()
         .ok_or_else(|| AppError::Validation("Keine Geräte-Sitzungs-ID".into()))?;
-    device_session_repo::end_other_than(&pool, &session.user_id, keep).await
+    let n = device_session_repo::end_other_than(&pool, &session.user_id, keep).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DEVICE_SESSION_REVOKE",
+        "DeviceSession",
+        None,
+        Some(&format!("bulk_other_count={n}")),
+    )
+    .await
+    .ok();
+    Ok(n)
+}
+
+/// Forensische Details zu einer eigenen Gerätesitzung (Audit + Risikoindikatoren).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id))]
+pub async fn investigate_my_device_session(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    session_id: String,
+) -> Result<device_session_repo::DeviceSessionInvestigation, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let report = device_session_service::investigate_session(
+        &pool,
+        &session.user_id,
+        session_id.trim(),
+        session.device_session_id.as_deref(),
+    )
+    .await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DEVICE_SESSION_INVESTIGATE",
+        "DeviceSession",
+        Some(report.session.id.as_str()),
+        Some(&format!(
+            "suspected={}; reasons={}",
+            report.session.is_suspected,
+            report.session.suspected_reasons.join("; ")
+        )),
+    )
+    .await
+    .ok();
+    Ok(report)
+}
+
+/// Beendet eine einzelne **andere** Gerätesitzung dieses Benutzers.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id))]
+pub async fn revoke_my_device_session(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    session_id: String,
+) -> Result<(), AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    device_session_service::revoke_session(
+        &pool,
+        &session.user_id,
+        session_id.trim(),
+        session.device_session_id.as_deref(),
+    )
+    .await
+}
+
+/// Vertrauen setzen oder widerrufen für eine **andere** eigene Gerätesitzung.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id, trusted))]
+pub async fn set_my_device_session_trusted(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    session_id: String,
+    trusted: bool,
+) -> Result<device_session_repo::DeviceSessionRow, AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    device_session_service::set_session_trusted(
+        &pool,
+        &session.user_id,
+        session_id.trim(),
+        session.device_session_id.as_deref(),
+        trusted,
+    )
+    .await
 }
 
 /// Start TOTP enrollment before a session exists (ARZT first login).
@@ -314,6 +410,9 @@ macro_rules! register_auth_commands {
         $crate::commands::auth_commands::touch_session,
         $crate::commands::auth_commands::list_my_device_sessions,
         $crate::commands::auth_commands::revoke_my_other_device_sessions,
+        $crate::commands::auth_commands::investigate_my_device_session,
+        $crate::commands::auth_commands::revoke_my_device_session,
+        $crate::commands::auth_commands::set_my_device_session_trusted,
         $crate::commands::auth_commands::start_totp_enrollment_login,
         $crate::commands::auth_commands::confirm_totp_enrollment_login,
     };

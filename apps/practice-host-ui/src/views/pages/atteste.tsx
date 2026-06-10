@@ -7,6 +7,7 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     listAtteste,
@@ -134,10 +135,14 @@ export function AttestePage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="page-head">
-                <h2 className="page-title">Atteste</h2>
-                <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>+ Neues Attest</Button>
-            </div>
+            <WorkspacePageHeader
+                title="Atteste"
+                actions={
+                    <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>
+                        + Neues Attest
+                    </Button>
+                }
+            />
 
             <Card className="card-pad">
                 <CardHeader title="Patient auswählen" />
@@ -167,8 +172,9 @@ export function AttestePage() {
             ) : atteste.length === 0 ? (
                 <EmptyState icon="📄" title="Keine Atteste vorhanden" />
             ) : (
-                <div className="card">
-                    <table className="tbl">
+                <div className="card tbl-data-card">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>Typ</th><th>ICD-10</th><th>Gültig von</th><th>Gültig bis</th><th>Ausgestellt</th><th>Aktionen</th>
@@ -190,6 +196,7 @@ export function AttestePage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 

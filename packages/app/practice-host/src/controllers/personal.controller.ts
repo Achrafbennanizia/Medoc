@@ -32,6 +32,17 @@ export async function listAerzte(): Promise<AerztSummary[]> {
     return practiceSystem.invoke<AerztSummary[]>("list_aerzte");
 }
 
+/** Arzt/Rezeption names for Praxis-Aufgaben — allowed with `aufgabe.status.fulfill` (no HR read). */
+export interface AufgabeTeamMember {
+    id: string;
+    name: string;
+    rolle: Rolle;
+}
+
+export async function listAufgabeTeamDirectory(): Promise<AufgabeTeamMember[]> {
+    return practiceSystem.invoke<AufgabeTeamMember[]>("list_aufgabe_team_directory");
+}
+
 export async function listPersonal(): Promise<Personal[]> {
     return practiceSystem.invoke<Personal[]>("list_personal");
 }
@@ -86,6 +97,16 @@ export async function setPersonalPermissionOverride(
 
 export async function deletePersonalPermissionOverride(personalId: string, action: string): Promise<void> {
     return practiceSystem.invoke("delete_personal_permission_override", { personal_id: personalId, action });
+}
+
+/** Entfernt alle Overrides — Rolle gilt wieder ohne Abweichungen. */
+export async function resetPersonalPermissionOverrides(personalId: string): Promise<number> {
+    return practiceSystem.invoke<number>("reset_personal_permission_overrides", { personal_id: personalId });
+}
+
+/** ALLOW für jede RBAC-Aktion aus `config/rbac.yaml`. */
+export async function grantPersonalAllPermissions(personalId: string): Promise<number> {
+    return practiceSystem.invoke<number>("grant_personal_all_permissions", { personal_id: personalId });
 }
 
 /** Entsperrt Brute-Force-Sperre für ein Team-Mitglied (Admin). */

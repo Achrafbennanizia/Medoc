@@ -61,7 +61,7 @@ function Mono({ children }: { children: ReactNode }) {
     );
 }
 
-export function EinstellungenLanHostSection() {
+export function EinstellungenLanHostSection({ embedded = false }: { embedded?: boolean } = {}) {
     const toast = useToastStore((s) => s.add);
     const [cfg, setCfg] = useState<LanServerConfigV1>(DEFAULT_CFG);
     const [status, setStatus] = useState<LanServerStatusPayload | null>(null);
@@ -172,20 +172,20 @@ export function EinstellungenLanHostSection() {
     const running = status?.running ?? false;
     const lanClientOn = isLanClientActive(lanClient);
 
-    return (
+    const heading = (
         <>
-            <div className="card-head" style={{ marginTop: 16 }}>
-                <div>
-                    <div className="card-title">LAN-Host / Zweitgeräte</div>
-                    <div className="card-sub">
-                        Stellt dieselbe SQLite-Datenbank authentifiziert per <strong>HTTPS</strong> (selbstsigniertes Zertifikat)
-                        im lokalen Netz bereit — für einen zweiten PC, Tablet oder <Mono>medoc-server</Mono>.
-                        Clients müssen den Zertifikats-Fingerabdruck pinnen; Klartext-HTTP wird nicht angeboten.
-                    </div>
-                </div>
+            <div className="card-title">LAN-Host / Zweitgeräte</div>
+            <div className="card-sub">
+                Stellt dieselbe SQLite-Datenbank authentifiziert per <strong>HTTPS</strong> (selbstsigniertes Zertifikat)
+                im lokalen Netz bereit — für einen zweiten PC, Tablet oder <Mono>medoc-server</Mono>.
+                Clients müssen den Zertifikats-Fingerabdruck pinnen; Klartext-HTTP wird nicht angeboten.
             </div>
+        </>
+    );
 
-            <div className="settings-row" style={{ alignItems: "flex-start" }}>
+    const body = (
+        <>
+            <div className="settings-row" style={{ alignItems: "flex-start", borderTop: "none", paddingTop: 0 }}>
                 <div style={{ flex: 1 }}>
                     <b>Serverstatus</b>
                     <div className="card-sub">
@@ -403,6 +403,24 @@ export function EinstellungenLanHostSection() {
                     Installation verwenden.
                 </p>
             </div>
+        </>
+    );
+
+    if (embedded) {
+        return (
+            <div className="settings-system-block">
+                <div className="settings-system-block__head">{heading}</div>
+                <div className="settings-system-block__body">{body}</div>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="card-head" style={{ marginTop: 16 }}>
+                <div>{heading}</div>
+            </div>
+            {body}
         </>
     );
 }

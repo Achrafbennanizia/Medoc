@@ -1,5 +1,6 @@
 import type { AkteCompletenessGap } from "@/lib/akte-completeness";
-import { CalendarIcon, ChevronLeftIcon, ExportIcon, MailIcon, PhoneIcon } from "@/lib/icons";
+import { CalendarIcon, ExportIcon, MailIcon, PhoneIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
 import { emptyPlanNextTermin, planNextHasContent, type PlanNextTerminV2 } from "@/lib/plan-next-termin";
 import { alterAusGeburtsdatum } from "@/lib/patient-detail-utils";
 import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
@@ -8,6 +9,7 @@ import { formatDate } from "@/lib/utils";
 import { DentalMiniBar } from "@/views/components/DentalMiniBar";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
+import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
 
 export type PatientDetailShellHeaderProps = {
@@ -61,32 +63,33 @@ export function PatientDetailShellHeader({
 }: PatientDetailShellHeaderProps) {
     return (
         <>
-            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <button type="button" className="btn btn-subtle" onClick={onNavigateBack}>
-                    <ChevronLeftIcon />
-                    Zurück
-                </button>
-                <h1 className="page-title" style={{ margin: 0, flex: "1 1 200px" }}>
-                    Akte von {patient.name}
-                    {validationPendingTotal > 0 ? (
-                        <span
-                            className="tab-badge warn"
-                            style={{ marginLeft: 10, verticalAlign: "middle" }}
-                            title={`${validationPendingTotal} offene Punkt${validationPendingTotal === 1 ? "" : "e"} zur ärztlichen Validierung`}
-                        >
-                            {validationPendingTotal}
-                        </span>
-                    ) : null}
-                    {completenessGaps.length > 0 ? (
-                        <span
-                            className="tab-badge muted"
-                            style={{ marginLeft: 8, verticalAlign: "middle" }}
-                            title={`${completenessGaps.length} offene${completenessGaps.length === 1 ? "r" : ""} Pflicht${completenessGaps.length === 1 ? "punkt" : "punkte"} (Heuristik)`}
-                        >
-                            {completenessGaps.length} offen
-                        </span>
-                    ) : null}
-                </h1>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={
+                    <>
+                        Akte von {patient.name}
+                        {canViewClinical && validationPendingTotal > 0 ? (
+                            <span
+                                className="tab-badge warn"
+                                style={{ marginLeft: 10, verticalAlign: "middle" }}
+                                title={`${validationPendingTotal} offene Punkt${validationPendingTotal === 1 ? "" : "e"} zur ärztlichen Validierung`}
+                            >
+                                {validationPendingTotal}
+                            </span>
+                        ) : null}
+                        {canViewClinical && completenessGaps.length > 0 ? (
+                            <span
+                                className="tab-badge muted"
+                                style={{ marginLeft: 8, verticalAlign: "middle" }}
+                                title={`${completenessGaps.length} offene${completenessGaps.length === 1 ? "r" : ""} Pflicht${completenessGaps.length === 1 ? "punkt" : "punkte"} (Heuristik)`}
+                            >
+                                {completenessGaps.length} offen
+                            </span>
+                        ) : null}
+                    </>
+                }
+                back={{ onClick: onNavigateBack, label: "Patienten" }}
+                actions={
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <button
                         type="button"
@@ -126,7 +129,7 @@ export function PatientDetailShellHeader({
                         title="Export — Bereiche, Format, Speicherort"
                     >
                         <ExportIcon />
-                        Export
+                        Exportieren
                     </button>
                     {role === "REZEPTION" ? (
                         <button
@@ -174,30 +177,31 @@ export function PatientDetailShellHeader({
                         Termin
                     </button>
                 </div>
-            </div>
-            {completenessGaps.length > 0 ? (
-                <div
-                    className="card card-pad"
+                }
+            />
+            {canViewClinical && completenessGaps.length > 0 ? (
+                <DismissibleNotice
+                    variant="warning"
                     role="region"
-                    aria-label="Aktenvollständigkeit"
-                    style={{
-                        padding: "12px 14px",
-                        background: "color-mix(in oklab, var(--warning, #b45309) 8%, var(--surface-1))",
-                        borderColor: "color-mix(in oklab, var(--warning, #b45309) 35%, var(--line))",
-                    }}
-                >
-                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>Akte — fehlende Einträge (Hinweis)</div>
-                    <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 720 }}>
-                        Heuristik gemäß FA-AKTE-16; kein Ersatz für klinische Beurteilung. Klick springt zum passenden Reiter.
-                    </p>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                        {completenessGaps.map((g) => (
-                            <button key={g.id} type="button" className="btn btn-subtle btn-sm" onClick={() => onGoTab(g.tab as PatientDetailAkteTab)}>
-                                {g.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                    ariaLabel="Aktenvollständigkeit"
+                    title="Akte — fehlende Einträge (Hinweis)"
+                    subtitle="Heuristik gemäß FA-AKTE-16; kein Ersatz für klinische Beurteilung. Klick springt zum passenden Reiter."
+                    dismissKey={`akte-gaps-${patientId}-${completenessGaps.map((g) => g.id).sort().join("-")}`}
+                    actions={
+                        <>
+                            {completenessGaps.map((g) => (
+                                <button
+                                    key={g.id}
+                                    type="button"
+                                    className="btn btn-subtle btn-sm"
+                                    onClick={() => onGoTab(g.tab as PatientDetailAkteTab)}
+                                >
+                                    {g.label}
+                                </button>
+                            ))}
+                        </>
+                    }
+                />
             ) : null}
             {showPlanTip ? (
                 <PlanNextTipCard planNext={planNext} canViewClinical={canViewClinical} onPersistPlanNext={onPersistPlanNext} onClose={onTogglePlanTip} />
@@ -205,7 +209,7 @@ export function PatientDetailShellHeader({
             <div className="card patient-hero-card">
                 <div className="patient-hero-top">
                     <div className="patient-hero-identity">
-                        <div className="av av-lg av--accent">
+                        <div className="av av-lg av--accent" aria-hidden>
                             {patient.name
                                 .split(" ")
                                 .map((n) => n[0])
@@ -213,8 +217,8 @@ export function PatientDetailShellHeader({
                                 .join("")}
                         </div>
                         <div className="patient-hero-identity-text">
-                            <div className="patient-hero-name-row">
-                                <h2 className="patient-hero-name">{patient.name}</h2>
+                            <h2 className="patient-hero-name">{patient.name}</h2>
+                            <div className="patient-hero-badges">
                                 <Badge variant="primary">{patient.status}</Badge>
                                 {zahlungen.some(
                                     (z) =>
@@ -232,25 +236,37 @@ export function PatientDetailShellHeader({
                     ) : null}
                 </div>
                 <div className="patient-hero-contacts">
-                    <span title="Geburtstag / Alter">
-                        <CalendarIcon size={12} /> {formatDate(patient.geburtsdatum)}
-                        {(() => {
-                            const alter = alterAusGeburtsdatum(patient.geburtsdatum);
-                            return alter != null ? (
+                    <span className="patient-hero-contact" title="Geburtstag / Alter">
+                        <CalendarIcon size={12} aria-hidden />
+                        <span className="patient-hero-contact__text">
+                            {formatDate(patient.geburtsdatum)}
+                            {(() => {
+                                const alter = alterAusGeburtsdatum(patient.geburtsdatum);
+                                return alter != null ? (
+                                    <>
+                                        <span className="patient-hero-contact__sep"> · </span>
+                                        <strong className="patient-hero-contact__age">{alter} J.</strong>
+                                    </>
+                                ) : null;
+                            })()}
+                        </span>
+                    </span>
+                    <span className="patient-hero-contact" title="Telefon">
+                        <PhoneIcon size={12} aria-hidden />
+                        <span className="patient-hero-contact__text">{patient.telefon || "—"}</span>
+                    </span>
+                    <span className="patient-hero-contact" title="E-Mail / Versicherung">
+                        <MailIcon size={12} aria-hidden />
+                        <span className="patient-hero-contact__text">
+                            {patient.email || "—"}
+                            {patient.versicherungsnummer ? (
                                 <>
-                                    {" "}
-                                    · <strong style={{ color: "var(--fg-2)", fontWeight: 600 }}>{alter} J.</strong>
+                                    <span className="patient-hero-contact__sep"> · </span>
+                                    V: {patient.versicherungsnummer}
                                 </>
-                            ) : null;
-                        })()}
+                            ) : null}
+                        </span>
                     </span>
-                    <span title="Telefon">
-                        <PhoneIcon size={12} /> {patient.telefon || "—"}
-                    </span>
-                    <span title="E-Mail">
-                        <MailIcon size={12} /> {patient.email || "—"}
-                    </span>
-                    <span title="Versicherungsnummer">V: {patient.versicherungsnummer}</span>
                 </div>
             </div>
         </>
@@ -269,23 +285,14 @@ function PlanNextTipCard({
     onClose: () => void;
 }) {
     return (
-        <div
-            className="card"
+        <DismissibleNotice
+            variant="accent"
             role="region"
-            aria-label="Terminplanung für Rezeption"
-            style={{ padding: 14, borderColor: "var(--accent)" }}
+            ariaLabel="Terminplanung für Rezeption"
+            title="Hinweis für die Rezeption"
+            subtitle='Kurz halten — erscheint kompakt im Dashboard unter „Ausstehende Freigaben“ mit Direktlink zu „Neuer Termin“.'
+            onDismiss={onClose}
         >
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-                <div>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>Hinweis für die Rezeption</div>
-                    <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2, maxWidth: 640, lineHeight: 1.45 }}>
-                        Kurz halten — erscheint kompakt im Dashboard unter „Ausstehende Freigaben“ mit Direktlink zu „Neuer Termin“.
-                    </div>
-                </div>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-                    Schließen
-                </button>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select
                     id="plan-urgency"
@@ -377,6 +384,6 @@ function PlanNextTipCard({
                     </Button>
                 ) : null}
             </div>
-        </div>
+        </DismissibleNotice>
     );
 }

@@ -1,6 +1,7 @@
 //! Audit-chain integrity status and admin acknowledgement (TASK 2.5).
 
 use serde::Serialize;
+use sqlx::SqlitePool;
 use std::sync::Arc;
 use tauri::State;
 
@@ -8,6 +9,7 @@ use crate::application::audit_chain_guard::AuditChainGuard;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
+use crate::infrastructure::database::audit_repo;
 use crate::log_security;
 
 pub struct AuditChainGuardExt(pub Arc<AuditChainGuard>);
@@ -61,11 +63,43 @@ pub fn acknowledge_audit_chain_break(
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditChainRepairResult {
+    pub deleted_rows: u64,
+    pub chain_ok: bool,
+    pub broken_at: Option<String>,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "warn", skip(pool, session_state, guard))]
+pub async fn repair_audit_chain(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    guard: State<'_, AuditChainGuardExt>,
+) -> Result<AuditChainRepairResult, AppError> {
+    rbac::require(&session_state, "ops.system")?;
+    let deleted = audit_repo::repair_broken_audit_chain(&pool).await?;
+    let broken_at = audit_repo::verify_chain(&pool).await?;
+    let g = guard_ref(&guard);
+    if broken_at.is_none() {
+        g.set_ok();
+    } else if let Some(id) = broken_at.as_ref() {
+        g.set_broken(id.clone());
+    }
+    Ok(AuditChainRepairResult {
+        deleted_rows: deleted,
+        chain_ok: broken_at.is_none(),
+        broken_at,
+    })
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_audit_chain_commands {
     () => {
         $crate::commands::audit_chain_commands::get_audit_chain_status,
         $crate::commands::audit_chain_commands::acknowledge_audit_chain_break,
+        $crate::commands::audit_chain_commands::repair_audit_chain,
     };
 }

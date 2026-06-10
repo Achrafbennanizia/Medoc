@@ -536,7 +536,6 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         inlineId={`ak-rezept-edit-inline-${r.id}`}
                                                         ariaLabel="Rezept bearbeiten"
                                                         panelVariant="rezept"
-                                                        presentationOverride="inline"
                                                         headerExtra={
                                                             !rezeptEditUnlocked ? (
                                                                 <Button

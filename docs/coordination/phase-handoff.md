@@ -1,7 +1,130 @@
 # Phase handoff
 
-**Last phase label:** Final cleanup + optional Docker full (2026-06-06)  
-**Last closed:** Second dead-code pass (~60 files); `VALIDATE_DOCKER_FULL=1` started; actions.md updated.
+**Last phase label:** Refactor & harden pass (2026-06-10)  
+**Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
+
+### Verified (2026-06-10 — Refactor & harden)
+
+- **Plan:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) persisted; Geräteverbund exclusion zone respected for structural work.
+- **Register:** 20 entries; P0 Geräteverbund items deferred to feature track; R-004–R-006, R-013, R-017 addressed.
+- **Tests:** `cargo test --workspace --tests` **PASS**; `cargo clippy --workspace -D warnings` **PASS**; `npm test` **240 PASS**; `npm run build` **PASS**.
+- **Safety net:** IPC golden list (275 commands); architecture boundary test; pairing e2e updated for PIN confirm flow.
+- **Docs:** [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
+
+### Remains unverified / deferred
+
+- Geräteverbund wire handshake (R-001–R-003) — active feature track.
+- G21b live Tauri manual rows 1–9 (R-011).
+- Stale v-model/architecture doc paths (R-004) — quarantined, not bulk-updated.
+
+### Next
+
+1. Geräteverbund: wire Noise transcript + mDNS (phase-handoff items).
+2. G21b live Tauri sign-off when ready.
+3. Optional: refresh high-traffic stale docs from [`retired-paths.md`](retired-paths.md) index.
+
+---
+
+**Previous phase label:** Geräteverbund evolution (2026-06-10)  
+**Last closed:** Schema/domain/crypto/net/services/IPC/FE onboarding + admin panel; pairing shim; e2e seat caps; test fixes.
+
+### Verified (2026-06-10 — Geräteverbund evolution)
+
+- **Spec + schema:** `docs/v-model/03-architektur/feature-geraeteverbund.md`; migration `verbund_tables.rs`; domain `medoc-sync/src/verbund/`.
+- **Crypto/net:** Noise XX + mDNS discovery + private-bind guard (`medoc-sync/src/net/`, `verbund/crypto/`).
+- **Services + IPC:** 13 `verbund_*` commands in `medoc-practice`; auto-start listener in `apps/practice-host/src/lib.rs`.
+- **FE:** pre-login onboarding gate, `/onboarding/*` routes, `geraeteverbund-panel` in Einstellungen.
+- **Shim:** `pairing_list_pending` merges legacy HTTP + verbund kopplung sessions (`transport: "verbund"`).
+- **Tests:** `cargo test -p medoc-sync` **PASS**; `cargo test -p medoc-e2e --test verbund_seat_caps` **PASS**; `npm test` **240 PASS**.
+- **Compliance docs:** SOUP list, ISO-14971 R-11–R-14, VVT §2.6, two-device runbook.
+
+### Verified (2026-06-10 — plan follow-up todos)
+
+- **Hybrid arch docs:** `feature-geraeteverbund.md` §3.1 — retire HTTP **pairing** only; `medoc-lan` web UI host stays (NFA-NET-04/05).
+- **Tier seat caps:** `seat_budget_from_edition()` in `lizenz_service` (Basis 2/1/1, Pro 5/2/3, Enterprise 10/3/7).
+- **HTTP cutover timing:** both transports until phase-5 frontend cutover (documented in spec).
+- **Forced re-pair:** migration marks NULL/zero identity → `PENDING`; seat count + `verify_peer_connection` reject incomplete identity; `needsReprovision` in status.
+- **Reinstall reclaim:** `verbund_reclaim_device`, `suggestedReclaimFingerprint` on pending, admin panel actions.
+
+### Remains unverified / deferred
+
+- Full Noise wire protocol through join/accept IPC (transcript placeholders in some paths).
+- HTTP pairing endpoint removal (after phase-5 cutover).
+- `pairing_decide` / `pairing_revoke` verbund delegation.
+- G21b live Tauri manual rows 1–9.
+
+### Next
+
+1. Wire real handshake transcript through join/accept IPC.
+2. Retire HTTP pairing endpoints when verbund onboarding is default.
+3. G21b live Tauri sign-off.
+
+---
+
+**Previous phase label:** MVP plan todos complete (2026-06-07)  
+**Last closed:** UX field hints, P0 smokes, W7/W8 automated paths, release-gate ticks.
+
+### Verified (2026-06-07 — MVP plan execution)
+
+- **UX:** Field hints on patient/termin/deployment/pairing; patient abandon confirm; statistik Krankheitsbild empty hint.
+- **Tests:** `npm test` **236 PASS**; `p0-routes.smoke.test.tsx`; `export-preview-dialog.smoke.test.tsx`.
+- **W7/W8:** Playwright LAN patient list; `two-device-sync-smoke.sh` **17/17**; lan-client-deployment doc paths fixed.
+- **Release gate:** automated items ticked in `releases/v0.1.0/release-gate-checklist.md`.
+
+### Next
+
+1. **G21b live Tauri** rows 1–9 — manual sign-off only remaining P0 gate item.
+2. **T-U1 XL:** `medoc-sync` engine/repo toward 100% allow-list.
+
+---
+
+**Previous phase label:** T-U1 medoc-sync tests + full Docker GREEN (2026-06-07)
+
+### Verified (2026-06-07 — T-U1 + Docker)
+
+- **T-U1:** `cargo test -p medoc-sync` **PASS** — 10 `repo_store_tests` + 5 engine lib tests + proptests.
+- **Fixes:** `append_outbox` path in `engine/run.rs`; peer-vector test uses UUID device id not label; `cargo fmt`.
+- **Docker:** `bash scripts/validate-docker.sh` **PASS** (~7 min) — FE + Wave V1 + e2e + multi-device **17/17**.
+- **MVP checklist:** automated items ticked in [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md).
+
+### Next
+
+1. **G21b live Tauri** rows 1–9 — `bash tools/g21-dev-smoke.sh` + [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md).
+2. **T-U1 XL:** expand `medoc-sync` coverage toward 100% allow-list (`tools/mvp-rust-coverage.sh`).
+3. **Optional:** `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` (Tauri link in Docker).
+
+---
+
+**Previous phase label:** Docker Wave V1 scoped verified (2026-06-06)
+
+### Verified (2026-06-06 — Docker Wave V1 user run)
+
+- **Command:** `docker run … medoc-rust-wave-v1:latest` from repo root (see [`validation.md`](validation.md)).
+- **Stages:** fmt, clippy (Wave V1), crate tests, 13× in-process `medoc-e2e`, proptests — all **PASS**.
+- **Fixes validated:** `core.rs` module rename (clippy `module_inception`), fmt module order, e2e clippy, dead-code removal.
+- **Still optional:** full `validate-docker.sh`, `VALIDATE_DOCKER_FULL=1` (Tauri link), G21 live Tauri smoke.
+
+### Next
+
+1. G21 live Tauri rows 1–9 — `bash tools/g21-dev-smoke.sh` + [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md).
+2. Optional: `bash scripts/validate-docker.sh` for frontend + e2e + multi-device in one shot.
+
+---
+
+### Verified (2026-06-06 — post-restructure todo continuation)
+
+- **Path refresh:** coordination docs + release gate use `apps/practice-host`, `crates/*`, `packages/*`.
+- **Automated:** `npm test` 232; `g21-verify-automated.sh` PASS; Docker multi-device 17/17; lan-web build PASS.
+- **T-U2:** `npm run test:mvp-coverage -w medoc` GREEN (100% on 5 FE modules).
+
+### Next
+
+1. G21 live Tauri rows 1–9 (manual — `bash tools/g21-dev-smoke.sh`).
+2. T-U1: expand `medoc-sync` engine/repo tests toward 100% allow-list.
+
+---
+
+**Previous phase label:** Final cleanup + optional Docker full (2026-06-06)
 
 ### Verified (2026-06-06 — final cleanup)
 

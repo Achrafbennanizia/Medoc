@@ -2,7 +2,6 @@
  * Company system — vendor portal (subscription, flags, billing). No clinical data.
  * @see `app/src-tauri/src/systems/company/` and binary `medoc-company-server`.
  */
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
 
 export type CompanyPortalConfig = {
@@ -44,21 +43,15 @@ export async function companyPortalPing(): Promise<Record<string, unknown>> {
     return companySystem.ping();
 }
 
-export type DeviceSessionRow = {
-    id: string;
-    user_id: string;
-    device_label: string;
-    user_agent: string | null;
-    created_at: string;
-    last_seen_at: string;
-    is_current: boolean;
-};
-
-/** Practice-host IPC — device sessions belong to auth, not company DB. */
-export async function listMyDeviceSessions(): Promise<DeviceSessionRow[]> {
-    return practiceSystem.invoke<DeviceSessionRow[]>("list_my_device_sessions");
-}
-
-export async function revokeMyOtherDeviceSessions(): Promise<number> {
-    return practiceSystem.invoke<number>("revoke_my_other_device_sessions");
-}
+export type {
+    DeviceSessionAuditEntry,
+    DeviceSessionInvestigation,
+    DeviceSessionRow,
+} from "@/systems/practice-host/controllers/device-session.controller";
+export {
+    investigateMyDeviceSession,
+    listMyDeviceSessions,
+    revokeMyDeviceSession,
+    revokeMyOtherDeviceSessions,
+    setMyDeviceSessionTrusted,
+} from "@/systems/practice-host/controllers/device-session.controller";

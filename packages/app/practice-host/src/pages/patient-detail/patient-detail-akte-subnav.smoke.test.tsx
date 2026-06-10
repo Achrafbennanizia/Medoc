@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { patientDetailTabBlocked } from "@/lib/patient-detail-utils";
+import { patientDetailTabBlocked, patientDetailTabVisible } from "@/lib/patient-detail-utils";
 import { PatientDetailAkteSubnav } from "./patient-detail-akte-subnav";
 
 const baseProps = {
@@ -11,13 +11,12 @@ const baseProps = {
     zahlungen: [],
     itemValidation: {},
     onSelectTab: vi.fn(),
-    onBlockedClinicalTab: vi.fn(),
 };
 
 describe("PatientDetailAkteSubnav smoke (G21 rows 5–6 proxy)", () => {
     afterEach(() => cleanup());
 
-    it("REZEPTION: clinical tabs disabled, Kundenleistungen reachable", () => {
+    it("REZEPTION: clinical tabs hidden, Kundenleistungen reachable", () => {
         const onSelect = vi.fn();
 
         render(
@@ -25,27 +24,30 @@ describe("PatientDetailAkteSubnav smoke (G21 rows 5–6 proxy)", () => {
                 {...baseProps}
                 canViewClinical={false}
                 onSelectTab={onSelect}
-                onBlockedClinicalTab={vi.fn()}
             />,
         );
 
-        const anam = document.getElementById("tab-anam") as HTMLButtonElement;
-        const zahl = document.getElementById("tab-zahl") as HTMLButtonElement;
-
-        expect(anam.disabled).toBe(true);
-        expect(zahl.disabled).toBe(false);
+        expect(document.getElementById("tab-anam")).toBeNull();
+        expect(document.getElementById("tab-unter")).toBeNull();
+        expect(document.getElementById("tab-behand")).toBeNull();
         expect(patientDetailTabBlocked("anam", false)).toBe(true);
-        expect(patientDetailTabBlocked("zahl", false)).toBe(false);
+        expect(patientDetailTabVisible("anam", false)).toBe(false);
+        expect(patientDetailTabVisible("zahl", false)).toBe(true);
+
+        const zahl = document.getElementById("tab-zahl") as HTMLButtonElement;
+        expect(zahl).toBeTruthy();
+        expect(zahl.disabled).toBe(false);
 
         fireEvent.click(zahl);
         expect(onSelect).toHaveBeenCalledWith("zahl");
     });
 
-    it("ARZT: clinical tabs enabled in subnav", () => {
+    it("ARZT: clinical tabs visible in subnav", () => {
         render(<PatientDetailAkteSubnav {...baseProps} canViewClinical={true} />);
 
-        expect(document.getElementById("tab-anam")!.disabled).toBe(false);
-        expect(document.getElementById("tab-unter")!.disabled).toBe(false);
+        expect(document.getElementById("tab-anam")).toBeTruthy();
+        expect(document.getElementById("tab-unter")).toBeTruthy();
+        expect(document.getElementById("tab-behand")).toBeTruthy();
         expect(patientDetailTabBlocked("anam", true)).toBe(false);
     });
 });

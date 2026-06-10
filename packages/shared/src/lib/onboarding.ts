@@ -33,18 +33,12 @@ const STEPS_BY_ROLE: Record<Rolle, OnboardingStep[]> = {
         { routePath: "tickets", titleDe: "Praxis-Tickets", bodyDe: "Nachrichten und Aufträge an Ärzt:innen." },
         { routePath: "bestellungen", titleDe: "Bestellungen", bodyDe: "Materialbestellungen und Wareneingang — Rezeption pflegt Status; kein E-Rezept (MVP)." },
         { routePath: "finanzen", titleDe: "Finanzen", bodyDe: "Zahlungserfassung (ohne ärztliche Freigabe der Leistung)." },
-        { routePath: "einstellungen", titleDe: "Einstellungen", bodyDe: "Darstellung, Arbeitsabläufe und Benachrichtigungen." },
+        { routePath: "einstellungen", titleDe: "Einstellungen", bodyDe: "Darstellung, Arbeitsabläufe und Konto." },
     ],
-    STEUERBERATER: [
-        { routePath: "", titleDe: "Dashboard", bodyDe: "Finanz-KPIs und Export-Hinweise." },
-        { routePath: "bilanz", titleDe: "Bilanz", bodyDe: "Bilanzübersicht und Berichte." },
-        { routePath: "finanzen", titleDe: "Finanzen", bodyDe: "Zahlungsübersicht ohne klinische Akten-Details." },
-    ],
-    PHARMABERATER: [
-        { routePath: "", titleDe: "Dashboard", bodyDe: "Bestell- und Produkt-KPIs." },
-        { routePath: "produkte", titleDe: "Produkte", bodyDe: "Lagerbestände und Mindestbestände." },
-        { routePath: "bestellungen", titleDe: "Bestellungen", bodyDe: "Bestellstatus und Nachbestellung." },
-    ],
+    // TODO(deferred-roles): STEUERBERATER onboarding — see docs/coordination/todos-deferred-roles.md
+    STEUERBERATER: [],
+    // TODO(deferred-roles): PHARMABERATER onboarding
+    PHARMABERATER: [],
 };
 
 export function onboardingKvKey(rolle: Rolle): string {

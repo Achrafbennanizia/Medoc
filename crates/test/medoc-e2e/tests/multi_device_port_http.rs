@@ -8,7 +8,7 @@ use medoc_e2e::harness::{
 };
 use medoc_e2e::port_client::{
     company_url_from_env, master_url_from_env, pair_replica_over_port, patient_insert_entry,
-    patient_update_entry, praxis_ticket_insert_entry, replica_port_a_from_env,
+    patient_update_entry, port_e2e_or_skip, praxis_ticket_insert_entry, replica_port_a_from_env,
     replica_port_b_from_env, rezept_insert_entry, spawn_medoc_server, submit_pairing_request,
     sync_pull_since, sync_push_entries, sync_push_raw, MedocServerProcess, PortE2eClient,
 };
@@ -29,6 +29,9 @@ async fn prepare_master_datadir() {
 
 #[tokio::test]
 async fn port_master_public_health_and_master_info() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
 
@@ -50,6 +53,9 @@ async fn port_master_public_health_and_master_info() {
 
 #[tokio::test]
 async fn port_master_jwt_login_and_me() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -62,6 +68,9 @@ async fn port_master_jwt_login_and_me() {
 
 #[tokio::test]
 async fn port_two_replicas_pair_push_patient_master_lists() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -124,6 +133,9 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
 
 #[tokio::test]
 async fn port_master_sync_status_and_signed_peers() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -145,6 +157,9 @@ async fn port_master_sync_status_and_signed_peers() {
 
 #[tokio::test]
 async fn port_company_server_health_and_practice_api() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let company = PortE2eClient::company(&company_url_from_env());
 
@@ -166,6 +181,9 @@ async fn port_company_server_health_and_practice_api() {
 
 #[tokio::test]
 async fn port_practice_proxy_company_summary_via_lan() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let lan = PortE2eClient::lan(&master_url_from_env());
     let jwt = lan.login_arzt_totp("1234").await;
@@ -184,6 +202,9 @@ async fn port_practice_proxy_company_summary_via_lan() {
 
 #[tokio::test]
 async fn port_pairing_status_transitions_pending_to_accepted() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -211,8 +232,21 @@ async fn port_pairing_status_transitions_pending_to_accepted() {
         )
         .await;
     assert_eq!(status, 200, "decide: {decided:?}");
-    assert_eq!(decided["status"], "ACCEPTED");
-    assert!(decided["activationToken"]
+    assert_eq!(decided["request"]["status"], "PENDING");
+    assert!(decided["request"]["awaitingPin"].as_bool().unwrap_or(false));
+    let pin = decided["confirmPin"].as_str().expect("confirm pin");
+
+    let (status, confirmed) = client
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "confirm: {confirmed:?}");
+    assert_eq!(confirmed["status"], "ACCEPTED");
+    assert!(confirmed["activationToken"]
         .as_str()
         .is_some_and(|t| t.starts_with(ACTIVATION_TOKEN_PREFIX)));
 
@@ -230,6 +264,9 @@ async fn port_pairing_status_transitions_pending_to_accepted() {
 
 #[tokio::test]
 async fn port_push_spoofed_from_device_id_forbidden() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -249,6 +286,9 @@ async fn port_push_spoofed_from_device_id_forbidden() {
 
 #[tokio::test]
 async fn port_two_replicas_freshness_conflict_over_https() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -293,6 +333,9 @@ async fn port_two_replicas_freshness_conflict_over_https() {
 
 #[tokio::test]
 async fn port_sync_engine_push_to_master_propagates_patient() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
@@ -362,6 +405,9 @@ async fn port_sync_engine_push_to_master_propagates_patient() {
 
 #[tokio::test]
 async fn port_sync_engine_pull_from_master_applies_to_replica_db() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
@@ -418,6 +464,9 @@ async fn port_sync_engine_pull_from_master_applies_to_replica_db() {
 
 #[tokio::test]
 async fn port_revoked_replica_push_forbidden() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -452,6 +501,9 @@ async fn port_revoked_replica_push_forbidden() {
 
 #[tokio::test]
 async fn port_mesh_sync_delivers_app_kv_to_peer_replica() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let master_data_dir = std::env::var("MEDOC_MASTER_DATA_DIR")
         .expect("MEDOC_MASTER_DATA_DIR required for mesh port test");
@@ -569,6 +621,9 @@ async fn port_mesh_sync_delivers_app_kv_to_peer_replica() {
 
 #[tokio::test]
 async fn port_sync_rezept_push_applies_on_master() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let master_data_dir = std::env::var("MEDOC_MASTER_DATA_DIR")
         .expect("MEDOC_MASTER_DATA_DIR required for tier-1 port test");
@@ -602,6 +657,9 @@ async fn port_sync_rezept_push_applies_on_master() {
 
 #[tokio::test]
 async fn port_sync_praxis_ticket_push_applies_on_master() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let master_data_dir = std::env::var("MEDOC_MASTER_DATA_DIR")
         .expect("MEDOC_MASTER_DATA_DIR required for tier-1 port test");
@@ -636,6 +694,9 @@ async fn port_sync_praxis_ticket_push_applies_on_master() {
 
 #[tokio::test]
 async fn port_activation_token_patient_read_lists_over_https() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;
@@ -660,7 +721,17 @@ async fn port_activation_token_patient_read_lists_over_https() {
         )
         .await;
     assert_eq!(status, 200, "decide: {decided:?}");
-    let token = decided["activationToken"].as_str().expect("token");
+    let pin = decided["confirmPin"].as_str().expect("confirm pin");
+    let (status, confirmed) = client
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "confirm: {confirmed:?}");
+    let token = confirmed["activationToken"].as_str().expect("token");
 
     let (status, patients) = client
         .json("GET", "/api/v1/patienten", None, Some(token))
@@ -671,6 +742,9 @@ async fn port_activation_token_patient_read_lists_over_https() {
 
 #[tokio::test]
 async fn port_activation_token_without_patient_read_gets_403() {
+    if port_e2e_or_skip() {
+        return;
+    }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
     let jwt = client.login_arzt_totp("1234").await;

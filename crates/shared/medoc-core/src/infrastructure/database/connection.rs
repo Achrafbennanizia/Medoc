@@ -91,7 +91,9 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .unwrap_or(0);
     if existing > 0 {
-        return migrations::run_legacy_embedded_migrations(pool).await;
+        migrations::run_legacy_embedded_migrations(pool).await?;
+        migrations::run_rust_only_migrations(pool).await?;
+        return Ok(());
     }
     sqlx::migrate!("./migrations")
         .run(pool)

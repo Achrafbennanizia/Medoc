@@ -1,49 +1,13 @@
-//! UDP discovery — lightweight LAN beacon so clients can find the HTTP port without manual IP typing.
+//! UDP LAN discovery — broadcast probe and responder for master beacons.
 
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use if_addrs::IfAddr;
-use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
-/// Probe payload clients broadcast on the LAN (newline-terminated for easy CLI debugging).
-pub const DISCOVER_PROBE: &[u8] = b"MEDOC_DISCOVER_V1\n";
-
-pub const SCHEMA: &str = "medoc-lan-v1";
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct LanBeaconPayload {
-    pub schema: String,
-    pub version: String,
-    pub http_port: u16,
-    pub instance_id: String,
-    pub label: String,
-    /// When true, clients must use `https://` on `http_port` (name kept for schema compat).
-    #[serde(default = "default_tls_enabled")]
-    pub tls: bool,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub cert_sha256: String,
-}
-
-fn default_tls_enabled() -> bool {
-    true
-}
-
-impl LanBeaconPayload {
-    pub fn to_json_line(&self) -> Vec<u8> {
-        let mut s = serde_json::to_vec(self).unwrap_or_else(|_| b"{}".to_vec());
-        s.push(b'\n');
-        s
-    }
-}
-
-pub fn parse_beacon_line(bytes: &[u8]) -> Option<LanBeaconPayload> {
-    let line = std::str::from_utf8(bytes.trim_ascii_end()).ok()?;
-    serde_json::from_str(line).ok()
-}
+use super::beacon::{parse_beacon_line, LanBeaconPayload, DISCOVER_PROBE, SCHEMA};
 
 fn ipv4_broadcast(addr: Ipv4Addr, netmask: Ipv4Addr) -> Option<Ipv4Addr> {
     let mut octets = [0u8; 4];
@@ -141,26 +105,4 @@ pub async fn run_discovery_responder(
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_sample_beacon() {
-        let p = LanBeaconPayload {
-            schema: SCHEMA.into(),
-            version: "0.1.0".into(),
-            http_port: 8787,
-            instance_id: "abc".into(),
-            label: "Test".into(),
-            tls: true,
-            cert_sha256: "deadbeef".into(),
-        };
-        let line = p.to_json_line();
-        let parsed = parse_beacon_line(&line).unwrap();
-        assert_eq!(parsed.http_port, 8787);
-        assert_eq!(parsed.schema, SCHEMA);
-    }
 }

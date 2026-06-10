@@ -1,6 +1,6 @@
 //! Domain services (Phase 3.2): konflikt, pricing, workflow_transitions.
 
-use medoc_lib::domain::services::{konflikt, pricing, workflow_transitions};
+use medoc_lib::domain::services::{device_session_risk, konflikt, pricing, workflow_transitions};
 use medoc_lib::error::AppError;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
@@ -116,6 +116,8 @@ fn workflow_praxis_aufgabe_transitions() {
         None,
         "seed-arzt-001",
         "seed-rez-001",
+        false,
+        false,
     )
     .is_ok());
     assert!(workflow_transitions::praxis_aufgabe_status_transition(
@@ -126,6 +128,21 @@ fn workflow_praxis_aufgabe_transitions() {
         None,
         "seed-arzt-001",
         "seed-arzt-001",
+        false,
+        false,
+    )
+    .is_ok());
+    // Creator who also fulfilled (named assignee) may still validate.
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "ERLEDIGT_REZEPTION",
+        "VALIDIERT",
+        Role::Arzt,
+        None,
+        Some("seed-arzt-001"),
+        "seed-arzt-001",
+        "seed-arzt-001",
+        false,
+        false,
     )
     .is_ok());
     assert!(workflow_transitions::praxis_aufgabe_status_transition(
@@ -136,8 +153,34 @@ fn workflow_praxis_aufgabe_transitions() {
         None,
         "seed-arzt-001",
         "seed-arzt-001",
+        false,
+        false,
     )
     .is_err());
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "OFFEN",
+        "VALIDIERT",
+        Role::Rezeption,
+        Some("REZEPTION"),
+        None,
+        "seed-arzt-001",
+        "seed-rez-999",
+        true,
+        false,
+    )
+    .is_err());
+    assert!(workflow_transitions::praxis_aufgabe_status_transition(
+        "OFFEN",
+        "VALIDIERT",
+        Role::Arzt,
+        Some("REZEPTION"),
+        None,
+        "seed-arzt-001",
+        "seed-arzt-001",
+        false,
+        true,
+    )
+    .is_ok());
 }
 
 #[test]
@@ -155,4 +198,34 @@ fn pricing_require_release_maps_to_validation() {
     let err =
         pricing::require_released_for_billing(None, None, "Behandlung").expect_err("must fail");
     assert!(matches!(err, AppError::Validation(_)));
+}
+
+#[test]
+fn device_session_risk_flags_stale_non_current_session() {
+    use chrono::NaiveDateTime;
+    let now = NaiveDateTime::parse_from_str("2026-06-10 15:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+    let current = device_session_risk::DeviceSessionRiskInput {
+        id: "cur".into(),
+        user_id: "u1".into(),
+        device_label: "MeDoc".into(),
+        user_agent: Some("Mozilla/5.0".into()),
+        created_at: "2026-06-10 14:00:00".into(),
+        last_seen_at: "2026-06-10 14:55:00".into(),
+        is_current: true,
+        is_trusted: false,
+    };
+    let other = device_session_risk::DeviceSessionRiskInput {
+        id: "old".into(),
+        user_id: "u1".into(),
+        device_label: "MeDoc".into(),
+        user_agent: Some("Mozilla/5.0".into()),
+        created_at: "2026-06-07 10:00:00".into(),
+        last_seen_at: "2026-06-07 10:00:00".into(),
+        is_current: false,
+        is_trusted: false,
+    };
+    let peers = vec![current, other.clone()];
+    let assessment = device_session_risk::assess_session(&other, &peers, now);
+    assert!(assessment.is_suspected);
+    assert!(!assessment.suspected_reasons.is_empty());
 }

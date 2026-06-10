@@ -16,7 +16,7 @@ export type PraxisAufgabeStatus =
 
 export type PraxisAufgabe = {
     id: string;
-    patient_id: string;
+    patient_id: string | null;
     typ: PraxisAufgabeTyp;
     titel: string;
     body: string | null;
@@ -36,6 +36,14 @@ export type PraxisAufgabe = {
     updated_at: string;
 };
 
+export type PraxisAufgabeKommentar = {
+    id: string;
+    aufgabe_id: string;
+    author_id: string;
+    body: string;
+    created_at: string;
+};
+
 export async function createPraxisAufgabe(data: {
     patientId: string;
     typ: PraxisAufgabeTyp;
@@ -50,14 +58,14 @@ export async function createPraxisAufgabe(data: {
 }): Promise<PraxisAufgabe> {
     return practiceSystem.invoke<PraxisAufgabe>("create_praxis_aufgabe", {
         data: {
-            patient_id: data.patientId,
+            patientId: data.patientId,
             typ: data.typ,
             titel: data.titel,
             body: data.body ?? null,
-            assignee_role: data.assigneeRole ?? null,
-            assignee_user_id: data.assigneeUserId ?? null,
-            behandlung_id: data.behandlungId ?? null,
-            untersuchung_id: data.untersuchungId ?? null,
+            assigneeRole: data.assigneeRole ?? null,
+            assigneeUserId: data.assigneeUserId ?? null,
+            behandlungId: data.behandlungId ?? null,
+            untersuchungId: data.untersuchungId ?? null,
             leistungsname: data.leistungsname ?? null,
             gesamtkosten: data.gesamtkosten ?? null,
         },
@@ -79,9 +87,9 @@ export async function transitionPraxisAufgabe(args: {
         args: {
             id: args.id,
             status: args.status,
-            erledigt_notiz: args.erledigtNotiz ?? null,
-            zahlung_id: args.zahlungId ?? null,
-            zurueck_begruendung: args.zurueckBegruendung ?? null,
+            erledigtNotiz: args.erledigtNotiz ?? null,
+            zahlungId: args.zahlungId ?? null,
+            zurueckBegruendung: args.zurueckBegruendung ?? null,
         },
     });
 }
@@ -95,7 +103,7 @@ export async function listPraxisAufgabenAdmin(): Promise<PraxisAufgabe[]> {
 }
 
 export async function createPraxisAufgabeAdmin(data: {
-    patientId: string;
+    patientId: string | null;
     typ: PraxisAufgabeTyp;
     titel: string;
     body?: string | null;
@@ -104,12 +112,12 @@ export async function createPraxisAufgabeAdmin(data: {
 }): Promise<PraxisAufgabe> {
     return practiceSystem.invoke<PraxisAufgabe>("create_praxis_aufgabe_admin", {
         data: {
-            patient_id: data.patientId,
+            patientId: data.patientId,
             typ: data.typ,
             titel: data.titel,
             body: data.body ?? null,
-            assignee_role: data.assigneeRole ?? null,
-            assignee_user_id: data.assigneeUserId ?? null,
+            assigneeRole: data.assigneeRole ?? null,
+            assigneeUserId: data.assigneeUserId ?? null,
         },
     });
 }
@@ -129,9 +137,24 @@ export async function updatePraxisAufgabeAdmin(patch: {
             titel: patch.titel,
             body: patch.body,
             typ: patch.typ,
-            assignee_role: patch.assigneeRole ?? null,
-            assignee_user_id: patch.assigneeUserId ?? null,
+            assigneeRole: patch.assigneeRole ?? null,
+            assigneeUserId: patch.assigneeUserId ?? null,
             status: patch.status,
         },
+    });
+}
+
+export async function listPraxisAufgabeKommentare(aufgabeId: string): Promise<PraxisAufgabeKommentar[]> {
+    return practiceSystem.invoke<PraxisAufgabeKommentar[]>("list_praxis_aufgabe_kommentare", {
+        aufgabeId,
+    });
+}
+
+export async function addPraxisAufgabeKommentar(
+    aufgabeId: string,
+    body: string,
+): Promise<PraxisAufgabeKommentar> {
+    return practiceSystem.invoke<PraxisAufgabeKommentar>("add_praxis_aufgabe_kommentar", {
+        args: { aufgabeId, body },
     });
 }

@@ -9,10 +9,11 @@ import {
     type PraxisPraeferenzen,
 } from "@/lib/praxis-praeferenzen-storage";
 import { errorMessage } from "@/lib/utils";
+import { useRbac } from "@/lib/use-rbac";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
 /** Kuratierte Farben für Monatskalender-Stufen (zusätzlich zum nativen Farbwähler). */
 const MONTH_CAL_COLOR_CATALOG: { label: string; hex: string }[] = [
@@ -72,6 +73,7 @@ function MonthCalColorField({
 export function PraxisPraeferenzenPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
+    const { canWritePraxisplanung } = useRbac();
     const [prefs, setPrefs] = useState<PraxisPraeferenzen>(DEFAULT_PRAXIS_PRAEFERENZEN);
     const [hydrated, setHydrated] = useState(false);
 
@@ -85,6 +87,7 @@ export function PraxisPraeferenzenPage() {
     }, []);
 
     const save = async () => {
+        if (!canWritePraxisplanung) return;
       try {
             const normalized: PraxisPraeferenzen = {
                 ...prefs,
@@ -113,22 +116,15 @@ export function PraxisPraeferenzenPage() {
 
     if (!hydrated) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-                <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <VerwaltungBackButton />
-                    <h1 className="page-title" style={{ margin: 0 }}>Praxis-Präferenzen</h1>
-                </div>
-                <p className="page-sub">Lade Einstellungen…</p>
+            <div className="praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader titleLevel="h1" title="Praxis-Präferenzen" subtitle="Lade Einstellungen…" />
             </div>
         );
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <VerwaltungBackButton />
-                <h1 className="page-title" style={{ margin: 0 }}>Praxis-Präferenzen</h1>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader titleLevel="h1" title="Praxis-Präferenzen" />
 
             <div className="card card-pad">
                 <h2 className="text-title" style={{ marginTop: 0 }}>Terminregeln</h2>
@@ -234,7 +230,9 @@ export function PraxisPraeferenzenPage() {
 
             <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                 <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/praxisplanung")}>Zurück</Button>
-                <Button type="button" onClick={save}>Speichern</Button>
+                {canWritePraxisplanung ? (
+                    <Button type="button" onClick={save}>Speichern</Button>
+                ) : null}
             </div>
         </div>
     );

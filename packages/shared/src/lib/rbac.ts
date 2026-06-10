@@ -3,17 +3,45 @@
  * Matrix: `config/rbac.yaml` → `rbac.generated.ts` (run `cargo build` to refresh).
  */
 
-import { baseAllowedGenerated } from "./rbac.generated";
+import { baseAllowedGenerated, RBAC_ALL_ACTIONS } from "./rbac.generated";
+import { DATENSCHUTZ_UI_ENABLED } from "./datenschutz-config";
+import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
+import {
+    BENACHRICHTIGUNGEN_SETTINGS_ENABLED,
+    INTEGRATIONEN_SETTINGS_ENABLED,
+    MIGRATION_SETTINGS_ENABLED,
+} from "./settings-ui-flags";
 import type { PermissionOverride } from "../models/types";
+import {
+    ACTIVE_ROLE_WIRES,
+    type ActiveRoleWire,
+    isDeferredRoleWire,
+} from "./deferred-roles";
 
 export type { PermissionOverride };
 
-export type Role = "ARZT" | "REZEPTION" | "STEUERBERATER" | "PHARMABERATER";
+export { RBAC_ALL_ACTIONS };
+
+/** Finanzen-Lesezugriff: volle Übersicht oder Kassenbereich (Rezeption). */
+export const FINANZEN_READ_OR_RECEPTION = ["finanzen.read", "finanzen.reception.view"] as const;
+
+export function canReadFinanzen(
+    role: Role,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    return FINANZEN_READ_OR_RECEPTION.some((action) => allowed(action, role, overrides));
+}
+
+/** MVP active login roles. TODO(deferred-roles): restore STEUERBERATER | PHARMABERATER. */
+export type Role = ActiveRoleWire;
+// export type Role = "ARZT" | "REZEPTION" | "STEUERBERATER" | "PHARMABERATER";
 
 export function parseRole(s: string | undefined): Role | null {
-    if (s === "ARZT" || s === "REZEPTION" || s === "STEUERBERATER" || s === "PHARMABERATER") {
+    if (isDeferredRoleWire(s)) return null;
+    if (s === "ARZT" || s === "REZEPTION") {
         return s;
     }
+    // TODO(deferred-roles): || s === "STEUERBERATER" || s === "PHARMABERATER"
     return null;
 }
 
@@ -68,24 +96,27 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     { to: "/termine", labelKey: "nav.termine", visibility: { kind: "action", action: "termin.read" } },
     { to: "/patienten", labelKey: "nav.patienten", visibility: { kind: "action", action: "patient.read" } },
     { to: "/akten/zu-validieren", labelKey: "nav.akten_zu_validieren", visibility: { kind: "action", action: "patient.read_medical" } },
-    { to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
+    ...(POSTEINGANG_UI_ENABLED
+        ? [{ to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } } as NavItemDefinition]
+        : []),
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     {
-        to: "/verwaltung/finanzen-berichte/tagesabschluss",
-        labelKey: "nav.tagesabschluss",
-        visibility: { kind: "action", action: "finanzen.read" },
+        to: "/finanzen/kasse",
+        labelKey: "nav.finanzen_reception",
+        visibility: { kind: "action", action: "finanzen.reception.view" },
     },
-    { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "finanzen.read" } },
-    { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "action", action: "finanzen.read" } },
-    /* `produkt.read` allows every role in Rust; sidebar matches product scope (exclude Steuerberater). */
-    { to: "/produkte", labelKey: "nav.produkte", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] } },
+    { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "bestellung.read" } },
+    { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "anyOf", actions: FINANZEN_READ_OR_RECEPTION } },
+    /* `produkt.read` allows every role in Rust; sidebar matches product scope. */
+    { to: "/produkte", labelKey: "nav.produkte", visibility: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] } },
     { to: "/verwaltung", labelKey: "nav.verwaltung", visibility: { kind: "action", action: "verwaltung.read" } },
-    { to: "/statistik", labelKey: "nav.statistik", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
+    // TODO(deferred-roles): { to: "/statistik", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
+    { to: "/statistik", labelKey: "nav.statistik", visibility: { kind: "roles", roles: ["ARZT"] } },
     {
         to: "/einstellungen",
         labelKey: "nav.einstellungen",
-        visibility: { kind: "roles", roles: ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] },
+        visibility: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
     },
 ];
 
@@ -105,25 +136,30 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "akten/zu-validieren": { kind: "action", action: "patient.read_medical" },
     posteingang: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
     tickets: { kind: "roles", roles: ["ARZT", "REZEPTION"] },
+    "tickets/neu": { kind: "action", action: "verwaltung.read" },
+    "tickets/:id/bearbeiten": { kind: "action", action: "verwaltung.read" },
     finanzen: { kind: "action", action: "finanzen.read" },
+    "finanzen/kasse": { kind: "action", action: "finanzen.reception.view" },
+    "finanzen/kasse/neu": { kind: "action", action: "finanzen.write" },
     "finanzen/neu": { kind: "action", action: "finanzen.write" },
-    bestellungen: { kind: "action", action: "finanzen.read" },
-    "bestellungen/neu": { kind: "action", action: "finanzen.write" },
-    "bestellungen/:id": { kind: "action", action: "finanzen.read" },
-    bilanz: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
-    "bilanz/neu": { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
+    bestellungen: { kind: "action", action: "bestellung.read" },
+    "bestellungen/neu": { kind: "action", action: "bestellung.write" },
+    "bestellungen/:id": { kind: "action", action: "bestellung.read" },
+    // TODO(deferred-roles): bilanz — was ["ARZT", "STEUERBERATER"]
+    bilanz: { kind: "roles", roles: ["ARZT"] },
+    "bilanz/neu": { kind: "roles", roles: ["ARZT"] },
     rezepte: { kind: "action", action: "patient.read_medical" },
     atteste: { kind: "action", action: "patient.read_medical" },
-    leistungen: { kind: "action", action: "finanzen.read" },
+    leistungen: { kind: "anyOf", actions: FINANZEN_READ_OR_RECEPTION },
     "leistungen/neu": { kind: "action", action: "finanzen.write" },
-    produkte: { kind: "roles", roles: ["ARZT", "REZEPTION", "PHARMABERATER"] },
+    produkte: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
     personal: { kind: "action", action: "personal.read" },
     "personal/arbeitsplan": { kind: "action", action: "personal.read" },
     "personal/neu": { kind: "action", action: "personal.write" },
-    statistik: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] },
+    statistik: { kind: "roles", roles: ["ARZT"] },
     audit: { kind: "action", action: "audit.read" },
     datenschutz: { kind: "allOf", actions: ["patient.read", "ops.dsgvo"] },
-    einstellungen: { kind: "roles", roles: ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] },
+    einstellungen: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
     logs: { kind: "action", action: "ops.logs" },
     ops: { kind: "action", action: "ops.backup" },
     compliance: { kind: "anyOf", actions: ["ops.dsgvo", "ops.system"] },
@@ -140,13 +176,13 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "verwaltung/praxis-praeferenzen": { kind: "action", action: "verwaltung.praxisplanung.read" },
     "verwaltung/vorlagen": { kind: "action", action: "verwaltung.vorlagen.read" },
     "verwaltung/vorlagen/editor": { kind: "action", action: "verwaltung.vorlagen.write" },
-    "verwaltung/behandlungs-katalog": { kind: "action", action: "verwaltung.kataloge.read" },
+    "verwaltung/behandlungs-katalog": { kind: "action", action: "patient.read_medical" },
     /** Bestellwesen (nicht `finanzen.*`) — spiegelt Tauri `bestellung.read` / `bestellung.write` für Praxis-Stammdaten. */
     "verwaltung/bestellstamm": { kind: "action", action: "bestellung.read" },
     "verwaltung/finanzen-werkzeuge": { kind: "action", action: "finanzen.read" },
-    "verwaltung/tagesabschluss": { kind: "action", action: "finanzen.read" },
+    "verwaltung/tagesabschluss": { kind: "action", action: "finanzen.tagesabschluss.write" },
     "verwaltung/finanzen-berichte": { kind: "action", action: "finanzen.read" },
-    "verwaltung/finanzen-berichte/tagesabschluss": { kind: "action", action: "finanzen.read" },
+    "verwaltung/finanzen-berichte/tagesabschluss": { kind: "action", action: "finanzen.tagesabschluss.write" },
     "verwaltung/finanzen-berichte/rechnung": { kind: "action", action: "finanzen.read" },
     "verwaltung/lager-und-bestellwesen": { kind: "action", action: "verwaltung.lager.read" },
     "verwaltung/vertraege": { kind: "action", action: "verwaltung.vertraege.read" },
@@ -161,6 +197,7 @@ export function navVisibilitySatisfied(
     rolle: string | undefined,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
+    if (isDeferredRoleWire(rolle)) return false;
     const role = parseRole(rolle);
     if (!role) return false;
     if (visibility.kind === "action") return allowed(visibility.action, role, overrides);
@@ -178,6 +215,16 @@ export function routeChildPathAllowed(
     rolle: string | undefined,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
+    if (!POSTEINGANG_UI_ENABLED && routePath === "posteingang") {
+        return false;
+    }
+    if (!DATENSCHUTZ_UI_ENABLED && routePath === "datenschutz") {
+        return false;
+    }
+    const role = parseRole(rolle);
+    if (role === "REZEPTION" && routePath.startsWith("verwaltung")) {
+        return false;
+    }
     const visibility = ROUTE_VISIBILITY[routePath];
     if (!visibility) return false;
     return navVisibilitySatisfied(visibility, rolle, overrides);
@@ -249,14 +296,51 @@ export type SettingsSectionId =
 export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavVisibility>> = {
     migration: { kind: "action", action: "ops.migration" },
     system: { kind: "anyOf", actions: ["ops.backup", "ops.system", "ops.logs"] },
+    /** Lizenz-Aktivierung, Abo-Portal — Praxisleitung / IT (ops.system). */
+    lizenz: { kind: "action", action: "ops.system" },
+    /** Hersteller-Schnittstellen — nicht für Frontdesk. */
+    integrationen: { kind: "action", action: "ops.system" },
+    /** Praxis-Stammdaten (Rechnung, Logo) — Praxisleitung. Rezeption: nur über Verwaltung/Frontdesk-relevante Bereiche. */
+    praxis: { kind: "action", action: "ops.system" },
+    /** Compliance / 2FA-Richtlinien — Praxisleitung; Rezeption sieht Gerätesitzungen unter Konto. */
+    sicherheit: { kind: "action", action: "ops.system" },
 };
+
+/** Frontdesk: explizite Allowlist — verhindert „Default = sichtbar“ für Admin-Panels. */
+export const REZEPTION_SETTINGS_SECTIONS: ReadonlySet<SettingsSectionId> = new Set(
+    [
+        "konto",
+        ...(BENACHRICHTIGUNGEN_SETTINGS_ENABLED ? (["benachrichtigungen"] as const) : []),
+        "darstellung",
+        "arbeitsablaeufe",
+        "ueber",
+    ] satisfies readonly SettingsSectionId[],
+);
+
+/** Geräteverbund admin panel: app RBAC ARZT + ADMIN seat (seat checked in UI/backend). */
+export function canAccessVerbundAdminPanel(rolle: string | undefined): boolean {
+    return parseRole(rolle) === "ARZT";
+}
 
 export function settingsSectionVisible(
     section: string,
     rolle: string | undefined,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
+    if (!BENACHRICHTIGUNGEN_SETTINGS_ENABLED && section === "benachrichtigungen") {
+        return false;
+    }
+    if (!INTEGRATIONEN_SETTINGS_ENABLED && section === "integrationen") {
+        return false;
+    }
+    if (!MIGRATION_SETTINGS_ENABLED && section === "migration") {
+        return false;
+    }
     if (!routeChildPathAllowed("einstellungen", rolle, overrides)) return false;
+    const role = parseRole(rolle);
+    if (role === "REZEPTION") {
+        return REZEPTION_SETTINGS_SECTIONS.has(section as SettingsSectionId);
+    }
     const vis = SETTINGS_SECTION_VISIBILITY[section as SettingsSectionId];
     if (!vis) return true;
     return navVisibilitySatisfied(vis, rolle, overrides);

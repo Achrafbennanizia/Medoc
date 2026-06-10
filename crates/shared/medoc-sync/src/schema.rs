@@ -128,5 +128,39 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(AppError::Database)?;
 
+    migrate_pairing_pin_columns(pool).await?;
+
+    medoc_core::infrastructure::database::migrations::ensure_verbund_tables(pool).await?;
+
+    Ok(())
+}
+
+async fn migrate_pairing_pin_columns(pool: &SqlitePool) -> Result<(), AppError> {
+    let has_hash: Option<i64> = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('pairing_request') WHERE name = 'confirm_pin_hash'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if has_hash == Some(0) {
+        sqlx::query("ALTER TABLE pairing_request ADD COLUMN confirm_pin_hash TEXT")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("ALTER TABLE pairing_request ADD COLUMN confirm_pin_expires_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query(
+            "ALTER TABLE pairing_request ADD COLUMN confirm_pin_attempts INTEGER NOT NULL DEFAULT 0",
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query("ALTER TABLE pairing_request ADD COLUMN transport TEXT NOT NULL DEFAULT 'lan'")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+    }
     Ok(())
 }

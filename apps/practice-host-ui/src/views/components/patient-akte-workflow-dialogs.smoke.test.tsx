@@ -14,7 +14,6 @@ vi.mock("@/systems/practice-host/controllers/personal.controller", () => ({
 }));
 
 vi.mock("@/systems/practice-host/controllers/akte-workflow.controller", () => ({
-    createPraxisTicket: vi.fn(),
     forwardAkteToPhysicians: vi.fn(),
 }));
 
@@ -40,7 +39,7 @@ describe("PatientAkteWorkflowDialogs smoke (G21 row 3 proxy)", () => {
             await Promise.resolve();
         });
 
-        expect(screen.getByText(/Erscheint im Posteingang der Rezeption/i)).toBeInTheDocument();
+        expect(screen.getByText(/Rezeption \(Pool\)/i)).toBeInTheDocument();
 
         fireEvent.change(screen.getByPlaceholderText(/Termin vereinbaren/i), {
             target: { value: "Rückruf Patient" },
@@ -56,9 +55,10 @@ describe("PatientAkteWorkflowDialogs smoke (G21 row 3 proxy)", () => {
             typ: "SONSTIGES",
             titel: "Rückruf Patient",
             body: null,
+            assigneeUserId: null,
             assigneeRole: "REZEPTION",
         });
-        expect(toast).toHaveBeenCalledWith("Aufgabe an Rezeption erstellt.", "success");
+        expect(toast).toHaveBeenCalledWith("Aufgabe an Rezeption (Pool) erstellt.", "success");
         expect(onClose).toHaveBeenCalled();
     });
 });

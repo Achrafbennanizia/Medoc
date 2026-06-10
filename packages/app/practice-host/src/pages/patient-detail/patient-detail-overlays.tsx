@@ -1,4 +1,5 @@
 import type { Rolle, Patient } from "@/models/types";
+import { parseRole } from "@/lib/rbac";
 import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
 import type { DocumentKind } from "@/lib/document-template-schema";
@@ -17,6 +18,7 @@ export type PatientDetailOverlaysProps = {
     sessionUserId: string;
     role: Rolle;
     canViewClinical: boolean;
+    canReadDocuments: boolean;
     canReadFinanzen: boolean;
     canAuditRead: boolean;
     akteSaveConfirm: AkteSavePending | null;
@@ -49,6 +51,7 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
         sessionUserId,
         role,
         canViewClinical,
+        canReadDocuments,
         canReadFinanzen,
         canAuditRead,
         akteSaveConfirm,
@@ -86,6 +89,7 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
                     patientId={patientId}
                     patient={patient}
                     canViewClinical={canViewClinical}
+                    canReadDocuments={canReadDocuments}
                     canReadFinanzen={canReadFinanzen}
                     canAuditRead={canAuditRead}
                 />
@@ -121,7 +125,7 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
                     onClose={onCloseAkteWorkflow}
                     patientId={patientId}
                     currentUserId={sessionUserId}
-                    role={role}
+                    role={parseRole(role) ?? "REZEPTION"}
                     toast={toast}
                 />
             ) : null}

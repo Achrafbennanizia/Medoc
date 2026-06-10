@@ -9,13 +9,28 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Roles defined in the requirements (4 personae).
+/// Roles defined in the requirements (4 personae; 2 deferred for MVP — see `deferred_roles`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     Arzt,
     Rezeption,
+    // TODO(deferred-roles): re-enable login — docs/coordination/todos-deferred-roles.md
     Steuerberater,
     Pharmaberater,
+}
+
+/// Wire strings for advisor personae disabled in MVP UI/login.
+pub const DEFERRED_ROLE_WIRES: &[&str] = &["STEUERBERATER", "PHARMABERATER"];
+
+pub fn is_deferred_role_wire(s: &str) -> bool {
+    DEFERRED_ROLE_WIRES
+        .iter()
+        .any(|r| r.eq_ignore_ascii_case(s.trim()))
+}
+
+/// Active MVP login roles (`ARZT`, `REZEPTION`).
+pub fn is_login_role_allowed(s: &str) -> bool {
+    !is_deferred_role_wire(s)
 }
 
 impl Role {
@@ -27,6 +42,10 @@ impl Role {
             "PHARMABERATER" => Some(Role::Pharmaberater),
             _ => None,
         }
+    }
+
+    pub fn is_deferred(self) -> bool {
+        matches!(self, Role::Steuerberater | Role::Pharmaberater)
     }
 }
 

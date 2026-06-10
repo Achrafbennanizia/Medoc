@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { Input, Select } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
-import { listBestellungen, updateBestellungStatus, type Bestellung, type BestellStatus } from "@/systems/practice-host/controllers/bestellung.controller";
+import { BestellungDetailDrawer } from "../components/bestellung-detail-drawer";
+import { listBestellungen, type Bestellung, type BestellStatus } from "@/systems/practice-host/controllers/bestellung.controller";
 import { useAuthStore } from "@/models/store/auth-store";
-import { allowed } from "@/lib/rbac";
+import { allowed, parseRole } from "@/lib/rbac";
 import { errorMessage, formatDate } from "@/lib/utils";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 type StatusFilter = "ALL" | BestellStatus;
 
@@ -22,13 +24,6 @@ function isOverdue(b: Bestellung): boolean {
     if (b.status === "GELIEFERT" || b.status === "STORNIERT") return false;
     return b.erwartet_am < todayISO();
 }
-
-const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
-    { value: "OFFEN", label: "Offen" },
-    { value: "UNTERWEGS", label: "Unterwegs" },
-    { value: "GELIEFERT", label: "Geliefert" },
-    { value: "STORNIERT", label: "Storniert" },
-];
 
 function statusBadgeReadonly(status: BestellStatus, overdue: boolean) {
     if (overdue) return <Badge variant="error">Überfällig</Badge>;
@@ -46,9 +41,14 @@ function statusBadgeReadonly(status: BestellStatus, overdue: boolean) {
 
 export function BestellungenPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
-    const role = useAuthStore((s) => s.session?.rolle ?? null);
-    const canWrite = role != null && allowed("finanzen.write", role);
+    const rolleStr = useAuthStore((s) => s.session?.rolle);
+    const role = parseRole(rolleStr);
+    const canWrite = role != null && allowed("bestellung.write", role);
+    const canAddProdukt = role != null && allowed("produkt.write", role);
+
+    const selectedId = searchParams.get("bestellung");
 
     const [rows, setRows] = useState<Bestellung[]>([]);
     const [loading, setLoading] = useState(true);
@@ -56,8 +56,6 @@ export function BestellungenPage() {
 
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-
-    const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
     const load = useCallback(async (opts?: { initial?: boolean }) => {
         const initial = opts?.initial === true;
@@ -98,41 +96,48 @@ export function BestellungenPage() {
             .sort((a, b) => b.created_at.localeCompare(a.created_at));
     }, [rows, search, statusFilter]);
 
-    const handleStatusChange = async (b: Bestellung, status: BestellStatus) => {
-        if (status === b.status) return;
-        setStatusUpdatingId(b.id);
-        try {
-            const updated = await updateBestellungStatus(b.id, status);
-            setRows((list) => list.map((row) => (row.id === updated.id ? updated : row)));
-            toast("Status aktualisiert", "success");
-        } catch (e) {
-            toast(`Status konnte nicht geändert werden: ${errorMessage(e)}`, "error");
-        } finally {
-            setStatusUpdatingId(null);
+    const selectedBestellung = useMemo(
+        () => (selectedId ? rows.find((r) => r.id === selectedId) ?? null : null),
+        [rows, selectedId],
+    );
+
+    useEffect(() => {
+        if (selectedId && !loading && rows.length > 0 && !selectedBestellung) {
+            setSearchParams({}, { replace: true });
         }
+    }, [selectedId, loading, rows.length, selectedBestellung, setSearchParams]);
+
+    const openDrawer = (id: string) => {
+        setSearchParams({ bestellung: id });
+    };
+
+    const closeDrawer = () => {
+        setSearchParams({});
+    };
+
+    const handleUpdated = (updated: Bestellung) => {
+        setRows((list) => list.map((row) => (row.id === updated.id ? updated : row)));
+    };
+
+    const handleDeleted = (id: string) => {
+        setRows((list) => list.filter((row) => row.id !== id));
     };
 
     if (loading) return <PageLoading label="Bestellungen werden geladen…" />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-            {/* Header — same minimalist style as Produkte */}
-            <div className="page-head">
-                <div>
-                    <h2 className="page-title">Bestellungen</h2>
-                    <p className="page-sub" style={{ marginTop: 4 }}>
-                        Lieferungen und Bestellvorgänge der Praxis im Überblick.
-                    </p>
-                </div>
-                {canWrite ? (
-                    <Button onClick={() => navigate("/bestellungen/neu")} style={{ flexShrink: 0 }}>
-                        + Neue Bestellung
-                    </Button>
-                ) : null}
-            </div>
+        <div className="bestellungen-page praxis-workspace-page animate-fade-in--sticky-safe">
+            <WorkspacePageHeader
+                title="Bestellungen"
+                subtitle="Lieferungen und Bestellvorgänge der Praxis im Überblick."
+                actions={
+                    canWrite ? (
+                        <Button onClick={() => navigate("/bestellungen/neu")}>+ Neue Bestellung</Button>
+                    ) : null
+                }
+            />
 
-            {/* Toolbar — always above list so narrow layouts keep filters discoverable */}
             <div className="page-toolbar">
                 <div className="page-toolbar__search">
                     <Input
@@ -165,7 +170,6 @@ export function BestellungenPage() {
                 ) : null}
             </div>
 
-            {/* Table — minimalist Produkte style */}
             {rows.length === 0 ? (
                 <EmptyState
                     icon="📦"
@@ -184,100 +188,84 @@ export function BestellungenPage() {
                     }}
                 />
             ) : (
-                <div className="card tbl-scroll">
-                    <table className="tbl">
+                <div className="card bestellungen-table-card tbl-data-card card--overflow-visible">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-bestellungen">
+                        <colgroup>
+                            <col className="bestellungen-col-nr" />
+                            <col className="bestellungen-col-lief" />
+                            <col className="bestellungen-col-art" />
+                            <col className="bestellungen-col-menge" />
+                            <col className="bestellungen-col-erw" />
+                            <col className="bestellungen-col-status" />
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th>Bestellnr.</th>
-                                <th>Lieferant</th>
-                                <th>Artikel</th>
-                                <th>Menge</th>
-                                <th>Erwartet</th>
-                                <th>Status</th>
+                                <th scope="col">Bestellnr.</th>
+                                <th scope="col">Lieferant</th>
+                                <th scope="col">Artikel</th>
+                                <th scope="col">Menge</th>
+                                <th scope="col">Erwartet</th>
+                                <th scope="col">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((r) => {
                                 const overdue = isOverdue(r);
-                                const detailHref = `/bestellungen/${r.id}`;
+                                const isSelected = selectedId === r.id;
                                 const rowLabel = `Bestellung ${r.bestellnummer ?? r.id} öffnen`;
-                                const onRowLinkKeyDown = (e: KeyboardEvent<HTMLAnchorElement>) => {
-                                    if (e.key === " ") {
+                                const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                                    if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
-                                        e.currentTarget.click();
+                                        openDrawer(r.id);
                                     }
                                 };
                                 return (
-                                    <tr key={r.id} className="bestellungen-row">
-                                        <td colSpan={5} className="bestellungen-row__nav">
-                                            <Link
-                                                to={detailHref}
-                                                role="link"
-                                                className="bestellungen-row-link"
-                                                aria-label={rowLabel}
-                                                title="Details öffnen"
-                                                onKeyDown={onRowLinkKeyDown}
-                                            >
-                                                <span
-                                                    style={{
-                                                        color: "var(--accent-ink)",
-                                                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                                                        fontSize: 12.5,
-                                                    }}
-                                                >
-                                                    {r.bestellnummer ?? "—"}
-                                                </span>
-                                                <span>
-                                                    <span style={{ display: "block", fontWeight: 600 }}>{r.lieferant}</span>
-                                                    {r.pharmaberater ? (
-                                                        <span className="page-sub" style={{ display: "block", fontSize: 11.5 }}>
-                                                            {r.pharmaberater}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                                <span style={{ maxWidth: 320, minWidth: 0 }}>{r.artikel}</span>
-                                                <span>{r.menge}{r.einheit ? ` ${r.einheit}` : ""}</span>
-                                                <span>
-                                                    {r.erwartet_am ? (
-                                                        <span
-                                                            style={{
-                                                                color: overdue ? "var(--red)" : undefined,
-                                                                fontWeight: overdue ? 600 : 400,
-                                                                fontVariantNumeric: "tabular-nums",
-                                                            }}
-                                                        >
-                                                            {formatDate(r.erwartet_am)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="page-sub">—</span>
-                                                    )}
-                                                </span>
-                                            </Link>
+                                    <tr
+                                        key={r.id}
+                                        className={[
+                                            "bestellungen-row",
+                                            "bestellungen-row--clickable",
+                                            isSelected ? "bestellungen-row--selected" : "",
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" ")}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={rowLabel}
+                                        aria-pressed={isSelected}
+                                        title="Details öffnen"
+                                        onClick={() => openDrawer(r.id)}
+                                        onKeyDown={onRowKeyDown}
+                                    >
+                                        <td className="bestellungen-td-nr">
+                                            <span className="bestellungen-nr">{r.bestellnummer ?? "—"}</span>
                                         </td>
-                                        <td
-                                            className="bestellungen-row__status"
-                                            onClick={(e) => e.stopPropagation()}
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                        >
+                                        <td className="bestellungen-td-lief">
+                                            <span className="bestellungen-lief-name">{r.lieferant}</span>
+                                            {r.pharmaberater ? (
+                                                <span className="bestellungen-lief-sub">{r.pharmaberater}</span>
+                                            ) : null}
+                                        </td>
+                                        <td className="bestellungen-td-art">
+                                            <span className="bestellungen-art">{r.artikel}</span>
+                                        </td>
+                                        <td className="bestellungen-td-menge">
+                                            {r.menge}
+                                            {r.einheit ? ` ${r.einheit}` : ""}
+                                        </td>
+                                        <td className="bestellungen-td-erw">
+                                            {r.erwartet_am ? (
+                                                <span className={overdue ? "bestellungen-erw--late" : undefined}>
+                                                    {formatDate(r.erwartet_am)}
+                                                </span>
+                                            ) : (
+                                                <span className="page-sub">—</span>
+                                            )}
+                                        </td>
+                                        <td className="bestellungen-td-status">
                                             <div className="bestellungen-status-cell">
-                                                {canWrite ? (
-                                                    <Select
-                                                        id={`best-status-${r.id}`}
-                                                        className="bestellungen-status-select w-full min-w-0 max-w-[200px]"
-                                                        aria-label={`Status: ${r.bestellnummer ?? r.artikel}`}
-                                                        value={r.status}
-                                                        disabled={statusUpdatingId === r.id}
-                                                        onChange={(e) =>
-                                                            handleStatusChange(r, e.target.value as BestellStatus)
-                                                        }
-                                                        options={BESTELL_STATUS_OPTIONS.map((o) => ({
-                                                            value: o.value,
-                                                            label: o.label,
-                                                        }))}
-                                                    />
-                                                ) : (
-                                                    statusBadgeReadonly(r.status, overdue)
-                                                )}
+                                                {statusBadgeReadonly(r.status, overdue)}
                                                 {overdue && r.status !== "GELIEFERT" && r.status !== "STORNIERT" ? (
                                                     <span className="bestellungen-overdue-hint" title="Liefertermin liegt in der Vergangenheit">
                                                         Überfällig
@@ -290,9 +278,20 @@ export function BestellungenPage() {
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 
+            {selectedBestellung ? (
+                <BestellungDetailDrawer
+                    bestellung={selectedBestellung}
+                    canWrite={canWrite}
+                    canAddProdukt={canAddProdukt}
+                    onClose={closeDrawer}
+                    onUpdated={handleUpdated}
+                    onDeleted={handleDeleted}
+                />
+            ) : null}
         </div>
     );
 }

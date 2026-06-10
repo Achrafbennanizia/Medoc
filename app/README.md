@@ -37,4 +37,6 @@ npm run tauri dev    # full desktop app
 ./scripts/validate-lan-web-client.sh
 ```
 
+**Docker Wave V1 (Linux container):** build `docker/ci/Dockerfile.rust-wave-v1`, then run `medoc-rust-wave-v1:latest` — see root [`README.md`](../README.md) and [`docs/coordination/validation.md`](../docs/coordination/validation.md).
+
 The legacy `app/` directory is retired; use paths above.

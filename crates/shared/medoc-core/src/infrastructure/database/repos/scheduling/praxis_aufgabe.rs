@@ -1,9 +1,19 @@
 //! FA-AUFG-01/06 — `praxis_aufgabe` persistence.
 use crate::domain::entities::praxis_aufgabe::{
-    CreatePraxisAufgabe, PraxisAufgabe, UpdatePraxisAufgabeAdmin,
+    CreatePraxisAufgabe, PraxisAufgabe, PraxisAufgabeKommentar, UpdatePraxisAufgabeAdmin,
 };
 use crate::error::AppError;
 use sqlx::SqlitePool;
+
+const ACTIVE_STATUSES: &str = "'OFFEN','IN_BEARBEITUNG','ZURUECK'";
+
+/// Chat-like visibility: creator, named assignee, or (Rezeption only) shared pool rows.
+const VISIBILITY_WHERE: &str = "
+    assignee_user_id = ?1
+    OR (created_by = ?1 AND COALESCE(TRIM(assignee_user_id), '') != '')
+    OR (created_by = ?1 AND assignee_role = 'REZEPTION' AND COALESCE(TRIM(assignee_user_id), '') = '')
+    OR (?2 = 1 AND assignee_role = 'REZEPTION' AND COALESCE(TRIM(assignee_user_id), '') = '')
+";
 
 pub async fn insert(
     pool: &SqlitePool,
@@ -63,7 +73,7 @@ pub async fn insert_abrechnung_for_clinical_line(
     p: AbrechnungAufgabeParams<'_>,
 ) -> Result<PraxisAufgabe, AppError> {
     let data = CreatePraxisAufgabe {
-        patient_id: p.patient_id.into(),
+        patient_id: Some(p.patient_id.to_string()),
         typ: "ABRECHNUNG".into(),
         titel: p.titel.into(),
         body: Some(p.body.into()),
@@ -150,6 +160,58 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<PraxisAufg
         .map_err(Into::into)
 }
 
+/// Posteingang for the current user — creator/assignee threads + optional REZ pool.
+pub async fn list_for_user(
+    pool: &SqlitePool,
+    user_id: &str,
+    include_rezeption_pool: bool,
+    limit: i64,
+) -> Result<Vec<PraxisAufgabe>, AppError> {
+    let pool_flag: i64 = if include_rezeption_pool { 1 } else { 0 };
+    let sql = format!(
+        "SELECT * FROM praxis_aufgabe
+         WHERE (
+           status IN ({ACTIVE_STATUSES})
+           AND ({VISIBILITY_WHERE})
+         ) OR (
+           created_by = ?1 AND status != 'VALIDIERT'
+         )
+         ORDER BY
+           CASE status WHEN 'ZURUECK' THEN 0 WHEN 'OFFEN' THEN 1 WHEN 'IN_BEARBEITUNG' THEN 2 WHEN 'ERLEDIGT_REZEPTION' THEN 3 ELSE 4 END,
+           datetime(updated_at) DESC
+         LIMIT ?3"
+    );
+    sqlx::query_as::<_, PraxisAufgabe>(&sql)
+        .bind(user_id)
+        .bind(pool_flag)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn count_open_for_user(
+    pool: &SqlitePool,
+    user_id: &str,
+    include_rezeption_pool: bool,
+) -> Result<i64, AppError> {
+    let pool_flag: i64 = if include_rezeption_pool { 1 } else { 0 };
+    let count_sql = format!(
+        "SELECT COUNT(DISTINCT id) FROM praxis_aufgabe
+         WHERE (
+           status IN ({ACTIVE_STATUSES}) AND ({VISIBILITY_WHERE})
+         ) OR (
+           created_by = ?1 AND status != 'VALIDIERT'
+         )"
+    );
+    let row: (i64,) = sqlx::query_as(&count_sql)
+        .bind(user_id)
+        .bind(pool_flag)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+
 /// Posteingang Rezeption: Pool-Aufgaben (OFFEN, IN_BEARBEITUNG, ZURUECK).
 pub async fn list_posteingang_rezeption(
     pool: &SqlitePool,
@@ -192,6 +254,30 @@ pub async fn list_posteingang_arzt(
     .map_err(Into::into)
 }
 
+/// Posteingang Rezeption: von mir an einen Arzt gesendet (noch offen).
+pub async fn list_outgoing_rezeption(
+    pool: &SqlitePool,
+    created_by: &str,
+    limit: i64,
+) -> Result<Vec<PraxisAufgabe>, AppError> {
+    sqlx::query_as::<_, PraxisAufgabe>(
+        "SELECT * FROM praxis_aufgabe
+         WHERE created_by = ?1
+           AND assignee_user_id IS NOT NULL
+           AND assignee_user_id != ''
+           AND status IN ('OFFEN','IN_BEARBEITUNG','ZURUECK')
+         ORDER BY
+           CASE status WHEN 'ZURUECK' THEN 0 WHEN 'OFFEN' THEN 1 ELSE 2 END,
+           datetime(created_at) DESC
+         LIMIT ?2",
+    )
+    .bind(created_by)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
 /// Arzt/Rezeption: erledigte Aufgaben zur Validierung (von mir erstellt).
 pub async fn list_pending_validation(
     pool: &SqlitePool,
@@ -211,15 +297,32 @@ pub async fn list_pending_validation(
     .map_err(Into::into)
 }
 
-pub async fn count_open_for_rezeption(pool: &SqlitePool) -> Result<i64, AppError> {
-    let row: (i64,) = sqlx::query_as(
+pub async fn count_open_for_rezeption(pool: &SqlitePool, user_id: &str) -> Result<i64, AppError> {
+    let pool_open: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM praxis_aufgabe
          WHERE assignee_role = 'REZEPTION'
            AND status IN ('OFFEN','IN_BEARBEITUNG','ZURUECK')",
     )
     .fetch_one(pool)
     .await?;
-    Ok(row.0)
+    let outgoing: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM praxis_aufgabe
+         WHERE created_by = ?1
+           AND assignee_user_id IS NOT NULL
+           AND assignee_user_id != ''
+           AND status IN ('OFFEN','IN_BEARBEITUNG','ZURUECK')",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+    let validate: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM praxis_aufgabe
+         WHERE created_by = ?1 AND status = 'ERLEDIGT_REZEPTION'",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(pool_open.0 + outgoing.0 + validate.0)
 }
 
 pub async fn count_open_for_arzt(pool: &SqlitePool, arzt_id: &str) -> Result<i64, AppError> {
@@ -397,4 +500,54 @@ pub async fn update_admin(
     )
     .await?;
     Ok(updated)
+}
+
+pub async fn list_kommentare(
+    pool: &SqlitePool,
+    aufgabe_id: &str,
+    limit: i64,
+) -> Result<Vec<PraxisAufgabeKommentar>, AppError> {
+    sqlx::query_as::<_, PraxisAufgabeKommentar>(
+        "SELECT * FROM praxis_aufgabe_kommentar
+         WHERE aufgabe_id = ?1
+         ORDER BY datetime(created_at) ASC
+         LIMIT ?2",
+    )
+    .bind(aufgabe_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn insert_kommentar(
+    pool: &SqlitePool,
+    aufgabe_id: &str,
+    author_id: &str,
+    body: &str,
+) -> Result<PraxisAufgabeKommentar, AppError> {
+    let text = body.trim();
+    if text.is_empty() {
+        return Err(AppError::Validation(
+            "Kommentar darf nicht leer sein.".into(),
+        ));
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO praxis_aufgabe_kommentar (id, aufgabe_id, author_id, body)
+         VALUES (?1, ?2, ?3, ?4)",
+    )
+    .bind(&id)
+    .bind(aufgabe_id)
+    .bind(author_id)
+    .bind(text)
+    .execute(pool)
+    .await?;
+    sqlx::query_as::<_, PraxisAufgabeKommentar>(
+        "SELECT * FROM praxis_aufgabe_kommentar WHERE id = ?1",
+    )
+    .bind(&id)
+    .fetch_one(pool)
+    .await
+    .map_err(Into::into)
 }

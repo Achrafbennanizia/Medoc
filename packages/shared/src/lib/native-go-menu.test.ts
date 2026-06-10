@@ -4,29 +4,18 @@ import { buildNativeGoMenuItems, buildNativeFileNewGate, NATIVE_GO_MENU_SEP } fr
 const id = (key: string) => key;
 
 describe("buildNativeGoMenuItems", () => {
-    it("Steuerberater: Finanzen & Statistik, kein Patientenbereich", () => {
-        const items = buildNativeGoMenuItems("STEUERBERATER", id);
-        const paths = items.filter((i) => i.path !== NATIVE_GO_MENU_SEP).map((i) => i.path);
-        expect(paths).toContain("/finanzen");
-        expect(paths).toContain("/statistik");
-        expect(paths).toContain("/bilanz");
-        expect(paths).not.toContain("/patienten");
-        expect(paths).not.toContain("/termine");
+    // TODO(deferred-roles): Steuerberater / Pharmaberater native menu — todos-deferred-roles.md
+    it("deferred advisor roles get empty native go menu", () => {
+        expect(buildNativeGoMenuItems("STEUERBERATER", id)).toEqual([]);
+        expect(buildNativeGoMenuItems("PHARMABERATER", id)).toEqual([]);
     });
 
-    it("Pharmaberater: Dashboard, keine Patientenakten (Termine/Rezeptpfade gesperrt)", () => {
-        const items = buildNativeGoMenuItems("PHARMABERATER", id);
-        const paths = items.filter((i) => i.path !== NATIVE_GO_MENU_SEP).map((i) => i.path);
-        expect(paths).toContain("/");
-        expect(paths).not.toContain("/termine");
-        expect(paths).not.toContain("/patienten");
-    });
-
-    it("buildNativeFileNewGate: Steuerberater darf keine neuen Termine/Patienten", () => {
+    it("buildNativeFileNewGate: deferred advisor roles denied", () => {
         const g = buildNativeFileNewGate("STEUERBERATER");
         expect(g.termin).toBe(false);
         expect(g.patient).toBe(false);
-        expect(g.zahlung).toBe(true);
+        expect(g.zahlung).toBe(false);
+        expect(g.bilanz).toBe(false);
     });
 
     it("buildNativeFileNewGate: Arzt hat Neu-Menü für Termin und Patient", () => {

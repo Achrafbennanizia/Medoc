@@ -35,11 +35,25 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     },
     { id: "finanzen", routePath: "finanzen", href: "/finanzen", titleDe: "Finanzen", keywords: ["geld", "kasse"] },
     {
+        id: "finanzen-kasse",
+        routePath: "finanzen/kasse",
+        href: "/finanzen/kasse",
+        titleDe: "Kasseneingänge",
+        keywords: ["kasse", "rezeption", "zahlung", "bar", "eingang", "tagesabschluss"],
+    },
+    {
         id: "finanzen-neu",
         routePath: "finanzen/neu",
         href: "/finanzen/neu",
         titleDe: "Neue Zahlung",
         keywords: ["anlegen", "einnahme", "buchung", "kasse", "zahlung"],
+    },
+    {
+        id: "finanzen-kasse-neu",
+        routePath: "finanzen/kasse/neu",
+        href: "/finanzen/kasse/neu",
+        titleDe: "Neue Zahlung (Kasseneingänge)",
+        keywords: ["anlegen", "einnahme", "kasse", "zahlung", "rezeption"],
     },
     { id: "bestellungen", routePath: "bestellungen", href: "/bestellungen", titleDe: "Bestellungen", keywords: ["lieferung", "ware", "einkauf"] },
     {

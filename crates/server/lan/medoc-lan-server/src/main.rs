@@ -125,6 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse()
         .map_err(|e| format!("bind address: {e}"))?;
 
+    let advertised_host = medoc_core::discovery::primary_local_ipv4().unwrap_or_default();
+
     let beacon = medoc_lan::discovery::LanBeaconPayload {
         schema: medoc_lan::discovery::SCHEMA.into(),
         version: env!("CARGO_PKG_VERSION").into(),
@@ -133,6 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         label: args.label,
         tls: true,
         cert_sha256: tls_identity.sha256_fingerprint.clone(),
+        advertised_host,
     }
     .to_json_line();
 

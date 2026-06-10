@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PraxisAufgabe {
     pub id: String,
-    pub patient_id: String,
+    pub patient_id: Option<String>,
     pub typ: String,
     pub titel: String,
     pub body: Option<String>,
@@ -25,10 +25,27 @@ pub struct PraxisAufgabe {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PraxisAufgabeKommentar {
+    pub id: String,
+    pub aufgabe_id: String,
+    pub author_id: String,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddPraxisAufgabeKommentarArgs {
+    pub aufgabe_id: String,
+    pub body: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePraxisAufgabe {
-    pub patient_id: String,
+    #[serde(default)]
+    pub patient_id: Option<String>,
     pub typ: String,
     pub titel: String,
     #[serde(default)]

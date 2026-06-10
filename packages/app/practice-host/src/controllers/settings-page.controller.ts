@@ -44,11 +44,19 @@ export {
     companyPortalBillingPortalUrl,
     companyPortalAttachPayment,
     companyPortalPing,
-    listMyDeviceSessions,
-    revokeMyOtherDeviceSessions,
     type CompanyPortalConfig,
-    type DeviceSessionRow,
 } from "@/systems/company-portal/controllers/company-portal.controller";
+
+export {
+    investigateMyDeviceSession,
+    listMyDeviceSessions,
+    revokeMyDeviceSession,
+    revokeMyOtherDeviceSessions,
+    setMyDeviceSessionTrusted,
+    type DeviceSessionAuditEntry,
+    type DeviceSessionInvestigation,
+    type DeviceSessionRow,
+} from "./device-session.controller";
 
 export { createBackup } from "./ops.controller";
 

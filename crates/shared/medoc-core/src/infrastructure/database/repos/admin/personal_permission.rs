@@ -66,3 +66,15 @@ pub async fn delete_override(
     }
     Ok(())
 }
+
+pub async fn delete_all_for_personal(
+    pool: &SqlitePool,
+    personal_id: &str,
+) -> Result<u64, AppError> {
+    let n = sqlx::query("DELETE FROM personal_permission_override WHERE personal_id = ?1")
+        .bind(personal_id)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    Ok(n)
+}

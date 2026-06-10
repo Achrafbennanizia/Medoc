@@ -13,7 +13,7 @@ import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon } from "@/lib/icons";
 
 type LeistungForm = {
@@ -324,30 +324,19 @@ export function LeistungenPage() {
     })();
 
     return (
-        <div className="leistungen-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {canGoVerwaltung ? (
-                <div>
-                    <VerwaltungBackButton />
-                </div>
-            ) : null}
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Leistungen</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Katalog und Preise — Liste links, anlegen, lesen und bearbeiten im rechten Bereich.
-                    </p>
-                </div>
-                {canWrite ? (
-                    <Button
-                        type="button"
-                        variant={creating ? "secondary" : "primary"}
-                        onClick={creating ? cancelCreate : openCreate}
-                        style={{ flexShrink: 0, marginLeft: "auto" }}
-                    >
-                        {creating ? "Neue Leistung abbrechen" : "+ Neue Leistung"}
-                    </Button>
-                ) : null}
-            </div>
+        <div className="leistungen-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                showBack={canGoVerwaltung}
+                title="Leistungen"
+                subtitle="Katalog und Preise — Liste links, anlegen, lesen und bearbeiten im rechten Bereich."
+                actions={
+                    canWrite ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                            {creating ? "Neue Leistung abbrechen" : "+ Neue Leistung"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             {loading ? (
                 <PageLoading label="Leistungen werden geladen…" />
@@ -365,8 +354,8 @@ export function LeistungenPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card leistungen-table-card tbl-scroll">
-                                <table className="tbl leistungen-tbl" style={{ minWidth: 480 }}>
+                            <div className="card leistungen-table-card tbl-data-card tbl-scroll">
+                                <table className="tbl leistungen-tbl">
                                     <thead>
                                         <tr>
                                             <th scope="col">Name</th>

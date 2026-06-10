@@ -41,10 +41,13 @@ describe("onboarding (G6)", () => {
     });
 
     it("each role with steps defines unique route keys", () => {
-        for (const rolle of ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const) {
+        for (const rolle of ["ARZT", "REZEPTION"] as const) {
             const steps = stepsForRole(rolle);
             const paths = steps.map((s) => s.routePath);
             expect(new Set(paths).size).toBe(paths.length);
         }
+        // TODO(deferred-roles): STEUERBERATER / PHARMABERATER onboarding steps
+        expect(stepsForRole("STEUERBERATER")).toEqual([]);
+        expect(stepsForRole("PHARMABERATER")).toEqual([]);
     });
 });

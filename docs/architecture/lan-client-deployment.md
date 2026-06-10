@@ -1,13 +1,15 @@
 # LAN browser client deployment (W7 / MS-2)
 
-**Mode:** `lan_client` in [`deployment-config.ts`](../../app/src/systems/practice-host/lib/deployment-config.ts)
+**Mode:** `lan_client` in [`packages/app/practice-host/src/lib/deployment-config.ts`](../../packages/app/practice-host/src/lib/deployment-config.ts)
 
 Thin clients connect to a remote `medoc-server` over HTTPS. No local SQLCipher database on the client device.
+
+Alternative browser shell: [`apps/lan-web-client`](../../apps/lan-web-client) (port 1421, no Tauri).
 
 ## Topology
 
 ```text
-Browser (Vite :1420) ──HTTPS──► medoc-server (:8787) ──► master SQLite
+Browser (Vite :1420 or lan-web :1421) ──HTTPS──► medoc-server (:8787) ──► master SQLite
 ```
 
 Configure under **Einstellungen → Deployment → LAN-Client**. The desktop app stores LAN URL + TLS certificate SHA-256 fingerprint in `lan-client-config` (localStorage when in browser-only mode).
@@ -26,7 +28,7 @@ Production deployments should use a CA-signed certificate; pin the leaf or SPKI 
 
 ## CORS
 
-LAN server CORS is enforced in [`cors_policy.rs`](../../app/crates/medoc-core/src/infrastructure/cors_policy.rs). Allowed origins default to local dev hosts (`http://localhost:1420`, Tauri webview). Extend via `MEDOC_CORS_ORIGINS` for staging.
+LAN server CORS is enforced in [`crates/shared/medoc-core/src/infrastructure/cors_policy.rs`](../../crates/shared/medoc-core/src/infrastructure/cors_policy.rs). Allowed origins default to local dev hosts (`http://localhost:1420`, Tauri webview). Extend via `MEDOC_CORS_ORIGINS` for staging.
 
 Company server uses `CorsGate::company()` — separate from LAN.
 
@@ -36,7 +38,8 @@ Company server uses `CorsGate::company()` — separate from LAN.
 |-------|---------|
 | In-process JWT RBAC | `cargo test -p medoc-e2e --test serverful_lan_client_flows` |
 | Port HTTP | `bash scripts/validate-docker-multi-device.sh` |
-| Playwright (opt-in) | `MEDOC_LAN_E2E=1 MEDOC_LAN_URL=https://127.0.0.1:8787 npm run test:playwright` |
+| Playwright (opt-in) | `MEDOC_LAN_E2E=1 MEDOC_LAN_URL=https://127.0.0.1:8787 npm run test:playwright -w medoc` |
+| LAN web build | `bash scripts/validate-lan-web-client.sh` |
 
 ## MVP boundary
 

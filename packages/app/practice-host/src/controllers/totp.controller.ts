@@ -21,6 +21,10 @@ export const startTotpEnrollment = () =>
 export const confirmTotpEnrollment = (code: string) =>
     practiceSystem.invoke<void>("confirm_totp_enrollment", { code });
 
+/** Disables enrolled 2FA (`code` required) or cancels pending enrollment (`code` optional). */
+export const deactivateTotp = (code?: string) =>
+    practiceSystem.invoke<void>("deactivate_totp", { code: code ?? null });
+
 export const startTotpEnrollmentLogin = (email: string, passwort: string) =>
     practiceSystem.invoke<TotpEnrollment>("start_totp_enrollment_login", { email, passwort });
 

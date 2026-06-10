@@ -29,6 +29,8 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const titleId = useId();
     const isCentered = presentation === "centered";
     const panelRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
     const t = useT();
 
     useEffect(() => {
@@ -45,7 +47,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
-                onClose();
+                onCloseRef.current();
                 return;
             }
             if (e.key !== "Tab") return;
@@ -100,7 +102,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             document.body.style.overflow = prevOverflow;
             prevActive?.focus?.({ preventScroll: true });
         };
-    }, [open, onClose]);
+    }, [open]);
 
     if (!open) return null;
 

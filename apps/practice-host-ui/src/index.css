@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -16,6 +16,10 @@
   --bp-sm: 640px;
   --bp-md: 900px;
   --bp-lg: 1200px;
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-source-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --font-ui: var(--font-inter);
   --bg: #F3F4F6;
   --bg-elev: #FFFFFF;
   /** Flächenstufen (hell) — für Tabellen/Listen; dunkel in `html[data-theme="dark"]` überschrieben */
@@ -130,6 +134,23 @@
   --text-sidebar-user-secondary: var(--fg-3);
   /** „Inverse“ auf gesättigter Markenfläche (Avatar) — unabhängig von --fg-on-saturated (Buttons) */
   --text-on-accent: #ffffff;
+
+  /* Odontogram (DentalMiniBar / DentalChart) */
+  --dental-healthy-fill: #ffffff;
+  --dental-healthy-stroke: #c8ccd1;
+  --dental-karies-fill: #ffe0dd;
+  --dental-karies-stroke: #e86b5e;
+  --dental-fuellung-fill: #dcecff;
+  --dental-fuellung-stroke: #4a9dff;
+  --dental-krone-fill: #fff0c8;
+  --dental-krone-stroke: #d9a300;
+  --dental-wurzel-fill: #e8dcfb;
+  --dental-wurzel-stroke: #9b6bd8;
+  --dental-fehlt-stroke: #bfc3c7;
+  --dental-implantat-fill: var(--accent-soft);
+  --dental-implantat-stroke: var(--accent);
+  --dental-geplant-fill: var(--accent-soft);
+  --dental-geplant-stroke: var(--accent);
 }
 
 /**
@@ -175,13 +196,37 @@ html[data-theme="dark"] {
   --text-sidebar-user-primary: var(--fg);
   --text-sidebar-user-secondary: var(--fg-3);
   --text-on-accent: #ffffff;
+
+  /* Odontogram — softer fills on dark canvas; strokes stay legible */
+  --dental-healthy-fill: color-mix(in oklab, var(--fg) 10%, var(--surface-2));
+  --dental-healthy-stroke: color-mix(in oklab, var(--fg-3) 72%, var(--line-strong));
+  --dental-karies-fill: color-mix(in oklab, var(--red) 22%, var(--surface-2));
+  --dental-karies-stroke: color-mix(in oklab, var(--red) 62%, var(--fg-3));
+  --dental-fuellung-fill: color-mix(in oklab, var(--blue) 22%, var(--surface-2));
+  --dental-fuellung-stroke: color-mix(in oklab, var(--blue) 58%, var(--fg-3));
+  --dental-krone-fill: color-mix(in oklab, var(--yellow) 24%, var(--surface-2));
+  --dental-krone-stroke: color-mix(in oklab, var(--orange) 55%, var(--fg-3));
+  --dental-wurzel-fill: color-mix(in oklab, var(--purple) 22%, var(--surface-2));
+  --dental-wurzel-stroke: color-mix(in oklab, var(--purple) 58%, var(--fg-3));
+  --dental-fehlt-stroke: color-mix(in oklab, var(--fg-4) 70%, var(--line-strong));
+  --dental-implantat-fill: color-mix(in oklab, var(--accent) 24%, var(--surface-2));
+  --dental-implantat-stroke: color-mix(in oklab, var(--accent) 72%, var(--fg-3));
+  --dental-geplant-fill: color-mix(in oklab, var(--accent) 18%, var(--surface-2));
+  --dental-geplant-stroke: color-mix(in oklab, var(--accent) 62%, var(--fg-3));
 }
 
 @layer base {
   * { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-  html, body { margin: 0; padding: 0; height: 100%; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; letter-spacing: -0.005em; background: var(--bg); color: var(--fg); }
-  html[data-font-stack="system"] body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  html, body { margin: 0; padding: 0; height: 100%; font-family: var(--font-ui); font-size: 14px; letter-spacing: -0.005em; background: var(--bg); color: var(--fg); }
+  html[data-font-stack="inter"] { --font-ui: var(--font-inter); letter-spacing: -0.005em; }
+  html[data-font-stack="system"] { --font-ui: var(--font-system); letter-spacing: 0; }
+  html[data-font-stack="source-sans"] {
+    --font-ui: var(--font-source-sans);
+    letter-spacing: 0.01em;
+  }
+  html[data-font-stack="source-sans"] body {
+    font-size: 14.5px;
+    line-height: 1.5;
   }
   html, body, #root { width: 100%; max-width: 100%; overflow-x: clip; }
   #root { min-height: 100%; min-height: 100dvh; }
@@ -813,8 +858,59 @@ html[data-theme="dark"] {
   .tbl-scroll {
     width: 100%;
     max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+  /* List pages: use full main-column width on large screens */
+  .app-main > .animate-fade-in,
+  .app-main > .animate-fade-in--sticky-safe {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .tbl-data-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  /* Full-width data tables inside cards — consistent on wide viewports */
+  .card .tbl-scroll > .tbl,
+  .card > .tbl.tbl-fluid,
+  .tbl-data-card .tbl {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .card .tbl-scroll > .tbl th,
+  .card .tbl-scroll > .tbl td,
+  .card > .tbl.tbl-fluid th,
+  .card > .tbl.tbl-fluid td,
+  .tbl-data-card .tbl th,
+  .tbl-data-card .tbl td {
+    min-width: 0;
+  }
+  .tbl.tbl-fluid .tbl-col-actions,
+  .tbl.tbl-fluid .tbl-col-actions th,
+  .tbl.tbl-fluid .tbl-col-actions td {
+    overflow: visible;
+    white-space: nowrap;
+    width: 1%;
+  }
+  .tbl.tbl-fluid .tbl-col-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @media (max-width: 720px) {
+    .tbl-scroll .tbl.tbl-bestellungen { min-width: 720px; }
+    .tbl-scroll .tbl.tbl-kasse { min-width: 560px; }
+    .tbl-scroll .tbl.tbl-aufgaben:not(.tbl-aufgaben--compact) { min-width: 760px; }
+    .tbl-scroll .tbl.tbl-aufgaben--compact { min-width: 640px; }
+    .tbl-scroll .tbl.produkte-tbl,
+    .tbl-scroll .tbl.leistungen-tbl { min-width: 480px; }
+    .tbl-scroll .tbl.tbl-finanzen-tx { min-width: 680px; }
   }
   .page-toolbar {
     display: flex;
@@ -856,6 +952,12 @@ html[data-theme="dark"] {
     font-size: 11.5px;
     color: var(--red);
     margin-top: 4px;
+  }
+  .ui-field-hint {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    margin: 0 0 6px;
+    line-height: 1.4;
   }
   .select-native-hidden {
     display: none;
@@ -915,6 +1017,16 @@ html[data-theme="dark"] {
     border: 1px solid var(--line-strong);
     background: #fff;
     box-shadow: var(--shadow-lg);
+  }
+  .select-menu.select-menu--portal {
+    position: fixed;
+    right: auto;
+    max-height: min(280px, 40vh);
+    overflow: auto;
+  }
+  .select-wrap--menu-portal-open {
+    position: relative;
+    z-index: 2;
   }
   .select-option {
     width: 100%;
@@ -1088,6 +1200,8 @@ html[data-theme="dark"] {
     display: flex;
     flex-direction: column;
     gap: 0;
+    width: 100%;
+    min-width: 0;
   }
   .finanzen-page__sticky {
     position: sticky;
@@ -1120,6 +1234,157 @@ html[data-theme="dark"] {
   .zahl-finanzen-embed .zahl-finanzen-embed__body {
     padding-top: 0;
     padding-bottom: 0;
+  }
+  /* Shared workspace shell: Bestellungen, Kasseneingänge, Neue Bestellung, Neue Zahlung */
+  .praxis-workspace-page {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(16px, 2.4vh, 24px);
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: clamp(4px, 0.8vh, 8px) 0 clamp(12px, 2vh, 24px);
+  }
+  .praxis-workspace-page--form {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .praxis-workspace-page .page-head {
+    align-items: flex-start;
+    gap: clamp(12px, 2vh, 20px);
+    margin-bottom: 2px;
+  }
+  .praxis-workspace-page .page-sub {
+    max-width: 40rem;
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+  .praxis-workspace-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  /* Tables in cards: th/td share horizontal rhythm with card-head */
+  .tbl-data-card .tbl thead th,
+  .tbl-data-card .tbl tbody td {
+    padding-top: var(--tbl-td-pad-y);
+    padding-bottom: var(--tbl-td-pad-y);
+    padding-left: 14px;
+    padding-right: 14px;
+    vertical-align: middle;
+  }
+  .tbl-data-card .tbl thead th:first-child,
+  .tbl-data-card .tbl tbody td:first-child {
+    padding-left: var(--card-pad-x);
+  }
+  .tbl-data-card .tbl thead th:last-child,
+  .tbl-data-card .tbl tbody td:last-child {
+    padding-right: var(--card-pad-x);
+  }
+  .tbl .tbl-th-num,
+  .tbl .tbl-td-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl-data-card .tbl tbody tr:last-child td {
+    padding-bottom: clamp(12px, 1.6vh, 16px);
+  }
+
+  /* Rezeption: Kasseneingänge — KPI + list (shell via .praxis-workspace-page) */
+  .finanzen-kasse-page__kpi {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding: clamp(16px, 2.2vh, 22px) clamp(18px, 2.4vw, 24px);
+    border-top: 3px solid #E69600;
+    box-shadow: var(--shadow-sm);
+  }
+  .finanzen-kasse-page__kpi .kpi-label-mini {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 6px;
+  }
+  .finanzen-kasse-page__kpi-value {
+    font-size: clamp(26px, 3.6vw, 32px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--fg);
+  }
+  .finanzen-kasse-page__kpi-meta {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .finanzen-kasse-page__create {
+    margin: 0;
+  }
+  .finanzen-kasse-page__create .zahl-finanzen-embed {
+    max-height: none;
+    overflow: visible;
+    box-shadow: var(--shadow-md);
+  }
+  .finanzen-kasse-page__create .zahl-finanzen-embed__body,
+  .zahlung-create-form.card-pad {
+    padding: clamp(14px, 2vh, 20px) var(--card-pad-x) clamp(16px, 2.2vh, 22px);
+  }
+  .finanzen-kasse-page__list {
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .finanzen-kasse-page__list .card-head {
+    padding: clamp(14px, 1.8vh, 18px) var(--card-pad-x);
+  }
+  .finanzen-kasse-page__list-empty {
+    padding: clamp(28px, 4vh, 44px) var(--card-pad-x);
+  }
+  .finanzen-kasse-page__table-wrap {
+    padding: 0;
+  }
+  .tbl.tbl-kasse {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.tbl-kasse thead th,
+  .tbl.tbl-kasse tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kasse-col-zeit { width: 18%; }
+  .kasse-col-patient { width: 32%; }
+  .kasse-col-art { width: 16%; }
+  .kasse-col-betrag { width: 14%; }
+  .kasse-col-status { width: 20%; }
+  .tbl.tbl-kasse .tbl-th-num,
+  .tbl.tbl-kasse .tbl-td-num {
+    font-weight: 600;
+  }
+  .tbl.tbl-kasse .kasse-td-patient {
+    min-width: 0;
+  }
+  .tbl.tbl-kasse .kasse-td-status {
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    .praxis-workspace-page__actions {
+      width: 100%;
+      justify-content: stretch;
+    }
+    .praxis-workspace-page__actions .btn {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
   }
   .finanzen-kpi-row {
     display: grid;
@@ -1188,61 +1453,106 @@ html[data-theme="dark"] {
   .finanzen-kpi__delta--up { color: #148B4C; }
   .finanzen-kpi__delta--down { color: var(--red); }
   .finanzen-kpi__delta--muted { color: var(--fg-4); font-weight: 500; }
-  .finanzen-tx {
+  .finanzen-workspace__list {
     display: flex;
     flex-direction: column;
+    gap: 16px;
     min-width: 0;
-    box-shadow: var(--shadow-md);
+    width: 100%;
   }
-  .finanzen-tx__head {
+  .finanzen-tx-section-head {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px 16px;
-    padding: 14px 18px 12px;
-    border-bottom: 1px solid var(--line);
+    gap: 12px 20px;
+    flex-wrap: wrap;
+    width: 100%;
   }
-  .finanzen-tx__title {
+  .finanzen-tx-section-head__meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .finanzen-tx-section-title {
     margin: 0;
     font-size: 17px;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--fg);
   }
-  .finanzen-tx__tools {
+  .finanzen-tx-filter-strip {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px 12px;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .finanzen-tx__seg {
+  .finanzen-tx-filter-row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+  }
+  .finanzen-tx-filter-row__label {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    padding-top: 1px;
+  }
+  .finanzen-tx-filter-row__bar {
     min-width: 0;
   }
-  .finanzen-tx__seg .seg {
+  .option-bar {
     flex: 0 1 auto;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .option-bar.option-bar--fill {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+  .option-bar.option-bar--fill button {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+  }
+  @media (max-width: 560px) {
+    .finanzen-tx-filter-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .option-bar.option-bar--fill button {
+      flex: 1 1 auto;
+      min-width: 4.5rem;
+    }
+  }
+  .finanzen-tx-count {
+    color: var(--fg-3);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .finanzen-tx-table-card {
+    width: 100%;
+    min-width: 0;
   }
   .finanzen-tx__scroll {
     max-height: min(68vh, calc(100vh - 20rem));
     overflow: auto;
     -webkit-overflow-scrolling: touch;
-  }
-  .finanzen-tx--empty .finanzen-tx__scroll {
-    max-height: none;
-  }
-  .finanzen-tx-filters {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 18px 12px;
-    border-bottom: 1px solid var(--line);
-  }
-  .finanzen-tx-filters[hidden] {
-    display: none !important;
   }
   .finanzen-tx-v1 {
     font-size: 13.5px;
@@ -1253,6 +1563,72 @@ html[data-theme="dark"] {
     font-size: 11.5px;
     color: var(--fg-3);
     margin-top: 2px;
+  }
+  /* Finanzen Transaktionen — fixed utility cols + flexible Vorgang (Bestellungen rhythm) */
+  .tbl.tbl-finanzen-tx {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .fin-tx-col-datum { width: 6.5rem; }
+  .fin-tx-col-gegenpartei { width: 9.5rem; }
+  .fin-tx-col-betrag { width: 7rem; }
+  .fin-tx-col-status { width: 10rem; }
+  .fin-tx-row--clickable,
+  .tbl.tbl-finanzen-tx tbody tr.fin-tx-row {
+    cursor: pointer;
+  }
+  .tbl.tbl-finanzen-tx tbody tr.fin-tx-row--selected td {
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+  .tbl.tbl-finanzen-tx .fin-tx-td-datum {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+  .tbl.tbl-finanzen-tx .fin-tx-td-vorgang,
+  .tbl.tbl-finanzen-tx .fin-tx-td-gegenpartei {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tbl.tbl-finanzen-tx .fin-tx-td-gegenpartei .zahl-td-clip {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-finanzen-tx .fin-tx-td-status {
+    overflow: visible;
+    white-space: nowrap;
+  }
+  .finanzen-tx-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .finanzen-tx-status-cell .select-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  .finanzen-tx-status-cell .finanzen-zahl-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+    width: 100%;
+  }
+  .finanzen-tx-status-cell .finanzen-zahl-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .finanzen-tx-status-cell .select-menu {
+    left: 0;
+    right: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
   }
   .finanzen-amt-col {
     text-align: right;
@@ -1347,6 +1723,29 @@ html[data-theme="dark"] {
   }
   .produkte-table-card {
     max-height: min(70vh, 560px);
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.produkte-tbl {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.produkte-tbl th:nth-child(1),
+  .tbl.produkte-tbl td:nth-child(1) {
+    width: 38%;
+  }
+  .tbl.produkte-tbl th:nth-child(2),
+  .tbl.produkte-tbl td:nth-child(2) {
+    width: 32%;
+  }
+  .tbl.produkte-tbl th:nth-child(3),
+  .tbl.produkte-tbl td:nth-child(3) {
+    width: 15%;
+  }
+  .tbl.produkte-tbl th:nth-child(4),
+  .tbl.produkte-tbl td:nth-child(4) {
+    width: 15%;
   }
   tr.produkte-row--selected td {
     background: color-mix(in oklab, var(--accent) 10%, transparent);
@@ -1375,6 +1774,115 @@ html[data-theme="dark"] {
     align-items: center;
   }
 
+  /* Personalverwaltung: flex workspace (Liste + Detail) */
+  .personal-page {
+    width: 100%;
+    min-width: 0;
+  }
+  .personal-workspace {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: clamp(16px, 2.4vw, 24px);
+    width: 100%;
+    min-width: 0;
+  }
+  @media (max-width: 960px) {
+    .personal-workspace {
+      flex-direction: column;
+    }
+  }
+  .personal-workspace__list {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .personal-workspace__detail {
+    flex: 0 1 clamp(300px, 32vw, 420px);
+    min-width: min(100%, 300px);
+    max-width: 100%;
+    position: sticky;
+    top: clamp(8px, 1.2vh, 12px);
+  }
+  @media (max-width: 960px) {
+    .personal-workspace__detail {
+      flex: 1 1 auto;
+      width: 100%;
+      max-width: none;
+      position: static;
+    }
+  }
+  .personal-table-card {
+    max-height: min(70vh, 560px);
+    width: 100%;
+    min-width: 0;
+  }
+  .personal-table-card .tbl thead th {
+    padding-top: clamp(12px, 1.6vh, 16px);
+  }
+  .tbl.personal-tbl {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.personal-tbl th:nth-child(1),
+  .tbl.personal-tbl td:nth-child(1) {
+    width: 52px;
+  }
+  .tbl.personal-tbl th:nth-child(2),
+  .tbl.personal-tbl td:nth-child(2) {
+    width: 24%;
+  }
+  .tbl.personal-tbl th:nth-child(3),
+  .tbl.personal-tbl td:nth-child(3) {
+    width: 16%;
+  }
+  .tbl.personal-tbl th:nth-child(4),
+  .tbl.personal-tbl td:nth-child(4) {
+    width: 32%;
+  }
+  .tbl.personal-tbl th:nth-child(5),
+  .tbl.personal-tbl td:nth-child(5) {
+    width: 18%;
+  }
+  tr.personal-row--selected td {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+  }
+  .personal-detail-card {
+    width: 100%;
+    min-width: 0;
+  }
+  .personal-detail-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(12px, 1.6vh, 16px);
+    padding: clamp(14px, 2vh, 20px) var(--card-pad-x) clamp(16px, 2.2vh, 22px);
+  }
+  .personal-read-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(12px, 1.8vh, 18px) clamp(16px, 2vw, 24px);
+  }
+  @media (max-width: 520px) {
+    .personal-read-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .personal-detail-card--empty {
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+    padding: clamp(20px, 2.5vh, 28px) var(--card-pad-x);
+  }
+  .personal-detail-card__section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: clamp(12px, 1.6vh, 16px) var(--card-pad-x);
+    background: var(--surface-1);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-card);
+  }
+
   /* Leistungen: gleiche Arbeitsfläche wie Produkte */
   .leistungen-workspace {
     display: grid;
@@ -1389,6 +1897,25 @@ html[data-theme="dark"] {
   }
   .leistungen-table-card {
     max-height: min(70vh, 560px);
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.leistungen-tbl {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.leistungen-tbl th:nth-child(1),
+  .tbl.leistungen-tbl td:nth-child(1) {
+    width: 45%;
+  }
+  .tbl.leistungen-tbl th:nth-child(2),
+  .tbl.leistungen-tbl td:nth-child(2) {
+    width: 35%;
+  }
+  .tbl.leistungen-tbl th:nth-child(3),
+  .tbl.leistungen-tbl td:nth-child(3) {
+    width: 20%;
   }
   tr.leistungen-row--selected td {
     background: color-mix(in oklab, var(--accent) 10%, transparent);
@@ -1422,6 +1949,47 @@ html[data-theme="dark"] {
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+  /* Back control: content-width only (flex parents stretch children by default). */
+  .workspace-page-back-button,
+  .verwaltung-back-button {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    text-decoration: none;
+  }
+  /* Workspace pages: back above title (Personalverwaltung pattern). */
+  .workspace-page__head-row,
+  .verwaltung-page__head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: clamp(12px, 2vw, 20px);
+    width: 100%;
+  }
+  .workspace-page__head-actions,
+  .verwaltung-page__head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .workspace-page__eyebrow {
+    margin-bottom: 4px;
+  }
+  .workspace-page__subtitle .page-sub,
+  .verwaltung-page__subtitle .page-sub {
+    max-width: 40rem;
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+  .workspace-page__subtitle .page-sub:first-child,
+  .verwaltung-page__subtitle .page-sub:first-child {
+    margin-top: 8px;
   }
 
   /* Arbeitszeiten (Verwaltung): Wochenraster + seitliche Defaults — volle Fensterbreite */
@@ -1589,39 +2157,77 @@ html[data-theme="dark"] {
     vertical-align: middle;
   }
 
-  .bestellungen-row-link {
-    display: grid;
-    grid-template-columns: minmax(72px, 0.9fr) minmax(100px, 1.3fr) minmax(140px, 2fr) minmax(48px, auto) minmax(88px, 0.85fr);
-    gap: 10px 16px;
-    align-items: center;
-    min-height: 48px;
-    padding: 10px 12px;
-    margin: 0;
-    box-sizing: border-box;
+  .bestellungen-table-card {
+    overflow: visible;
+  }
+  .bestellungen-table-card .tbl-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .tbl.tbl-bestellungen {
+    table-layout: fixed;
     width: 100%;
-    text-decoration: none;
-    color: inherit;
-    outline: none;
-    border-radius: 0;
+    min-width: 0;
   }
-  .bestellungen-row-link:hover {
-    background: color-mix(in oklab, var(--fg-1) 3.5%, transparent);
+  .tbl.tbl-bestellungen thead th,
+  .tbl.tbl-bestellungen tbody td {
+    vertical-align: middle;
   }
-  .bestellungen-row-link:focus {
-    outline: none;
+  .bestellungen-col-nr { width: 11%; }
+  .bestellungen-col-lief { width: 19%; }
+  .bestellungen-col-art { width: 30%; }
+  .bestellungen-col-menge { width: 10%; }
+  .bestellungen-col-erw { width: 12%; }
+  .bestellungen-col-status { width: 18%; }
+  .bestellungen-row--clickable {
+    cursor: pointer;
   }
-  .bestellungen-row-link:focus-visible {
+  tr.bestellungen-row--selected td {
+    background: color-mix(in oklab, var(--accent) 8%, var(--card));
+  }
+  .bestellungen-row--clickable:focus-visible {
     outline: 2px solid color-mix(in oklab, var(--accent) 45%, var(--line));
     outline-offset: -2px;
-    z-index: 1;
-    position: relative;
   }
-  td.bestellungen-row__nav {
-    padding: 0;
-    vertical-align: middle;
+  .bestellungen-nr {
+    color: var(--accent-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
   }
-  td.bestellungen-row__status {
+  .bestellungen-lief-name {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .bestellungen-lief-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+  }
+  .bestellungen-td-art .bestellungen-art {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bestellungen-td-menge {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .bestellungen-td-erw {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .bestellungen-erw--late {
+    color: var(--red);
+    font-weight: 600;
+  }
+  .bestellungen-td-status {
     vertical-align: middle;
+    overflow: visible;
   }
   .bestellungen-status-cell {
     display: flex;
@@ -1629,18 +2235,606 @@ html[data-theme="dark"] {
     align-items: flex-start;
     gap: 4px;
     min-width: 0;
+    max-width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+  .bestellungen-status-cell:has([aria-expanded="true"]) {
+    z-index: 40;
   }
   .bestellungen-overdue-hint {
     font-size: 11px;
     font-weight: 600;
     color: var(--red);
   }
-  .bestellungen-status-select {
-    max-width: 200px;
+  .bestellungen-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+  }
+  .bestellungen-status-cell .select-wrap {
+    width: 100%;
+    max-width: 11.5rem;
+  }
+  .bestellungen-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+  }
+  .bestellungen-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+  .bestellungen-status-cell .select-menu {
+    left: auto;
+    right: 0;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+    max-height: none;
+    overflow: visible;
+  }
+  .bestellungen-status-cell .select-menu .select-option {
+    white-space: nowrap;
+  }
+
+  /* Praxis-Aufgaben — inbox + admin */
+  .praxis-aufgaben-page {
+    min-width: 0;
+    width: 100%;
+  }
+  .praxis-aufgaben-page__head {
+    gap: 12px;
+  }
+  .praxis-aufgaben-page__head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+  }
+  .praxis-aufgaben-tabs {
+    width: fit-content;
+    max-width: 100%;
+  }
+  .praxis-aufgaben-inbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .praxis-aufgabe-inbox-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    cursor: pointer;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      background var(--motion-fast) var(--ease-out);
+  }
+  .praxis-aufgabe-inbox-row:hover {
+    border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+    box-shadow: 0 2px 10px rgba(10, 12, 16, 0.05);
+  }
+  .praxis-aufgabe-inbox-row--selected {
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+  .praxis-aufgabe-inbox-row--disabled,
+  .praxis-aufgabe-inbox-row:disabled {
+    opacity: 0.55;
+    cursor: default;
+    pointer-events: none;
+  }
+  .praxis-aufgabe-inbox-row--disabled:hover,
+  .praxis-aufgabe-inbox-row:disabled:hover {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  .praxis-aufgabe-inbox-row__main {
+    min-width: 0;
+    flex: 1;
+  }
+  .praxis-aufgabe-inbox-row__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fg);
+    margin-bottom: 4px;
+  }
+  .praxis-aufgabe-inbox-row__sub {
+    font-size: 12px;
+    color: var(--fg-3);
+  }
+  .praxis-aufgabe-inbox-row__preview {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--fg-2);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .praxis-aufgabe-kommentare {
+    margin: 20px 0 8px;
+  }
+  .praxis-aufgabe-kommentare__thread {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .praxis-aufgabe-kommentare__empty {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .praxis-aufgabe-kommentar {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  .praxis-aufgabe-kommentar--system {
+    background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+  }
+  .praxis-aufgabe-kommentar__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .praxis-aufgabe-kommentar__author {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--fg-2);
+  }
+  .praxis-aufgabe-kommentar__time {
+    font-size: 11px;
+    color: var(--fg-4);
+    white-space: nowrap;
+  }
+  .praxis-aufgabe-kommentar__body {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg);
+    white-space: pre-wrap;
+  }
+  .praxis-aufgabe-kommentare__compose {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .praxis-aufgabe-drawer-inline {
+    margin: 12px 0;
+  }
+  .aufgaben-row--clickable {
+    cursor: pointer;
+  }
+  .aufgaben-row--clickable:hover td {
+    background: rgba(0, 0, 0, 0.02);
+  }
+  .aufgaben-row--disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+  .praxis-aufgabe-inbox-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .praxis-aufgabe-inbox-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 200px;
+  }
+  .praxis-aufgabe-inbox-card__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .praxis-aufgabe-inbox-card__sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .praxis-aufgabe-inbox-card__body {
+    margin: 6px 0 0;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .praxis-aufgabe-inbox-card__leistung {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--fg-2);
+  }
+  .praxis-aufgabe-inbox-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+    margin-top: 14px;
+  }
+  .praxis-aufgabe-inbox-card__notiz {
+    flex: 1 1 180px;
+    min-width: 160px;
+    max-width: 320px;
+  }
+  .praxis-aufgabe-inbox-card__notiz .ui-field-wrap {
+    margin-bottom: 0;
+  }
+  .praxis-aufgabe-inbox-card__zurueck {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .praxis-aufgabe-admin-toolbar {
+    margin-bottom: 0;
+  }
+  .praxis-aufgabe-admin-toolbar__search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .praxis-aufgabe-admin-toolbar__search .ui-field-wrap {
+    flex: 1;
+    margin-bottom: 0;
+    min-width: 0;
+  }
+  .aufgaben-toolbar-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex: 0 1 auto;
+  }
+  .aufgaben-toolbar-filters .ui-field-wrap {
+    width: 200px;
+    max-width: 100%;
+    margin-bottom: 0;
+  }
+
+  /* Praxis-Aufgaben admin table — fixed utility cols + flexible title (Bestellungen rhythm) */
+  .page-verwaltung-aufgaben--embedded,
+  #praxis-aufgaben-admin-panel {
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .aufgaben-table-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tbl.tbl-aufgaben {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.tbl-aufgaben thead th,
+  .tbl.tbl-aufgaben tbody td {
+    vertical-align: middle;
+  }
+  .tbl.tbl-aufgaben tbody td {
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl.tbl-aufgaben tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .aufgaben-col-updated { width: 11.5rem; }
+  .aufgaben-col-patient { width: 9.5rem; }
+  .aufgaben-col-typ { width: 6.75rem; }
+  .aufgaben-col-assignee { width: 9.5rem; }
+  .aufgaben-col-status { width: 11.25rem; }
+  .aufgaben-col-action { width: 3.25rem; }
+  .tbl.tbl-aufgaben--compact .aufgaben-col-updated { width: 11.5rem; }
+  .tbl.tbl-aufgaben--compact .aufgaben-col-status { width: 11.25rem; }
+  .tbl.tbl-aufgaben--compact .aufgaben-col-action { width: 3.25rem; }
+  .aufgaben-th-action,
+  .aufgaben-td-action {
+    overflow: visible;
+    text-align: right;
+  }
+  .aufgaben-th-status,
+  .aufgaben-td-status {
+    overflow: visible;
+  }
+  .aufgaben-td-updated {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 12.5px;
+  }
+  .aufgaben-td-titel {
+    overflow: hidden;
+    min-width: 0;
+  }
+  .aufgaben-meta-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aufgaben-titel {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aufgaben-body-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aufgaben-td-patient,
+  .aufgaben-td-assignee,
+  .aufgaben-td-typ {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aufgaben-td-typ {
+    font-size: 12.5px;
+  }
+  .aufgaben-td-status {
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .aufgaben-td-status .badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .aufgaben-td-action {
+    white-space: nowrap;
+    text-align: center;
+    vertical-align: middle;
+    padding-left: 8px;
+    padding-right: var(--card-pad-x);
+  }
+  .aufgaben-action-inner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .aufgaben-action-inner .btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+  .aufgaben-status-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+  .aufgaben-status-cell:has([aria-expanded="true"]),
+  .aufgaben-status-cell:has(.select-wrap--menu-portal-open) {
+    z-index: 40;
+  }
+  .aufgaben-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .aufgaben-status-cell .select-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  .aufgaben-status-select.select-trigger {
+    min-height: 34px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 12.5px;
+    box-sizing: border-box;
+  }
+  .aufgaben-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+  .aufgaben-status-cell .select-menu,
+  .aufgaben-status-select-menu.select-menu--portal {
+    left: 0;
+    right: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+    max-height: none;
+    overflow: visible;
+  }
+  .aufgaben-status-cell .select-menu .select-option {
+    white-space: nowrap;
+  }
+  @media (max-width: 720px) {
+    .aufgaben-action-label {
+      display: none;
+    }
+  }
+  .praxis-aufgabe-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 720px;
+  }
+  .praxis-aufgabe-form-fields__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    align-items: end;
+  }
+  .praxis-aufgabe-create-page__card,
+  .praxis-aufgabe-edit-page__card {
+    overflow: visible;
+    max-width: 840px;
+  }
+
+  /* Neue Bestellung / Neue Zahlung — form rhythm (shell via .praxis-workspace-page) */
+  .bestellung-create-page__card,
+  .zahlung-create-page__card {
+    overflow: visible;
+    box-shadow: var(--shadow-sm);
+  }
+  .bestellung-create-page__card .card-head,
+  .zahlung-create-page__card .card-head,
+  .zahl-finanzen-embed .card-head {
+    padding: clamp(14px, 1.8vh, 18px) var(--card-pad-x);
+  }
+  .bestellung-create-form,
+  .zahlung-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 0;
+  }
+  .bestellung-create-form__error {
+    color: var(--red);
+    font-size: 12.5px;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--red-soft);
+    border-radius: 8px;
+  }
+  .bestellung-create-form__hint,
+  .bestellung-create-form__note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+  .bestellung-create-form__field {
+    min-width: 0;
+  }
+  .bestellung-create-form__grid {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .bestellung-create-form__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 560px) {
+    .bestellung-create-form__grid--2 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .bestellung-create-form__artikel-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+  }
+  .bestellung-create-form__betrag {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+  .bestellung-create-form__betrag-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .bestellung-create-form__actions,
+  .zahlung-create-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .zahlung-create-form__error {
+    color: var(--red);
+    font-size: 12.5px;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--red-soft);
+    border-radius: 8px;
+  }
+  .zahlung-create-form__grid {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .zahlung-create-form__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 560px) {
+    .zahlung-create-form__grid--2 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .tbl.tbl-zahl-hist {
+    table-layout: fixed;
+    width: 100%;
+    font-size: 12.5px;
+  }
+  .zahl-hist-col-datum { width: 20%; }
+  .zahl-hist-col-bezug { width: 38%; }
+  .zahl-hist-col-betrag { width: 18%; }
+  .zahl-hist-col-art { width: 12%; }
+  .zahl-hist-col-status { width: 12%; }
+  .zahl-hist-table-wrap {
+    overflow: auto;
+    max-height: 220px;
+  }
+  .tbl.tbl-zahl-hist .zahl-hist-td-bezug {
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .verwaltung-page {
-    max-width: 1120px;
+    width: 100%;
+    max-width: none;
   }
   .verwaltung-page__grid {
     display: grid;
@@ -1717,7 +2911,8 @@ html[data-theme="dark"] {
   .finanzen-pill__dot[data-s="part"] { background: var(--yellow); }
   .finanzen-pill__dot[data-s="storno"] { background: var(--fg-4); }
   .tbl.tbl-finanzen-v2 {
-    min-width: 800px;
+    min-width: 0;
+    width: 100%;
     table-layout: fixed;
   }
   .tbl.tbl-finanzen-v2 thead th {
@@ -1729,10 +2924,6 @@ html[data-theme="dark"] {
   .tbl.tbl-finanzen-v2 tbody td {
     padding: 14px 16px;
   }
-  .finanzen-row-go {
-    display: flex;
-    justify-content: flex-end;
-  }
   .tbl tbody tr:hover td { background: rgba(0,0,0,0.02); }
   .tbl tbody tr:last-child td { border-bottom: 0; }
 
@@ -1743,46 +2934,44 @@ html[data-theme="dark"] {
     border-top: 2px solid var(--line-strong);
   }
 
-  /* Patient header: volle Breite; oben Grid (links Profil / rechts Zahnmini); Kontaktzeile darunter ohne Leerband */
+  /* Patient header: volle Breite; oben Grid (links Profil / rechts Zahnmini); Kontaktzeile darunter */
   .patient-hero-card {
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
-    padding: 10px 14px;
+    padding: clamp(14px, 1.6vw, 18px) clamp(16px, 2vw, 20px);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     min-height: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--line);
   }
   .patient-hero-top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, auto);
     align-items: center;
     justify-items: stretch;
-    gap: clamp(8px, 2vw, 14px) clamp(12px, 3vw, 20px);
+    gap: clamp(10px, 2vw, 16px) clamp(12px, 3vw, 20px);
     width: 100%;
     min-width: 0;
   }
   .patient-hero-identity {
     display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     min-width: 0;
     justify-self: stretch;
   }
   .patient-hero-identity-text {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    align-items: flex-start;
+    gap: 6px;
     min-width: 0;
     flex: 1 1 min-content;
-  }
-  .patient-hero-name-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 10px;
-    min-width: 0;
   }
   .patient-hero-name {
     font-weight: 650;
@@ -1790,12 +2979,21 @@ html[data-theme="dark"] {
     line-height: 1.25;
     letter-spacing: -0.02em;
     margin: 0;
+    color: var(--fg);
+  }
+  .patient-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-width: 0;
   }
   .patient-hero-dental {
     justify-self: end;
     min-width: 0;
     width: min(max-content, 100%);
     max-width: min(100%, 100vw - 2rem);
+    overflow: visible;
   }
   @media (max-width: 720px) {
     .patient-hero-top {
@@ -1816,19 +3014,39 @@ html[data-theme="dark"] {
     min-width: 0;
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 6px clamp(10px, 2.5vw, 20px);
-    padding-top: 6px;
+    align-items: center;
+    gap: 8px clamp(12px, 3vw, 24px);
+    padding-top: 10px;
     margin-top: 0;
     border-top: 1px solid var(--line);
     font-size: 12.5px;
     color: var(--fg-3);
     line-height: 1.4;
   }
-  .patient-hero-contacts > span {
+  .patient-hero-contact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     flex: 0 1 auto;
     max-width: 100%;
+    min-width: 0;
+  }
+  .patient-hero-contact svg {
+    flex-shrink: 0;
+    display: block;
+    color: var(--fg-2);
+  }
+  .patient-hero-contact__text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .patient-hero-contact__sep {
+    color: var(--fg-4);
+    user-select: none;
+  }
+  .patient-hero-contact__age {
+    color: var(--fg-2);
+    font-weight: 600;
   }
   .patient-hero-row {
     display: flex;
@@ -1847,12 +3065,14 @@ html[data-theme="dark"] {
     width: max-content;
     max-width: min(100%, 440px);
     min-width: 0;
+    overflow: visible;
   }
   .dental-mini-bar-inner {
     border: 1px solid var(--line);
     border-radius: var(--radius-card);
-    background: rgba(0, 0, 0, 0.02);
-    padding: 6px 8px 8px;
+    background: var(--surface-1);
+    padding: 6px 10px 8px;
+    overflow: visible;
   }
   .dental-mini-title {
     display: block;
@@ -1860,7 +3080,7 @@ html[data-theme="dark"] {
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--fg-4);
+    color: var(--fg-3);
     margin-bottom: 6px;
   }
   .dental-mini-row {
@@ -1870,6 +3090,7 @@ html[data-theme="dark"] {
     gap: 1px;
     overflow-x: auto;
     overflow-y: visible;
+    padding-inline: 4px;
     padding-bottom: 4px;
     scrollbar-width: thin;
   }
@@ -1891,6 +3112,7 @@ html[data-theme="dark"] {
   }
   .dental-mini-tooth-wrap {
     flex: 0 0 auto;
+    padding: 2px;
   }
   .dental-mini-tooth {
     display: flex;
@@ -1898,23 +3120,22 @@ html[data-theme="dark"] {
     align-items: center;
     gap: 2px;
     padding: 2px 1px 4px;
-    border: none;
+    border: 1.5px solid transparent;
     background: transparent;
     cursor: default;
     border-radius: 6px;
-    transition: background 120ms ease, transform 120ms ease;
+    transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
   }
   .dental-mini-tooth-wrap:hover .dental-mini-tooth {
-    background: rgba(74, 157, 255, 0.12);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
     transform: translateY(-1px);
   }
   .dental-mini-tooth.has-history {
-    box-shadow: 0 0 0 1px rgba(14, 160, 126, 0.35);
-    border-radius: 6px;
+    border-color: color-mix(in oklab, var(--accent) 48%, var(--line-strong));
   }
   .dental-mini-tooth.is-active {
-    background: rgba(74, 157, 255, 0.18);
-    box-shadow: 0 0 0 1.5px var(--accent);
+    background: color-mix(in oklab, var(--accent) 20%, transparent);
+    border-color: var(--accent);
   }
   /* Chip-style tab/segment buttons used in Untersuchung composer & similar.
      Mirrors button visual language but compact for inline tab strips. */
@@ -1941,7 +3162,7 @@ html[data-theme="dark"] {
   }
   .dental-mini-label {
     font-size: 9px;
-    color: var(--fg-4);
+    color: var(--fg-3);
     line-height: 1.2;
     margin-top: 0;
     padding-bottom: 1px;
@@ -2925,6 +4146,106 @@ html[data-theme="dark"] {
   .menu-item.active { color: var(--accent-ink); background: color-mix(in oklab, var(--accent) 14%, transparent); }
   .menu-item.danger { color: var(--red); }
   .menu-sep { height: 1px; background: var(--line); margin: 6px 0; }
+  /* ---- Dismissible in-page notices (hints, banners, callouts) ---- */
+  .app-notice {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .app-notice--info {
+    background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+  }
+  .app-notice--warning {
+    background: color-mix(in oklab, var(--warning, #b45309) 8%, var(--surface-1, var(--bg-elev)));
+    border-color: color-mix(in oklab, var(--warning, #b45309) 35%, var(--line));
+  }
+  .app-notice--error {
+    background: color-mix(in oklab, var(--red) 8%, var(--panel, var(--bg-elev)));
+    border-color: color-mix(in oklab, var(--red) 35%, var(--line));
+  }
+  .app-notice--accent {
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+    background: color-mix(in oklab, var(--accent) 6%, var(--bg-elev));
+  }
+  .app-notice__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .app-notice__head-text {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .app-notice__title {
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--fg);
+  }
+  .app-notice__subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.45;
+    max-width: 720px;
+  }
+  .app-notice__close {
+    flex-shrink: 0;
+    margin: -4px -4px 0 0;
+    color: var(--fg-3);
+  }
+  .app-notice__close:hover {
+    color: var(--fg);
+  }
+  .app-notice__body {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--fg-2);
+    line-height: 1.45;
+  }
+  .app-notice__body:empty {
+    display: none;
+  }
+  .app-notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .app-notice--toolbar {
+    padding: 6px 10px;
+    max-width: 320px;
+    box-shadow: none;
+  }
+  .app-notice--toolbar .app-notice__title {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .app-notice--toolbar .app-notice__subtitle {
+    font-size: 11.5px;
+    margin-top: 2px;
+  }
+  .app-notice--fixed {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 45;
+    max-width: 360px;
+    box-shadow: var(--shadow-lg);
+  }
+  .audit-chain-banner.app-notice,
+  .break-glass-banner.app-notice {
+    flex-shrink: 0;
+    width: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+    padding: 10px 16px;
+  }
   /* ---- Settings (Einstellungen) — token-driven + BEM (playbook checklist) ---- */
   .settings-row {
     display: flex;
@@ -3063,20 +4384,99 @@ html[data-theme="dark"] {
     min-width: 0;
   }
   .settings-row--wrap .settings-lang-seg,
-  .settings-row--wrap .settings-density-seg {
+  .settings-row--wrap .settings-density-seg,
+  .settings-row--wrap .settings-font-seg {
     flex: 1 1 100%;
     max-width: 100%;
     justify-content: stretch;
     width: 100%;
   }
   .settings-row--wrap .settings-lang-seg > .settings-lang-seg__btn,
-  .settings-row--wrap .settings-density-seg > .settings-density-seg__btn {
+  .settings-row--wrap .settings-density-seg > .settings-density-seg__btn,
+  .settings-row--wrap .settings-font-seg > .settings-font-seg__btn {
     flex: 1 1 0;
     min-width: 0;
     text-align: center;
   }
   .settings-subcard .settings-row:first-of-type {
     border-top: none;
+  }
+  .settings-system-section > .settings-row {
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  .settings-system-section > .settings-row:first-of-type {
+    border-top: none;
+  }
+  .settings-system-block {
+    border-top: 1px solid var(--line);
+    padding: var(--space-4) var(--card-pad-x);
+  }
+  .settings-system-block__head {
+    margin-bottom: var(--space-3);
+  }
+  .settings-system-block__head--row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .settings-system-block__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .settings-system-stack {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--line);
+  }
+  .settings-system-stack--flush {
+    border-top: none;
+  }
+  .settings-system-block--deployment {
+    border-top: none;
+    padding-top: var(--space-3);
+  }
+  .settings-serverless-lan,
+  .settings-serverless-replica {
+    min-width: 0;
+  }
+  .settings-system-embed {
+    margin-top: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: color-mix(in oklab, var(--bg-elev) 92%, var(--bg));
+  }
+  .settings-system-embed__body {
+    max-height: min(70vh, 640px);
+    overflow: auto;
+  }
+  .settings-confirm-table-wrap {
+    overflow: visible;
+  }
+  .tbl.tbl-settings-confirm tbody tr:has(.settings-confirm-select-cell [aria-expanded="true"]) {
+    position: relative;
+    z-index: 2;
+  }
+  .settings-confirm-select-cell {
+    overflow: visible;
+    vertical-align: middle;
+  }
+  .settings-confirm-select-cell .ui-field-wrap {
+    margin: 0;
+  }
+  .settings-confirm-select-cell .select-wrap {
+    min-width: 0;
+  }
+  .settings-confirm-select-cell .select-menu {
+    z-index: 30;
+  }
+  .settings-subcard:has(.settings-confirm-table-wrap) {
+    overflow: visible;
   }
   .settings-switch {
     position: relative;
@@ -3171,6 +4571,72 @@ html[data-theme="dark"] {
     border-bottom-left-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-density-seg__btn:last-child {
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-font-seg {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+    border: 1px solid var(--line);
+    gap: 3px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  .settings-font-seg__btn {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 3.25rem;
+    min-width: 0;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-font-seg__btn:hover:not(.is-active) {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    color: var(--fg);
+  }
+  .settings-font-seg__btn.is-active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .settings-font-seg__label {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .settings-font-seg__sample {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    opacity: 0.82;
+    white-space: nowrap;
+  }
+  .settings-font-seg__btn.is-active .settings-font-seg__sample {
+    opacity: 0.92;
+  }
+  .settings-font-seg__btn:first-child {
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-font-seg__btn:last-child {
     border-top-right-radius: calc(var(--radius-pill) - 3px);
     border-bottom-right-radius: calc(var(--radius-pill) - 3px);
   }
@@ -3385,6 +4851,26 @@ html[data-theme="dark"] {
     background: var(--accent);
     flex-shrink: 0;
   }
+  .settings-pill-trusted {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--blue) 14%, transparent);
+    color: color-mix(in oklab, var(--blue) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--blue) 28%, var(--line));
+  }
+  .settings-pill-trusted::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--blue);
+    flex-shrink: 0;
+  }
   .settings-pill-gray {
     display: inline-flex;
     align-items: center;
@@ -3395,6 +4881,291 @@ html[data-theme="dark"] {
     background: color-mix(in oklab, var(--fg) 5%, transparent);
     color: var(--fg-3);
     border: 1px solid var(--line);
+  }
+  .settings-pill-orange {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--orange) 14%, transparent);
+    color: color-mix(in oklab, var(--orange) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--orange) 28%, var(--line));
+  }
+  .settings-pill-orange::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+    flex-shrink: 0;
+  }
+  .company-portal-demo-notice {
+    margin-top: 12px;
+  }
+  .settings-praxis-billing-notice {
+    margin: 0 var(--card-pad-x) var(--space-3);
+  }
+  .settings-serverless-audit-block {
+    margin-bottom: 12px;
+  }
+  .settings-security-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .settings-security-group {
+    border-top: 1px solid var(--line);
+  }
+  .settings-security-group:first-of-type {
+    border-top: none;
+  }
+  .settings-security-group__title {
+    padding: var(--space-3) var(--card-pad-x) var(--space-1);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .settings-security-row {
+    align-items: flex-start;
+  }
+  .settings-security-row__body {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .settings-security-link-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .settings-deferred-card {
+    background: color-mix(in oklab, var(--fg) 2%, var(--bg-elev));
+    border-style: dashed;
+  }
+  .settings-deferred-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .settings-deferred-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  .settings-deferred-item b {
+    font-size: var(--text-callout);
+  }
+  .settings-todo-pill {
+    flex-shrink: 0;
+    margin-top: 2px;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: var(--fg-3);
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    border: 1px solid var(--line);
+  }
+  .settings-device-sessions-card-head {
+    width: 100%;
+  }
+  .settings-device-sessions-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .settings-device-sessions-head-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .settings-device-sessions-count {
+    flex: 0 0 auto;
+    margin-left: auto;
+    align-self: flex-start;
+  }
+  .settings-device-sessions-alert {
+    margin: 0 var(--card-pad-x) var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-ctl);
+    font-size: 12px;
+    line-height: 1.45;
+    color: color-mix(in oklab, var(--orange) 85%, var(--fg));
+    background: color-mix(in oklab, var(--orange) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--orange) 28%, var(--line));
+  }
+  .settings-device-sessions-empty {
+    padding: var(--space-4) var(--card-pad-x);
+    font-size: 13px;
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+  .settings-device-sessions-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .settings-device-session-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  .settings-device-session-item.is-suspected {
+    background: color-mix(in oklab, var(--orange) 4%, transparent);
+  }
+  .settings-device-session-item.is-trusted {
+    background: color-mix(in oklab, var(--blue) 3%, transparent);
+  }
+  .settings-device-session-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+    color: var(--fg-3);
+    flex-shrink: 0;
+  }
+  .settings-device-session-icon.is-current {
+    background: color-mix(in oklab, var(--green) 12%, transparent);
+    color: color-mix(in oklab, var(--green) 90%, var(--fg));
+  }
+  .settings-device-session-icon.is-suspected {
+    background: color-mix(in oklab, var(--orange) 12%, transparent);
+    color: color-mix(in oklab, var(--orange) 90%, var(--fg));
+  }
+  .settings-device-session-icon.is-trusted {
+    background: color-mix(in oklab, var(--blue) 12%, transparent);
+    color: color-mix(in oklab, var(--blue) 90%, var(--fg));
+  }
+  .settings-device-session-body {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .settings-device-session-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .settings-device-session-meta {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .settings-device-session-reasons {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: color-mix(in oklab, var(--orange) 80%, var(--fg-2));
+    line-height: 1.45;
+  }
+  .settings-device-session-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .settings-device-session-investigate {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .settings-device-session-investigate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-2) var(--space-3);
+    margin: 0;
+  }
+  .settings-device-session-investigate-grid dt {
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--fg-3);
+    margin: 0 0 2px;
+  }
+  .settings-device-session-investigate-grid dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--fg);
+  }
+  .settings-device-session-investigate-label {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--fg-2);
+  }
+  .settings-device-session-investigate-ua {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--fg) 4%, transparent);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow: auto;
+  }
+  .settings-device-session-audit-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 180px;
+    overflow: auto;
+  }
+  .settings-device-session-audit-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-device-session-audit-action {
+    font-weight: 650;
+    color: var(--fg-2);
+  }
+  .settings-device-session-audit-details {
+    grid-column: 1 / -1;
+    color: var(--fg-3);
+    word-break: break-word;
+  }
+  .settings-device-sessions-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+    background: color-mix(in oklab, var(--fg) 2%, transparent);
+  }
+  .settings-device-sessions-foot-hint {
+    flex: 1 1 200px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.4;
   }
   .settings-license-hero {
     margin: var(--card-pad-x);
@@ -3473,34 +5244,13 @@ html[data-theme="dark"] {
   .settings-btn-danger-text:hover {
     background: color-mix(in oklab, var(--red) 10%, transparent);
   }
-  /* Einstellungen › Praxis: layout + Briefkopf-Vorschau */
-  .settings-praxis-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding-top: var(--space-3);
-  }
+  /* Einstellungen › Praxis: layout */
   .settings-praxis-intro {
     margin: 0;
     max-width: 52em;
   }
   .settings-praxis-intro--tight {
     margin-top: var(--space-2);
-  }
-  .settings-praxis-grid {
-    display: grid;
-    gap: var(--space-5);
-    align-items: start;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 920px) {
-    .settings-praxis-grid {
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-    }
-    .settings-praxis-preview {
-      position: sticky;
-      top: calc(var(--layout-sticky-below-chrome) + var(--space-2));
-    }
   }
   .settings-praxis-fields {
     display: flex;
@@ -3527,273 +5277,6 @@ html[data-theme="dark"] {
     resize: vertical;
     min-height: 7.5rem;
     line-height: 1.45;
-  }
-  .settings-praxis-preview__toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-bottom: var(--space-1);
-  }
-  .settings-praxis-preview__toolbar .settings-praxis-preview__kicker {
-    margin-bottom: 0;
-  }
-  .settings-praxis-preview__bulk {
-    flex-shrink: 0;
-    padding: 6px 11px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--line);
-    background: var(--bg-elev);
-    color: var(--fg-2);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    transition:
-      background var(--motion-fast) var(--ease-out),
-      border-color var(--motion-fast) var(--ease-out),
-      color var(--motion-fast) var(--ease-out);
-  }
-  .settings-praxis-preview__bulk:hover {
-    border-color: var(--line-strong);
-    color: var(--fg);
-    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
-  }
-  .settings-praxis-preview__bulk.is-all-on {
-    border-color: color-mix(in oklab, var(--blue) 35%, var(--line));
-    color: var(--blue);
-    background: color-mix(in oklab, var(--blue-soft) 55%, var(--bg-elev));
-  }
-  .settings-praxis-preview__bulk:focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: 2px;
-  }
-  .settings-praxis-preview__reveal-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 0 0 var(--space-3);
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: var(--fg-2);
-  }
-  .settings-praxis-preview__reveal-group--register {
-    margin-top: var(--space-1);
-    padding-top: var(--space-3);
-    border-top: 1px solid color-mix(in oklab, var(--line-strong) 65%, transparent);
-    font-size: 11.5px;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__reveal-row {
-    display: grid;
-    grid-template-columns: minmax(5.75rem, max-content) 1fr auto;
-    gap: 0.35rem 0.6rem;
-    align-items: baseline;
-    word-break: break-word;
-  }
-  .settings-praxis-preview__reveal-row--dense {
-    font-size: inherit;
-    color: inherit;
-  }
-  .settings-praxis-preview__reveal-label {
-    font-weight: 600;
-    color: var(--fg-2);
-  }
-  .settings-praxis-preview__reveal-group--register .settings-praxis-preview__reveal-label {
-    color: var(--fg-2);
-  }
-  .settings-praxis-preview__reveal-value {
-    min-width: 0;
-  }
-  .settings-praxis-preview__reveal-value.is-masked {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    letter-spacing: 0.04em;
-    color: var(--fg-4);
-    user-select: none;
-  }
-  .settings-praxis-preview__reveal-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    margin: -4px 0;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-pill);
-    background: color-mix(in oklab, var(--fg) 5%, transparent);
-    color: var(--fg-2);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition:
-      background var(--motion-fast) var(--ease-out),
-      color var(--motion-fast) var(--ease-out);
-  }
-  .settings-praxis-preview__reveal-btn:hover {
-    background: color-mix(in oklab, var(--fg) 9%, transparent);
-    color: var(--fg);
-  }
-  .settings-praxis-preview__reveal-btn:focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: 2px;
-  }
-  .settings-praxis-preview__reveal-ic {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .settings-praxis-preview__kicker {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--fg-3);
-    margin-bottom: var(--space-1);
-  }
-  .settings-praxis-preview__sub {
-    margin: 0 0 var(--space-3);
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__paper {
-    border-radius: var(--radius-card);
-    border: 1px solid var(--line-strong);
-    background: linear-gradient(165deg, color-mix(in oklab, var(--bg-elev) 88%, #fff) 0%, color-mix(in oklab, var(--bg-elev) 94%, #fff) 100%);
-    padding: var(--space-4) var(--space-4);
-    min-height: 11rem;
-    box-shadow: var(--shadow-sm);
-  }
-  .settings-praxis-preview__letter {
-    max-width: 34em;
-    margin: 0 auto;
-  }
-  .settings-praxis-preview__brand {
-    font-size: clamp(1.28rem, 2.8vw, 1.72rem);
-    font-weight: 750;
-    letter-spacing: -0.03em;
-    line-height: 1.15;
-    color: var(--fg);
-    margin: 0 0 var(--space-3);
-    padding-bottom: var(--space-2);
-    border-bottom: 2px solid color-mix(in oklab, var(--fg) 12%, transparent);
-  }
-  .settings-praxis-preview__address {
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: var(--fg-2);
-    margin-bottom: var(--space-3);
-  }
-  .settings-praxis-preview__contact-line {
-    margin: 0 0 var(--space-3);
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--fg-2);
-    word-break: break-word;
-  }
-  .settings-praxis-preview__contact-seg {
-    white-space: normal;
-  }
-  .settings-praxis-preview__contact-dot {
-    color: var(--fg-4);
-    font-weight: 400;
-  }
-  .settings-praxis-preview__register {
-    list-style: none;
-    margin: 0 0 var(--space-3);
-    padding: var(--space-3) 0 0;
-    border-top: 1px solid color-mix(in oklab, var(--line-strong) 65%, transparent);
-    font-size: 11.5px;
-    line-height: 1.5;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__register li {
-    margin: 0 0 5px;
-  }
-  .settings-praxis-preview__register li:last-child {
-    margin-bottom: 0;
-  }
-  .settings-praxis-preview__reg-k {
-    font-weight: 600;
-    color: var(--fg-2);
-    margin-right: 0.35em;
-  }
-  .settings-praxis-preview__pdf-ref {
-    margin-top: var(--space-4);
-    padding: var(--space-3);
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--fg) 3.5%, transparent);
-    border: 1px dashed color-mix(in oklab, var(--line-strong) 75%, transparent);
-  }
-  .settings-praxis-preview__pdf-ref-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--fg-4);
-    margin-bottom: var(--space-2);
-  }
-  .settings-praxis-preview__pdf-ref-lines {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    font-size: 10.5px;
-    line-height: 1.45;
-    color: var(--fg-2);
-  }
-  .settings-praxis-preview__pdf-ref-line {
-    word-break: break-word;
-  }
-  .settings-praxis-preview__pdf-ref-note {
-    margin: var(--space-2) 0 0;
-    font-size: 10.5px;
-    line-height: 1.4;
-    color: var(--fg-4);
-    font-style: italic;
-  }
-  .settings-praxis-preview__hidden-hint {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin: var(--space-3) 0 0;
-    padding: var(--space-3);
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--fg) 4%, transparent);
-    border: 1px solid var(--line);
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__hidden-ic {
-    flex-shrink: 0;
-    margin-top: 2px;
-    opacity: 0.85;
-  }
-  .settings-praxis-preview__empty {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__muted--block {
-    margin: var(--space-2) 0;
-  }
-  .settings-praxis-preview__addr {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--fg-2);
-  }
-  .settings-praxis-preview__meta {
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: 1px dashed var(--line);
-    font-size: 11.5px;
-    line-height: 1.45;
-    color: var(--fg-3);
-  }
-  .settings-praxis-preview__muted {
-    font-size: 12px;
-    color: var(--fg-4);
-    font-style: italic;
-    margin-top: var(--space-1);
   }
   .settings-praxis-actions {
     display: flex;
@@ -3969,9 +5452,62 @@ html[data-theme="dark"] {
     min-height: 0;
   }
   .dashboard-col-secondary {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
     min-height: 0;
+  }
+  .dashboard-col-secondary__schedule {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .dashboard-col-secondary__schedule > .dashboard-card-fill {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .dashboard-insights-card {
+    flex: 0 0 auto;
+    background: linear-gradient(135deg, #0e455c 0%, #0d7d66 100%);
+    color: #fff;
+    border: none;
+  }
+  .dashboard-insights-card__inner {
+    padding: 24px;
+  }
+  .dashboard-insights-card__eyebrow {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+  }
+  .dashboard-insights-card__body {
+    margin-top: 14px;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.45;
+    opacity: 0.95;
+  }
+  .dashboard-insights-card__actions {
+    margin-top: 22px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .dashboard-insights-card__btn-primary {
+    background: #fff;
+    color: #111318;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .dashboard-insights-card__btn-secondary {
+    background: rgba(255, 255, 255, 0.16);
+    color: #eaf4f1;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 700;
   }
   .dashboard-approval-row,
   .dashboard-order-row,
@@ -4095,7 +5631,11 @@ html[data-theme="dark"] {
   }
   @media (hover: hover) and (pointer: fine) {
     .dashboard-wire-row:hover {
-      background: rgba(0, 0, 0, 0.025);
+      background: color-mix(in oklab, var(--fg) 2.5%, transparent);
+    }
+    .dashboard-wire-row:has(.dashboard-wire-freigabe-actions :hover),
+    .dashboard-wire-row:has(.dashboard-wire-freigabe-actions :focus-visible) {
+      background: transparent;
     }
   }
   .dashboard-wire-row:last-child {
@@ -4187,6 +5727,8 @@ html[data-theme="dark"] {
     justify-content: flex-end;
     gap: 6px;
     flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
   }
   .dashboard-wire-icon-btn {
     width: 34px;
@@ -4207,13 +5749,6 @@ html[data-theme="dark"] {
       box-shadow var(--motion-fast) var(--ease-out),
       transform var(--motion-fast) var(--ease-out);
   }
-  .dashboard-wire-icon-btn:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--red) 16%, var(--red-soft));
-    border-color: color-mix(in oklab, var(--red) 42%, var(--line));
-    color: #991B1B;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--red) 18%, transparent), var(--shadow-ring-inset);
-  }
   .dashboard-wire-icon-btn:active:not(:disabled) {
     transform: scale(0.98);
   }
@@ -4229,12 +5764,22 @@ html[data-theme="dark"] {
   /* Compact CTAs in Freigaben / Bestellungen — match .btn-accent (z. B. „Zur Terminübersicht“) */
   .dashboard-wire-approve-btn,
   .dashboard-wire-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: var(--radius-ctl);
+    font-size: 12px;
+    font-weight: 700;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     border: none;
     cursor: pointer;
     white-space: nowrap;
-    box-shadow: 0 1px 2px rgba(14, 160, 126, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--accent) 35%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--fg) 12%, transparent);
     transition:
       background var(--motion-fast) var(--ease-out),
       color var(--motion-fast) var(--ease-out),
@@ -4242,13 +5787,35 @@ html[data-theme="dark"] {
       transform var(--motion-fast) var(--ease-out),
       opacity var(--motion-fast) var(--ease-out);
   }
-  .dashboard-wire-approve-btn:hover:not(:disabled),
-  .dashboard-wire-btn-primary:hover:not(:disabled) {
-    background: #0b8e6f;
-    transform: translateY(-1px);
+  @media (hover: hover) and (pointer: fine) {
+    .dashboard-wire-approve-btn:hover:not(:disabled),
+    .dashboard-wire-btn-primary:hover:not(:disabled),
+    a.dashboard-wire-approve-btn:hover {
+      background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+      color: var(--text-on-accent);
+      transform: translateY(-1px);
+      box-shadow:
+        0 3px 12px color-mix(in oklab, var(--accent) 28%, transparent),
+        inset 0 -1px 0 color-mix(in oklab, var(--fg) 12%, transparent);
+    }
+    .dashboard-wire-btn-secondary:hover:not(:disabled) {
+      background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+      border-color: var(--line-strong);
+      color: var(--fg);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 10%, transparent);
+    }
+    .dashboard-wire-icon-btn:hover:not(:disabled) {
+      background: color-mix(in oklab, var(--red) 16%, var(--red-soft));
+      border-color: color-mix(in oklab, var(--red) 42%, var(--line));
+      color: #991B1B;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--red) 18%, transparent), var(--shadow-ring-inset);
+    }
   }
   .dashboard-wire-approve-btn:active:not(:disabled),
-  .dashboard-wire-btn-primary:active:not(:disabled) {
+  .dashboard-wire-btn-primary:active:not(:disabled),
+  a.dashboard-wire-approve-btn:active {
     transform: scale(0.98);
   }
   .dashboard-wire-approve-btn:disabled,
@@ -4260,29 +5827,17 @@ html[data-theme="dark"] {
   }
   .dashboard-wire-approve-btn:focus-visible,
   .dashboard-wire-btn-primary:focus-visible,
-  .dashboard-wire-btn-secondary:focus-visible {
+  .dashboard-wire-btn-secondary:focus-visible,
+  a.dashboard-wire-approve-btn:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: 2px;
   }
-  .dashboard-wire-approve-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 11px;
-    border-radius: var(--radius-ctl);
-    font-size: 12px;
-    font-weight: 700;
-  }
   a.dashboard-wire-approve-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
     text-decoration: none;
-    color: #fff;
+    color: var(--text-on-accent);
   }
   a.dashboard-wire-approve-btn:visited {
-    color: #fff;
+    color: var(--text-on-accent);
   }
   .dashboard-wire-order {
     padding: 10px var(--card-pad-x);
@@ -4292,7 +5847,11 @@ html[data-theme="dark"] {
   }
   @media (hover: hover) and (pointer: fine) {
     .dashboard-wire-order:hover {
-      background: rgba(0, 0, 0, 0.025);
+      background: color-mix(in oklab, var(--fg) 2.5%, transparent);
+    }
+    .dashboard-wire-order:has(.dashboard-wire-order-actions :hover),
+    .dashboard-wire-order:has(.dashboard-wire-order-actions :focus-visible) {
+      background: transparent;
     }
   }
   .dashboard-wire-order:last-child {
@@ -4389,6 +5948,8 @@ html[data-theme="dark"] {
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
+    position: relative;
+    z-index: 1;
   }
   .dashboard-wire-btn-secondary {
     display: inline-flex;
@@ -4412,13 +5973,6 @@ html[data-theme="dark"] {
       transform var(--motion-fast) var(--ease-out),
       opacity var(--motion-fast) var(--ease-out);
   }
-  .dashboard-wire-btn-secondary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
-    border-color: var(--line-strong);
-    color: var(--fg);
-    transform: translateY(-1px);
-    box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 10%, transparent);
-  }
   .dashboard-wire-btn-secondary:active:not(:disabled) {
     transform: scale(0.98);
   }
@@ -4427,16 +5981,6 @@ html[data-theme="dark"] {
     cursor: not-allowed;
     transform: none;
   }
-  .dashboard-wire-btn-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 12px;
-    border-radius: var(--radius-ctl);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
   .schedule-header {
     align-items: flex-start;
     gap: 14px;
@@ -5464,6 +7008,8 @@ html[data-theme="dark"] {
   }
   .patienten-table {
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
   }
   .dashboard-kpis {
     grid-template-columns: 1fr !important;
@@ -8055,6 +9601,14 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
   gap: 12px;
   margin: 20px 0;
 }
+.termin-drawer-meta-row > div {
+  min-width: 0;
+}
+.termin-drawer-meta-row .termin-drawer-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .termin-drawer-meta-val {
   font-weight: 700;
   font-size: 14px;
@@ -8098,6 +9652,10 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
 .termin-workflow-node.current {
   box-shadow: 0 0 0 4px rgba(14, 160, 126, 0.18);
 }
+.termin-workflow-node--next {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent);
+}
 .termin-workflow-label {
   font-size: 10px;
   font-weight: 600;
@@ -8123,6 +9681,59 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
   flex-wrap: wrap;
   gap: 8px;
   margin: 16px 0 8px;
+}
+.bestellung-drawer-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bestellung-drawer-workflow .btn {
+  flex: 1 1 0;
+  min-width: 5.5rem;
+  justify-content: center;
+}
+.bestellung-drawer-overdue-hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+  line-height: 1.4;
+}
+.bestellung-drawer-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.bestellung-drawer-edit-artikel {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bestellung-drawer-edit-artikel > :first-child {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.bestellung-drawer-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.bestellung-drawer-save-error {
+  color: var(--red);
+  font-size: 12.5px;
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--red-soft);
+  border-radius: 6px;
+}
+.termin-drawer-meta-val--pre {
+  white-space: pre-wrap;
+}
+.termin-drawer-meta-val--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
 }
 .termin-drawer-footer {
   flex-wrap: wrap;
@@ -9114,16 +10725,19 @@ html[data-theme="dark"] .settings-nav-btn.active svg {
   color: var(--accent-ink);
 }
 html[data-theme="dark"] .settings-density-seg,
-html[data-theme="dark"] .settings-lang-seg {
+html[data-theme="dark"] .settings-lang-seg,
+html[data-theme="dark"] .settings-font-seg {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.16);
 }
 html[data-theme="dark"] .settings-density-seg__btn:not(.is-active),
-html[data-theme="dark"] .settings-lang-seg__btn:not(.is-active) {
+html[data-theme="dark"] .settings-lang-seg__btn:not(.is-active),
+html[data-theme="dark"] .settings-font-seg__btn:not(.is-active) {
   color: rgba(255, 255, 255, 0.8);
 }
 html[data-theme="dark"] .settings-density-seg__btn:hover:not(.is-active),
-html[data-theme="dark"] .settings-lang-seg__btn:hover:not(.is-active) {
+html[data-theme="dark"] .settings-lang-seg__btn:hover:not(.is-active),
+html[data-theme="dark"] .settings-font-seg__btn:hover:not(.is-active) {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }

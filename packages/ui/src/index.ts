@@ -19,3 +19,4 @@ export { IconButton, type IconButtonProps } from "./icon-button";
 export { Spinner, type SpinnerSize } from "./spinner";
 export { Skeleton } from "./skeleton";
 export { Separator } from "./separator";
+export { DismissibleNotice, type DismissibleNoticeProps, type DismissibleNoticeVariant } from "./dismissible-notice";

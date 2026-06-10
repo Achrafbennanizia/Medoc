@@ -14,7 +14,7 @@ import { Input, Select } from "../components/ui/input";
 import { FormSection } from "../components/ui/form-section";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 const STEPS = ["Allgemeine Angaben", "Einnahmen", "Verträge / Ausgaben", "Ausgaben", "Bestätigen"];
 
@@ -164,16 +164,16 @@ export function BilanzNeuPage() {
     const selectedAusgabeRows = ausgabeRows.filter((p) => selAusgabe.has(p.id));
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            {canBackVerwaltung ? (
-                <div>
-                    <VerwaltungBackButton />
-                </div>
-            ) : null}
-            <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                <Button type="button" variant="ghost" onClick={() => navigate("/bilanz")}>← Zurück</Button>
-                <h1 className="page-title" style={{ margin: 0 }}>Neuer Bilanz</h1>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Neuer Bilanz"
+                back={
+                    canBackVerwaltung
+                        ? "verwaltung"
+                        : { to: "/bilanz", label: "Bilanz" }
+                }
+            />
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }} aria-hidden>
                 {STEPS.map((label, i) => (
                     <span

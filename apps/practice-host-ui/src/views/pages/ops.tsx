@@ -21,6 +21,8 @@ import { getAuditChainStatus } from "@/systems/practice-host/controllers/audit-c
 import { errorMessage } from "@/lib/utils";
 import { Button } from "../components/ui/button";
 import { ConfirmDialog } from "../components/ui/dialog";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 const CSV_ERROR_PREVIEW_LIMIT = 50;
 
@@ -173,14 +175,17 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <h2 className="page-title">Betrieb &amp; Datenmanagement</h2>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader title="Betrieb & Datenmanagement" />
 
             {opsBlocked ? (
-                <p className="text-body" role="alert" style={{ color: "var(--red)", fontWeight: 600 }}>
-                    Audit-Kette manipuliert — Backup, Migration und System-Tools sind gesperrt, bis die Störung im
-                    roten Banner quittiert wurde.
-                </p>
+                <DismissibleNotice
+                    variant="error"
+                    role="alert"
+                    closable={false}
+                    title="Audit-Kette manipuliert"
+                    subtitle="Backup, Migration und System-Tools sind gesperrt, bis die Störung im roten Banner quittiert wurde."
+                />
             ) : null}
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

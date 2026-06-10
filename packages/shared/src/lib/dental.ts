@@ -19,14 +19,14 @@ export const DENTAL_STATUS_KEYS = [
 export type DentalStatusKey = (typeof DENTAL_STATUS_KEYS)[number];
 
 export const DENTAL_STATES: Record<DentalStatusKey, { fill: string; stroke: string; label: string }> = {
-    healthy: { fill: "#FFFFFF", stroke: "#C8CCD1", label: "Gesund" },
-    karies: { fill: "#FFE0DD", stroke: "#E86B5E", label: "Karies" },
-    fuellung: { fill: "#DCECFF", stroke: "#4A9DFF", label: "Füllung" },
-    krone: { fill: "#FFF0C8", stroke: "#D9A300", label: "Krone" },
-    wurzel: { fill: "#E8DCFB", stroke: "#9B6BD8", label: "Wurzel-Fx" },
-    fehlt: { fill: "transparent", stroke: "#BFC3C7", label: "Fehlt" },
-    implantat: { fill: "var(--accent-soft)", stroke: "var(--accent)", label: "Implantat" },
-    geplant: { fill: "var(--accent-soft)", stroke: "var(--accent)", label: "Geplant" },
+    healthy: { fill: "var(--dental-healthy-fill)", stroke: "var(--dental-healthy-stroke)", label: "Gesund" },
+    karies: { fill: "var(--dental-karies-fill)", stroke: "var(--dental-karies-stroke)", label: "Karies" },
+    fuellung: { fill: "var(--dental-fuellung-fill)", stroke: "var(--dental-fuellung-stroke)", label: "Füllung" },
+    krone: { fill: "var(--dental-krone-fill)", stroke: "var(--dental-krone-stroke)", label: "Krone" },
+    wurzel: { fill: "var(--dental-wurzel-fill)", stroke: "var(--dental-wurzel-stroke)", label: "Wurzel-Fx" },
+    fehlt: { fill: "transparent", stroke: "var(--dental-fehlt-stroke)", label: "Fehlt" },
+    implantat: { fill: "var(--dental-implantat-fill)", stroke: "var(--dental-implantat-stroke)", label: "Implantat" },
+    geplant: { fill: "var(--dental-geplant-fill)", stroke: "var(--dental-geplant-stroke)", label: "Geplant" },
 };
 
 export type DentalToothShapeKey = "incisor" | "canine" | "premolar" | "molar";

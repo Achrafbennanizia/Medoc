@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/services/tauri.service", () => ({
+vi.mock("@/systems/shared/transport/tauri-transport", () => ({
     tauriInvoke: vi.fn(),
 }));
 
-import { tauriInvoke } from "@/services/tauri.service";
+import { tauriInvoke } from "@/systems/shared/transport/tauri-transport";
 import {
     pairingCheckStatus,
     pairingPersistToken,
@@ -42,6 +42,7 @@ describe("pairing-scan.controller", () => {
                 masterBaseUrl: "https://192.168.1.10:8787",
                 masterCertSha256: "abc123",
                 slaveLabel: "Tablet",
+                transport: "lan",
             },
         });
     });

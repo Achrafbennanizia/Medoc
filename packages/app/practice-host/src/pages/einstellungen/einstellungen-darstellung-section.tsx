@@ -6,7 +6,14 @@ import {
     type FontStackId,
 } from "@/lib/client-settings";
 import { ACCENT_HINTS, ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
+import {
+    FONT_STACK_HINTS,
+    FONT_STACK_LABELS,
+    FONT_STACK_ORDER,
+    FONT_STACK_PREVIEW_FAMILY,
+} from "@/lib/font-stack-preset";
 import type { Locale } from "@/lib/i18n";
+import { DARK_SIDEBAR_SETTINGS_ENABLED } from "@/lib/settings-ui-flags";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -92,61 +99,57 @@ export function EinstellungenDarstellungSection({
                     </button>
                 </div>
             </div>
-            <div className="settings-row">
-                <div>
-                    <b>Dunkle Seitenleiste</b>
-                    <div className="card-sub">
-                        {resolvedTheme === "dark"
-                            ? "Bei dunklem Erscheinungsbild immer aktiv"
-                            : "Nur die linke Navigation dunkel darstellen"}
+            {DARK_SIDEBAR_SETTINGS_ENABLED ? (
+                <div className="settings-row">
+                    <div>
+                        <b>Dunkle Seitenleiste</b>
+                        <div className="card-sub">
+                            {resolvedTheme === "dark"
+                                ? "Bei dunklem Erscheinungsbild immer aktiv"
+                                : "Nur die linke Navigation dunkel darstellen"}
+                        </div>
                     </div>
-                </div>
-                <SettingsSwitch
-                    ariaLabel="Dunkle Seitenleiste"
-                    disabled={resolvedTheme === "dark"}
-                    checked={appearance.darkSidebar}
-                    onChange={() =>
-                        onPersistClient((c) => {
-                            const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                            return mergeClientSettingsPatch(c, { appearance: { ...a, darkSidebar: !a.darkSidebar } });
-                        })
-                    }
-                />
-            </div>
-            <div className="settings-row settings-row--wrap">
-                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                    <b>Systemschrift</b>
-                    <div className="card-sub">{fontStack === "system" ? "System · 14 pt" : "Inter · 14 pt"}</div>
-                </div>
-                <div className="settings-lang-seg" role="group" aria-label="Systemschrift">
-                    <button
-                        type="button"
-                        className={`settings-lang-seg__btn${fontStack === "inter" ? " is-active" : ""}`}
-                        onClick={() => {
-                            if (fontStack === "inter") return;
+                    <SettingsSwitch
+                        ariaLabel="Dunkle Seitenleiste"
+                        disabled={resolvedTheme === "dark"}
+                        checked={appearance.darkSidebar}
+                        onChange={() =>
                             onPersistClient((c) => {
                                 const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                return mergeClientSettingsPatch(c, { appearance: { ...a, fontStack: "inter" } });
-                            });
-                            toast("Schrift: Inter", "success");
-                        }}
-                    >
-                        Inter
-                    </button>
-                    <button
-                        type="button"
-                        className={`settings-lang-seg__btn${fontStack === "system" ? " is-active" : ""}`}
-                        onClick={() => {
-                            if (fontStack === "system") return;
-                            onPersistClient((c) => {
-                                const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                return mergeClientSettingsPatch(c, { appearance: { ...a, fontStack: "system" } });
-                            });
-                            toast("Schrift: System", "success");
-                        }}
-                    >
-                        System
-                    </button>
+                                return mergeClientSettingsPatch(c, { appearance: { ...a, darkSidebar: !a.darkSidebar } });
+                            })
+                        }
+                    />
+                </div>
+            ) : null}
+            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                <div>
+                    <b>Schriftart</b>
+                    <div className="card-sub">{FONT_STACK_HINTS[fontStack]}</div>
+                </div>
+                <div className="settings-font-seg" role="group" aria-label="Schriftart" style={{ width: "100%", justifyContent: "stretch" }}>
+                    {FONT_STACK_ORDER.map((id) => (
+                        <button
+                            key={id}
+                            type="button"
+                            className={`settings-font-seg__btn${fontStack === id ? " is-active" : ""}`}
+                            style={{ flex: 1, fontFamily: FONT_STACK_PREVIEW_FAMILY[id] }}
+                            aria-pressed={fontStack === id}
+                            onClick={() => {
+                                if (fontStack === id) return;
+                                onPersistClient((c) => {
+                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                    return mergeClientSettingsPatch(c, { appearance: { ...a, fontStack: id } });
+                                });
+                                toast(`Schrift: ${FONT_STACK_LABELS[id]}`, "success");
+                            }}
+                        >
+                            <span className="settings-font-seg__label">{FONT_STACK_LABELS[id]}</span>
+                            <span className="settings-font-seg__sample" aria-hidden>
+                                Patient · 14 pt
+                            </span>
+                        </button>
+                    ))}
                 </div>
             </div>
             <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>

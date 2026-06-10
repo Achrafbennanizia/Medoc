@@ -4,7 +4,11 @@
  * folgen Tailwind-Klassen der gewählten Akzentfarbe (Darstellung).
  */
 export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
+  content: [
+    "./index.html",
+    "./src/**/*.{ts,tsx,js,jsx}",
+    "../../packages/**/*.{ts,tsx,js,jsx}",
+  ],
   theme: {
     extend: {
       colors: {
