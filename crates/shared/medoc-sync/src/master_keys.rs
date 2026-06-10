@@ -1,4 +1,4 @@
-//! Master device Ed25519 keypair for signing activation tokens + peer lists.
+//! Cluster CA / master Ed25519 keypair for activation tokens, seat certificates, peer lists.
 //!
 //! The **private key never leaves this device**. Replicas only ever see the
 //! 32-byte public key (via `GET /api/v1/pairing/master-info` or stored in

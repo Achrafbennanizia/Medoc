@@ -6,6 +6,7 @@ import {
 } from "@/systems/practice-host/controllers/break-glass.controller";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import type { Patient } from "@/models/types";
+import { DismissibleNotice } from "./ui/dismissible-notice";
 
 function formatRemaining(totalSecs: number): string {
     const s = Math.max(0, Math.floor(totalSecs));
@@ -82,24 +83,16 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
         return names.get(e.patient_id) ?? `Patient ${e.patient_id.slice(0, 8)}…`;
     });
     const patientLabel = [...new Set(patientBits)].join(", ");
+    const dismissKey = `break-glass-${userId}-${mine.map((e) => `${e.patient_id ?? "none"}-${e.elapsed_secs}`).sort().join("-")}`;
 
     return (
-        <div
+        <DismissibleNotice
+            variant="error"
             role="status"
             className="break-glass-banner"
-            style={{
-                flexShrink: 0,
-                padding: "10px 16px",
-                background: "color-mix(in oklab, var(--red) 12%, var(--bg-elev))",
-                borderBottom: "1px solid color-mix(in oklab, var(--red) 35%, var(--line))",
-                color: "var(--fg)",
-                fontSize: 13,
-                fontWeight: 600,
-                lineHeight: 1.35,
-            }}
-        >
-            Notfallzugriff aktiv — {patientLabel} — verbleibend {formatRemaining(remainSecs)} (max.{" "}
-            {Math.floor(BREAK_GLASS_WINDOW_SECS / 60)} Min. ab Aktivierung)
-        </div>
+            dismissKey={dismissKey}
+            title="Notfallzugriff aktiv"
+            subtitle={`${patientLabel} — verbleibend ${formatRemaining(remainSecs)} (max. ${Math.floor(BREAK_GLASS_WINDOW_SECS / 60)} Min. ab Aktivierung)`}
+        />
     );
 }

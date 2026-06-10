@@ -27,7 +27,7 @@ pub use dokument_template_user::DokumentTemplateUser;
 pub use leistung::Leistung;
 pub use patient::Patient;
 pub use patientenakte::Patientenakte;
-pub use personal::{AerztSummary, Personal};
+pub use personal::{AerztSummary, AufgabeTeamMember, Personal};
 pub use produkt::Produkt;
 pub use rezept::Rezept;
 pub use termin::Termin;

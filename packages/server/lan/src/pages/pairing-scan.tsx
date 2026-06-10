@@ -9,7 +9,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
     pairingCheckStatus,
+    pairingConfirmPin,
     pairingPersistToken,
+    pairingScanBluetooth,
     pairingScanLan,
     pairingSubmitRequest,
     type DiscoveredMaster,
@@ -21,13 +23,15 @@ import { Input } from "@/views/components/ui/input";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-type Phase = "scan" | "request" | "waiting" | "accepted" | "rejected";
+type Phase = "scan" | "request" | "waiting" | "pin" | "accepted" | "rejected";
+type Transport = "lan" | "bluetooth";
 
 const POLL_INTERVAL_MS = 2000;
 
 export function PairingScanPage() {
     const toast = useToastStore((s) => s.add);
     const [phase, setPhase] = useState<Phase>("scan");
+    const [transport, setTransport] = useState<Transport>("lan");
     const [hits, setHits] = useState<DiscoveredMaster[]>([]);
     const [selected, setSelected] = useState<DiscoveredMaster | null>(null);
     const [label, setLabel] = useState("");
@@ -37,6 +41,8 @@ export function PairingScanPage() {
     const [submitBusy, setSubmitBusy] = useState(false);
     const [submission, setSubmission] = useState<PairingSubmitResult | null>(null);
     const [snapshot, setSnapshot] = useState<PairingRequestSnapshot | null>(null);
+    const [pinInput, setPinInput] = useState("");
+    const [pinBusy, setPinBusy] = useState(false);
     const pollRef = useRef<number | null>(null);
 
     const stopPoll = () => {
@@ -49,20 +55,28 @@ export function PairingScanPage() {
     const scan = useCallback(async () => {
         setScanBusy(true);
         try {
-            const masters = await pairingScanLan(2);
+            const masters =
+                transport === "bluetooth"
+                    ? await pairingScanBluetooth(3)
+                    : await pairingScanLan(2);
             setHits(masters);
             if (masters.length === 0) {
                 toast(
-                    "Keine Master im LAN gefunden. Sicherstellen, dass medoc-server läuft.",
+                    transport === "bluetooth"
+                        ? "Keine Master per Bluetooth gefunden. Master muss im LAN-Modus erreichbar sein."
+                        : "Keine Master im LAN gefunden. Sicherstellen, dass medoc-server läuft.",
                     "warning",
                 );
             }
         } catch (e) {
-            toast(`LAN-Scan: ${errorMessage(e)}`, "error");
+            toast(
+                `${transport === "bluetooth" ? "Bluetooth" : "LAN"}-Scan: ${errorMessage(e)}`,
+                "error",
+            );
         } finally {
             setScanBusy(false);
         }
-    }, [toast]);
+    }, [toast, transport]);
 
     useEffect(() => {
         void scan();
@@ -85,6 +99,9 @@ export function PairingScanPage() {
                         } catch (e) {
                             toast(`Token speichern: ${errorMessage(e)}`, "error");
                         }
+                    } else if (snap.awaitingPin) {
+                        stopPoll();
+                        setPhase("pin");
                     } else if (snap.status === "REJECTED" || snap.status === "REVOKED") {
                         stopPoll();
                         setPhase("rejected");
@@ -98,6 +115,33 @@ export function PairingScanPage() {
         },
         [toast],
     );
+
+    const submitPin = async () => {
+        if (!submission || !selected) return;
+        const digits = pinInput.replace(/\D/g, "");
+        if (digits.length !== 4) {
+            toast("Bitte den 4-stelligen Code vom Master eingeben.", "error");
+            return;
+        }
+        setPinBusy(true);
+        try {
+            const snap = await pairingConfirmPin({
+                requestId: submission.requestId,
+                masterBaseUrl: selected.baseUrl,
+                pin: digits,
+            });
+            setSnapshot(snap);
+            if (snap.activationToken) {
+                await pairingPersistToken(snap.activationToken);
+                setPhase("accepted");
+                toast("Kopplung abgeschlossen — Aktivierungstoken gespeichert.", "success");
+            }
+        } catch (e) {
+            toast(`Bestätigungscode: ${errorMessage(e)}`, "error");
+        } finally {
+            setPinBusy(false);
+        }
+    };
 
     const submit = async () => {
         const master = selected ?? (manualUrl.trim()
@@ -125,6 +169,7 @@ export function PairingScanPage() {
                 masterBaseUrl: master.baseUrl,
                 masterCertSha256: master.certSha256,
                 slaveLabel: label.trim(),
+                transport,
             });
             setSelected(master);
             setSubmission(result);
@@ -177,6 +222,37 @@ export function PairingScanPage() {
         );
     }
 
+    if (phase === "pin" && submission && selected) {
+        return (
+            <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
+                <h1 className="card-title">Bestätigungscode eingeben</h1>
+                <p>
+                    Der Master hat die Anfrage akzeptiert. Auf dem Master-Gerät wird ein
+                    4-stelliger Code angezeigt — hier eingeben, um die Kopplung abzuschließen.
+                </p>
+                <Input
+                    id="pairing-pin"
+                    label="Bestätigungscode"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={4}
+                    placeholder="0000"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                />
+                <Button
+                    type="button"
+                    style={{ marginTop: 12 }}
+                    loading={pinBusy}
+                    disabled={pinBusy || pinInput.length !== 4}
+                    onClick={() => void submitPin()}
+                >
+                    Kopplung abschließen
+                </Button>
+            </main>
+        );
+    }
+
     if (phase === "waiting" && submission && selected) {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
@@ -211,13 +287,32 @@ export function PairingScanPage() {
                         Replica koppeln
                     </h1>
                     <p className="card-sub">
-                        Dieses Gerät läuft im Serverless-Modus. Bitte einen Master im LAN
-                        wählen und Pairing-Anfrage stellen. Der Master-Operator akzeptiert die
-                        Anfrage in der Einstellungen-Inbox.
+                        Master per LAN oder Bluetooth suchen, Pairing-Anfrage senden, auf dem
+                        Master akzeptieren lassen und den 4-stelligen Bestätigungscode eingeben.
                     </p>
+                    <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input
+                                type="radio"
+                                name="pairing-transport"
+                                checked={transport === "lan"}
+                                onChange={() => setTransport("lan")}
+                            />
+                            LAN (UDP)
+                        </label>
+                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input
+                                type="radio"
+                                name="pairing-transport"
+                                checked={transport === "bluetooth"}
+                                onChange={() => setTransport("bluetooth")}
+                            />
+                            Bluetooth
+                        </label>
+                    </div>
                 </div>
                 <Button type="button" onClick={() => void scan()} disabled={scanBusy} loading={scanBusy}>
-                    LAN scannen
+                    {transport === "bluetooth" ? "Bluetooth scannen" : "LAN scannen"}
                 </Button>
             </header>
 
@@ -278,6 +373,7 @@ export function PairingScanPage() {
                 <Input
                     id="manual-master-url"
                     label="Master HTTPS-URL"
+                    hint="Vom Master-Operator mitteilen lassen — ohne abschließenden Schrägstrich."
                     placeholder="https://192.168.1.10:8787"
                     value={manualUrl}
                     onChange={(e) => setManualUrl(e.target.value)}
@@ -285,6 +381,7 @@ export function PairingScanPage() {
                 <Input
                     id="manual-master-cert"
                     label="TLS SHA-256 (optional)"
+                    hint="Leaf-Zertifikat SHA-256 (hex, ohne Doppelpunkte) zum Abgleich mit dem Master-Display."
                     value={manualCert}
                     onChange={(e) => setManualCert(e.target.value)}
                 />

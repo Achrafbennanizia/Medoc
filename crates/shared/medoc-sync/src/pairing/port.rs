@@ -5,7 +5,7 @@ use std::future::Future;
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
-use super::types::{PairingDecision, PairingRequest, PairingRequestSubmit};
+use super::types::{PairingDecideResult, PairingDecision, PairingRequest, PairingRequestSubmit};
 
 /// Master-side pairing persistence contract.
 pub trait PairingPersistence: Send + Sync {
@@ -33,6 +33,14 @@ pub trait PairingPersistence: Send + Sync {
         master_device_id: &str,
         request_id: &str,
         decision: PairingDecision,
+        replica_http_port: u16,
+    ) -> impl Future<Output = Result<PairingDecideResult, AppError>> + Send;
+
+    fn confirm_pin(
+        &self,
+        master_device_id: &str,
+        request_id: &str,
+        pin: &str,
         replica_http_port: u16,
     ) -> impl Future<Output = Result<PairingRequest, AppError>> + Send;
 
@@ -78,7 +86,7 @@ impl PairingPersistence for SqlitePairingStore<'_> {
         request_id: &str,
         decision: PairingDecision,
         replica_http_port: u16,
-    ) -> Result<PairingRequest, AppError> {
+    ) -> Result<PairingDecideResult, AppError> {
         super::store::decide(
             self.0,
             master_device_id,
@@ -87,6 +95,17 @@ impl PairingPersistence for SqlitePairingStore<'_> {
             replica_http_port,
         )
         .await
+    }
+
+    async fn confirm_pin(
+        &self,
+        master_device_id: &str,
+        request_id: &str,
+        pin: &str,
+        replica_http_port: u16,
+    ) -> Result<PairingRequest, AppError> {
+        super::store::confirm_pin(self.0, master_device_id, request_id, pin, replica_http_port)
+            .await
     }
 
     async fn revoke(

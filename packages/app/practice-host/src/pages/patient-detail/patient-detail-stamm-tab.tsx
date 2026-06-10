@@ -18,6 +18,7 @@ export type PatientDetailStammTabProps = {
     patient: Patient;
     validationStamm: ValidationRecord | undefined;
     canViewClinical: boolean;
+    canWriteMedical: boolean;
     patientDeleteOpen: boolean;
     patientDeleteBusy: boolean;
     showEditPatient: boolean;
@@ -37,6 +38,7 @@ export function PatientDetailStammTab({
     patient,
     validationStamm,
     canViewClinical,
+    canWriteMedical,
     patientDeleteOpen,
     patientDeleteBusy,
     showEditPatient,
@@ -60,7 +62,9 @@ export function PatientDetailStammTab({
                         subtitle={
                             validationStamm
                                 ? `Stammdaten & Anamnese geprüft · ${formatDateTime(validationStamm.validatedAt)}`
-                                : "Vom Empfang erfasst — mit „Validieren“ Stammdaten und Anamnese zusammen bestätigen"
+                                : canViewClinical
+                                  ? "Vom Empfang erfasst — mit „Validieren“ Stammdaten und Anamnese zusammen bestätigen"
+                                  : "Stammdaten des Patienten"
                         }
                         action={(
                             <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -68,17 +72,19 @@ export function PatientDetailStammTab({
                                     <EditIcon />
                                     Bearbeiten
                                 </Button>
-                                {validationStamm ? (
-                                    <Button size="sm" variant="ghost" onClick={() => void onRevokeStammValidation()}>
-                                        Validierung zurückziehen
-                                    </Button>
-                                ) : (
-                                    <Button size="sm" variant="primary" onClick={() => void onValidateStamm()}>
-                                        <ShieldCheckIcon />
-                                        Validieren
-                                    </Button>
-                                )}
                                 {canViewClinical ? (
+                                    validationStamm ? (
+                                        <Button size="sm" variant="ghost" onClick={() => void onRevokeStammValidation()}>
+                                            Validierung zurückziehen
+                                        </Button>
+                                    ) : (
+                                        <Button size="sm" variant="primary" onClick={() => void onValidateStamm()}>
+                                            <ShieldCheckIcon />
+                                            Validieren
+                                        </Button>
+                                    )
+                                ) : null}
+                                {canWriteMedical ? (
                                     <Button size="sm" variant="danger" onClick={onOpenDelete}>
                                         Akte löschen
                                     </Button>
@@ -102,10 +108,10 @@ export function PatientDetailStammTab({
                         ))}
                     </dl>
                 </Card>
-                {patientDeleteOpen && canViewClinical ? (
+                {patientDeleteOpen && canWriteMedical ? (
                     <ConfirmOrInline
                         area="patient_akte_patient_delete"
-                        open={patientDeleteOpen && canViewClinical}
+                        open={patientDeleteOpen && canWriteMedical}
                         inlineId="ak-patient-delete-panel"
                         title="Löschen bestätigen"
                         message="Möchten Sie diese Patientenakte wirklich löschen? Die Akte und verknüpfte klinische Einträge werden entfernt, sofern das Backend dies zulässt."
@@ -125,7 +131,6 @@ export function PatientDetailStammTab({
                         subtitle="Änderungen gelten für die Stammdaten dieses Patienten."
                         inlineId="ak-patient-edit-panel"
                         ariaLabel="Patient bearbeiten"
-                        presentationOverride="modal"
                         footer={(
                             <>
                                 <Button type="button" variant="ghost" onClick={onCloseEdit}>

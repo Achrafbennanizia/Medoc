@@ -41,22 +41,30 @@ export type PairingRequestSnapshot = {
     requestedAt: string;
     decidedAt: string | null;
     decidedBy: string | null;
+    awaitingPin?: boolean;
+    transport?: string;
 };
 
 export function pairingScanLan(seconds = 2): Promise<DiscoveredMaster[]> {
     return tauriInvoke<DiscoveredMaster[]>("pairing_scan_lan", { payload: { seconds } });
 }
 
+export function pairingScanBluetooth(seconds = 3): Promise<DiscoveredMaster[]> {
+    return tauriInvoke<DiscoveredMaster[]>("pairing_scan_bluetooth", { payload: { seconds } });
+}
+
 export function pairingSubmitRequest(args: {
     masterBaseUrl: string;
     masterCertSha256?: string;
     slaveLabel: string;
+    transport?: "lan" | "bluetooth";
 }): Promise<PairingSubmitResult> {
     return tauriInvoke<PairingSubmitResult>("pairing_submit_request", {
         payload: {
             masterBaseUrl: args.masterBaseUrl,
             masterCertSha256: args.masterCertSha256 ?? "",
             slaveLabel: args.slaveLabel,
+            transport: args.transport ?? "lan",
         },
     });
 }
@@ -67,6 +75,20 @@ export function pairingCheckStatus(args: {
 }): Promise<PairingRequestSnapshot> {
     return tauriInvoke<PairingRequestSnapshot>("pairing_check_status", {
         payload: { requestId: args.requestId, masterBaseUrl: args.masterBaseUrl },
+    });
+}
+
+export function pairingConfirmPin(args: {
+    requestId: string;
+    masterBaseUrl: string;
+    pin: string;
+}): Promise<PairingRequestSnapshot> {
+    return tauriInvoke<PairingRequestSnapshot>("pairing_confirm_pin", {
+        payload: {
+            requestId: args.requestId,
+            masterBaseUrl: args.masterBaseUrl,
+            pin: args.pin,
+        },
     });
 }
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/onboarding";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { DismissibleNotice } from "./ui/dismissible-notice";
 import { useToastStore } from "./ui/toast-store";
 
 export type OnboardingCoachmarkProps = {
@@ -64,38 +65,30 @@ export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
     const total = steps.length;
 
     return (
-        <div
-            className="onboarding-coachmark"
+        <DismissibleNotice
+            className="app-notice--fixed"
+            variant="info"
             role="region"
-            aria-label="Einführung"
-            style={{
-                position: "fixed",
-                bottom: 16,
-                right: 16,
-                zIndex: 45,
-                maxWidth: 360,
-                padding: 14,
-                borderRadius: 12,
-                border: "1px solid var(--line)",
-                background: "var(--surface)",
-                boxShadow: "var(--shadow-lg)",
-            }}
+            ariaLabel="Einführung"
+            onDismiss={() => setDismissed(true)}
+            title={
+                <>
+                    Einführung · Schritt {idx + 1}/{total} · {Math.round(ratio * 100)} % Routen
+                </>
+            }
+            subtitle={step.titleDe}
+            actions={
+                <>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setDismissed(true)}>
+                        Später
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => void onDone()}>
+                        Verstanden
+                    </Button>
+                </>
+            }
         >
-            <div style={{ fontSize: 11, color: "var(--fg-3)", marginBottom: 6 }}>
-                Einführung · Schritt {idx + 1}/{total} · {Math.round(ratio * 100)} % Routen
-            </div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{step.titleDe}</div>
-            <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-2)", lineHeight: 1.45 }}>
-                {step.bodyDe}
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setDismissed(true)}>
-                    Später
-                </Button>
-                <Button type="button" size="sm" onClick={() => void onDone()}>
-                    Verstanden
-                </Button>
-            </div>
-        </div>
+            {step.bodyDe}
+        </DismissibleNotice>
     );
 }

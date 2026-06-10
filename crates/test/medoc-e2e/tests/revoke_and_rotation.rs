@@ -40,19 +40,7 @@ async fn submit_pairing(
 }
 
 async fn accept_pairing(lan: &mut LanHarness, jwt: &str, request_id: &str) -> String {
-    let (status, body) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(jwt),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "accept: {body:?}");
-    body["activationToken"]
-        .as_str()
-        .expect("activation token")
-        .to_string()
+    lan.pairing_decide_accept_and_confirm(request_id, jwt).await
 }
 
 #[tokio::test]
@@ -148,8 +136,8 @@ async fn re_pairing_after_rejection_issues_fresh_activation_token() {
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(decided["status"], "REJECTED");
-    assert!(decided["activationToken"].is_null());
+    assert_eq!(decided["request"]["status"], "REJECTED");
+    assert!(decided["request"]["activationToken"].is_null());
 
     // Replica re-submits with a fresh label.
     let request_id_b = submit_pairing(&mut lan, device_id, 25, "Rotation A (retry)").await;

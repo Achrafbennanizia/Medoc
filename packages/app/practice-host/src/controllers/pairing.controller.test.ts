@@ -51,19 +51,24 @@ describe("pairing.controller", () => {
             slavePubkey: "pk",
             slaveLabel: "Tablet",
             requesterIp: "127.0.0.1",
-            status: "ACCEPTED",
+            status: "PENDING",
             allowedActions: [...DEFAULT_ALLOWED_ACTIONS, ...OPTIONAL_READ_ACTIONS],
-            activationToken: "mt2.x",
+            activationToken: null,
             requestedAt: "2026-06-02T12:00:00Z",
             decidedAt: "2026-06-02T12:01:00Z",
             decidedBy: "seed-arzt-001",
+            awaitingPin: true,
         };
-        vi.mocked(practiceSystem.invoke).mockResolvedValueOnce(req);
+        vi.mocked(practiceSystem.invoke).mockResolvedValueOnce({
+            request: req,
+            confirmPin: "4829",
+        });
         const result = await pairingDecide("req-1", true, [
             ...DEFAULT_ALLOWED_ACTIONS,
             "patient.read",
         ]);
-        expect(result.status).toBe("ACCEPTED");
+        expect(result.confirmPin).toBe("4829");
+        expect(result.request.awaitingPin).toBe(true);
         expect(practiceSystem.invoke).toHaveBeenCalledWith("pairing_decide", {
             payload: {
                 requestId: "req-1",

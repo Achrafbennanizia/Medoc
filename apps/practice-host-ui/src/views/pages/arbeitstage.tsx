@@ -14,7 +14,7 @@ import { Input } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
 function pad2(n: number) {
@@ -39,7 +39,7 @@ export function ArbeitstagePage() {
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
-    const canWrite = role ? allowed("personal.write", role) : false;
+    const canWrite = role ? allowed("verwaltung.praxisplanung.write", role) : false;
 
     const [rows, setRows] = useState<Abwesenheit[]>([]);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -191,14 +191,12 @@ export function ArbeitstagePage() {
     if (status === "error" && loadError) return <PageLoadError message={loadError} onRetry={() => void reload()} />;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <VerwaltungBackButton />
-                <div>
-                    <h1 className="page-title" style={{ margin: 0 }}>Arbeitstage verwalten</h1>
-                    <p className="page-sub">Urlaub und Abwesenheiten — Kalender und Liste</p>
-                </div>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                titleLevel="h1"
+                title="Arbeitstage verwalten"
+                subtitle="Urlaub und Abwesenheiten — Kalender und Liste"
+            />
 
             <ConfirmDialog
                 open={Boolean(deleteId)}

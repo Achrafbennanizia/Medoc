@@ -1,0 +1,158 @@
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { loadAufgabeTeamDirectory } from "../components/praxis-aufgaben/load-aufgabe-team";
+import {
+    listPraxisAufgabenAdmin,
+    updatePraxisAufgabeAdmin,
+    type PraxisAufgabe,
+} from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
+import type { Patient, Personal } from "@/models/types";
+import { errorMessage } from "@/lib/utils";
+import { allowed, parseRole } from "@/lib/rbac";
+import { useAuthStore } from "@/models/store/auth-store";
+import { Button } from "../components/ui/button";
+import { Card, CardHeader } from "../components/ui/card";
+import { EmptyState } from "../components/ui/empty-state";
+import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { useToastStore } from "../components/ui/toast-store";
+import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { type PraxisAufgabeTaskForm } from "../components/praxis-aufgaben/constants";
+import { PraxisAufgabeFormFields } from "../components/praxis-aufgaben/praxis-aufgabe-form-fields";
+
+const BACK_HREF = "/tickets?tab=verwalten";
+
+function rowToForm(row: PraxisAufgabe): PraxisAufgabeTaskForm {
+    return {
+        patientId: row.patient_id ?? "",
+        typ: row.typ,
+        titel: row.titel,
+        body: row.body ?? "",
+        assigneeMode: row.assignee_role === "REZEPTION" ? "rezeption" : "user",
+        assigneeUserId: row.assignee_user_id ?? "",
+        status: row.status,
+    };
+}
+
+export function PraxisAufgabeEditPage() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const toast = useToastStore((s) => s.add);
+    const session = useAuthStore((s) => s.session);
+    const role = session?.rolle ? parseRole(session.rolle) : null;
+    const canAdminStatus = role != null && allowed("aufgabe.status.admin", role, session?.permission_overrides);
+    const canFulfillStatus = role != null && allowed("aufgabe.status.fulfill", role, session?.permission_overrides);
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [personal, setPersonal] = useState<Personal[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [notFound, setNotFound] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [form, setForm] = useState<PraxisAufgabeTaskForm | null>(null);
+
+    const load = useCallback(async () => {
+        if (!id) {
+            setNotFound(true);
+            setLoading(false);
+            return;
+        }
+        setLoadError(null);
+        setNotFound(false);
+        try {
+            const [tasks, pats, team] = await Promise.all([
+                listPraxisAufgabenAdmin(),
+                listPatienten(),
+                loadAufgabeTeamDirectory(role, session?.permission_overrides),
+            ]);
+            const row = tasks.find((t) => t.id === id);
+            if (!row) {
+                setNotFound(true);
+                return;
+            }
+            setForm(rowToForm(row));
+            setPatients(pats);
+            setPersonal(team.filter((m) => m.verfuegbar !== false));
+        } catch (e) {
+            setLoadError(errorMessage(e));
+        } finally {
+            setLoading(false);
+        }
+    }, [id, role, session?.permission_overrides]);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const save = async () => {
+        if (!id || !form || !form.titel.trim()) {
+            toast("Titel ist Pflicht.", "error");
+            return;
+        }
+        setBusy(true);
+        try {
+            await updatePraxisAufgabeAdmin({
+                id,
+                titel: form.titel.trim(),
+                body: form.body.trim() || null,
+                typ: form.typ,
+                status: form.status,
+                assigneeRole: form.assigneeMode === "rezeption" ? "REZEPTION" : null,
+                assigneeUserId: form.assigneeMode === "user" ? form.assigneeUserId || null : null,
+            });
+            toast("Aufgabe gespeichert.", "success");
+            navigate(BACK_HREF);
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    if (loading) return <PageLoading label="Aufgabe wird geladen…" />;
+    if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
+    if (notFound || !form) {
+        return (
+            <EmptyState
+                title="Aufgabe nicht gefunden"
+                description="Die Aufgabe existiert nicht oder Sie haben keinen Zugriff."
+                action={{ label: "Zurück zur Liste", onClick: () => navigate(BACK_HREF) }}
+            />
+        );
+    }
+
+    return (
+        <div className="praxis-aufgabe-edit-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Aufgabe bearbeiten"
+                subtitle={form.titel}
+                back={{ to: BACK_HREF, label: "Praxis-Aufgaben" }}
+            />
+
+            <Card className="card-elevated praxis-aufgabe-edit-page__card">
+                <CardHeader title="Aufgabendetails" />
+                <div className="card-pad">
+                    <PraxisAufgabeFormFields
+                        mode="edit"
+                        form={form}
+                        patients={patients}
+                        personal={personal}
+                        canAdminStatus={canAdminStatus}
+                        canFulfillStatus={canFulfillStatus}
+                        onChange={(patch) => setForm((f) => (f ? { ...f, ...patch } : f))}
+                    />
+                    <div className="row" style={{ gap: 8, marginTop: 16 }}>
+                        <Button type="button" variant="primary" disabled={busy} onClick={() => void save()}>
+                            Speichern
+                        </Button>
+                        <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate(BACK_HREF)}>
+                            <ChevronLeftIcon size={16} />
+                            Abbrechen
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+}

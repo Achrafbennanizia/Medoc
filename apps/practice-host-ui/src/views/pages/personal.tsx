@@ -6,13 +6,15 @@ import {
     createPersonal,
     deletePersonal,
     deletePersonalPermissionOverride,
+    grantPersonalAllPermissions,
     listPersonal,
     listPersonalPermissionOverrides,
+    resetPersonalPermissionOverrides,
     setPersonalPasswordByAdmin,
     setPersonalPermissionOverride,
     updatePersonal,
 } from "@/systems/practice-host/controllers/personal.controller";
-import { allowed, parseRole } from "@/lib/rbac";
+import { allowed, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { errorMessage, formatDate } from "@/lib/utils";
 import type { Personal } from "../../models/types";
@@ -24,11 +26,12 @@ import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon } from "@/lib/icons";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Rolle } from "@/models/types";
+import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
 
 function initialsFromName(name: string) {
     return name
@@ -41,9 +44,9 @@ function initialsFromName(name: string) {
 const ROLLE_OPTIONS = [
     { value: "ARZT", label: "Arzt" },
     { value: "REZEPTION", label: "Rezeption" },
-    { value: "STEUERBERATER", label: "Steuerberater" },
-    { value: "PHARMABERATER", label: "Pharmaberater" },
-] as const;
+    // TODO(deferred-roles): { value: "STEUERBERATER", label: "Steuerberater" },
+    // TODO(deferred-roles): { value: "PHARMABERATER", label: "Pharmaberater" },
+] as const satisfies ReadonlyArray<{ value: (typeof ACTIVE_ROLE_WIRES)[number]; label: string }>;
 
 export function PersonalPage() {
     const [personal, setPersonal] = useState<Personal[]>([]);
@@ -333,7 +336,7 @@ export function PersonalPage() {
     const sidePanel = (() => {
         if (creating && canWrite) {
             return (
-                <Card className="produkte-detail-card">
+                <Card className="personal-detail-card">
                     <CardHeader
                         title="Neuer Mitarbeiter"
                         subtitle="Stammdaten und Zugang — erscheint hier rechts, nicht auf separater Seite."
@@ -343,7 +346,7 @@ export function PersonalPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="personal-detail-card__body">
                         <Input
                             id="pers-new-name"
                             label="Name *"
@@ -398,7 +401,7 @@ export function PersonalPage() {
         }
         if (selected && detailEdit && canWrite) {
             return (
-                <Card className="produkte-detail-card">
+                <Card className="personal-detail-card">
                     <CardHeader
                         title="Mitarbeiter bearbeiten"
                         subtitle="Stammdaten, Einsatzstatus und ggf. neues Passwort setzen (ohne altes Passwort)."
@@ -408,7 +411,7 @@ export function PersonalPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="personal-detail-card__body">
                         <Input
                             id="pers-ed-name"
                             label="Name *"
@@ -490,16 +493,7 @@ export function PersonalPage() {
                                 { value: "0", label: "Nicht verfügbar" },
                             ]}
                         />
-                        <div
-                            className="card card-pad"
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 10,
-                                background: "var(--surface-1)",
-                                borderColor: "var(--border-2)",
-                            }}
-                        >
+                        <div className="personal-detail-card__section">
                             <p className="text-title" style={{ margin: 0, fontSize: 14 }}>
                                 Abweichende Berechtigungen (FA-PERS-07)
                             </p>
@@ -507,6 +501,69 @@ export function PersonalPage() {
                                 Pro Aktion ein Override: <strong>ALLOW</strong> ergänzt die Rolle, <strong>DENY</strong> sperrt explizit.
                                 Aktion wie im Backend (z. B. <code>finanzen.read</code>, <code>audit.read</code>).
                             </p>
+                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    disabled={!selected || permBusy}
+                                    onClick={() => {
+                                        if (!selected) return;
+                                        void (async () => {
+                                            try {
+                                                setPermBusy(true);
+                                                const n = await resetPersonalPermissionOverrides(selected.id);
+                                                setPermOverrides([]);
+                                                if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                    await checkSession();
+                                                }
+                                                toast(
+                                                    n > 0
+                                                        ? `${n} Override(s) entfernt — Rollen-Berechtigungen wieder aktiv.`
+                                                        : "Keine Overrides vorhanden.",
+                                                    "success",
+                                                );
+                                            } catch (e) {
+                                                toast(errorMessage(e), "error");
+                                            } finally {
+                                                setPermBusy(false);
+                                            }
+                                        })();
+                                    }}
+                                >
+                                    Overrides zurücksetzen
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    disabled={!selected || permBusy}
+                                    onClick={() => {
+                                        if (!selected) return;
+                                        void (async () => {
+                                            try {
+                                                setPermBusy(true);
+                                                const n = await grantPersonalAllPermissions(selected.id);
+                                                const rows = RBAC_ALL_ACTIONS.map((action) => ({
+                                                    action,
+                                                    effect: "ALLOW" as const,
+                                                }));
+                                                setPermOverrides(rows);
+                                                if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                    await checkSession();
+                                                }
+                                                toast(`Vollzugriff gewährt (${n} Aktionen).`, "success");
+                                            } catch (e) {
+                                                toast(errorMessage(e), "error");
+                                            } finally {
+                                                setPermBusy(false);
+                                            }
+                                        })();
+                                    }}
+                                >
+                                    Alle Berechtigungen gewähren
+                                </Button>
+                            </div>
                             {permBusy ? (
                                 <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>Lade Overrides…</p>
                             ) : (
@@ -551,12 +608,9 @@ export function PersonalPage() {
                                     style={{ flex: "1 1 200px", minWidth: 160 }}
                                 />
                                 <datalist id="perm-action-hints">
-                                    <option value="finanzen.read" />
-                                    <option value="finanzen.write" />
-                                    <option value="audit.read" />
-                                    <option value="patient.read_medical" />
-                                    <option value="bestellung.write" />
-                                    <option value="verwaltung.kataloge.write" />
+                                    {RBAC_ALL_ACTIONS.map((action) => (
+                                        <option key={action} value={action} />
+                                    ))}
                                 </datalist>
                                 <Select
                                     id="perm-eff"
@@ -603,10 +657,7 @@ export function PersonalPage() {
                                 </Button>
                             </div>
                         </div>
-                        <div
-                            className="card card-pad"
-                            style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--surface-1)", borderColor: "var(--border-2)" }}
-                        >
+                        <div className="personal-detail-card__section">
                             <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Passwort zurücksetzen</p>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
                                 Neues Passwort für diesen Zugang setzen. Das alte Passwort ist nicht nötig (nur in der Personalverwaltung sichtbar).
@@ -662,7 +713,7 @@ export function PersonalPage() {
         if (selected) {
             const p = selected;
             return (
-                <Card className="produkte-detail-card">
+                <Card className="personal-detail-card">
                     <CardHeader
                         title={p.name}
                         subtitle="Mitarbeiter · In „Bearbeiten“: Einsatzstatus und Passwort zurücksetzen."
@@ -679,8 +730,8 @@ export function PersonalPage() {
                             ) : null
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
+                    <div className="personal-detail-card__body">
+                        <div className="personal-read-grid">
                             {readField("E-Mail", p.email)}
                             {readField("Rolle", p.rolle)}
                             {readField("Tätigkeitsbereich", p.taetigkeitsbereich ?? "—")}
@@ -696,7 +747,7 @@ export function PersonalPage() {
             );
         }
         return (
-            <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
+            <Card className="personal-detail-card personal-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                     {canWrite
                         ? "Wählen Sie eine Zeile für Details, oder „+ Neuer Mitarbeiter“ — die Erfassung erscheint hier."
@@ -707,36 +758,31 @@ export function PersonalPage() {
     })();
 
     return (
-        <div className="produkte-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Personalverwaltung</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Team, Rollen und Zugang — Liste links, anlegen und Details rechts (wie Produkte).
-                    </p>
-                </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
-                    <Link to="/personal/arbeitsplan" className="btn btn-subtle">
-                        Arbeitsplan & Einsätze
-                    </Link>
-                    {canWrite ? (
-                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Abbrechen" : "+ Neuer Mitarbeiter"}
-                        </Button>
-                    ) : null}
-                </div>
-            </div>
+        <div className="personal-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title="Personalverwaltung"
+                subtitle="Team, Rollen und Zugang — Liste links, anlegen und Details rechts (wie Produkte)."
+                actions={
+                    <>
+                        <Link to="/personal/arbeitsplan" className="btn btn-subtle">
+                            Arbeitsplan & Einsätze
+                        </Link>
+                        {canWrite ? (
+                            <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                                {creating ? "Abbrechen" : "+ Neuer Mitarbeiter"}
+                            </Button>
+                        ) : null}
+                    </>
+                }
+            />
 
             {loading ? (
                 <PageLoading label="Personal wird geladen…" />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             ) : (
-                <div className="produkte-workspace">
-                    <div className="produkte-workspace__list">
+                <div className="personal-workspace">
+                    <div className="personal-workspace__list">
                         {sorted.length === 0 ? (
                             <Card className="card-pad">
                                 <EmptyState
@@ -746,11 +792,11 @@ export function PersonalPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card produkte-table-card tbl-scroll">
-                                <table className="tbl produkte-tbl" style={{ minWidth: 480 }}>
+                            <div className="card personal-table-card tbl-data-card tbl-scroll">
+                                <table className="tbl personal-tbl">
                                     <thead>
                                         <tr>
-                                            <th scope="col" style={{ width: 48 }} />
+                                            <th scope="col" aria-label="Avatar" />
                                             <th scope="col">Name</th>
                                             <th scope="col">Rolle</th>
                                             <th scope="col">E-Mail</th>
@@ -763,7 +809,7 @@ export function PersonalPage() {
                                             return (
                                                 <tr
                                                     key={p.id}
-                                                    className={isSel ? "produkte-row--selected" : undefined}
+                                                    className={isSel ? "personal-row--selected" : undefined}
                                                     onClick={() => selectRow(p)}
                                                     style={{ cursor: "pointer" }}
                                                 >
@@ -794,7 +840,7 @@ export function PersonalPage() {
                             </div>
                         )}
                     </div>
-                    <div className="produkte-workspace__detail">{sidePanel}</div>
+                    <div className="personal-workspace__detail">{sidePanel}</div>
                 </div>
             )}
 

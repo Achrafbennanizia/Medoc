@@ -7,6 +7,7 @@ import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import {
     listRezepte,
@@ -357,27 +358,27 @@ export function RezeptePage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="page-head">
-                <div>
-                    <h2 className="page-title">Rezepte & Atteste</h2>
-                    <div className="page-sub">{filteredRezepte.length} von {rezepte.length} Rezepten · Atteste über Atteste-Seite</div>
-                </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <div className="input" style={{ width: "min(220px, 100%)", flex: "1 1 220px" }}>
-                        <input
-                            placeholder="Medikament filtern…"
-                            value={medFilter}
-                            onChange={(e) => setMedFilter(e.target.value)}
-                            aria-label="Rezepte nach Medikament filtern"
-                        />
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                title="Rezepte & Atteste"
+                subtitle={`${filteredRezepte.length} von ${rezepte.length} Rezepten · Atteste über Atteste-Seite`}
+                actions={
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <div className="input" style={{ width: "min(220px, 100%)", flex: "1 1 220px" }}>
+                            <input
+                                placeholder="Medikament filtern…"
+                                value={medFilter}
+                                onChange={(e) => setMedFilter(e.target.value)}
+                                aria-label="Rezepte nach Medikament filtern"
+                            />
+                        </div>
+                        {medFilter ? (
+                            <Button variant="ghost" onClick={() => setMedFilter("")}>Filter löschen</Button>
+                        ) : null}
+                        <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>+ Neues Rezept</Button>
                     </div>
-                    {medFilter ? (
-                        <Button variant="ghost" onClick={() => setMedFilter("")}>Filter löschen</Button>
-                    ) : null}
-                    <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>+ Neues Rezept</Button>
-                </div>
-            </div>
+                }
+            />
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
                 <div className="card kpi"><div className="kpi-label">Ausgestellt (7 Tage)</div><div className="kpi-val">{kpi.weekCount}</div></div>
@@ -422,8 +423,9 @@ export function RezeptePage() {
                     description='Filter löschen oder Suchbegriff anpassen.'
                 />
             ) : (
-                <div className="card">
-                    <table className="tbl">
+                <div className="card tbl-data-card">
+                    <div className="tbl-scroll">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>Medikament</th><th>PZN</th><th>Typ</th><th>Dosierung</th><th>Dauer</th><th>Datum</th><th>Status</th><th>Aktionen</th>
@@ -448,6 +450,7 @@ export function RezeptePage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 

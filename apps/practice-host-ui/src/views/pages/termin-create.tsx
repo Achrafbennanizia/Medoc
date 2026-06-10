@@ -36,6 +36,7 @@ import { DentalToothPickerMini } from "../components/dental-tooth-picker-mini";
 import { useToastStore } from "../components/ui/toast-store";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import {
     planNextAutofillNote,
     planNextHasContent,
@@ -631,19 +632,18 @@ export function TerminCreatePage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-subtle" onClick={() => navigate("/termine")}>
-                    <ChevronLeftIcon /> Zurück
-                </button>
-                <h1 className="page-title" style={{ margin: 0 }}>{isEdit ? "Termin bearbeiten" : "Neuer Termin"}</h1>
-                {isEdit && !editLoaded ? (
-                    <span className="pill blue">Wird geladen…</span>
-                ) : null}
-                {isEdit && editError ? (
-                    <span className="pill red">{editError}</span>
-                ) : null}
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={isEdit ? "Termin bearbeiten" : "Neuer Termin"}
+                back={{ to: "/termine", label: "Terminübersicht" }}
+                actions={
+                    <>
+                        {isEdit && !editLoaded ? <span className="pill blue">Wird geladen…</span> : null}
+                        {isEdit && editError ? <span className="pill red">{editError}</span> : null}
+                    </>
+                }
+            />
 
             {doctorPlan ? (
                 <div
@@ -735,7 +735,7 @@ export function TerminCreatePage() {
                                 </div>
                             </div>
                             <div className="col" style={{ gap: 12 }}>
-                                <Input id="tc-datum" type="date" label="Datum" value={datum} onChange={(e) => setDatum(e.target.value)} />
+                                <Input id="tc-datum" type="date" label="Datum" hint="Praxisöffnungszeiten und Konflikte werden automatisch geprüft." value={datum} onChange={(e) => setDatum(e.target.value)} />
                                 <div>
                                     <span className="form-label form-label--mb-8">Zeit</span>
                                     <TimeSlotPicker value={uhrzeit.slice(0, 5)} onChange={(t) => setUhrzeit(t)} busyKeys={combinedBusyKeys} selectedDate={datum} stepMinutes={slotStep} />

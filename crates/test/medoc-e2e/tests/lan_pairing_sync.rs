@@ -93,8 +93,18 @@ async fn pairing_accept_issue_activation_token_and_sync() {
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(decided["status"], "ACCEPTED");
-    let token = decided["activationToken"]
+    let pin = decided["confirmPin"].as_str().expect("confirm pin");
+    let (status, confirmed) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(confirmed["status"], "ACCEPTED");
+    let token = confirmed["activationToken"]
         .as_str()
         .expect("activation token");
     assert!(token.starts_with(ACTIVATION_TOKEN_PREFIX));
@@ -193,8 +203,8 @@ async fn pairing_reject_flow() {
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(decided["status"], "REJECTED");
-    assert!(decided["activationToken"].is_null());
+    assert_eq!(decided["request"]["status"], "REJECTED");
+    assert!(decided["request"]["activationToken"].is_null());
 }
 
 #[tokio::test]
@@ -219,19 +229,12 @@ async fn activation_token_cannot_access_patienten() {
     assert_eq!(status, StatusCode::OK);
     let request_id = submitted["id"].as_str().unwrap();
 
-    let (status, decided) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(&jwt),
-        )
+    let token = lan
+        .pairing_decide_accept_and_confirm(request_id, &jwt)
         .await;
-    assert_eq!(status, StatusCode::OK);
-    let token = decided["activationToken"].as_str().unwrap();
 
     let (status, _body) = lan
-        .json("GET", "/api/v1/patienten", None, Some(token))
+        .json("GET", "/api/v1/patienten", None, Some(&token))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
@@ -258,16 +261,9 @@ async fn sync_push_rejects_mismatched_device_id() {
     assert_eq!(status, StatusCode::OK);
     let request_id = submitted["id"].as_str().unwrap();
 
-    let (status, decided) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(&jwt),
-        )
+    let token = lan
+        .pairing_decide_accept_and_confirm(request_id, &jwt)
         .await;
-    assert_eq!(status, StatusCode::OK);
-    let token = decided["activationToken"].as_str().unwrap();
 
     let (status, _body) = lan
         .json(
@@ -277,7 +273,7 @@ async fn sync_push_rejects_mismatched_device_id() {
                 "fromDeviceId": "other-device",
                 "entries": []
             })),
-            Some(token),
+            Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);

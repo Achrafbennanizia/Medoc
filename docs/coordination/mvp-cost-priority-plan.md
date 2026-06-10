@@ -1,6 +1,6 @@
 # MeDoc MVP — cost–priority delivery plan
 
-**Last updated:** 2026-06-02  
+**Last updated:** 2026-06-07  
 **Status:** Active execution plan (serverless thread + full MVP scope)
 
 ## MVP boundary — excluded features
@@ -32,14 +32,26 @@
 
 See [`mvp-test-scope.md`](mvp-test-scope.md) for unit-coverage allow-list.
 
+## W6 — Boot path (SQLCipher + license gate)
+
+Documented smoke path for first launch:
+
+1. **Fresh install** — Tauri starts → `LicenseAndPairingGate` if no valid license (`critical-flows.smoke.test.tsx`).
+2. **DB setup** — `get_db_setup_status` → passphrase setup/unlock before session.
+3. **Login** — TOTP for ARZT roles; session persisted in SQLCipher.
+4. **Deployment default** — `practice_desktop` + `MASTER` until changed under Einstellungen → Deployment.
+
+Automated proxy: `bash tools/g21-verify-automated.sh` + `critical-flows.smoke.test.tsx` license gate test.
+
 ## MVP done checklist
 
-- [ ] Workflows W1–W6 live-verified (G21b)
-- [ ] W7 or W8 multi-host path verified
-- [ ] Three binaries build: `medoc`, `medoc-server`, `medoc-company-server`
-- [ ] `tools/g21-verify-automated.sh` + `scripts/validate-docker.sh` GREEN
-- [ ] 100% unit on MVP module allow-list
-- [ ] 85+ Rust HTTP e2e + expanded sync/RBAC negatives
-- [ ] G21 live signed + (Playwright LAN or two-device sync)
-- [ ] Serverless Tier-1 tables + mesh per-peer delivery
-- [ ] Release gate complete
+- [ ] Workflows W1–W6 live-verified (G21b) — manual; automated proxy GREEN
+- [x] W7 or W8 multi-host path verified — Docker port **17/17** + `two-device-sync-smoke.sh` + Playwright LAN (opt-in)
+- [x] Three binaries build: `medoc`, `medoc-server`, `medoc-company-server`
+- [x] `tools/g21-verify-automated.sh` + `scripts/validate-docker.sh` GREEN (2026-06-07)
+- [ ] 100% unit on MVP module allow-list — T-U2 **GREEN**; T-U1 **PARTIAL** (repo/engine tests added)
+- [x] 85+ Rust HTTP e2e + expanded sync/RBAC negatives — **85** in-process + **17/17** port
+- [ ] G21 live signed + (Playwright LAN or two-device sync) — Playwright + two-device **automated**; live rows pending
+- [x] Serverless Tier-1 tables + mesh per-peer delivery
+- [x] UI/UX: P0 error surfacing, onboarding hints, integration stubs honest — field hints + migration copy
+- [ ] Release gate complete — automated items ticked in [`releases/v0.1.0/release-gate-checklist.md`](../../releases/v0.1.0/release-gate-checklist.md)

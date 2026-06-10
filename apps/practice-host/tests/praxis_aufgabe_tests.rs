@@ -75,7 +75,7 @@ async fn arzt_to_rezeption_fulfillment_and_validation_flow() {
     let a = praxis_aufgabe_repo::insert(
         &pool,
         &CreatePraxisAufgabe {
-            patient_id: patient_id.clone(),
+            patient_id: Some(patient_id.clone()),
             typ: "ABRECHNUNG".into(),
             titel: "Zahlung erfassen".into(),
             body: Some("80 EUR Füllung".into()),
@@ -99,6 +99,8 @@ async fn arzt_to_rezeption_fulfillment_and_validation_flow() {
         a.assignee_user_id.as_deref(),
         &a.created_by,
         "seed-rez-001",
+        false,
+        false,
     )
     .expect("rez start");
 
@@ -114,6 +116,8 @@ async fn arzt_to_rezeption_fulfillment_and_validation_flow() {
         mid.assignee_user_id.as_deref(),
         &mid.created_by,
         "seed-rez-001",
+        false,
+        false,
     )
     .expect("rez done transition");
 
@@ -136,6 +140,8 @@ async fn arzt_to_rezeption_fulfillment_and_validation_flow() {
         done.assignee_user_id.as_deref(),
         &done.created_by,
         "seed-arzt-001",
+        false,
+        false,
     )
     .expect("arzt validate");
 
@@ -153,7 +159,7 @@ async fn erledigt_rezeption_notifies_creating_arzt_fa_aufg_04() {
     let a = praxis_aufgabe_repo::insert(
         &pool,
         &CreatePraxisAufgabe {
-            patient_id: patient_id.clone(),
+            patient_id: Some(patient_id.clone()),
             typ: "SONSTIGES".into(),
             titel: "Röntgenbild drucken".into(),
             body: Some("Bitte ausdrucken".into()),
@@ -217,7 +223,7 @@ async fn erledigt_rezeption_skips_notification_when_creator_completes_own_task()
     let a = praxis_aufgabe_repo::insert(
         &pool,
         &CreatePraxisAufgabe {
-            patient_id,
+            patient_id: Some(patient_id),
             typ: "SONSTIGES".into(),
             titel: "Selbst erledigen".into(),
             body: None,
@@ -269,7 +275,7 @@ async fn g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation() {
     let created = praxis_aufgabe_repo::insert(
         &pool,
         &CreatePraxisAufgabe {
-            patient_id: patient_id.clone(),
+            patient_id: Some(patient_id.clone()),
             typ: "SONSTIGES".into(),
             titel: "G21 Live Proxy Aufgabe".into(),
             body: Some("Manueller Dialog-Äquivalent".into()),
@@ -290,7 +296,7 @@ async fn g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation() {
         .expect("rez list");
     assert!(rez_inbox.iter().any(|a| a.id == created.id));
     assert!(
-        praxis_aufgabe_repo::count_open_for_rezeption(&pool)
+        praxis_aufgabe_repo::count_open_for_rezeption(&pool, "seed-rezeption-001")
             .await
             .expect("count")
             >= 1
@@ -304,6 +310,8 @@ async fn g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation() {
         created.assignee_user_id.as_deref(),
         &created.created_by,
         "seed-rez-001",
+        false,
+        false,
     )
     .expect("rez start");
     let mid =
@@ -319,6 +327,8 @@ async fn g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation() {
         mid.assignee_user_id.as_deref(),
         &mid.created_by,
         "seed-rez-001",
+        false,
+        false,
     )
     .expect("rez done");
     let done = praxis_aufgabe_repo::update_status(
@@ -359,6 +369,102 @@ async fn g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation() {
     assert_eq!(unread, 1);
 }
 
+#[tokio::test]
+async fn arzt_zurueck_notifies_rezeption_and_stays_visible_until_validiert() {
+    let pool = migrated_pool().await;
+    let patient_id = seed_patient(&pool).await;
+
+    let created = praxis_aufgabe_repo::insert(
+        &pool,
+        &CreatePraxisAufgabe {
+            patient_id: Some(patient_id.clone()),
+            typ: "SONSTIGES".into(),
+            titel: "Zurück-Test".into(),
+            body: Some("Bitte prüfen".into()),
+            assignee_role: Some("REZEPTION".into()),
+            assignee_user_id: None,
+            behandlung_id: None,
+            untersuchung_id: None,
+            leistungsname: None,
+            gesamtkosten: None,
+        },
+        "seed-arzt-001",
+    )
+    .await
+    .expect("create");
+
+    let done = praxis_aufgabe_repo::update_status(
+        &pool,
+        &created.id,
+        "ERLEDIGT_REZEPTION",
+        Some("Fertig"),
+        None,
+        None,
+    )
+    .await
+    .expect("erledigt");
+
+    workflow_transitions::praxis_aufgabe_status_transition(
+        &done.status,
+        "ZURUECK",
+        Role::Arzt,
+        done.assignee_role.as_deref(),
+        done.assignee_user_id.as_deref(),
+        &done.created_by,
+        "seed-arzt-001",
+        false,
+        false,
+    )
+    .expect("arzt may return");
+    let zurueck = praxis_aufgabe_repo::update_status(
+        &pool,
+        &created.id,
+        "ZURUECK",
+        None,
+        None,
+        Some("Bitte korrigieren"),
+    )
+    .await
+    .expect("zurueck");
+
+    praxis_aufgabe_notify::notify_assignees_if_aufgabe_zurueck(
+        &pool,
+        &done,
+        &zurueck,
+        "ZURUECK",
+        "seed-arzt-001",
+        Some("Bitte korrigieren"),
+    )
+    .await
+    .expect("notify rez");
+
+    let rez_unread = in_app_notification_repo::count_unread(&pool, "seed-rez-001")
+        .await
+        .expect("rez unread");
+    assert!(
+        rez_unread >= 1,
+        "rezeption should receive ZURUECK notification"
+    );
+
+    let arzt_list = praxis_aufgabe_repo::list_for_user(&pool, "seed-arzt-001", false, 50)
+        .await
+        .expect("arzt list");
+    assert!(
+        arzt_list
+            .iter()
+            .any(|a| a.id == created.id && a.status == "ZURUECK"),
+        "creator keeps task visible until VALIDIERT"
+    );
+
+    let rez_pool = praxis_aufgabe_repo::list_posteingang_rezeption(&pool, 50)
+        .await
+        .expect("rez pool");
+    assert!(
+        rez_pool.iter().any(|a| a.id == created.id),
+        "returned task appears in rezeption posteingang"
+    );
+}
+
 #[test]
 fn workflow_aufgabe_rejects_invalid_transition() {
     assert!(workflow_transitions::praxis_aufgabe_status_transition(
@@ -369,6 +475,8 @@ fn workflow_aufgabe_rejects_invalid_transition() {
         None,
         "seed-arzt-001",
         "seed-rez-001",
+        false,
+        false,
     )
     .is_err());
     let err = workflow_transitions::praxis_aufgabe_status_transition(
@@ -379,7 +487,102 @@ fn workflow_aufgabe_rejects_invalid_transition() {
         None,
         "seed-arzt-001",
         "seed-arzt-001",
+        false,
+        false,
     )
     .expect_err("arzt cannot reopen without ZURUECK");
     assert!(matches!(err, AppError::Validation(_)));
+}
+
+#[tokio::test]
+async fn direct_aufgabe_visible_only_to_creator_and_assignee() {
+    let pool = migrated_pool().await;
+    let patient_id = seed_patient(&pool).await;
+
+    let to_arzt = praxis_aufgabe_repo::insert(
+        &pool,
+        &CreatePraxisAufgabe {
+            patient_id: Some(patient_id.clone()),
+            typ: "SONSTIGES".into(),
+            titel: "Privat an Arzt".into(),
+            body: Some("Nur Ersteller + Arzt".into()),
+            assignee_role: None,
+            assignee_user_id: Some("seed-arzt-001".into()),
+            behandlung_id: None,
+            untersuchung_id: None,
+            leistungsname: None,
+            gesamtkosten: None,
+        },
+        "seed-rez-001",
+    )
+    .await
+    .expect("rez -> arzt");
+
+    let arzt_inbox = praxis_aufgabe_repo::list_for_user(&pool, "seed-arzt-001", false, 50)
+        .await
+        .expect("arzt inbox");
+    assert!(arzt_inbox.iter().any(|a| a.id == to_arzt.id));
+
+    let creator_out = praxis_aufgabe_repo::list_for_user(&pool, "seed-rez-001", true, 50)
+        .await
+        .expect("rez creator");
+    assert!(creator_out.iter().any(|a| a.id == to_arzt.id));
+
+    let other_rez = praxis_aufgabe_repo::list_for_user(&pool, "other-rez-user", true, 50)
+        .await
+        .expect("other rez");
+    assert!(!other_rez.iter().any(|a| a.id == to_arzt.id));
+
+    let to_rez = praxis_aufgabe_repo::insert(
+        &pool,
+        &CreatePraxisAufgabe {
+            patient_id: Some(patient_id.clone()),
+            typ: "TERMIN".into(),
+            titel: "Privat an Rezeption".into(),
+            body: None,
+            assignee_role: None,
+            assignee_user_id: Some("seed-rez-001".into()),
+            behandlung_id: None,
+            untersuchung_id: None,
+            leistungsname: None,
+            gesamtkosten: None,
+        },
+        "seed-arzt-001",
+    )
+    .await
+    .expect("arzt -> rez person");
+
+    let rez_direct = praxis_aufgabe_repo::list_for_user(&pool, "seed-rez-001", true, 50)
+        .await
+        .expect("named rez");
+    assert!(rez_direct.iter().any(|a| a.id == to_rez.id));
+
+    let other_rez_direct = praxis_aufgabe_repo::list_for_user(&pool, "other-rez-user", true, 50)
+        .await
+        .expect("other rez direct");
+    assert!(!other_rez_direct.iter().any(|a| a.id == to_rez.id));
+
+    let pool_task = praxis_aufgabe_repo::insert(
+        &pool,
+        &CreatePraxisAufgabe {
+            patient_id: Some(patient_id),
+            typ: "DRUCK".into(),
+            titel: "Pool Aufgabe".into(),
+            body: None,
+            assignee_role: Some("REZEPTION".into()),
+            assignee_user_id: None,
+            behandlung_id: None,
+            untersuchung_id: None,
+            leistungsname: None,
+            gesamtkosten: None,
+        },
+        "seed-arzt-001",
+    )
+    .await
+    .expect("pool");
+
+    let any_rez = praxis_aufgabe_repo::list_for_user(&pool, "other-rez-user", true, 50)
+        .await
+        .expect("any rez pool");
+    assert!(any_rez.iter().any(|a| a.id == pool_task.id));
 }

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FC } from "react";
+import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { listBestellungen, updateBestellungStatus } from "@/systems/practice-host/controllers/bestellung.controller";
 import type { BestellStatus, Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
-import { parseRole, allowed } from "@/lib/rbac";
+import { parseRole, allowed, canReadFinanzen } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
 import { buildFinanzenReportBundle, type FinanzTxRow } from "@/lib/report-export";
@@ -12,11 +12,13 @@ import { ReportExportToolbar } from "../components/report-export-toolbar";
 import type { Zahlung, Patient, ZahlungsArt } from "../../models/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Select } from "../components/ui/input";
+import { FilterOptionBar } from "../components/ui/filter-option-bar";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { FilterIcon, MoreIcon, NAV_ICONS } from "@/lib/icons";
+import { NAV_ICONS } from "@/lib/icons";
+import { FinanzenTxDetailDrawer, finanzenTxRowKey } from "../components/finanzen-tx-detail-drawer";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
@@ -25,13 +27,6 @@ import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
 import { PraxisReadinessDialog } from "@/views/components/praxis-readiness-dialog";
-
-const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
-    { value: "OFFEN", label: "Offen" },
-    { value: "UNTERWEGS", label: "Unterwegs" },
-    { value: "GELIEFERT", label: "Geliefert" },
-    { value: "STORNIERT", label: "Storniert" },
-];
 
 const ZAHLUNG_ART_ROWS = [
     { value: "BAR", label: "Bar" },
@@ -61,6 +56,17 @@ function bezugKurz(z: Zahlung): string {
 }
 
 type FinanzTxTab = "alle" | "einn" | "aus";
+
+const FIN_TX_TAB_OPTIONS: readonly { value: FinanzTxTab; label: string }[] = [
+    { value: "alle", label: "Alle" },
+    { value: "einn", label: "Einnahmen" },
+    { value: "aus", label: "Ausgaben" },
+];
+
+const FIN_TX_ART_OPTIONS: readonly { value: "ALLE" | ZahlungsArt; label: string }[] = [
+    { value: "ALLE", label: "Alle Arten" },
+    ...ZAHLUNG_ART_ROWS,
+];
 
 function finanzFilterLabel(tab: FinanzTxTab, art: "ALLE" | ZahlungsArt): string {
     const tabLabel = tab === "alle" ? "Alle Transaktionen" : tab === "einn" ? "Einnahmen" : "Ausgaben/Storni";
@@ -190,7 +196,7 @@ export function FinanzenPage() {
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [txTab, setTxTab] = useState<FinanzTxTab>("alle");
     const [artFilter, setArtFilter] = useState<"ALLE" | ZahlungsArt>("ALLE");
-    const [filterExtrasOpen, setFilterExtrasOpen] = useState(false);
+    const [selectedTxKey, setSelectedTxKey] = useState<string | null>(null);
     const [statusUpdatingBestellId, setStatusUpdatingBestellId] = useState<string | null>(null);
     const [listLoading, setListLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -231,7 +237,7 @@ export function FinanzenPage() {
         void load({ initial: true });
     }, [load]);
 
-    const canReadFinanzen = role != null && allowed("finanzen.read", role);
+    const canReadFinanzenFlag = role != null && canReadFinanzen(role);
     const allRows = useMemo(() => toFinanzRows(zahlungen, bestellungen), [zahlungen, bestellungen]);
     const filteredRows = useMemo(() => {
         return allRows.filter((row) => {
@@ -278,6 +284,16 @@ export function FinanzenPage() {
         () => [...filteredRows].sort((a, b) => rowSortTs(b) - rowSortTs(a)),
         [filteredRows],
     );
+    const selectedRow = useMemo(
+        () => sortedRows.find((r) => finanzenTxRowKey(r) === selectedTxKey) ?? null,
+        [sortedRows, selectedTxKey],
+    );
+
+    useEffect(() => {
+        if (selectedTxKey && !sortedRows.some((r) => finanzenTxRowKey(r) === selectedTxKey)) {
+            setSelectedTxKey(null);
+        }
+    }, [sortedRows, selectedTxKey]);
 
     const buildExportBundle = useCallback(() => {
         return buildFinanzenReportBundle(
@@ -290,16 +306,16 @@ export function FinanzenPage() {
 
     if (listLoading) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-                <h2 className="page-title">Finanzen</h2>
+            <div className="praxis-workspace-page animate-fade-in--sticky-safe">
+                <WorkspacePageHeader title="Finanzen" />
                 <PageLoading label="Zahlungsdaten werden geladen…" />
             </div>
         );
     }
     if (loadError) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-                <h2 className="page-title">Finanzen</h2>
+            <div className="praxis-workspace-page animate-fade-in--sticky-safe">
+                <WorkspacePageHeader title="Finanzen" />
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             </div>
         );
@@ -364,35 +380,33 @@ export function FinanzenPage() {
     return (
         <div className="finanzen-page animate-fade-in--sticky-safe" style={{ gap: 0 }}>
             <div className="finanzen-page__sticky">
-                <header className="page-head" style={{ marginBottom: 0 }}>
-                    <div>
-                        <h2 className="page-title">Finanzen</h2>
-                        <div className="page-sub">
-                            {new Date().toLocaleDateString("de-DE", { month: "long", year: "numeric" })} · {zahlungen.length}{" "}
-                            Zahlungen · {bestellungen.length} Bestellungen
-                        </div>
-                    </div>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
-                        {canReadFinanzen ? (
-                            <ReportExportToolbar
-                                buildBundle={buildExportBundle}
-                                defaultFormat="pdf"
-                                showImport
-                                legacyCsv={{ rows: sortedRows, patientNames: patientMap }}
-                            />
-                        ) : null}
-                        {canReadFinanzen ? (
-                            <Button type="button" variant="secondary" onClick={() => navigate("/bestellungen/neu")}>
-                                + Neue Bestellung
-                            </Button>
-                        ) : null}
-                        {canWriteZahlung ? (
-                            <Button type="button" onClick={() => navigate("/finanzen/neu")}>
-                                + Neue Zahlung
-                            </Button>
-                        ) : null}
-                    </div>
-                </header>
+                <WorkspacePageHeader
+                    title="Finanzen"
+                    subtitle={`${new Date().toLocaleDateString("de-DE", { month: "long", year: "numeric" })} · ${zahlungen.length} Zahlungen · ${bestellungen.length} Bestellungen`}
+                    actions={
+                        <>
+                            {canReadFinanzenFlag ? (
+                                <ReportExportToolbar
+                                    dialogTitle="Export — Finanzen"
+                                    buildBundle={buildExportBundle}
+                                    defaultFormat="pdf"
+                                    showImport
+                                    legacyCsv={{ rows: sortedRows, patientNames: patientMap }}
+                                />
+                            ) : null}
+                            {canReadFinanzenFlag ? (
+                                <Button type="button" variant="secondary" onClick={() => navigate("/bestellungen/neu")}>
+                                    + Neue Bestellung
+                                </Button>
+                            ) : null}
+                            {canWriteZahlung ? (
+                                <Button type="button" onClick={() => navigate("/finanzen/neu")}>
+                                    + Neue Zahlung
+                                </Button>
+                            ) : null}
+                        </>
+                    }
+                />
 
                 <div className="finanzen-kpi-row" aria-label="Kennzahlen Monat">
                     <FinanzKpiCard
@@ -440,241 +454,217 @@ export function FinanzenPage() {
 
             <div className="finanzen-workspace finanzen-workspace--single">
             <div className="finanzen-workspace__list">
-            <div className={["finanzen-tx card card-elevated", sortedRows.length === 0 ? "finanzen-tx--empty" : ""].filter(Boolean).join(" ")}
-            >
-                <div className="finanzen-tx__head">
-                    <h2 className="finanzen-tx__title">Transaktionen</h2>
-                    <div className="finanzen-tx__tools">
-                        <div className="finanzen-tx__seg">
-                            <div className="seg" role="tablist" aria-label="Transaktionstyp: Alle, Einnahmen, Ausgaben">
-                                {(
-                                    [
-                                        { id: "alle" as const, label: "Alle" },
-                                        { id: "einn" as const, label: "Einnahmen" },
-                                        { id: "aus" as const, label: "Ausgaben" },
-                                    ] as const
-                                ).map((opt) => (
-                                    <button
-                                        key={opt.id}
-                                        type="button"
-                                        role="tab"
-                                        aria-pressed={txTab === opt.id}
-                                        onClick={() => setTxTab(opt.id)}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <span style={{ color: "var(--fg-3)", fontSize: 12, whiteSpace: "nowrap" }}>{filteredRows.length} Einträge</span>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            aria-expanded={filterExtrasOpen}
-                            onClick={() => setFilterExtrasOpen((v) => !v)}
-                        >
-                            <FilterIcon size={14} /> Filter
-                        </Button>
+                <div className="finanzen-tx-section-head">
+                    <h2 className="finanzen-tx-section-title">Transaktionen</h2>
+                    <div className="finanzen-tx-section-head__meta">
+                        <span className="finanzen-tx-count">{filteredRows.length} Einträge</span>
+                        {txTab !== "alle" || artFilter !== "ALLE" ? (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setTxTab("alle");
+                                    setArtFilter("ALLE");
+                                }}
+                            >
+                                Zurücksetzen
+                            </Button>
+                        ) : null}
                     </div>
                 </div>
-                <div className="finanzen-tx-filters" hidden={!filterExtrasOpen} id="finanzen-art-filter">
-                    <span style={{ fontSize: 12, color: "var(--fg-3)" }}>Zahlungsart</span>
-                    <div className="seg" style={{ width: "100%", maxWidth: 520 }}>
-                        {[{ value: "ALLE" as const, label: "Alle" }, ...ZAHLUNG_ART_ROWS].map((o) => (
-                            <button
-                                key={o.value}
-                                type="button"
-                                aria-pressed={artFilter === o.value}
-                                onClick={() => setArtFilter(o.value)}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
+                <div className="finanzen-tx-filter-strip">
+                    <div className="finanzen-tx-filter-row">
+                        <span className="finanzen-tx-filter-row__label">Typ</span>
+                        <FilterOptionBar
+                            ariaLabel="Transaktionstyp filtern"
+                            value={txTab}
+                            options={FIN_TX_TAB_OPTIONS}
+                            onChange={setTxTab}
+                            fill
+                            className="finanzen-tx-filter-row__bar"
+                        />
+                    </div>
+                    <div className="finanzen-tx-filter-row">
+                        <span className="finanzen-tx-filter-row__label">Zahlungsart</span>
+                        <FilterOptionBar
+                            ariaLabel="Zahlungsart filtern"
+                            value={artFilter}
+                            options={FIN_TX_ART_OPTIONS}
+                            onChange={setArtFilter}
+                            fill
+                            className="finanzen-tx-filter-row__bar"
+                        />
                     </div>
                 </div>
                 {sortedRows.length === 0 ? (
-                    <div className="finanzen-tx__scroll" style={{ padding: "24px 18px" }}>
-                        <EmptyState
-                            icon="💰"
-                            title="Keine Einträge im Filter"
-                            description="Tab (Alle / Einnahmen / Ausgaben) oder Zahlungsart anpassen. Ausgaben umfassen Storni und Bestellungen."
-                        />
-                    </div>
+                    <EmptyState
+                        icon="💰"
+                        title="Keine Einträge im Filter"
+                        description="Filter (Transaktionstyp oder Zahlungsart) anpassen. Ausgaben umfassen Storni und Bestellungen."
+                    />
                 ) : (
-                    <div className="finanzen-tx__scroll">
-                        <table className="tbl tbl-finanzen-v2" style={{ width: "100%" }}>
-                            <thead>
-                                <tr>
-                                    <th scope="col" style={{ width: "11%" }}>
-                                        Datum
-                                    </th>
-                                    <th scope="col" style={{ width: "28%" }}>
-                                        Vorgang
-                                    </th>
-                                    <th scope="col" style={{ width: "22%" }}>
-                                        Gegenpartei
-                                    </th>
-                                    <th scope="col" style={{ width: "12%", textAlign: "right" }}>
-                                        Betrag
-                                    </th>
-                                    <th scope="col" style={{ width: "14%" }}>
-                                        Status
-                                    </th>
-                                    <th scope="col" style={{ width: "11%", textAlign: "right" }}>
-                                        Aktion
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sortedRows.map((row) => {
-                                    if (row.kind === "bestellung") {
-                                        const b = row.b;
-                                        const bst = bestellStatusDe(b.status);
-                                        const bBetragEur = b.gesamtbetrag;
-                                        const hasBetrag = bBetragEur != null && Number.isFinite(bBetragEur);
-                                        return (
-                                            <tr key={`b-${b.id}`}>
-                                                <td>
-                                                    <div className="finanzen-tx-v1">{formatDate(b.created_at)}</div>
-                                                </td>
-                                                <td>
-                                                    <div className="finanzen-tx-v1">Neue Bestellung</div>
-                                                    <div className="finanzen-tx-v2">
-                                                        {b.artikel}
-                                                        {b.bestellnummer ? ` · ${b.bestellnummer}` : ""}
-                                                    </div>
-                                                    {hasBetrag ? (
-                                                        <div className="finanzen-tx-v2" style={{ color: "var(--fg-2)" }}>
-                                                            {formatCurrency(bBetragEur)}
-                                                            {b.menge != null && b.menge > 1 ? ` · ${b.menge}×` : ""}
+                    <div className="card finanzen-tx-table-card tbl-data-card card--overflow-visible">
+                        <div className="tbl-scroll finanzen-tx__scroll">
+                            <table className="tbl tbl-finanzen-tx">
+                                <colgroup>
+                                    <col className="fin-tx-col-datum" />
+                                    <col className="fin-tx-col-vorgang" />
+                                    <col className="fin-tx-col-gegenpartei" />
+                                    <col className="fin-tx-col-betrag" />
+                                    <col className="fin-tx-col-status" />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Datum</th>
+                                        <th scope="col">Vorgang</th>
+                                        <th scope="col">Gegenpartei</th>
+                                        <th scope="col" className="tbl-th-num">Betrag</th>
+                                        <th scope="col">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedRows.map((row) => {
+                                        const rowKey = finanzenTxRowKey(row);
+                                        const isSelected = selectedTxKey === rowKey;
+                                        const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                setSelectedTxKey(rowKey);
+                                            }
+                                        };
+                                        if (row.kind === "bestellung") {
+                                            const b = row.b;
+                                            const bst = bestellStatusDe(b.status);
+                                            const bBetragEur = b.gesamtbetrag;
+                                            const hasBetrag = bBetragEur != null && Number.isFinite(bBetragEur);
+                                            return (
+                                                <tr
+                                                    key={rowKey}
+                                                    className={[
+                                                        "fin-tx-row",
+                                                        "bestellungen-row--clickable",
+                                                        isSelected ? "fin-tx-row--selected" : "",
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(" ")}
+                                                    tabIndex={0}
+                                                    role="button"
+                                                    aria-pressed={isSelected}
+                                                    onClick={() => setSelectedTxKey(rowKey)}
+                                                    onKeyDown={onRowKeyDown}
+                                                >
+                                                    <td className="fin-tx-td-datum">{formatDate(b.created_at)}</td>
+                                                    <td className="fin-tx-td-vorgang">
+                                                        <div className="finanzen-tx-v1">Neue Bestellung</div>
+                                                        <div className="finanzen-tx-v2">
+                                                            {b.artikel}
+                                                            {b.bestellnummer ? ` · ${b.bestellnummer}` : ""}
                                                         </div>
-                                                    ) : null}
-                                                </td>
-                                                <td>
-                                                    <div className="zahl-td-clip" title={b.lieferant}>
-                                                        {b.lieferant}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div
-                                                        className="finanzen-amt finanzen-amt--out"
-                                                        title={
-                                                            hasBetrag
-                                                                ? "Voraussichtliche Ausgabe: Lager-Preis × Menge bei Erfassung (keine Rechnung ersetzen)"
-                                                                : "Kein Betrag hinterlegt (ältere Bestellung oder manuell ohne Lager-Preis)"
-                                                        }
-                                                    >
-                                                        {hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen"}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    {canUpdateBestellStatus ? (
-                                                        <Select
-                                                            id={`bestell-status-${b.id}`}
-                                                            className="finanzen-zahl-status-select w-full min-w-0"
-                                                            aria-label={`Bestellstatus: ${b.artikel}`}
-                                                            value={b.status}
-                                                            disabled={statusUpdatingBestellId === b.id}
-                                                            onChange={(e) =>
-                                                                handleBestellStatusChange(
-                                                                    b,
-                                                                    e.target.value as BestellStatus,
-                                                                )
+                                                        {hasBetrag ? (
+                                                            <div className="finanzen-tx-v2" style={{ color: "var(--fg-2)" }}>
+                                                                {formatCurrency(bBetragEur)}
+                                                                {b.menge != null && b.menge > 1 ? ` · ${b.menge}×` : ""}
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
+                                                    <td className="fin-tx-td-gegenpartei">
+                                                        <span className="zahl-td-clip" title={b.lieferant}>
+                                                            {b.lieferant}
+                                                        </span>
+                                                    </td>
+                                                    <td className="tbl-td-num fin-tx-td-betrag">
+                                                        <span
+                                                            className="finanzen-amt finanzen-amt--out"
+                                                            title={
+                                                                hasBetrag
+                                                                    ? "Voraussichtliche Ausgabe: Lager-Preis × Menge bei Erfassung (keine Rechnung ersetzen)"
+                                                                    : "Kein Betrag hinterlegt (ältere Bestellung oder manuell ohne Lager-Preis)"
                                                             }
-                                                            options={BESTELL_STATUS_OPTIONS.map((o) => ({
-                                                                value: o.value,
-                                                                label: o.label,
-                                                            }))}
-                                                        />
-                                                    ) : (
-                                                        <Badge variant={bst.variant}>{bst.label}</Badge>
-                                                    )}
-                                                </td>
-                                                <td>
-                                                    <div className="finanzen-row-go">
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            title="Zur Bestellung"
-                                                            onClick={() => navigate(`/bestellungen/${b.id}`)}
-                                                            aria-label="Bestellung öffnen"
                                                         >
-                                                            <MoreIcon size={16} />
-                                                        </Button>
-                                                    </div>
+                                                            {hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="fin-tx-td-status">
+                                                        <Badge variant={bst.variant}>{bst.label}</Badge>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                        const z = row.z;
+                                        const st = zahlStatusDisplay(z.status);
+                                        const patientName = patientMap.get(z.patient_id) ?? "—";
+                                        const artLabel = zahlungsartLabel(z.zahlungsart);
+                                        const cur = formatCurrency(Math.abs(z.betrag));
+                                        const zahlungAmt =
+                                            z.status === "STORNIERT"
+                                                ? { cls: "finanzen-amt--out" as const, text: `−${cur}` }
+                                                : z.status === "BEZAHLT" || z.status === "TEILBEZAHLT"
+                                                  ? { cls: "finanzen-amt--in" as const, text: `+${cur}` }
+                                                  : { cls: "finanzen-amt--warn" as const, text: `+${cur}` };
+                                        return (
+                                            <tr
+                                                key={rowKey}
+                                                className={[
+                                                    "fin-tx-row",
+                                                    "bestellungen-row--clickable",
+                                                    isSelected ? "fin-tx-row--selected" : "",
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(" ")}
+                                                tabIndex={0}
+                                                role="button"
+                                                aria-pressed={isSelected}
+                                                onClick={() => setSelectedTxKey(rowKey)}
+                                                onKeyDown={onRowKeyDown}
+                                            >
+                                                <td className="fin-tx-td-datum">{formatDate(z.created_at)}</td>
+                                                <td className="fin-tx-td-vorgang">
+                                                    <div className="finanzen-tx-v1">{vorgangText(z)}</div>
+                                                    <div className="finanzen-tx-v2">{artLabel}</div>
+                                                </td>
+                                                <td className="fin-tx-td-gegenpartei">
+                                                    <span className="zahl-td-clip" title={patientName}>
+                                                        {patientName}
+                                                    </span>
+                                                </td>
+                                                <td className="tbl-td-num fin-tx-td-betrag">
+                                                    <span className={["finanzen-amt", zahlungAmt.cls].join(" ")}>
+                                                        {zahlungAmt.text}
+                                                    </span>
+                                                </td>
+                                                <td className="fin-tx-td-status">
+                                                    <Badge variant={st.variant}>{st.label}</Badge>
                                                 </td>
                                             </tr>
                                         );
-                                    }
-                                    const z = row.z;
-                                    const st = zahlStatusDisplay(z.status);
-                                    const patientName = patientMap.get(z.patient_id) ?? "—";
-                                    const artLabel = zahlungsartLabel(z.zahlungsart);
-                                    const cur = formatCurrency(Math.abs(z.betrag));
-                                    const zahlungAmt =
-                                        z.status === "STORNIERT"
-                                            ? { cls: "finanzen-amt--out" as const, text: `−${cur}` }
-                                            : z.status === "BEZAHLT" || z.status === "TEILBEZAHLT"
-                                              ? { cls: "finanzen-amt--in" as const, text: `+${cur}` }
-                                              : { cls: "finanzen-amt--warn" as const, text: `+${cur}` };
-                                    return (
-                                        <tr key={z.id}>
-                                            <td>
-                                                <div className="finanzen-tx-v1">{formatDate(z.created_at)}</div>
-                                            </td>
-                                            <td>
-                                                <div className="finanzen-tx-v1">{vorgangText(z)}</div>
-                                                <div className="finanzen-tx-v2">{artLabel}</div>
-                                            </td>
-                                            <td>
-                                                <div className="zahl-td-clip" title={patientName}>
-                                                    {patientName}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className={["finanzen-amt", zahlungAmt.cls].join(" ")}>{zahlungAmt.text}</div>
-                                            </td>
-                                            <td>
-                                                <Badge variant={st.variant}>{st.label}</Badge>
-                                            </td>
-                                            <td>
-                                                <div className="finanzen-row-go" style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                                                    {(z.status === "BEZAHLT" || z.status === "TEILBEZAHLT") && canReadFinanzen ? (
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            title="Quittung exportieren"
-                                                            disabled={quittungBusyId === z.id}
-                                                            onClick={() => void handleQuittungExport(z)}
-                                                        >
-                                                            Quittung
-                                                        </Button>
-                                                    ) : null}
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        title="Zur Patientenakte (Zahlungen)"
-                                                        onClick={() => navigate(`/patienten/${z.patient_id}#zahl`)}
-                                                        aria-label="Zur Patientenakte"
-                                                    >
-                                                        <MoreIcon size={16} />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>
             </div>
-            </div>
+
+            {selectedRow ? (
+                <FinanzenTxDetailDrawer
+                    row={selectedRow}
+                    patientName={
+                        selectedRow.kind === "zahlung"
+                            ? patientMap.get(selectedRow.z.patient_id) ?? "—"
+                            : selectedRow.b.lieferant
+                    }
+                    onClose={() => setSelectedTxKey(null)}
+                    onOpenBestellung={(id) => navigate(`/bestellungen?bestellung=${encodeURIComponent(id)}`)}
+                    onOpenAkte={(patientId) => navigate(`/patienten/${patientId}#zahl`)}
+                    onQuittungExport={(z) => void handleQuittungExport(z)}
+                    onBestellStatusChange={handleBestellStatusChange}
+                    canUpdateBestellStatus={canUpdateBestellStatus}
+                    canExportQuittung={canReadFinanzenFlag}
+                    quittungBusy={quittungBusyId != null}
+                    statusUpdatingBestellId={statusUpdatingBestellId}
+                />
+            ) : null}
 
             <PraxisReadinessDialog
                 open={praxisGuardKind != null}

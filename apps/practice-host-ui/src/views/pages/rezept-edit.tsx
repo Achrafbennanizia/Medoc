@@ -10,7 +10,7 @@ import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import {
     DARREICHUNGSFORM_OPTIONS,
     DENTAL_ICD10_SUGGESTIONS,
@@ -129,28 +129,24 @@ export function RezeptEditPage() {
 
     if (!rezept) {
         return (
-            <div className="animate-fade-in space-y-4" style={{ maxWidth: 560 }}>
-                <Button variant="secondary" onClick={() => navigate(`/patienten/${patientId}#rezept`)}>
-                    <ChevronLeftIcon />Zurück zur Akte
-                </Button>
+            <div className="praxis-workspace-page animate-fade-in" style={{ maxWidth: 560 }}>
+                <WorkspacePageHeader
+                    title="Rezept bearbeiten"
+                    back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+                />
                 <PageLoadError message="Dieses Rezept existiert nicht oder wurde entfernt." onRetry={() => void load()} />
             </div>
         );
     }
 
-    const back = () => navigate(`/patienten/${patientId}#rezept`);
-
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={back}>
-                    <ChevronLeftIcon />Zurück zur Akte
-                </Button>
-                <div>
-                    <div className="page-sub page-sub-caps">{patient.name}</div>
-                    <h1 className="page-title" style={{ margin: 0 }}>Rezept bearbeiten</h1>
-                </div>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in" style={{ maxWidth: 720 }}>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Rezept bearbeiten"
+                eyebrow={patient.name}
+                back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+            />
 
             <Card>
                 <CardHeader
@@ -257,7 +253,7 @@ export function RezeptEditPage() {
                         Aut-idem (kein Austausch)
                     </label>
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-                        <Button variant="ghost" onClick={back} disabled={saving}>
+                        <Button variant="ghost" onClick={() => navigate(`/patienten/${patientId}#rezept`)} disabled={saving}>
                             Abbrechen
                         </Button>
                         <Button onClick={() => void handleSave()} loading={saving} disabled={saving}>

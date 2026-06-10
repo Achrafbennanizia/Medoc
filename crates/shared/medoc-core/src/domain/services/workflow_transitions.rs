@@ -66,7 +66,63 @@ pub fn praxis_ticket_status_transition(current: &str, next: &str) -> Result<(), 
     allowed_transition(&cur, next, allowed)
 }
 
+const AUFGABE_STATUSES: &[&str] = &[
+    "OFFEN",
+    "IN_BEARBEITUNG",
+    "ERLEDIGT_REZEPTION",
+    "VALIDIERT",
+    "ZURUECK",
+];
+
+/// Admin-RBAC: beliebiger Statuswechsel (außer aus `VALIDIERT`).
+pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Result<(), AppError> {
+    let cur = current.trim().to_uppercase();
+    let nxt = next.trim().to_uppercase();
+    if cur == nxt {
+        return Ok(());
+    }
+    if cur == "VALIDIERT" {
+        return Err(AppError::Validation(
+            "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
+        ));
+    }
+    if !AUFGABE_STATUSES
+        .iter()
+        .any(|s| s.eq_ignore_ascii_case(&nxt))
+    {
+        return Err(AppError::Validation(format!(
+            "Unbekannter Aufgaben-Status: {nxt}"
+        )));
+    }
+    Ok(())
+}
+
+/// Fulfill-RBAC / Erfüller: `IN_BEARBEITUNG` und `ERLEDIGT_REZEPTION` (inkl. Rücknahme `OFFEN`).
+fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result<(), AppError> {
+    let cur = current.trim().to_uppercase();
+    let nxt = next.trim().to_uppercase();
+    if cur == "VALIDIERT" {
+        return Err(AppError::Validation(
+            "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
+        ));
+    }
+    let allowed: &[&str] = match cur.as_str() {
+        "OFFEN" => &["IN_BEARBEITUNG"],
+        "IN_BEARBEITUNG" => &["ERLEDIGT_REZEPTION", "OFFEN"],
+        "ZURUECK" => &["OFFEN", "IN_BEARBEITUNG"],
+        "ERLEDIGT_REZEPTION" => &[],
+        _ => {
+            return Err(AppError::Validation(format!(
+                "Unbekannter Aufgaben-Status: {cur}"
+            )))
+        }
+    };
+    allowed_transition(&cur, &nxt, allowed)
+}
+
 /// FA-AUFG-06: Praxis-Aufgabe — Erfüller (REZ-Pool oder zugewiesener Arzt) vs. Ersteller (Validierung).
+/// `rbac_fulfill` / `rbac_admin` spiegeln `aufgabe.status.fulfill` bzw. `aufgabe.status.admin`.
+#[allow(clippy::too_many_arguments)]
 pub fn praxis_aufgabe_status_transition(
     current: &str,
     next: &str,
@@ -75,7 +131,13 @@ pub fn praxis_aufgabe_status_transition(
     assignee_user_id: Option<&str>,
     created_by: &str,
     actor_user_id: &str,
+    rbac_fulfill: bool,
+    rbac_admin: bool,
 ) -> Result<(), AppError> {
+    if rbac_admin {
+        return praxis_aufgabe_admin_status_transition(current, next);
+    }
+
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDIERT" {
@@ -87,43 +149,43 @@ pub fn praxis_aufgabe_status_transition(
     let to_rezeption = assignee_role
         .map(str::trim)
         .is_some_and(|r| r.eq_ignore_ascii_case("REZEPTION"));
-    let assigned_arzt = assignee_user_id.map(str::trim).filter(|s| !s.is_empty());
+    let assigned_user = assignee_user_id.map(str::trim).filter(|s| !s.is_empty());
 
     let is_fulfiller = match actor_role {
-        Role::Rezeption if to_rezeption => true,
-        Role::Arzt if assigned_arzt.is_some_and(|id| id == actor_user_id) => true,
+        Role::Rezeption => assigned_user
+            .map(|id| id == actor_user_id)
+            .unwrap_or(to_rezeption),
+        Role::Arzt if assigned_user.is_some_and(|id| id == actor_user_id) => true,
         _ => false,
     };
-    let is_validator = actor_user_id == created_by.trim()
-        && ((to_rezeption && actor_role == Role::Arzt)
-            || (assigned_arzt.is_some() && actor_role == Role::Rezeption));
+    let is_validator = actor_user_id == created_by.trim();
 
-    let allowed: &[&str] = if is_fulfiller {
-        match cur.as_str() {
-            "OFFEN" => &["IN_BEARBEITUNG"],
-            "IN_BEARBEITUNG" => &["ERLEDIGT_REZEPTION", "OFFEN"],
-            "ZURUECK" => &["OFFEN", "IN_BEARBEITUNG"],
-            "ERLEDIGT_REZEPTION" => &[],
-            _ => {
-                return Err(AppError::Validation(format!(
-                    "Unbekannter Aufgaben-Status: {cur}"
-                )))
-            }
-        }
-    } else if is_validator {
-        match cur.as_str() {
-            "ERLEDIGT_REZEPTION" => &["VALIDIERT", "ZURUECK"],
-            _ => {
-                return Err(AppError::Validation(
-                    "Nur erledigte Aufgaben können validiert oder zurückgegeben werden.".into(),
-                ))
-            }
-        }
-    } else {
-        return Err(AppError::Unauthorized);
-    };
+    // Erledigte Aufgabe: Ersteller validiert/zurückgeben — auch wenn Ersteller zugleich Erfüller war.
+    if is_validator && cur == "ERLEDIGT_REZEPTION" {
+        return allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]);
+    }
 
-    allowed_transition(&cur, &nxt, allowed)
+    if is_fulfiller {
+        return praxis_aufgabe_fulfill_status_transition(current, next);
+    }
+
+    if rbac_fulfill {
+        if nxt != "IN_BEARBEITUNG" && nxt != "ERLEDIGT_REZEPTION" {
+            return Err(AppError::Unauthorized);
+        }
+        return praxis_aufgabe_fulfill_status_transition(current, next);
+    }
+
+    if is_validator {
+        return match cur.as_str() {
+            "ERLEDIGT_REZEPTION" => allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]),
+            _ => Err(AppError::Validation(
+                "Nur erledigte Aufgaben können validiert oder zurückgegeben werden.".into(),
+            )),
+        };
+    }
+
+    Err(AppError::Unauthorized)
 }
 
 /// Bestellung lifecycle: `OFFEN` → `UNTERWEGS` → `GELIEFERT` (or `STORNIERT`).

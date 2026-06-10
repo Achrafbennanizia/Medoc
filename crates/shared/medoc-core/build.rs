@@ -1,11 +1,11 @@
 //! Drives:
 //! 1. **Domain enums codegen** — produces `OUT_DIR/domain_enums_generated.rs`,
-//!    `app/src/lib/enums.generated.ts`, and `migrations/generated/enum_check_fragments.sql`.
+//!    `packages/shared/src/lib/enums.generated.ts`, and `migrations/generated/enum_check_fragments.sql`.
 //!    `domain::enums` `include!`s the generated `.rs` file via `env!("OUT_DIR")`,
 //!    which expands to the *consuming crate's* build dir at compile time, so
 //!    the file must be produced by THIS crate's `build.rs`, not the practice crate's.
 //! 2. **RBAC codegen** — produces `OUT_DIR/rbac_generated.rs` +
-//!    `app/src/lib/rbac.generated.ts`. `application::rbac` (now in medoc-core)
+//!    `packages/shared/src/lib/rbac.generated.ts`. `application::rbac` (now in medoc-core)
 //!    `include!`s the generated Rust file, so the same OUT_DIR constraint applies.
 //! 3. **Vendor Ed25519 pubkey embedding** — `infrastructure::license::VENDOR_PUBKEY`
 //!    `include!`s `OUT_DIR/pubkey.rs`.

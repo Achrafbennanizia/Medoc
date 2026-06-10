@@ -9,6 +9,12 @@ import { practiceSystem } from "../adapters/practice-transport";
 
 export type PairingStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REVOKED";
 
+export type PairingDecideResult = {
+    request: PairingRequest;
+    /** Shown once on the master after accept; enter on the replica device. */
+    confirmPin?: string;
+};
+
 export type PairingRequest = {
     id: string;
     deviceId: string;
@@ -21,6 +27,8 @@ export type PairingRequest = {
     requestedAt: string;
     decidedAt: string | null;
     decidedBy: string | null;
+    awaitingPin?: boolean;
+    transport?: string;
 };
 
 export type PairingMasterInfo = {
@@ -51,8 +59,8 @@ export async function pairingDecide(
     requestId: string,
     accept: boolean,
     allowedActions: string[] = [...DEFAULT_ALLOWED_ACTIONS],
-): Promise<PairingRequest> {
-    return practiceSystem.invoke<PairingRequest>("pairing_decide", {
+): Promise<PairingDecideResult> {
+    return practiceSystem.invoke<PairingDecideResult>("pairing_decide", {
         payload: { requestId, accept, allowedActions },
     });
 }

@@ -3,7 +3,7 @@ use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
 use crate::commands::auth_commands::{BruteForceState, SessionState};
 use crate::domain::entities::personal::{CreatePersonal, UpdateOwnProfile, UpdatePersonal};
-use crate::domain::entities::{AerztSummary, Personal};
+use crate::domain::entities::{AerztSummary, AufgabeTeamMember, Personal};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::{audit_repo, personal_permission_repo, personal_repo};
@@ -31,6 +31,17 @@ pub async fn list_aerzte(
 ) -> Result<Vec<AerztSummary>, AppError> {
     rbac::require(&session_state, "termin.list_aerzte")?;
     personal_repo::find_arzt_summaries(&pool).await
+}
+
+/// Arzt/Rezeption directory for Praxis-Aufgaben labels — `aufgabe.status.fulfill` (no HR read).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_aufgabe_team_directory(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<Vec<AufgabeTeamMember>, AppError> {
+    rbac::require(&session_state, "aufgabe.status.fulfill")?;
+    personal_repo::find_aufgabe_team_summaries(&pool).await
 }
 
 #[tauri::command]
@@ -292,6 +303,59 @@ pub async fn delete_personal_permission_override(
     Ok(())
 }
 
+/// Entfernt alle Berechtigungs-Overrides — Rolle gilt wieder unverändert.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn reset_personal_permission_overrides(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    personal_id: String,
+) -> Result<u64, AppError> {
+    let session = rbac::require(&session_state, "personal.write")?;
+    let n = personal_permission_repo::delete_all_for_personal(&pool, &personal_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "PERMISSION_OVERRIDE_RESET",
+        "Personal",
+        Some(&personal_id),
+        Some(&format!("deleted={n}")),
+    )
+    .await
+    .ok();
+    Ok(n)
+}
+
+/// Setzt ALLOW für jede in `config/rbac.yaml` deklarierte Aktion (Vollzugriff über Overrides).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn grant_personal_all_permissions(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    personal_id: String,
+) -> Result<u64, AppError> {
+    let session = rbac::require(&session_state, "personal.write")?;
+    personal_repo::find_by_id(&pool, &personal_id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+    let mut n = 0u64;
+    for action in rbac::all_rbac_actions() {
+        personal_permission_repo::upsert(&pool, &personal_id, action, "ALLOW").await?;
+        n += 1;
+    }
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "PERMISSION_OVERRIDE_GRANT_ALL",
+        "Personal",
+        Some(&personal_id),
+        Some(&format!("actions={n}")),
+    )
+    .await
+    .ok();
+    Ok(n)
+}
+
 /// Live password-policy evaluation for UI hints (no persistence).
 #[tauri::command]
 pub fn evaluate_password_policy(password: String) -> crypto::PasswordPolicyStatus {
@@ -376,6 +440,37 @@ pub async fn confirm_totp_enrollment(
     Ok(())
 }
 
+/// Disables enrolled 2FA (requires TOTP code) or cancels a pending enrollment.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn deactivate_totp(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    code: Option<String>,
+) -> Result<(), AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let outcome =
+        crate::application::totp_service::deactivate_totp(&pool, &session.user_id, code.as_deref())
+            .await?;
+    let event = match outcome {
+        crate::application::totp_service::TotpDeactivateResult::Deactivated => "TOTP_DEACTIVATE",
+        crate::application::totp_service::TotpDeactivateResult::CancelledPending => {
+            "TOTP_ENROLL_CANCEL"
+        }
+    };
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        event,
+        "Personal",
+        Some(&session.user_id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
 /// Clears brute-force lockouts for `target_email` (all peer IPs). Requires `personal.write`.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, brute_force), fields(target = %target_email))]
@@ -407,6 +502,7 @@ macro_rules! register_personal_commands {
     () => {
         $crate::commands::personal_commands::list_personal,
         $crate::commands::personal_commands::list_aerzte,
+        $crate::commands::personal_commands::list_aufgabe_team_directory,
         $crate::commands::personal_commands::get_personal,
         $crate::commands::personal_commands::get_own_profile,
         $crate::commands::personal_commands::update_own_profile,
@@ -418,10 +514,13 @@ macro_rules! register_personal_commands {
         $crate::commands::personal_commands::list_personal_permission_overrides,
         $crate::commands::personal_commands::set_personal_permission_override,
         $crate::commands::personal_commands::delete_personal_permission_override,
+        $crate::commands::personal_commands::reset_personal_permission_overrides,
+        $crate::commands::personal_commands::grant_personal_all_permissions,
         $crate::commands::personal_commands::admin_unlock_brute_force,
         $crate::commands::personal_commands::evaluate_password_policy,
         $crate::commands::personal_commands::get_totp_status,
         $crate::commands::personal_commands::start_totp_enrollment,
         $crate::commands::personal_commands::confirm_totp_enrollment,
+        $crate::commands::personal_commands::deactivate_totp,
     };
 }

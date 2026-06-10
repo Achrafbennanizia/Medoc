@@ -10,6 +10,7 @@ enums:
     variants:
       - { rust: Arzt, wire: ARZT }
       - { rust: Rezeption, wire: REZEPTION }
+      # TODO(deferred-roles): login disabled — keep wire values for SQLite CHECK / legacy rows
       - { rust: Steuerberater, wire: STEUERBERATER }
       - { rust: Pharmaberater, wire: PHARMABERATER }
 

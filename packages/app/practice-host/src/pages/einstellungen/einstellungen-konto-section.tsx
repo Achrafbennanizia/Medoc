@@ -26,8 +26,7 @@ function rolePresentation(rolle: string | undefined): { line: string; badge: str
     const map: Record<Role, { line: string; badge: string }> = {
         ARZT: { line: "Behandelnde:r · Vollzugriff", badge: "Admin" },
         REZEPTION: { line: "Empfang · Termine & Verwaltung", badge: "Team" },
-        STEUERBERATER: { line: "Auswertung · eingeschränkt", badge: "Berater" },
-        PHARMABERATER: { line: "Bestellwesen · eingeschränkt", badge: "Berater" },
+        // TODO(deferred-roles): STEUERBERATER / PHARMABERATER presentation
     };
     if (r && map[r]) return map[r];
     return { line: rolle ?? "—", badge: "—" };

@@ -17,6 +17,7 @@
         "build": "npm run build -w medoc",
         "lint": "npm run lint -w medoc",
         "test": "npm run test -w medoc",
+        "test:mvp-coverage": "npm run test:mvp-coverage -w medoc",
         "check": "npm run check -w medoc",
         "tauri": "npm run tauri -w medoc",
         "dev:lan-web": "npm run dev -w medoc-lan-web-client",

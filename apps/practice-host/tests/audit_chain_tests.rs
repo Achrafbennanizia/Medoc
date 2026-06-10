@@ -42,6 +42,52 @@ async fn mem_pool() -> sqlx::SqlitePool {
 }
 
 #[tokio::test]
+async fn purge_legacy_seed_audit_rows_restores_verifiable_chain() {
+    init_audit_for_tests();
+    let pool = mem_pool().await;
+    sqlx::query(
+        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac) VALUES
+         ('seed-audit-001','u1','LOGIN','SESSION',NULL,'demo',NULL,'')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert!(
+        audit_repo::verify_chain(&pool).await.unwrap().is_some(),
+        "placeholder seed row must break verification"
+    );
+    let n = audit_repo::purge_legacy_placeholder_audit_rows(&pool)
+        .await
+        .expect("purge");
+    assert_eq!(n, 1);
+    assert!(
+        audit_repo::verify_chain(&pool).await.unwrap().is_none(),
+        "chain must verify after purge"
+    );
+}
+
+#[tokio::test]
+async fn repair_broken_audit_chain_truncates_invalid_tail() {
+    init_audit_for_tests();
+    let pool = mem_pool().await;
+    sqlx::query(
+        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac) VALUES
+         ('seed-audit-001','u1','LOGIN','SESSION',NULL,'demo',NULL,'')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let deleted = audit_repo::repair_broken_audit_chain(&pool)
+        .await
+        .expect("repair");
+    assert!(deleted >= 1);
+    assert!(
+        audit_repo::verify_chain(&pool).await.unwrap().is_none(),
+        "chain must verify after repair"
+    );
+}
+
+#[tokio::test]
 async fn audit_chain_links_consecutive_entries() {
     init_audit_for_tests();
     let pool = mem_pool().await;

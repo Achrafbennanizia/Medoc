@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildNativeGoMenuItems, NATIVE_GO_MENU_SEP } from "./native-go-menu";
 import { NAV_SECTIONS } from "./nav-sections";
-import { POSTEINGANG_POLL_MS } from "./posteingang-config";
+import { POSTEINGANG_POLL_MS, POSTEINGANG_UI_ENABLED } from "./posteingang-config";
 import {
     CLINICAL_PATIENT_DETAIL_TABS,
     patientDetailTabBlocked,
+    patientDetailTabVisible,
     type PatientDetailAkteTab,
 } from "./patient-detail-utils";
 import { allowed, routeChildPathAllowed } from "./rbac";
@@ -14,15 +15,17 @@ describe("G21 collaboration contracts", () => {
         expect(POSTEINGANG_POLL_MS).toBe(5_000);
     });
 
-    it("REZEPTION: clinical akte tabs blocked, zahl/stamm allowed", () => {
+    it("REZEPTION: clinical akte tabs hidden, zahl/stamm allowed", () => {
         const canViewClinical = allowed("patient.read_medical", "REZEPTION");
         expect(canViewClinical).toBe(false);
         for (const tab of CLINICAL_PATIENT_DETAIL_TABS) {
             expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(true);
+            expect(patientDetailTabVisible(tab, canViewClinical)).toBe(false);
         }
         const open: PatientDetailAkteTab[] = ["stamm", "zahl", "rezept", "anlage"];
         for (const tab of open) {
             expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(false);
+            expect(patientDetailTabVisible(tab, canViewClinical)).toBe(true);
         }
     });
 
@@ -34,20 +37,42 @@ describe("G21 collaboration contracts", () => {
         }
     });
 
-    it("REZEPTION can open tickets and posteingang", () => {
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(true);
+    it("REZEPTION can open bestellungen and create orders", () => {
+        expect(routeChildPathAllowed("bestellungen", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("bestellungen/neu", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("bestellungen/:id", "REZEPTION")).toBe(true);
+        expect(allowed("bestellung.read", "REZEPTION")).toBe(true);
+        expect(allowed("bestellung.write", "REZEPTION")).toBe(true);
     });
 
-    it("REZEPTION native Go menu includes posteingang, tickets, and tagesabschluss", () => {
+    it("posteingang route respects POSTEINGANG_UI_ENABLED", () => {
+        if (POSTEINGANG_UI_ENABLED) {
+            expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+            expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
+            expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(false);
+        }
+        expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(false);
+    });
+
+    it("REZEPTION native Go menu posteingang respects POSTEINGANG_UI_ENABLED", () => {
         const paths = buildNativeGoMenuItems("REZEPTION", (k) => k)
             .filter((i) => i.path !== NATIVE_GO_MENU_SEP)
             .map((i) => i.path);
-        expect(paths).toContain("/posteingang");
+        if (POSTEINGANG_UI_ENABLED) {
+            expect(paths).toContain("/posteingang");
+            expect(paths.indexOf("/posteingang")).toBeLessThan(paths.indexOf("/tickets"));
+        } else {
+            expect(paths).not.toContain("/posteingang");
+        }
         expect(paths.indexOf("/tickets")).toBeGreaterThanOrEqual(0);
-        expect(paths.indexOf("/posteingang")).toBeLessThan(paths.indexOf("/tickets"));
-        expect(paths).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
+        expect(paths).toContain("/finanzen/kasse");
+        expect(paths).toContain("/bestellungen");
+        expect(paths).not.toContain("/finanzen");
+        expect(paths).not.toContain("/verwaltung/finanzen-berichte/tagesabschluss");
+        expect(paths).not.toContain("/verwaltung");
     });
 
     it("GAP-02: REZEPTION has read_documents but not read_medical", () => {
@@ -70,13 +95,13 @@ describe("G21 collaboration contracts", () => {
         expect(wouldLoadBillingLines).toBe(true);
     });
 
-    it("Praxis sidebar includes tagesabschluss for finanzen.read roles (GAP-10)", () => {
+    it("Praxis sidebar omits tagesabschluss (Verwaltung hub only)", () => {
         const praxis = NAV_SECTIONS.find((s) => s.label === "Praxis");
-        expect(praxis?.items).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
+        expect(praxis?.items).not.toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 
-    it("verwaltung/aufgaben route für ARZT und REZEPTION (Verwaltung)", () => {
+    it("verwaltung/aufgaben route für ARZT only (Verwaltung)", () => {
         expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(false);
     });
 });

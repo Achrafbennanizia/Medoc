@@ -11,7 +11,7 @@ import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser 
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Termin } from "../../models/types";
-import { allowed, parseRole } from "@/lib/rbac";
+import { allowed, parseRole, routeChildPathAllowed } from "@/lib/rbac";
 import { CheckIcon, FilterIcon, NAV_ICONS, PackageIcon, PlusIcon, SparkleIcon, XIcon } from "@/lib/icons";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -22,11 +22,22 @@ import { useT } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 const PRUEF_PATIENT_CAP = 100;
 const DASHBOARD_BESTELLUNGEN_MAX = 10;
 const AKTE_VALIDATION_BATCH = 20;
 const PLAN_NEXT_FREIGABEN_CAP = 25;
+const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
+
+function readInsightsDismissed(): boolean {
+    try {
+        return localStorage.getItem(INSIGHTS_DISMISSED_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
 
 function todayISO(): string {
     return new Date().toISOString().slice(0, 10);
@@ -82,6 +93,7 @@ export function DashboardPage() {
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [planNextPending, setPlanNextPending] = useState<{ patientId: string; hintJson: string }[]>([]);
+    const [insightsDismissed, setInsightsDismissed] = useState(readInsightsDismissed);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
     const session = useAuthStore((s) => s.session);
 
@@ -187,7 +199,7 @@ export function DashboardPage() {
     useEffect(() => {
         let cancelled = false;
         const role = parseRole(session?.rolle ?? undefined);
-        if (!role || !allowed("patient.read", role)) {
+        if (!role || !allowed("patient.read", role) || !allowed("patient.read_medical", role)) {
             setPruefStammPendingIds([]);
             setPruefScanLoading(false);
             return;
@@ -313,13 +325,28 @@ export function DashboardPage() {
     const freigabenLeer = !pruefScanLoading && freigabenItemCount === 0 && !listsError;
 
     const canPatientWrite = role != null && allowed("patient.write", role);
+    const canViewClinical = role != null && allowed("patient.read_medical", role);
+    const canReadPatients = role != null && allowed("patient.read", role);
+    const canReadTermine = role != null && allowed("termin.read", role);
+    const canReadFinanzen = role != null && allowed("finanzen.read", role);
     const canBestellungWrite = role != null && allowed("bestellung.write", role);
+    const showStatistik = role != null && routeChildPathAllowed("statistik", role);
 
     const heuteTermine = useMemo(() => {
         return termine
             .filter((x) => x.datum === todayIso && x.status !== "ABGESAGT")
             .sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
     }, [termine, todayIso]);
+
+    const dismissInsights = useCallback(() => {
+        setInsightsDismissed(true);
+        try {
+            localStorage.setItem(INSIGHTS_DISMISSED_KEY, "1");
+        } catch {
+            /* localStorage unavailable */
+        }
+        toast(t("dashboard.insights.dismiss_toast"), "info");
+    }, [toast, t]);
 
     const dismissFreigabe = useCallback((key: string) => {
         setDismissedFreigabe((p) => ({ ...p, [key]: true }));
@@ -404,40 +431,48 @@ export function DashboardPage() {
             role="region"
             aria-label={t("a11y.notifications_region")}
         >
-            <div className="page-head" style={{ alignItems: "center" }}>
-                <div>
-                    <h1 className="page-title">Guten Morgen, {session?.name ?? "Team"}</h1>
-                    <div className="page-sub">
-                        {today} · {stats.termine_heute ?? 0} {t("dashboard.termine_heute_sub")}
-                    </div>
-                    <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--fg-3)", maxWidth: 560, lineHeight: 1.45 }}>
-                        {t("dashboard.page_hub")}
-                    </p>
-                </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
-                    <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistik")}><FilterIcon />{t("dashboard.filter_stats")}</button>
-                    <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />{t("dashboard.new_action")}</button>
-                </div>
-            </div>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={`Guten Morgen, ${session?.name ?? "Team"}`}
+                subtitle={
+                    <>
+                        <p className="page-sub" style={{ marginTop: 0 }}>
+                            {today} · {stats.termine_heute ?? 0} {t("dashboard.termine_heute_sub")}
+                        </p>
+                        <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--fg-3)", maxWidth: 560, lineHeight: 1.45 }}>
+                            {t("dashboard.page_hub")}
+                        </p>
+                    </>
+                }
+                actions={
+                    <>
+                        {showStatistik ? (
+                            <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistik")}><FilterIcon />{t("dashboard.filter_stats")}</button>
+                        ) : null}
+                        {canPatientWrite ? (
+                            <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />{t("dashboard.new_action")}</button>
+                        ) : null}
+                    </>
+                }
+            />
             {listsError ? (
-                <div
+                <DismissibleNotice
+                    variant="error"
                     role="alert"
-                    className="card card-pad"
-                    style={{
-                        borderColor: "color-mix(in srgb, var(--red) 35%, var(--line))",
-                        background: "color-mix(in srgb, var(--red) 8%, var(--panel))",
-                    }}
+                    title={t("dashboard.lists_load_error")}
+                    dismissKey={`dashboard-lists-error-${listsError.slice(0, 48)}`}
+                    actions={
+                        <button type="button" className="btn btn-subtle" onClick={reload}>
+                            {t("dashboard.lists_error_retry")}
+                        </button>
+                    }
                 >
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("dashboard.lists_load_error")}</div>
-                    <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--fg-2)", lineHeight: 1.45 }}>{listsError}</p>
-                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>{t("dashboard.lists_error_hint")}</p>
-                    <button type="button" className="btn btn-subtle" onClick={reload}>
-                        {t("dashboard.lists_error_retry")}
-                    </button>
-                </div>
+                    <p style={{ margin: "0 0 8px" }}>{listsError}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>{t("dashboard.lists_error_hint")}</p>
+                </DismissibleNotice>
             ) : null}
             <div className="dashboard-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-                {stats.patienten_gesamt != null && (
+                {stats.patienten_gesamt != null && canReadPatients && (
                     <StatCard
                         label={t("dashboard.kpi.patienten_gesamt")}
                         value={String(stats.patienten_gesamt)}
@@ -447,7 +482,7 @@ export function DashboardPage() {
                         trend="neutral"
                     />
                 )}
-                {stats.termine_heute != null && (
+                {stats.termine_heute != null && canReadTermine && (
                     <StatCard
                         label={t("dashboard.kpi.termine_heute")}
                         value={String(stats.termine_heute)}
@@ -457,7 +492,7 @@ export function DashboardPage() {
                         trend="neutral"
                     />
                 )}
-                {stats.einnahmen_monat != null && (
+                {stats.einnahmen_monat != null && canReadFinanzen && (
                     <StatCard
                         label={t("dashboard.kpi.umsatz_mtd")}
                         value={formatCurrency(stats.einnahmen_monat)}
@@ -618,7 +653,7 @@ export function DashboardPage() {
                                                 >
                                                     <XIcon size={16} />
                                                 </button>
-                                                {canPatientWrite ? (
+                                                {canViewClinical && canPatientWrite ? (
                                                     <button
                                                         type="button"
                                                         className="dashboard-wire-approve-btn"
@@ -736,7 +771,7 @@ export function DashboardPage() {
                                                                 type="button"
                                                                 className="dashboard-wire-btn-primary"
                                                                 disabled={obusy}
-                                                                onClick={() => navigate(`/bestellungen/${b.id}`)}
+                                                                onClick={() => navigate(`/bestellungen?bestellung=${encodeURIComponent(b.id)}`)}
                                                             >
                                                                 {t("dashboard.bestellungen.details")}
                                                             </button>
@@ -751,7 +786,8 @@ export function DashboardPage() {
                         </div>
                     </div>
                 </div>
-                <div className="col dashboard-col-secondary" style={{ gap: 14 }}>
+                <div className="col dashboard-col-secondary">
+                    <div className="dashboard-col-secondary__schedule">
                     {role != null && allowed("termin.read", role) ? (
                         <div className="card dashboard-card-fill">
                             <div className="card-head">
@@ -841,35 +877,34 @@ export function DashboardPage() {
                             )}
                         </div>
                     </div>
-                    <div className="card" style={{ background: "linear-gradient(135deg, #0E455C 0%, #0D7D66 100%)", color: "#fff" }}>
-                        <div style={{ padding: 24 }}>
-                            <div className="row" style={{ gap: 10 }}>
-                                <SparkleIcon size={16} />
-                                <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.04em", opacity: 0.9 }}>MEDOC INSIGHTS</span>
-                            </div>
-                            <div style={{ marginTop: 14, fontSize: 18, fontWeight: 600, lineHeight: 1.45, opacity: 0.95 }}>
-                                {t("dashboard.insights.body")}
-                            </div>
-                            <div className="row" style={{ marginTop: 22, gap: 12 }}>
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    style={{ background: "#fff", color: "#111318", padding: "10px 20px", fontSize: 15, fontWeight: 700 }}
-                                    onClick={() => navigate("/patienten")}
-                                >
-                                    {t("dashboard.insights.cta_primary")}
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    style={{ background: "rgba(255,255,255,0.16)", color: "#EAF4F1", padding: "10px 20px", fontSize: 15, fontWeight: 700 }}
-                                    onClick={() => toast(t("dashboard.insights.dismiss_toast"), "info")}
-                                >
-                                    {t("dashboard.insights.cta_later")}
-                                </button>
+                    </div>
+                    {!insightsDismissed ? (
+                        <div className="card dashboard-insights-card">
+                            <div className="dashboard-insights-card__inner">
+                                <div className="row" style={{ gap: 10 }}>
+                                    <SparkleIcon size={16} />
+                                    <span className="dashboard-insights-card__eyebrow">MEDOC INSIGHTS</span>
+                                </div>
+                                <div className="dashboard-insights-card__body">{t("dashboard.insights.body")}</div>
+                                <div className="row dashboard-insights-card__actions">
+                                    <button
+                                        type="button"
+                                        className="btn dashboard-insights-card__btn-primary"
+                                        onClick={() => navigate("/patienten")}
+                                    >
+                                        {t("dashboard.insights.cta_primary")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn dashboard-insights-card__btn-secondary"
+                                        onClick={dismissInsights}
+                                    >
+                                        {t("dashboard.insights.cta_later")}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    ) : null}
                 </div>
             </div>
 

@@ -21,7 +21,7 @@ function formatLabel(format: ExportPreviewPayload["format"]): string {
         case "csv":
             return "CSV (Tabelle)";
         case "html":
-            return "HTML (Druck / Speichern)";
+            return "HTML";
         case "json":
             return "JSON";
         case "xml":

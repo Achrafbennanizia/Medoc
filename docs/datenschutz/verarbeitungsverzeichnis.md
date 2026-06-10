@@ -94,6 +94,20 @@
 | Löschfristen | 30 Jahre (zusammen mit Audit-Log) |
 | TOM | Zwei-Faktor-Begründung, Auto-Ablauf, Audit |
 
+### 2.6 Geräteverbund (Kopplung & Geräteregister)
+
+| Feld | Inhalt |
+|------|--------|
+| Bezeichnung | LAN-Geräteverbund — Kopplung, Registry, Pairing-Logs |
+| Zweck | Lizenz-Sitzvergabe, sichere Mehrgeräte-Synchronisation innerhalb der Praxis |
+| Rechtsgrundlage | Art. 6 Abs. 1 lit. b DSGVO (Vertrag); Art. 32 DSGVO (Sicherheit) |
+| Datenkategorien | Geräte-Fingerprint, Hostname, OS, letzte IP, Kopplungszeitstempel, Seat-Rolle — keine Patientendaten in mDNS |
+| Betroffene | Praxis-Mitarbeitende (Gerätebetreiber) |
+| Empfänger | Nur Geräte im lokalen Verbund |
+| Drittland-Übermittlung | Keine |
+| Löschfristen | Registry bis Widerruf + 90 Tage Audit; Pairing-Logs 1 Jahr |
+| TOM | Noise/AEAD, private-bind guard, SAS, Seat-Certs, Blocklist, Audit VERBUND/KOPPLUNG |
+
 ---
 
 ## 3. Allgemeine technische und organisatorische Maßnahmen (Art. 32 DSGVO)

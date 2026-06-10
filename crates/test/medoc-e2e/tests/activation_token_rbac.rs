@@ -37,7 +37,20 @@ async fn pair_with_actions(
         )
         .await;
     assert_eq!(status, StatusCode::OK, "decide: {decided:?}");
-    decided["activationToken"]
+    let pin = decided["confirmPin"]
+        .as_str()
+        .expect("confirm pin after accept");
+
+    let (status, confirmed) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "confirm: {confirmed:?}");
+    confirmed["activationToken"]
         .as_str()
         .expect("activation token")
         .to_string()

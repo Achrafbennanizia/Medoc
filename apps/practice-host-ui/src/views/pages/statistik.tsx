@@ -23,10 +23,12 @@ import { errorMessage, formatCurrency } from "@/lib/utils";
 import { buildStatistikReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { Card, CardHeader } from "../components/ui/card";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { Button } from "../components/ui/button";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { NAV_ICONS } from "@/lib/icons";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 type Period = "6m" | "12m";
 
@@ -524,15 +526,14 @@ export function StatistikPage() {
 
     return (
         <div className="animate-fade-in--sticky-safe" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <header className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Statistiken</h2>
-                    <p className="page-sub" style={{ maxWidth: 640, margin: "6px 0 0" }}>
-                        Überblick und Detailauswertungen aus der Praxis-Datenbank.
-                        Zeitraum: <b>{periodLabel}</b>.
-                    </p>
-                </div>
-            </header>
+            <WorkspacePageHeader
+                title="Statistiken"
+                subtitle={
+                    <>
+                        Überblick und Detailauswertungen aus der Praxis-Datenbank. Zeitraum: <b>{periodLabel}</b>.
+                    </>
+                }
+            />
 
             <div className="page-toolbar" style={{ alignItems: "center" }}>
                 <div
@@ -546,7 +547,12 @@ export function StatistikPage() {
                     <Button type="button" variant="ghost" onClick={reload} title="Daten neu laden">
                         Aktualisieren
                     </Button>
-                    <ReportExportToolbar buildBundle={buildExportBundle} defaultFormat="pdf" showImport />
+                    <ReportExportToolbar
+                        dialogTitle="Export — Statistik"
+                        buildBundle={buildExportBundle}
+                        defaultFormat="pdf"
+                        showImport
+                    />
                 </div>
             </div>
 
@@ -822,6 +828,7 @@ export function StatistikPage() {
                             <ChartCard
                                 title="Top Krankheitsbilder (Kategorien)"
                                 hasData={(stats.krankheitsbilder_top ?? []).length > 0}
+                                emptyHint="Noch keine Behandlungsfälle — Kategorien erscheinen nach dokumentierten Leistungen."
                             >
                                 <CategoryBar data={stats.krankheitsbilder_top ?? []} color={PALETTE[4]} />
                             </ChartCard>
@@ -870,15 +877,14 @@ export function StatistikPage() {
                             <ChartCard title="Termin-Art" hasData={stats.termin_art.length > 0}>
                                 <CategoryBar data={stats.termin_art} color={PALETTE[5]} />
                             </ChartCard>
-                            <Card>
-                                <div style={{ padding: 16 }}>
-                                    <div style={{ fontSize: 14, fontWeight: 600 }}>Auslastungs-Hinweis</div>
-                                    <p style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 6, lineHeight: 1.5 }}>
-                                        Wartezeiten und Sprechstundenauslastung folgen, sobald die geplanten vs. tatsächlichen Slots
-                                        in der Datenbank dokumentiert werden (siehe <code>arbeitstag</code>-Erweiterung).
-                                    </p>
-                                </div>
-                            </Card>
+                            <DismissibleNotice
+                                variant="info"
+                                dismissKey="statistik-auslastung-hinweis"
+                                title="Auslastungs-Hinweis"
+                            >
+                                Wartezeiten und Sprechstundenauslastung folgen, sobald die geplanten vs. tatsächlichen Slots in der
+                                Datenbank dokumentiert werden (siehe <code>arbeitstag</code>-Erweiterung).
+                            </DismissibleNotice>
                         </div>
                     </section>
                     ) : null}

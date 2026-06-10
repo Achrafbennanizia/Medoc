@@ -1,30 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { NAV_ITEM_DEFINITIONS } from "./rbac";
 import { NAV_SECTIONS } from "./nav-sections";
+import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
 
 describe("NAV_SECTIONS (G17 sidebar regression)", () => {
     it("G21-critical sidebar paths are defined in rbac nav items", () => {
         const defined = new Set(NAV_ITEM_DEFINITIONS.map((i) => i.to));
-        for (const path of ["/posteingang", "/tickets", "/patienten"]) {
+        for (const path of ["/tickets", "/patienten"]) {
             expect(defined.has(path)).toBe(true);
+        }
+        if (POSTEINGANG_UI_ENABLED) {
+            expect(defined.has("/posteingang")).toBe(true);
+        } else {
+            expect(defined.has("/posteingang")).toBe(false);
         }
     });
 
-    it("Behandlung includes posteingang before tickets (G21 row 1)", () => {
+    it("Behandlung includes posteingang before tickets when UI enabled (G21 row 1)", () => {
         const behandlung = NAV_SECTIONS.find((s) => s.label === "Behandlung");
         expect(behandlung).toBeDefined();
         const items = behandlung!.items;
-        expect(items).toContain("/posteingang");
-        expect(items.indexOf("/posteingang")).toBeLessThan(items.indexOf("/tickets"));
+        if (POSTEINGANG_UI_ENABLED) {
+            expect(items).toContain("/posteingang");
+            expect(items.indexOf("/posteingang")).toBeLessThan(items.indexOf("/tickets"));
+        } else {
+            expect(items).not.toContain("/posteingang");
+            expect(items).toContain("/tickets");
+        }
     });
 
-    it("Praxis includes tagesabschluss after finanzen (GAP-10 REZ IA)", () => {
+    it("Praxis sidebar omits tagesabschluss (reachable via Verwaltung → Finanzen & Berichte)", () => {
         const praxis = NAV_SECTIONS.find((s) => s.label === "Praxis");
         expect(praxis).toBeDefined();
-        const items = praxis!.items;
-        expect(items).toContain("/verwaltung/finanzen-berichte/tagesabschluss");
-        expect(items.indexOf("/verwaltung/finanzen-berichte/tagesabschluss")).toBeGreaterThan(
-            items.indexOf("/finanzen"),
-        );
+        expect(praxis!.items).not.toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 });

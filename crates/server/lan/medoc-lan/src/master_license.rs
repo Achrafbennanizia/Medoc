@@ -57,4 +57,36 @@ mod tests {
             .expect_err("needs license");
         assert!(matches!(err, AppError::Forbidden));
     }
+
+    #[tokio::test]
+    async fn replica_role_skips_license_gate() {
+        use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
+        use medoc_sync::repo::save_deployment;
+
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+        save_deployment(
+            &pool,
+            &SyncDeploymentConfig {
+                schema_version: 1,
+                mode: DeploymentMode::ServerlessPeer,
+                role: DeviceRole::Replica,
+                device_label: "Replica".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("deploy");
+        require_master_license(&pool).await.expect("replica skip");
+    }
+
+    #[tokio::test]
+    async fn skip_enforcement_env_allows_unlicensed_master() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+        require_master_license(&pool).await.expect("skip env");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    }
 }

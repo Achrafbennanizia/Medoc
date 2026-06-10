@@ -9,6 +9,7 @@ import {
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 
 function Mono({ children }: { children: ReactNode }) {
     return <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>{children}</code>;
@@ -16,7 +17,7 @@ function Mono({ children }: { children: ReactNode }) {
 
 const EMPTY: CompanyPortalConfig = { base_url: "", practice_slug: "", api_key: "" };
 
-export function EinstellungenCompanyPortalSection() {
+export function EinstellungenCompanyPortalSection({ embedded = false }: { embedded?: boolean } = {}) {
     const toast = useToastStore((s) => s.add);
     const [cfg, setCfg] = useState<CompanyPortalConfig>(EMPTY);
     const [busy, setBusy] = useState(false);
@@ -80,33 +81,29 @@ export function EinstellungenCompanyPortalSection() {
         }
     };
 
-    return (
+    const demoBanner = demoMode ? (
+        <DismissibleNotice
+            variant="warning"
+            dismissKey="company-portal-demo-mode"
+            className={embedded ? undefined : "company-portal-demo-notice"}
+            title="Demo-Modus"
+        >
+            Antworten vom Hersteller-Server sind Stub-Daten (<code>_demo</code>).
+        </DismissibleNotice>
+    ) : null;
+
+    const heading = (
         <>
-            {demoMode ? (
-                <div
-                    role="status"
-                    className="card-pad"
-                    style={{
-                        marginTop: 12,
-                        background: "var(--warning-bg, #fef9c3)",
-                        border: "1px solid var(--warning-border, #eab308)",
-                        borderRadius: 8,
-                        color: "var(--warning-fg, #713f12)",
-                        fontWeight: 600,
-                    }}
-                >
-                    Demo-Modus — Antworten vom Hersteller-Server sind Stub-Daten (<code>_demo</code>).
-                </div>
-            ) : null}
-            <div className="card-head" style={{ marginTop: 12 }}>
-                <div>
-                    <div className="card-title">Hersteller-Portal</div>
-                    <div className="card-sub">
-                        Anbindung an <Mono>medoc-company-server</Mono> (z.&nbsp;B. Port 9797) — Basis-URL, Praxis-Slug und API-Schlüssel.
-                        Nur für Betrieb / System-Administratoren.
-                    </div>
-                </div>
+            <div className="card-title">Hersteller-Portal</div>
+            <div className="card-sub">
+                Anbindung an <Mono>medoc-company-server</Mono> (z.&nbsp;B. Port 9797) — Basis-URL, Praxis-Slug und API-Schlüssel.
+                Nur für Betrieb / System-Administratoren.
             </div>
+        </>
+    );
+
+    const body = (
+        <>
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 0 }}>
                 <Input
                     id="cp-base-url"
@@ -155,6 +152,28 @@ export function EinstellungenCompanyPortalSection() {
                     vollständiger Portal-Konfiguration automatisch an den Hersteller.
                 </p>
             </div>
+        </>
+    );
+
+    if (embedded) {
+        return (
+            <div className="settings-system-block">
+                <div className="settings-system-block__head">{heading}</div>
+                <div className="settings-system-block__body">
+                    {demoBanner}
+                    {body}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            {demoBanner}
+            <div className="card-head" style={{ marginTop: 12 }}>
+                <div>{heading}</div>
+            </div>
+            {body}
         </>
     );
 }

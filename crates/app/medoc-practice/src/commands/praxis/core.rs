@@ -6,13 +6,15 @@ use crate::infrastructure::database::{audit_repo, praxis_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
+const ABWESENHEIT_LIST: &[&str] = &["verwaltung.praxisplanung.read", "termin.read"];
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_abwesenheiten(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<praxis_repo::Abwesenheit>, AppError> {
-    rbac::require(&session_state, "verwaltung.praxisplanung.read")?;
+    rbac::require_one_of(&session_state, ABWESENHEIT_LIST)?;
     praxis_repo::list_abwesenheiten(&pool).await
 }
 

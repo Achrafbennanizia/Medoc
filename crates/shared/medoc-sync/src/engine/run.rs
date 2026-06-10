@@ -623,4 +623,61 @@ mod tests {
             "older local row must yield to newer master push"
         );
     }
+
+    #[tokio::test]
+    async fn ingest_push_rejects_outbox_device_id_mismatch() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let device = ensure_local_device(&pool, "local").await.expect("device");
+        let entry = crate::repo::append_outbox(
+            &pool,
+            &device,
+            "app_kv",
+            "mismatch.key",
+            "INSERT",
+            r#"{"key":"mismatch.key","value":"1"}"#,
+        )
+        .await
+        .expect("outbox");
+        let err = SyncEngine::ingest_push(&pool, "other-device", std::slice::from_ref(&entry))
+            .await
+            .expect_err("mismatch");
+        assert!(matches!(err, medoc_core::error::AppError::Validation(_)));
+    }
+
+    #[tokio::test]
+    async fn collect_pull_returns_entries_after_since_seq() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let device = ensure_local_device(&pool, "pull-device")
+            .await
+            .expect("device");
+        crate::repo::append_outbox(
+            &pool,
+            &device,
+            "app_kv",
+            "pull-a",
+            "INSERT",
+            r#"{"key":"pull-a","value":"1"}"#,
+        )
+        .await
+        .expect("o1");
+        let e2 = crate::repo::append_outbox(
+            &pool,
+            &device,
+            "app_kv",
+            "pull-b",
+            "INSERT",
+            r#"{"key":"pull-b","value":"2"}"#,
+        )
+        .await
+        .expect("o2");
+        let pulled = SyncEngine::collect_pull(&pool, &device, 1)
+            .await
+            .expect("pull");
+        assert_eq!(pulled.len(), 1);
+        assert_eq!(pulled[0].seq, e2.seq);
+    }
 }

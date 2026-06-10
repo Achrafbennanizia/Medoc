@@ -74,7 +74,7 @@ impl PortE2eClient {
         let value = if text.is_empty() {
             Value::Null
         } else {
-            serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text))
+            serde_json::from_str(&text).unwrap_or(Value::String(text))
         };
         (status, value)
     }
@@ -125,6 +125,11 @@ pub fn master_url_from_env() -> String {
     std::env::var("MEDOC_MASTER_URL").unwrap_or_else(|_| "https://127.0.0.1:8787".to_string())
 }
 
+/// When false, port-based e2e tests no-op (Docker sets `MEDOC_MASTER_URL` — see `run-multi-device-port-e2e.sh`).
+pub fn port_e2e_or_skip() -> bool {
+    std::env::var("MEDOC_MASTER_URL").is_err()
+}
+
 pub fn company_url_from_env() -> String {
     std::env::var("MEDOC_COMPANY_URL").unwrap_or_else(|_| "http://127.0.0.1:9797".to_string())
 }
@@ -160,7 +165,19 @@ pub async fn pair_replica_over_port(
         )
         .await;
     assert_eq!(status, 200, "pairing decide: {decided:?}");
-    decided["activationToken"]
+    let pin = decided["confirmPin"]
+        .as_str()
+        .expect("confirm pin after accept");
+    let (status, confirmed) = client
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "pairing confirm: {confirmed:?}");
+    confirmed["activationToken"]
         .as_str()
         .expect("activation token")
         .to_string()
@@ -291,6 +308,7 @@ pub fn rezept_insert_entry(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn praxis_ticket_insert_entry(
     device_id: &str,
     seq: i64,

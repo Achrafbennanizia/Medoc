@@ -4,6 +4,7 @@
 //! - `GET  /api/v1/pairing/status/:id`      (unauth) — replica polls.
 //! - `GET  /api/v1/pairing/master-info`     (unauth) — replica learns master pubkey + label.
 //! - `POST /api/v1/pairing/decide/:id`      (JWT, ops.system) — master accepts/rejects.
+//! - `POST /api/v1/pairing/confirm/:id`     (unauth) — replica submits 4-digit PIN.
 //! - `GET  /api/v1/pairing/pending`         (JWT, ops.system) — master inbox.
 //! - `POST /api/v1/pairing/revoke/:device`  (JWT, ops.system) — master revokes.
 //! - `GET  /api/v1/pairing/peers`           (activation token) — replica fetches signed peer list (mesh, BEST-EFFORT).
@@ -19,8 +20,8 @@ use medoc_core::infrastructure::database::app_kv_repo;
 use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{
-    self, ActivationTokenPayload, PairingDecision, PairingRequest, PairingRequestSubmit,
-    ACTIVATION_TOKEN_PREFIX,
+    self, ActivationTokenPayload, PairingDecideResult, PairingDecision, PairingRequest,
+    PairingRequestSubmit, ACTIVATION_TOKEN_PREFIX,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -61,6 +62,18 @@ pub struct PairingRequestBody {
     pub slave_pubkey: String,
     #[serde(default)]
     pub slave_label: String,
+    #[serde(default = "default_transport")]
+    pub transport: String,
+}
+
+fn default_transport() -> String {
+    "lan".into()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingConfirmBody {
+    pub pin: String,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +125,7 @@ pub async fn submit(
             slave_pubkey: body.slave_pubkey,
             slave_label: body.slave_label,
             requester_ip: ip,
+            transport: body.transport,
         },
     )
     .await?;
@@ -170,11 +184,11 @@ pub async fn decide(
     Extension(claims): Extension<jwt::LanClaims>,
     Path(id): Path<String>,
     Json(body): Json<PairingDecisionBody>,
-) -> Result<Json<PairingRequest>, ApiError> {
+) -> Result<Json<PairingDecideResult>, ApiError> {
     require_ops_system(&claims)?;
     master_license::require_master_license(&state.pool).await?;
     let master_device_id = master_local_device_id(&state).await?;
-    let row = pairing::decide(
+    let result = pairing::decide(
         &state.pool,
         &master_device_id,
         &id,
@@ -183,6 +197,24 @@ pub async fn decide(
             allowed_actions: body.allowed_actions,
             decided_by: claims.sub.clone(),
         },
+        state.http_port,
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+pub async fn confirm(
+    State(state): State<LanHttpState>,
+    Path(id): Path<String>,
+    Json(body): Json<PairingConfirmBody>,
+) -> Result<Json<PairingRequest>, ApiError> {
+    master_license::require_master_license(&state.pool).await?;
+    let master_device_id = master_local_device_id(&state).await?;
+    let row = pairing::confirm_pin(
+        &state.pool,
+        &master_device_id,
+        &id,
+        &body.pin,
         state.http_port,
     )
     .await?;

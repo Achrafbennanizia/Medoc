@@ -27,6 +27,8 @@ import { listAerzte, type AerztSummary } from "@/systems/practice-host/controlle
 import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.controller";
 import { errorMessage } from "@/lib/utils";
 import { MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
+import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import {
     DEFAULT_CLIENT_SETTINGS,
@@ -56,6 +58,7 @@ import { TerminDetailDrawer } from "../components/termin-detail-drawer";
 import { DoctorLegend } from "../components/termin-doctor-legend";
 import { TerminMonthCalendar } from "../components/termin-month-calendar";
 import { TerminDaySplit, TerminWeekGrid } from "../components/termin-week-day-grid";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import {
     // AmbulanceIcon, — Kalender: Notfall-Toolbar vorübergehend deaktiviert
     ChevronLeftIcon,
@@ -257,7 +260,7 @@ export function TerminePage() {
                 .catch((e) => toast(`Arbeitszeiten konnten nicht geladen werden: ${errorMessage(e)}`, "warning"));
             void listAbwesenheiten()
                 .then(setAbwesenheiten)
-                .catch((e) => toast(`Abwesenheiten konnten nicht geladen werden: ${errorMessage(e)}`, "warning"));
+                .catch(() => setAbwesenheiten([]));
         };
         refreshMonthCalPrefs();
         refreshPraxisPlan();
@@ -886,9 +889,12 @@ export function TerminePage() {
 
     return (
         <div className="animate-fade-in schedule-page termin-page termin-page-root">
-            <div className="page-head schedule-header termin-page-head fade-up">
-                <div>
-                    <h1 className="page-title">Terminübersicht</h1>
+            <WorkspacePageHeader
+                className="fade-up"
+                headerClassName="schedule-header termin-page-head"
+                titleLevel="h1"
+                title="Terminübersicht"
+                subtitle={
                     <div className="page-sub termin-page-sub">
                         <span>
                             {headlineMonthYear} · {geplantCount} Termine geplant
@@ -896,62 +902,58 @@ export function TerminePage() {
                         </span>
                         <span className="termin-heute-accent">Heute {heuteGeplantCount}</span>
                     </div>
-                </div>
-                <div className="schedule-toolbar">
-                    <div className="seg schedule-view-seg">
-                        <button type="button" aria-pressed={view === "tag"} onClick={() => setView("tag")}>Tag</button>
-                        <button type="button" aria-pressed={view === "woche"} onClick={() => setView("woche")}>Woche</button>
-                        <button type="button" aria-pressed={view === "monat"} onClick={() => setView("monat")}>Monat</button>
-                    </div>
-                    <div className="schedule-quick-actions">
-                        {!loadClientSettings().workflows?.calendarEmergencyToolbarEnabled ? (
-                            <p
-                                className="termin-cal-banner"
-                                style={{
-                                    margin: 0,
-                                    padding: "6px 10px",
-                                    fontSize: 12,
-                                    color: "var(--fg-3)",
-                                    borderRadius: 8,
-                                    background: "var(--surface-2)",
-                                    maxWidth: 280,
-                                }}
-                            >
-                                Pause/Notfall-Werkzeuge sind deaktiviert (Einstellungen → Arbeitsabläufe). Der Notfall-Filter bleibt aktiv.
-                            </p>
-                        ) : null}
-                        <div className="termin-filter-anchor" ref={filterPopoverWrapRef}>
-                            <button
-                                type="button"
-                                className="btn btn-subtle"
-                                aria-expanded={filterPopoverOpen}
-                                aria-haspopup="dialog"
-                                onClick={() => setFilterPopoverOpen((o) => !o)}
-                            >
-                                <FilterIcon size={14} />
-                                Filter
-                                {activeFilterChips.length > 0 ? (
-                                    <span className="termin-filter-badge">{activeFilterChips.length}</span>
-                                ) : null}
+                }
+                actions={
+                    <div className="schedule-toolbar">
+                        <div className="seg schedule-view-seg">
+                            <button type="button" aria-pressed={view === "tag"} onClick={() => setView("tag")}>Tag</button>
+                            <button type="button" aria-pressed={view === "woche"} onClick={() => setView("woche")}>Woche</button>
+                            <button type="button" aria-pressed={view === "monat"} onClick={() => setView("monat")}>Monat</button>
+                        </div>
+                        <div className="schedule-quick-actions">
+                            {CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED
+                            && !loadClientSettings().workflows?.calendarEmergencyToolbarEnabled ? (
+                                <DismissibleNotice
+                                    className="app-notice--toolbar termin-cal-banner"
+                                    variant="info"
+                                    dismissKey="termin-cal-emergency-toolbar-hint"
+                                    title="Pause/Notfall-Werkzeuge deaktiviert"
+                                    subtitle="Einstellungen → Arbeitsabläufe. Der Notfall-Filter bleibt aktiv."
+                                />
+                            ) : null}
+                            <div className="termin-filter-anchor" ref={filterPopoverWrapRef}>
+                                <button
+                                    type="button"
+                                    className="btn btn-subtle"
+                                    aria-expanded={filterPopoverOpen}
+                                    aria-haspopup="dialog"
+                                    onClick={() => setFilterPopoverOpen((o) => !o)}
+                                >
+                                    <FilterIcon size={14} />
+                                    Filter
+                                    {activeFilterChips.length > 0 ? (
+                                        <span className="termin-filter-badge">{activeFilterChips.length}</span>
+                                    ) : null}
+                                </button>
+                            </div>
+                            {/* DISABLED: Pause / Notfall — Kalender-Toolbar (Produkt: später reaktivieren)
+                            <button type="button" className="btn btn-subtle" onClick={() => setPauseConfirmOpen(true)}>
+                                <PauseIcon size={16} />
+                                Pause
+                            </button>
+                            <button type="button" className="btn btn-subtle termin-btn-notfall" onClick={() => setNotfallConfirmOpen(true)}>
+                                <AmbulanceIcon size={18} aria-hidden />
+                                Notfall
+                            </button>
+                            */}
+                            <button type="button" className="btn btn-accent schedule-primary-action" onClick={() => goNeuerTermin({ datum: selectedDayIso })}>
+                                <PlusIcon />
+                                Neuer Termin
                             </button>
                         </div>
-                        {/* DISABLED: Pause / Notfall — Kalender-Toolbar (Produkt: später reaktivieren)
-                        <button type="button" className="btn btn-subtle" onClick={() => setPauseConfirmOpen(true)}>
-                            <PauseIcon size={16} />
-                            Pause
-                        </button>
-                        <button type="button" className="btn btn-subtle termin-btn-notfall" onClick={() => setNotfallConfirmOpen(true)}>
-                            <AmbulanceIcon size={18} aria-hidden />
-                            Notfall
-                        </button>
-                        */}
-                        <button type="button" className="btn btn-accent schedule-primary-action" onClick={() => goNeuerTermin({ datum: selectedDayIso })}>
-                            <PlusIcon />
-                            Neuer Termin
-                        </button>
                     </div>
-                </div>
-            </div>
+                }
+            />
 
             {filterPopoverOpen && filterPopoverFixed
                 ? createPortal(

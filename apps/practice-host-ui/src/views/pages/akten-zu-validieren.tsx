@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 export function AktenZuValidierenPage() {
     const t = useT();
@@ -50,14 +51,10 @@ export function AktenZuValidierenPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="page-head">
-                <div>
-                    <h2 className="page-title">{t("page.akten_zu_validieren.title")}</h2>
-                    <p className="page-sub" style={{ marginTop: 4 }}>
-                        {t("page.akten_zu_validieren.subtitle")}
-                    </p>
-                </div>
-            </div>
+            <WorkspacePageHeader
+                title={t("page.akten_zu_validieren.title")}
+                subtitle={t("page.akten_zu_validieren.subtitle")}
+            />
 
             {loading ? (
                 <PageLoading label={t("page.akten_zu_validieren.loading")} />
@@ -66,9 +63,9 @@ export function AktenZuValidierenPage() {
             ) : rows.length === 0 ? (
                 <EmptyState icon="✓" title={t("page.akten_zu_validieren.empty_title")} />
             ) : (
-                <div className="card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     <div className="tbl-scroll">
-                        <table className="tbl">
+                        <table className="tbl tbl-fluid">
                             <thead>
                                 <tr>
                                     <th>{t("page.akten_zu_validieren.col_patient")}</th>

@@ -4,6 +4,7 @@ import {
     type ClientSettingsV1,
 } from "@/lib/client-settings";
 import { SettingsSwitch } from "@/views/components/settings-switch";
+import { useRbac } from "@/lib/use-rbac";
 
 type NotificationPrefs = NonNullable<ClientSettingsV1["notifications"]>;
 
@@ -18,6 +19,7 @@ export function EinstellungenBenachrichtigungenSection({
     portalFlags,
     onPersistClient,
 }: EinstellungenBenachrichtigungenSectionProps) {
+    const { canOpsSystem } = useRbac();
     return (
         <section className="settings-subcard">
             <div className="card-head">
@@ -94,7 +96,7 @@ export function EinstellungenBenachrichtigungenSection({
                     }
                 />
             </div>
-            {portalFlags && typeof portalFlags === "object" ? (
+            {canOpsSystem && portalFlags && typeof portalFlags === "object" ? (
                 <div className="card-pad" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 12 }}>
                     <div className="card-sub" style={{ margin: 0, fontSize: 12.5 }}>
                         <b>Hersteller-Lieferung</b> (bei aktivem Hersteller-Portal): Push{" "}

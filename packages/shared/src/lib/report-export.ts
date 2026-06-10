@@ -142,10 +142,14 @@ export function reportFilename(bundle: ReportBundle, format: ReportExportFormat)
     return `${base}.${ext}`;
 }
 
+export async function buildReportPdfBytes(bundle: ReportBundle): Promise<Uint8Array> {
+    return renderReportPdf(toReportPdfInput(bundle));
+}
+
 export async function exportReportBundle(bundle: ReportBundle, format: ReportExportFormat): Promise<void> {
     const filename = reportFilename(bundle, format);
     if (format === "pdf") {
-        const bytes = await renderReportPdf(toReportPdfInput(bundle));
+        const bytes = await buildReportPdfBytes(bundle);
         await finishExportWithSettings({
             format: "pdf",
             title: bundle.exportTitle,

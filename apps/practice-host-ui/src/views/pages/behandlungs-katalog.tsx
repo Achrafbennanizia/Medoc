@@ -17,7 +17,7 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
 const DEFAULT_KATEGORIEN = [
@@ -204,8 +204,8 @@ export function BehandlungsKatalogPage() {
     if (status === "loading") return <PageLoading label="Katalog wird geladen…" />;
     if (status === "error" && loadError) {
         return (
-            <div className="produkte-page animate-fade-in space-y-4">
-                <VerwaltungBackButton />
+            <div className="produkte-page praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader title="Behandlungskatalog" />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
@@ -369,23 +369,18 @@ export function BehandlungsKatalogPage() {
     })();
 
     return (
-        <div className="produkte-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Behandlungskatalog</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
-                        Vordefinierte Kategorien und Leistungsnamen für die Akte — Liste links, anlegen und Details rechts.
-                    </p>
-                </div>
-                {canWrite ? (
-                    <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                        {creating ? "Abbrechen" : "+ Neue Leistung"}
-                    </Button>
-                ) : null}
-            </div>
+        <div className="produkte-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                title="Behandlungskatalog"
+                subtitle="Vordefinierte Kategorien und Leistungsnamen für die Akte — Liste links, anlegen und Details rechts."
+                actions={
+                    canWrite ? (
+                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
+                            {creating ? "Abbrechen" : "+ Neue Leistung"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             {!canWrite ? <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>Nur mit Schreibrecht (z. B. Arzt) bearbeitbar.</p> : null}
 
@@ -400,8 +395,8 @@ export function BehandlungsKatalogPage() {
                             />
                         </Card>
                     ) : (
-                        <div className="card produkte-table-card" style={{ overflow: "auto" }}>
-                            <table className="tbl produkte-tbl" style={{ minWidth: 520 }}>
+                        <div className="card produkte-table-card tbl-data-card tbl-scroll">
+                            <table className="tbl tbl-fluid">
                                 <thead>
                                     <tr>
                                         <th scope="col">Kategorie</th>

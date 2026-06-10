@@ -163,6 +163,7 @@ pub async fn open_headless_pool(data_dir: &std::path::Path) -> SqlitePool {
 }
 
 /// Configure a replica data directory for `SyncEngine` push/pull/mesh over real HTTPS.
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_replica_data_dir(
     data_dir: &std::path::Path,
     device_id: &str,
@@ -389,6 +390,37 @@ impl LanHarness {
                 .unwrap_or_else(|_| serde_json::json!({ "raw": String::from_utf8_lossy(&bytes) }))
         };
         (status, value)
+    }
+
+    /// Accept a pending pairing request and confirm with the returned PIN (two-phase flow).
+    pub async fn pairing_decide_accept_and_confirm(
+        &mut self,
+        request_id: &str,
+        jwt: &str,
+    ) -> String {
+        let (status, decided) = self
+            .json(
+                "POST",
+                &format!("/api/v1/pairing/decide/{request_id}"),
+                Some(&serde_json::json!({ "accept": true })),
+                Some(jwt),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "pairing decide: {decided:?}");
+        let pin = decided["confirmPin"].as_str().expect("confirm pin");
+        let (status, confirmed) = self
+            .json(
+                "POST",
+                &format!("/api/v1/pairing/confirm/{request_id}"),
+                Some(&serde_json::json!({ "pin": pin })),
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "pairing confirm: {confirmed:?}");
+        confirmed["activationToken"]
+            .as_str()
+            .expect("activation token")
+            .to_string()
     }
 
     pub fn ops_jwt(&self) -> String {

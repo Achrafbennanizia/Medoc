@@ -3,14 +3,16 @@
 //! | Module | Responsibility |
 //! |--------|----------------|
 //! | [`types`] | DTOs + constants |
+//! | [`pin`] | 4-digit OOB confirmation (HMAC, TTL, attempts) |
 //! | [`policy`] | URLs, toggle, action lists |
 //! | [`token`] | Activation token crypto |
-//! | [`store`] | SQLite persistence |
+//! | [`store`] | SQLite persistence (submit, decide, confirm, revoke) |
 //! | [`port`] | [`PairingPersistence`] trait + [`SqlitePairingStore`] |
 //!
 //! Free functions at the crate root (`medoc_sync::pairing::*`) delegate to
 //! [`SqlitePairingStore`] for backward compatibility.
 
+mod pin;
 mod policy;
 mod port;
 mod store;
@@ -20,6 +22,10 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub use pin::{
+    generate_confirm_pin, hash_confirm_pin, normalise_pin_input, verify_confirm_pin,
+    CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
+};
 pub use policy::{is_pairing_enabled, peer_advertised_url, peer_base_url_from_ip, slave_actions};
 pub use port::{PairingPersistence, SqlitePairingStore};
 pub use token::{mint_activation_token, verify_activation_token};
@@ -64,9 +70,21 @@ pub async fn decide(
     request_id: &str,
     decision: PairingDecision,
     replica_http_port: u16,
-) -> Result<PairingRequest, AppError> {
+) -> Result<PairingDecideResult, AppError> {
     SqlitePairingStore(pool)
         .decide(master_device_id, request_id, decision, replica_http_port)
+        .await
+}
+
+pub async fn confirm_pin(
+    pool: &SqlitePool,
+    master_device_id: &str,
+    request_id: &str,
+    pin: &str,
+    replica_http_port: u16,
+) -> Result<PairingRequest, AppError> {
+    SqlitePairingStore(pool)
+        .confirm_pin(master_device_id, request_id, pin, replica_http_port)
         .await
 }
 

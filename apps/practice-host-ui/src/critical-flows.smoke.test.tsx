@@ -10,11 +10,13 @@ import { getAkte, createZahnbefund } from "@/systems/practice-host/controllers/a
 import { setAkteSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
 import { createTermin, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
 import { createZahlung, updateZahlungStatus } from "@/systems/practice-host/controllers/zahlung.controller";
+import { DATENSCHUTZ_UI_ENABLED } from "@/lib/datenschutz-config";
 import { DatenschutzPage } from "@/views/pages/datenschutz";
 import { TagesabschlussForm } from "@/views/components/tagesabschluss-form";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import type { Zahlung } from "@/models/types";
 import { tauriInvoke } from "@/services/tauri.service";
+import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
@@ -80,6 +82,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
         resetAuthStore();
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
             switch (cmd) {
+                case "get_db_setup_status":
+                    return { needsPassphraseSetup: false, needsUnlock: false };
                 case "get_session":
                     return sessionHold;
                 case "login":
@@ -125,6 +129,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     };
                 case "current_license_status":
                     return { valid: true, format: "v1" };
+                case "verbund_status_cmd":
+                    return VERBUND_STATUS_READY;
                 case "get_dashboard_stats":
                     return {
                         patienten_gesamt: 0,
@@ -358,6 +364,8 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return undefined;
                 case "get_app_kv":
                     return null;
+                case "verbund_status_cmd":
+                    return VERBUND_STATUS_READY;
                 default:
                     throw new Error(`unmocked IPC in flow (f): ${cmd}`);
             }
@@ -461,7 +469,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
     });
 });
 
-describe("critical flow (e) DSGVO export → erase → browser storage clean", () => {
+describe.skipIf(!DATENSCHUTZ_UI_ENABLED)("critical flow (e) DSGVO export → erase → browser storage clean", () => {
     beforeEach(() => {
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
             if (cmd === "list_patienten") return [MOCK_PATIENT];

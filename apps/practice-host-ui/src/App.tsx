@@ -4,6 +4,7 @@ import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
 import { LicenseAndPairingGate } from "./views/components/license-and-pairing-gate";
+import { VerbundOnboardingGate } from "./views/components/verbund-onboarding-gate";
 import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
@@ -22,11 +23,18 @@ const AktenZuValidierenPage = lazy(async () => ({
 const PraxisTicketsPage = lazy(async () => ({
     default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
 }));
-const PosteingangPage = lazy(async () => ({
-    default: (await import("./views/pages/posteingang")).PosteingangPage,
+const PraxisAufgabeCreatePage = lazy(async () => ({
+    default: (await import("./views/pages/praxis-aufgabe-create")).PraxisAufgabeCreatePage,
+}));
+const PraxisAufgabeEditPage = lazy(async () => ({
+    default: (await import("./views/pages/praxis-aufgabe-edit")).PraxisAufgabeEditPage,
 }));
 const FinanzenPage = lazy(async () => ({ default: (await import("./views/pages/finanzen")).FinanzenPage }));
+const FinanzenKassePage = lazy(async () => ({ default: (await import("./views/pages/finanzen-kasse")).FinanzenKassePage }));
 const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pages/zahlung-create")).ZahlungCreatePage }));
+const ZahlungKasseCreatePage = lazy(async () => ({
+    default: (await import("./views/pages/zahlung-kasse-create")).ZahlungKasseCreatePage,
+}));
 const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
 const ProduktePage = lazy(async () => ({ default: (await import("./views/pages/produkte")).ProduktePage }));
 const PersonalPage = lazy(async () => ({ default: (await import("./views/pages/personal")).PersonalPage }));
@@ -53,9 +61,6 @@ const VerwaltungFinanzenBerichtePage = lazy(async () => ({
 }));
 const VerwaltungTeamPage = lazy(async () => ({
     default: (await import("./views/pages/verwaltung-team")).VerwaltungTeamPage,
-}));
-const VerwaltungAufgabenPage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-aufgaben")).VerwaltungAufgabenPage,
 }));
 const TagesabschlussPage = lazy(async () => ({
     default: (await import("./views/pages/tagesabschluss")).TagesabschlussPage,
@@ -87,6 +92,15 @@ const BestellungDetailPage = lazy(async () => ({ default: (await import("./views
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
 const HilfePage = lazy(async () => ({ default: (await import("./views/pages/hilfe")).HilfePage }));
+const VerbundOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/verbund-onboarding")).VerbundOnboardingPage,
+}));
+const LizenzAktivierenOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/lizenz-aktivieren")).LizenzAktivierenOnboardingPage,
+}));
+const VerbundBeitretenPage = lazy(async () => ({
+    default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
+}));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const session = useAuthStore((s) => s.session);
@@ -108,7 +122,32 @@ export default function App() {
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <VerbundOnboardingGate>
             <Routes>
+                <Route
+                    path="/onboarding"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <VerbundOnboardingPage />
+                        </Suspense>
+                    )}
+                />
+                <Route
+                    path="/onboarding/lizenz"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <LizenzAktivierenOnboardingPage />
+                        </Suspense>
+                    )}
+                />
+                <Route
+                    path="/onboarding/beitreten"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <VerbundBeitretenPage />
+                        </Suspense>
+                    )}
+                />
                 <Route
                     path="/login"
                     element={(
@@ -144,9 +183,13 @@ export default function App() {
                             </RoleRoute>
                         )}
                     />
+                    <Route path="tickets/neu" element={<RoleRoute routePath="tickets/neu"><PraxisAufgabeCreatePage /></RoleRoute>} />
+                    <Route path="tickets/:id/bearbeiten" element={<RoleRoute routePath="tickets/:id/bearbeiten"><PraxisAufgabeEditPage /></RoleRoute>} />
                     <Route path="tickets" element={<RoleRoute routePath="tickets"><PraxisTicketsPage /></RoleRoute>} />
-                    <Route path="posteingang" element={<RoleRoute routePath="posteingang"><PosteingangPage /></RoleRoute>} />
+                    <Route path="posteingang" element={<Navigate to="/tickets" replace />} />
                     <Route path="finanzen" element={<RoleRoute routePath="finanzen"><FinanzenPage /></RoleRoute>} />
+                    <Route path="finanzen/kasse/neu" element={<RoleRoute routePath="finanzen/kasse/neu"><ZahlungKasseCreatePage /></RoleRoute>} />
+                    <Route path="finanzen/kasse" element={<RoleRoute routePath="finanzen/kasse"><FinanzenKassePage /></RoleRoute>} />
                     <Route path="finanzen/neu" element={<RoleRoute routePath="finanzen/neu"><ZahlungCreatePage /></RoleRoute>} />
                     <Route path="bestellungen" element={<RoleRoute routePath="bestellungen"><BestellungenPage /></RoleRoute>} />
                     <Route path="bestellungen/neu" element={<RoleRoute routePath="bestellungen/neu"><BestellungCreatePage /></RoleRoute>} />
@@ -164,11 +207,7 @@ export default function App() {
                     />
                     <Route
                         path="verwaltung/aufgaben"
-                        element={(
-                            <RoleRoute routePath="verwaltung/aufgaben">
-                                <VerwaltungAufgabenPage />
-                            </RoleRoute>
-                        )}
+                        element={<Navigate to="/tickets?tab=verwalten" replace />}
                     />
                     <Route path="verwaltung/arbeitstage" element={<RoleRoute routePath="verwaltung/arbeitstage"><ArbeitstagePage /></RoleRoute>} />
                     <Route path="verwaltung/praxisplanung" element={<RoleRoute routePath="verwaltung/praxisplanung"><PraxisplanungPage /></RoleRoute>} />
@@ -264,6 +303,7 @@ export default function App() {
                     <Route path="migration" element={<RoleRoute routePath="migration"><MigrationWizardPage /></RoleRoute>} />
                 </Route>
             </Routes>
+        </VerbundOnboardingGate>
         </BrowserRouter>
         </DesktopWindowFrame>
         </SessionGate>

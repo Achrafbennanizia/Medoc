@@ -29,6 +29,7 @@ pub fn run() {
             Arc::new(application::break_glass::BreakGlassState::new()),
         ))
         .manage(commands::lan_commands::LanServerControl::default())
+        .manage(commands::network::verbund::VerbundListenerControl::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -109,15 +110,61 @@ pub fn run() {
                     let verify_pool = pool.clone();
                     let verify_guard = audit_chain_guard.clone();
                     tauri::async_runtime::spawn(async move {
+                        match infrastructure::database::audit_repo::purge_legacy_placeholder_audit_rows(
+                            &verify_pool,
+                        )
+                        .await
+                        {
+                            Ok(n) if n > 0 => tracing::warn!(
+                                target: "medoc::system",
+                                event = "AUDIT_CHAIN_PURGED_PLACEHOLDERS",
+                                deleted = n,
+                            ),
+                            Ok(_) => {}
+                            Err(e) => tracing::warn!(
+                                target: "medoc::system",
+                                event = "AUDIT_CHAIN_PURGE_FAILED",
+                                error = %e
+                            ),
+                        }
                         match infrastructure::database::audit_repo::verify_chain(&verify_pool).await
                         {
                             Ok(None) => verify_guard.set_ok(),
                             Ok(Some(row_id)) => {
-                                verify_guard.set_broken(row_id.clone());
-                                log_security!(error,
-                                    event = "AUDIT_CHAIN_BROKEN",
-                                    broken_at = %row_id,
-                                );
+                                match infrastructure::database::audit_repo::repair_broken_audit_chain(
+                                    &verify_pool,
+                                )
+                                .await
+                                {
+                                    Ok(n) if n > 0 => tracing::warn!(
+                                        target: "medoc::system",
+                                        event = "AUDIT_CHAIN_REPAIRED",
+                                        deleted = n,
+                                        broken_at = %row_id,
+                                    ),
+                                    Ok(_) => {}
+                                    Err(e) => tracing::warn!(
+                                        target: "medoc::system",
+                                        event = "AUDIT_CHAIN_REPAIR_FAILED",
+                                        error = %e
+                                    ),
+                                }
+                                match infrastructure::database::audit_repo::verify_chain(&verify_pool).await
+                                {
+                                    Ok(None) => verify_guard.set_ok(),
+                                    Ok(Some(still_broken)) => {
+                                        verify_guard.set_broken(still_broken.clone());
+                                        log_security!(error,
+                                            event = "AUDIT_CHAIN_BROKEN",
+                                            broken_at = %still_broken,
+                                        );
+                                    }
+                                    Err(e) => tracing::warn!(
+                                        target: "medoc::system",
+                                        event = "AUDIT_CHAIN_VERIFY_FAILED",
+                                        error = %e
+                                    ),
+                                }
                             }
                             Err(e) => tracing::warn!(
                                 target: "medoc::system",
@@ -139,8 +186,17 @@ pub fn run() {
                         if let Some(ctrl) = auto_app.try_state::<commands::lan_commands::LanServerControl>() {
                             commands::lan_commands::auto_start_replica_sync_lan(
                                 &auto_app,
-                                auto_pool,
+                                auto_pool.clone(),
                                 &ctrl,
+                            )
+                            .await;
+                        }
+                        if let Some(verbund_ctrl) =
+                            auto_app.try_state::<commands::network::verbund::VerbundListenerControl>()
+                        {
+                            commands::network::verbund::auto_start_verbund_if_ready(
+                                &auto_pool,
+                                &verbund_ctrl,
                             )
                             .await;
                         }

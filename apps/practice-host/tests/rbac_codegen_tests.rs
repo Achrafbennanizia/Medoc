@@ -13,6 +13,7 @@ const YAML_ACTIONS: &[&str] = &[
     "termin.read",
     "termin.write",
     "finanzen.read",
+    "finanzen.reception.view",
     "finanzen.write",
     "dashboard.read",
     "produkt.read",
@@ -43,6 +44,8 @@ const YAML_ACTIONS: &[&str] = &[
     "ops.system",
     "ops.logs",
     "ops.audit_chain_ack",
+    "aufgabe.status.fulfill",
+    "aufgabe.status.admin",
 ];
 
 #[test]

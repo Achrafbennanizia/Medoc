@@ -184,6 +184,7 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route("/auth/login", post(login))
         .route("/pairing/request", post(self::pairing::submit))
         .route("/pairing/status/{id}", get(self::pairing::status))
+        .route("/pairing/confirm/{id}", post(self::pairing::confirm))
         .route("/pairing/master-info", get(self::pairing::master_info))
         .route("/pairing/peers", get(self::pairing::peers))
         .with_state(state.clone());

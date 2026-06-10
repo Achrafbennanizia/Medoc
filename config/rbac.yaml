@@ -5,16 +5,19 @@ version: 1
 roles:
   - ARZT
   - REZEPTION
-  - STEUERBERATER
-  - PHARMABERATER
+  # TODO(deferred-roles): STEUERBERATER — see docs/coordination/todos-deferred-roles.md
+  # TODO(deferred-roles): PHARMABERATER
 
 # Reusable role groups (expanded at codegen time).
 role_sets:
   arzt_only: [ARZT]
   clinical_frontdesk: [ARZT, REZEPTION]
-  finanzen_staff: [ARZT, REZEPTION, STEUERBERATER]
-  inventory_write: [ARZT, REZEPTION, PHARMABERATER]
-  everyone: [ARZT, REZEPTION, STEUERBERATER, PHARMABERATER]
+  # TODO(deferred-roles): was [ARZT, REZEPTION, STEUERBERATER]
+  finanzen_staff: [ARZT, REZEPTION]
+  # TODO(deferred-roles): was [ARZT, REZEPTION, PHARMABERATER]
+  inventory_write: [ARZT, REZEPTION]
+  # TODO(deferred-roles): was [ARZT, REZEPTION, STEUERBERATER, PHARMABERATER]
+  everyone: [ARZT, REZEPTION]
 
 # action → role set name, explicit role list, or "*" (all authenticated roles).
 permissions:
@@ -27,14 +30,17 @@ permissions:
   termin.list_aerzte: clinical_frontdesk
   termin.read: clinical_frontdesk
   termin.write: clinical_frontdesk
-  finanzen.read: finanzen_staff
+  # TODO(deferred-roles): was [ARZT, STEUERBERATER]
+  finanzen.read: arzt_only
+  finanzen.reception.view: [REZEPTION]
   finanzen.write: finanzen_staff
   dashboard.read: everyone
   produkt.read: everyone
   produkt.write: inventory_write
   bestellung.read: everyone
   bestellung.write: inventory_write
-  verwaltung.read: everyone
+  # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
+  verwaltung.read: arzt_only
   verwaltung.lager.read: everyone
   verwaltung.lager.write: inventory_write
   verwaltung.vertraege.read: everyone
@@ -45,9 +51,10 @@ permissions:
   verwaltung.vorlagen.write: arzt_only
   # Verwaltung sub-areas (decouple from `personal.*` HR permissions — N6).
   verwaltung.team.read: arzt_only
-  verwaltung.praxisplanung.read: clinical_frontdesk
-  verwaltung.praxisplanung.write: clinical_frontdesk
-  finanzen.tagesabschluss.write: finanzen_staff
+  verwaltung.praxisplanung.read: arzt_only
+  verwaltung.praxisplanung.write: arzt_only
+  # TODO(deferred-roles): was [ARZT, STEUERBERATER]
+  finanzen.tagesabschluss.write: arzt_only
   personal.read: arzt_only
   personal.write: arzt_only
   vorlagen.read: arzt_only
@@ -59,3 +66,7 @@ permissions:
   ops.system: arzt_only
   ops.logs: arzt_only
   ops.audit_chain_ack: arzt_only
+  # Praxis-Aufgaben: Status ändern (FA-AUFG-06 + RBAC).
+  aufgabe.status.fulfill: clinical_frontdesk
+  # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
+  aufgabe.status.admin: arzt_only

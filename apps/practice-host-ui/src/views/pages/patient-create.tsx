@@ -4,12 +4,13 @@ import { createPatient } from "@/systems/practice-host/controllers/patient.contr
 import { saveAnamnesebogen } from "@/systems/practice-host/controllers/akte.controller";
 import { useFormDirtyStore } from "../../models/store/form-dirty-store";
 import { errorMessage } from "@/lib/utils";
+import { useRbac } from "@/lib/use-rbac";
 import { Button } from "../components/ui/button";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { FormSection } from "../components/ui/form-section";
-import { Dialog } from "../components/ui/dialog";
+import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 type FormState = {
     nachname: string;
@@ -70,10 +71,16 @@ const initialForm: FormState = {
 export function PatientCreatePage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
+    const { canWriteMedical } = useRbac();
+    const createSteps = useMemo(
+        () => (canWriteMedical ? (["Stammdaten", "Anamnese", "Speichern"] as const) : (["Stammdaten", "Speichern"] as const)),
+        [canWriteMedical],
+    );
     const [busy, setBusy] = useState(false);
     const [form, setForm] = useState<FormState>(initialForm);
     const [errors, setErrors] = useState<Partial<Record<keyof FormState | "general", string>>>({});
     const [scanOpen, setScanOpen] = useState(false);
+    const [abandonOpen, setAbandonOpen] = useState(false);
     const [createStep, setCreateStep] = useState(0);
     const setDirty = useFormDirtyStore((s) => s.setDirty);
 
@@ -144,44 +151,46 @@ export function PatientCreatePage() {
                 adresse: form.adresse.trim() || undefined,
             });
 
-            const antworten = {
-                version: 1,
-                versicherungsstatus: form.versicherungsstatus,
-                krankenkasse: form.krankenkasse.trim(),
-                vorerkrankungen: {
-                    chronisch: form.chronisch.trim(),
-                    frueherDiagnosen: form.frueherDiagnosen.trim(),
-                    operationen: form.operationen.trim(),
-                    krankenhaus: form.krankenhaus.trim(),
-                    psychisch: form.psychisch.trim(),
-                },
-                medikation: {
-                    regelmaessig: form.medikamente.trim(),
-                    einnahme: form.einnahme.trim(),
-                    selbst: form.selbstmedikation.trim(),
-                    vergessen: form.vergessen.trim(),
-                    nebenwirkungen: form.nebenwirkungen.trim(),
-                },
-                allergien: {
-                    medikamente: form.allergienMed.trim(),
-                    lebensmittel: form.allergienLebensmittel.trim(),
-                    sonstige: form.allergienSonst.trim(),
-                    material: form.material.trim(),
-                    impfreaktionen: form.impfreaktionen.trim(),
-                },
-            };
+            if (canWriteMedical) {
+                const antworten = {
+                    version: 1,
+                    versicherungsstatus: form.versicherungsstatus,
+                    krankenkasse: form.krankenkasse.trim(),
+                    vorerkrankungen: {
+                        chronisch: form.chronisch.trim(),
+                        frueherDiagnosen: form.frueherDiagnosen.trim(),
+                        operationen: form.operationen.trim(),
+                        krankenhaus: form.krankenhaus.trim(),
+                        psychisch: form.psychisch.trim(),
+                    },
+                    medikation: {
+                        regelmaessig: form.medikamente.trim(),
+                        einnahme: form.einnahme.trim(),
+                        selbst: form.selbstmedikation.trim(),
+                        vergessen: form.vergessen.trim(),
+                        nebenwirkungen: form.nebenwirkungen.trim(),
+                    },
+                    allergien: {
+                        medikamente: form.allergienMed.trim(),
+                        lebensmittel: form.allergienLebensmittel.trim(),
+                        sonstige: form.allergienSonst.trim(),
+                        material: form.material.trim(),
+                        impfreaktionen: form.impfreaktionen.trim(),
+                    },
+                };
 
-            try {
-                await saveAnamnesebogen({
-                    patient_id: patient.id,
-                    antworten,
-                    unterschrieben: false,
-                });
-            } catch (e) {
-                toast(`Patient angelegt, Anamnese konnte nicht gespeichert werden: ${errorMessage(e)}`);
-                setDirty(false);
-                navigate("/patienten");
-                return;
+                try {
+                    await saveAnamnesebogen({
+                        patient_id: patient.id,
+                        antworten,
+                        unterschrieben: false,
+                    });
+                } catch (e) {
+                    toast(`Patient angelegt, Anamnese konnte nicht gespeichert werden: ${errorMessage(e)}`);
+                    setDirty(false);
+                    navigate("/patienten");
+                    return;
+                }
             }
 
             setDirty(false);
@@ -205,22 +214,28 @@ export function PatientCreatePage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
-                <div className="row" style={{ gap: 10 }}>
-                    <button type="button" className="btn btn-subtle" onClick={() => navigate("/patienten")}>
-                        <ChevronLeftIcon />
-                        Zurück
-                    </button>
-                    <div>
-                        <h1 className="page-title">Neue Patientenakte hinzufügen</h1>
-                        <div className="page-sub">Stammdaten, Versicherung und Anamnese — gemäß Wireframe</div>
-                    </div>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => setScanOpen(true)}>
-                    Scannen
-                </Button>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Neue Patientenakte hinzufügen"
+                subtitle={
+                    canWriteMedical
+                        ? "Stammdaten, Versicherung und Anamnese"
+                        : "Stammdaten und Versicherung — Anamnese erfasst der Arzt"
+                }
+                back={{
+                    onClick: () => {
+                        if (formTouched) setAbandonOpen(true);
+                        else navigate("/patienten");
+                    },
+                    label: "Patienten",
+                }}
+                actions={
+                    <Button type="button" variant="secondary" onClick={() => setScanOpen(true)}>
+                        Scannen
+                    </Button>
+                }
+            />
 
             <Dialog
                 open={scanOpen}
@@ -240,17 +255,31 @@ export function PatientCreatePage() {
                 </p>
             </Dialog>
 
+            <ConfirmDialog
+                open={abandonOpen}
+                onClose={() => setAbandonOpen(false)}
+                title="Eingaben verwerfen?"
+                message="Nicht gespeicherte Stammdaten gehen verloren."
+                confirmLabel="Verwerfen"
+                danger
+                onConfirm={() => {
+                    setDirty(false);
+                    setAbandonOpen(false);
+                    navigate("/patienten");
+                }}
+            />
+
             <div className="patient-create-steps" aria-hidden>
-                {(["Stammdaten", "Anamnese", "Speichern"] as const).map((label, i) => (
+                {createSteps.map((label, i) => (
                     <button
                         key={label}
                         type="button"
                         className={`patient-create-step ${createStep === i ? "is-active" : ""}`}
                         onClick={() => {
                             setCreateStep(i);
-                            if (i === 0) scrollToSection("pc-person");
-                            if (i === 1) scrollToSection("pc-anam");
-                            if (i === 2) scrollToSection("pc-actions");
+                            if (label === "Stammdaten") scrollToSection("pc-person");
+                            else if (label === "Anamnese") scrollToSection("pc-anam");
+                            else scrollToSection("pc-actions");
                         }}
                     >
                         {i + 1}. {label}
@@ -261,9 +290,9 @@ export function PatientCreatePage() {
             <div id="pc-person" className="card card-pad card--overflow-visible" style={{ maxWidth: 1040 }}>
                 <FormSection title="Personendaten">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input id="nachname" label="Nachname *" value={form.nachname} error={errors.nachname} onChange={(e) => set("nachname", e.target.value)} />
-                        <Input id="vorname" label="Vorname *" value={form.vorname} error={errors.vorname} onChange={(e) => set("vorname", e.target.value)} />
-                        <Input id="geburtsdatum" type="date" label="Geburtsdatum *" value={form.geburtsdatum} error={errors.geburtsdatum} onChange={(e) => set("geburtsdatum", e.target.value)} />
+                        <Input id="nachname" label="Nachname *" hint="Familienname laut Versichertenkarte." value={form.nachname} error={errors.nachname} onChange={(e) => set("nachname", e.target.value)} />
+                        <Input id="vorname" label="Vorname *" hint="Rufname oder erster Vorname." value={form.vorname} error={errors.vorname} onChange={(e) => set("vorname", e.target.value)} />
+                        <Input id="geburtsdatum" type="date" label="Geburtsdatum *" hint="Format TT.MM.JJJJ — muss in der Vergangenheit liegen." value={form.geburtsdatum} error={errors.geburtsdatum} onChange={(e) => set("geburtsdatum", e.target.value)} />
                         <Select
                             id="geschlecht"
                             label="Geschlecht"
@@ -305,6 +334,7 @@ export function PatientCreatePage() {
                     </div>
                 </FormSection>
 
+                {canWriteMedical ? (
                 <div id="pc-anam">
                     <FormSection title="Relevante Vorerkrankungen">
                         <Textarea id="chronisch" label="Chronische Erkrankungen" value={form.chronisch} onChange={(e) => set("chronisch", e.target.value)} rows={2} />
@@ -345,6 +375,7 @@ export function PatientCreatePage() {
                         </div>
                     </details>
                 </div>
+                ) : null}
 
                 <div id="pc-actions" className="patient-create-sticky">
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>

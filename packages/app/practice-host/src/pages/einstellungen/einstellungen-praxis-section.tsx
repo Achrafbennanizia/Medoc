@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/settings-page.controller";
 import {
-    buildInvoiceHeaderAddressLines,
     getInvoicePraxisFromStorage,
     hydrateInvoicePraxisFromAppKv,
     isValidPraxisDigitId,
@@ -11,16 +10,10 @@ import {
     syncInvoicePraxisToAppKv,
     type InvoicePraxis,
 } from "@/lib/invoice-leistung";
-import {
-    loadPraxisHeaderPrivacy,
-    savePraxisHeaderPrivacy,
-    maskPraxisExportToken,
-    type PraxisHeaderPrivacyKey,
-    type PraxisHeaderPrivacyV1,
-} from "@/lib/praxis-header-privacy";
 import { errorMessage } from "@/lib/utils";
-import { ChevronRightIcon, EyeIcon, EyeOffIcon, UploadCircleIcon } from "@/lib/icons";
+import { ChevronRightIcon, UploadCircleIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
+import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { EinstellungenPraxisBillingSection } from "./einstellungen-praxis-billing";
@@ -36,9 +29,15 @@ function formatAddrOneLine(addr: string): string {
 export type EinstellungenPraxisSectionProps = {
     sessionUserId: string | undefined;
     onOpenArbeitsablaeufe: () => void;
+    /** Stammdaten bearbeiten (Rechnung, Logo, KV) — ops.system / Praxisleitung. */
+    canEditPraxis?: boolean;
 };
 
-export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeufe }: EinstellungenPraxisSectionProps) {
+export function EinstellungenPraxisSection({
+    sessionUserId,
+    onOpenArbeitsablaeufe,
+    canEditPraxis = true,
+}: EinstellungenPraxisSectionProps) {
     const toast = useToastStore((s) => s.add);
     const [editPraxisName, setEditPraxisName] = useState(false);
     const [draftPraxisName, setDraftPraxisName] = useState("");
@@ -254,26 +253,21 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
         <div className="card-head">
             <div>
                 <div className="card-title">Praxis</div>
-                <p className="card-sub">Grunddaten · werden auf Rezepten und Rechnungen gedruckt</p>
+                <p className="card-sub">
+                    {canEditPraxis
+                        ? "Grunddaten · werden auf Rezepten und Rechnungen gedruckt"
+                        : "Grunddaten zur Ansicht — Änderungen durch die Praxisleitung"}
+                </p>
             </div>
         </div>
-        {praxisBillingIncomplete ? (
-            <div
-                className="card-pad"
-                role="status"
-                style={{
-                    margin: "0 var(--card-pad-x) var(--space-3)",
-                    padding: "var(--space-3)",
-                    borderRadius: 8,
-                    background: "var(--warn-bg, #fff8e6)",
-                    border: "1px solid var(--warn-border, #e6c200)",
-                    color: "var(--text)",
-                    fontSize: "0.92rem",
-                }}
-            >
-                <strong>Wichtig:</strong> Pflichtangaben für Rechnungen/Rezepte fehlen. Bitte füllen Sie
-                Behandler-Name, ZANR, BSNR und IBAN aus.
-            </div>
+        {canEditPraxis && praxisBillingIncomplete ? (
+            <DismissibleNotice
+                variant="warning"
+                dismissKey="praxis-billing-incomplete"
+                className="settings-praxis-billing-notice"
+                title="Wichtig: Pflichtangaben fehlen"
+                subtitle="Für Rechnungen/Rezepte bitte Behandler-Name, ZANR, BSNR und IBAN ausfüllen."
+            />
         ) : null}
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -286,7 +280,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                 <div className="settings-row-muted">{(praxis.name ?? "").trim() || "—"}</div>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
-                {editPraxisName ? (
+                {canEditPraxis && editPraxisName ? (
                     <>
                         <Input
                             value={draftPraxisName}
@@ -306,7 +300,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                             Abbrechen
                         </Button>
                     </>
-                ) : (
+                ) : canEditPraxis ? (
                     <Button
                         type="button"
                         variant="secondary"
@@ -317,7 +311,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                     >
                         Bearbeiten
                     </Button>
-                )}
+                ) : null}
             </div>
         </div>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12, flexDirection: "column" }}>
@@ -332,7 +326,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                     <div className="settings-row-muted">{formatAddrOneLine(praxis.addr) || "—"}</div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
-                    {editPraxisAddr ? (
+                    {canEditPraxis && editPraxisAddr ? (
                         <>
                             <Button type="button" onClick={() => void savePraxisAddr()}>Speichern</Button>
                             <Button
@@ -346,7 +340,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                                 Abbrechen
                             </Button>
                         </>
-                    ) : (
+                    ) : canEditPraxis ? (
                         <Button
                             type="button"
                             variant="secondary"
@@ -357,10 +351,10 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                         >
                             Bearbeiten
                         </Button>
-                    )}
+                    ) : null}
                 </div>
             </div>
-            {editPraxisAddr ? (
+            {canEditPraxis && editPraxisAddr ? (
                 <PraxisAddressArea label="Adresse bearbeiten" value={draftPraxisAddr} onChange={setDraftPraxisAddr} />
             ) : null}
         </div>
@@ -370,7 +364,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                 <div className="settings-row-muted">{(praxis.oeffnungszeiten ?? "").trim() || "—"}</div>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
-                {editPraxisOeffnungszeiten ? (
+                {canEditPraxis && editPraxisOeffnungszeiten ? (
                     <>
                         <Input
                             value={draftPraxisOeffnungszeiten}
@@ -391,7 +385,7 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                             Abbrechen
                         </Button>
                     </>
-                ) : (
+                ) : canEditPraxis ? (
                     <Button
                         type="button"
                         variant="secondary"
@@ -402,9 +396,10 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                     >
                         Bearbeiten
                     </Button>
-                )}
+                ) : null}
             </div>
         </div>
+        {canEditPraxis ? (
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">
@@ -450,6 +445,8 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                 )}
             </div>
         </div>
+        ) : null}
+        {canEditPraxis ? (
         <div className="settings-row" style={{ alignItems: "center" }}>
             <div>
                 <b>Logo</b>
@@ -468,6 +465,9 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
                 </Button>
             </div>
         </div>
+        ) : null}
+        {canEditPraxis ? (
+        <>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <b>Kontakt, Web &amp; Steuern</b>
@@ -520,6 +520,8 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
             onSave={savePraxisBilling}
             onChange={(patch) => setPraxis((p) => ({ ...p, ...patch }))}
         />
+        </>
+        ) : null}
         <button type="button" className="settings-row-clickable" onClick={() => onOpenArbeitsablaeufe()}>
             <div>
                 <b>Termine &amp; Kalender</b>
@@ -530,18 +532,9 @@ export function EinstellungenPraxisSection({ sessionUserId, onOpenArbeitsablaeuf
             </span>
         </button>
     </section>
-    <details className="settings-subcard">
-        <summary style={{ padding: "var(--space-4) var(--card-pad-x)", cursor: "pointer", fontWeight: 650, listStyle: "none" }} className="settings-details-summary">
-            Briefkopf-Vorschau
-        </summary>
-        <div className="card-pad settings-praxis-body" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: "var(--space-3)" }}>
-            <PraxisBriefkopfPreview praxis={praxis} />
-        </div>
-    </details>
         </>
     );
 }
-
 
 function PraxisAddressArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
     const id = "praxis-addr";
@@ -562,203 +555,5 @@ function PraxisAddressArea({ label, value, onChange }: { label: string; value: s
                 Eine Zeile pro Zeile wie auf dem Briefpapier; Leerzeilen mit Enter.
             </p>
         </label>
-    );
-}
-
-/** Eine Zeile in der Briefkopf-Vorschau: Wert per Auge maskierbar — dieselbe Einstellung wirkt auf PDF-Exporte. */
-function PraxisPreviewRevealRow({
-    label,
-    value,
-    revealed,
-    onToggle,
-    dense,
-}: {
-    label: string;
-    value: string;
-    revealed: boolean;
-    onToggle: () => void;
-    dense?: boolean;
-}) {
-    const v = value.trim();
-    if (!v) return null;
-    const title = revealed ? `${label} in der Vorschau ausblenden` : `${label} in der Vorschau einblenden`;
-    return (
-        <div
-            className={`settings-praxis-preview__reveal-row${dense ? " settings-praxis-preview__reveal-row--dense" : ""}`}
-            role="group"
-            aria-label={label}
-        >
-            <span className="settings-praxis-preview__reveal-label">{label}</span>
-            <span className={`settings-praxis-preview__reveal-value${revealed ? "" : " is-masked"}`}>
-                {revealed ? v : maskPraxisExportToken(v)}
-            </span>
-            <button
-                type="button"
-                className="settings-praxis-preview__reveal-btn"
-                onClick={onToggle}
-                aria-pressed={revealed}
-                title={title}
-            >
-                <span className="settings-praxis-preview__reveal-ic" aria-hidden>
-                    {revealed ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
-                </span>
-                <span className="sr-only">{title}</span>
-            </button>
-        </div>
-    );
-}
-
-function PraxisBriefkopfPreview({ praxis }: { praxis: InvoicePraxis }) {
-    const [revealed, setRevealed] = useState<PraxisHeaderPrivacyV1>(() => loadPraxisHeaderPrivacy());
-
-    useEffect(() => {
-        savePraxisHeaderPrivacy(revealed);
-    }, [revealed]);
-
-    const pdfAddressLines = useMemo(() => buildInvoiceHeaderAddressLines(praxis, revealed), [praxis, revealed]);
-    const name = (praxis.name ?? "").trim();
-    const addrLines = (praxis.addr ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const tel = (praxis.telefon ?? "").trim();
-    const fax = (praxis.fax ?? "").trim();
-    const em = (praxis.email ?? "").trim();
-    const web = (praxis.web ?? "").trim().replace(/^https?:\/\//i, "");
-    const kv = (praxis.kv_nummer ?? "").trim();
-    const ust = (praxis.ust_id ?? "").trim();
-    const st = (praxis.steuernummer ?? "").trim();
-    const oz = (praxis.oeffnungszeiten ?? "").trim();
-
-    const hasContact = Boolean(tel || fax || em || web);
-    const hasRegister = Boolean(kv || ust || st || oz);
-    const hasAny = Boolean(name || addrLines.length || hasContact || hasRegister);
-
-    const activeRevealKeys = useMemo(() => {
-        const keys: PraxisHeaderPrivacyKey[] = [];
-        if (tel) keys.push("tel");
-        if (fax) keys.push("fax");
-        if (em) keys.push("email");
-        if (web) keys.push("web");
-        if (kv) keys.push("kv");
-        if (ust) keys.push("ust");
-        if (st) keys.push("steuer");
-        if (oz) keys.push("oz");
-        return keys;
-    }, [tel, fax, em, web, kv, ust, st, oz]);
-
-    const allRevealedForPresent = useMemo(
-        () => activeRevealKeys.length === 0 || activeRevealKeys.every((k) => revealed[k]),
-        [activeRevealKeys, revealed],
-    );
-
-    const toggleReveal = useCallback((k: PraxisHeaderPrivacyKey) => {
-        setRevealed((r) => ({ ...r, [k]: !r[k] }));
-    }, []);
-
-    const onBulkRevealToggle = useCallback(() => {
-        setRevealed((r) => {
-            if (activeRevealKeys.length === 0) return r;
-            const everyOn = activeRevealKeys.every((k) => r[k]);
-            const target = !everyOn;
-            const next = { ...r };
-            for (const k of activeRevealKeys) next[k] = target;
-            return next;
-        });
-    }, [activeRevealKeys]);
-
-    return (
-        <aside className="settings-praxis-preview" aria-label="Vorschau Briefkopf">
-            <div className="settings-praxis-preview__toolbar">
-                <div className="settings-praxis-preview__kicker">Vorschau</div>
-                {activeRevealKeys.length > 0 ? (
-                    <button
-                        type="button"
-                        className={`settings-praxis-preview__bulk${allRevealedForPresent ? " is-all-on" : ""}`}
-                        onClick={onBulkRevealToggle}
-                        title={allRevealedForPresent ? "Kontakt und Register in der Vorschau maskieren" : "Alle maskierten Zeilen wieder einblenden"}
-                    >
-                        {allRevealedForPresent ? "Alle maskieren" : "Alle einblenden"}
-                    </button>
-                ) : null}
-            </div>
-            <p className="settings-praxis-preview__sub">
-                Lesefreundliches Briefpapier: Praxisname zuerst, darunter Anschrift. Pro Zeile kannst du Werte
-                maskieren — dieselben Schalter gelten für Rechnungs-PDF, Tagesbericht und den Praxis-Kopf bei Attest,
-                Rezept und Quittung. Stammdaten bleiben gespeichert. Unten: technische
-                PDF-Reihenfolge der kleinen Kopfzeile.
-            </p>
-            <div className="settings-praxis-preview__paper">
-                {!hasAny ? (
-                    <p className="settings-praxis-preview__empty">Stammdaten eintragen — die Vorschau aktualisiert sich live.</p>
-                ) : (
-                    <div className="settings-praxis-preview__letter">
-                        {name ? <div className="settings-praxis-preview__brand">{name}</div> : (
-                            <div className="settings-praxis-preview__muted settings-praxis-preview__muted--block">(kein Praxisname)</div>
-                        )}
-
-                        {addrLines.length ? (
-                            <div className="settings-praxis-preview__address">
-                                {addrLines.map((line, i) => (
-                                    <div key={i}>{line}</div>
-                                ))}
-                            </div>
-                        ) : name ? (
-                            <p className="settings-praxis-preview__muted settings-praxis-preview__muted--block">(keine Anschrift)</p>
-                        ) : null}
-
-                        {hasContact ? (
-                            <div className="settings-praxis-preview__reveal-group" aria-label="Kontakt in der Vorschau">
-                                <PraxisPreviewRevealRow label="Tel." value={tel} revealed={revealed.tel} onToggle={() => toggleReveal("tel")} />
-                                <PraxisPreviewRevealRow label="Fax" value={fax} revealed={revealed.fax} onToggle={() => toggleReveal("fax")} />
-                                <PraxisPreviewRevealRow label="E-Mail" value={em} revealed={revealed.email} onToggle={() => toggleReveal("email")} />
-                                <PraxisPreviewRevealRow label="Web" value={web} revealed={revealed.web} onToggle={() => toggleReveal("web")} />
-                            </div>
-                        ) : null}
-
-                        {hasRegister ? (
-                            <div
-                                className="settings-praxis-preview__reveal-group settings-praxis-preview__reveal-group--register"
-                                aria-label="Register und Hinweise in der Vorschau"
-                            >
-                                <PraxisPreviewRevealRow
-                                    label="KV- / Betriebsnr."
-                                    value={kv}
-                                    revealed={revealed.kv}
-                                    onToggle={() => toggleReveal("kv")}
-                                    dense
-                                />
-                                <PraxisPreviewRevealRow
-                                    label="USt-IdNr."
-                                    value={ust}
-                                    revealed={revealed.ust}
-                                    onToggle={() => toggleReveal("ust")}
-                                    dense
-                                />
-                                <PraxisPreviewRevealRow
-                                    label="St.-Nr."
-                                    value={st}
-                                    revealed={revealed.steuer}
-                                    onToggle={() => toggleReveal("steuer")}
-                                    dense
-                                />
-                                <PraxisPreviewRevealRow label="Öffn." value={oz} revealed={revealed.oz} onToggle={() => toggleReveal("oz")} dense />
-                            </div>
-                        ) : null}
-
-                        {pdfAddressLines.length > 0 ? (
-                            <div className="settings-praxis-preview__pdf-ref">
-                                <div className="settings-praxis-preview__pdf-ref-label">PDF: Reihenfolge der kleinen Kopfzeile (9&nbsp;pt)</div>
-                                <div className="settings-praxis-preview__pdf-ref-lines">
-                                    {pdfAddressLines.map((line, i) => (
-                                        <div key={i} className="settings-praxis-preview__pdf-ref-line">
-                                            {line}
-                                        </div>
-                                    ))}
-                                </div>
-                                <p className="settings-praxis-preview__pdf-ref-note">Direkt darunter folgt im PDF der Praxisname (größer) — wie oben dargestellt.</p>
-                            </div>
-                        ) : null}
-                    </div>
-                )}
-            </div>
-        </aside>
     );
 }

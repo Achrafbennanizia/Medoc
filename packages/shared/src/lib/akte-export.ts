@@ -74,17 +74,18 @@ export const AKTE_EXPORT_SECTION_META: {
     key: keyof AkteExportSectionsState;
     label: string;
     needsMedical: boolean;
+    needsDocuments?: boolean;
     needsFinanzen?: boolean;
     needsAuditRead?: boolean;
 }[] = [
     { key: "patient", label: "Stammdaten", needsMedical: false },
-    { key: "akteCore", label: "Patientenakte (Status, Diagnose, Befunde)", needsMedical: false },
+    { key: "akteCore", label: "Patientenakte (Status, Diagnose, Befunde)", needsMedical: true },
     { key: "anamnese", label: "Anamnese", needsMedical: true },
     { key: "behandlungen", label: "Behandlungen", needsMedical: true },
     { key: "untersuchungen", label: "Untersuchungen", needsMedical: true },
     { key: "zahnbefunde", label: "Zahnbefunde", needsMedical: true },
-    { key: "rezepte", label: "Rezepte", needsMedical: true },
-    { key: "attest", label: "Atteste", needsMedical: true },
+    { key: "rezepte", label: "Rezepte", needsMedical: false, needsDocuments: true },
+    { key: "attest", label: "Atteste", needsMedical: false, needsDocuments: true },
     { key: "anlagen", label: "Anlagen", needsMedical: false },
     { key: "zahlungen", label: "Zahlungen", needsMedical: false, needsFinanzen: true },
     { key: "audit", label: "Audit-Auszug", needsMedical: false, needsAuditRead: true },

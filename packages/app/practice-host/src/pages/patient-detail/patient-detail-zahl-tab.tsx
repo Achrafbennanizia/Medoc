@@ -928,7 +928,6 @@ const zahlEditPanelFooter =
                 subtitle={zahlEditPanelSubtitle}
                 inlineId="ak-zahl-edit-panel"
                 ariaLabel="Zahlung bearbeiten"
-                presentationOverride="inline"
                 headerExtra={zahlEditPanelHeaderExtra}
                 footer={zahlEditPanelFooter}
             >

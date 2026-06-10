@@ -8,8 +8,10 @@
 - **Status:** Application-code port from `/Users/achraf/pro/Medoc` is **complete** for this tree. Main is **ahead** on PDF export stack, licensing UI/V2 bootstrap, GAP-01/02 tests, break-glass, dev license helper, Docker monolith paths.
 - **G21 Posteingang:** Route `/posteingang`, RBAC, sidebar (`lib/nav-sections.ts`), badge polling, native Go menu — **verified in code**; live Tauri walkthrough **NOT OBSERVED** (`docs/coordination/g21-live-smoke-checklist.md`). Automated gate: `bash tools/g21-verify-automated.sh`.
 - **Gap register (2026-06-02):** GAP-01–07, 10–11 **closed (code + automated proxy)**; GAP-08/09/12 **skipped v0.1**; GAP-13–15 **deferred** — [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md).
+- **Geplant / future development (2026-06-10):** Deferred and planned features tracked in [`geplant.md`](geplant.md) only — **not** as in-app „Geplant“ UI in Einstellungen.
 - **G21 automated proxies:** 181 vitest + Rust `praxis_aufgabe_tests` (incl. `g21_arzt_to_rez_flow_*`); checklist rows 1–8 covered at FE/IPC level.
 - **Validation (2026-06-01):** `npm test` **181 PASS**; `cargo test --tests` **PASS**; `bash scripts/validate-docker.sh` **PASS** (~6.4 min).
+- **Validation (2026-06-06 post R9/R10):** `npm test` **232 PASS**; repo-root `apps/`, `crates/`, `packages/`; `medoc-rust-wave-v1:latest` container **PASS** (fmt, clippy, tests, in-process e2e, proptests) — [`validation.md`](validation.md); full `validate-docker.sh` + multi-device **17/17** (prior run).
 - **Dev launch:** `bash tools/dev-tauri.sh` or `bash tools/g21-dev-smoke.sh` (prints credentials + optional `MEDOC_PRINT_LICENSE=1`).
 
 ## Stable truth (high confidence)
@@ -28,7 +30,8 @@
 - **GOZ invoice PDF (Rust):** Multipage layout in `crates/shared/medoc-core/src/infrastructure/pdf.rs`; optional praxis fields on `Invoice`; integration tests in `crates/shared/medoc-core/tests/pdf_document_tests.rs`.
 - **Praxis document readiness (FE):** `packages/shared/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
-- **Validation (repo root):** `npm run lint`, `npm test`, `npm run build` **passed**; `cargo test --workspace --tests` **passed** (`docs/coordination/validation.md`).
+- **Validation (2026-06-10 refactor):** `cargo fmt --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace --tests`, `npm test` **240 PASS**, `npm run build` **PASS** — [`validation.md`](validation.md).
+- **Refactor artifacts:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md), [`refactor-register.md`](refactor-register.md), [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
 - **Three-system layout (2026-06-06):** Repo root: `apps/{practice-host,practice-host-ui,lan-web-client}`, `crates/{app,server,shared,test}/`, `packages/{shared,ui,app,server}/`. Rust workspace: root `Cargo.toml`. npm workspace: root `package.json`. Legacy `app/` is a README pointer only. Isolation: `./scripts/validate-three-systems.sh`, `./scripts/validate-fe-three-systems.sh`, `./scripts/validate-lan-web-client.sh`.
 - **LAN web client (2026-06-06):** Browser-only `apps/lan-web-client` on port **1421**; Vite aliases replace Tauri adapters with `HttpPracticeAdapter` shim (`src/practice-http-shim.ts`); no `@tauri-apps` dependency.
 - **Deployment modes (2026-05-26):** `practice_desktop` (local Tauri DB), `lan_client` (HTTPS to remote LAN server), `serverless_peer` (local DB + master/replica outbox sync). Config: `app_kv` `sync.deployment.v1`; engine: `crates/shared/medoc-sync/`; docs: `docs/architecture/deployment-topologies.md`, `serverless-sync.md`.

@@ -20,9 +20,14 @@ use crate::domain::rbac::PermissionOverride;
 // `Role` itself lives in `domain::rbac` so lower layers (e.g. `domain::services`) can
 // reference it without an upward dependency. Re-exported here for source compatibility
 // with the many `use crate::application::rbac::Role;` (and `{self, Role}`) call sites.
-pub use crate::domain::rbac::Role;
+pub use crate::domain::rbac::{
+    is_deferred_role_wire, is_login_role_allowed, Role, DEFERRED_ROLE_WIRES,
+};
 
 include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
+
+/// Finanzen-Lesezugriff: volle Finanzübersicht (Arzt/Steuerberater) oder Kassenbereich (Rezeption).
+pub const FINANZEN_READ_OR_RECEPTION: &[&str] = &["finanzen.read", "finanzen.reception.view"];
 
 /// Permission matrix from `config/rbac.yaml` (generated at build time).
 pub fn allowed(action: &str, role: Role) -> bool {

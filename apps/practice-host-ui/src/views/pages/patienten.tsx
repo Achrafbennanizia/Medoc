@@ -16,9 +16,10 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { MoreIcon, PlusIcon, SearchIcon, UsersIcon, XIcon, ExportIcon } from "@/lib/icons";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { buildPatientsMigrationCsv } from "@/lib/patient-csv";
-import { openExportPreview } from "@/models/store/export-preview-store";
+import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -75,6 +76,8 @@ export function PatientenPage() {
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
     const canDeletePatient = role != null && allowed("patient.write_medical", role);
+    const canViewMedical = role != null && allowed("patient.read_medical", role);
+    const canCreatePatient = role != null && allowed("patient.write", role);
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [nameDirectory, setNameDirectory] = useState<string[]>([]);
     /** Full directory from last unfiltered list — keeps spellcheck suggestions while searching. */
@@ -89,6 +92,7 @@ export function PatientenPage() {
     const [deleteDoneOpen, setDeleteDoneOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [exportPickerOpen, setExportPickerOpen] = useState(false);
     const actionLayerRef = useRef<HTMLDivElement>(null);
     const searchLoadTokenRef = useRef(0);
     const navigate = useNavigate();
@@ -163,24 +167,25 @@ export function PatientenPage() {
         [patienten, openZahlPatientIds],
     );
 
-    const handleExportCsv = () => {
+    const resolvePatientExport = useCallback(() => {
+        if (filtered.length === 0) return null;
+        const csv = buildPatientsMigrationCsv(filtered);
+        const d = new Date().toISOString().slice(0, 10);
+        return {
+            exportTitle: "Patienten exportieren",
+            hint: "Semikolon-CSV, kompatibel mit Betrieb → Patientenimport.",
+            suggestedFilename: `medoc-patienten-${d}.csv`,
+            textBody: csv,
+            mime: "text/csv;charset=utf-8",
+        };
+    }, [filtered]);
+
+    const openPatientExport = () => {
         if (filtered.length === 0) {
             toast("Keine Patienten zum Exportieren (Filter/Suche prüfen).", "info");
             return;
         }
-        try {
-            const csv = buildPatientsMigrationCsv(filtered);
-            const d = new Date().toISOString().slice(0, 10);
-            openExportPreview({
-                format: "csv",
-                title: "Patienten exportieren",
-                hint: "Semikolon-CSV, kompatibel mit Betrieb → Patientenimport. Spaltenköpfe klicken zum Sortieren vor dem Speichern.",
-                suggestedFilename: `medoc-patienten-${d}.csv`,
-                textBody: csv,
-            });
-        } catch (e) {
-            toast(`Export fehlgeschlagen: ${errorMessage(e)}`, "error");
-        }
+        setExportPickerOpen(true);
     };
 
     const nameSuggestions = useMemo(() => {
@@ -196,17 +201,18 @@ export function PatientenPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="page-head">
-                <div>
-                    <h1 className="page-title">Patientenakten</h1>
-                    <div className="page-sub">
-                        {filtered.length} von {patienten.length} Patienten
-                    </div>
-                </div>
-                <button className="btn btn-accent" onClick={() => navigate("/patienten/neu")} style={{ flexShrink: 0 }}>
-                    <PlusIcon />Neuer Patient
-                </button>
-            </div>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Patientenakten"
+                subtitle={`${filtered.length} von ${patienten.length} Patienten`}
+                actions={
+                    canCreatePatient ? (
+                        <button className="btn btn-accent" type="button" onClick={() => navigate("/patienten/neu")}>
+                            <PlusIcon />Neuer Patient
+                        </button>
+                    ) : null
+                }
+            />
 
             <div className="page-toolbar">
                 <div className="page-toolbar__search">
@@ -235,12 +241,12 @@ export function PatientenPage() {
                     <button
                         type="button"
                         className="btn btn-subtle"
-                        onClick={handleExportCsv}
+                        onClick={openPatientExport}
                         disabled={loading || !!loadError || filtered.length === 0}
-                        title="CSV im gleichen Format wie unter Betrieb → Patientenimport (Semikolon, Header mit name und geburtsdatum)."
-                        aria-label="Patientenliste als CSV exportieren"
+                        title="Patientenliste exportieren (Format und Speicherort im Dialog)."
+                        aria-label="Patientenliste exportieren"
                     >
-                        <ExportIcon size={14} aria-hidden /> CSV-Export
+                        <ExportIcon size={14} aria-hidden /> Exportieren
                     </button>
                 </div>
             </div>
@@ -289,9 +295,11 @@ export function PatientenPage() {
                         <button type="button" className="btn btn-subtle" onClick={() => { setSearch(""); setStatusFilter("ALLE"); }}>
                             Filter zurücksetzen
                         </button>
+                        {canCreatePatient ? (
                         <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}>
                             Neuer Patient
                         </button>
+                        ) : null}
                     </div>
                 </div>
             ) : (
@@ -372,18 +380,20 @@ export function PatientenPage() {
                                                 >
                                                     Termin anlegen
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    role="menuitem"
-                                                    className="menu-item"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActionMenuPatientId(null);
-                                                        navigate(`/rezepte?patient_id=${encodeURIComponent(p.id)}`);
-                                                    }}
-                                                >
-                                                    Rezeptansicht
-                                                </button>
+                                                {canViewMedical ? (
+                                                    <button
+                                                        type="button"
+                                                        role="menuitem"
+                                                        className="menu-item"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActionMenuPatientId(null);
+                                                            navigate(`/rezepte?patient_id=${encodeURIComponent(p.id)}`);
+                                                        }}
+                                                    >
+                                                        Rezeptansicht
+                                                    </button>
+                                                ) : null}
                                                 {p.email?.trim() ? (
                                                     <button
                                                         type="button"
@@ -479,6 +489,15 @@ export function PatientenPage() {
             >
                 <p style={{ color: "var(--fg-2)", fontSize: 14, margin: 0 }}>Akte wurde gelöscht.</p>
             </Dialog>
+            <DataExportPickerDialog
+                open={exportPickerOpen}
+                onClose={() => setExportPickerOpen(false)}
+                title="Export — Patientenliste"
+                description="Format und Speicherort. CSV ist kompatibel mit Betrieb → Patientenimport."
+                formats={[{ value: "csv", label: "CSV (Semikolon)" }]}
+                defaultFormat="csv"
+                resolvePayload={resolvePatientExport}
+            />
         </div>
     );
 }

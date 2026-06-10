@@ -23,7 +23,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
 function readField(label: string, value: string) {
     return (
@@ -148,25 +148,24 @@ export function TagesabschlussPage() {
 
     if (!canRead) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <h2 className="page-title">Tagesabschluss</h2>
-                <p className="page-sub" style={{ margin: 0 }}>Keine Berechtigung Finanzen (Lesen).</p>
+            <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader title="Tagesabschluss" subtitle="Keine Berechtigung Finanzen (Lesen)." />
             </div>
         );
     }
 
     if (loading) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <h2 className="page-title">Tagesabschluss</h2>
+            <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader title="Tagesabschluss" />
                 <PageLoading label="Daten werden geladen…" />
             </div>
         );
     }
     if (loadError) {
         return (
-            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <h2 className="page-title">Tagesabschluss</h2>
+            <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader title="Tagesabschluss" />
                 <PageLoadError message={loadError} onRetry={() => void load(true)} />
             </div>
         );
@@ -302,20 +301,14 @@ export function TagesabschlussPage() {
     })();
 
     return (
-        <div className="tagesabschluss-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="tagesabschluss-no-print">
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head tagesabschluss-no-print" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h1 className="page-title" style={{ margin: 0 }}>Tagesabschluss</h1>
-                    <p className="page-sub" style={{ maxWidth: 720, marginTop: 8 }}>
-                        Teil von
-                        {" "}
-                        <strong>Finanzen &amp; Berichte</strong>
-                        {" "}
-                        — Kassenabgleich, Liste + Detail. Rechnung als PDF:
-                        {" "}
+        <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                className="tagesabschluss-no-print"
+                titleLevel="h1"
+                title="Tagesabschluss"
+                subtitle={
+                    <>
+                        Teil von <strong>Finanzen &amp; Berichte</strong> — Kassenabgleich, Liste + Detail. Rechnung als PDF:{" "}
                         <button
                             type="button"
                             style={{ color: "var(--accent, #0a6)", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}
@@ -324,18 +317,20 @@ export function TagesabschlussPage() {
                             Rechnung (PDF)
                         </button>
                         .
-                    </p>
-                </div>
-                {canWrite ? (
-                    <Button
-                        type="button"
-                        variant={creating ? "secondary" : "primary"}
-                        onClick={creating ? () => setCreating(false) : openCreate}
-                    >
-                        {creating ? "Neuer Tagesabschluss abbrechen" : "+ Neuer Tagesabschluss"}
-                    </Button>
-                ) : null}
-            </div>
+                    </>
+                }
+                actions={
+                    canWrite ? (
+                        <Button
+                            type="button"
+                            variant={creating ? "secondary" : "primary"}
+                            onClick={creating ? () => setCreating(false) : openCreate}
+                        >
+                            {creating ? "Neuer Tagesabschluss abbrechen" : "+ Neuer Tagesabschluss"}
+                        </Button>
+                    ) : null
+                }
+            />
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list tagesabschluss-protokoll-list">

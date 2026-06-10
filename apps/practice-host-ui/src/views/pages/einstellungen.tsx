@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useState, type FC } from "react";
+import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { useAuthStore } from "../../models/store/auth-store";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import {
     changePassword,
     companyPortalFetchFeatureFlags,
     companyPortalFetchIntegrations,
     companyPortalFetchSummary,
-    type HealthCheck,
     type LicenseStatus,
     verifyLicense,
     activateLicense,
@@ -23,9 +23,9 @@ import {
     saveClientSettings,
     applyAppearanceFromSettings,
     normalizeColorScheme,
+    normalizeFontStack,
     resolveAppearanceTheme,
     type ClientSettingsV1,
-    type FontStackId,
 } from "@/lib/client-settings";
 import {
     DEFAULT_PRAXIS_PRAEFERENZEN,
@@ -66,8 +66,7 @@ import {
     UsersIcon,
 } from "@/lib/icons";
 
-const SETTINGS_BREADCRUMB =
-    "Praxis · Konto · Benachrichtigungen · Darstellung · Sicherheit · Lizenz — weitere unten in der Liste";
+const SETTINGS_BREADCRUMB_FALLBACK = "Konto · Darstellung · Arbeitsabläufe — weitere unten in der Liste";
 
 const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
 
@@ -91,7 +90,7 @@ export function EinstellungenPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
-    const { can, canSettingsSection } = useRbac();
+    const { can, canSettingsSection, canOpsSystem } = useRbac();
     const locale = useLocale((s) => s.locale);
     const setLocale = useLocale((s) => s.setLocale);
     const toast = useToastStore((s) => s.add);
@@ -117,8 +116,6 @@ export function EinstellungenPage() {
     const [licenseToken, setLicenseToken] = useState("");
     const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
     const [licBusy, setLicBusy] = useState(false);
-
-    const [healthLast, setHealthLast] = useState<HealthCheck | null>(null);
 
     const [portalSummary, setPortalSummary] = useState<Record<string, unknown> | null>(null);
     const [portalIntegrations, setPortalIntegrations] = useState<Record<string, unknown> | null>(null);
@@ -328,6 +325,12 @@ export function EinstellungenPage() {
     const primaryNav = primaryNavAll.filter((item) => canSettingsSection(item.id));
     const advancedNav = advancedNavAll.filter((item) => canSettingsSection(item.id));
 
+    const settingsBreadcrumb = useMemo(() => {
+        const labels = [...primaryNav, ...advancedNav].slice(0, 5).map((i) => i.label);
+        if (labels.length === 0) return SETTINGS_BREADCRUMB_FALLBACK;
+        return `${labels.join(" · ")}${labels.length >= 5 ? " — …" : ""}`;
+    }, [primaryNav, advancedNav]);
+
     useEffect(() => {
         if (canSettingsSection(activeSection)) return;
         const first = primaryNav[0]?.id ?? advancedNav[0]?.id ?? null;
@@ -336,7 +339,7 @@ export function EinstellungenPage() {
 
     const appearance = client.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
     const accentPresetId = normalizeAccentId(appearance.accentPreset);
-    const fontStack: FontStackId = appearance.fontStack ?? "inter";
+    const fontStack = normalizeFontStack(appearance.fontStack);
     const densityLabel =
         appearance.density === "compact" ? "Kompakt" : appearance.density === "spacious" ? "Weit" : "Gemütlich";
     const wf = client.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
@@ -349,10 +352,10 @@ export function EinstellungenPage() {
 
     return (
         <div className="settings-page animate-fade-in--sticky-safe">
-            <header className="settings-page-head">
-                <h2 className="page-title">Einstellungen</h2>
-                <p className="page-sub settings-page-breadcrumb">{SETTINGS_BREADCRUMB}</p>
-            </header>
+            <WorkspacePageHeader
+                title="Einstellungen"
+                subtitle={<p className="page-sub settings-page-breadcrumb">{settingsBreadcrumb}</p>}
+            />
 
             <div className="split settings-shell" style={{ gridTemplateColumns: "minmax(220px, 260px) 1fr", alignItems: "start" }}>
                 <nav className="settings-nav-card settings-nav" aria-label="Einstellungen Abschnitte">
@@ -371,8 +374,12 @@ export function EinstellungenPage() {
                                 </button>
                             );
                         })}
+                        {advancedNav.length > 0 ? (
+                            <>
                         <div className="settings-nav-sep" aria-hidden />
                         <div className="settings-nav-muted">Erweitert</div>
+                            </>
+                        ) : null}
                         {advancedNav.map((item) => {
                             const Icon = item.icon;
                             return (
@@ -397,6 +404,7 @@ export function EinstellungenPage() {
                         <EinstellungenPraxisSection
                             sessionUserId={session?.user_id}
                             onOpenArbeitsablaeufe={() => setSection("arbeitsablaeufe")}
+                            canEditPraxis={canOpsSystem}
                         />
                     ) : null}
 
@@ -418,7 +426,6 @@ export function EinstellungenPage() {
                     {canSettingsSection(activeSection) && activeSection === "sicherheit" ? (
                         <EinstellungenSicherheitSection
                             security={security}
-                            healthLast={healthLast}
                             onPersistClient={persistClientSilent}
                         />
                     ) : null}
@@ -479,25 +486,11 @@ export function EinstellungenPage() {
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "system" ? (
-                        <EinstellungenSystemSection
-                            appearance={appearance}
-                            security={security}
-                            akteClient={client.akte ?? DEFAULT_CLIENT_SETTINGS.akte!}
-                            canLanHost={canLanHost}
-                            canMigration={canMigration}
-                            onPersistClient={persistClientSilent}
-                            onHealthLastChange={setHealthLast}
-                        />
+                        <EinstellungenSystemSection canOpsSystem={canLanHost} />
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "ueber" ? (
-                        <EinstellungenUeberSection
-                            licenseToken={licenseToken}
-                            onLicenseTokenChange={setLicenseToken}
-                            licenseStatus={licenseStatus}
-                            licBusy={licBusy}
-                            onVerifyLicense={handleVerifyLicense}
-                        />
+                        <EinstellungenUeberSection />
                     ) : null}
                 </div>
             </div>

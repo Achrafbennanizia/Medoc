@@ -11,7 +11,7 @@ import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import {
     MEDIKAMENT_SUGGESTIONS,
     DARREICHUNGSFORM_OPTIONS,
@@ -217,18 +217,13 @@ export function RezeptCreatePage() {
     const cannotSave = nLines === 0 || creating;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={() => navigate(`/patienten/${patientId}#rezept`)}>
-                    <ChevronLeftIcon />Zurück zur Akte
-                </Button>
-                <div>
-                    <div className="page-sub page-sub-caps">
-                        {patient.name}
-                    </div>
-                    <h1 className="page-title" style={{ margin: 0 }}>Neues Rezept</h1>
-                </div>
-            </div>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title="Neues Rezept"
+                eyebrow={patient.name}
+                back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+            />
 
             <div style={{ maxWidth: 920 }}>
             <Card>

@@ -3,7 +3,7 @@
 **Purpose:** Document HTTP surfaces exercised by `scripts/validate-docker-multi-device.sh` — real TCP ports, real `medoc-server` / `medoc-company-server` binaries, simulated replica devices via activation tokens.
 
 **Orchestrator:** `docker/ci/run-multi-device-port-e2e.sh`  
-**Tests:** `app/crates/medoc-e2e/tests/multi_device_port_http.rs`  
+**Tests:** `crates/test/medoc-e2e/tests/multi_device_port_http.rs`  
 **Default ports:** master HTTPS `8787`, company HTTP `9797`
 
 ---

@@ -12,6 +12,12 @@ export function VerwaltungBackButton({ className }: Props) {
     const navigate = useNavigate();
     const rolle = useAuthStore((s) => s.session?.rolle);
     const role = parseRole(rolle);
+    const normalizedPath = (pathname.replace(/\/$/, "") || "/");
+
+    if (normalizedPath === "/verwaltung") {
+        return null;
+    }
+
     const { path, label } = getVerwaltungBackTarget(pathname + (search || ""));
 
     if (path === "/" && (!role || !allowed("dashboard.read", role))) {
@@ -21,7 +27,7 @@ export function VerwaltungBackButton({ className }: Props) {
     return (
         <button
             type="button"
-            className={className ?? "btn btn-subtle"}
+            className={className ?? "btn btn-subtle workspace-page-back-button verwaltung-back-button"}
             onClick={() => navigate(path)}
         >
             <ChevronLeftIcon />

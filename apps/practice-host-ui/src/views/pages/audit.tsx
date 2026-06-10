@@ -9,6 +9,7 @@ import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { Button } from "../components/ui/button";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
@@ -56,14 +57,11 @@ export function AuditPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <div className="page-head">
-                <div>
-                    <h2 className="page-title">Audit-Log</h2>
-                    <p className="page-sub" style={{ marginTop: 4 }}>
-                        Seitenweise Ansicht (max. {PAGE_SIZE_MAX} Einträge pro Seite). Export bleibt vollständig.
-                    </p>
-                </div>
-            </div>
+            <WorkspacePageHeader
+                title="Audit-Log"
+                subtitle={`Seitenweise Ansicht (max. ${PAGE_SIZE_MAX} Einträge pro Seite). Export bleibt vollständig.`}
+                back={{ to: "/", label: "Dashboard" }}
+            />
 
             <div className="page-toolbar" style={{ alignItems: "center" }}>
                 <div className="page-toolbar__filters row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -97,6 +95,7 @@ export function AuditPage() {
                         Nur Notfallzugriff (Break-Glass)
                     </label>
                     <ReportExportToolbar
+                        dialogTitle="Export — Audit-Log"
                         buildBundle={buildExportBundle}
                         defaultFormat="pdf"
                         disabled={total === 0 || !!loadError}
@@ -118,9 +117,9 @@ export function AuditPage() {
             ) : total === 0 ? (
                 <EmptyState icon="📋" title="Keine Audit-Einträge" />
             ) : (
-                <div className="card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     <div className="tbl-scroll">
-                    <table className="tbl">
+                    <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
                                 <th>Zeitpunkt</th><th>Aktion</th><th>Entität</th><th>Details</th><th>Notfall</th><th>Benutzer</th>
@@ -143,14 +142,7 @@ export function AuditPage() {
                                         )}
                                     </td>
                                     <td
-                                        style={{
-                                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                                            fontSize: 12,
-                                            maxWidth: 140,
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                        }}
+                                        className="tbl-col-mono"
                                         title={l.user_id}
                                     >
                                         {l.user_id}

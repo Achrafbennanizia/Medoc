@@ -1,5 +1,5 @@
 //! Tauri commands for the Bilanz wizard snapshots (FA-FIN-09/10).
-use crate::application::rbac;
+use crate::application::rbac::{self, FINANZEN_READ_OR_RECEPTION};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::bilanz_snapshot::{BilanzSnapshot, CreateBilanzSnapshot};
 use crate::error::AppError;
@@ -13,7 +13,7 @@ pub async fn list_bilanz_snapshots(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<BilanzSnapshot>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     bilanz_snapshot_repo::list(&pool).await
 }
 
@@ -24,7 +24,7 @@ pub async fn get_bilanz_snapshot(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<BilanzSnapshot, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     bilanz_snapshot_repo::get(&pool, &id).await
 }
 

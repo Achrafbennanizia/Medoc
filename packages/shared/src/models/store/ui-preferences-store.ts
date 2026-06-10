@@ -30,7 +30,12 @@ export const useUiPreferencesStore = create<UiPreferencesState>((set, get) => ({
         const cur = get().confirmations;
         const next: ConfirmationPrefs = { ...cur, defaultMode: mode };
         set({ confirmations: next });
-        await persistConfirmationPrefsToKv(next);
+        try {
+            await persistConfirmationPrefsToKv(next);
+        } catch (e) {
+            set({ confirmations: cur });
+            throw e;
+        }
     },
 
     setAreaConfirmationOverride: async (area, value) => {
@@ -38,6 +43,11 @@ export const useUiPreferencesStore = create<UiPreferencesState>((set, get) => ({
         const areas = { ...cur.areas, [area]: value };
         const next: ConfirmationPrefs = { ...cur, areas };
         set({ confirmations: next });
-        await persistConfirmationPrefsToKv(next);
+        try {
+            await persistConfirmationPrefsToKv(next);
+        } catch (e) {
+            set({ confirmations: cur });
+            throw e;
+        }
     },
 }));

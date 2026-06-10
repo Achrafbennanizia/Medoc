@@ -6,10 +6,10 @@ import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "@/systems/practice-host/controllers/auth.controller";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
-import { countAktenZuValidieren, countOpenPraxisTicketsForMe } from "@/systems/practice-host/controllers/akte-workflow.controller";
+import { countAktenZuValidieren } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { NAV_SECTIONS } from "@/lib/nav-sections";
-import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, type NavItemDefinition } from "@/lib/rbac";
+import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, allowed, parseRole, type NavItemDefinition } from "@/lib/rbac";
 import { useT, useLocale, translateLocale } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
@@ -34,7 +34,6 @@ import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
 import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
-import { allowed } from "@/lib/rbac";
 import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
 import { loadClientSettings } from "@/lib/client-settings";
@@ -50,13 +49,17 @@ import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 function breadcrumbsForPath(pathname: string): string[] {
     if (pathname === "/termine/neu") return ["MeDoc", "Terminübersicht", "Neuer Termin"];
+    if (pathname === "/finanzen/kasse") return ["MeDoc", "Kasseneingänge"];
+    if (pathname === "/finanzen/kasse/neu") return ["MeDoc", "Kasseneingänge", "Neue Zahlung"];
     if (pathname === "/finanzen/neu") return ["MeDoc", "Finanzen", "Neue Zahlung"];
     if (pathname === "/bestellungen/neu") return ["MeDoc", "Bestellungen", "Neue Bestellung"];
     if (pathname === "/patienten/neu") return ["MeDoc", "Patienten", "Neuer Patient"];
     if (pathname === "/bilanz/neu") return ["MeDoc", "Bilanz", "Neuer Bilanz"];
     if (pathname === "/akten/zu-validieren") return ["MeDoc", "Patienten", "Akten zu validieren"];
     if (pathname === "/posteingang") return ["MeDoc", "Posteingang"];
-    if (pathname === "/tickets") return ["MeDoc", "Praxis-Tickets"];
+    if (pathname === "/tickets") return ["MeDoc", "Praxis-Aufgaben"];
+    if (pathname === "/tickets/neu") return ["MeDoc", "Praxis-Aufgaben", "Neue Aufgabe"];
+    if (/^\/tickets\/[^/]+\/bearbeiten$/.test(pathname)) return ["MeDoc", "Praxis-Aufgaben", "Bearbeiten"];
     if (pathname === "/verwaltung") return ["MeDoc", "Verwaltung"];
     if (pathname === "/verwaltung/arbeitstage") return ["MeDoc", "Verwaltung", "Arbeitstage"];
     if (pathname === "/verwaltung/praxisplanung") return ["MeDoc", "Verwaltung", "Praxisplanung"];
@@ -103,7 +106,7 @@ const CRUMBS: Record<string, string[]> = {
     "/patienten": ["MeDoc", "Patienten"],
     "/akten/zu-validieren": ["MeDoc", "Patienten", "Akten zu validieren"],
     "/posteingang": ["MeDoc", "Posteingang"],
-    "/tickets": ["MeDoc", "Praxis-Tickets"],
+    "/tickets": ["MeDoc", "Praxis-Aufgaben"],
     "/finanzen": ["MeDoc", "Finanzen"],
     "/finanzen/neu": ["MeDoc", "Finanzen", "Neue Zahlung"],
     "/bestellungen": ["MeDoc", "Bestellungen"],
@@ -220,7 +223,6 @@ export function AppLayout() {
     const [notifOpen, setNotifOpen] = useState(false);
     const [inAppUnread, setInAppUnread] = useState(0);
     const [aktenZuValidierenCount, setAktenZuValidierenCount] = useState(0);
-    const [openPraxisTicketsCount, setOpenPraxisTicketsCount] = useState(0);
     const [openPraxisAufgabenCount, setOpenPraxisAufgabenCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
@@ -274,8 +276,8 @@ export function AppLayout() {
         const r = session?.rolle;
         if (r === "ARZT") return t("app.role_label.ARZT");
         if (r === "REZEPTION") return t("app.role_label.REZEPTION");
-        if (r === "STEUERBERATER") return t("app.role_label.STEUERBERATER");
-        if (r === "PHARMABERATER") return t("app.role_label.PHARMABERATER");
+        // TODO(deferred-roles): if (r === "STEUERBERATER") return t("app.role_label.STEUERBERATER");
+        // TODO(deferred-roles): if (r === "PHARMABERATER") return t("app.role_label.PHARMABERATER");
         return "";
     }, [session?.rolle, t]);
 
@@ -296,30 +298,24 @@ export function AppLayout() {
         const rolle = session?.rolle;
         if (rolle !== "ARZT" && rolle !== "REZEPTION") {
             setAktenZuValidierenCount(0);
-            setOpenPraxisTicketsCount(0);
             setOpenPraxisAufgabenCount(0);
             return;
         }
         try {
-            const aufgabenP = countOpenPraxisAufgabenForMe();
             if (rolle === "ARZT") {
-                const [akten, tickets, aufgaben] = await Promise.all([
+                const [akten, aufgaben] = await Promise.all([
                     countAktenZuValidieren(),
-                    countOpenPraxisTicketsForMe(),
-                    aufgabenP,
+                    countOpenPraxisAufgabenForMe(),
                 ]);
                 setAktenZuValidierenCount(typeof akten === "number" && akten > 0 ? akten : 0);
-                setOpenPraxisTicketsCount(typeof tickets === "number" && tickets > 0 ? tickets : 0);
                 setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             } else {
-                const aufgaben = await aufgabenP;
+                const aufgaben = await countOpenPraxisAufgabenForMe();
                 setAktenZuValidierenCount(0);
-                setOpenPraxisTicketsCount(0);
                 setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
             }
         } catch {
             setAktenZuValidierenCount(0);
-            setOpenPraxisTicketsCount(0);
             setOpenPraxisAufgabenCount(0);
         }
     }, [session?.rolle]);
@@ -344,6 +340,12 @@ export function AppLayout() {
         window.addEventListener("medoc-nav-badges-refresh", onBadges);
         return () => window.removeEventListener("medoc-nav-badges-refresh", onBadges);
     }, [refreshNavBadges]);
+
+    useEffect(() => {
+        const onNotif = () => void refreshInAppUnread();
+        window.addEventListener("medoc-in-app-notifications-refresh", onNotif);
+        return () => window.removeEventListener("medoc-in-app-notifications-refresh", onNotif);
+    }, [refreshInAppUnread]);
 
     // Inactivity guard (FA-AUTH-03 / NFA-SEC-09): the backend expires sessions after 30 min.
     // Throttle activity pings to once every 30 s and poll the session status
@@ -1014,7 +1016,12 @@ export function AppLayout() {
             <AuditChainBanner
                 canAcknowledge={
                     !!session &&
-                    allowed("ops.audit_chain_ack", session.rolle, session.permission_overrides)
+                    parseRole(session.rolle) != null &&
+                    allowed(
+                        "ops.audit_chain_ack",
+                        parseRole(session.rolle)!,
+                        session.permission_overrides,
+                    )
                 }
             />
             <BreakGlassBanner userId={session?.user_id} />
@@ -1072,14 +1079,14 @@ export function AppLayout() {
                                                     {aktenZuValidierenCount > 99 ? "99+" : aktenZuValidierenCount}
                                                 </span>
                                             ) : null}
-                                            {item.to === "/tickets" && openPraxisTicketsCount > 0 ? (
-                                                <span className="count" aria-label={`${openPraxisTicketsCount} offen`}>
-                                                    {openPraxisTicketsCount > 99 ? "99+" : openPraxisTicketsCount}
-                                                </span>
-                                            ) : null}
-                                            {item.to === "/posteingang" && openPraxisAufgabenCount > 0 ? (
-                                                <span className="count" aria-label={`${openPraxisAufgabenCount} Aufgaben`}>
-                                                    {openPraxisAufgabenCount > 99 ? "99+" : openPraxisAufgabenCount}
+                                            {item.to === "/tickets" && openPraxisAufgabenCount > 0 ? (
+                                                <span
+                                                    className="count"
+                                                    aria-label={`${openPraxisAufgabenCount} offen`}
+                                                >
+                                                    {openPraxisAufgabenCount > 99
+                                                        ? "99+"
+                                                        : openPraxisAufgabenCount}
                                                 </span>
                                             ) : null}
                                         </NavLink>

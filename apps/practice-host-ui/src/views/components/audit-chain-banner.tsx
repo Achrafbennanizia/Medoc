@@ -7,6 +7,7 @@ import {
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "./ui/toast-store";
 import { Button } from "./ui/button";
+import { DismissibleNotice } from "./ui/dismissible-notice";
 
 /**
  * Shown when startup verification detected a broken audit hash chain.
@@ -49,35 +50,25 @@ export function AuditChainBanner({ canAcknowledge }: { canAcknowledge: boolean }
     };
 
     return (
-        <div
+        <DismissibleNotice
+            variant="error"
             role="alert"
+            closable={false}
             className="audit-chain-banner"
-            style={{
-                flexShrink: 0,
-                padding: "10px 16px",
-                background: "color-mix(in oklab, var(--red) 18%, var(--bg-elev))",
-                borderBottom: "1px solid color-mix(in oklab, var(--red) 45%, var(--line))",
-                color: "var(--fg)",
-                fontSize: 13,
-                lineHeight: 1.4,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                alignItems: "center",
-                justifyContent: "space-between",
-            }}
-        >
-            <div style={{ fontWeight: 600 }}>
-                Audit-Kette manipuliert
-                {status.broken_at ? ` (Eintrag ${status.broken_at.slice(0, 8)}…)` : ""}
-                — System- und Backup-Funktionen sind gesperrt, bis ein Administrator die Störung
-                quittiert.
-            </div>
-            {canAcknowledge ? (
-                <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void onAck()}>
-                    {busy ? "…" : "Störung quittieren"}
-                </Button>
-            ) : null}
-        </div>
+            title={
+                <>
+                    Audit-Kette manipuliert
+                    {status.broken_at ? ` (Eintrag ${status.broken_at.slice(0, 8)}…)` : ""}
+                </>
+            }
+            subtitle="System- und Backup-Funktionen sind gesperrt, bis ein Administrator die Störung quittiert."
+            actions={
+                canAcknowledge ? (
+                    <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void onAck()}>
+                        {busy ? "…" : "Störung quittieren"}
+                    </Button>
+                ) : undefined
+            }
+        />
     );
 }

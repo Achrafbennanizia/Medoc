@@ -13,3 +13,13 @@ export async function getAuditChainStatus(): Promise<AuditChainStatus> {
 export async function acknowledgeAuditChainBreak(): Promise<void> {
     return practiceSystem.invoke<void>("acknowledge_audit_chain_break");
 }
+
+export interface AuditChainRepairResult {
+    deletedRows: number;
+    chainOk: boolean;
+    brokenAt: string | null;
+}
+
+export async function repairAuditChain(): Promise<AuditChainRepairResult> {
+    return practiceSystem.invoke<AuditChainRepairResult>("repair_audit_chain");
+}

@@ -192,7 +192,9 @@ pub async fn start_lan_embedded(
         .parse()
         .map_err(|_| AppError::Validation("Ungültige Kombination bind_addr/http_port.".into()))?;
 
-    let beacon = LanBeaconPayload {
+    let advertised_host = medoc_core::discovery::primary_local_ipv4().unwrap_or_default();
+
+    let beacon_payload = LanBeaconPayload {
         schema: discovery::SCHEMA.into(),
         version: env!("CARGO_PKG_VERSION").into(),
         http_port: cfg.http_port,
@@ -200,8 +202,9 @@ pub async fn start_lan_embedded(
         label: cfg.instance_label.clone(),
         tls: true,
         cert_sha256: tls_identity.sha256_fingerprint.clone(),
-    }
-    .to_json_line();
+        advertised_host,
+    };
+    let beacon = beacon_payload.to_json_line();
 
     let shutdown = Arc::new(AtomicBool::new(false));
     let sd_http = shutdown.clone();

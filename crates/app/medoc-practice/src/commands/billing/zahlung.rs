@@ -1,4 +1,4 @@
-use crate::application::rbac;
+use crate::application::rbac::{self, FINANZEN_READ_OR_RECEPTION};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::zahlung::{Bilanz, CreateZahlung, UpdateZahlung};
 use crate::domain::entities::Zahlung;
@@ -13,7 +13,7 @@ pub async fn list_zahlungen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<Zahlung>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     zahlung_repo::find_all(&pool).await
 }
 
@@ -24,7 +24,7 @@ pub async fn list_zahlungen_for_patient(
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Vec<Zahlung>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     zahlung_repo::find_by_patient_id(&pool, &patient_id).await
 }
 
@@ -35,7 +35,7 @@ pub async fn list_patient_ids_open_invoice(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<String>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     zahlung_repo::patient_ids_open_invoice(&pool).await
 }
 
@@ -134,7 +134,7 @@ pub async fn get_bilanz(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Bilanz, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     zahlung_repo::get_bilanz(&pool).await
 }
 

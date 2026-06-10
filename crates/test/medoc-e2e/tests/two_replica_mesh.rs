@@ -36,19 +36,7 @@ async fn pair_replica(
     assert_eq!(status, StatusCode::OK, "submit: {submitted:?}");
     let request_id = submitted["id"].as_str().unwrap();
 
-    let (status, decided) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(jwt),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "decide: {decided:?}");
-    decided["activationToken"]
-        .as_str()
-        .expect("activation token")
-        .to_string()
+    lan.pairing_decide_accept_and_confirm(request_id, jwt).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -124,16 +112,9 @@ async fn two_replicas_appear_in_signed_peer_list_with_urls() {
         assert_eq!(status, StatusCode::OK, "submit: {submitted:?}");
         let request_id = submitted["id"].as_str().unwrap();
 
-        let (status, decided) = lan
-            .json(
-                "POST",
-                &format!("/api/v1/pairing/decide/{request_id}"),
-                Some(&serde_json::json!({ "accept": true })),
-                Some(&jwt),
-            )
+        let token = lan
+            .pairing_decide_accept_and_confirm(request_id, &jwt)
             .await;
-        assert_eq!(status, StatusCode::OK, "decide: {decided:?}");
-        let token = decided["activationToken"].as_str().unwrap().to_string();
         tokens.push((device_id, token));
     }
 
@@ -205,16 +186,9 @@ async fn touch_replica_seen_updates_peer_url_on_sync_push() {
         .await;
     assert_eq!(status, StatusCode::OK);
     let request_id = submitted["id"].as_str().unwrap();
-    let (status, decided) = lan
-        .json(
-            "POST",
-            &format!("/api/v1/pairing/decide/{request_id}"),
-            Some(&serde_json::json!({ "accept": true })),
-            Some(&jwt),
-        )
+    let token = lan
+        .pairing_decide_accept_and_confirm(request_id, &jwt)
         .await;
-    assert_eq!(status, StatusCode::OK);
-    let token = decided["activationToken"].as_str().unwrap();
 
     let (status, _push) = lan
         .json_with_connect(
@@ -225,7 +199,7 @@ async fn touch_replica_seen_updates_peer_url_on_sync_push() {
                 "fromDeviceId": device_id,
                 "entries": []
             })),
-            Some(token),
+            Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK);

@@ -3,6 +3,9 @@
 export function baseAllowedGenerated(action: string, role: string): boolean {
     switch (action) {
         case "audit.read":
+        case "aufgabe.status.admin":
+        case "finanzen.read":
+        case "finanzen.tagesabschluss.write":
         case "ops.audit_chain_ack":
         case "ops.backup":
         case "ops.dsgvo":
@@ -13,41 +16,86 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "patient.write_medical":
         case "personal.read":
         case "personal.write":
+        case "verwaltung.praxisplanung.read":
+        case "verwaltung.praxisplanung.write":
+        case "verwaltung.read":
         case "verwaltung.team.read":
         case "verwaltung.vorlagen.read":
         case "verwaltung.vorlagen.write":
         case "vorlagen.read":
         case "vorlagen.write":
             return role === "ARZT";
+        case "aufgabe.status.fulfill":
+        case "bestellung.read":
+        case "bestellung.write":
+        case "dashboard.read":
+        case "finanzen.write":
+        case "patient.behandlungen_list_for_zahlung":
         case "patient.read":
         case "patient.read_documents":
         case "patient.write":
+        case "produkt.read":
+        case "produkt.write":
         case "termin.list_aerzte":
         case "termin.read":
         case "termin.write":
-        case "verwaltung.praxisplanung.read":
-        case "verwaltung.praxisplanung.write":
-            return role === "ARZT" || role === "REZEPTION";
-        case "bestellung.write":
-        case "produkt.write":
-        case "verwaltung.lager.write":
-        case "verwaltung.vertraege.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "PHARMABERATER";
-        case "finanzen.read":
-        case "finanzen.tagesabschluss.write":
-        case "finanzen.write":
-        case "patient.behandlungen_list_for_zahlung":
         case "verwaltung.kataloge.read":
         case "verwaltung.kataloge.write":
-            return role === "ARZT" || role === "REZEPTION" || role === "STEUERBERATER";
-        case "bestellung.read":
-        case "dashboard.read":
-        case "produkt.read":
         case "verwaltung.lager.read":
-        case "verwaltung.read":
+        case "verwaltung.lager.write":
         case "verwaltung.vertraege.read":
-            return true;
+        case "verwaltung.vertraege.write":
+            return role === "ARZT" || role === "REZEPTION";
+        case "finanzen.reception.view":
+            return role === "REZEPTION";
         default:
             return false;
     }
 }
+
+/** All actions declared in `config/rbac.yaml` (stable order). */
+export const RBAC_ALL_ACTIONS = [
+    "audit.read",
+    "aufgabe.status.admin",
+    "aufgabe.status.fulfill",
+    "bestellung.read",
+    "bestellung.write",
+    "dashboard.read",
+    "finanzen.read",
+    "finanzen.reception.view",
+    "finanzen.tagesabschluss.write",
+    "finanzen.write",
+    "ops.audit_chain_ack",
+    "ops.backup",
+    "ops.dsgvo",
+    "ops.logs",
+    "ops.migration",
+    "ops.system",
+    "patient.behandlungen_list_for_zahlung",
+    "patient.read",
+    "patient.read_documents",
+    "patient.read_medical",
+    "patient.write",
+    "patient.write_medical",
+    "personal.read",
+    "personal.write",
+    "produkt.read",
+    "produkt.write",
+    "termin.list_aerzte",
+    "termin.read",
+    "termin.write",
+    "verwaltung.kataloge.read",
+    "verwaltung.kataloge.write",
+    "verwaltung.lager.read",
+    "verwaltung.lager.write",
+    "verwaltung.praxisplanung.read",
+    "verwaltung.praxisplanung.write",
+    "verwaltung.read",
+    "verwaltung.team.read",
+    "verwaltung.vertraege.read",
+    "verwaltung.vertraege.write",
+    "verwaltung.vorlagen.read",
+    "verwaltung.vorlagen.write",
+    "vorlagen.read",
+    "vorlagen.write",
+] as const;

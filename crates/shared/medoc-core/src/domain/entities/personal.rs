@@ -9,6 +9,14 @@ pub struct AerztSummary {
     pub name: String,
 }
 
+/// Minimal Arzt/Rezeption directory for Praxis-Aufgaben (no HR fields).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AufgabeTeamMember {
+    pub id: String,
+    pub name: String,
+    pub rolle: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Personal {
     pub id: String,

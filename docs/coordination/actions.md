@@ -1,20 +1,92 @@
 # Action ledger
 
-**Last updated:** 2026-06-06 (repo-root restructure R9–R10 complete)
+**Last updated:** 2026-06-10 (Refactor & harden pass started)
+
+## Now
+
+- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
+- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
+- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
+- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+
+**Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
+
+## Master plan
+
+Active cost-priority delivery plan and test allow-list:
+
+| Document | Purpose |
+| -------- | ------- |
+| [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
+| [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
+| [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-06-07 — MVP plan todos)
+
+## Done (2026-06-07 — MVP plan todos)
+
+- **persist-plan-docs:** Master plan links in actions.md; W6 boot path in mvp-cost-priority-plan.md.
+- **w7-lan-client:** Playwright patient list RBAC; deployment hints; lan-client-deployment doc paths.
+- **w8-two-device:** `two-device-sync-smoke.sh` AUTO_ONLY default + Docker 17/17 proxy.
+- **ux-workflows:** Field hints (patient, termin, deployment, pairing); abandon confirm; export PDF smoke; P0 route smokes.
+- **phase2-hardening:** Statistik Krankheitsbild empty state; release-gate automated ticks; coordination ledgers.
+
+## Done (2026-06-07 — T-U1 medoc-sync tests)
+
+- **New:** `crates/shared/medoc-sync/tests/repo_store_tests.rs` — 10 tests (outbox, peer vector, sync_record_or_noop, status).
+- **Engine:** `ingest_push_rejects_outbox_device_id_mismatch`, `collect_pull_returns_entries_after_since_seq` in `engine/run.rs`.
+- **Validation:** `cargo test -p medoc-sync` **PASS**; `bash scripts/validate-docker.sh` **PASS** (~7 min, 17/17 port).
+- **Docs:** MVP checklist + validation/phase-handoff updated.
+
+## Now
+
+1. **G21b live Tauri smoke** — rows 1–9: `bash tools/g21-dev-smoke.sh` + [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
+2. **T-U1 XL:** `bash tools/mvp-rust-coverage.sh` — engine/repo still partial toward 100%
+3. **Optional:** `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` (Tauri in Docker)
+
+## Later
+
+- **Einstellungen → Benachrichtigungen (re-enable):** Set `BENACHRICHTIGUNGEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal push / notification microservices are deployed and `companyPortalFetchFeatureFlags` is production-ready. Panel: `einstellungen-benachrichtigungen-section.tsx`; gate: `settingsSectionVisible("benachrichtigungen", …)`.
+- **Einstellungen → System — ausgeblendete Panels (re-enable):** Flags in `settings-ui-flags.ts` — set `SYSTEM_SERVERLESS_FOCUS_ENABLED = false` to restore full System panel; or enable individually:
+  - `SYSTEM_APPEARANCE_TOGGLES_ENABLED` — Benutzeravatar, Tastenkürzel (`einstellungen-system-section.tsx` legacy block)
+  - `SYSTEM_AKTE_PHOTO_VIEWER_ENABLED` — externe App für Akten-Anlagen
+  - `SYSTEM_DIAGNOSTICS_ENABLED` — Auto-Abmeldung, Health-Check, Performance-Schwelle
+  - `SYSTEM_LAN_HOST_PANEL_ENABLED` — vollständiges LAN-Host / Zweitgeräte-Panel (`einstellungen-lan-host.tsx`)
+  - `SYSTEM_COMPANY_PORTAL_ENABLED` — Hersteller-Portal (`einstellungen-company-portal-section.tsx`)
+  - `SYSTEM_OPS_EXTRAS_ENABLED` — Backup jetzt, Ops-Vorschau, Weitere-Seiten-Links
+  - `SYSTEM_LEGACY_DEPLOYMENT_MODES_ENABLED` — Betriebsmodi Praxis-Desktop + LAN-Client im Deployment-Select
+  - `SYSTEM_MESH_SYNC_ENABLED` — experimenteller Mesh-Sync zwischen Replicas
+- **Posteingang (re-enable):** Aufgaben sind auf **`/tickets`** integriert (Praxis-Tickets & Aufgaben). Ein separater Posteingang-Nav-Eintrag ist nicht geplant — bei Bedarf nur Badge/Polling-Verhalten anpassen. Admin-CRUD bleibt unter **Verwaltung → Praxis-Aufgaben** (`/verwaltung/aufgaben`).
+- **Einstellungen → Darstellung → Dunkle Seitenleiste (re-enable):** Set `DARK_SIDEBAR_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when sidebar dark-tone styling is polished and QA’d across light/dark themes. Toggle: `einstellungen-darstellung-section.tsx`; runtime still reads `appearance.darkSidebar` via `applyAppearanceFromSettings`.
+- **Termin: Pause / Notfall-Werkzeuge (CAL2, re-enable):** Set `CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when Pause/Notfall toolbar dialogs in `termine.tsx` are product-ready. Settings toggle: `einstellungen-arbeitsablaeufe-section.tsx` (`workflows.calendarEmergencyToolbarEnabled`); Notfall-Filter in Termine stays available regardless.
+- **Einstellungen → Integrationen (re-enable):** Set `INTEGRATIONEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal integration status and local capability toggles are production-ready. Panel: `einstellungen-integrationen-section.tsx`; gate: `settingsSectionVisible("integrationen", …)`.
+- **Einstellungen → Migration (re-enable):** Set `MIGRATION_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when the dedicated Migration settings nav should appear again (CSV wizard remains at `/migration` via System → Datenmigration until then). Panel: `einstellungen-migration-section.tsx`; gate: `settingsSectionVisible("migration", …)`.
+
+## Done (2026-06-06 — Docker Wave V1 user run)
+
+- **Linux container:** `medoc-rust-wave-v1:latest` — fmt, clippy, tests, in-process e2e, proptests **PASS** (documented in [`validation.md`](validation.md)).
+- **Code fixes:** `praxis/core.rs`, `system/core.rs`; fmt module order; e2e clippy; `medoc` test dev-deps.
+
+## Done (2026-06-06 restructure continuation)
+
+- **Docs:** `mvp-test-scope.md`, `release-gate-checklist.md`, `g21-live-smoke-checklist.md`, `multi-device-api-catalog.md` — paths updated to `apps/`, `crates/`, `packages/`.
+- **Scripts:** `tools/mvp-rust-coverage.sh`; root `npm run test:mvp-coverage`; `g21-dev-smoke.sh` row 9.
+- **Validation:** `npm test` **232 PASS**; `test:mvp-coverage` **22/22 PASS**; `g21-verify-automated.sh` **PASS**; Docker multi-device **17/17**; `validate-lan-web-client.sh` **PASS**.
+- **E2e count:** **85** HTTP integration tests (`crates/test/medoc-e2e`).
+
+## Now
+
+1. **G21b live Tauri smoke** — rows 1–9: `bash tools/g21-dev-smoke.sh` + [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
+2. **Optional:** `bash scripts/validate-docker.sh` (full pipeline) or `VALIDATE_DOCKER_FULL=1` (Tauri in Docker)
+3. **T-U1 Rust:** `bash tools/mvp-rust-coverage.sh` — engine/repo still partial (XL)
 
 ## Done (2026-06-06 restructure + lan-web)
 
 - **R9:** `apps/`, `crates/`, `packages/` at repo root; root Cargo + npm workspaces.
 - **R10:** `apps/lan-web-client` (browser LAN client, port 1421).
 - **Dead code:** removed ~120 archived/unwired files (`archive_flat`, orphan systems modules, stale barrels).
-- **Docker:** `validate-docker.sh` PASS; multi-device **17/17**; optional `VALIDATE_DOCKER_FULL=1` for Tauri link.
-- **Validation:** `npm test` **232 PASS**; `npm run build` PASS; `cargo check -p medoc` PASS.
-
-## Now
-
-1. **G21b live Tauri smoke** — sign rows 1–9 in [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md)
-2. **Optional:** `MEDOC_LAN_E2E=1 npm run test:playwright` with live `medoc-server`
-3. **T-U1 Rust:** `engine.rs` / `repo.rs` coverage still partial (XL follow-up)
+- **Docker:** Wave V1 scoped container **PASS** (user 2026-06-06); `validate-docker.sh` + multi-device **17/17** (prior agent run); optional `VALIDATE_DOCKER_FULL=1` for Tauri link.
+- **Validation:** `npm test` **232 PASS**; `npm run build` PASS; Wave V1 Docker container **PASS**.
 
 ## Done (2026-06-02 MVP plan completion)
 

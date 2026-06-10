@@ -10,6 +10,8 @@ import {
     submitFeedback,
     type FeedbackKategorie,
 } from "@/systems/practice-host/controllers/feedback.controller";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 export function FeedbackPage() {
     const t = useT();
@@ -47,15 +49,20 @@ export function FeedbackPage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
-            <header>
-                <h1 className="page-title">{t("page.feedback.title")}</h1>
-                <p style={{ color: "var(--fg-3)", fontSize: 14, maxWidth: 720, lineHeight: 1.55 }}>{t("page.feedback.banner")}</p>
-            </header>
+        <div className="praxis-workspace-page animate-fade-in">
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={t("page.feedback.title")}
+                subtitle={t("page.feedback.banner")}
+            />
 
-            <div role="status" className="card card-pad" style={{ background: "rgba(255,149,0,0.08)", borderColor: "rgba(255,149,0,0.25)" }}>
-                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5 }}>{t("page.feedback.notice_vigilance")}</p>
-            </div>
+            <DismissibleNotice
+                variant="warning"
+                dismissKey="feedback-vigilance-notice"
+                title={t("page.feedback.banner")}
+            >
+                {t("page.feedback.notice_vigilance")}
+            </DismissibleNotice>
 
             <Card>
                 <div style={{ padding: 16, paddingTop: 14 }}>

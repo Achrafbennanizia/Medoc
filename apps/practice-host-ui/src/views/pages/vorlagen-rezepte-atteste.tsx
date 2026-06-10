@@ -11,7 +11,7 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { VerwaltungReadField } from "../components/verwaltung-read-field";
 import { VorlageEditorPanel } from "./vorlage-editor";
 import { EditIcon, TrashIcon } from "@/lib/icons";
@@ -111,8 +111,8 @@ export function VorlagenRezepteAttestePage() {
     if (status === "loading") return <PageLoading label="Vorlagen werden geladen…" />;
     if (status === "error" && loadError) {
         return (
-            <div className="produkte-page animate-fade-in space-y-4">
-                <VerwaltungBackButton />
+            <div className="produkte-page praxis-workspace-page animate-fade-in">
+                <VerwaltungPageHeader title="Rezepte und Atteste vordefinieren" />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
@@ -215,7 +215,7 @@ export function VorlagenRezepteAttestePage() {
     })();
 
     return (
-        <div className="produkte-page animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="produkte-page praxis-workspace-page animate-fade-in">
             <ConfirmDialog
                 open={Boolean(deleteId)}
                 title="Löschen bestätigen"
@@ -226,27 +226,26 @@ export function VorlagenRezepteAttestePage() {
                 onClose={() => setDeleteId(null)}
             />
 
-            <div>
-                <VerwaltungBackButton />
-            </div>
-            <div className="page-head" style={{ alignItems: "flex-start" }}>
-                <div>
-                    <h2 className="page-title">Rezepte und Atteste vordefinieren</h2>
-                    <p className="page-sub" style={{ maxWidth: 560, marginTop: 4 }}>
+            <VerwaltungPageHeader
+                title="Rezepte und Atteste vordefinieren"
+                subtitle={
+                    <>
                         Vorlagen für die Patientenakte — Liste links, Rechts: Details oder <strong>Neues Rezept / Attest</strong> in dieser Ansicht (wie Produkte, ohne Extra-Route).
-                    </p>
-                </div>
-                {canWrite ? (
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end" }}>
-                        <Button type="button" variant="secondary" onClick={openNewAttest}>
-                            Atteste einstellen
-                        </Button>
-                        <Button type="button" onClick={openNewRezept} style={{ flexShrink: 0 }}>
-                            Rezept einstellen
-                        </Button>
-                    </div>
-                ) : null}
-            </div>
+                    </>
+                }
+                actions={
+                    canWrite ? (
+                        <>
+                            <Button type="button" variant="secondary" onClick={openNewAttest}>
+                                Atteste einstellen
+                            </Button>
+                            <Button type="button" onClick={openNewRezept}>
+                                Rezept einstellen
+                            </Button>
+                        </>
+                    ) : null
+                }
+            />
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list">
@@ -259,8 +258,8 @@ export function VorlagenRezepteAttestePage() {
                             />
                         </Card>
                     ) : (
-                        <div className="card produkte-table-card tbl-scroll">
-                            <table className="tbl produkte-tbl" style={{ minWidth: 480 }}>
+                        <div className="card produkte-table-card tbl-data-card tbl-scroll">
+                            <table className="tbl produkte-tbl">
                                 <thead>
                                     <tr>
                                         <th scope="col">Titel</th>

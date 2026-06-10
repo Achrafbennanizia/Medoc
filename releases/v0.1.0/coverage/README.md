@@ -1,47 +1,35 @@
 # MVP scoped coverage archive — v0.1.0
 
-Generated during MVP plan completion (2026-06-06).
-
-## Frontend (T-U2) — **100% on allow-list**
-
-Command:
+Generated during MVP plan execution. Re-run anytime:
 
 ```bash
-cd app && npm run test:mvp-coverage
+bash tools/mvp-rust-coverage.sh --archive   # Rust HTML + snapshot (~25 min)
+npm run test:mvp-coverage -w medoc          # FE scoped 100% (~3 s)
 ```
 
-Modules (see `docs/coordination/mvp-test-scope.md`):
+## Contents
 
-- `sync.controller.ts`
-- `pairing.controller.ts`
-- `pairing-scan.controller.ts`
-- `deployment-config.ts`
-- `quittung-export-flow.ts`
+| Path | Description |
+|------|-------------|
+| `rust-medoc-sync/html/` | `cargo llvm-cov -p medoc-sync` HTML report |
+| `fe-mvp-unit/lcov.info` | Vitest lcov for 5 T-U2 modules |
+| [`../../docs/coordination/coverage-snapshot.md`](../../docs/coordination/coverage-snapshot.md) | Human-readable numbers |
 
-Artifact: `mvp-unit-fe.lcov.info` (Vitest v8, `mvp-unit` project).
+## Latest snapshot (2026-06-07)
 
-## Rust (T-U1) — **partial** (not 100% on full allow-list)
+### Frontend (T-U2) — **100%** on allow-list
 
-Command (example):
+Modules: sync/pairing controllers, pairing-scan, deployment-config, quittung-export-flow.
 
-```bash
-cd app && export MEDOC_VENDOR_PUBKEY=... MEDOC_DB_KEY=... MEDOC_PAIRING_MASTER_SECRET=...
-cargo llvm-cov -p medoc-sync --summary-only
-```
-
-Snapshot (2026-06-06, `medoc-sync` crate only):
+### Rust medoc-sync (T-U1) — **partial**
 
 | Module | Lines |
 |--------|-------|
-| `schema.rs` | ~100% |
-| `pairing.rs` | ~86% |
-| `merge.rs` | ~62% |
-| `engine.rs` | ~26% |
-| `repo.rs` | ~32% |
+| `engine/run.rs` | 47.80% |
+| `repo/store.rs` | 94.59% |
+| `merge.rs` | 62.31% |
 
-Full T-U1 (100% on all scoped Rust modules) remains **XL** effort — tracked in `mvp-test-scope.md`.
+### Integration (T-I1)
 
-## Integration (T-I1)
-
-- **85** in-process + port HTTP tests in `medoc-e2e`
-- **17/17** port tests GREEN via `bash scripts/validate-docker-multi-device.sh`
+- **85** tests in `crates/test/medoc-e2e`
+- Docker port **17/17**

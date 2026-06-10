@@ -230,7 +230,8 @@ CREATE TABLE IF NOT EXISTS device_session (
             user_agent TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-            ended_at TEXT
+            ended_at TEXT,
+            trusted_at TEXT
         );
 
 CREATE INDEX IF NOT EXISTS idx_device_session_user ON device_session (user_id, ended_at);
@@ -416,7 +417,7 @@ CREATE INDEX IF NOT EXISTS idx_praxis_ticket_from ON praxis_ticket(from_user_id,
 
 CREATE TABLE IF NOT EXISTS praxis_aufgabe (
             id TEXT PRIMARY KEY,
-            patient_id TEXT NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+            patient_id TEXT REFERENCES patient(id) ON DELETE SET NULL,
             typ TEXT NOT NULL DEFAULT 'SONSTIGES',
             titel TEXT NOT NULL,
             body TEXT,

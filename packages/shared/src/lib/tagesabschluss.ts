@@ -36,6 +36,30 @@ export function sumEinnahmenTag(zahlungen: Zahlung[], ymd: string): number {
         .reduce((s, x) => s + x.betrag, 0);
 }
 
+export function isKasseUngeprueft(z: Zahlung): boolean {
+    return (z.kasse_geprueft ?? 0) !== 1;
+}
+
+export function isVerbuchteZahlung(z: Zahlung): boolean {
+    return !isStorniert(z) && (z.status === "BEZAHLT" || z.status === "TEILBEZAHLT");
+}
+
+/** Zahlungen für Rezeption: heute erfasst, noch nicht im Tagesabschluss bestätigt. */
+export function filterRezeptionKassenQueue(zahlungen: Zahlung[], ymd: string): Zahlung[] {
+    return zahlungen.filter(
+        (z) => zahlungLocalYmd(z.created_at) === ymd && isVerbuchteZahlung(z) && isKasseUngeprueft(z),
+    );
+}
+
+export function filterRezeptionKassenQueueOlder(zahlungen: Zahlung[], beforeYmd: string): Zahlung[] {
+    return zahlungen.filter(
+        (z) => {
+            const d = zahlungLocalYmd(z.created_at);
+            return d !== "" && d < beforeYmd && isVerbuchteZahlung(z) && isKasseUngeprueft(z);
+        },
+    );
+}
+
 export const AMOUNT_TOL = 0.01;
 
 export function amountsMatch(a: number, b: number): boolean {

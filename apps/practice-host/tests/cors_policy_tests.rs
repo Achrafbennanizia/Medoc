@@ -87,6 +87,7 @@ fn discovery_peer_adds_lan_https_origin() {
         label: "lab".into(),
         tls: true,
         cert_sha256: String::new(),
+        advertised_host: String::new(),
     };
     let origins = cors_policy::lan_allowed_origin_strings(9443, &[], &[(peer, beacon)]);
     assert!(origins.contains(&"https://192.168.1.50:9443".to_string()));

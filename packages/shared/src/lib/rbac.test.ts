@@ -11,8 +11,16 @@ import {
     settingsSectionVisible,
     type Role,
 } from "./rbac";
+import { DATENSCHUTZ_UI_ENABLED } from "./datenschutz-config";
+import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
+import {
+    BENACHRICHTIGUNGEN_SETTINGS_ENABLED,
+    INTEGRATIONEN_SETTINGS_ENABLED,
+    MIGRATION_SETTINGS_ENABLED,
+} from "./settings-ui-flags";
+import { ACTIVE_ROLE_WIRES } from "./deferred-roles";
 
-const ROLES = ["ARZT", "REZEPTION", "STEUERBERATER", "PHARMABERATER"] as const satisfies readonly Role[];
+const ROLES = ACTIVE_ROLE_WIRES satisfies readonly Role[];
 
 const VERWALTUNG_ROUTE_KEYS = [
     "verwaltung",
@@ -60,49 +68,7 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
         "verwaltung/leistungen-kataloge-vorlagen": true,
     },
     REZEPTION: {
-        verwaltung: true,
-        "verwaltung/team": false,
-        "verwaltung/arbeitstage": true,
-        "verwaltung/praxisplanung": true,
-        "verwaltung/arbeitszeiten": true,
-        "verwaltung/sonder-sperrzeiten": true,
-        "verwaltung/praxis-praeferenzen": true,
-        "verwaltung/vorlagen": false,
-        "verwaltung/vorlagen/editor": false,
-        "verwaltung/behandlungs-katalog": true,
-        "verwaltung/bestellstamm": true,
-        "verwaltung/finanzen-werkzeuge": true,
-        "verwaltung/tagesabschluss": true,
-        "verwaltung/finanzen-berichte": true,
-        "verwaltung/finanzen-berichte/tagesabschluss": true,
-        "verwaltung/finanzen-berichte/rechnung": true,
-        "verwaltung/lager-und-bestellwesen": true,
-        "verwaltung/vertraege": true,
-        "verwaltung/leistungen-kataloge-vorlagen": true,
-    },
-    STEUERBERATER: {
-        verwaltung: true,
-        "verwaltung/team": false,
-        "verwaltung/arbeitstage": false,
-        "verwaltung/praxisplanung": false,
-        "verwaltung/arbeitszeiten": false,
-        "verwaltung/sonder-sperrzeiten": false,
-        "verwaltung/praxis-praeferenzen": false,
-        "verwaltung/vorlagen": false,
-        "verwaltung/vorlagen/editor": false,
-        "verwaltung/behandlungs-katalog": true,
-        "verwaltung/bestellstamm": true,
-        "verwaltung/finanzen-werkzeuge": true,
-        "verwaltung/tagesabschluss": true,
-        "verwaltung/finanzen-berichte": true,
-        "verwaltung/finanzen-berichte/tagesabschluss": true,
-        "verwaltung/finanzen-berichte/rechnung": true,
-        "verwaltung/lager-und-bestellwesen": true,
-        "verwaltung/vertraege": true,
-        "verwaltung/leistungen-kataloge-vorlagen": true,
-    },
-    PHARMABERATER: {
-        verwaltung: true,
+        verwaltung: false,
         "verwaltung/team": false,
         "verwaltung/arbeitstage": false,
         "verwaltung/praxisplanung": false,
@@ -112,16 +78,17 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
         "verwaltung/vorlagen": false,
         "verwaltung/vorlagen/editor": false,
         "verwaltung/behandlungs-katalog": false,
-        "verwaltung/bestellstamm": true,
+        "verwaltung/bestellstamm": false,
         "verwaltung/finanzen-werkzeuge": false,
         "verwaltung/tagesabschluss": false,
         "verwaltung/finanzen-berichte": false,
         "verwaltung/finanzen-berichte/tagesabschluss": false,
         "verwaltung/finanzen-berichte/rechnung": false,
-        "verwaltung/lager-und-bestellwesen": true,
-        "verwaltung/vertraege": true,
+        "verwaltung/lager-und-bestellwesen": false,
+        "verwaltung/vertraege": false,
         "verwaltung/leistungen-kataloge-vorlagen": false,
     },
+    // TODO(deferred-roles): STEUERBERATER / PHARMABERATER — see docs/coordination/todos-deferred-roles.md
 };
 
 describe("parseRole", () => {
@@ -129,9 +96,11 @@ describe("parseRole", () => {
         expect(parseRole("ARZT")).toBe("ARZT");
         expect(parseRole("REZEPTION")).toBe("REZEPTION");
     });
-    it("rejects unknown", () => {
+    it("rejects unknown and deferred advisor roles", () => {
         expect(parseRole("ADMIN")).toBeNull();
         expect(parseRole(undefined)).toBeNull();
+        expect(parseRole("STEUERBERATER")).toBeNull();
+        expect(parseRole("PHARMABERATER")).toBeNull();
     });
 });
 
@@ -140,15 +109,9 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
         expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
         expect(allowed("audit.read", "REZEPTION")).toBe(false);
     });
-    it("Steuerberater may finanzen but not clinical", () => {
-        expect(allowed("finanzen.read", "STEUERBERATER")).toBe(true);
-        expect(allowed("patient.read_medical", "STEUERBERATER")).toBe(false);
-    });
-    it("bestellung.write mirrors Rust (not Steuerberater; Pharmaberater may)", () => {
-        expect(allowed("bestellung.read", "STEUERBERATER")).toBe(true);
-        expect(allowed("bestellung.write", "STEUERBERATER")).toBe(false);
+    it("bestellung.write mirrors Rust (ARZT + REZEPTION)", () => {
         expect(allowed("bestellung.write", "ARZT")).toBe(true);
-        expect(allowed("bestellung.write", "PHARMABERATER")).toBe(true);
+        expect(allowed("bestellung.write", "REZEPTION")).toBe(true);
     });
     it("vorlagen.read/write mirror personal scope (Arzt only)", () => {
         expect(allowed("vorlagen.read", "ARZT")).toBe(true);
@@ -160,29 +123,20 @@ describe("allowed (mirror of Rust rbac::allowed)", () => {
         expect(allowed("verwaltung.vorlagen.read", "ARZT")).toBe(true);
         expect(allowed("verwaltung.vorlagen.read", "REZEPTION")).toBe(false);
     });
-    it("verwaltung.lager.write excludes Steuerberater", () => {
-        expect(allowed("verwaltung.lager.write", "STEUERBERATER")).toBe(false);
+    it("verwaltung.lager.write for REZEPTION", () => {
         expect(allowed("verwaltung.lager.write", "REZEPTION")).toBe(true);
     });
-    it("verwaltung.vertraege.write excludes Steuerberater", () => {
-        expect(allowed("verwaltung.vertraege.write", "STEUERBERATER")).toBe(false);
-        expect(allowed("verwaltung.vertraege.read", "STEUERBERATER")).toBe(true);
-    });
-    it("finanzen.tagesabschluss.write matches finanzen.write roles", () => {
-        expect(allowed("finanzen.tagesabschluss.write", "STEUERBERATER")).toBe(true);
-        expect(allowed("finanzen.tagesabschluss.write", "PHARMABERATER")).toBe(false);
+    it("finanzen.tagesabschluss.write Arzt only (deferred Steuerberater)", () => {
+        expect(allowed("finanzen.tagesabschluss.write", "ARZT")).toBe(true);
+        expect(allowed("finanzen.tagesabschluss.write", "REZEPTION")).toBe(false);
     });
     it("patient.behandlungen_list_for_zahlung matches billing roles (mirrors Rust)", () => {
         expect(allowed("patient.behandlungen_list_for_zahlung", "ARZT")).toBe(true);
         expect(allowed("patient.behandlungen_list_for_zahlung", "REZEPTION")).toBe(true);
-        expect(allowed("patient.behandlungen_list_for_zahlung", "STEUERBERATER")).toBe(true);
-        expect(allowed("patient.behandlungen_list_for_zahlung", "PHARMABERATER")).toBe(false);
     });
     it("patient.read_documents matches Rust (ARZT + REZEPTION)", () => {
         expect(allowed("patient.read_documents", "ARZT")).toBe(true);
         expect(allowed("patient.read_documents", "REZEPTION")).toBe(true);
-        expect(allowed("patient.read_documents", "STEUERBERATER")).toBe(false);
-        expect(allowed("patient.read_documents", "PHARMABERATER")).toBe(false);
     });
 });
 
@@ -201,49 +155,58 @@ describe("routeChildPathAllowed", () => {
     it("denies unknown route key", () => {
         expect(routeChildPathAllowed("unknown", "ARZT")).toBe(false);
     });
-    it("allows bestellungen with finanzen.read", () => {
-        expect(routeChildPathAllowed("bestellungen", "STEUERBERATER")).toBe(true);
-        expect(routeChildPathAllowed("bestellungen", "PHARMABERATER")).toBe(false);
+    it("allows bestellungen with bestellung.read (active roles)", () => {
+        expect(routeChildPathAllowed("bestellungen", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("bestellungen", "ARZT")).toBe(true);
     });
-    it("allows bestellungen/neu only with finanzen.write", () => {
+    it("allows bestellungen/neu only with bestellung.write", () => {
         expect(routeChildPathAllowed("bestellungen/neu", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("bestellungen/neu", "STEUERBERATER")).toBe(true);
         expect(routeChildPathAllowed("bestellungen/neu", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("bestellungen/neu", "PHARMABERATER")).toBe(false);
     });
     it("allows migration only for Arzt", () => {
         expect(routeChildPathAllowed("migration", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("migration", "REZEPTION")).toBe(false);
     });
-    it("allows hilfe and feedback for all roles", () => {
-        expect(routeChildPathAllowed("hilfe", "PHARMABERATER")).toBe(true);
+    it("allows hilfe and feedback for active roles", () => {
+        expect(routeChildPathAllowed("hilfe", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("feedback", "REZEPTION")).toBe(true);
     });
     it("allows termine/neu for roles with termin.write", () => {
         expect(routeChildPathAllowed("termine/neu", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("termine/neu", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("termine/neu", "PHARMABERATER")).toBe(false);
     });
-    it("allows bilanz/neu for Arzt and Steuerberater", () => {
+    it("allows bilanz/neu for Arzt only (deferred Steuerberater)", () => {
         expect(routeChildPathAllowed("bilanz/neu", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("bilanz/neu", "STEUERBERATER")).toBe(true);
         expect(routeChildPathAllowed("bilanz/neu", "REZEPTION")).toBe(false);
     });
     it("allows akten zu validieren only for Arzt (patient.read_medical)", () => {
         expect(routeChildPathAllowed("akten/zu-validieren", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("akten/zu-validieren", "REZEPTION")).toBe(false);
-        expect(routeChildPathAllowed("akten/zu-validieren", "STEUERBERATER")).toBe(false);
     });
     it("allows tickets for Arzt and Rezeption only", () => {
         expect(routeChildPathAllowed("tickets", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("tickets", "REZEPTION")).toBe(true);
+    });
+    it("denies routes for deferred advisor wire strings", () => {
         expect(routeChildPathAllowed("tickets", "STEUERBERATER")).toBe(false);
         expect(routeChildPathAllowed("tickets", "PHARMABERATER")).toBe(false);
     });
-    it("posteingang route for Arzt and Rezeption", () => {
-        expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
-        expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+    it("posteingang route respects POSTEINGANG_UI_ENABLED", () => {
+        if (POSTEINGANG_UI_ENABLED) {
+            expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(true);
+            expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("posteingang", "ARZT")).toBe(false);
+            expect(routeChildPathAllowed("posteingang", "REZEPTION")).toBe(false);
+        }
         expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
+    });
+    it("datenschutz route respects DATENSCHUTZ_UI_ENABLED", () => {
+        if (DATENSCHUTZ_UI_ENABLED) {
+            expect(routeChildPathAllowed("datenschutz", "ARZT")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("datenschutz", "ARZT")).toBe(false);
+        }
     });
     it("GAP-01: REZEPTION cannot read medical records action", () => {
         expect(allowed("patient.read_medical", "REZEPTION")).toBe(false);
@@ -264,10 +227,43 @@ describe("resolveRoutePathFromLocation", () => {
 });
 
 describe("settingsSectionVisible", () => {
-    it("hides migration and system for REZEPTION", () => {
+    it("hides admin-only Einstellungen panels for REZEPTION", () => {
         expect(settingsSectionVisible("migration", "REZEPTION")).toBe(false);
         expect(settingsSectionVisible("system", "REZEPTION")).toBe(false);
-        expect(settingsSectionVisible("praxis", "REZEPTION")).toBe(true);
+        expect(settingsSectionVisible("lizenz", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("integrationen", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("praxis", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("sicherheit", "REZEPTION")).toBe(false);
+        expect(settingsSectionVisible("konto", "REZEPTION")).toBe(true);
+        expect(settingsSectionVisible("darstellung", "REZEPTION")).toBe(true);
+        expect(settingsSectionVisible("arbeitsablaeufe", "REZEPTION")).toBe(true);
+        expect(settingsSectionVisible("ueber", "REZEPTION")).toBe(true);
+    });
+
+    it("benachrichtigungen settings respects BENACHRICHTIGUNGEN_SETTINGS_ENABLED", () => {
+        if (BENACHRICHTIGUNGEN_SETTINGS_ENABLED) {
+            expect(settingsSectionVisible("benachrichtigungen", "REZEPTION")).toBe(true);
+            expect(settingsSectionVisible("benachrichtigungen", "ARZT")).toBe(true);
+        } else {
+            expect(settingsSectionVisible("benachrichtigungen", "REZEPTION")).toBe(false);
+            expect(settingsSectionVisible("benachrichtigungen", "ARZT")).toBe(false);
+        }
+    });
+
+    it("shows praxis and sicherheit for ARZT", () => {
+        expect(settingsSectionVisible("praxis", "ARZT")).toBe(true);
+        expect(settingsSectionVisible("sicherheit", "ARZT")).toBe(true);
+        expect(settingsSectionVisible("lizenz", "ARZT")).toBe(true);
+        if (INTEGRATIONEN_SETTINGS_ENABLED) {
+            expect(settingsSectionVisible("integrationen", "ARZT")).toBe(true);
+        } else {
+            expect(settingsSectionVisible("integrationen", "ARZT")).toBe(false);
+        }
+        if (MIGRATION_SETTINGS_ENABLED) {
+            expect(settingsSectionVisible("migration", "ARZT")).toBe(true);
+        } else {
+            expect(settingsSectionVisible("migration", "ARZT")).toBe(false);
+        }
     });
 });
 
@@ -281,18 +277,28 @@ describe("navItemVisible", () => {
         expect(navItemVisible("ARZT", item)).toBe(true);
         expect(navItemVisible("REZEPTION", item)).toBe(false);
     });
-    it("Verwaltung nav uses verwaltung.read (all four roles)", () => {
+    it("Verwaltung nav uses verwaltung.read (not REZEPTION)", () => {
         const item = NAV_ITEM_DEFINITIONS.find((i) => i.to === "/verwaltung");
         expect(item).toBeDefined();
-        for (const role of ROLES) {
-            expect(navItemVisible(role, item!)).toBe(true);
-        }
+        expect(navItemVisible("REZEPTION", item!)).toBe(false);
+        expect(navItemVisible("ARZT", item!)).toBe(true);
     });
 
-    it("N6: REZEPTION can open Praxisplanung routes but not Team (personal HR)", () => {
-        expect(routeChildPathAllowed("verwaltung/praxisplanung", "REZEPTION")).toBe(true);
-        expect(routeChildPathAllowed("verwaltung/arbeitszeiten", "REZEPTION")).toBe(true);
+    it("REZEPTION: Kasseneingänge statt Finanzen/Tagesabschluss", () => {
+        expect(routeChildPathAllowed("finanzen", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("finanzen/kasse", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("finanzen/kasse/neu", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "REZEPTION")).toBe(false);
+        expect(navItemVisible("REZEPTION", NAV_ITEM_DEFINITIONS.find((i) => i.to === "/finanzen/kasse")!)).toBe(true);
+        expect(navItemVisible("REZEPTION", NAV_ITEM_DEFINITIONS.find((i) => i.to === "/finanzen")!)).toBe(false);
+    });
+
+    it("N6: REZEPTION has no Verwaltung routes", () => {
+        expect(routeChildPathAllowed("verwaltung/praxisplanung", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/arbeitszeiten", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/team", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("personal", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/behandlungs-katalog", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "REZEPTION")).toBe(false);
     });
 });

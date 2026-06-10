@@ -21,12 +21,14 @@ import { allowed, parseRole } from "@/lib/rbac";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, BehandlungsKatalogItem } from "@/models/types";
 import { useAuthStore } from "@/models/store/auth-store";
 import { Button } from "@/views/components/ui/button";
+import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { PageLoading } from "@/views/components/ui/page-status";
 import { EMPTY_ANAMNESE_V1_JSON, parseAnamneseV1 } from "@/lib/anamnese";
 import { computeAkteCompleteness, type AkteCompletenessGap } from "@/lib/akte-completeness";
 import { PatientDetailAkteSubnav } from "./patient-detail-akte-subnav";
 import { PatientDetailShellHeader } from "./patient-detail-shell-header";
+import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
 import { usePatientDetailAkteSave } from "./use-patient-detail-akte-save";
 import { usePatientDetailClinicalActions } from "./use-patient-detail-clinical-actions";
 import { usePatientDetailValidation } from "./use-patient-detail-validation";
@@ -91,6 +93,7 @@ export function PatientDetailPage() {
         && (allowed("patient.read_medical", role) || allowed("patient.read_documents", role));
     const canListBehandlungenForZahlung = role != null && allowed("patient.behandlungen_list_for_zahlung", role);
     const canWriteMedical = role != null && allowed("patient.write_medical", role);
+    const canReadDocuments = role != null && allowed("patient.read_documents", role);
     const canReadFinanzen = role != null && allowed("finanzen.read", role);
     const canAuditRead = role != null && allowed("audit.read", role);
     const [patient, setPatient] = useState<Patient | null>(null);
@@ -581,7 +584,10 @@ export function PatientDetailPage() {
     if (!id) {
         return (
             <div className="animate-fade-in">
-                <Button variant="ghost" size="sm" onClick={() => navigate("/patienten")}>← Zurück</Button>
+                <WorkspacePageHeader
+                    title="Patientenakte"
+                    back={{ to: "/patienten", label: "Patienten" }}
+                />
                 <p className="text-body text-on-surface-variant mt-4">Kein Patient ausgewählt.</p>
             </div>
         );
@@ -589,8 +595,11 @@ export function PatientDetailPage() {
 
     if (patientLoadError) {
         return (
-            <div className="space-y-4 animate-fade-in">
-                <Button variant="ghost" size="sm" onClick={() => navigate("/patienten")}>← Zurück</Button>
+            <div className="praxis-workspace-page animate-fade-in">
+                <WorkspacePageHeader
+                    title="Patientenakte"
+                    back={{ to: "/patienten", label: "Patienten" }}
+                />
                 <div className="rounded-lg bg-error-container text-error px-4 py-3 text-body max-w-xl">
                     {patientLoadError}
                 </div>
@@ -610,10 +619,9 @@ export function PatientDetailPage() {
     } as const;
     const anlPending = anlagen.filter((a) => !itemValidation[itemValidationKey("anl", a.id)]).length;
     const zahlPending = zahlungen.filter((z) => !itemValidation[itemValidationKey("zahl", z.id)]).length;
-    const validationPendingTotal =
-        (!validation.stamm ? 1 : 0)
-        + anlPending
-        + zahlPending;
+    const validationPendingTotal = canViewClinical
+        ? ((!validation.stamm ? 1 : 0) + anlPending + zahlPending)
+        : 0;
 
 
     return (
@@ -652,16 +660,20 @@ export function PatientDetailPage() {
                     zahlungen={zahlungen}
                     itemValidation={itemValidation}
                     onSelectTab={goTab}
-                    onBlockedClinicalTab={() => toast("Bereich nur für ärztliche Rolle.", "info")}
                 />
                 <div className="col" style={{ gap: 16, minWidth: 0 }}>
-                    {akteLoadError ? <div className="card card-pad" role="alert" style={{ color: "var(--red)" }}>{akteLoadError}</div> : null}
+                    {akteLoadError ? (
+                        <DismissibleNotice variant="error" role="alert" title="Akte konnte nicht geladen werden">
+                            {akteLoadError}
+                        </DismissibleNotice>
+                    ) : null}
 
             {activeTab === "stamm" && patient ? (
                 <PatientDetailStammTab
                     patient={patient}
                     validationStamm={validation.stamm}
                     canViewClinical={canViewClinical}
+                    canWriteMedical={canWriteMedical}
                     patientDeleteOpen={patientDeleteOpen}
                     patientDeleteBusy={patientDeleteBusy}
                     showEditPatient={showEditPatient}
@@ -1034,6 +1046,7 @@ export function PatientDetailPage() {
                     sessionUserId={session.user_id}
                     role={role}
                     canViewClinical={canViewClinical}
+                    canReadDocuments={canReadDocuments}
                     canReadFinanzen={canReadFinanzen}
                     canAuditRead={canAuditRead}
                     akteSaveConfirm={akteSaveConfirm}

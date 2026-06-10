@@ -17,7 +17,7 @@ import { Card, CardHeader } from "../components/ui/card";
 import { Input, Textarea, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 interface CreateForm {
     lieferant: string;
@@ -214,7 +214,7 @@ export function BestellungCreatePage() {
                 ...(gesamtbetrag != null ? { gesamtbetrag: gesamtbetrag } : {}),
             });
             toast(`Bestellung ${created.bestellnummer ?? ""} angelegt`, "success");
-            navigate(`/bestellungen/${created.id}`);
+            navigate(`/bestellungen?bestellung=${encodeURIComponent(created.id)}`);
         } catch (e) {
             setError(errorMessage(e));
         } finally {
@@ -229,20 +229,11 @@ export function BestellungCreatePage() {
     const cannotSave = validationError !== null || busy;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in--sticky-safe">
-            <div className="page-head">
-                <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <Button type="button" variant="secondary" onClick={goBack}>
-                        <ChevronLeftIcon />Zurück
-                    </Button>
-                    <div>
-                        <div className="page-sub">Bestellungen</div>
-                        <h2 className="page-title" style={{ margin: 0 }}>
-                            Neue Bestellung
-                        </h2>
-                    </div>
-                </div>
-            </div>
+        <div className="bestellung-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
+            <WorkspacePageHeader
+                title="Neue Bestellung"
+                back={{ onClick: goBack, label: "Bestellungen" }}
+            />
 
             <datalist id="best-create-lieferant-list">
                 {lieferantSuggestions.map((l) => (
@@ -255,29 +246,17 @@ export function BestellungCreatePage() {
                 ))}
             </datalist>
 
-            <div style={{ maxWidth: 720, width: "100%" }}>
-                <Card>
+            <Card className="bestellung-create-page__card card-elevated">
                 <CardHeader title="Bestelldaten" subtitle="Artikel = Produkt aus dem Lager; erwartete Lieferung und Mengen" />
-                <div className="card-pad" style={{ paddingTop: 0 }}>
+                <div className="card-pad bestellung-create-form">
                     {error ? (
-                        <p
-                            style={{
-                                color: "var(--red)",
-                                fontSize: 12.5,
-                                margin: "0 0 12px",
-                                padding: "8px 12px",
-                                background: "var(--red-soft)",
-                                borderRadius: 8,
-                            }}
-                        >
-                            {error}
-                        </p>
+                        <p className="bestellung-create-form__error">{error}</p>
                     ) : null}
-                    <p style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 0, marginBottom: 16, lineHeight: 1.45 }}>
+                    <p className="bestellung-create-form__hint">
                         Bestellnummer wird automatisch im Format <code>B-JJJJ-MM-NNNN</code> erzeugt.
                     </p>
                     {vorlagen.length > 0 ? (
-                        <div style={{ marginBottom: 16 }}>
+                        <div className="bestellung-create-form__field">
                             <Input
                                 id="bc-vorlage"
                                 label="Vorlage (Lieferant + Kontakt + Produkt)"
@@ -313,57 +292,56 @@ export function BestellungCreatePage() {
                             </datalist>
                         </div>
                     ) : null}
-                    <Input
-                        id="bc-lief"
-                        label="Lieferant"
-                        list="best-create-lieferant-list"
-                        value={form.lieferant}
-                        onChange={(e) => {
-                            setVorlageInputText("");
-                            setForm({ ...form, lieferant: e.target.value });
-                        }}
-                    />
-                    <Input
-                        id="bc-pharma"
-                        label="Pharmaberater / Kontakt"
-                        list="best-create-pharma-list"
-                        value={form.pharmaberater}
-                        onChange={(e) => {
-                            setVorlageInputText("");
-                            setForm({ ...form, pharmaberater: e.target.value });
-                        }}
-                    />
-                    <div className="row" style={{ alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
-                        <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-                            <Select
-                                id="bc-art"
-                                label="Artikel (Produkt)"
-                                value={form.artikelProduktId}
-                                onChange={(e) => {
-                                    setVorlageInputText("");
-                                    setForm({ ...form, artikelProduktId: e.target.value });
-                                }}
-                                options={artikelProduktOptions}
-                            />
-                        </div>
+                    <div className="bestellung-create-form__grid bestellung-create-form__grid--2">
+                        <Input
+                            id="bc-lief"
+                            label="Lieferant"
+                            list="best-create-lieferant-list"
+                            value={form.lieferant}
+                            onChange={(e) => {
+                                setVorlageInputText("");
+                                setForm({ ...form, lieferant: e.target.value });
+                            }}
+                        />
+                        <Input
+                            id="bc-pharma"
+                            label="Pharmaberater / Kontakt"
+                            list="best-create-pharma-list"
+                            value={form.pharmaberater}
+                            onChange={(e) => {
+                                setVorlageInputText("");
+                                setForm({ ...form, pharmaberater: e.target.value });
+                            }}
+                        />
+                    </div>
+                    <div className="bestellung-create-form__field bestellung-create-form__artikel-row">
+                        <Select
+                            id="bc-art"
+                            label="Artikel (Produkt)"
+                            value={form.artikelProduktId}
+                            onChange={(e) => {
+                                setVorlageInputText("");
+                                setForm({ ...form, artikelProduktId: e.target.value });
+                            }}
+                            options={artikelProduktOptions}
+                        />
                         {canAddProdukt ? (
                             <Button
                                 type="button"
                                 variant="secondary"
                                 title="Neues Produkt anlegen (Lager)"
                                 onClick={goNeuesProdukt}
-                                style={{ marginBottom: 8 }}
                             >
                                 + Produkt
                             </Button>
                         ) : null}
                     </div>
                     {produkte.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)", fontSize: 12, margin: "-4px 0 8px" }}>
+                        <p className="bestellung-create-form__note">
                             Keine Produkte im Lager — zuerst per „+ Produkt“ oder unter Produkte anlegen.
                         </p>
                     ) : null}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bestellung-create-form__grid bestellung-create-form__grid--2">
                         <Input
                             id="bc-menge"
                             label="Menge"
@@ -381,18 +359,12 @@ export function BestellungCreatePage() {
                         />
                     </div>
                     {voraussichtGesamtbetrag != null ? (
-                        <div
-                            className="rounded-lg px-4 py-3"
-                            style={{
-                                border: "1px solid var(--line)",
-                                background: "color-mix(in oklab, var(--accent) 6%, transparent)",
-                            }}
-                        >
+                        <div className="bestellung-create-form__betrag">
                             <div className="form-label form-label--wide">Voraussichtlicher Betrag (Lager-Preis × Menge)</div>
-                            <div style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                            <div className="bestellung-create-form__betrag-value">
                                 {formatCurrency(voraussichtGesamtbetrag)}
                             </div>
-                            <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45 }}>
+                            <p className="bestellung-create-form__note">
                                 Entspricht dem Produktpreis im Lager × eingegebene Menge — erscheint in Finanzen unter Ausgaben.
                             </p>
                         </div>
@@ -412,16 +384,7 @@ export function BestellungCreatePage() {
                         value={form.bemerkung}
                         onChange={(e) => setForm({ ...form, bemerkung: e.target.value })}
                     />
-                    <div
-                        className="row"
-                        style={{
-                            justifyContent: "flex-end",
-                            gap: 8,
-                            marginTop: 16,
-                            paddingTop: 16,
-                            borderTop: "1px solid var(--line)",
-                        }}
-                    >
+                    <div className="bestellung-create-form__actions">
                         <Button type="button" variant="ghost" onClick={goBack} disabled={busy}>
                             Abbrechen
                         </Button>
@@ -430,8 +393,7 @@ export function BestellungCreatePage() {
                         </Button>
                     </div>
                 </div>
-                </Card>
-            </div>
+            </Card>
         </div>
     );
 }

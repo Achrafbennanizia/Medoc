@@ -13,7 +13,7 @@ import { PatientComboField } from "../components/patient-combo-field";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { Badge } from "../components/ui/badge";
 import {
     ZAHLUNG_ART_SELECT,
@@ -35,19 +35,35 @@ type LinkKind = "" | "behand" | "unter";
 
 function ZahlFinanzenOrPageWrap({
     isFinanzen,
+    embedVariant,
     onClose,
     children,
 }: {
     isFinanzen: boolean;
+    embedVariant?: "finanzen" | "kasse";
     onClose: () => void;
     children: ReactNode;
 }) {
-    if (!isFinanzen) return <>{children}</>;
+    if (!isFinanzen) {
+        return (
+            <Card className="zahlung-create-page__card card-elevated">
+                <CardHeader
+                    title="Zahlungsdaten"
+                    subtitle="Patient wählen, offene Behandlung oder Untersuchung zuordnen, Betrag erfassen."
+                />
+                <div className="card-pad">{children}</div>
+            </Card>
+        );
+    }
+    const subtitle =
+        embedVariant === "kasse"
+            ? "Erfassen Sie Bar- oder Kartenzahlungen — sie erscheinen unten in der Liste bis zum Tagesabschluss."
+            : "Erfassung neben der Transaktionsliste — nicht auf einer separaten Route (wie Produkte).";
     return (
         <Card className="produkte-detail-card zahl-finanzen-embed card--overflow-visible">
             <CardHeader
                 title="Neue Zahlung"
-                subtitle="Erfassung neben der Transaktionsliste — nicht auf einer separaten Route (wie Produkte)."
+                subtitle={subtitle}
                 action={(
                     <Button type="button" size="sm" variant="ghost" onClick={onClose}>
                         Schließen
@@ -60,14 +76,14 @@ function ZahlFinanzenOrPageWrap({
 }
 
 export type ZahlungCreatePanelProps = {
-    /** `page` = volle Route; `finanzen` = Legacy-Einbettung (nur falls wieder verwendet). */
-    variant?: "page" | "finanzen";
+    /** `page` = Finanzen-Route; `kasse-page` = Kasseneingänge-Route; `finanzen` / `kasse` = eingebettet. */
+    variant?: "page" | "kasse-page" | "finanzen" | "kasse";
     onFinanzenSaved?: () => void;
     onFinanzenClose?: () => void;
 };
 
 function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: ZahlungCreatePanelProps) {
-    const isFinanzenEmbed = variant === "finanzen";
+    const isFinanzenEmbed = variant === "finanzen" || variant === "kasse";
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
@@ -94,7 +110,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
     const [zahlungsart, setZahlungsart] = useState<ZahlungsArt>("BAR");
     const [beschreibung, setBeschreibung] = useState("");
 
-    const fromFinanzen = isFinanzenEmbed || searchParams.get("from") !== "patient";
+    const fromParam = searchParams.get("from");
+    const fromKasse = variant === "kasse" || variant === "kasse-page" || fromParam === "kasse";
+    const fromFinanzen = isFinanzenEmbed || (fromParam !== "patient" && !fromKasse);
 
     useEffect(() => {
         let cancelled = false;
@@ -272,8 +290,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                 onFinanzenSaved();
                 return;
             }
-            const from = searchParams.get("from");
-            if (from === "patient" && patientId) {
+            if (fromKasse) {
+                navigate("/finanzen/kasse");
+            } else if (fromParam === "patient" && patientId) {
                 navigate(`/patienten/${patientId}#zahl`);
             } else {
                 navigate("/finanzen");
@@ -319,7 +338,13 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         );
     }
 
-    const backTarget = fromFinanzen ? "/finanzen" : patientId ? `/patienten/${patientId}#zahl` : "/finanzen";
+    const backTarget = fromKasse
+        ? "/finanzen/kasse"
+        : fromFinanzen
+          ? "/finanzen"
+          : patientId
+            ? `/patienten/${patientId}#zahl`
+            : "/finanzen";
     const handleCancel = () => {
         if (isFinanzenEmbed && onFinanzenClose) onFinanzenClose();
         else navigate(backTarget);
@@ -330,23 +355,12 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         linkKind === "behand" && zahlNeuMaxBetragEur != null && zahlNeuMaxBetragEur <= ZAHL_EUR_EPS;
 
     return (
-        <div
-            style={{ display: "flex", flexDirection: "column", gap: 20 }}
-            className={isFinanzenEmbed ? undefined : "animate-fade-in"}
-        >
+        <div className={isFinanzenEmbed ? undefined : "zahlung-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in"}>
             {!isFinanzenEmbed ? (
-                <div className="page-head">
-                    <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                        <Button type="button" variant="secondary" onClick={() => navigate(backTarget)}>
-                            <ChevronLeftIcon />
-                            Zurück
-                        </Button>
-                        <div>
-                            <div className="page-sub">Finanzen</div>
-                            <h2 className="page-title" style={{ margin: 0 }}>Neue Zahlung</h2>
-                        </div>
-                    </div>
-                </div>
+                <WorkspacePageHeader
+                    title="Neue Zahlung"
+                    back={{ onClick: () => navigate(backTarget), label: fromKasse ? "Kasseneingänge" : "Finanzen" }}
+                />
             ) : null}
 
             {!canListLines ? (
@@ -357,59 +371,25 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                     />
                 </Card>
             ) : (
-                <ZahlFinanzenOrPageWrap isFinanzen={isFinanzenEmbed} onClose={handleCancel}>
-                    <div
-                        className="zahl-create-grid"
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "minmax(0, 1fr)",
-                            gap: 16,
-                            alignItems: "start",
-                        }}
-                    >
-                        <div
-                            id="ak-zahl-neu-panel-finanzen"
-                            className="akte-inline-panel"
-                            role="region"
-                            aria-label="Neue Zahlung"
-                        >
-                            {!isFinanzenEmbed ? (
-                                <div className="akte-inline-panel-head">
-                                    <div>
-                                        <div className="akte-inline-panel-title">Neue Zahlung</div>
-                                        <div className="akte-inline-panel-sub">
-                                            Gleiche Logik wie „Kundenleistungen &amp; Abrechnung“: Zuordnung über{" "}
-                                            <strong>B-Nr.</strong> / <strong>U-Nr.</strong> (Behandlungs- bzw. Untersuchungszeile
-                                            in der Akte). Die Nummern sind die Referenz zur Zeile — nicht die Zahlungsnotiz.
-                                            Bei Behandlungen mit Sollkosten darf nicht mehr gezahlt werden als offen; der Server
-                                            prüft das zusätzlich.
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <p
-                                    className="page-sub"
-                                    style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.5 }}
-                                >
-                                    Gleiche Prüflogik wie die volle Seite: B-Nr. / U-Nr., Soll, offener Betrag.
-                                </p>
-                            )}
-                        <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-                            {formError ? (
-                                <p
-                                    role="alert"
-                                    style={{
-                                        color: "var(--red)",
-                                        fontSize: 12.5,
-                                        margin: 0,
-                                        padding: "8px 12px",
-                                        background: "var(--red-soft)",
-                                        borderRadius: 8,
-                                    }}
-                                >
-                                    {formError}
-                                </p>
-                            ) : null}
+                <ZahlFinanzenOrPageWrap
+                    isFinanzen={isFinanzenEmbed}
+                    embedVariant={variant === "kasse" ? "kasse" : "finanzen"}
+                    onClose={handleCancel}
+                >
+                    <div className="zahlung-create-form">
+                        {!isFinanzenEmbed ? (
+                            <p className="bestellung-create-form__hint">
+                                Zuordnung über <strong>B-Nr.</strong> / <strong>U-Nr.</strong> — bei Behandlungen mit Sollkosten
+                                darf nicht mehr gezahlt werden als offen.
+                            </p>
+                        ) : (
+                            <p className="bestellung-create-form__hint">
+                                Gleiche Prüflogik wie die volle Seite: B-Nr. / U-Nr., Soll, offener Betrag.
+                            </p>
+                        )}
+                        {formError ? (
+                            <p className="zahlung-create-form__error" role="alert">{formError}</p>
+                        ) : null}
                             <PatientComboField
                                 id="zc-patient"
                                 label="Patient *"
@@ -436,15 +416,22 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                             Noch keine Zahlungen in dieser Akte.
                                         </p>
                                     ) : (
-                                        <div className="zahl-hist-table-wrap" style={{ overflow: "auto", maxHeight: 220 }}>
-                                            <table className="tbl zahl-hist-tbl" style={{ width: "100%", fontSize: 12.5 }}>
+                                        <div className="zahl-hist-table-wrap">
+                                            <table className="tbl tbl-zahl-hist">
+                                                <colgroup>
+                                                    <col className="zahl-hist-col-datum" />
+                                                    <col className="zahl-hist-col-bezug" />
+                                                    <col className="zahl-hist-col-betrag" />
+                                                    <col className="zahl-hist-col-art" />
+                                                    <col className="zahl-hist-col-status" />
+                                                </colgroup>
                                                 <thead>
                                                     <tr>
-                                                        <th scope="col" style={{ width: "20%" }}>Datum</th>
-                                                        <th scope="col" style={{ width: "38%" }}>Bezug (B-Nr. / U-Nr.)</th>
-                                                        <th scope="col" style={{ textAlign: "right", width: "18%" }}>Betrag</th>
-                                                        <th scope="col" style={{ width: "12%" }}>Art</th>
-                                                        <th scope="col" style={{ width: "12%" }}>Status</th>
+                                                        <th scope="col">Datum</th>
+                                                        <th scope="col">Bezug (B-Nr. / U-Nr.)</th>
+                                                        <th scope="col" className="tbl-th-num">Betrag</th>
+                                                        <th scope="col">Art</th>
+                                                        <th scope="col">Status</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -453,8 +440,8 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                         return (
                                                             <tr key={z.id}>
                                                                 <td>{formatDate(z.created_at)}</td>
-                                                                <td style={{ lineHeight: 1.35 }}>{formatZahlungBezugLine(z, behandlungen, untersuchungen)}</td>
-                                                                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(z.betrag)}</td>
+                                                                <td className="zahl-hist-td-bezug">{formatZahlungBezugLine(z, behandlungen, untersuchungen)}</td>
+                                                                <td className="tbl-td-num">{formatCurrency(z.betrag)}</td>
                                                                 <td>{zahlungsartLabel(z.zahlungsart)}</td>
                                                                 <td><Badge variant={st.variant}>{st.label}</Badge></td>
                                                             </tr>
@@ -671,42 +658,44 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                         );
                                     })()
                             ) : null}
-                            <div>
-                                <Input
-                                    id="zc-betrag"
-                                    type="number"
-                                    step="0.01"
-                                    min={0}
-                                    max={zahlNeuMaxBetragEur != null ? zahlNeuMaxBetragEur : undefined}
-                                    label="Zahlbetrag (€) *"
-                                    value={betrag}
-                                    onChange={(e) => setBetrag(e.target.value)}
-                                    onBlur={(e) => {
-                                        if (zahlNeuMaxBetragEur == null) return;
-                                        const n = Number(String(e.target.value).replace(",", "."));
-                                        if (!Number.isFinite(n) || n <= 0) return;
-                                        if (n > zahlNeuMaxBetragEur + ZAHL_EUR_EPS) {
-                                            setBetrag(String(roundMoney2(zahlNeuMaxBetragEur)));
-                                            toast(
-                                                `Betrag auf maximal ${formatCurrency(zahlNeuMaxBetragEur)} begrenzt (offener Betrag).`,
-                                                "info",
-                                            );
-                                        }
-                                    }}
+                            <div className="zahlung-create-form__grid zahlung-create-form__grid--2">
+                                <div>
+                                    <Input
+                                        id="zc-betrag"
+                                        type="number"
+                                        step="0.01"
+                                        min={0}
+                                        max={zahlNeuMaxBetragEur != null ? zahlNeuMaxBetragEur : undefined}
+                                        label="Zahlbetrag (€) *"
+                                        value={betrag}
+                                        onChange={(e) => setBetrag(e.target.value)}
+                                        onBlur={(e) => {
+                                            if (zahlNeuMaxBetragEur == null) return;
+                                            const n = Number(String(e.target.value).replace(",", "."));
+                                            if (!Number.isFinite(n) || n <= 0) return;
+                                            if (n > zahlNeuMaxBetragEur + ZAHL_EUR_EPS) {
+                                                setBetrag(String(roundMoney2(zahlNeuMaxBetragEur)));
+                                                toast(
+                                                    `Betrag auf maximal ${formatCurrency(zahlNeuMaxBetragEur)} begrenzt (offener Betrag).`,
+                                                    "info",
+                                                );
+                                            }
+                                        }}
+                                    />
+                                    {zahlNeuMaxBetragEur != null ? (
+                                        <p className="bestellung-create-form__note">
+                                            Höchstens {formatCurrency(zahlNeuMaxBetragEur)} (aktuell offen für diese Behandlung).
+                                        </p>
+                                    ) : null}
+                                </div>
+                                <Select
+                                    id="zc-art"
+                                    label="Zahlungsart"
+                                    value={zahlungsart}
+                                    onChange={(e) => setZahlungsart(e.target.value as ZahlungsArt)}
+                                    options={[...ZAHLUNG_ART_SELECT]}
                                 />
-                                {zahlNeuMaxBetragEur != null ? (
-                                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                                        Höchstens {formatCurrency(zahlNeuMaxBetragEur)} (aktuell offen für diese Behandlung).
-                                    </p>
-                                ) : null}
                             </div>
-                            <Select
-                                id="zc-art"
-                                label="Zahlungsart"
-                                value={zahlungsart}
-                                onChange={(e) => setZahlungsart(e.target.value as ZahlungsArt)}
-                                options={[...ZAHLUNG_ART_SELECT]}
-                            />
                             <div>
                                 <Textarea
                                     id="zc-beschr"
@@ -719,9 +708,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                     Interne Notiz. Die fachliche Zuordnung der Zahlung erfolgt über B-Nr. / U-Nr. oben.
                                 </p>
                             </div>
-                            <div className="akte-inline-panel-actions" style={{ flexWrap: "wrap", gap: 10 }}>
+                            <div className="zahlung-create-form__actions">
                                 {linkKind === "behand" && disabledBehandNoOpen ? (
-                                    <span style={{ fontSize: 12, color: "var(--fg-3)", flex: "1 1 200px" }}>
+                                    <span className="bestellung-create-form__note" style={{ flex: "1 1 200px", marginRight: "auto" }}>
                                         Für diese Behandlung ist kein weiterer Betrag offen (Soll bereits gedeckt).
                                     </span>
                                 ) : null}
@@ -743,9 +732,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                     Zahlung speichern
                                 </Button>
                             </div>
-                        </div>
                     </div>
-                </div>
                 </ZahlFinanzenOrPageWrap>
             )}
         </div>
@@ -758,4 +745,8 @@ export function ZahlungCreatePanel(p: ZahlungCreatePanelProps) {
 
 export function ZahlungCreatePage() {
     return <ZahlungCreatePanelInner variant="page" />;
+}
+
+export function ZahlungKasseCreatePage() {
+    return <ZahlungCreatePanelInner variant="kasse-page" />;
 }

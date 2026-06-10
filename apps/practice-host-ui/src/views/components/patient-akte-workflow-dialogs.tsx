@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { createPraxisTicket, forwardAkteToPhysicians } from "@/systems/practice-host/controllers/akte-workflow.controller";
+import { forwardAkteToPhysicians } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import {
     createPraxisAufgabe,
     type PraxisAufgabeTyp,
 } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
-import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
+import { listAerzte, listPersonal, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { errorMessage } from "@/lib/utils";
 import type { Role } from "@/lib/rbac";
 import { Button } from "./ui/button";
@@ -45,18 +45,30 @@ export function PatientAkteWorkflowDialogs(props: {
     const [aufgabeTyp, setAufgabeTyp] = useState<PraxisAufgabeTyp>("SONSTIGES");
     const [aufgabeTitel, setAufgabeTitel] = useState("");
     const [aufgabeBody, setAufgabeBody] = useState("");
+    const [aufgabeRezId, setAufgabeRezId] = useState("");
+    const [rezeption, setRezeption] = useState<{ id: string; name: string }[]>([]);
 
     const loadAerzte = useCallback(async () => {
         setLoadErr(null);
         try {
-            const list = await listAerzte();
+            const [list, personal] = await Promise.all([listAerzte(), listPersonal()]);
             setAerzte(list);
+            const rezList = personal
+                .filter((p) => p.rolle === "REZEPTION")
+                .map((p) => ({ id: p.id, name: p.name }));
+            setRezeption(rezList);
             if (list.length > 0) {
                 setTicketArztId((prev) => (list.some((a) => a.id === prev) ? prev : list[0]!.id));
+            }
+            if (rezList.length > 0) {
+                setAufgabeRezId((prev) => (rezList.some((r) => r.id === prev) ? prev : rezList[0]!.id));
+            } else {
+                setAufgabeRezId("");
             }
         } catch (e) {
             setLoadErr(errorMessage(e));
             setAerzte([]);
+            setRezeption([]);
         }
     }, []);
 
@@ -69,6 +81,7 @@ export function PatientAkteWorkflowDialogs(props: {
         setAufgabeTyp("SONSTIGES");
         setAufgabeTitel("");
         setAufgabeBody("");
+        setAufgabeRezId("");
     }, [mode, loadAerzte]);
 
     const submitTicket = async () => {
@@ -79,8 +92,15 @@ export function PatientAkteWorkflowDialogs(props: {
         }
         setBusy(true);
         try {
-            await createPraxisTicket({ patientId, toArztId: ticketArztId, body });
-            toast("Ticket erstellt.", "success");
+            const titel = body.length > 80 ? `${body.slice(0, 77)}…` : body;
+            await createPraxisAufgabe({
+                patientId,
+                typ: "SONSTIGES",
+                titel,
+                body,
+                assigneeUserId: ticketArztId,
+            });
+            toast("Aufgabe an Arzt erstellt.", "success");
             onClose();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -102,9 +122,15 @@ export function PatientAkteWorkflowDialogs(props: {
                 typ: aufgabeTyp,
                 titel,
                 body: aufgabeBody.trim() || null,
-                assigneeRole: "REZEPTION",
+                assigneeUserId: aufgabeRezId.trim() || null,
+                assigneeRole: aufgabeRezId.trim() ? null : "REZEPTION",
             });
-            toast("Aufgabe an Rezeption erstellt.", "success");
+            toast(
+                aufgabeRezId.trim()
+                    ? "Private Aufgabe an Rezeption gesendet."
+                    : "Aufgabe an Rezeption (Pool) erstellt.",
+                "success",
+            );
             onClose();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -147,7 +173,7 @@ export function PatientAkteWorkflowDialogs(props: {
             <Dialog
                 open={mode === "ticket"}
                 onClose={onClose}
-                title="Ticket an Arzt"
+                title="Aufgabe an Arzt"
                 footer={(
                     <div className="modal-actions">
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
@@ -179,6 +205,9 @@ export function PatientAkteWorkflowDialogs(props: {
                             placeholder="Kurze strukturierte Anfrage an den behandelnden Arzt…"
                         />
                     </label>
+                    <p className="page-sub" style={{ margin: 0 }}>
+                        Nur Sie und der gewählte Arzt sehen diese Aufgabe (wie ein Chat).
+                    </p>
                 </div>
             </Dialog>
 
@@ -199,8 +228,19 @@ export function PatientAkteWorkflowDialogs(props: {
             >
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <p className="page-sub" style={{ margin: 0 }}>
-                        Erscheint im Posteingang der Rezeption (FA-AUFG-02).
+                        Wählen Sie eine Person für eine private Aufgabe — oder „Rezeption (Pool)“ für alle an der Rezeption.
                     </p>
+                    <label className="stack" style={{ gap: 6 }}>
+                        <span className="text-sm text-muted">Empfänger</span>
+                        <Select
+                            value={aufgabeRezId || "__pool__"}
+                            onChange={(e) => setAufgabeRezId(e.target.value === "__pool__" ? "" : e.target.value)}
+                            options={[
+                                { value: "__pool__", label: "Rezeption (Pool — alle)" },
+                                ...rezeption.map((r) => ({ value: r.id, label: r.name })),
+                            ]}
+                        />
+                    </label>
                     <label className="stack" style={{ gap: 6 }}>
                         <span className="text-sm text-muted">Typ</span>
                         <Select

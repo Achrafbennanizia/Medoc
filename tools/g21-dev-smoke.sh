@@ -19,6 +19,7 @@ Rows to verify (mark in checklist):
   5–6  REZ  Patientenakte clinical tabs blocked; Kundenleistungen OK
   7    ARZT Einstellungen → Betrieb → backup validate/restore
   8    ARZT Praxis-Tickets → Posteingang banner
+  9    Serverless pairing (W8) — master accept replica; sync patient + praxis_ticket; revoke → 403
 
 Checklist: docs/coordination/g21-live-smoke-checklist.md
 

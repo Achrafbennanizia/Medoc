@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { POSTEINGANG_POLL_MS } from "@/lib/posteingang-config";
+import { POSTEINGANG_POLL_MS, POSTEINGANG_UI_ENABLED } from "@/lib/posteingang-config";
 import type { Session } from "@/models/types";
 import { useAuthStore } from "@/models/store/auth-store";
 import {
@@ -52,7 +52,7 @@ function resetAuth() {
     useAuthStore.setState({ session: null, sessionChecked: true });
 }
 
-describe("Posteingang smoke (G21)", () => {
+describe.skipIf(!POSTEINGANG_UI_ENABLED)("Posteingang smoke (G21)", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         resetAuth();

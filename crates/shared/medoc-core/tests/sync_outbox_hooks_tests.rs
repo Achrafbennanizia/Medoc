@@ -190,7 +190,7 @@ async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
     let aufgabe = praxis_aufgabe_repo::insert(
         &pool,
         &CreatePraxisAufgabe {
-            patient_id: p.id.clone(),
+            patient_id: Some(p.id.clone()),
             typ: "ABRECHNUNG".into(),
             titel: "Test".into(),
             body: Some("Test body".into()),

@@ -1,6 +1,161 @@
 # Validation ledger
 
-**Last updated:** 2026-06-06 (Docker revalidation + lan-web session restore)
+**Last updated:** 2026-06-10 (Refactor Phase A complete)
+
+## Refactor & harden pass
+
+| Phase | Status | Artifact |
+| ----- | ------ | -------- |
+| A — Inventory | **COMPLETE** | [`refactor-register.md`](refactor-register.md) — 20 entries |
+| B — Safety net | **COMPLETE** | IPC registry + architecture boundary tests; baseline green |
+| C — Structure | **COMPLETE** | [`retired-paths.md`](retired-paths.md); codegen comment fixes |
+| D — Fixes | **COMPLETE** | Clippy green; IPC count 275; pairing e2e PIN flow; beacon field |
+| E — Workflows | **COMPLETE** | [`workflow-map.md`](workflow-map.md); export/break-glass terminability |
+| F — Gate | **COMPLETE** | Full CI-equivalent green (2026-06-10) |
+
+### Refactor validation (2026-06-10)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `cargo test --workspace --tests` | **PASS** |
+| FE tests | `npm test` | **240 PASS**, 3 skipped |
+| FE build | `npm run build` | **PASS** |
+
+**Env:** `MEDOC_VENDOR_PUBKEY`, `MEDOC_DB_KEY`, `MEDOC_AUDIT_KEY` (see CI).
+
+**Deferred (register):** Geräteverbund wire (R-001–R-003), G21b manual (R-011), product stubs (R-007, R-008).
+
+---
+
+## Geräteverbund evolution — verified (2026-06-10)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| medoc-sync lib + integration | `cargo test -p medoc-sync` | **PASS** (verbund domain, `verbund_net_loopback`) |
+| medoc-practice pairing IPC | `cargo test -p medoc-practice pairing_list_pending` | **PASS** |
+| Seat cap e2e | `cargo test -p medoc-e2e --test verbund_seat_caps` | **PASS** (`verbund_rejects_fourth_admin_seat`) |
+| Frontend smokes | `npm test` | **240 PASS**, 3 skipped |
+| Workspace clippy | `cargo clippy --workspace -D warnings` | **NOT RUN** — known `medoc-core` pre-existing failures |
+
+**Env for Rust tests:**
+
+```bash
+export MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+export MEDOC_DB_KEY=0123456789abcdef0123456789abcdef
+```
+
+**Still pending:** live two-device Noise pairing acceptance (`docs/runbooks/geraeteverbund-two-device-acceptance.md`); HTTP pairing cutover.
+
+---
+
+**Previous:** 2026-06-07 (MVP plan todos — UX + release gate)
+
+## MVP plan execution — verified (2026-06-07)
+
+| Item | Result |
+| ---- | ------ |
+| Field hints (UX-2) | patient-create, termin-create, deployment, pairing-scan |
+| Form abandon (UX-8) | patient-create ConfirmDialog on back |
+| Export preview smoke (UX-9) | `export-preview-dialog.smoke.test.tsx` |
+| P0 route smokes (T-U3) | `p0-routes.smoke.test.tsx` (migration, deployment) |
+| W7 Playwright | `lan-server.spec.ts` + JWT `/patienten` |
+| W8 two-device | `two-device-sync-smoke.sh` **17/17 PASS** |
+| Release gate | automated ticks in `releases/v0.1.0/release-gate-checklist.md` |
+| `npm test` | **236 PASS** (+4 smokes) |
+
+## Coverage measurement (2026-06-07)
+
+| Layer | Command | Result |
+| ----- | ------- | ------ |
+| FE T-U2 | `npm run test:mvp-coverage -w medoc` | **22/22 PASS**, 100% on 5 modules |
+| Rust T-U1 | `bash tools/mvp-rust-coverage.sh --archive` | `engine/run.rs` **79.01%**, `repo/store.rs` **99.53%**, `merge.rs` **89.18%** |
+| Snapshot | `docs/coordination/coverage-snapshot.md` | written |
+| HTML | `releases/v0.1.0/coverage/rust-medoc-sync/html/` | generated |
+
+---
+
+**Previous:** Full Docker pipeline — verified (2026-06-07)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` | **PASS** | ~7 min; FE + Rust Wave V1 + e2e + multi-device **17/17** |
+| medoc-sync unit/integration | `cargo test -p medoc-sync` | **PASS** | +10 `repo_store_tests`, +2 engine ingest/pull tests |
+| Rust fmt | `cargo fmt --check` | **PASS** | after formatting `repo_store_tests.rs` |
+
+**New T-U1 coverage (2026-06-07):**
+
+- `crates/shared/medoc-sync/tests/repo_store_tests.rs` — 10 tests: `SYNCED_TABLES`, `sync_record_or_noop`, outbox delivery, peer vector mesh watermarks, `was_applied`, `list_entries_since`, `status_snapshot`, `SyncEngine::status`
+- `crates/shared/medoc-sync/src/engine/run.rs` — `ingest_push_rejects_outbox_device_id_mismatch`, `collect_pull_returns_entries_after_since_seq`
+
+**Still PARTIAL (T-U1):** `cargo llvm-cov -p medoc-sync` — engine/repo modules below 100%; XL follow-up.
+
+---
+
+**Previous:** Docker Wave V1 scoped — user verified (2026-06-06)
+
+## Docker Wave V1 scoped — user verified (2026-06-06)
+
+**Command** (from repository root; Docker Desktop must be running):
+
+```bash
+cd /path/to/Medoc-main
+
+docker run --rm --shm-size=4g -e CARGO_BUILD_JOBS=1 \
+  -v "$PWD:/work" \
+  -v medoc-cargo-registry:/usr/local/cargo/registry \
+  -v medoc-cargo-git:/usr/local/cargo/git \
+  -v medoc-target-linux-e2e:/work/target \
+  medoc-rust-wave-v1:latest
+```
+
+Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1 -t medoc-rust-wave-v1:latest .`
+
+| Stage | Result | Notes |
+| ----- | ------ | ----- |
+| `cargo fmt --check` | **PASS** | after `pub mod core` alphabetized in `praxis/mod.rs`, `system/mod.rs` |
+| `cargo clippy` (Wave V1, no Tauri) | **PASS** | `medoc-core`, `medoc-sync`, `medoc-lan`, `medoc-lan-server`, `medoc-company`, `medoc-company-server` |
+| Crate unit/integration tests | **PASS** | incl. license v2, sync outbox hooks, proptests |
+| `medoc-e2e` in-process (13 suites) | **PASS** | excludes `multi_device_port_http` (needs live servers on `:8787`) |
+| Proptest (license, pairing, merge) | **PASS** | merge suite ~45–66s in container |
+| Container exit | **PASS** | `=== PASS (Wave V1 scoped) ===` |
+
+**Evidence:** user terminal run 2026-06-06 (`medoc-rust-wave-v1:latest` from repo root).
+
+**Enabling fixes (same session):**
+
+- Clippy `module_inception`: renamed `praxis/praxis.rs` → `praxis/core.rs`, `system/system.rs` → `system/core.rs`; legacy shims `praxis_commands` / `system_commands` unchanged.
+- `medoc-e2e`: clippy `too_many_arguments` + `unwrap_or` on JSON parse.
+- `apps/practice-host/Cargo.toml`: dev-deps `rustls`, `axum`, `tower` for integration tests.
+- Dead code removed: ~60 unwired `archive_flat` / orphan modules (see phase-handoff).
+
+**Not covered by this command alone** (run separately or via full script):
+
+| Check | Command |
+| ----- | ------- |
+| Full Docker pipeline | `bash scripts/validate-docker.sh` |
+| Multi-device port e2e (17 tests) | `bash scripts/validate-docker-multi-device.sh` |
+| Tauri + full workspace clippy | `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` |
+| Frontend in Linux container | first stage of `validate-docker.sh` |
+
+---
+
+## Post-restructure validation (2026-06-06 evening)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Vitest workspace | `npm test` | **232 PASS** | `apps/practice-host-ui` + `packages/*` |
+| MVP FE coverage (T-U2) | `npm run test:mvp-coverage -w medoc` | **PASS** | 22 tests, 100% on 5 scoped modules |
+| G21 automated | `bash tools/g21-verify-automated.sh` | **PASS** | Updated paths for packages/apps |
+| E2e count | `cargo test -p medoc-e2e --tests -- --list` | **85** | `crates/test/medoc-e2e` |
+| Docker multi-device | `bash scripts/validate-docker-multi-device.sh` | **17/17 PASS** | ~39s |
+| LAN web client | `bash scripts/validate-lan-web-client.sh` | **PASS** | `apps/lan-web-client` build |
+| CORS policy tests | `cargo test -p medoc --test cors_policy_tests` | **4/4 PASS** | post FULL-docker fix |
+| G21b live Tauri | Manual rows 1–9 | **NOT OBSERVED** | `bash tools/g21-dev-smoke.sh` |
+| T-U1 Rust 100% | `bash tools/mvp-rust-coverage.sh` | **PARTIAL** | engine/repo gaps remain |
+
+---
 
 ## Final dead-code cleanup + Docker FULL (2026-06-06)
 
@@ -11,7 +166,7 @@
 | npm build | `npm run build` | **PASS** |
 | lan_tls_tests | `cargo test -p medoc --test lan_tls_tests` | **PASS** (added `rustls` dev-dep) |
 | Docker standard | `bash scripts/validate-docker.sh` | **PASS** (in FULL run, before Tauri stage) |
-| Docker FULL Tauri | `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` | **FAIL then FIX** — `cors_policy_tests` missing `axum`/`tower` dev-deps; added to `apps/practice-host/Cargo.toml`. Re-run **NOT RUN** after fix (~15 min) |
+| Docker FULL Tauri | `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` | **NOT RUN** after cors/dev-deps fix — optional; Wave V1 scoped container verified separately (see top of this file) |
 
 ---
 

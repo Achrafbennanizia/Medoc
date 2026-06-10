@@ -87,7 +87,7 @@ pub mod break_glass_commands {
     pub use super::admin::break_glass::*;
 }
 pub mod praxis_commands {
-    pub use super::praxis::praxis::*;
+    pub use super::praxis::core::*;
 }
 pub mod produkt_commands {
     pub use super::praxis::produkt::*;
@@ -120,7 +120,7 @@ pub mod company_portal_commands {
     pub use super::network::company_portal::*;
 }
 pub mod system_commands {
-    pub use super::system::system::*;
+    pub use super::system::core::*;
 }
 pub mod ops_commands {
     pub use super::system::ops::*;

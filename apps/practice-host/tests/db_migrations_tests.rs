@@ -214,3 +214,30 @@ async fn attest_extended_fields_round_trip() {
     assert_eq!(loaded.arbeitgeber, created.arbeitgeber);
     assert_eq!(loaded.ausstellender_arzt_id, created.ausstellender_arzt_id);
 }
+
+#[tokio::test]
+async fn praxis_aufgabe_kommentar_table_exists_after_migrations() {
+    let pool = test_memory_pool().await.expect("encrypted memory pool");
+    run_migrations(&pool).await.expect("migrations");
+
+    let exists: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='praxis_aufgabe_kommentar'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("sqlite_master");
+    assert_eq!(
+        exists.0, 1,
+        "praxis_aufgabe_kommentar table must exist after migrations"
+    );
+
+    // Existing DB path (legacy + rust_only) must stay idempotent.
+    run_migrations(&pool).await.expect("second run");
+    let still: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='praxis_aufgabe_kommentar'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("sqlite_master after second run");
+    assert_eq!(still.0, 1);
+}

@@ -5,17 +5,20 @@ checked off or have an explicit waiver linked in `docs/post-market/capa-tracking
 
 ## 1. Code quality
 
-- [ ] `cd app/src-tauri && cargo fmt --check && cargo clippy -- -D warnings`
-- [ ] `cd app && npm run lint && npx tsc --noEmit`
+- [ ] `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings` (from repo root)
+- [x] Or Linux container equivalent: `medoc-rust-wave-v1:latest` + `bash scripts/validate-docker.sh` — **PASS** 2026-06-07
+- [x] `npm run lint -w medoc && npm run build -w medoc` — **PASS** 2026-06-07
 - [ ] No TODO/FIXME without an associated issue link
 
 ## 2. Tests
 
-- [ ] `cd app/src-tauri && cargo test --all-features`
-- [ ] `cd app && npm test`
-- [ ] `bash tools/g21-verify-automated.sh` GREEN
-- [ ] `bash tools/two-device-sync-smoke.sh` (or Docker multi-device) GREEN — **automated proxy** via `scripts/validate-docker-multi-device.sh`
-- [ ] Optional LAN browser: `MEDOC_LAN_E2E=1 npm run test:playwright` with `medoc-server` running — see `docs/architecture/lan-client-deployment.md`
+- [x] `cargo test --workspace --tests` — Wave V1 + e2e **PASS** in Docker (2026-06-07)
+- [x] `npm test` — **232+ PASS** (2026-06-07, incl. P0 route + export preview smokes)
+- [x] `npm run test:mvp-coverage -w medoc` — scoped FE 100% allow-list
+- [x] `bash tools/g21-verify-automated.sh` GREEN
+- [x] `bash tools/two-device-sync-smoke.sh` — **automated proxy** via `scripts/validate-docker-multi-device.sh` **17/17**
+- [ ] Optional LAN browser: `MEDOC_LAN_E2E=1 npm run test:playwright -w medoc` with `medoc-server` running — see `docs/architecture/lan-client-deployment.md`
+- [x] Optional LAN web: `./scripts/validate-lan-web-client.sh` — build PASS
 - [ ] Coverage report archived in `releases/v0.1.0/coverage/` (MVP scope: `docs/coordination/mvp-test-scope.md`) — **scoped allow-list, not whole workspace**
 - [ ] Manual smoke test: patient → termin → akte → zahlung → backup → restore
 - [ ] Serverless: pair replica → push/pull → revoke (see `g21-live-smoke-checklist.md`)
@@ -50,7 +53,7 @@ checked off or have an explicit waiver linked in `docs/post-market/capa-tracking
 
 ## 7. Build & sign
 
-- [ ] `cd app && npm run tauri build` (macOS / Windows / Linux)
+- [ ] `npm run tauri build -w medoc` (macOS / Windows / Linux) — binary in `apps/practice-host/target/release/`
 - [ ] Installers signed with current code-signing certificate
 - [ ] Auto-update manifest published with detached signature
 

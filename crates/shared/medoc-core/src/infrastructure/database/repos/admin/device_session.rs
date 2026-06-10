@@ -12,6 +12,83 @@ pub struct DeviceSessionRow {
     pub created_at: String,
     pub last_seen_at: String,
     pub is_current: bool,
+    #[serde(default)]
+    pub is_trusted: bool,
+    pub trusted_at: Option<String>,
+    #[serde(default)]
+    pub is_suspected: bool,
+    #[serde(default)]
+    pub suspected_reasons: Vec<String>,
+}
+
+impl crate::domain::services::device_session_risk::DeviceSessionRiskMut for DeviceSessionRow {
+    fn set_risk(
+        &mut self,
+        assessment: crate::domain::services::device_session_risk::DeviceSessionRiskAssessment,
+    ) {
+        self.is_suspected = assessment.is_suspected;
+        self.suspected_reasons = assessment.suspected_reasons;
+    }
+}
+
+impl DeviceSessionRow {
+    pub fn as_risk_input(
+        &self,
+    ) -> crate::domain::services::device_session_risk::DeviceSessionRiskInput {
+        crate::domain::services::device_session_risk::DeviceSessionRiskInput {
+            id: self.id.clone(),
+            user_id: self.user_id.clone(),
+            device_label: self.device_label.clone(),
+            user_agent: self.user_agent.clone(),
+            created_at: self.created_at.clone(),
+            last_seen_at: self.last_seen_at.clone(),
+            is_current: self.is_current,
+            is_trusted: self.is_trusted,
+        }
+    }
+}
+
+fn row_from_sql(
+    r: &sqlx::sqlite::SqliteRow,
+    current_id: Option<&str>,
+) -> Result<DeviceSessionRow, AppError> {
+    let id: String = r.try_get("id").map_err(AppError::Database)?;
+    let uid: String = r.try_get("user_id").map_err(AppError::Database)?;
+    let device_label: String = r.try_get("device_label").map_err(AppError::Database)?;
+    let user_agent: Option<String> = r.try_get("user_agent").ok();
+    let created_at: String = r.try_get("created_at").map_err(AppError::Database)?;
+    let last_seen_at: String = r.try_get("last_seen_at").map_err(AppError::Database)?;
+    let trusted_at: Option<String> = r.try_get("trusted_at").ok();
+    let is_trusted = trusted_at.as_ref().is_some_and(|s| !s.trim().is_empty());
+    Ok(DeviceSessionRow {
+        is_current: current_id.map(|c| c == id.as_str()).unwrap_or(false),
+        id,
+        user_id: uid,
+        device_label,
+        user_agent,
+        created_at,
+        last_seen_at,
+        is_trusted,
+        trusted_at,
+        is_suspected: false,
+        suspected_reasons: Vec::new(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceSessionInvestigation {
+    pub session: DeviceSessionRow,
+    pub active_session_count: usize,
+    pub same_device_label_count: usize,
+    pub recent_logins: Vec<DeviceSessionAuditEntry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceSessionAuditEntry {
+    pub id: String,
+    pub action: String,
+    pub created_at: String,
+    pub details: Option<String>,
 }
 
 pub async fn insert(
@@ -64,7 +141,7 @@ pub async fn list_active_for_user(
     current_id: Option<&str>,
 ) -> Result<Vec<DeviceSessionRow>, AppError> {
     let rows = sqlx::query(
-        "SELECT id, user_id, device_label, user_agent, created_at, last_seen_at
+        "SELECT id, user_id, device_label, user_agent, created_at, last_seen_at, trusted_at
          FROM device_session
          WHERE user_id = ?1 AND ended_at IS NULL
          ORDER BY last_seen_at DESC",
@@ -75,23 +152,77 @@ pub async fn list_active_for_user(
     .map_err(AppError::Database)?;
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
-        let id: String = r.try_get("id").map_err(AppError::Database)?;
-        let uid: String = r.try_get("user_id").map_err(AppError::Database)?;
-        let device_label: String = r.try_get("device_label").map_err(AppError::Database)?;
-        let user_agent: Option<String> = r.try_get("user_agent").ok();
-        let created_at: String = r.try_get("created_at").map_err(AppError::Database)?;
-        let last_seen_at: String = r.try_get("last_seen_at").map_err(AppError::Database)?;
-        out.push(DeviceSessionRow {
-            is_current: current_id.map(|c| c == id.as_str()).unwrap_or(false),
-            id,
-            user_id: uid,
-            device_label,
-            user_agent,
-            created_at,
-            last_seen_at,
-        });
+        out.push(row_from_sql(&r, current_id)?);
     }
+    crate::domain::services::device_session_risk::enrich_sessions(&mut out, |r| r.as_risk_input());
     Ok(out)
+}
+
+/// Active session owned by `user_id`, or None if missing / ended / foreign.
+pub async fn find_active_for_user_by_id(
+    pool: &SqlitePool,
+    user_id: &str,
+    session_id: &str,
+    current_id: Option<&str>,
+) -> Result<Option<DeviceSessionRow>, AppError> {
+    let row = sqlx::query(
+        "SELECT id, user_id, device_label, user_agent, created_at, last_seen_at, trusted_at
+         FROM device_session
+         WHERE id = ?1 AND user_id = ?2 AND ended_at IS NULL",
+    )
+    .bind(session_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+
+    let Some(r) = row else {
+        return Ok(None);
+    };
+
+    let mut session = row_from_sql(&r, current_id)?;
+
+    let siblings = list_active_for_user(pool, user_id, current_id).await?;
+    let inputs: Vec<_> = siblings.iter().map(|s| s.as_risk_input()).collect();
+    let assessment = crate::domain::services::device_session_risk::assess_session(
+        &session.as_risk_input(),
+        &inputs,
+        chrono::Utc::now().naive_utc(),
+    );
+    session.is_suspected = assessment.is_suspected;
+    session.suspected_reasons = assessment.suspected_reasons;
+
+    Ok(Some(session))
+}
+
+/// Mark or clear user trust for an active session they own.
+pub async fn set_trusted(
+    pool: &SqlitePool,
+    user_id: &str,
+    session_id: &str,
+    trusted: bool,
+) -> Result<bool, AppError> {
+    let r = if trusted {
+        sqlx::query(
+            "UPDATE device_session SET trusted_at = datetime('now')
+             WHERE id = ?1 AND user_id = ?2 AND ended_at IS NULL",
+        )
+        .bind(session_id)
+        .bind(user_id)
+        .execute(pool)
+        .await
+    } else {
+        sqlx::query(
+            "UPDATE device_session SET trusted_at = NULL
+             WHERE id = ?1 AND user_id = ?2 AND ended_at IS NULL",
+        )
+        .bind(session_id)
+        .bind(user_id)
+        .execute(pool)
+        .await
+    }
+    .map_err(AppError::Database)?;
+    Ok(r.rows_affected() > 0)
 }
 
 pub async fn end_other_than(

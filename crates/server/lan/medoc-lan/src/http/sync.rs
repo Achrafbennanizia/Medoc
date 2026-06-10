@@ -184,3 +184,19 @@ fn action_for_path(path: &str) -> &'static str {
         ""
     }
 }
+
+#[cfg(test)]
+mod sync_route_tests {
+    use super::action_for_path;
+
+    #[test]
+    fn action_for_path_maps_sync_and_pairing_routes() {
+        assert_eq!(action_for_path("/api/v1/sync/push"), "sync.push");
+        assert_eq!(action_for_path("/api/v1/sync/pull"), "sync.pull");
+        assert_eq!(action_for_path("/api/v1/sync/status"), "sync.status");
+        assert_eq!(action_for_path("/api/v1/pairing/peers"), "pairing.peers");
+        assert_eq!(action_for_path("/api/v1/patienten"), "patient.read");
+        assert_eq!(action_for_path("/api/v1/termine"), "termin.read");
+        assert_eq!(action_for_path("/api/v1/me"), "");
+    }
+}

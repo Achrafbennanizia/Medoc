@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { itemValidationKey, type ValidationRecord, type ValidationState } from "@/lib/akte-validation";
 import type { AkteAnlage } from "@/lib/akte-anlagen";
-import { patientDetailTabBlocked, type PatientDetailAkteTab } from "@/lib/patient-detail-utils";
+import { patientDetailTabVisible, type PatientDetailAkteTab } from "@/lib/patient-detail-utils";
 import type { Zahlung } from "@/models/types";
 
 type AkteTabDef = { id: PatientDetailAkteTab; label: string; needsClinical?: boolean };
@@ -30,7 +30,6 @@ export type PatientDetailAkteSubnavProps = {
     zahlungen: Zahlung[];
     itemValidation: Partial<Record<string, ValidationRecord>>;
     onSelectTab: (tab: PatientDetailAkteTab) => void;
-    onBlockedClinicalTab: () => void;
 };
 
 export function PatientDetailAkteSubnav({
@@ -41,14 +40,21 @@ export function PatientDetailAkteSubnav({
     zahlungen,
     itemValidation,
     onSelectTab,
-    onBlockedClinicalTab,
 }: PatientDetailAkteSubnavProps) {
     const anlPending = anlagen.filter((a) => !itemValidation[itemValidationKey("anl", a.id)]).length;
     const zahlPending = zahlungen.filter((z) => !itemValidation[itemValidationKey("zahl", z.id)]).length;
 
+    const visibleSections = AKTE_TAB_SECTIONS.map((section) => ({
+        ...section,
+        tabIds: section.tabIds.filter((tabId) => {
+            const tab = AKTE_TABS.find((t) => t.id === tabId);
+            return tab != null && patientDetailTabVisible(tab.id, canViewClinical);
+        }),
+    })).filter((section) => section.tabIds.length > 0);
+
     return (
         <nav className="akte-subnav" role="tablist" aria-label="Patientenakte">
-            {AKTE_TAB_SECTIONS.map((section, si) => (
+            {visibleSections.map((section, si) => (
                 <Fragment key={section.heading}>
                     <div
                         className="akte-subnav-group-heading"
@@ -67,19 +73,20 @@ export function PatientDetailAkteSubnav({
                     {section.tabIds.map((tabId) => {
                         const tab = AKTE_TABS.find((t) => t.id === tabId);
                         if (!tab) return null;
-                        const blocked = patientDetailTabBlocked(tab.id, canViewClinical);
                         let badge: { tone: "warn" | "ok"; text: string } | null = null;
-                        if (tab.id === "stamm" || tab.id === "anam") {
-                            if (!validation.stamm) badge = { tone: "warn", text: "!" };
-                            else badge = { tone: "ok", text: "✓" };
-                        } else if (tab.id === "anlage") {
-                            if (anlagen.length === 0) badge = null;
-                            else if (anlPending === 0) badge = { tone: "ok", text: "✓" };
-                            else badge = { tone: "warn", text: anlPending > 1 ? String(anlPending) : "!" };
-                        } else if (tab.id === "zahl") {
-                            if (zahlungen.length === 0) badge = null;
-                            else if (zahlPending === 0) badge = { tone: "ok", text: "✓" };
-                            else badge = { tone: "warn", text: zahlPending > 1 ? String(zahlPending) : "!" };
+                        if (canViewClinical) {
+                            if (tab.id === "stamm" || tab.id === "anam") {
+                                if (!validation.stamm) badge = { tone: "warn", text: "!" };
+                                else badge = { tone: "ok", text: "✓" };
+                            } else if (tab.id === "anlage") {
+                                if (anlagen.length === 0) badge = null;
+                                else if (anlPending === 0) badge = { tone: "ok", text: "✓" };
+                                else badge = { tone: "warn", text: anlPending > 1 ? String(anlPending) : "!" };
+                            } else if (tab.id === "zahl") {
+                                if (zahlungen.length === 0) badge = null;
+                                else if (zahlPending === 0) badge = { tone: "ok", text: "✓" };
+                                else badge = { tone: "warn", text: zahlPending > 1 ? String(zahlPending) : "!" };
+                            }
                         }
                         return (
                             <button
@@ -89,20 +96,13 @@ export function PatientDetailAkteSubnav({
                                 id={`tab-${tab.id}`}
                                 aria-selected={activeTab === tab.id}
                                 aria-controls={`panel-${tab.id}`}
-                                disabled={blocked}
                                 className={`${activeTab === tab.id ? "active" : ""}`}
                                 title={
                                     tab.id === "anam"
                                         ? "Gilt gemeinsam mit Stammdaten (ein gemeinsamer Validierungsschritt)"
                                         : undefined
                                 }
-                                onClick={() => {
-                                    if (blocked) {
-                                        onBlockedClinicalTab();
-                                        return;
-                                    }
-                                    onSelectTab(tab.id);
-                                }}
+                                onClick={() => onSelectTab(tab.id)}
                             >
                                 <span>{tab.label}</span>
                                 {badge ? (

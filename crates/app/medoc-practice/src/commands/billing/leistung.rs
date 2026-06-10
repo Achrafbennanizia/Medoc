@@ -1,4 +1,4 @@
-use crate::application::rbac;
+use crate::application::rbac::{self, FINANZEN_READ_OR_RECEPTION};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::leistung::{CreateLeistung, UpdateLeistung};
 use crate::domain::entities::Leistung;
@@ -13,7 +13,7 @@ pub async fn list_leistungen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<Leistung>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require_one_of(&session_state, FINANZEN_READ_OR_RECEPTION)?;
     leistung_repo::find_all(&pool).await
 }
 

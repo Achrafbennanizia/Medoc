@@ -24,6 +24,25 @@ pub struct PairingRequest {
     pub requested_at: String,
     pub decided_at: Option<String>,
     pub decided_by: Option<String>,
+    /// True when the master approved the request and waits for the 4-digit PIN on the replica.
+    #[serde(default)]
+    pub awaiting_pin: bool,
+    /// How the request was initiated (`lan` | `bluetooth`).
+    #[serde(default = "default_transport")]
+    pub transport: String,
+}
+
+fn default_transport() -> String {
+    "lan".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingDecideResult {
+    pub request: PairingRequest,
+    /// Shown once on the accepting (master) device; replica must enter it to finish coupling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm_pin: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +52,8 @@ pub struct PairingRequestSubmit {
     pub slave_pubkey: String,
     pub slave_label: String,
     pub requester_ip: String,
+    #[serde(default = "default_transport")]
+    pub transport: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

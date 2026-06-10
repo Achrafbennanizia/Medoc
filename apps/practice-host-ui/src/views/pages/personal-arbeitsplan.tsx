@@ -53,7 +53,7 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { Select } from "../components/ui/input";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
-import { VerwaltungBackButton } from "../components/verwaltung-back-button";
+import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
 const DND_MIME = "application/x-medoc-arbeitsblock";
 /** Maximale sichtbare Timeline-Höhe (px) — Tagesansicht; Woche nutzt horizontale Minizeilen. */
@@ -667,17 +667,17 @@ export function PersonalArbeitsplanPage() {
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in personal-arbeitsplan-page">
-            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <VerwaltungBackButton />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <h1 className="page-title" style={{ margin: 0 }}>Arbeitsplan & Einsätze</h1>
-                    <p className="page-sub" style={{ margin: "4px 0 0" }}>
+        <div className="personal-arbeitsplan-page praxis-workspace-page animate-fade-in">
+            <VerwaltungPageHeader
+                titleLevel="h1"
+                title="Arbeitsplan & Einsätze"
+                subtitle={
+                    <>
                         Links legen Sie fest, <strong>wann</strong> das Team arbeiten oder pausieren soll — das erscheint als Soll-Zeiten im Kalender. Rechts der Kalender; <strong>Einsätze</strong> sind die verschiebbaren Blöcke darüber. Filter: Arbeit, Pause, Netto.
-                    </p>
-                </div>
-                <Link to="/personal" className="btn btn-subtle">Teamliste</Link>
-            </div>
+                    </>
+                }
+                actions={<Link to="/personal" className="btn btn-subtle">Teamliste</Link>}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
