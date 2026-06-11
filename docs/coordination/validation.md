@@ -1,6 +1,27 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-11 (Step 1 logger-first closure)
+
+## Logger-first completion pass (2026-06-11)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Missing Tauri command instrumentation (before) | Python scan over `crates/app/medoc-practice/src/commands` | **FAIL** (`missing_count=37`) | Baseline before this run's instrumentation commit |
+| Missing Tauri command instrumentation (after) | Same Python scan | **PASS** (`missing_count=0`) | All `#[tauri::command]` now have `#[tracing::instrument]` |
+| Rust fmt | `cargo +stable fmt --all -- --check` | **PASS** | |
+| Rust clippy | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **PASS** | Build warning only: `MEDOC_VENDOR_SEED` unset in dev |
+| Rust tests | `cargo +stable test --workspace --tests` | **PASS** | Command exit `0`, full workspace suites green |
+| Sanitizer unit tests | `cargo +stable test -p medoc-core infrastructure::logging::sanitizer::tests` | **PASS** | `masks_passwords`, `masks_jwt` |
+| Frontend tests | `npm run test` | **PASS** | **243 passed, 3 skipped** |
+| Frontend build | `npm run build` | **PASS** | Vite build complete; chunk-size warning is pre-existing |
+
+**Scope delivered in this pass (Step 1):**
+
+- Added tracing instrumentation to the remaining 37 Tauri command handlers (7 files).
+- Kept workflow bridge test coverage green (`apps/practice-host-ui/src/services/tauri.service.test.ts` and updated mocks).
+- Verified workflow channel still uses daily rotation (`Rotation::DAILY` for `workflow.log` in `infrastructure/logging/mod.rs`) and app-channel exclusion (`logging/config.rs`).
+
+---
 
 ## Refactor & harden pass
 

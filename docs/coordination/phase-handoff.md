@@ -1,6 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Refactor & harden pass (2026-06-10)  
+**Last phase label:** Logger-first instrumentation closure (2026-06-11)  
+**Last closed:** Step 1 logging completion (workflow channel + frontend bridge + command instrumentation + full validation refresh).
+
+### Verified (2026-06-11 — logger-first)
+
+- **Instrumentation coverage:** Remaining 37 uninstrumented `#[tauri::command]` handlers were instrumented (`missing_count=37 -> 0`) across:
+  - `crates/app/medoc-practice/src/commands/admin/{audit.rs,db_setup.rs,personal.rs}`
+  - `crates/app/medoc-practice/src/commands/network/{company_portal.rs,verbund.rs}`
+  - `crates/app/medoc-practice/src/commands/praxis/core.rs`
+  - `crates/app/medoc-practice/src/commands/system/menu.rs`
+- **Workflow log channel:** Dedicated `workflow.log` channel and target filter are in place (`logging/mod.rs`, `logging/config.rs`) with daily rotation.
+- **Sanitization evidence:** `cargo test -p medoc-core infrastructure::logging::sanitizer::tests` **PASS** (`masks_passwords`, `masks_jwt`).
+- **Validation sweep:** `cargo fmt --check` **PASS**; `cargo clippy --workspace --all-targets -D warnings` **PASS**; `cargo test --workspace --tests` **PASS**; `npm test` **243 PASS / 3 skipped**; `npm run build` **PASS**.
+
+### Remains unverified / deferred
+
+- Full Step 2 workflow-state-machine map and non-terminable flow register entries are **NOT RUN** in this pass.
+- Step 3 component behavior test expansion, Step 4 Playwright geometry audit, and Step 5 compliance sweep are **NOT RUN** in this pass.
+- Live runtime verification of workflow log file contents under real desktop interaction remains **NOT OBSERVED** (coverage currently from unit/smoke tests and source-level filter/rotation checks).
+
+### Understanding delta
+
+- Step 1 now has complete Tauri command entry instrumentation coverage and explicit sanitizer-path evidence, reducing blind spots in command-level traceability.
+- Workflow telemetry bridge tests are stabilized with explicit `recordWorkflowRouteEnter` mocks and dedicated `tauri.service` unit tests.
+
+### Next
+
+1. Execute Step 2 read-only workflow mapping and non-terminable flow detection; write findings with evidence IDs to `validation.md` / `contradictions.md`.
+2. Implement Step 3 behavior test expansion (component/page event matrix).
+3. Implement Step 4 Playwright geometry/spacing audit + arbitrary Tailwind lint.
+4. Execute Step 5 UI compliance checks and produce prioritized Step 6 fix queue.
+
+---
+
+**Previous phase label:** Refactor & harden pass (2026-06-10)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 
 ### Verified (2026-06-10 — Refactor & harden)

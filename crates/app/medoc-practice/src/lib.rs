@@ -10,4 +10,4 @@ pub mod error;
 pub mod infrastructure;
 pub mod systems;
 
-pub use medoc_core::{log_device, log_migration, log_perf, log_security, log_system};
+pub use medoc_core::{log_device, log_migration, log_perf, log_security, log_system, log_workflow};
