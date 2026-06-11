@@ -1,13 +1,21 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-11 (CI/CD pipeline migration)
 
 ## Now
 
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
+- **CI/CD rollout follow-up:** monitor first `verify.yml` / `autofix.yml` / `release.yml` runs and configure `CI_FIX_AGENT_COMMAND` secret for non-deterministic Tier-3 proposals.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+
+## Done (2026-06-11 — CI/CD pipeline migration)
+
+- Split legacy monolithic CI into four tiers: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`; retired `.github/workflows/ci.yml`.
+- Added deterministic JS autofix + typecheck/a11y scripts at workspace level.
+- Added axe-core audit script (`apps/practice-host-ui/scripts/axe-critical-audit.mjs`) and root `test:a11y` command.
+- Added coordination plan doc: [`ci-cd-plan.md`](ci-cd-plan.md) and recorded validation evidence in [`validation.md`](validation.md).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

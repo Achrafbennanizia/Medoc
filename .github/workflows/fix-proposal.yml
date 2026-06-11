@@ -1,0 +1,247 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this fix proposal was requested"
+        required: false
+        default: "manual dispatch"
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - id: meta
+        name: Resolve source metadata
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "reason=verify failed on main (run ${{ github.event.workflow_run.id }})" >> "$GITHUB_OUTPUT"
+            echo "source_run_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ github.event.inputs.reason }}" >> "$GITHUB_OUTPUT"
+            echo "source_run_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "branch=ci/fix-proposal-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "branch_slug=fix-proposal-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.ref }}
+      - name: Create proposal branch
+        run: git switch -c "${{ steps.meta.outputs.branch }}"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - id: pm
+        name: Detect JS package manager + commands
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=pnpm run typecheck" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=yarn typecheck" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=npm run typecheck" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - id: before
+        name: Capture failing-before evidence
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set +e
+          cargo test --workspace > artifacts/failing-before-rust.txt 2>&1
+          rust_exit=$?
+          cargo audit > artifacts/failing-before-audit.txt 2>&1
+          audit_exit=$?
+          ${{ steps.pm.outputs.typecheck_cmd }} > artifacts/failing-before-typecheck.txt 2>&1
+          typecheck_exit=$?
+          set -e
+          echo "rust_exit=$rust_exit" >> "$GITHUB_OUTPUT"
+          echo "audit_exit=$audit_exit" >> "$GITHUB_OUTPUT"
+          echo "typecheck_exit=$typecheck_exit" >> "$GITHUB_OUTPUT"
+      - id: attempt
+        name: Attempt non-deterministic fix using configured agent hook
+        shell: bash
+        env:
+          CI_FIX_AGENT_COMMAND: ${{ secrets.CI_FIX_AGENT_COMMAND }}
+        run: |
+          set +e
+          if [ -n "${CI_FIX_AGENT_COMMAND:-}" ]; then
+            echo "Running CI_FIX_AGENT_COMMAND..." | tee artifacts/agent-attempt.txt
+            bash -lc "$CI_FIX_AGENT_COMMAND" >> artifacts/agent-attempt.txt 2>&1
+            hook_exit=$?
+          else
+            echo "CI_FIX_AGENT_COMMAND is not configured; no non-deterministic patch attempted." | tee artifacts/agent-attempt.txt
+            hook_exit=0
+          fi
+          set -e
+          echo "hook_exit=$hook_exit" >> "$GITHUB_OUTPUT"
+      - id: after
+        name: Capture passing-after evidence
+        shell: bash
+        run: |
+          set +e
+          cargo test --workspace > artifacts/passing-after-rust.txt 2>&1
+          rust_exit=$?
+          cargo audit > artifacts/passing-after-audit.txt 2>&1
+          audit_exit=$?
+          ${{ steps.pm.outputs.typecheck_cmd }} > artifacts/passing-after-typecheck.txt 2>&1
+          typecheck_exit=$?
+          set -e
+          echo "rust_exit=$rust_exit" >> "$GITHUB_OUTPUT"
+          echo "audit_exit=$audit_exit" >> "$GITHUB_OUTPUT"
+          echo "typecheck_exit=$typecheck_exit" >> "$GITHUB_OUTPUT"
+      - name: Write proposal evidence report
+        shell: bash
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          cat <<EOF > "docs/coordination/fix-proposals/${{ steps.meta.outputs.branch_slug }}.md"
+          # CI fix proposal — ${{ steps.meta.outputs.branch }}
+
+          ## Trigger
+
+          - Reason: ${{ steps.meta.outputs.reason }}
+          - Source run: ${{ steps.meta.outputs.source_run_url }}
+          - Base ref: ${{ steps.meta.outputs.ref }}
+
+          ## Failing-before evidence
+
+          - \`cargo test --workspace\`: exit ${{ steps.before.outputs.rust_exit }}
+          - \`cargo audit\`: exit ${{ steps.before.outputs.audit_exit }}
+          - \`${{ steps.pm.outputs.typecheck_cmd }}\`: exit ${{ steps.before.outputs.typecheck_exit }}
+
+          ## Agent attempt
+
+          - Hook configured: ${{ steps.attempt.outputs.hook_exit != '' && 'yes' || 'no' }}
+          - Hook exit code: ${{ steps.attempt.outputs.hook_exit }}
+
+          ## Passing-after evidence
+
+          - \`cargo test --workspace\`: exit ${{ steps.after.outputs.rust_exit }}
+          - \`cargo audit\`: exit ${{ steps.after.outputs.audit_exit }}
+          - \`${{ steps.pm.outputs.typecheck_cmd }}\`: exit ${{ steps.after.outputs.typecheck_exit }}
+
+          ## Human review requirements
+
+          - Draft PR only (no auto-merge).
+          - Review all changed files and attached logs before merge.
+          EOF
+      - id: sensitive
+        name: Detect sensitive-area changes (security/audit/crypto/RBAC)
+        shell: bash
+        run: |
+          changed="$(git diff --name-only)"
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$changed" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          if echo "$changed" | rg -qi "(^|/)(security|audit|crypto|rbac)(/|_|\\.|-)" ; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: labels
+        name: Resolve PR labels
+        shell: bash
+        run: |
+          if [ "${{ steps.sensitive.outputs.sensitive }}" = "true" ]; then
+            echo "labels=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build PR body
+        shell: bash
+        run: |
+          cat <<EOF > artifacts/pr-body.md
+          ## Summary
+
+          Automated fix proposal generated from \`${{ steps.meta.outputs.reason }}\`.
+          This pull request is opened as **draft** and must be merged manually after review.
+
+          ## Changed files
+
+          \`\`\`
+          ${{ steps.sensitive.outputs.changed_files }}
+          \`\`\`
+
+          ## Failing-before evidence
+
+          - \`cargo test --workspace\`: exit ${{ steps.before.outputs.rust_exit }}
+          - \`cargo audit\`: exit ${{ steps.before.outputs.audit_exit }}
+          - \`${{ steps.pm.outputs.typecheck_cmd }}\`: exit ${{ steps.before.outputs.typecheck_exit }}
+
+          ## Passing-after evidence
+
+          - \`cargo test --workspace\`: exit ${{ steps.after.outputs.rust_exit }}
+          - \`cargo audit\`: exit ${{ steps.after.outputs.audit_exit }}
+          - \`${{ steps.pm.outputs.typecheck_cmd }}\`: exit ${{ steps.after.outputs.typecheck_exit }}
+
+          ## Rationale
+
+          The workflow captured failing-before and passing-after command exits and persisted details in:
+          \`docs/coordination/fix-proposals/${{ steps.meta.outputs.branch_slug }}.md\`.
+
+          If this touches security, audit, crypto, or RBAC code, it is labeled \`needs-human-review\`
+          and the workflow halts after opening the draft PR.
+          EOF
+      - id: cpr
+        name: Open draft pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.meta.outputs.branch }}
+          base: main
+          title: "ci: draft fix proposal (${{ steps.meta.outputs.branch }})"
+          commit-message: "ci: add automated fix proposal evidence"
+          body-path: artifacts/pr-body.md
+          labels: ${{ steps.labels.outputs.labels }}
+          draft: true
+          delete-branch: false
+      - name: Stop automation when sensitive files changed
+        if: steps.sensitive.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: |
+          echo "Sensitive files were changed; draft PR labeled needs-human-review."
+          exit 1
