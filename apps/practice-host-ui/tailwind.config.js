@@ -47,6 +47,9 @@ export default {
         label: ["12px", { lineHeight: "1.4", fontWeight: "500" }],
         caption: ["11px", { lineHeight: "1.4", fontWeight: "400" }],
       },
+      spacing: {
+        18: "4.5rem",
+      },
       borderRadius: {
         card: "var(--radius-card)",
         ctl: "var(--radius-ctl)",
