@@ -1,0 +1,287 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch or SHA to propose a fix from"
+        required: false
+        default: "main"
+      source_run_url:
+        description: "Failed run URL (optional)"
+        required: false
+        default: ""
+      failure_summary:
+        description: "Short rationale for this proposal"
+        required: false
+        default: ""
+      failing_command:
+        description: "Command that reproduces the failure before/after"
+        required: false
+        default: ""
+      fix_command:
+        description: "Agent fix command (optional override)"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: meta
+        name: Resolve source metadata
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            if [ -n "${{ inputs.source_run_url }}" ]; then
+              echo "source_run_url=${{ inputs.source_run_url }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            fi
+            if [ -n "${{ inputs.failure_summary }}" ]; then
+              echo "failure_summary=${{ inputs.failure_summary }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "failure_summary=Manual fix-proposal dispatch." >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "target_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "source_run_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+            echo "failure_summary=verify workflow failed on main and triggered this fix proposal." >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.target_ref }}
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found" >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux system dependencies (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+      - id: commands
+        name: Resolve repro and fix commands
+        run: |
+          {
+            echo "failing_command<<EOF"
+            if [ -n "${{ inputs.failing_command }}" ]; then
+              echo "${{ inputs.failing_command }}"
+            else
+              echo "cargo test --workspace --tests"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "fix_command<<EOF"
+            if [ -n "${{ inputs.fix_command }}" ]; then
+              echo "${{ inputs.fix_command }}"
+            elif [ -n "${{ vars.CI_FIX_PROPOSAL_COMMAND }}" ]; then
+              echo "${{ vars.CI_FIX_PROPOSAL_COMMAND }}"
+            else
+              cat <<'FALLBACK'
+cargo install cargo-audit --locked || true
+cargo fix --workspace --all-targets --allow-dirty --allow-staged || true
+npm run typecheck || true
+cargo audit || true
+FALLBACK
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          mkdir -p .ci/fix-proposal
+          set +e
+          bash -lc "${{ steps.commands.outputs.failing_command }}" > .ci/fix-proposal/before.log 2>&1
+          status="$?"
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Attempt non-deterministic fix proposal
+        id: fix
+        run: |
+          set +e
+          bash -lc "${{ steps.commands.outputs.fix_command }}" > .ci/fix-proposal/fix.log 2>&1
+          status="$?"
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          set +e
+          bash -lc "${{ steps.commands.outputs.failing_command }}" > .ci/fix-proposal/after.log 2>&1
+          status="$?"
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - id: scan
+        name: Scan changed files and sensitive scope
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          if git diff --cached --name-only | grep -Eiq '(security|audit|crypto|rbac)'; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build PR report
+        if: steps.scan.outputs.changed == 'true'
+        env:
+          SOURCE_RUN_URL: ${{ steps.meta.outputs.source_run_url }}
+          TRIGGER: ${{ github.event_name }}
+          FAILURE_SUMMARY: ${{ steps.meta.outputs.failure_summary }}
+          BEFORE_STATUS: ${{ steps.before.outputs.status }}
+          FIX_STATUS: ${{ steps.fix.outputs.status }}
+          AFTER_STATUS: ${{ steps.after.outputs.status }}
+          FAILING_COMMAND: ${{ steps.commands.outputs.failing_command }}
+          FIX_COMMAND: ${{ steps.commands.outputs.fix_command }}
+        run: |
+          python3 <<'PY'
+          import os
+          from pathlib import Path
+
+          def tail(path: str, lines: int = 120) -> str:
+              p = Path(path)
+              if not p.exists():
+                  return "(log file missing)"
+              content = p.read_text(encoding="utf-8", errors="replace").splitlines()
+              return "\n".join(content[-lines:])
+
+          report = f"""## Tier 3 fix proposal (draft)
+
+          This draft PR was generated by the **fix-proposal** workflow.
+
+          - Source failure run: {os.environ.get("SOURCE_RUN_URL", "")}
+          - Trigger: {os.environ.get("TRIGGER", "")}
+          - Summary: {os.environ.get("FAILURE_SUMMARY", "")}
+
+          ### Command used for failing-before / passing-after check
+
+          ```bash
+          {os.environ.get("FAILING_COMMAND", "")}
+          ```
+
+          ### Command used for fix attempt
+
+          ```bash
+          {os.environ.get("FIX_COMMAND", "")}
+          ```
+
+          ### Evidence
+
+          - failing-before exit code: {os.environ.get("BEFORE_STATUS", "")}
+          - fix-command exit code: {os.environ.get("FIX_STATUS", "")}
+          - passing-after exit code: {os.environ.get("AFTER_STATUS", "")}
+
+          #### failing-before (tail)
+
+          ```text
+          {tail(".ci/fix-proposal/before.log")}
+          ```
+
+          #### fix attempt (tail)
+
+          ```text
+          {tail(".ci/fix-proposal/fix.log")}
+          ```
+
+          #### passing-after (tail)
+
+          ```text
+          {tail(".ci/fix-proposal/after.log")}
+          ```
+
+          ### Guardrails
+
+          - Never auto-merge this PR.
+          - Human review is required before merge.
+          """
+
+          Path(".ci/fix-proposal/report.md").write_text(report, encoding="utf-8")
+          PY
+      - id: cpr
+        if: steps.scan.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          commit-message: "ci: propose non-deterministic fix for failing verify gate"
+          title: "ci: draft fix proposal for failing verify gate"
+          body-path: .ci/fix-proposal/report.md
+          draft: true
+      - name: Apply needs-human-review label
+        if: steps.scan.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop when sensitive scope changed
+        if: steps.scan.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: |
+          echo "Sensitive scope changed (security/audit/crypto/rbac). Labeled PR and stopped."
+          exit 1
+      - name: No proposed diff
+        if: steps.scan.outputs.changed != 'true'
+        run: |
+          echo "No file changes were produced by the fix attempt."
+          exit 1

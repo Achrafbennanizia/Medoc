@@ -1,27 +1,28 @@
 # Phase handoff
 
-**Last phase label:** Refactor & harden pass (2026-06-10)  
-**Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
+**Last phase label:** CI/CD pipeline tiering (2026-06-11)  
+**Last closed:** Tiered workflow split + local validation evidence update.
 
-### Verified (2026-06-10 — Refactor & harden)
+### Verified (2026-06-11 — CI/CD tiering)
 
-- **Plan:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) persisted; Geräteverbund exclusion zone respected for structural work.
-- **Register:** 20 entries; P0 Geräteverbund items deferred to feature track; R-004–R-006, R-013, R-017 addressed.
-- **Tests:** `cargo test --workspace --tests` **PASS**; `cargo clippy --workspace -D warnings` **PASS**; `npm test` **240 PASS**; `npm run build` **PASS**.
-- **Safety net:** IPC golden list (275 commands); architecture boundary test; pairing e2e updated for PIN confirm flow.
-- **Docs:** [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
+- **Workflows:** Added `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`; removed legacy `.github/workflows/ci.yml`.
+- **Tier-1 gate design:** verify workflow runs Rust fmt/clippy/test/audit, web lint/typecheck/test/build, and a11y gate (`npm run test:a11y`) with lockfile-based package-manager detection.
+- **Tier-2 guardrails:** autofix is PR-only, bot-loop guarded, deterministic-only (`cargo fmt`, `lint:fix`, `format`), commits only when diff exists.
+- **Tier-3 proposal flow:** fix-proposal supports manual dispatch and failed-main verify trigger, captures before/after evidence, opens draft PR, applies `needs-human-review` for `security|audit|crypto|rbac` changes.
+- **Tier-4 release gate:** release workflow reuses verify gate, builds signed artifacts in protected `release` environment, uploads Tauri bundles.
+- **Support files:** `docs/coordination/ci-cd-plan.md` added; a11y runner implemented at `apps/practice-host-ui/scripts/test-a11y.mjs`.
+- **Local validation:** `cargo fmt --all -- --check` **PASS**; `npm run typecheck` **PASS**; `npm run test` **240 PASS / 3 skipped**; `npm run build` **PASS**; `npm run test:a11y` **PASS**.
 
 ### Remains unverified / deferred
 
-- Geräteverbund wire handshake (R-001–R-003) — active feature track.
-- G21b live Tauri manual rows 1–9 (R-011).
-- Stale v-model/architecture doc paths (R-004) — quarantined, not bulk-updated.
+- GitHub-hosted execution of new workflows (`verify`/`autofix`/`release`/`fix-proposal`) is **NOT OBSERVED** in this session.
+- `npm run lint` currently fails on pre-existing `react-hooks/preserve-manual-memoization` errors in `praxis-aufgabe-*` UI files; verify gate will remain red until these are fixed.
 
 ### Next
 
-1. Geräteverbund: wire Noise transcript + mDNS (phase-handoff items).
-2. G21b live Tauri sign-off when ready.
-3. Optional: refresh high-traffic stale docs from [`retired-paths.md`](retired-paths.md) index.
+1. Resolve existing frontend lint errors so Tier-1 verify can pass end-to-end.
+2. Trigger `verify.yml` and `release.yml` in GitHub Actions to validate runner behavior and secrets wiring.
+3. Execute at least one manual `fix-proposal` dispatch with a concrete `fix_command` to validate draft PR evidence/label flow.
 
 ---
 

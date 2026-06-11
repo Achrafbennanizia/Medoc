@@ -1,6 +1,26 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-11 (CI/CD tiering workflows)
+
+## CI/CD tiering workflows — verified (2026-06-11)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** | Repo formatting unchanged by CI/CD edits |
+| FE lint | `npm run lint` | **FAIL** | Pre-existing `react-hooks/preserve-manual-memoization` errors in `praxis-aufgabe-*` files (4 errors, 2 warnings) |
+| FE typecheck | `npm run typecheck` | **PASS** | `tsc --noEmit` clean |
+| FE tests | `npm run test` | **PASS** | **240 passed**, 3 skipped |
+| FE build | `npm run build` | **PASS** | Vite production build completed |
+| Browser bootstrap for a11y | `npx playwright install chromium` | **PASS** | Chromium + ffmpeg downloaded |
+| A11y critical gate | `npm run test:a11y` | **PASS** | `No critical WCAG 2.1 A/AA violations found.` |
+
+Notes:
+
+- Tiered workflows implemented under `.github/workflows/{verify,autofix,fix-proposal,release}.yml`; monolithic `ci.yml` removed.
+- First `test:a11y` run exposed `@axe-core/playwright` API misuse (`Please use browser.newContext()`), fixed in `apps/practice-host-ui/scripts/test-a11y.mjs`, then re-run **PASS**.
+- Current verify pipeline state is **blocked by existing lint errors** until those pre-existing files are addressed.
+
+---
 
 ## Refactor & harden pass
 
