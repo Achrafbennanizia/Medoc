@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = process.env.MEDOC_VITE_URL ?? "http://127.0.0.1:1420";
+const baseURL = process.env.MEDOC_VITE_URL ?? "http://localhost:1420";
 const lanServer = process.env.MEDOC_LAN_URL ?? "https://127.0.0.1:8787";
 const runUiGeometry = process.env.MEDOC_UI_GEOMETRY === "1";
 

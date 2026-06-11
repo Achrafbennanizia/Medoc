@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MeDoc UI Geometry Probe</title>
+    <link rel="stylesheet" href="/src/index.css" />
+</head>
+<body>
+    <main class="p-4">
+        <section id="probe-card" class="max-w-md rounded-card border border-[var(--line)] bg-[var(--bg-elev)] p-4">
+            <h1 class="mb-4 text-title">UI Geometry Probe</h1>
+            <label for="probe-email" class="form-label">E-Mail</label>
+            <input
+                id="probe-email"
+                class="input-edit mb-3"
+                placeholder="name@praxis.de"
+                type="email"
+            />
+            <button id="probe-button" class="btn btn-accent" type="button">
+                Primäre Aktion
+            </button>
+        </section>
+
+        <div id="probe-toast-stack" class="toast-stack" style="pointer-events: auto">
+            <div class="toast-item success">
+                <div class="toast-item-inner">
+                    <span class="toast-message">Probe Toast</span>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,8 +1,8 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
-use serde::Deserialize;
 
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
