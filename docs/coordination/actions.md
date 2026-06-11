@@ -1,13 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-11 (Logger-first pass complete)
 
 ## Now
 
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+- **Step 1 (Logger first) complete:** workflow channel + UI bridge merged; remaining 37 uninstrumented Tauri commands are now instrumented; validation recorded in [`validation.md`](validation.md) (2026-06-11 block).
+- **Step 2 pending (read-only):** enumerate full UI routes/options/actions and record non-terminable workflow findings in `contradictions.md` / `validation.md`.
+- **Step 3 pending:** expand component/page behavior tests (click/input/submit/error/loading/empty/disabled/Tab/Enter/Escape).
+- **Step 4 pending:** Playwright geometry/spacing audit + arbitrary Tailwind value lint.
+- **Step 5 pending:** axe + keyboard/focus/toast/error-shape compliance capture.
+- **Step 6 pending (gated):** apply P0-first fixes with one-fix-per-commit and explicit test evidence.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
