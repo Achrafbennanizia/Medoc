@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-06-11  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -31,6 +31,9 @@
 - **Praxis document readiness (FE):** `packages/shared/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
 - **Validation (2026-06-10 refactor):** `cargo fmt --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace --tests`, `npm test` **240 PASS**, `npm run build` **PASS** — [`validation.md`](validation.md).
+- **Workflow telemetry (2026-06-11):** Dedicated `workflow.log` channel in `medoc-core` logging with sanitized `record_workflow_event` Tauri command (`crates/app/medoc-practice/src/commands/system/logging.rs`) and frontend bridge (`apps/practice-host-ui/src/services/{workflow-log.service,tauri.service}.ts`, `App.tsx` route logger).
+- **UI spacing/geometry gates (2026-06-11):** Tailwind arbitrary spacing lint (`apps/practice-host-ui/scripts/lint-tailwind-arbitrary-spacing.mjs`) integrated into frontend lint script; Playwright geometry audit (`e2e-playwright/ui-geometry.spec.ts`) uses `/geometry-probe.html` at 375/768/1259 breakpoints.
+- **Toast policy alignment (2026-06-11):** Default timings and persistence behavior enforced in `packages/ui/src/toast-store.ts` + `packages/ui/src/toast.tsx`; stack anchored bottom-right in `apps/practice-host-ui/src/index.css`.
 - **Refactor artifacts:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md), [`refactor-register.md`](refactor-register.md), [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
 - **Three-system layout (2026-06-06):** Repo root: `apps/{practice-host,practice-host-ui,lan-web-client}`, `crates/{app,server,shared,test}/`, `packages/{shared,ui,app,server}/`. Rust workspace: root `Cargo.toml`. npm workspace: root `package.json`. Legacy `app/` is a README pointer only. Isolation: `./scripts/validate-three-systems.sh`, `./scripts/validate-fe-three-systems.sh`, `./scripts/validate-lan-web-client.sh`.
 - **LAN web client (2026-06-06):** Browser-only `apps/lan-web-client` on port **1421**; Vite aliases replace Tauri adapters with `HttpPracticeAdapter` shim (`src/practice-http-shim.ts`); no `@tauri-apps` dependency.

@@ -1,6 +1,17 @@
 # Contradiction ledger
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-06-11
+
+## Workflow QA register (2026-06-11 cron run)
+
+| ID | Location | Finding | Evidence | Severity | Action | Status |
+| -- | -------- | ------- | -------- | -------- | ------ | ------ |
+| WQ-001 | Rust workspace validation (`libsqlite3-sys` / SQLCipher toolchain) | Required Rust validation gates are blocked on this runner because SQLCipher compilation cannot find `openssl/crypto.h`. | `cargo +stable clippy --workspace --all-targets -- -D warnings` and `cargo +stable test --workspace --tests` both fail with `fatal error: 'openssl/crypto.h' file not found`. | **P1** | Escalate runner image dependency (`libssl-dev` headers) for SQLCipher builds; keep this run’s Rust status as blocked. | **OPEN** |
+| WQ-002 | `crates/shared/medoc-core/src/infrastructure/logging/*`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `apps/practice-host-ui/src/services/*` | Workflow telemetry path was missing (no dedicated workflow channel + no frontend→backend bridge). | Code inspection before edits: no `medoc::workflow` target and no `record_workflow_event` IPC command; now added and registered. | **P1** | Added `workflow.log` channel, sanitized `record_workflow_event` command, route logger, and centralized command lifecycle logging in `tauri.service.ts`. | **FIXED** |
+| WQ-003 | `packages/ui/src/toast-store.ts`, `apps/practice-host-ui/src/index.css` | Toast defaults violated requested UX policy (error timeout too long; stack anchored top-right). | Pre-fix values: error `6000ms` and `.toast-stack { top: ... }`. | **P2** | Set error default to `5000ms`, support persistent toasts (`durationMs=0`), and move stack anchor to bottom-right. | **FIXED** |
+| WQ-004 | `apps/practice-host-ui/src/views/components/behandlung-akte-composer-panel.tsx` | Arbitrary Tailwind spacing value bypassed token scale (`min-h-[72px]`). | `rg '(...)-\\[[^\\]]+\\]' apps/practice-host-ui/src` hit `min-h-[72px]` in behandlung composer panel. | **P2** | Replaced with tokenized `min-h-18`, added Tailwind spacing token `18=4.5rem`, and added static lint script (`lint-tailwind-arbitrary-spacing.mjs`). | **FIXED** |
+| WQ-005 | `apps/practice-host-ui/e2e-playwright/ui-geometry.spec.ts` + `public/geometry-probe.html` | No browser geometry regression audit existed for responsive breakpoints. | New Playwright run (`MEDOC_UI_GEOMETRY=1 ... ui-geometry.spec.ts`) now executes 3 breakpoint checks with screenshots. | **P3** | Added probe page + Playwright geometry assertions at `375/768/1259` and responsive screenshot capture. | **FIXED** |
+| WQ-006 | Frontend lint gate (`react-hooks/preserve-manual-memoization`) | Workspace lint gate is red due pre-existing React Compiler memoization findings in Praxis-Aufgabe UI files. | `npm run lint` fails in `praxis-aufgabe-admin-panel.tsx`, `praxis-aufgabe-inbox-panel.tsx`, `praxis-aufgabe-create.tsx`, `praxis-aufgabe-edit.tsx` with `Compilation Skipped: Existing memoization could not be preserved`. | **P2** | Keep this run’s frontend lint state as blocked; schedule focused follow-up to remove or correct unstable `useCallback` dependency lists in those pages. | **OPEN** |
 
 ## Open contradictions
 
