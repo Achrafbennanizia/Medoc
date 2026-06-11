@@ -43,6 +43,7 @@ function printViolations(violations) {
 
 let previewServer;
 let browser;
+let browserContext;
 
 try {
     await access("dist");
@@ -53,6 +54,7 @@ try {
         {
             env: process.env,
             stdio: ["ignore", "pipe", "pipe"],
+            detached: true,
         },
     );
 
@@ -62,7 +64,8 @@ try {
     await waitForPreview(APP_URL, 60_000);
 
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    browserContext = await browser.newContext();
+    const page = await browserContext.newPage();
     await page.goto(APP_URL, { waitUntil: "networkidle" });
 
     const results = await new AxeBuilder({ page })
@@ -86,15 +89,21 @@ try {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
 } finally {
+    if (browserContext) {
+        await browserContext.close();
+    }
+
     if (browser) {
         await browser.close();
     }
 
-    if (previewServer && !previewServer.killed) {
-        previewServer.kill("SIGTERM");
-        await delay(1_000);
-        if (!previewServer.killed) {
-            previewServer.kill("SIGKILL");
+    if (previewServer?.pid) {
+        try {
+            process.kill(-previewServer.pid, "SIGTERM");
+            await delay(1_000);
+            process.kill(-previewServer.pid, "SIGKILL");
+        } catch {
+            // Process group already exited.
         }
     }
 }

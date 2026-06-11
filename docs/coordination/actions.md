@@ -1,6 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-11 (CI/CD tiering workflows)
+
+## Done (2026-06-11 — CI/CD tiering)
+
+- Replaced monolithic CI with tiered workflows:
+  - `verify.yml` (blocking verify gate)
+  - `autofix.yml` (PR-only deterministic fixes)
+  - `fix-proposal.yml` (draft PR proposal flow)
+  - `release.yml` (gated signed build)
+- Added CI/CD design doc: [`ci-cd-plan.md`](ci-cd-plan.md).
+- Added accessibility gate script: `apps/practice-host-ui/scripts/test-a11y.mjs`.
+- Updated validation evidence in [`validation.md`](validation.md) with command outputs.
+
+## Now
+
+1. Resolve current frontend lint errors blocking Tier-1 verify.
+2. Run new workflows in GitHub Actions for first live verification pass.
+3. Exercise one manual `fix-proposal` dispatch with a concrete fix command.
 
 ## Now
 
