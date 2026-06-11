@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense, useEffect, useRef } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -10,6 +10,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { emitWorkflowEvent, normalizeWorkflowRoute } from "./services/workflow-log.service";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -116,12 +117,35 @@ function RouteFallback() {
     );
 }
 
+function WorkflowRouteLogger() {
+    const location = useLocation();
+    const lastRouteRef = useRef<string>("");
+
+    useEffect(() => {
+        const path = normalizeWorkflowRoute(location.pathname);
+        const searchKeys = [...new URLSearchParams(location.search).keys()];
+        const route = searchKeys.length > 0 ? `${path}?keys=${searchKeys.join(",")}` : path;
+        if (route === lastRouteRef.current) return;
+        lastRouteRef.current = route;
+        void emitWorkflowEvent({
+            phase: "route",
+            step: "enter",
+            outcome: "success",
+            route,
+            source: "router",
+        });
+    }, [location.pathname, location.search]);
+
+    return null;
+}
+
 export default function App() {
     return (
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowRouteLogger />
         <VerbundOnboardingGate>
             <Routes>
                 <Route

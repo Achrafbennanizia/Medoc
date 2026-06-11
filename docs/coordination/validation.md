@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-11 (Workflow QA cron run)
+
+## Workflow QA cron run (2026-06-11)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust fmt | `cargo fmt --all -- --check` | **PASS** | Formatting gate green after workflow logging follow-up edits. |
+| Rust clippy | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL** | Blocked in `libsqlite3-sys` (`sqlcipher/sqlite3.c`) with `fatal error: 'openssl/crypto.h' file not found`. |
+| Rust tests | `cargo +stable test --workspace --tests` | **FAIL** | Same runner dependency block (`openssl/crypto.h` missing during SQLCipher compile). |
+| Frontend lint | `npm run lint` | **FAIL** | React compiler memoization errors in `praxis-aufgabe-{admin-panel,inbox-panel,create,edit}` plus 2 fast-refresh warnings. |
+| Frontend tests | `npm run test` | **PASS** | Vitest: **250 passed**, **3 skipped**. |
+| Frontend build | `npm run build` | **PASS** | `tsc && vite build`; bundle emitted successfully (pre-existing chunk-size warnings only). |
+| Tailwind spacing lint | `npm run lint:tailwind-spacing -w medoc` | **PASS** | `Tailwind spacing lint passed.` |
+| Playwright geometry audit | `MEDOC_UI_GEOMETRY=1 npm run test:playwright -w medoc -- e2e-playwright/ui-geometry.spec.ts` | **PASS** | Chromium: **3/3** checks passed at **375/768/1259 px**. |
+
+**Open blockers carried forward:**
+
+- Rust validation requires OpenSSL headers for SQLCipher on this runner (`openssl/crypto.h` missing).
+- Frontend lint gate remains red due existing React memoization findings in Praxis-Aufgabe pages.
 
 ## Refactor & harden pass
 

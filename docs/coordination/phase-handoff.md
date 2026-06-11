@@ -1,5 +1,39 @@
 # Phase handoff
 
+**Last phase label:** Workflow QA logger + geometry follow-up (2026-06-11)  
+**Last closed:** Instrumentation/test/fix pass for workflow telemetry + UI geometry/toast spacing policy; validation/contradiction ledgers updated.
+
+### Verified (2026-06-11 — Workflow QA follow-up)
+
+- **Workflow telemetry:** dedicated `workflow.log` channel + sanitized frontend→backend bridge committed (`a04c1b9`).
+- **UI policy fixes:** toast defaults/persistent behavior + bottom-right stack + spacing-token migration committed (`96b555c`).
+- **Tests/audits:** workflow service tests, tauri service tests, toast-store tests, Tailwind spacing lint, Playwright geometry spec committed (`eb06189`).
+- **Validation run (this session):**
+  - `cargo fmt --all -- --check` **PASS**
+  - `npm run test` **250 PASS / 3 skipped**
+  - `npm run build` **PASS**
+  - `npm run lint:tailwind-spacing -w medoc` **PASS**
+  - `MEDOC_UI_GEOMETRY=1 npm run test:playwright -w medoc -- e2e-playwright/ui-geometry.spec.ts` **3/3 PASS**
+
+### Remains unverified / blocked
+
+- **Rust gates blocked on runner image:** `cargo +stable clippy --workspace --all-targets -- -D warnings` and `cargo +stable test --workspace --tests` fail in `libsqlite3-sys` because `openssl/crypto.h` is missing.
+- **Frontend lint gate red:** `npm run lint` fails with React memoization diagnostics in Praxis-Aufgabe pages (`react-hooks/preserve-manual-memoization`).
+
+### Understanding delta
+
+- Geometry audit is now stable/repeatable via `/geometry-probe.html` and no longer coupled to dynamic `/login` rendering.
+- Tailwind spacing policy now has an enforceable static gate (`lint-tailwind-arbitrary-spacing.mjs`) and a passing baseline.
+- Remaining failures are environment/tooling and pre-existing lint debt, not regressions from workflow logging/toast/geometry changes.
+
+### Next
+
+1. Provision OpenSSL headers in runner image so SQLCipher crates can compile (`libssl-dev` or equivalent) and rerun Rust clippy/tests.
+2. Resolve React memoization lint errors in Praxis-Aufgabe pages and rerun `npm run lint`.
+3. Keep `docs/coordination/validation.md` + `contradictions.md` in sync with blocker status changes.
+
+---
+
 **Last phase label:** Refactor & harden pass (2026-06-10)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 

@@ -1,4 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+    emitWorkflowEvent,
+    WORKFLOW_LOG_COMMAND,
+} from "./workflow-log.service";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +54,64 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function summarizeArgKeys(args: Record<string, unknown>): string | undefined {
+    const keys = Object.keys(args);
+    if (keys.length === 0) return undefined;
+    const listed = keys.slice(0, 12).join(",");
+    if (keys.length <= 12) return listed;
+    return `${listed},…(+${keys.length - 12})`;
+}
+
+function nowMs(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+    }
+    return Date.now();
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const rawArgs = args == null ? {} : omitUndefinedValues(args);
+    const expanded = expandDualCaseInvokeArgs(rawArgs);
+
+    if (cmd !== WORKFLOW_LOG_COMMAND) {
+        void emitWorkflowEvent({
+            phase: "command",
+            step: "invoke",
+            outcome: "start",
+            command: cmd,
+            detail: summarizeArgKeys(expanded),
+            source: "tauri.service",
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    const startedAt = nowMs();
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            void emitWorkflowEvent({
+                phase: "command",
+                step: "invoke",
+                outcome: "success",
+                command: cmd,
+                durationMs: nowMs() - startedAt,
+                source: "tauri.service",
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            const detail = error instanceof Error ? error.name : "InvokeError";
+            void emitWorkflowEvent({
+                phase: "command",
+                step: "invoke",
+                outcome: "error",
+                command: cmd,
+                detail,
+                durationMs: nowMs() - startedAt,
+                source: "tauri.service",
+            });
+        }
+        throw error;
+    }
 }

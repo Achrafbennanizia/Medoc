@@ -1,10 +1,13 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-11 (Workflow QA cron run)
 
 ## Now
 
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
+- **Workflow QA blockers (2026-06-11):**
+  - Rust runner dependency: SQLCipher build requires OpenSSL headers (`openssl/crypto.h`) for clippy/tests.
+  - Frontend lint debt: React memoization errors in Praxis-Aufgabe pages (`react-hooks/preserve-manual-memoization`).
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
@@ -30,6 +33,12 @@ Active cost-priority delivery plan and test allow-list:
 - **w8-two-device:** `two-device-sync-smoke.sh` AUTO_ONLY default + Docker 17/17 proxy.
 - **ux-workflows:** Field hints (patient, termin, deployment, pairing); abandon confirm; export PDF smoke; P0 route smokes.
 - **phase2-hardening:** Statistik Krankheitsbild empty state; release-gate automated ticks; coordination ledgers.
+
+## Done (2026-06-11 — workflow QA follow-up)
+
+- Validation rerun complete; appended to [`validation.md`](validation.md) with pass/fail evidence.
+- Contradiction register updated with Workflow QA items (`WQ-001..WQ-006`) in [`contradictions.md`](contradictions.md).
+- Geometry audit stabilized on `/geometry-probe.html` and revalidated at 375/768/1259 with Playwright (**3/3 PASS**).
 
 ## Done (2026-06-07 — T-U1 medoc-sync tests)
 
