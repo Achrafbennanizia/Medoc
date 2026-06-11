@@ -1,6 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Refactor & harden pass (2026-06-10)  
+**Last phase label:** CI/CD pipeline migration (2026-06-11)  
+**Last closed:** Four-tier GitHub Actions split (`verify`, `autofix`, `fix-proposal`, `release`) + coordination docs update.
+
+### Verified (2026-06-11 — CI/CD pipeline migration)
+
+- **Workflow split:** retired `.github/workflows/ci.yml`; added `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- **Guardrails wired:** verify no mutation, PR-only deterministic autofix with bot loop guard, draft-only fix proposals, release protected by `environment: release`.
+- **A11y gate:** added `apps/practice-host-ui/scripts/axe-critical-audit.mjs` + root `test:a11y`; command returned `A11Y_OK critical=0` on `/login`.
+- **Validation evidence:** `python3` YAML parse **PASS**, `npm run typecheck` **PASS**, `npm run test:a11y` **PASS**, `cargo fmt --all --check` **PASS**.
+- **Ledger/docs:** `docs/coordination/ci-cd-plan.md` created; `validation.md` and `project-truth.md` updated to new workflow topology.
+
+### Remains unverified / deferred
+
+- First real GitHub-hosted run of new workflows is **NOT OBSERVED** in this session.
+- Tier-3 non-deterministic hook requires repository secret `CI_FIX_AGENT_COMMAND`; currently **UNVERIFIED**.
+- Existing frontend lint debt remains (`react-hooks/preserve-manual-memoization` errors in praxis-aufgabe files), independent of CI wiring.
+
+### Next
+
+1. Run/observe first remote `verify.yml` + `autofix.yml` executions and capture outcomes in `validation.md`.
+2. Configure `CI_FIX_AGENT_COMMAND` for Tier-3 agent attempts, then validate draft-PR proposal flow.
+3. Update branch protections to use `verify` checks as release/merge gate.
+
+---
+
+**Previous phase label:** Refactor & harden pass (2026-06-10)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 
 ### Verified (2026-06-10 — Refactor & harden)

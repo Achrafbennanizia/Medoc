@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-11 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration (2026-06-11)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` | **PASS** | Parsed all `.github/workflows/*.yml` files after split (`verify`, `autofix`, `fix-proposal`, `release`). |
+| JS typecheck | `npm run typecheck` | **PASS** | New root + workspace `typecheck` scripts resolve and run. |
+| JS lint | `npm run lint` | **FAIL** | Pre-existing lint failures in `praxis-aufgabe-*` files (`react-hooks/preserve-manual-memoization`) and existing fast-refresh warnings; unrelated to CI workflow edits. |
+| Playwright browser bootstrap | `npx playwright install --with-deps chromium` | **PASS** | Chromium + Linux deps installed for CI-compatible a11y scan. |
+| A11y gate | `npm run test:a11y` | **PASS** | Build + preview + axe scan returned `A11Y_OK critical=0 ... /login` (WCAG 2.1 A/AA tags). |
+| Rust fmt gate | `cargo fmt --all --check` | **PASS** | Confirms verify-tier Rust formatter check remains green. |
+
+**Session outcome:** Four-tier CI/CD split implemented; legacy `.github/workflows/ci.yml` retired; release gate now reuses `verify.yml` and release build is manual-approval + signed artifact path.
 
 ## Refactor & harden pass
 
