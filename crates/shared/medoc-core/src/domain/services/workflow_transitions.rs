@@ -1,16 +1,38 @@
 //! Status transition rules (authoritative; commands must not embed ad-hoc match trees).
 use crate::domain::rbac::Role;
 use crate::error::AppError;
+use crate::log_workflow;
 
 fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "noop"
+        );
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "allowed"
+        );
         Ok(())
     } else {
+        log_workflow!(
+            warn,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected"
+        );
         Err(AppError::Validation(format!(
             "Status-Übergang {cur}→{nxt} ist nicht erlaubt"
         )))
@@ -37,17 +59,34 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
 /// FA-AKTE-15: validate Patientenakte → `VALIDIERT`.
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
-    if s == "VALIDIERT" || s == "READONLY" {
-        return Err(AppError::Validation(
+    let result = if s == "VALIDIERT" || s == "READONLY" {
+        Err(AppError::Validation(
             "Akte ist bereits validiert oder archiviert.".into(),
-        ));
+        ))
+    } else if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "Akten-Status {s} kann nicht validiert werden"
+        )))
+    };
+    match &result {
+        Ok(()) => log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %s,
+            to = "VALIDIERT",
+            outcome = "allowed"
+        ),
+        Err(_) => log_workflow!(
+            warn,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %s,
+            to = "VALIDIERT",
+            outcome = "rejected"
+        ),
     }
-    if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
-        return Ok(());
-    }
-    Err(AppError::Validation(format!(
-        "Akten-Status {s} kann nicht validiert werden"
-    )))
+    result
 }
 
 /// FA-PERS-08: Praxis ticket lifecycle.
@@ -79,9 +118,23 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "noop"
+        );
         return Ok(());
     }
     if cur == "VALIDIERT" {
+        log_workflow!(
+            warn,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected"
+        );
         return Err(AppError::Validation(
             "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
         ));
@@ -90,10 +143,24 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
         .iter()
         .any(|s| s.eq_ignore_ascii_case(&nxt))
     {
+        log_workflow!(
+            warn,
+            event = "DOMAIN_STATE_TRANSITION",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected"
+        );
         return Err(AppError::Validation(format!(
             "Unbekannter Aufgaben-Status: {nxt}"
         )));
     }
+    log_workflow!(
+        info,
+        event = "DOMAIN_STATE_TRANSITION",
+        from = %cur,
+        to = %nxt,
+        outcome = "allowed"
+    );
     Ok(())
 }
 
