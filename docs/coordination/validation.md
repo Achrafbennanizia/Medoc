@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-12 (CI/CD tier migration)
+
+## CI/CD tier migration validation (2026-06-12)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Frontend typecheck | `npm run typecheck -w medoc` | **PASS** | Added `typecheck` script in `apps/practice-host-ui/package.json` |
+| Frontend lint | `npm run lint -w medoc` | **FAIL** | Pre-existing React compiler memoization lint errors in `praxis-aufgabe-*` files; unchanged by this CI/CD change |
+| Frontend build | `npm run build -w medoc` | **PASS** | Required for built-UI a11y audit |
+| Axe critical audit | `A11Y_BASE_URL=http://127.0.0.1:4173 npm run test:a11y -w medoc` (with `vite preview`) | **PASS** | Script now uses `browser.newContext()`; no critical WCAG 2.1 A/AA violations detected |
+| Playwright browser install | `npx playwright install chromium` | **PASS** | Needed for local a11y audit runtime |
+
+**PR opened:** https://github.com/Achrafbennanizia/Medoc/pull/6
+
+**Workflow runtime validation:** **NOT RUN** locally (GitHub Actions execution pending in PR checks).
 
 ## Refactor & harden pass
 

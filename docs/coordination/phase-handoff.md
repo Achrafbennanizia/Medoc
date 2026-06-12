@@ -1,5 +1,33 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-06-12)  
+**Last closed:** Tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`) wired; legacy `ci.yml` retired.
+
+### Verified (2026-06-12 — CI/CD tier migration)
+
+- **Workflows:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` added; `.github/workflows/ci.yml` removed.
+- **Workspace alignment:** commands target root Cargo/npm workspaces (`Cargo.toml`, root `package.json`), not legacy `app/` paths.
+- **A11y audit path:** `apps/practice-host-ui/scripts/run-a11y.mjs` executes axe-core Playwright scan and fails on critical WCAG 2.1 A/AA issues.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; validation ledger updated with command evidence.
+
+### Remains unverified / deferred
+
+- First live GitHub Action execution of new workflows on hosted runners (**NOT OBSERVED** in this session).
+- Runtime duration tuning after first production CI runs (timeouts/concurrency currently set from design assumptions).
+
+### Understanding delta
+
+- Release gate is now explicitly verify-only (mutation-free) and decoupled from deterministic PR autofix.
+- Tier 3 fix-proposal now records before/after evidence in-repo and opens draft PRs, with `needs-human-review` labeling for security/audit/crypto/RBAC touches.
+
+### Next
+
+1. Observe first PR and main-branch runs of `verify.yml` and `autofix.yml`.
+2. Confirm release environment approval/signing secret wiring in first tagged or manual release run.
+3. Address pre-existing frontend lint debt (`react-hooks/preserve-manual-memoization`) separately from pipeline migration.
+
+---
+
 **Last phase label:** Refactor & harden pass (2026-06-10)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 

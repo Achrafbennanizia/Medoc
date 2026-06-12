@@ -1,0 +1,168 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust formatting check
+        run: cargo fmt --all -- --check
+
+      - name: Rust lint (warnings as errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust test suite
+        run: cargo test --workspace
+
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+
+      - name: Rust dependency audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=pnpm --filter medoc run lint" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=pnpm --filter medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=pnpm --filter medoc run test" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=pnpm --filter medoc run build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=yarn workspace medoc run lint" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=yarn workspace medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=yarn workspace medoc run test" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=yarn workspace medoc run build" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=npm run lint -w medoc" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=npm run typecheck -w medoc" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=npm run test -w medoc" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install JS dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: JS lint (no autofix)
+        run: ${{ steps.pm.outputs.lint_cmd }}
+
+      - name: JS typecheck
+        run: ${{ steps.pm.outputs.typecheck_cmd }}
+
+      - name: JS test suite
+        run: ${{ steps.pm.outputs.test_cmd }}
+
+      - name: JS build
+        run: ${{ steps.pm.outputs.build_cmd }}
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=pnpm --filter medoc run build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=yarn workspace medoc run build" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install JS dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: Build web UI
+        run: ${{ steps.pm.outputs.build_cmd }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: axe-core audit on built UI
+        env:
+          A11Y_BASE_URL: http://127.0.0.1:4173
+        run: |
+          pushd apps/practice-host-ui >/dev/null
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort >/tmp/vite-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          popd >/dev/null
+
+          cleanup() {
+            kill "$PREVIEW_PID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -fsS "$A11Y_BASE_URL" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl -fsS "$A11Y_BASE_URL" >/dev/null
+          node apps/practice-host-ui/scripts/run-a11y.mjs
