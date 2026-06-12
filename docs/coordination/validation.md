@@ -12,6 +12,8 @@
 | Axe critical audit | `A11Y_BASE_URL=http://127.0.0.1:4173 npm run test:a11y -w medoc` (with `vite preview`) | **PASS** | Script now uses `browser.newContext()`; no critical WCAG 2.1 A/AA violations detected |
 | Playwright browser install | `npx playwright install chromium` | **PASS** | Needed for local a11y audit runtime |
 
+**PR opened:** https://github.com/Achrafbennanizia/Medoc/pull/6
+
 **Workflow runtime validation:** **NOT RUN** locally (GitHub Actions execution pending in PR checks).
 
 ## Refactor & harden pass
