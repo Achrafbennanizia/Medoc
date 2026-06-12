@@ -1,12 +1,13 @@
 // Logging & Observability infrastructure (NFA-LOG-01..10)
 //
-// 7 log channels:
+// 8 log channels:
 //   - app.log        : structured application log (JSON)
 //   - security.log   : auth events, brute-force lockouts
 //   - system.log     : start/stop, config, migrations, updates
 //   - device.log     : DICOM/GDT/TWAIN/USB events
 //   - migration.log  : import operations
 //   - perf.log       : slow requests / queries
+//   - workflow.log   : frontend/backend workflow transitions and IPC lifecycle
 //   - audit_log (DB) : user actions (handled separately by audit_repo)
 
 pub mod brute_force;
@@ -14,12 +15,15 @@ pub mod config;
 pub mod export;
 pub mod sanitizer;
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use tracing::Metadata;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::writer::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer, Registry};
@@ -34,6 +38,7 @@ pub struct LogGuards {
     _device: WorkerGuard,
     _migration: WorkerGuard,
     _perf: WorkerGuard,
+    _workflow: WorkerGuard,
 }
 
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -43,6 +48,52 @@ pub fn log_dir() -> Result<&'static Path, crate::error::AppError> {
         .get()
         .map(|p| p.as_path())
         .ok_or_else(|| crate::error::AppError::Internal("Logging nicht initialisiert".into()))
+}
+
+/// Wraps a tracing writer and sanitises each emitted log chunk so PII/secret
+/// patterns are redacted before persistence.
+struct SanitizingWriter<W> {
+    inner: W,
+}
+
+impl<W: Write> Write for SanitizingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match std::str::from_utf8(buf) {
+            Ok(raw) => {
+                let redacted = sanitizer::sanitize(raw);
+                self.inner.write_all(redacted.as_bytes())?;
+                Ok(buf.len())
+            }
+            Err(_) => self.inner.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// `MakeWriter` adapter to inject [`SanitizingWriter`] into tracing layers.
+struct SanitizingMakeWriter<M>(M);
+
+impl<'a, M> MakeWriter<'a> for SanitizingMakeWriter<M>
+where
+    M: MakeWriter<'a>,
+    M::Writer: Write,
+{
+    type Writer = SanitizingWriter<M::Writer>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SanitizingWriter {
+            inner: self.0.make_writer(),
+        }
+    }
+
+    fn make_writer_for(&'a self, meta: &Metadata<'_>) -> Self::Writer {
+        SanitizingWriter {
+            inner: self.0.make_writer_for(meta),
+        }
+    }
 }
 
 /// Initialise the global tracing subscriber with 6 file layers.
@@ -59,6 +110,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let device_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "device.log");
     let migration_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "migration.log");
     let perf_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "perf.log");
+    let workflow_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "workflow.log");
 
     let (app_w, app_g) = tracing_appender::non_blocking(app_appender);
     let (sec_w, sec_g) = tracing_appender::non_blocking(security_appender);
@@ -66,13 +118,14 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let (dev_w, dev_g) = tracing_appender::non_blocking(device_appender);
     let (mig_w, mig_g) = tracing_appender::non_blocking(migration_appender);
     let (perf_w, perf_g) = tracing_appender::non_blocking(perf_appender);
+    let (workflow_w, workflow_g) = tracing_appender::non_blocking(workflow_appender);
 
     let json = |writer| {
         tracing_subscriber::fmt::layer()
             .json()
             .with_current_span(true)
             .with_span_events(FmtSpan::NONE)
-            .with_writer(writer)
+            .with_writer(SanitizingMakeWriter(writer))
     };
 
     // Filter by `target` so each channel only catches its own messages.
@@ -105,6 +158,9 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         json(perf_w)
             .with_filter(EnvFilter::new("medoc::perf=info"))
             .boxed(),
+        json(workflow_w)
+            .with_filter(EnvFilter::new("medoc::workflow=info"))
+            .boxed(),
     ];
 
     Registry::default().with(layers).init();
@@ -116,6 +172,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         _device: dev_g,
         _migration: mig_g,
         _perf: perf_g,
+        _workflow: workflow_g,
     })
 }
 
@@ -154,5 +211,12 @@ macro_rules! log_migration {
 macro_rules! log_perf {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::perf", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }

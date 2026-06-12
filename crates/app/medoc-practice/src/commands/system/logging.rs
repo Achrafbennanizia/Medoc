@@ -8,7 +8,35 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
-use crate::log_system;
+use crate::{log_system, log_workflow};
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowLogEventInput {
+    pub event: String,
+    pub source: Option<String>,
+    pub workflow: Option<String>,
+    pub route: Option<String>,
+    pub action: Option<String>,
+    pub status: Option<String>,
+    pub command: Option<String>,
+    pub detail: Option<String>,
+    pub error: Option<String>,
+}
+
+fn sanitize_required(value: String) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::Validation("Workflow-Event fehlt".into()));
+    }
+    Ok(logging::sanitizer::sanitize(trimmed))
+}
+
+fn sanitize_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|v| logging::sanitizer::sanitize(v.trim()))
+        .filter(|v| !v.is_empty())
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -56,6 +84,41 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+/// Frontend → backend workflow event bridge.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state, input))]
+pub fn log_workflow_event(
+    session_state: State<'_, SessionState>,
+    input: WorkflowLogEventInput,
+) -> Result<(), AppError> {
+    let session = rbac::require_authenticated(&session_state)?;
+    let event = sanitize_required(input.event)?;
+    let source = sanitize_optional(input.source).unwrap_or_else(|| "frontend".to_string());
+    let workflow = sanitize_optional(input.workflow).unwrap_or_else(|| "ui".to_string());
+    let route = sanitize_optional(input.route).unwrap_or_else(|| "-".to_string());
+    let action = sanitize_optional(input.action).unwrap_or_else(|| "-".to_string());
+    let status = sanitize_optional(input.status).unwrap_or_else(|| "-".to_string());
+    let command = sanitize_optional(input.command).unwrap_or_else(|| "-".to_string());
+    let detail = sanitize_optional(input.detail).unwrap_or_else(|| "-".to_string());
+    let error = sanitize_optional(input.error).unwrap_or_else(|| "-".to_string());
+
+    log_workflow!(
+        info,
+        event = %event,
+        source = %source,
+        workflow = %workflow,
+        route = %route,
+        action = %action,
+        status = %status,
+        command = %command,
+        detail = %detail,
+        error = %error,
+        actor_user_id = %session.user_id,
+        actor_role = %session.rolle,
+    );
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +128,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }

@@ -10,6 +10,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { WorkflowLoggerBridge } from "@/lib/workflow-logger";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -122,6 +123,7 @@ export default function App() {
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowLoggerBridge />
         <VerbundOnboardingGate>
             <Routes>
                 <Route

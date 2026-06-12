@@ -22,3 +22,19 @@ export async function verifyAuditChain(): Promise<string | null> {
 export async function getLogDir(): Promise<string> {
     return practiceSystem.invoke<string>("log_dir");
 }
+
+export interface WorkflowLogEvent {
+    event: string;
+    source?: string;
+    workflow?: string;
+    route?: string;
+    action?: string;
+    status?: string;
+    command?: string;
+    detail?: string;
+    error?: string;
+}
+
+export async function logWorkflowEvent(input: WorkflowLogEvent): Promise<void> {
+    return practiceSystem.invoke<void>("log_workflow_event", { input });
+}
