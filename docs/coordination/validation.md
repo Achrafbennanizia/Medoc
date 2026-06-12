@@ -2,6 +2,18 @@
 
 **Last updated:** 2026-06-10 (Refactor Phase A complete)
 
+## Quality run — workflow detection (2026-06-12, read-only)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Route inventory count | `rg "path=\"" apps/practice-host-ui/src/App.tsx --count` | **PASS** — 49 path declarations | Protected shell + onboarding/login routes enumerated from live `App.tsx`. |
+| Non-terminable fallback probe | `rg "function RouteFallback\|PageLoading label" apps/practice-host-ui/src/App.tsx` | **FINDING** | Spinner-only fallback without timeout/error branch (WF-001). |
+| Targeted workflow smoke set | `npm run test -w medoc -- src/p0-routes.smoke.test.tsx src/critical-flows.smoke.test.tsx src/views/components/export-preview-dialog.smoke.test.tsx` | **PASS** — 10 passed, 1 skipped | Covered login, P0 routes, export dialog; jsdom canvas warning is non-blocking. |
+| Toast policy conformance probe | `rg "type ToastType\|const DURATION\|error:\\s*6000" packages/ui/src/toast-store.ts` | **FINDINGS** | Error toast duration + no persistent action-required mode (WF-002, WF-003). |
+| Playwright/Vite base URL alignment | `rg "baseURL\|5173" apps/practice-host-ui/playwright.config.ts` + `rg "port:\\s*1420" apps/practice-host-ui/vite.config.ts` | **FINDING** | Default Playwright URL mismatched to Vite dev port (WF-004). |
+
+Workflow findings register entries: [`contradictions.md`](contradictions.md) — WF-001..WF-004.
+
 ## Refactor & harden pass
 
 | Phase | Status | Artifact |

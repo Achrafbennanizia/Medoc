@@ -11,6 +11,15 @@
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
 
+## Workflow findings register (2026-06-12 quality run)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-001 | `apps/practice-host-ui/src/App.tsx` | `RouteFallback` is spinner-only (`PageLoading`) with no timeout/failure branch; if a lazy chunk stalls, flow can become non-terminable. | `rg "function RouteFallback\|PageLoading label" apps/practice-host-ui/src/App.tsx` | **P1** | Add bounded fallback timeout + explicit retry/error branch and test it. |
+| WF-002 | `packages/ui/src/toast-store.ts` | Error toast auto-dismiss is **6000 ms**; spec requires **5000 ms** for error toasts. | `rg "error:\\s*6000" packages/ui/src/toast-store.ts` | **P2** | Change error duration to 5000 ms and add regression test. |
+| WF-003 | `packages/ui/src/toast-store.ts` | Toast model has only fixed timed variants (`success/error/info/warning`); no persistent “action-required” state. | `rg "type ToastType\|const DURATION" packages/ui/src/toast-store.ts` | **P2** | Add persistent action-required toast mode + behavior tests. |
+| WF-004 | `apps/practice-host-ui/playwright.config.ts` vs `vite.config.ts` | Playwright default `baseURL` is `:5173` while Vite dev server is configured to `:1420`; default geometry/a11y runs target wrong port. | `rg "baseURL\|5173" apps/practice-host-ui/playwright.config.ts`; `rg "port:\\s*1420" apps/practice-host-ui/vite.config.ts` | **P2** | Align Playwright default base URL with Vite web server used in this workspace. |
+
 ## Resolved (recent)
 
 | ID | Resolution | Evidence | Date closed |
