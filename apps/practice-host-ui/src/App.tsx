@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
@@ -9,7 +9,8 @@ import { ReplicaSyncBackground } from "./views/components/replica-sync-backgroun
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
-import { PageLoading } from "@/views/components/ui/page-status";
+import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
+import { WorkflowLoggerBridge } from "@/lib/workflow-logger";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -109,6 +110,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function RouteFallback() {
+    const [timedOut, setTimedOut] = useState(false);
+
+    useEffect(() => {
+        const handle = setTimeout(() => setTimedOut(true), 7000);
+        return () => clearTimeout(handle);
+    }, []);
+
+    if (timedOut) {
+        return (
+            <div className="route-fallback">
+                <PageLoadError
+                    message="Seite lädt ungewöhnlich lange. Bitte erneut versuchen."
+                    onRetry={() => window.location.reload()}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="route-fallback">
             <PageLoading label="Seite wird geladen…" />
@@ -122,6 +141,7 @@ export default function App() {
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowLoggerBridge />
         <VerbundOnboardingGate>
             <Routes>
                 <Route

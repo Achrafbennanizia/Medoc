@@ -13,8 +13,10 @@ use crate::error::AppError;
 fn token_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(r"(?i)(password|passwort|token|secret|api[_-]?key|license|lizenz)\s*[:=]\s*\S+")
-            .ok()
+        Regex::new(
+            r"(?i)(password|passwort|token|secret|api[_-]?key|license|lizenz|patient[_-]?id|patienten[_-]?id|patient[_-]?name|patienten[_-]?name|geburtsdatum|email|e[-_]?mail)\s*[:=]\s*[^,\s]+",
+        )
+        .ok()
     })
     .as_ref()
 }
@@ -136,6 +138,15 @@ mod tests {
         let s = sanitize("user=alice password=hunter2 ok");
         assert!(s.contains("password=***"));
         assert!(!s.contains("hunter2"));
+    }
+
+    #[test]
+    fn masks_patient_identifiers() {
+        let s = sanitize("patient_id=pat-123 geburtsdatum=1990-01-01");
+        assert!(s.contains("patient_id=***"));
+        assert!(s.contains("geburtsdatum=***"));
+        assert!(!s.contains("pat-123"));
+        assert!(!s.contains("1990-01-01"));
     }
 
     #[test]

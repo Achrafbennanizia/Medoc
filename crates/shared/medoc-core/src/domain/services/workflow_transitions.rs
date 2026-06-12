@@ -2,13 +2,29 @@
 use crate::domain::rbac::Role;
 use crate::error::AppError;
 
-fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
+fn log_domain_transition(machine: &str, from: &str, to: &str) {
+    crate::log_workflow!(
+        info,
+        event = "DOMAIN_STATE_TRANSITION",
+        machine = machine,
+        from = from,
+        to = to,
+    );
+}
+
+fn allowed_transition(
+    machine: &str,
+    current: &str,
+    next: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_domain_transition(machine, &cur, &nxt);
         Ok(())
     } else {
         Err(AppError::Validation(format!(
@@ -31,7 +47,7 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
         "DURCHGEFUEHRT" | "ABGESAGT" | "NICHT_ERSCHIENEN" | "NICHTERSCHIENEN" => &[],
         _ => return Ok(()),
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("termin_status", &cur, next, allowed)
 }
 
 /// FA-AKTE-15: validate Patientenakte → `VALIDIERT`.
@@ -43,6 +59,7 @@ pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> 
         ));
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
+        log_domain_transition("patientenakte_status", &s, "VALIDIERT");
         return Ok(());
     }
     Err(AppError::Validation(format!(
@@ -63,7 +80,7 @@ pub fn praxis_ticket_status_transition(current: &str, next: &str) -> Result<(), 
             )))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("praxis_ticket_status", &cur, next, allowed)
 }
 
 const AUFGABE_STATUSES: &[&str] = &[
@@ -94,6 +111,7 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
             "Unbekannter Aufgaben-Status: {nxt}"
         )));
     }
+    log_domain_transition("praxis_aufgabe_status", &cur, &nxt);
     Ok(())
 }
 
@@ -117,7 +135,7 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
             )))
         }
     };
-    allowed_transition(&cur, &nxt, allowed)
+    allowed_transition("praxis_aufgabe_status", &cur, &nxt, allowed)
 }
 
 /// FA-AUFG-06: Praxis-Aufgabe — Erfüller (REZ-Pool oder zugewiesener Arzt) vs. Ersteller (Validierung).
@@ -162,7 +180,12 @@ pub fn praxis_aufgabe_status_transition(
 
     // Erledigte Aufgabe: Ersteller validiert/zurückgeben — auch wenn Ersteller zugleich Erfüller war.
     if is_validator && cur == "ERLEDIGT_REZEPTION" {
-        return allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]);
+        return allowed_transition(
+            "praxis_aufgabe_status",
+            &cur,
+            &nxt,
+            &["VALIDIERT", "ZURUECK"],
+        );
     }
 
     if is_fulfiller {
@@ -178,7 +201,12 @@ pub fn praxis_aufgabe_status_transition(
 
     if is_validator {
         return match cur.as_str() {
-            "ERLEDIGT_REZEPTION" => allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]),
+            "ERLEDIGT_REZEPTION" => allowed_transition(
+                "praxis_aufgabe_status",
+                &cur,
+                &nxt,
+                &["VALIDIERT", "ZURUECK"],
+            ),
             _ => Err(AppError::Validation(
                 "Nur erledigte Aufgaben können validiert oder zurückgegeben werden.".into(),
             )),
@@ -201,5 +229,5 @@ pub fn bestellung_status_transition(current: &str, next: &str) -> Result<(), App
             )))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("bestellung_status", &cur, next, allowed)
 }

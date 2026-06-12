@@ -337,7 +337,7 @@ export function LoginPage() {
                         <input
                             id="passwort"
                             className="input-edit login-password-input-row__field"
-                            style={{ border: 0, boxShadow: "none", padding: 0 }}
+                            style={{ border: 0, padding: 0 }}
                             type={showPw ? "text" : "password"}
                             value={passwort}
                             onChange={(e) => setPasswort(e.target.value)}

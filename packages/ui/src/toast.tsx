@@ -14,8 +14,10 @@ function ToastRow({
 }) {
     const t = useT();
     const isError = toast.type === "error";
-    const live = isError ? "assertive" : "polite";
-    const role = isError ? "alert" : "status";
+    const isActionRequired = toast.type === "action_required";
+    const isPersistent = isActionRequired || toast.durationMs <= 0;
+    const live = isError || isActionRequired ? "assertive" : "polite";
+    const role = isError || isActionRequired ? "alert" : "status";
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const remainingRef = useRef(toast.durationMs);
@@ -24,13 +26,13 @@ function ToastRow({
 
     const armTimer = useCallback(() => {
         clearTimeout(timeoutRef.current);
-        if (pausedRef.current || stackPointerInside) return;
+        if (isPersistent || pausedRef.current || stackPointerInside) return;
         const delay = remainingRef.current;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);
         }, delay + 400);
-    }, [remove, toast.id, stackPointerInside]);
+    }, [isPersistent, remove, toast.id, stackPointerInside]);
 
     useEffect(() => {
         remainingRef.current = toast.durationMs;
@@ -40,13 +42,14 @@ function ToastRow({
     }, [toast.durationMs, armTimer]);
 
     useEffect(() => {
+        if (isPersistent) return;
         if (stackPointerInside) {
             clearTimeout(timeoutRef.current);
             remainingRef.current = Math.max(0, endAtRef.current - Date.now());
         } else if (!pausedRef.current) {
             armTimer();
         }
-    }, [stackPointerInside, armTimer]);
+    }, [isPersistent, stackPointerInside, armTimer]);
 
     const handleUndo = () => {
         toast.onUndo?.();
@@ -54,6 +57,7 @@ function ToastRow({
     };
 
     const onPointerEnter = () => {
+        if (isPersistent) return;
         if (pausedRef.current) return;
         pausedRef.current = true;
         clearTimeout(timeoutRef.current);
@@ -61,6 +65,7 @@ function ToastRow({
     };
 
     const onPointerLeave = () => {
+        if (isPersistent) return;
         if (!pausedRef.current) return;
         pausedRef.current = false;
         if (!stackPointerInside) armTimer();
@@ -81,6 +86,7 @@ function ToastRow({
                 {toast.type === "error" && <XIcon aria-hidden />}
                 {toast.type === "info" && <span className="toast-info-dot" aria-hidden />}
                 {toast.type === "warning" && <span className="toast-warning-dot" aria-hidden />}
+                {toast.type === "action_required" && <span className="toast-warning-dot" aria-hidden />}
                 <span className="toast-message">{toast.message}</span>
                 {toast.onUndo ? (
                     <button type="button" className="toast-undo" onClick={handleUndo}>
@@ -96,9 +102,11 @@ function ToastRow({
                     ×
                 </button>
             </div>
-            <div className="toast-progress-track" aria-hidden>
-                <div className="toast-progress-bar" />
-            </div>
+            {!isPersistent ? (
+                <div className="toast-progress-track" aria-hidden>
+                    <div className="toast-progress-bar" />
+                </div>
+            ) : null}
         </div>
     );
 }

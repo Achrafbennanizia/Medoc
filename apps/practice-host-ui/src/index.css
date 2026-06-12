@@ -3369,7 +3369,7 @@ html[data-theme="dark"] {
   .cal-evt.grey { background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev)); color: var(--fg-3); }
   .toast-stack {
     position: fixed;
-    top: max(12px, env(safe-area-inset-top, 0px));
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
     right: max(12px, env(safe-area-inset-right, 0px));
     z-index: var(--z-toast);
     display: flex;
@@ -3441,6 +3441,8 @@ html[data-theme="dark"] {
   .toast-item.info .toast-progress-bar { background: var(--blue); }
   .toast-item.warning { background: var(--orange-soft); color: #A35A00; }
   .toast-item.warning .toast-progress-bar { background: var(--orange); }
+  .toast-item.action_required { background: color-mix(in oklab, var(--orange-soft) 72%, #fff 28%); color: #6e4200; border-color: color-mix(in oklab, var(--orange) 40%, var(--line-strong)); }
+  .toast-item.action_required .toast-progress-track { display: none; }
   @keyframes toast-progress-shrink {
     from { transform: scaleX(1); }
     to { transform: scaleX(0); }

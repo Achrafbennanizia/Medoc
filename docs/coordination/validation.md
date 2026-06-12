@@ -1,6 +1,37 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-12 (Quality run Step 1-6 closeout)
+
+## Quality run — workflow detection (2026-06-12, read-only)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Route inventory count | `rg "path=\"" apps/practice-host-ui/src/App.tsx --count` | **PASS** — 49 path declarations | Protected shell + onboarding/login routes enumerated from live `App.tsx`. |
+| Non-terminable fallback probe | `rg "function RouteFallback\|PageLoading label" apps/practice-host-ui/src/App.tsx` | **FINDING** | Spinner-only fallback without timeout/error branch (WF-001). |
+| Targeted workflow smoke set | `npm run test -w medoc -- src/p0-routes.smoke.test.tsx src/critical-flows.smoke.test.tsx src/views/components/export-preview-dialog.smoke.test.tsx` | **PASS** — 10 passed, 1 skipped | Covered login, P0 routes, export dialog; jsdom canvas warning is non-blocking. |
+| Toast policy conformance probe | `rg "type ToastType\|const DURATION\|error:\\s*6000" packages/ui/src/toast-store.ts` | **FINDINGS** | Error toast duration + no persistent action-required mode (WF-002, WF-003). |
+| Playwright/Vite base URL alignment | `rg "baseURL\|5173" apps/practice-host-ui/playwright.config.ts` + `rg "port:\\s*1420" apps/practice-host-ui/vite.config.ts` | **FINDING** | Default Playwright URL mismatched to Vite dev port (WF-004). |
+
+Workflow findings register entries: [`contradictions.md`](contradictions.md) — WF-001..WF-004.
+
+## Quality run — Step 3-6 execution + fixes (2026-06-12)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Step 3 smoke suites | `npm run test -w medoc -- --project smoke ../../packages/ui/src/component-interaction-matrix.smoke.test.tsx src/page-interaction-matrix.smoke.test.tsx src/verbund-onboarding-gate.smoke.test.tsx` | **PASS** | 9/9 tests; includes new onboarding-gate error/retry regression coverage. |
+| Step 4 spacing lint | `npm run lint:tailwind-spacing -w medoc` | **PASS** | No arbitrary Tailwind spacing utilities detected. |
+| Step 4 geometry/browser audit | `MEDOC_UI_GEOMETRY=1 npm run test:playwright -w medoc -- e2e-playwright/ui-geometry.spec.ts` | **PASS** | 3/3 breakpoints (375/768/1259) with style metrics + snapshot capture. |
+| Step 5 UI rules/a11y audit | `MEDOC_UI_RULES=1 npm run test:playwright -w medoc -- e2e-playwright/ui-rules.spec.ts` | **PASS** | 3/3 breakpoints; axe critical = 0; focus ring/tab order assertions pass. |
+| Frontend full unit/smoke matrix | `npm run test -w medoc` | **PASS** | 261 passed, 3 skipped. |
+| Frontend build | `npm run build -w medoc` | **PASS** | Vite production build succeeds after Step 6 fixes. |
+| Rust validation matrix | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace --tests` | **PASS** | Full workspace green on stable toolchain (`rustc/cargo 1.96.0`). |
+| Workspace lint (informational) | `npm run lint -w medoc` | **FAIL (pre-existing)** | React compiler memoization lint errors in `praxis-aufgabe-*` files outside this change set; no new lint errors tied to WF-001..WF-006 fixes. |
+
+### Environment notes (2026-06-12 run)
+
+- `npm ci` was required to restore a consistent workspace dependency graph and local CLI bins (`vitest`, `playwright`, `@axe-core/playwright`).
+- Rust toolchain was re-pointed to stable (`rustup default stable`) to satisfy `edition2024` dependencies during validation.
+- First `cargo test --workspace --tests` attempt failed once at `backup_tests::restore_from_backup_replaces_live_db_file`; immediate rerun with identical env passed cleanly (no source changes between runs).
 
 ## Refactor & harden pass
 
