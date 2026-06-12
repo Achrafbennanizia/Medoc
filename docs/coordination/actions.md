@@ -1,13 +1,22 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-12 (Workflow logger-first instrumentation)
 
 ## Now
 
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+- **Step 2 workflow map + terminability sweep:** enumerate every route/action as state machines and flag non-terminable paths.
+- **Step 3 component/page event tests:** extend behavior coverage beyond current smoke/unit focus.
+- **Step 4–5 browser audits:** add Playwright geometry/token checks + axe/contrast/focus compliance assertions.
+
+## Done (2026-06-12 — logger-first instrumentation)
+
+- Added dedicated `workflow.log` channel in shared tracing subsystem (rotating file appender + `medoc::workflow` target).
+- Added sanitized workflow bridge command `log_workflow_event` and registered it in centralized IPC handler (`EXPECTED_INVOKE_COMMAND_COUNT = 276`).
+- Wired frontend lifecycle emission for route enter, IPC primary action/success/error, and dialog cancel.
+- Added tests:
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts`
+  - `packages/shared/src/lib/workflow-events.test.ts`
+  - Rust unit tests in `commands/system/logging.rs` for workflow-event sanitization.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

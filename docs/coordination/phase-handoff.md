@@ -1,29 +1,38 @@
 # Phase handoff
 
-**Last phase label:** Refactor & harden pass (2026-06-10)  
-**Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
+**Last phase label:** Workflow logger-first instrumentation (2026-06-12)  
+**Last closed:** Dedicated workflow logging channel + sanitized FE→BE bridge + lifecycle hooks + validation matrix rerun.
 
-### Verified (2026-06-10 — Refactor & harden)
+### Verified (2026-06-12 — workflow logger-first)
 
-- **Plan:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) persisted; Geräteverbund exclusion zone respected for structural work.
-- **Register:** 20 entries; P0 Geräteverbund items deferred to feature track; R-004–R-006, R-013, R-017 addressed.
-- **Tests:** `cargo test --workspace --tests` **PASS**; `cargo clippy --workspace -D warnings` **PASS**; `npm test` **240 PASS**; `npm run build` **PASS**.
-- **Safety net:** IPC golden list (275 commands); architecture boundary test; pairing e2e updated for PIN confirm flow.
-- **Docs:** [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
+- **Logging channel extension:** `workflow.log` added to `medoc-core` tracing subsystem (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `config.rs`).
+- **Sanitized bridge command:** new IPC `log_workflow_event` with normalization/sanitization and structured `WORKFLOW_STEP` events (`crates/app/medoc-practice/src/commands/system/logging.rs`).
+- **Frontend lifecycle emitters:** route-enter tracker (`apps/practice-host-ui/src/App.tsx`), IPC primary/success/error hook (`apps/practice-host-ui/src/services/tauri.service.ts`), dialog cancel hook (`packages/ui/src/dialog.tsx`), shared event model (`packages/shared/src/lib/workflow-events.ts`).
+- **Validation:** `cargo +stable fmt --all -- --check`, `cargo +stable clippy --locked --workspace --all-targets -- -D warnings`, `cargo +stable test --locked --workspace --tests`, `npm run test`, `npm run build` all **PASS**.
+- **IPC registry:** command count now **276** (register + guard tests updated).
 
 ### Remains unverified / deferred
 
-- Geräteverbund wire handshake (R-001–R-003) — active feature track.
-- G21b live Tauri manual rows 1–9 (R-011).
-- Stale v-model/architecture doc paths (R-004) — quarantined, not bulk-updated.
+- Full Step-2 workflow-state-machine map and non-terminable-flow detection pass (**NOT RUN** in this slice).
+- Playwright geometry token audit + responsive snapshot matrix (375/768/1259) (**NOT RUN**).
+- Axe/contrast/focus compliance sweep for all pages/components (**NOT RUN**).
+
+### Understanding delta
+
+- Workflow observability is now an explicit channel (`workflow.log`) rather than mixed into generic app/system streams.
+- UI lifecycle telemetry can be routed through one bridge command without parallel logging infrastructure.
+- This run required runner bootstrap (`stable` toolchain + native GTK/WebKit/OpenSSL headers) for full Rust validation.
 
 ### Next
 
-1. Geräteverbund: wire Noise transcript + mDNS (phase-handoff items).
-2. G21b live Tauri sign-off when ready.
-3. Optional: refresh high-traffic stale docs from [`retired-paths.md`](retired-paths.md) index.
+1. Execute Step 2 read-only route/action inventory and state-machine/terminability register.
+2. Add Step 3 component/page interaction tests for loading/empty/disabled/keyboard paths.
+3. Add Step 4 Playwright geometry/token assertions and Step 5 axe/contrast/focus checks; record findings in ledgers.
 
 ---
+
+**Previous phase label:** Refactor & harden pass (2026-06-10)  
+**Previous closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 
 **Previous phase label:** Geräteverbund evolution (2026-06-10)  
 **Last closed:** Schema/domain/crypto/net/services/IPC/FE onboarding + admin panel; pairing shim; e2e seat caps; test fixes.
