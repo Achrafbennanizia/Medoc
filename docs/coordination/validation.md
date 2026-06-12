@@ -1,6 +1,34 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-12 (Workflow logger-first instrumentation pass)
+
+## Workflow logger-first instrumentation pass (2026-06-12)
+
+### Findings register (bounded this run)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | Dedicated workflow channel was missing from rotating tracing appenders. | Added `workflow.log` appender + `medoc::workflow` filter + `log_workflow!` macro. | P1 | **Resolved** in this run. |
+| WF-LOG-002 | `crates/app/medoc-practice/src/commands/system/logging.rs` | No sanitized frontend→backend workflow bridge command existed. | New IPC `log_workflow_event` with field sanitation/normalization and structured `WORKFLOW_STEP` events. | P1 | **Resolved** in this run. |
+| WF-LOG-003 | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/App.tsx`, `packages/ui/src/dialog.tsx` | Route enter / primary action / success / error / cancel were not centrally forwarded to backend workflow logs. | Added central IPC lifecycle hooks, route tracker, dialog cancel emitters, and bridge listener install in `main.tsx`. | P1 | **Resolved** in this run. |
+| WF-LOG-004 | Workflow map + terminability sweep | Full state-machine enumeration and non-terminable-flow detection from Step 2 were not executed in this logger-first slice. | **NOT RUN** (no full route/action sweep and no terminability matrix generated this run). | P2 | Carry into next quality pass. |
+| WF-LOG-005 | Geometry, spacing, axe, Playwright | Browser geometry/a11y compliance sweep (Steps 4–5) not executed in this logger-first slice. | **NOT RUN** (no Playwright suite/snapshots authored this run). | P2 | Carry into next quality pass. |
+
+### Command validation (this run)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Rust fmt | `cargo +stable fmt --all -- --check` | **PASS** |
+| Rust clippy | `cargo +stable clippy --locked --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `cargo +stable test --locked --workspace --tests` | **PASS** |
+| FE tests | `npm run test` | **PASS** — 245 passed, 3 skipped |
+| FE build | `npm run build` | **PASS** |
+
+### Notes (environment bootstrap during validation)
+
+- Installed stable Rust toolchain for edition-2024-compatible dependency metadata: `rustup toolchain install stable --profile minimal`, `rustup component add --toolchain stable-x86_64-unknown-linux-gnu clippy rustfmt`.
+- Installed native libraries required for Tauri/sqlcipher compile in this runner: `sudo apt-get install -y libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev`.
+- Initial `cargo clippy` attempts with default toolchain (`1.83.0`) failed on crates.io `edition2024` manifest parsing (**NOT RUN with default toolchain after bootstrap**).
 
 ## Refactor & harden pass
 

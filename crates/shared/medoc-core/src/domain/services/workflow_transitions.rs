@@ -6,11 +6,29 @@ fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(),
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATUS_TRANSITION_NOOP",
+            current = %cur,
+            next = %nxt
+        );
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATUS_TRANSITION_ALLOWED",
+            current = %cur,
+            next = %nxt
+        );
         Ok(())
     } else {
+        tracing::warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATUS_TRANSITION_REJECTED",
+            current = %cur,
+            next = %nxt
+        );
         Err(AppError::Validation(format!(
             "Status-Übergang {cur}→{nxt} ist nicht erlaubt"
         )))
@@ -38,13 +56,29 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "VALIDIERT" || s == "READONLY" {
+        tracing::warn!(
+            target: "medoc::workflow",
+            event = "PATIENTENAKTE_VALIDATE_REJECTED",
+            status = %s
+        );
         return Err(AppError::Validation(
             "Akte ist bereits validiert oder archiviert.".into(),
         ));
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "PATIENTENAKTE_VALIDATE_ALLOWED",
+            from = %s,
+            to = "VALIDIERT"
+        );
         return Ok(());
     }
+    tracing::warn!(
+        target: "medoc::workflow",
+        event = "PATIENTENAKTE_VALIDATE_REJECTED",
+        status = %s
+    );
     Err(AppError::Validation(format!(
         "Akten-Status {s} kann nicht validiert werden"
     )))
@@ -79,9 +113,20 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "PRAXIS_AUFGABE_ADMIN_TRANSITION_NOOP",
+            current = %cur
+        );
         return Ok(());
     }
     if cur == "VALIDIERT" {
+        tracing::warn!(
+            target: "medoc::workflow",
+            event = "PRAXIS_AUFGABE_ADMIN_TRANSITION_REJECTED",
+            current = %cur,
+            next = %nxt
+        );
         return Err(AppError::Validation(
             "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
         ));
@@ -90,10 +135,22 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
         .iter()
         .any(|s| s.eq_ignore_ascii_case(&nxt))
     {
+        tracing::warn!(
+            target: "medoc::workflow",
+            event = "PRAXIS_AUFGABE_ADMIN_TRANSITION_REJECTED",
+            current = %cur,
+            next = %nxt
+        );
         return Err(AppError::Validation(format!(
             "Unbekannter Aufgaben-Status: {nxt}"
         )));
     }
+    tracing::info!(
+        target: "medoc::workflow",
+        event = "PRAXIS_AUFGABE_ADMIN_TRANSITION_ALLOWED",
+        current = %cur,
+        next = %nxt
+    );
     Ok(())
 }
 

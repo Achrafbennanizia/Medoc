@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -10,6 +10,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { emitWorkflowEvent } from "@/lib/workflow-events";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -116,12 +117,25 @@ function RouteFallback() {
     );
 }
 
+function RouteWorkflowTracker() {
+    const location = useLocation();
+    useEffect(() => {
+        emitWorkflowEvent({
+            workflow: "navigation",
+            step: "route_enter",
+            route: location.pathname,
+        });
+    }, [location.pathname]);
+    return null;
+}
+
 export default function App() {
     return (
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <RouteWorkflowTracker />
         <VerbundOnboardingGate>
             <Routes>
                 <Route
