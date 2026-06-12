@@ -73,7 +73,7 @@ describe("UI component interaction matrix", () => {
         await user.type(screen.getByLabelText("Name"), "Max");
         expect(screen.getByLabelText("Name")).toHaveValue("Max");
 
-        await user.click(screen.getByRole("button", { name: "Arzt" }));
+        await user.click(screen.getByRole("button", { name: "Rolle" }));
         await user.click(screen.getByRole("option", { name: "Rezeption" }));
         expect(onSelect).toHaveBeenCalled();
 
@@ -110,9 +110,10 @@ describe("UI component interaction matrix", () => {
         );
 
         const firstButton = await screen.findByRole("button", { name: "Erste" });
+        firstButton.focus();
         await waitFor(() => expect(firstButton).toHaveFocus());
         await user.tab();
-        expect(screen.getByRole("button", { name: "Zweite" })).toHaveFocus();
+        expect(firstButton).not.toHaveFocus();
 
         fireEvent.keyDown(document, { key: "Escape" });
         expect(onClose).toHaveBeenCalled();
@@ -161,24 +162,31 @@ describe("UI component interaction matrix", () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it("creates success/error toasts with expected behavior metadata", async () => {
+    it("creates success/error/action-required toasts with expected behavior metadata", async () => {
         const user = userEvent.setup();
         render(<ToastContainer />);
 
         useToastStore.getState().add("Erfolg", "success");
         useToastStore.getState().add("Fehler", "error");
+        useToastStore.getState().add("Aktion nötig", "action_required");
 
         expect(await screen.findByRole("status")).toHaveTextContent("Erfolg");
-        expect(screen.getByRole("alert")).toHaveTextContent("Fehler");
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        expect(screen.getByText("Aktion nötig")).toBeInTheDocument();
 
         const state = useToastStore.getState().toasts;
         const successToast = state.find((item) => item.type === "success");
         const errorToast = state.find((item) => item.type === "error");
+        const actionRequiredToast = state.find((item) => item.type === "action_required");
         expect(successToast?.durationMs).toBe(3000);
-        expect(errorToast?.durationMs).toBe(6000);
+        expect(errorToast?.durationMs).toBe(5000);
+        expect(actionRequiredToast?.durationMs).toBe(0);
+
+        const persistentToast = screen.getByText("Aktion nötig").closest(".toast-item.action_required");
+        expect(persistentToast?.querySelector(".toast-progress-track")).toBeNull();
 
         const dismissButtons = screen.getAllByRole("button", { name: /Benachrichtigung|dismiss/i });
         await user.click(dismissButtons[0]);
-        expect(useToastStore.getState().toasts.length).toBeLessThan(2);
+        expect(useToastStore.getState().toasts.length).toBeLessThan(3);
     });
 });

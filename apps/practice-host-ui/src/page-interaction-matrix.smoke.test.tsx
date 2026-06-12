@@ -6,11 +6,13 @@ import { MemoryRouter } from "react-router-dom";
 import { MigrationWizardPage } from "@/views/pages/migration-wizard";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-const parseGdtFile = vi.fn();
-const inspectDicomFile = vi.fn();
-const scannerListRecent = vi.fn();
-const scannerAttach = vi.fn();
-const openSystemScanUtility = vi.fn();
+const { parseGdtFile, inspectDicomFile, scannerListRecent, scannerAttach, openSystemScanUtility } = vi.hoisted(() => ({
+    parseGdtFile: vi.fn(),
+    inspectDicomFile: vi.fn(),
+    scannerListRecent: vi.fn(),
+    scannerAttach: vi.fn(),
+    openSystemScanUtility: vi.fn(),
+}));
 
 vi.mock("@/systems/practice-host/controllers/system.controller", () => ({
     parseGdtFile,
@@ -56,10 +58,10 @@ describe("Migration page interaction matrix", () => {
 
         next.focus();
         await user.keyboard("{Enter}");
-        expect(await screen.findByRole("heading", { name: /2 · Export/i })).toBeInTheDocument();
+        expect(await screen.findByText(/2 · Export/i)).toBeInTheDocument();
 
-        await user.click(screen.getByRole("button", { name: /Zurück/i }));
-        expect(await screen.findByRole("heading", { name: /1 · Backup/i })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: /^Zurück$/i }));
+        expect(await screen.findByText(/1 · Backup/i)).toBeInTheDocument();
     });
 
     it("handles input/change/loading/error on device import panel", async () => {

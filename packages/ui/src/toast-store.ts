@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ToastType = "success" | "error" | "info" | "warning";
+export type ToastType = "success" | "error" | "info" | "warning" | "action_required";
 
 export interface Toast {
     id: string;
@@ -14,9 +14,10 @@ export interface Toast {
 
 const DURATION: Record<ToastType, number> = {
     success: 3000,
-    error: 6000,
+    error: 5000,
     info: 4000,
     warning: 5000,
+    action_required: 0,
 };
 
 interface ToastState {

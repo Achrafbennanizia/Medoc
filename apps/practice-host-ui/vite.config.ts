@@ -82,7 +82,12 @@ export default defineConfig(async () => ({
                 test: {
                     name: "smoke",
                     environment: "jsdom",
-                    include: ["**/*.smoke.test.ts", "**/*.smoke.test.tsx"],
+                    include: [
+                        "**/*.smoke.test.ts",
+                        "**/*.smoke.test.tsx",
+                        "../../packages/**/*.smoke.test.ts",
+                        "../../packages/**/*.smoke.test.tsx",
+                    ],
                 },
             },
             {
