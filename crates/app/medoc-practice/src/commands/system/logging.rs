@@ -198,7 +198,10 @@ mod tests {
 
         let sanitized = sanitize_workflow_event(event).expect("event sanitization");
         assert_eq!(sanitized.workflow, "ipc");
-        assert_eq!(sanitized.action.as_deref(), Some("create_patient password=***"));
+        assert_eq!(
+            sanitized.action.as_deref(),
+            Some("create_patient password=***")
+        );
         assert_eq!(sanitized.outcome.as_deref(), Some("failed token=***"));
     }
 
