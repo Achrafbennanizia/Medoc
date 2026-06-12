@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-06-12
 
 ## Open contradictions
 
@@ -15,10 +15,12 @@
 
 | ID | Location | Finding | Evidence | Severity | Action |
 | -- | -------- | ------- | -------- | -------- | ------ |
-| WF-001 | `apps/practice-host-ui/src/App.tsx` | `RouteFallback` is spinner-only (`PageLoading`) with no timeout/failure branch; if a lazy chunk stalls, flow can become non-terminable. | `rg "function RouteFallback\|PageLoading label" apps/practice-host-ui/src/App.tsx` | **P1** | Add bounded fallback timeout + explicit retry/error branch and test it. |
-| WF-002 | `packages/ui/src/toast-store.ts` | Error toast auto-dismiss is **6000 ms**; spec requires **5000 ms** for error toasts. | `rg "error:\\s*6000" packages/ui/src/toast-store.ts` | **P2** | Change error duration to 5000 ms and add regression test. |
-| WF-003 | `packages/ui/src/toast-store.ts` | Toast model has only fixed timed variants (`success/error/info/warning`); no persistent “action-required” state. | `rg "type ToastType\|const DURATION" packages/ui/src/toast-store.ts` | **P2** | Add persistent action-required toast mode + behavior tests. |
-| WF-004 | `apps/practice-host-ui/playwright.config.ts` vs `vite.config.ts` | Playwright default `baseURL` is `:5173` while Vite dev server is configured to `:1420`; default geometry/a11y runs target wrong port. | `rg "baseURL\|5173" apps/practice-host-ui/playwright.config.ts`; `rg "port:\\s*1420" apps/practice-host-ui/vite.config.ts` | **P2** | Align Playwright default base URL with Vite web server used in this workspace. |
+| WF-001 | `apps/practice-host-ui/src/App.tsx` | `RouteFallback` was spinner-only (`PageLoading`) with no timeout/failure branch; lazy chunk stalls could become non-terminable. | `rg "function RouteFallback\|PageLoading label" apps/practice-host-ui/src/App.tsx` (baseline) | **P1** | **Fixed**: timeout + `PageLoadError` retry branch added in `RouteFallback`; guarded by `src/verbund-onboarding-gate.smoke.test.tsx`. |
+| WF-002 | `packages/ui/src/toast-store.ts` | Error toast auto-dismiss was **6000 ms**; spec requires **5000 ms** for error toasts. | `rg "error:\\s*6000" packages/ui/src/toast-store.ts` (baseline) | **P2** | **Fixed**: `error` duration set to `5000` and asserted in `component-interaction-matrix.smoke.test.tsx`. |
+| WF-003 | `packages/ui/src/toast-store.ts` | Toast model had only fixed timed variants (`success/error/info/warning`); no persistent “action-required” state. | `rg "type ToastType\|const DURATION" packages/ui/src/toast-store.ts` (baseline) | **P2** | **Fixed**: `action_required` toast type added (`durationMs=0`, no progress timer) with regression assertions in `component-interaction-matrix.smoke.test.tsx`. |
+| WF-004 | `apps/practice-host-ui/playwright.config.ts` vs `vite.config.ts` | Playwright default `baseURL` was `:5173` while Vite web server is `:1420`; default geometry/a11y runs targeted wrong port. | `rg "baseURL\|5173" apps/practice-host-ui/playwright.config.ts`; `rg "port:\\s*1420" apps/practice-host-ui/vite.config.ts` (baseline) | **P2** | **Fixed**: Playwright base URL aligned to `:1420`; managed preview server now starts for both geometry and UI-rules modes. |
+| WF-005 | `apps/practice-host-ui/src/views/components/verbund-onboarding-gate.tsx` | Pre-login gate could loop forever (`status === null`) when `verbundGetStatus()` failed, blocking `/login` and all onboarding/login flows. | Playwright error context (`Verbund-Status wird geladen …` never resolved) + code path `.catch(() => setStatus(null))` | **P1** | **Fixed**: explicit timeout/error branch with retry + “Ohne Verbund fortfahren”; covered by new `verbund-onboarding-gate.smoke.test.tsx` and passing Playwright suites. |
+| WF-006 | `apps/practice-host-ui/src/views/pages/login.tsx` | Password field focus ring was suppressed (`boxShadow: "none"` inline), violating visible focus requirement. | `MEDOC_UI_RULES=1` Playwright failures at `expectVisibleFocusRing` for `#passwort` | **P1** | **Fixed**: removed inline `boxShadow` override on password input; `ui-rules.spec.ts` now passes on all breakpoints. |
 
 ## Resolved (recent)
 

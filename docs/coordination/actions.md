@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-12 (Quality run Step 3-6 complete)
 
 ## Now
 
@@ -8,6 +8,16 @@
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+
+## Done (2026-06-12 — quality run Step 1-6)
+
+- **Step 1 logger instrumentation completed earlier in run:** extended tracing pipeline reused with sanitized workflow channel + frontend→backend bridge (commit `0d5e80e`).
+- **Step 2 workflow detection completed:** workflow map/detection findings captured as WF-001..WF-006 in [`contradictions.md`](contradictions.md), with validation evidence in [`validation.md`](validation.md).
+- **Step 3 tests completed:** component/page behavior matrix smoke suites for `packages/ui` + migration workflow page.
+- **Step 4 completed:** Playwright geometry/spacing audit at 375/768/1259 + static Tailwind spacing lint (`lint-tailwind-spacing`) integrated and passing.
+- **Step 5 completed:** Playwright UI-rules/a11y suite (`axe-core`, keyboard order, focus ring, icon-button labels) passing at all three breakpoints.
+- **Step 6 fixes shipped:** WF-001..WF-006 fixes landed (bounded route fallback, Verbund gate retry/error branch, toast timing + persistent action-required mode, Playwright baseURL/webServer alignment, login password focus ring fix).
+- **Validation evidence recorded:** Rust fmt/clippy/tests + full Vitest + build + Playwright suites appended to [`validation.md`](validation.md).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

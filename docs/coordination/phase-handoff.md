@@ -1,5 +1,35 @@
 # Phase handoff
 
+**Last phase label:** Quality run Step 1-6 closeout (2026-06-12)  
+**Last closed:** Logger instrumentation (Step 1), workflow register (Step 2), UI behavior/geometry/a11y suites (Step 3-5), and WF-001..WF-006 fixes (Step 6).
+
+### Verified (2026-06-12 — quality run closeout)
+
+- **Step 1 logger path reused (no parallel logger):** sanitized workflow channel + frontend bridge already landed in commit `0d5e80e` (`crates/shared/medoc-core/src/infrastructure/logging/{mod.rs,config.rs,sanitizer.rs}`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `packages/shared/src/lib/workflow-logger.tsx`, `apps/practice-host-ui/src/App.tsx`).
+- **Step 2 findings register:** WF-001..WF-006 recorded and marked fixed in [`contradictions.md`](contradictions.md); validation evidence consolidated in [`validation.md`](validation.md).
+- **Step 3 behavior suites:** `component-interaction-matrix.smoke.test.tsx`, `page-interaction-matrix.smoke.test.tsx`, and `verbund-onboarding-gate.smoke.test.tsx` pass (9/9).
+- **Step 4 geometry + spacing:** Playwright geometry audit passes at 375/768/1259; `lint-tailwind-spacing` passes with no arbitrary spacing utilities.
+- **Step 5 UI rules compliance:** Playwright axe/keyboard/focus suite passes at 375/768/1259 (0 critical axe violations).
+- **Step 6 fixes shipped:** bounded route fallback (`App.tsx`), bounded Verbund gate with retry/continue path (`verbund-onboarding-gate.tsx`), toast policy conformance + persistent `action_required` (`toast-store.ts`, `toast.tsx`, `index.css`), Playwright baseURL/webServer alignment (`playwright.config.ts`), visible login password focus ring (`login.tsx`).
+- **Validation rerun status:** `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --tests` **PASS** (after one transient backup test failure that passed on immediate rerun); `npm run test -w medoc` **PASS** (261/264, 3 skipped), `npm run build -w medoc` **PASS**.
+
+### Remains unverified / deferred
+
+- G21b live Tauri manual rows 1–9 remain **NOT OBSERVED**.
+- Workspace lint (`npm run lint -w medoc`) still has pre-existing React compiler memoization warnings in `praxis-aufgabe-*`; unrelated to WF-001..WF-006 changes.
+
+### Understanding delta
+
+- Two non-terminable workflow hazards were confirmed and fixed: lazy route fallback timeout handling and pre-login Verbund status dead-end handling.
+- Toast behavior now has explicit policy-level semantics (`success=3s`, `error=5s`, persistent `action_required`) enforced in both store and UI rendering.
+
+### Next
+
+1. Keep G21b manual checklist as the remaining non-automated gate.
+2. Triage the pre-existing `npm run lint -w medoc` memoization warnings in a separate quality pass (outside this bounded run).
+
+---
+
 **Last phase label:** Refactor & harden pass (2026-06-10)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 
