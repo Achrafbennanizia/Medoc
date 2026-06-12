@@ -1,13 +1,22 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-12 (CI/CD tier migration)
 
 ## Now
 
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
+- **CI/CD pipeline rollout:** observe first `verify`/`autofix`/`release` runs and tune timeouts only if runtime evidence requires it.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+
+## Done (2026-06-12 — CI/CD tier migration)
+
+- Added tiered workflows: `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- Removed legacy monolithic `.github/workflows/ci.yml`.
+- Added CI coordination design doc: `docs/coordination/ci-cd-plan.md`.
+- Added accessibility audit runner script: `apps/practice-host-ui/scripts/run-a11y.mjs`.
+- Recorded validation evidence in `docs/coordination/validation.md` (typecheck/build/a11y PASS, lint currently FAIL due pre-existing React compiler lint debt).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
