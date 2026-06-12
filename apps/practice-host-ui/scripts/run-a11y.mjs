@@ -8,10 +8,11 @@ const routes = (process.env.A11Y_ROUTES ?? "/")
     .filter(Boolean);
 
 const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext();
 let criticalCount = 0;
 
 try {
-    const page = await browser.newPage();
+    const page = await context.newPage();
 
     for (const route of routes) {
         const target = `${baseUrl}${route.startsWith("/") ? route : `/${route}`}`;
@@ -34,6 +35,7 @@ try {
         criticalCount += criticalViolations.length;
     }
 } finally {
+    await context.close();
     await browser.close();
 }
 
