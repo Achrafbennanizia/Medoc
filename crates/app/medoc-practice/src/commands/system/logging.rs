@@ -178,3 +178,43 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_workflow_event_masks_secret_like_values() {
+        let event = WorkflowLogEvent {
+            workflow: " ipc ".into(),
+            step: WorkflowStep::Error,
+            route: Some("/patienten/123".into()),
+            action: Some("create_patient password=hunter2".into()),
+            correlation_id: Some("abc-123".into()),
+            outcome: Some("failed token=super-secret".into()),
+            error_kind: Some("AuthError".into()),
+            timestamp_ms: Some(123_456),
+        };
+
+        let sanitized = sanitize_workflow_event(event).expect("event sanitization");
+        assert_eq!(sanitized.workflow, "ipc");
+        assert_eq!(sanitized.action.as_deref(), Some("create_patient password=***"));
+        assert_eq!(sanitized.outcome.as_deref(), Some("failed token=***"));
+    }
+
+    #[test]
+    fn sanitize_workflow_event_rejects_missing_workflow() {
+        let event = WorkflowLogEvent {
+            workflow: "   ".into(),
+            step: WorkflowStep::PrimaryAction,
+            route: None,
+            action: Some("sync_get_status".into()),
+            correlation_id: None,
+            outcome: None,
+            error_kind: None,
+            timestamp_ms: None,
+        };
+        let err = sanitize_workflow_event(event).expect_err("workflow should be required");
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+}
