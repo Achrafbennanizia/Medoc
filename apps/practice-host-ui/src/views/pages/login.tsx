@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "@/systems/practice-host/controllers/auth.controller";
+import { BREAK_GLASS_ENABLED, TOTP_2FA_ENABLED } from "@/lib/mvp-security-config";
 import {
     confirmTotpEnrollmentLogin,
     startTotpEnrollmentLogin,
@@ -108,11 +109,11 @@ export function LoginPage() {
         setHelperMsg("");
         setLoading(true);
         try {
-            if (step === "totp") {
+            if (TOTP_2FA_ENABLED && step === "totp") {
                 await finishLogin(totpCode.trim());
                 return;
             }
-            if (step === "enroll") {
+            if (TOTP_2FA_ENABLED && step === "enroll") {
                 await confirmTotpEnrollmentLogin(email, passwort, enrollCode.trim());
                 await finishLogin(enrollCode.trim());
                 return;
@@ -120,6 +121,7 @@ export function LoginPage() {
             try {
                 await finishLogin();
             } catch (err) {
+                if (!TOTP_2FA_ENABLED) throw err;
                 if (isTotpEnrollError(err)) {
                     const dto = await startTotpEnrollmentLogin(email, passwort);
                     setEnrollment(dto);
@@ -192,14 +194,11 @@ export function LoginPage() {
                             Behandeln Sie Patienten — nicht Software.
                         </h1>
                         <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", maxWidth: 460, lineHeight: 1.55 }}>
-                            Termine, Akten, Abrechnung und Rezepte in einer ruhigen, fokussierten Oberfläche. Hinweis: Dieser Stand ist ein Entwicklungs-
-                            / Hochschul-Demonstrator — keine Produktzertifizierung und keine fest verdrahtete Hosting-Region.
+                            Termine, Akten, Abrechnung und Rezepte in einer ruhigen, fokussierten Oberfläche.
                         </p>
                     </div>
                 </div>
                 <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18, flexWrap: "wrap" }}>
-                    <span>Demonstrator · nicht für den klinischen Routinebetrieb freigegeben</span>
-                    <span aria-hidden>·</span>
                     <span>Build {import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE}</span>
                 </div>
             </div>
@@ -233,7 +232,7 @@ export function LoginPage() {
                             {error}
                         </div>
                     )}
-                    {step === "enroll" ? (
+                    {TOTP_2FA_ENABLED && step === "enroll" ? (
                         <>
                             <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
                                 Als Arzt ist die Zwei-Faktor-Authentifizierung Pflicht. Scannen Sie den Schlüssel in Ihrer
@@ -284,7 +283,7 @@ export function LoginPage() {
                             </button>
                         </>
                     ) : null}
-                    {step === "totp" ? (
+                    {TOTP_2FA_ENABLED && step === "totp" ? (
                         <>
                             <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
                                 Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.
@@ -372,7 +371,7 @@ export function LoginPage() {
                     <button
                         type="submit"
                         className="login-submit"
-                        disabled={loading || (step === "enroll" && !enrollment)}
+                        disabled={loading || (TOTP_2FA_ENABLED && step === "enroll" && !enrollment)}
                     >
                         {loading ? (
                             <span
@@ -386,7 +385,11 @@ export function LoginPage() {
                                 }}
                             />
                         ) : null}
-                        {step === "totp" ? "Code prüfen" : step === "enroll" ? "Einrichtung abschließen" : "Anmelden"}
+                        {TOTP_2FA_ENABLED && step === "totp"
+                            ? "Code prüfen"
+                            : TOTP_2FA_ENABLED && step === "enroll"
+                              ? "Einrichtung abschließen"
+                              : "Anmelden"}
                     </button>
                     <p id="login-teaser-hint" className="sr-only">
                         Zertifizierungs- und Infrastruktur-Claims erscheinen nur, wenn sie produktiv hinterlegt sind.
@@ -394,10 +397,12 @@ export function LoginPage() {
                     {helperMsg ? (
                         <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
                     ) : null}
+                    {BREAK_GLASS_ENABLED ? (
                     <div id="login-notfall-hinweis" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>{t("login.notfall.title")}</div>
                         <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.45 }}>{t("login.notfall.body")}</p>
                     </div>
+                    ) : null}
                 </form>
                 {import.meta.env.DEV && (
                     <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.45 }}>
