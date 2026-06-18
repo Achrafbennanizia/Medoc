@@ -7,6 +7,7 @@ import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { Input } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
+import { MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED } from "@/lib/v1-ui-flags";
 import {
     parseGdtFile,
     inspectDicomFile,
@@ -177,13 +178,17 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
                 </div>
             </Card>
 
-            {step >= 2 ? (
+            {step >= 2 && MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED ? (
                 <>
                     <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", maxWidth: 720 }}>
                         Ab Schritt 3: Schnittstellen-Stubs (GDT / DICOM / Scanner) zur technischen Verifikation — keine automatische Datenübernahme.
                     </p>
                     <DeviceFilePanel />
                 </>
+            ) : step >= 2 ? (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", maxWidth: 720 }}>
+                    {t("v1.migration.adapters_disabled")}
+                </p>
             ) : null}
         </div>
     );
