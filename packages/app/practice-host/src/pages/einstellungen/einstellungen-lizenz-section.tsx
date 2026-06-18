@@ -8,6 +8,14 @@ import { ChevronRightIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { MAX_TOTAL_PERSONAL } from "@/lib/mvp-security-config";
+import { useT, useTParams } from "@/lib/i18n";
+import {
+    LICENSE_BILLING_CONNECTORS_ENABLED,
+    LICENSE_KBV_ROW_ENABLED,
+    LICENSE_SUPPORT_ROW_ENABLED,
+    LICENSE_USAGE_METERS_ENABLED,
+} from "@/lib/v1-ui-flags";
 
 export type EinstellungenLizenzSectionProps = {
     portalSummary: Record<string, unknown> | null;
@@ -35,6 +43,8 @@ export function EinstellungenLizenzSection({
     onClearLicense,
 }: EinstellungenLizenzSectionProps) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
 
     const activeV2 = licenseStatus?.valid ? licenseStatus.licenseV2 : null;
     const activeV1 = licenseStatus?.valid ? licenseStatus.license : null;
@@ -43,8 +53,10 @@ export function EinstellungenLizenzSection({
         typeof portalSummary?.practice_slug === "string" && portalSummary.practice_slug.trim()
             ? `MD-PORTAL-${portalSummary.practice_slug.trim().toUpperCase()}`
             : "MD-PRO-DE-2026-0448-MR";
-    const portalMaxUsers = typeof portalSummary?.max_users === "number" ? portalSummary.max_users : 8;
-    const portalActiveUsers = typeof portalSummary?.active_users === "number" ? portalSummary.active_users : 4;
+    const portalRawMax =
+        typeof portalSummary?.max_users === "number" ? portalSummary.max_users : MAX_TOTAL_PERSONAL;
+    const portalMaxUsers = Math.min(portalRawMax, MAX_TOTAL_PERSONAL);
+    const portalActiveUsers = typeof portalSummary?.active_users === "number" ? portalSummary.active_users : 1;
     const userBarPct = portalMaxUsers > 0 ? Math.min(100, Math.round((portalActiveUsers / portalMaxUsers) * 100)) : 50;
     const portalStorageGb = typeof portalSummary?.storage_gb === "number" ? portalSummary.storage_gb : 100;
     const portalStorageUsed = typeof portalSummary?.storage_used_gb === "number" ? portalSummary.storage_used_gb : 12.4;
@@ -60,13 +72,22 @@ export function EinstellungenLizenzSection({
             ? portalSummary.plan_name.trim()
             : null;
 
+    const heroSub = portalSummary
+        ? tp("settings.license.hero_with_portal", {
+              name:
+                  typeof portalSummary.display_name === "string" ? portalSummary.display_name : "Praxis",
+              max: portalMaxUsers,
+              storage: portalStorageGb,
+          })
+        : tp("settings.license.hero_fallback", { max: MAX_TOTAL_PERSONAL });
+
     return (
         <>
             <section className="settings-subcard settings-license-hero-wrap" style={{ overflow: "hidden", padding: 0 }}>
                 <div className="settings-license-hero">
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                         <span className="settings-pill-accent">{portalFetchBusy ? "…" : licenseStatus?.valid ? "Aktiv" : "Inaktiv"}</span>
-                        <span style={{ fontSize: 12, color: "var(--fg-3)" }}>Ihr Plan</span>
+                        <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("settings.license.plan_label")}</span>
                     </div>
                     <p style={{ margin: "12px 0 0", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em" }}>
                         {planTitle ?? (
@@ -76,9 +97,7 @@ export function EinstellungenLizenzSection({
                         )}
                     </p>
                     <p className="card-sub" style={{ margin: "8px 0 0", maxWidth: "42rem" }}>
-                        {portalSummary
-                            ? `${typeof portalSummary.display_name === "string" ? portalSummary.display_name : "Praxis"} · bis zu ${portalMaxUsers} Behandler · Speicher bis ${portalStorageGb} GB · eRezept-Kontingent siehe unten`
-                            : "Bis zu 8 Behandler · Unbegrenzt Patienten · eRezept · DATEV-Export · Premium Support (Beispiel — mit Hersteller-Portal werden Live-Daten geladen)"}
+                        {heroSub}
                     </p>
                     <div className="settings-license-hero__grid">
                         <div className="settings-license-metric">
@@ -91,11 +110,14 @@ export function EinstellungenLizenzSection({
                             Nächste Abbuchung
                             <strong>{portalSummary ? formatDeDateShort(portalSummary.next_billing_iso) : "01.05.2026"}</strong>
                         </div>
-                        <div className="settings-license-metric">
-                            Zahlungsmethode
-                            <strong>{portalSummary ? "Im Abrechnungsportal" : "SEPA · · 4821"}</strong>
-                        </div>
+                        {LICENSE_BILLING_CONNECTORS_ENABLED ? (
+                            <div className="settings-license-metric">
+                                Zahlungsmethode
+                                <strong>{portalSummary ? "Im Abrechnungsportal" : "SEPA · · 4821"}</strong>
+                            </div>
+                        ) : null}
                     </div>
+                    {LICENSE_BILLING_CONNECTORS_ENABLED ? (
                     <div className="row" style={{ gap: 10, marginTop: 16, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         <Button
                             type="button"
@@ -105,10 +127,7 @@ export function EinstellungenLizenzSection({
                                     const url = await companyPortalBillingPortalUrl();
                                     window.open(url, "_blank", "noopener,noreferrer");
                                 } catch {
-                                    toast(
-                                        "Hersteller-Portal nicht konfiguriert — Rechnungen ggf. im klassischen Abo-Portal.",
-                                        "info",
-                                    );
+                                    toast(t("v1.billing.manufacturer_portal_hint"), "info");
                                 }
                             }}
                         >
@@ -121,18 +140,17 @@ export function EinstellungenLizenzSection({
                                     const p = await openSubscriptionPortal();
                                     window.open(p.url, "_blank", "noopener,noreferrer");
                                 } catch {
-                                    toast(
-                                        "Abo-Portal derzeit nicht verfügbar (offline oder nicht konfiguriert).",
-                                        "info",
-                                    );
+                                    toast(t("v1.billing.portal_unavailable"), "info");
                                 }
                             }}
                         >
                             Plan wechseln
                         </Button>
                     </div>
+                    ) : null}
                 </div>
             </section>
+            {LICENSE_USAGE_METERS_ENABLED ? (
             <section className="settings-subcard">
                 <div className="card-head">
                     <div className="card-title">Nutzung diesen Monat</div>
@@ -171,6 +189,7 @@ export function EinstellungenLizenzSection({
                     </div>
                 </div>
             </section>
+            ) : null}
             <section className="settings-subcard">
                 <div className="card-head">
                     <div className="card-title">Lizenz-Details</div>
@@ -209,6 +228,7 @@ export function EinstellungenLizenzSection({
                         {licenseStatus?.valid ? "Aktiv" : "Inaktiv"}
                     </span>
                 </div>
+                {LICENSE_KBV_ROW_ENABLED ? (
                 <div className="settings-row">
                     <div>
                         <b>KBV-Zulassung</b>
@@ -216,6 +236,8 @@ export function EinstellungenLizenzSection({
                     </div>
                     <span className="settings-pill-green">Aktiv</span>
                 </div>
+                ) : null}
+                {LICENSE_SUPPORT_ROW_ENABLED ? (
                 <div className="settings-row">
                     <div>
                         <b>Support-Vertrag</b>
@@ -225,6 +247,7 @@ export function EinstellungenLizenzSection({
                         <ChevronRightIcon size={18} />
                     </span>
                 </div>
+                ) : null}
                 <div className="card-pad" style={{ paddingTop: 0 }}>
                     <Input
                         id="lic-token-card"

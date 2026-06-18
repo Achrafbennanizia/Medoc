@@ -8,7 +8,7 @@ import { useCallback } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type Locale = "de" | "en";
+export type Locale = "de" | "en" | "fr" | "ar";
 
 const dict: Record<Locale, Record<string, string>> = {
     de: {
@@ -107,6 +107,13 @@ const dict: Record<Locale, Record<string, string>> = {
         "login.notfall.body": "Der Notfallzugriff (Break-Glass) ist nach der Anmeldung über das Profilmenü (oben rechts oder in der Seitenleiste) erreichbar und wird auditierbar protokolliert.",
         "login.pw_toggle_show": "Passwort anzeigen",
         "login.pw_toggle_hide": "Passwort verbergen",
+        "settings.license.hero_with_portal": "{name} · bis zu {max} Behandler · Speicher bis {storage} GB",
+        "settings.license.hero_fallback": "Bis zu {max} Behandler · Unbegrenzt Patienten · DATEV-Export",
+        "settings.license.plan_label": "Ihr Plan",
+        "v1.migration.adapters_disabled": "Geräte-Adapter (GDT/DICOM/Scanner) sind in dieser Version deaktiviert.",
+        "v1.billing.portal_unavailable": "Abo-Portal derzeit nicht verfügbar (offline oder nicht konfiguriert).",
+        "v1.billing.manufacturer_portal_hint": "Hersteller-Portal nicht konfiguriert — Rechnungen ggf. im klassischen Abo-Portal.",
+        "work_time.stale_closed_banner": "{count} offene Arbeitszeit-Sitzung(en) vom Vortag wurden als unbeendet abgeschlossen.",
         "dashboard.termine_heute_sub": "Termine heute (laut Statistik)",
         "dashboard.page_hub":
             "Freigaben, Materialbestellungen und Ihr Tagesüberblick – Kurzübersicht für Praxis und Rezeption.",
@@ -490,6 +497,13 @@ const dict: Record<Locale, Record<string, string>> = {
         "login.notfall.body": "Break-glass access is available after sign-in from the profile menu (top right or sidebar) and is audit-logged.",
         "login.pw_toggle_show": "Show password",
         "login.pw_toggle_hide": "Hide password",
+        "settings.license.hero_with_portal": "{name} · up to {max} clinicians · storage up to {storage} GB",
+        "settings.license.hero_fallback": "Up to {max} clinicians · unlimited patients · DATEV export",
+        "settings.license.plan_label": "Your plan",
+        "v1.migration.adapters_disabled": "Device adapters (GDT/DICOM/scanner) are disabled in this version.",
+        "v1.billing.portal_unavailable": "Subscription portal unavailable (offline or not configured).",
+        "v1.billing.manufacturer_portal_hint": "Manufacturer portal not configured — invoices may be in the classic subscription portal.",
+        "work_time.stale_closed_banner": "{count} open work-time session(s) from a prior day were closed as unfinished.",
         "dashboard.termine_heute_sub": "appointments today (per statistics)",
         "dashboard.page_hub": "Approvals, supply orders, and your day at a glance — for clinical and front-desk staff.",
         "dashboard.filter_stats": "Statistics",
@@ -775,7 +789,38 @@ const dict: Record<Locale, Record<string, string>> = {
         "page.praxis_tickets.kommentar_placeholder": "Question or note for the team…",
         "page.praxis_tickets.kommentar_send": "Send",
     },
+} as unknown as Record<Locale, Record<string, string>>;
+
+// FR/AR: inherit EN catalog; override nav/common for acceptance (full translation ongoing).
+dict.fr = {
+    ...dict.en,
+    "app.title": "MeDoc — Gestion de cabinet",
+    "nav.dashboard": "Notifications",
+    "nav.termine": "Rendez-vous",
+    "nav.patienten": "Dossiers patients",
+    "nav.einstellungen": "Paramètres",
+    "common.save": "Enregistrer",
+    "common.cancel": "Annuler",
+    "auth.login": "Connexion",
+    "auth.logout": "Déconnexion",
 };
+dict.ar = {
+    ...dict.en,
+    "app.title": "ميدوك — إدارة العيادة",
+    "nav.dashboard": "الإشعارات",
+    "nav.termine": "المواعيد",
+    "nav.patienten": "ملفات المرضى",
+    "nav.einstellungen": "الإعدادات",
+    "common.save": "حفظ",
+    "common.cancel": "إلغاء",
+    "auth.login": "تسجيل الدخول",
+    "auth.logout": "تسجيل الخروج",
+};
+
+/** Keys present in the catalog for a locale (CI missing-key guard). */
+export function localeCatalogKeys(locale: Locale): string[] {
+    return Object.keys(dict[locale]);
+}
 
 interface LocaleStore {
     locale: Locale;
@@ -809,9 +854,32 @@ export function translateLocaleWithFallback(locale: Locale, key: string, fallbac
     return v === key ? fallback : v;
 }
 
+/** Replace `{param}` placeholders in a translated string. */
+export function translateLocaleParams(
+    locale: Locale,
+    key: string,
+    params: Record<string, string | number>,
+): string {
+    let s = translateLocale(locale, key);
+    for (const [k, v] of Object.entries(params)) {
+        s = s.replaceAll(`{${k}}`, String(v));
+    }
+    return s;
+}
+
 /// React hook variant for components that need to re-render on locale change.
 /** Returned translator is stable while `locale` is unchanged — safe for effect/useMemo deps. */
 export function useT() {
     const locale = useLocale((s) => s.locale);
     return useCallback((key: string) => translateLocale(locale, key), [locale]);
+}
+
+/** Translator with `{param}` interpolation for the active locale. */
+export function useTParams() {
+    const locale = useLocale((s) => s.locale);
+    return useCallback(
+        (key: string, params: Record<string, string | number>) =>
+            translateLocaleParams(locale, key, params),
+        [locale],
+    );
 }
