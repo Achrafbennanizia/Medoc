@@ -5,6 +5,7 @@ import {
     resetOnboardingProgress,
     stepsForRole,
 } from "@/lib/onboarding";
+import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { parseRole } from "@/lib/rbac";
 import {
     DEFAULT_CLIENT_SETTINGS,
@@ -332,7 +333,7 @@ export function EinstellungenArbeitsablaeufeSection({
                 </div>
                 ) : null}
 
-                {rolle ? (
+                {rolle && ONBOARDING_COACHMARK_ENABLED ? (
                     <div className="settings-row" style={{ marginTop: 10 }}>
                         <div>
                             <b>Einführung (NFA-USE-09)</b>
