@@ -2,7 +2,7 @@
 //!
 //! These tests exercise the master-side `/api/v1/sync/{push,pull}` handlers
 //! end-to-end (router → `SyncEngine::ingest_push` → `apply_remote_entry` →
-//! `ConflictPolicy::MasterWinsWithFreshness`). They complement the
+//! `ConflictPolicy::LastWriteWins`). They complement the
 //! function-level merge tests in `medoc_sync::engine::tests` (which already
 //! cover the policy in isolation) and the mesh fan-out test in
 //! `two_replica_mesh.rs` (which covers replica → replica TCP push).

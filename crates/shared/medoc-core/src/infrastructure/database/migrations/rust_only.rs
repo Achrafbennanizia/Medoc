@@ -260,6 +260,95 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     }
 
     sync_tables::ensure_sync_replication_tables(pool).await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_session (
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL REFERENCES personal(id),
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            pause_started_at TEXT,
+            status TEXT NOT NULL CHECK (status IN ('RUNNING','PAUSED','ENDED')),
+            auto_recorded INTEGER NOT NULL DEFAULT 0 CHECK (auto_recorded IN (0, 1)),
+            end_reason TEXT
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let _ = sqlx::query("ALTER TABLE work_time_session ADD COLUMN end_reason TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query(
+        "ALTER TABLE work_time_session ADD COLUMN pause_minutes INTEGER NOT NULL DEFAULT 0",
+    )
+    .execute(pool)
+    .await;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_pause_segment (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES work_time_session(id) ON DELETE CASCADE,
+            started_at TEXT NOT NULL,
+            ended_at TEXT
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_preference (
+            personal_id TEXT PRIMARY KEY REFERENCES personal(id) ON DELETE CASCADE,
+            focus_mode INTEGER NOT NULL DEFAULT 0 CHECK (focus_mode IN (0, 1)),
+            auto_record_on_login INTEGER NOT NULL DEFAULT 0 CHECK (auto_record_on_login IN (0, 1)),
+            auto_record_on_logout INTEGER NOT NULL DEFAULT 0 CHECK (auto_record_on_logout IN (0, 1))
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS krankenbescheinigung (
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL REFERENCES personal(id),
+            note TEXT,
+            document_ref TEXT NOT NULL,
+            date_from TEXT NOT NULL,
+            date_to TEXT,
+            start_min INTEGER,
+            end_min INTEGER,
+            status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'ENDED')),
+            created_by TEXT NOT NULL REFERENCES personal(id),
+            created_at TEXT NOT NULL,
+            ended_at TEXT,
+            ended_by TEXT REFERENCES personal(id)
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    for col in [
+        "ALTER TABLE krankenbescheinigung ADD COLUMN start_min INTEGER",
+        "ALTER TABLE krankenbescheinigung ADD COLUMN end_min INTEGER",
+        "ALTER TABLE krankenbescheinigung ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'",
+        "ALTER TABLE krankenbescheinigung ADD COLUMN created_by TEXT",
+        "ALTER TABLE krankenbescheinigung ADD COLUMN ended_at TEXT",
+        "ALTER TABLE krankenbescheinigung ADD COLUMN ended_by TEXT",
+    ] {
+        let _ = sqlx::query(col).execute(pool).await;
+    }
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS arbeitsplan_adjustment (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL CHECK (source IN ('krankenbescheinigung', 'manual')),
+            source_id TEXT,
+            personal_id TEXT NOT NULL REFERENCES personal(id),
+            payload_json TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            created_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     super::verbund_tables::ensure_verbund_tables(pool).await?;
 
     Ok(())

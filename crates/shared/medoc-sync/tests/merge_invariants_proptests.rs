@@ -1,4 +1,4 @@
-//! Property-based tests for `ConflictPolicy::MasterWinsWithFreshness`
+//! Property-based tests for `ConflictPolicy::LastWriteWins`
 //! as exercised through `SyncEngine::ingest_push` (which fans out to
 //! `merge::apply_remote_entry`).
 //!

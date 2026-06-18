@@ -71,8 +71,9 @@ impl SyncEngine {
             }
             if apply_remote_entry(
                 pool,
+                &local_id,
                 local_is_master,
-                ConflictPolicy::MasterWinsWithFreshness,
+                ConflictPolicy::LastWriteWins,
                 entry,
             )
             .await?
@@ -197,7 +198,13 @@ impl SyncEngine {
         let mut applied = 0u32;
         let mut skipped = 0u32;
         for entry in &pulled.entries {
-            if apply_remote_entry(pool, false, ConflictPolicy::MasterWinsWithFreshness, entry)
+            if apply_remote_entry(
+                pool,
+                &local_id,
+                false,
+                ConflictPolicy::LastWriteWins,
+                entry,
+            )
                 .await?
             {
                 applied += 1;

@@ -6,16 +6,17 @@ use crate::repo::{mark_applied, was_applied, OutboxEntry};
 /// Conflict resolution when two devices edited the same row offline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConflictPolicy {
-    /// Newer `updated_at` wins; ties are broken in favour of the master.
+    /// Newer `updated_at` wins. Equal timestamps break by lexicographic
+    /// `device_id` (higher wins). No master tie-break.
     ///
-    /// When **either** side lacks a parsable `updated_at` timestamp the policy
-    /// falls back to legacy master-wins semantics (replica keeps its local row
-    /// if the master already owns one).
-    MasterWinsWithFreshness,
+    /// When **either** side lacks a parsable `updated_at`, replicas keep their
+    /// local row if it already exists; masters accept inbound changes.
+    LastWriteWins,
 }
 
 pub async fn apply_remote_entry(
     pool: &SqlitePool,
+    local_device_id: &str,
     local_is_master: bool,
     policy: ConflictPolicy,
     entry: &OutboxEntry,
@@ -25,7 +26,9 @@ pub async fn apply_remote_entry(
     }
 
     let applied = match entry.op.as_str() {
-        "INSERT" | "UPDATE" => apply_upsert(pool, local_is_master, policy, entry).await?,
+        "INSERT" | "UPDATE" => {
+            apply_upsert(pool, local_device_id, local_is_master, policy, entry).await?
+        }
         "DELETE" => apply_delete(pool, entry).await?,
         _ => {
             return Err(AppError::Validation(format!(
@@ -43,6 +46,7 @@ pub async fn apply_remote_entry(
 
 async fn apply_upsert(
     pool: &SqlitePool,
+    local_device_id: &str,
     local_is_master: bool,
     policy: ConflictPolicy,
     entry: &OutboxEntry,
@@ -70,13 +74,13 @@ async fn apply_upsert(
             .map_err(AppError::Database)?
     };
 
-    if exists > 0 && policy == ConflictPolicy::MasterWinsWithFreshness {
+    if exists > 0 && policy == ConflictPolicy::LastWriteWins {
         let remote_ts = obj.get("updated_at").and_then(parse_ts);
         let local_ts = load_local_updated_at(pool, &entry.entity_table, &entry.entity_id).await?;
         match (local_ts, remote_ts) {
             (Some(local), Some(remote)) => {
                 if remote > local {
-                    // Remote is fresher → apply, regardless of role.
+                    // Remote is fresher → apply.
                 } else if remote < local {
                     tracing::debug!(
                         target: "medoc::sync",
@@ -87,21 +91,20 @@ async fn apply_upsert(
                         remote = %remote,
                     );
                     return Ok(true);
-                } else if !local_is_master {
-                    // Tie → master wins (we are a replica accepting master's tie-break).
-                } else {
-                    // Tie → master wins. We *are* the master, keep our local row.
+                } else if entry.device_id.as_str() <= local_device_id {
+                    // Timestamp tie → higher device_id wins (no master tie-break).
                     tracing::debug!(
                         target: "medoc::sync",
-                        event = "MASTER_KEEPS_TIE",
+                        event = "SKIP_TIE_LOSER",
                         table = %entry.entity_table,
                         id = %entry.entity_id,
+                        remote_device = %entry.device_id,
+                        local_device = %local_device_id,
                     );
                     return Ok(true);
                 }
             }
             _ => {
-                // Fallback: legacy master-wins (replica keeps local when master already owns).
                 if !local_is_master {
                     tracing::debug!(
                         target: "medoc::sync",

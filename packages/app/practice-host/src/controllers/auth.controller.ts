@@ -21,10 +21,26 @@ export async function login(
         user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
     });
     useAuthStore.getState().setSession(session);
+    try {
+        const { workTimeGetAutoRecordOnLogin, workTimeReconcileOnLogin, workTimeStart } =
+            await import("@/systems/practice-host/controllers/work-time.controller");
+        await workTimeReconcileOnLogin();
+        if (await workTimeGetAutoRecordOnLogin()) {
+            await workTimeStart(true);
+        }
+    } catch {
+        /* auto-record optional */
+    }
     return session;
 }
 
 export async function logout(): Promise<void> {
+    try {
+        const { workTimeEnd } = await import("@/systems/practice-host/controllers/work-time.controller");
+        await workTimeEnd();
+    } catch {
+        /* no open session */
+    }
     await practiceSystem.invoke("logout");
     useAuthStore.getState().clear();
 }

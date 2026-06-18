@@ -321,8 +321,8 @@ function TerminTimeColumnBody({
                         style={{
                             top,
                             height: blockHeight,
-                            left: 4,
-                            right: 4,
+                            insetInlineStart: 4,
+                            insetInlineEnd: 4,
                         }}
                         onClick={() => {
                             if (clickSuppressUntilRef && Date.now() < clickSuppressUntilRef.current) return;

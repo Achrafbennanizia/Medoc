@@ -24,9 +24,9 @@ Practices need:
 | Idempotency | **`sync_applied (source_device_id, source_seq)`** |
 | Transport | HTTPS to master’s LAN API (self-signed TLS + optional fingerprint pin) |
 | Auth (replica → master) | Ed25519-signed **activation token** (`mt2.<payload>.<sig>`) issued at pairing time. Legacy JWT still accepted for installs paired before Slice 4. |
-| Conflicts | **`ConflictPolicy::MasterWinsWithFreshness`** — if both rows carry a parsable `updated_at`, the newer wins; ties go to the master. Missing timestamps fall back to legacy master-wins. |
+| Conflicts | **`ConflictPolicy::LastWriteWins`** — if both rows carry a parsable `updated_at`, the newer wins; equal timestamps break by lexicographic `device_id` (no master tie-break). Missing timestamps on either side: replica keeps local when row exists. |
 
-This is an **outbox + master/replica** pattern (not full CRDT). It matches clinical “one authoritative practice host” better than last-writer-wins everywhere.
+This is an **outbox + master/replica** pattern (not full CRDT). Row-level conflicts resolve by freshness, not by device role.
 
 ### Why not pure P2P mesh?
 
@@ -140,16 +140,17 @@ Test coverage: `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`
 
 ## Conflict resolution (Slice 6)
 
-`ConflictPolicy::MasterWinsWithFreshness` reads `updated_at` from both the
+`ConflictPolicy::LastWriteWins` reads `updated_at` from both the
 local row (`SELECT updated_at FROM {table} WHERE id = ?`) and the inbound
-payload (`obj["updated_at"]`):
+payload (`obj["updated_at"]`). Timestamp ties break by lexicographic
+`entry.device_id` vs the local device's id (higher wins).
 
 | Local `updated_at` | Remote `updated_at` | Outcome |
 |--------------------|---------------------|---------|
 | present, newer | present, older | Local kept (`SKIP_STALE_REMOTE`). |
 | present, older | present, newer | Remote applied. |
-| present, equal | present, equal | Master wins (replica accepts; master keeps own). |
-| missing on either side | missing on either side | Legacy master-wins (replica keeps local). |
+| present, equal | present, equal | Higher `device_id` wins (lexicographic). |
+| missing on either side | missing on either side | Replica keeps local when row exists. |
 
 Tests live in `medoc_sync::engine::tests` —
 `master_does_not_overwrite_newer_replica_row` and

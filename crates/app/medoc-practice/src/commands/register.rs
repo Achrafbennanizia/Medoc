@@ -153,6 +153,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::network::pairing::replica::pairing_persist_token,
             $crate::commands::network::verbund::verbund_status_cmd,
             $crate::commands::network::verbund::lizenz_activate,
+            $crate::commands::network::verbund::import_activation_manifest,
             $crate::commands::network::verbund::verbund_discover_admins,
             $crate::commands::network::verbund::verbund_send_join_request,
             $crate::commands::network::verbund::verbund_submit_sas,
@@ -209,6 +210,27 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::personal_commands::grant_personal_all_permissions,
             $crate::commands::personal_commands::admin_unlock_brute_force,
             $crate::commands::personal_commands::evaluate_password_policy,
+            $crate::commands::personal_commands::get_staff_quota,
+            $crate::commands::work_time_commands::work_time_start,
+            $crate::commands::work_time_commands::work_time_pause,
+            $crate::commands::work_time_commands::work_time_resume,
+            $crate::commands::work_time_commands::work_time_end,
+            $crate::commands::work_time_commands::work_time_reconcile_on_login,
+            $crate::commands::work_time_commands::work_time_get_active_session,
+            $crate::commands::work_time_commands::work_time_get_week_overview,
+            $crate::commands::work_time_commands::work_time_get_team_overview,
+            $crate::commands::work_time_commands::work_time_get_statistics,
+            $crate::commands::work_time_commands::work_time_get_preference,
+            $crate::commands::work_time_commands::work_time_set_preference,
+            $crate::commands::work_time_commands::work_time_set_auto_record_on_login,
+            $crate::commands::work_time_commands::work_time_get_auto_record_on_login,
+            $crate::commands::krankenbescheinigung_commands::krankenbescheinigung_save,
+            $crate::commands::krankenbescheinigung_commands::list_krankenbescheinigungen,
+            $crate::commands::krankenbescheinigung_commands::end_krankenbescheinigung,
+            $crate::commands::arbeitsplan_adjustment_commands::list_arbeitsplan_adjustments,
+            $crate::commands::krankenbescheinigung_commands::list_krankenbescheinigungen,
+            $crate::commands::krankenbescheinigung_commands::end_krankenbescheinigung,
+            $crate::commands::arbeitsplan_adjustment_commands::list_arbeitsplan_adjustments,
             $crate::commands::personal_commands::get_totp_status,
             $crate::commands::personal_commands::start_totp_enrollment,
             $crate::commands::personal_commands::confirm_totp_enrollment,
@@ -284,7 +306,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 275;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 293;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
