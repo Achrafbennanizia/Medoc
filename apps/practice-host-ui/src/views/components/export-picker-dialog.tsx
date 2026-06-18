@@ -41,6 +41,7 @@ import {
     type DocumentKind,
     type DocumentTemplatePayloadV1,
 } from "@/lib/document-template-schema";
+import { PDF_LAYOUT_TEMPLATE_PICKER_ENABLED } from "@/lib/v1-ui-flags";
 import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { composeClinicalDocumentPdfBodyLines } from "@/lib/clinical-document-pdf";
@@ -365,6 +366,7 @@ function AkteExportPickerInner({
                             { value: "csv", label: "CSV (Semikolon)" },
                         ]}
                     />
+                    {PDF_LAYOUT_TEMPLATE_PICKER_ENABLED ? (
                     <Select
                         id="export-picker-akte-template"
                         label="Dokumentvorlage (PDF-Layout)"
@@ -372,6 +374,7 @@ function AkteExportPickerInner({
                         onChange={(e) => setTplChoice(e.target.value)}
                         options={templateOptions}
                     />
+                    ) : null}
                     <div>
                         <div className="text-label" style={{ marginBottom: 8 }}>Zielpfad</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
@@ -823,6 +826,7 @@ function HtmlDocumentExportPickerInner({
                             {effectiveFormatHint}
                         </p>
                     ) : null}
+                    {PDF_LAYOUT_TEMPLATE_PICKER_ENABLED ? (
                     <Select
                         id="export-picker-clinical-template"
                         label="Dokumentvorlage"
@@ -830,6 +834,7 @@ function HtmlDocumentExportPickerInner({
                         onChange={(e) => setTplChoice(e.target.value)}
                         options={templateOptions}
                     />
+                    ) : null}
                     <div>
                         <div className="text-label" style={{ marginBottom: 8 }}>Standardpfad für Exporte</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>

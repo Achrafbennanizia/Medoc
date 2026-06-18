@@ -6,6 +6,7 @@ import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "@/systems/practice-host/controllers/auth.controller";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
+import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { countAktenZuValidieren } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { NAV_SECTIONS } from "@/lib/nav-sections";
@@ -27,6 +28,7 @@ import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
+import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
@@ -352,6 +354,7 @@ export function AppLayout() {
     // every minute so the UI auto-redirects on expiry.
     useEffect(() => {
         document.documentElement.lang = locale;
+        document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
     }, [locale]);
 
     useEffect(() => {
@@ -633,7 +636,7 @@ export function AppLayout() {
             if (!el) return;
             const r = el.getBoundingClientRect();
             const labels = ["Einstellungen"];
-            if (session?.rolle === "ARZT") labels.push("Notfallzugriff");
+            if (BREAK_GLASS_ENABLED && session?.rolle === "ARZT") labels.push("Notfallzugriff");
             labels.push(t("auth.logout"));
             const widthPx = measureSidebarAccountMenuWidthPx(labels);
             let left = r.left;
@@ -671,7 +674,7 @@ export function AppLayout() {
             >
                 Einstellungen
             </button>
-            {session?.rolle === "ARZT" ? (
+            {BREAK_GLASS_ENABLED && session?.rolle === "ARZT" ? (
                 <button
                     type="button"
                     role="menuitem"
@@ -1024,7 +1027,7 @@ export function AppLayout() {
                     )
                 }
             />
-            <BreakGlassBanner userId={session?.user_id} />
+            {BREAK_GLASS_ENABLED ? <BreakGlassBanner userId={session?.user_id} /> : null}
 
             <div className={`app-shell${isMacUnifiedChrome ? " app-shell--mac-unified" : ""}`}>
             <button
@@ -1195,7 +1198,7 @@ export function AppLayout() {
             </div>
             </div>
 
-            <OnboardingCoachmark rolle={session?.rolle} />
+            {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark rolle={session?.rolle} /> : null}
             <ToastContainer />
             <ExportPreviewHost />
             <PraxisSetupWizard open={praxisSetupOpen} onClose={() => setPraxisSetupOpen(false)} />
@@ -1244,6 +1247,7 @@ export function AppLayout() {
                 appVersion={aboutVersion || import.meta.env.VITE_APP_VERSION}
             />
 
+            {BREAK_GLASS_ENABLED ? (
             <Dialog
                 open={breakOpen}
                 onClose={() => setBreakOpen(false)}
@@ -1273,6 +1277,7 @@ export function AppLayout() {
                     style={{ minHeight: 88 }}
                 />
             </Dialog>
+            ) : null}
             <ConfirmDialog
                 open={logoutConfirmOpen}
                 onClose={() => setLogoutConfirmOpen(false)}
