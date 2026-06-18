@@ -21,7 +21,7 @@ Command: `rg 'submitEprescription|submit_eprescription|openSubscriptionPortal|op
 |------|--------|
 | Staff cap single source (`MAX_TOTAL_PERSONAL`) | **PASS** — license hero derives from `mvp-security-config.ts` |
 | Wave 1 i18n keys | **PASS** — `settings.license.*`, `v1.*` keys in `i18n.ts` |
-| C8 LastWriteWins | **PASS** — `merge.rs` + docs; `cargo test -p medoc-sync` (see below) |
+| C8 LastWriteWins | **PASS** — `cargo test -p medoc-sync --test merge_apply_tests` (20 tests) |
 | Calendar RTL (Wave 3) | **PASS** — `termin-week-day-grid.tsx` logical insets |
 | Work-time crash policy | **PASS** — `work_time_reconcile_on_login` + logout `work_time_end` |
 | Sick-leave atomicity | **PASS** — `krankenbescheinigung_save` + `saveKrankenbescheinigungAtomic` |
