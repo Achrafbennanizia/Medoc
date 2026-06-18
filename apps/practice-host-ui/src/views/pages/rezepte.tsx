@@ -16,6 +16,7 @@ import {
     type Rezept,
 } from "@/systems/practice-host/controllers/rezept.controller";
 import { validateEprescription, submitEprescription } from "@/systems/practice-host/controllers/integration.controller";
+import { localCapability } from "@/lib/integration-capabilities";
 import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import type { Patient, DokumentVorlage } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
@@ -44,6 +45,7 @@ import {
  */
 export function RezeptePage() {
     const session = useAuthStore((s) => s.session);
+    const eprescriptionLive = localCapability("eprescription")?.available ?? false;
     const toast = useToastStore((s) => s.add);
     const [searchParams, setSearchParams] = useSearchParams();
     const [patients, setPatients] = useState<Patient[]>([]);
@@ -312,7 +314,7 @@ export function RezeptePage() {
     }
 
     async function handleSubmitERezept() {
-        if (!eRezeptTarget) return;
+        if (!eRezeptTarget || !eprescriptionLive) return;
         setERezBusy(true);
         try {
             const token = await submitEprescription({
@@ -610,7 +612,9 @@ export function RezeptePage() {
                 footer={<>
                     <Button variant="ghost" onClick={() => setERezeptTarget(null)} disabled={eRezBusy}>Schließen</Button>
                     <Button variant="secondary" onClick={() => void handleValidateERezept()} disabled={eRezBusy} loading={eRezBusy}>Validieren</Button>
-                    <Button onClick={() => void handleSubmitERezept()} disabled={eRezBusy} loading={eRezBusy}>An TI senden</Button>
+                    {eprescriptionLive ? (
+                        <Button onClick={() => void handleSubmitERezept()} disabled={eRezBusy} loading={eRezBusy}>An TI senden</Button>
+                    ) : null}
                 </>}
             >
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
