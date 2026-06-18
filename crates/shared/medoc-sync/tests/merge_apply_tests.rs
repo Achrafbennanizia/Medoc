@@ -7,6 +7,9 @@ use medoc_sync::repo::{mark_applied, was_applied, OutboxEntry};
 use medoc_sync::schema::ensure_sync_tables;
 use sqlx::SqlitePool;
 
+const LOCAL_MASTER: &str = "local-master-id";
+const LOCAL_REPLICA: &str = "local-replica-id";
+
 async fn fresh_pool() -> SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
@@ -49,7 +52,7 @@ async fn apply_delete_removes_patient_row() {
     seed_patient(&pool, id, "To Delete", "2099-01-01 00:00:00").await;
     let e = entry("remote", 1, "patient", id, "DELETE", r#"{"id":"x"}"#);
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -70,7 +73,7 @@ async fn apply_delete_app_kv_key() {
         .unwrap();
     let e = entry("remote", 2, "app_kv", "del.me", "DELETE", "{}");
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -85,7 +88,7 @@ async fn apply_delete_app_kv_key() {
 async fn apply_unknown_op_is_validation_error() {
     let pool = fresh_pool().await;
     let e = entry("remote", 3, "patient", "x", "PATCH", "{}");
-    let err = apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+    let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("bad op");
     assert!(matches!(err, AppError::Validation(_)));
@@ -95,7 +98,7 @@ async fn apply_unknown_op_is_validation_error() {
 async fn apply_rejects_non_object_payload() {
     let pool = fresh_pool().await;
     let e = entry("remote", 4, "patient", "x", "INSERT", r#""not-an-object""#);
-    let err = apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+    let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("array payload");
     assert!(matches!(err, AppError::Validation(_)));
@@ -114,7 +117,7 @@ async fn apply_skips_when_already_applied() {
     );
     mark_applied(&pool, "remote", 5).await.unwrap();
     assert!(
-        !apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        !apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -132,7 +135,7 @@ async fn apply_inserts_new_patient_from_remote() {
     );
     let e = entry("remote", 6, "patient", id, "INSERT", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -153,7 +156,7 @@ async fn apply_skips_stale_remote_when_local_is_newer() {
         format!(r#"{{"id":"{id}","name":"Stale Remote","updated_at":"2099-01-01T00:00:00Z"}}"#);
     let e = entry("master", 7, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -174,7 +177,7 @@ async fn apply_sqlite_timestamp_format_in_payload() {
         format!(r#"{{"id":"{id}","name":"SQLite TS","updated_at":"2099-03-15 12:30:00"}}"#);
     let e = entry("master", 8, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -190,7 +193,7 @@ async fn apply_sqlite_timestamp_format_in_payload() {
 async fn apply_rejects_disallowed_table() {
     let pool = fresh_pool().await;
     let e = entry("remote", 9, "personal", "p1", "INSERT", r#"{"id":"p1"}"#);
-    let err = apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+    let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("bad table");
     assert!(matches!(err, AppError::Validation(_)));
@@ -205,7 +208,7 @@ async fn apply_fresher_remote_overwrites_local() {
         format!(r#"{{"id":"{id}","name":"Remote Fresher","updated_at":"2099-08-01T00:00:00Z"}}"#);
     let e = entry("master", 10, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -218,15 +221,15 @@ async fn apply_fresher_remote_overwrites_local() {
 }
 
 #[tokio::test]
-async fn apply_master_keeps_row_on_timestamp_tie() {
+async fn apply_higher_device_id_wins_on_timestamp_tie() {
     let pool = fresh_pool().await;
     let id = "00000000-0000-0000-0000-000000000006";
-    seed_patient(&pool, id, "Master Tie", "2099-05-01 00:00:00").await;
+    seed_patient(&pool, id, "Local Tie", "2099-05-01 00:00:00").await;
     let payload =
         format!(r#"{{"id":"{id}","name":"Remote Tie","updated_at":"2099-05-01T00:00:00Z"}}"#);
-    let e = entry("remote", 11, "patient", id, "UPDATE", &payload);
+    let e = entry("remote-device", 11, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -235,7 +238,28 @@ async fn apply_master_keeps_row_on_timestamp_tie() {
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(name, "Master Tie");
+    assert_eq!(name, "Remote Tie");
+}
+
+#[tokio::test]
+async fn apply_local_keeps_row_when_device_id_wins_tie() {
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-000000000006b";
+    seed_patient(&pool, id, "Local Tie", "2099-05-01 00:00:00").await;
+    let payload =
+        format!(r#"{{"id":"{id}","name":"Remote Tie","updated_at":"2099-05-01T00:00:00Z"}}"#);
+    let e = entry("aaa-remote", 11, "patient", id, "UPDATE", &payload);
+    assert!(
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+            .await
+            .unwrap()
+    );
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Local Tie");
 }
 
 #[tokio::test]
@@ -246,7 +270,7 @@ async fn apply_replica_skips_collision_without_timestamps() {
     let payload = format!(r#"{{"id":"{id}","name":"Remote No TS"}}"#);
     let e = entry("master", 12, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -274,7 +298,7 @@ async fn apply_app_kv_upsert_replaces_existing_value() {
         r#"{"key":"upsert.me","value":"new"}"#,
     );
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -289,7 +313,7 @@ async fn apply_app_kv_upsert_replaces_existing_value() {
 async fn apply_rejects_invalid_json_payload() {
     let pool = fresh_pool().await;
     let e = entry("remote", 14, "patient", "x", "INSERT", r#"{"id":}"#);
-    let err = apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+    let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("bad json");
     assert!(matches!(err, AppError::Validation(_)));
@@ -303,7 +327,7 @@ async fn apply_update_with_only_id_is_noop_but_marks_applied() {
     let payload = format!(r#"{{"id":"{id}"}}"#);
     let e = entry("remote", 15, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -324,7 +348,7 @@ async fn apply_replica_accepts_master_tie_break() {
         format!(r#"{{"id":"{id}","name":"Master Wins Tie","updated_at":"2099-05-01T00:00:00Z"}}"#);
     let e = entry("master", 16, "patient", id, "UPDATE", &payload);
     assert!(
-        apply_remote_entry(&pool, false, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -347,7 +371,7 @@ async fn apply_insert_coerces_json_scalar_types() {
     );
     let e = entry("remote", 17, "patient", id, "INSERT", &payload);
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -373,7 +397,7 @@ async fn apply_does_not_mark_applied_when_entry_not_applied() {
     );
     mark_applied(&pool, "remote", 18).await.unwrap();
     assert!(
-        !apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        !apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );
@@ -390,7 +414,7 @@ async fn apply_json_number_and_bool_in_payload() {
     );
     let e = entry("remote", 19, "patient", id, "INSERT", &payload);
     assert!(
-        apply_remote_entry(&pool, true, ConflictPolicy::MasterWinsWithFreshness, &e)
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .unwrap()
     );

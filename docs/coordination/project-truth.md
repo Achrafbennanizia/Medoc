@@ -40,7 +40,7 @@
 - **Pairing handshake (Wave V1):** Replicas POST `/api/v1/pairing/request` → master decides via `/decide/{id}` → master mints an Ed25519-signed activation token (`mt2.<payload>.<sig>`) stored in `pairing_request.activation_token` and pushes per-slave `slave_permission` rows. The master signing keypair lives in the OS keychain (`medoc-sync::master_keys`).
 - **Activation-token auth scope (Wave V1):** `jwt_auth_middleware` accepts `mt2.*` bearers only on `/api/v1/sync/{push,pull,status}` and `/api/v1/pairing/peers`; other protected routes reject with 403 (`crates/server/lan/medoc-lan/src/sync_http.rs::verify_activation_for_path`).
 - **Outbox hooks (Wave V1):** Repo write paths in `medoc-core::infrastructure::database::{patient,akte,termin,zahlung,praxis_aufgabe,app_kv}_repo` call `sync_outbox::record_or_noop` which appends one row to `sync_outbox` when `mode = serverless_peer` and the table is in `SYNCED_TABLES`. Internal `sync.*`, `license.*`, `pairing.*` `app_kv` keys are excluded. 7 integration tests + 3 unit tests cover this path.
-- **Conflict resolution (Wave V1):** `ConflictPolicy::MasterWinsWithFreshness` uses `updated_at`. Tested by `master_does_not_overwrite_newer_replica_row` and `newer_master_push_overwrites_older_replica_row` in `medoc_sync::engine::tests`.
+- **Conflict resolution (Wave V1):** `ConflictPolicy::LastWriteWins` uses `updated_at`; ties break by lexicographic `device_id`. Tested in `medoc_sync::engine::tests` and `merge_apply_tests.rs`.
 - **Removed:** Root `src/` Next.js reference app and CI job `next-web` (audit remediation TASK 0.1, 2026-05-19). V-Model docs mark historical Next prototype as archive only.
 
 ## Working model (needs confirmation)

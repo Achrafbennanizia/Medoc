@@ -65,8 +65,8 @@ async fn ensure_practice_table(pool: &SqlitePool) -> Result<(), AppError> {
             plan_name TEXT NOT NULL,
             monthly_fee_cents INTEGER NOT NULL DEFAULT 18900,
             next_billing_iso TEXT NOT NULL DEFAULT '2026-06-01',
-            max_users INTEGER NOT NULL DEFAULT 8,
-            active_users INTEGER NOT NULL DEFAULT 4,
+            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_PERSONAL
+            active_users INTEGER NOT NULL DEFAULT 1,
             storage_gb INTEGER NOT NULL DEFAULT 100,
             storage_used_gb REAL NOT NULL DEFAULT 12.4,
             erezept_month_used INTEGER NOT NULL DEFAULT 142,
@@ -137,8 +137,8 @@ async fn rebuild_practice_without_plaintext_key(pool: &SqlitePool) -> Result<(),
             plan_name TEXT NOT NULL,
             monthly_fee_cents INTEGER NOT NULL DEFAULT 18900,
             next_billing_iso TEXT NOT NULL DEFAULT '2026-06-01',
-            max_users INTEGER NOT NULL DEFAULT 8,
-            active_users INTEGER NOT NULL DEFAULT 4,
+            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_PERSONAL
+            active_users INTEGER NOT NULL DEFAULT 1,
             storage_gb INTEGER NOT NULL DEFAULT 100,
             storage_used_gb REAL NOT NULL DEFAULT 12.4,
             erezept_month_used INTEGER NOT NULL DEFAULT 142,
@@ -157,7 +157,7 @@ async fn rebuild_practice_without_plaintext_key(pool: &SqlitePool) -> Result<(),
         )
         SELECT
             slug, display_name, api_key_hash, plan_name,
-            18900, '2026-06-01', 8, 4, 100, 12.4, 142, -1
+            18900, '2026-06-01', 5, 1, 100, 12.4, 142, -1
         FROM practice_legacy
         WHERE api_key_hash IS NOT NULL AND api_key_hash != ''",
     )

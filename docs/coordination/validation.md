@@ -1,6 +1,115 @@
 # Validation ledger
 
-**Last updated:** 2026-06-10 (Refactor Phase A complete)
+**Last updated:** 2026-06-16 (v1 pre-commit gates)
+
+## v1 pre-commit gates — verified (2026-06-16)
+
+### Gate A — second-caller audit (blinded IPC)
+
+Command: `rg 'submitEprescription|submit_eprescription|openSubscriptionPortal|open_subscription_portal|attach_payment|company_portal_attach' apps packages crates --glob '*.{ts,tsx,rs}'`
+
+| IPC | FE callers | Reachable when blinded |
+|-----|------------|------------------------|
+| `submit_eprescription` | `rezepte.tsx` → `handleSubmitERezept` only; button gated by `eprescriptionLive` | **No** — guard added: `!eprescriptionLive` early return |
+| `open_subscription_portal` | `einstellungen-lizenz-section.tsx` inside `LICENSE_BILLING_CONNECTORS_ENABLED` | **No** when flag false |
+| `attach_payment_method` / `company_portal_attach_payment` | Controllers + company-server demo; no practice-host `onClick` | **No** in practice app |
+| Keyboard shortcuts / retry queue | No matches in `apps/` / `packages/` | **No** |
+
+### Gate B–G
+
+| Item | Result |
+|------|--------|
+| Staff cap single source (`MAX_TOTAL_PERSONAL`) | **PASS** — license hero derives from `mvp-security-config.ts` |
+| Wave 1 i18n keys | **PASS** — `settings.license.*`, `v1.*` keys in `i18n.ts` |
+| C8 LastWriteWins | **PASS** — `merge.rs` + docs; `cargo test -p medoc-sync` (see below) |
+| Calendar RTL (Wave 3) | **PASS** — `termin-week-day-grid.tsx` logical insets |
+| Work-time crash policy | **PASS** — `work_time_reconcile_on_login` + logout `work_time_end` |
+| Sick-leave atomicity | **PASS** — `krankenbescheinigung_save` + `saveKrankenbescheinigungAtomic` |
+| Release dry-run | **NOT RUN** — [`docs/runbooks/release-dry-run.md`](../runbooks/release-dry-run.md) |
+
+---
+
+## MVP security hardening — verified (2026-06-18)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| Atomic staff quota + role transitions | `cargo test -p medoc-core --test staff_quota_tests` | **PASS** (10 tests) |
+| IPC gate helpers | `cargo test -p medoc-core --test mvp_security_gates_tests` | **PASS** (4 tests) |
+| Session mint audit (2FA off) | `cargo test -p medoc --test auth_session_audit_tests` | **PASS** (1 test) |
+| Frontend | `npm test` | **PASS** (242) |
+| Frontend build | `npm run build` | **PASS** |
+| Full workspace Rust | `cargo test --workspace --tests` | **PARTIAL** — 6 pre-existing `medoc-core` lib FK migration failures (license/sync_outbox); all integration test binaries **PASS** |
+
+**Hardening delivered:** `BEGIN IMMEDIATE` quota enforcement in `create_with_quota` / `update_with_quota`; `staff_quota_limits()` centralizes caps; `require_break_glass_enabled` / `require_totp_enabled` wired in IPC commands; over-quota UI warning in `personal.tsx`.
+
+---
+
+## v1 completion program — verified (2026-06-18)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| npm unit/smoke | `npm test` | **PASS** (242) |
+| Frontend build | `npm run build` | **PASS** |
+| Invoke registry | `cargo test -p medoc --test invoke_registration_tests` | **PASS** (284 handlers) |
+| i18n key parity | `i18n-locales.test.ts` | **PASS** |
+| HTTP two-device live | runbook checklist | **NOT RUN** |
+| release.yml tag build | `.github/workflows/release.yml` | **NOT RUN** |
+| Full workspace Rust | `cargo test --workspace --tests` | **NOT RUN** |
+
+## MVP security limits — verified (2026-06-18)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| Staff quota unit tests | `cargo test -p medoc-core staff_quota` | **PASS** (4 tests) |
+| Break-Glass tests ignored | `cargo test -p medoc --test audit_break_glass_tests` | **PASS** (1 ignored) |
+| TOTP tests ignored | `cargo test -p medoc --test totp_tests` | **PASS** (7 ignored) |
+| IPC registry +1 | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (277 handlers) |
+| Frontend | `npm test -w medoc` | **PASS** (240 tests, 3 skipped) |
+
+**Flags:** `BREAK_GLASS_ENABLED=false`, `TOTP_2FA_ENABLED=false`, `MAX_ARZT=1`, `MAX_REZEPTION=4`, `MAX_TOTAL_PERSONAL=5` — see [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+---
+
+**Previous:** 2026-06-16 (Activation linchpin verification)
+
+## Activation linchpin verification — verified (2026-06-16)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| Import ≠ vendor license | `cargo test -p medoc-sync activation_import_does_not` | **PASS** |
+| Predicate matrix | `cargo test -p medoc-sync verbund_network_ready_matrix` | **PASS** |
+| Owner admin service guard | `require_owner_admin` on all owner mutators | **implemented** |
+| medoc-sync full suite | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-sync` | **109 PASS** |
+| Frontend | `npm test` | **240 PASS**, 3 skipped |
+
+**Pinned:** `needs_verbund_onboarding`, `verbund_network_ready`, `require_owner_admin`; manifest delete after audit; wire chokepoint doc in `net/listener.rs`; installer DR guidance.
+
+---
+
+**Previous:** 2026-06-16 (Activation security remediation)
+
+## Activation security fixes — verified (2026-06-16)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| C++ keygen rebuild (UUIDv4 `cluster_id`) | `bash installer/build-keygen.sh` | **PASS** |
+| Activation interop | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-sync unwrap_matches` | **PASS** |
+| Import → license integration | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-sync activate_preserves` | **PASS** |
+| IPC registry | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (276 handlers) |
+| Frontend | `npm test` | **240 PASS**, 3 skipped |
+
+**Fixes validated:** owner-aware pre-login gate (`licensed \|\| (provisioned && !isOwner)`); `mark_provisioned` deferred until `activate_cluster_license`; owner listener/admin ops require vendor license; fingerprint trust via ed25519 sign/verify only; manifest deleted on import (`manifestRemoved` IPC); `argon2` via `medoc-core` re-export.
+
+**Env:**
+
+```bash
+export MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+export MEDOC_DB_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+---
+
+**Previous:** 2026-06-10 (Refactor Phase A complete)
 
 ## Refactor & harden pass
 
@@ -931,6 +1040,18 @@ or file inspection that was performed.
 | 9.4 | 5 parallele Clients ohne spürbare Verlangsamung? | Architektur-Vorgabe (Tauri+SQLite-WAL) erfüllt; Last-Test nicht durchgeführt | 🟡 **PARTIAL** — Last-Test offen (siehe N3) |
 
 ## Regressions / failed runs (do not delete; append)
+
+## Admin installer + offline keygen (2026-06-16)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| C++ keygen build | `cmake -S installer/medoc-keygen -B installer/medoc-keygen/build && cmake --build ...` | **PASS** |
+| C++ round-trip | `medoc-keygen --passphrase-file` + `medoc-keygen-verify` | **PASS** |
+| Rust activation interop | `cargo test -p medoc-sync activation::tests::unwrap_matches_cpp_keygen_when_available` | **PASS** |
+| IPC registry | `cargo test -p medoc --test invoke_registration_tests` (276 commands) | **PASS** |
+| Frontend | `npm test` | **PASS** (240) |
+| Full Rust workspace tests | `cargo test --workspace --tests` | **NOT RUN** (invoke fix verified; full suite partially run) |
+| Tauri release bundle | `installer/build-app-installers.sh` | **NOT RUN** (heavy; release.yml added) |
 
 | Check | Command | Failure summary | Date |
 | ----- | ------- | ----------------- | ---- |

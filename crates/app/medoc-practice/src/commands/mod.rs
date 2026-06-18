@@ -71,6 +71,18 @@ pub mod auth_commands {
 pub mod personal_commands {
     pub use super::admin::personal::*;
 }
+pub mod work_time_commands {
+    pub use super::admin::work_time::*;
+}
+pub mod krankenbescheinigung_commands {
+    pub use super::admin::krankenbescheinigung::*;
+}
+pub mod arbeitsplan_adjustment_commands {
+    pub use super::admin::arbeitsplan_adjustment::*;
+}
+pub mod arbeitsplan_adjustment_commands {
+    pub use super::admin::arbeitsplan_adjustment::*;
+}
 pub mod audit_commands {
     pub use super::admin::audit::*;
 }
