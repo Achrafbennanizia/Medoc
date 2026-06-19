@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useT } from "@/lib/i18n";
 import { ConfirmDialog, Dialog, IosConfirmActions } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { useUiPreferencesStore } from "@/models/store/ui-preferences-store";
@@ -25,10 +26,11 @@ export function AkteInlineConfirm({
     message,
     onCancel,
     onConfirm,
-    confirmLabel = "Bestätigen",
+    confirmLabel,
     danger,
     loading,
 }: AkteInlineConfirmProps) {
+    const t = useT();
     return (
         <div
             id={id}
@@ -49,8 +51,8 @@ export function AkteInlineConfirm({
             </div>
             <div className="akte-inline-panel-actions akte-inline-panel-actions--ios">
                 <IosConfirmActions
-                    cancelLabel="Abbrechen"
-                    confirmLabel={confirmLabel}
+                    cancelLabel={t("common.cancel")}
+                    confirmLabel={confirmLabel ?? t("common.confirm")}
                     onCancel={onCancel}
                     onConfirm={onConfirm}
                     loading={loading}
@@ -149,6 +151,7 @@ export function AkteInlineEditPanelShell({
     panelVariant = "default",
     rootClassName,
 }: AkteInlineEditPanelShellProps) {
+    const t = useT();
     const root = panelVariant === "rezept" ? "rezept-akte-panel" : "akte-inline-panel";
     const head = panelVariant === "rezept" ? "rezept-akte-panel-head" : "akte-inline-panel-head";
     const tcls = panelVariant === "rezept" ? "rezept-akte-panel-title" : "akte-inline-panel-title";
@@ -171,7 +174,7 @@ export function AkteInlineEditPanelShell({
                 <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {headerExtra}
                     <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-                        Schließen
+                        {t("common.close")}
                     </Button>
                 </div>
             </div>
@@ -197,7 +200,7 @@ export type AkteEditFormOrInlineProps = {
     dialogClassName?: string;
     /** When set, ignores KV preferences so Akte-Bearbeitung always opens as Dialog or inline. */
     presentationOverride?: ConfirmationPresentMode;
-    /** Zusätzliche Aktionen in der Kopfzeile (z.B. "Bearbeiten" bei Ansichtsmodus). */
+    /** Extra actions in the header (e.g. "Edit" in view mode). */
     headerExtra?: ReactNode;
     children: ReactNode;
 };

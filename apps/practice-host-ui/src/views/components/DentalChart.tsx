@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useT, useTParams } from "@/lib/i18n";
 import type { Zahnbefund } from "@/models/types";
 import {
     DENTAL_LOWER_L,
@@ -28,9 +29,9 @@ type DentalChartProps = {
     onToothSelect?: (fdi: string) => void;
     /** Clinical: apply status key to tooth (persisted by parent). */
     onApply?: (tooth: number, statusKey: string) => Promise<void>;
-    /** Picker: override the helper line below the palette (default DE copy). */
+    /** Picker: override the helper line below the palette (defaults to i18n copy). */
     pickerHint?: string;
-    /** Nur Anzeige — keine Zahnwahl / kein Befund setzen (Ansichtsmodus). */
+    /** View only — no tooth selection / no finding set (view mode). */
     disabled?: boolean;
 };
 
@@ -43,6 +44,8 @@ export function DentalChart({
     disabled = false,
     pickerHint,
 }: DentalChartProps) {
+    const t = useT();
+    const tp = useTParams();
     const [active, setActive] = useState<DentalStatusKey>("healthy");
     const [pulseTooth, setPulseTooth] = useState<string | null>(null);
     const [lastTouched, setLastTouched] = useState<string | null>(null);
@@ -64,7 +67,7 @@ export function DentalChart({
                 type="button"
                 className={`col ${pulseTooth === n ? "tooth-btn-pulse" : ""}`}
                 style={{ alignItems: "center", gap: 4, opacity: disabled ? 0.65 : undefined }}
-                aria-label={`Zahn ${n}, Status ${state.label}`}
+                aria-label={tp("dental.tooth_status_aria", { tooth: n, status: state.label })}
                 disabled={disabled}
                 onClick={async () => {
                     if (disabled) return;
@@ -122,8 +125,8 @@ export function DentalChart({
             ) : (
                 <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>
                     {disabled
-                        ? "Ansicht — Bearbeiten aktivieren, um einen Zahn zu wählen."
-                        : pickerHint ?? "Zahn im Chart antippen — die Nummer wird ins Formular übernommen."}
+                        ? t("dental.chart.view_hint")
+                        : pickerHint ?? t("dental.chart.pick_hint")}
                 </p>
             )}
             <div className="col" style={{ gap: 16 }}>
@@ -133,8 +136,10 @@ export function DentalChart({
             </div>
             <div className="card card-pad" style={{ marginTop: 14, background: "rgba(0,0,0,0.015)" }}>
                 {mode === "picker"
-                    ? (selectedTooth ? `Ausgewählter Zahn: ${selectedTooth}` : "Kein Zahn ausgewählt")
-                    : `${lastTouched ? `Zahn ${lastTouched} · ` : ""}Pinsel: ${DENTAL_STATES[active].label} — Zahn antippen zum Setzen`}
+                    ? (selectedTooth ? tp("dental.chart.selected_tooth", { tooth: selectedTooth }) : t("dental.chart.no_tooth"))
+                    : lastTouched
+                        ? tp("dental.chart.brush_footer_tooth", { tooth: lastTouched, brush: DENTAL_STATES[active].label })
+                        : tp("dental.chart.brush_footer", { brush: DENTAL_STATES[active].label })}
             </div>
         </div>
     );
