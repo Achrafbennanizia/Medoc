@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import type { Termin } from "@/models/types";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import {
     appointmentStateDisplay,
     minutesToUhrzeit,
@@ -55,6 +55,9 @@ export function TerminDetailDrawer({
     onStatusChange,
     onPhone,
 }: TerminDetailDrawerProps) {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
     const titleId = useId();
     const panelRef = useRef<HTMLDivElement>(null);
     const st = appointmentStateDisplay(termin);
@@ -83,7 +86,7 @@ export function TerminDetailDrawer({
 
     const layer = (
         <div className="termin-drawer-root" role="presentation">
-            <button type="button" className="termin-drawer-backdrop" aria-label="Schließen" onClick={onClose} />
+            <button type="button" className="termin-drawer-backdrop" aria-label={t("termin.drawer.close")} onClick={onClose} />
             <div
                 ref={panelRef}
                 className="termin-drawer-panel"
@@ -95,35 +98,40 @@ export function TerminDetailDrawer({
                 <div className="termin-drawer-body-scroll">
                     <div className="termin-drawer-head">
                         <span className={`pill ${stateSoftPillClass(termin)}`}>{st.label}</span>
-                        <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
+                        <button type="button" className="icon-btn" aria-label={t("termin.drawer.close")} onClick={onClose}>
                             <XIcon size={18} />
                         </button>
                     </div>
                     <div className="termin-drawer-section">
-                        <div className="termin-drawer-eyebrow">Termin</div>
+                        <div className="termin-drawer-eyebrow">{t("termin.drawer.appointment")}</div>
                         <h2 id={titleId} className="termin-drawer-title">{patientName}</h2>
                         <div className="termin-drawer-sub">{terminArtLabelFromTermin(termin)}</div>
                     </div>
                     <div className="termin-drawer-meta-row">
                         <div>
-                            <div className="termin-drawer-eyebrow">Datum</div>
-                            <div className="termin-drawer-meta-val">{format(parseISO(termin.datum), "d. MMMM yyyy", { locale: de })}</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.date")}</div>
+                            <div className="termin-drawer-meta-val">{format(parseISO(termin.datum), "d. MMMM yyyy", { locale: dateFnsLocale })}</div>
                         </div>
                         <div>
-                            <div className="termin-drawer-eyebrow">Zeit</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.time")}</div>
                             <div className="termin-drawer-meta-val">
                                 {termin.uhrzeit.slice(0, 5)} – {minutesToUhrzeit(uhrzeitToMinutes(termin.uhrzeit) + dauer)}
                             </div>
                         </div>
                         <div>
-                            <div className="termin-drawer-eyebrow">Dauer</div>
-                            <div className="termin-drawer-meta-val">{dauer} Min.</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.duration")}</div>
+                            <div className="termin-drawer-meta-val">{tp("termin.drawer.duration_min", { min: dauer })}</div>
                         </div>
                     </div>
                     <div className="termin-drawer-section">
-                        <div className="termin-drawer-eyebrow">Workflow</div>
+                        <div className="termin-drawer-eyebrow">{t("termin.drawer.workflow")}</div>
                         <div className="termin-workflow-simple">
-                            {(["Geplant", "Bestätigt", "Aktiv", "Fertig"] as const).map((label, i) => (
+                            {([
+                                t("termin.drawer.workflow.planned"),
+                                t("termin.drawer.workflow.confirmed"),
+                                t("termin.drawer.workflow.active"),
+                                t("termin.drawer.workflow.done"),
+                            ] as const).map((label, i) => (
                                 <button
                                     key={label}
                                     type="button"
@@ -139,55 +147,60 @@ export function TerminDetailDrawer({
                             ))}
                         </div>
                         <div className="termin-workflow-captions">
-                            {(["Geplant", "Bestätigt", "Aktiv", "Fertig"] as const).map((label) => (
+                            {([
+                                t("termin.drawer.workflow.planned"),
+                                t("termin.drawer.workflow.confirmed"),
+                                t("termin.drawer.workflow.active"),
+                                t("termin.drawer.workflow.done"),
+                            ] as const).map((label) => (
                                 <span key={label} className="termin-workflow-label">{label}</span>
                             ))}
                         </div>
                     </div>
                     <div className="ios-list">
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Behandler</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.provider")}</div>
                             <div className="termin-drawer-meta-val">{doctorLabel}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Patient-Telefon</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.patient_phone")}</div>
                             <div className="termin-drawer-meta-val">{patientPhone ?? "—"}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Behandlungsart</div>
+                            <div className="termin-drawer-eyebrow">{t("termin.drawer.treatment_type")}</div>
                             <div className="termin-drawer-meta-val">{terminArtLabelFromTermin(termin)}</div>
                         </div>
                     </div>
                     {termin.notizen?.trim() ? (
                         <div className="termin-drawer-note">
-                            <div className="termin-drawer-note-title">Notiz</div>
+                            <div className="termin-drawer-note-title">{t("termin.drawer.note")}</div>
                             <p>{termin.notizen}</p>
                         </div>
                     ) : null}
                     <div className="termin-drawer-actions row">
                         <button type="button" className="btn btn-subtle" onClick={onPhone}>
                             <PhoneIcon size={14} />
-                            Anrufen
+                            {t("termin.drawer.call")}
                         </button>
                         <button type="button" className="btn btn-subtle" onClick={onReminder}>
                             <MailIcon size={14} />
-                            Erinnerung
+                            {t("termin.drawer.reminder")}
                         </button>
                         <button type="button" className="btn btn-subtle" onClick={onBearbeiten}>
                             <EditIcon size={14} />
-                            Bearbeiten
+                            {t("termin.drawer.edit")}
                         </button>
                     </div>
                 </div>
                 <div className="termin-drawer-panel-foot">
                     <div className="termin-drawer-footer row">
                         {termin.status === "GEPLANT" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "BESTAETIGT")}>Bestätigen</button>
+                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "BESTAETIGT")}>{t("termin.drawer.confirm")}</button>
                         ) : null}
                         {termin.status === "BESTAETIGT" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "DURCHGEFUEHRT")}>Abschließen</button>
+                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(termin.id, "DURCHGEFUEHRT")}>{t("termin.drawer.finish")}</button>
                         ) : null}
-                        <button type="button" className="btn btn-subtle danger" onClick={onStornieren}>Absagen</button>
+                        <button type="button" className="btn btn-subtle danger" onClick={onStornieren}>{t("termin.drawer.cancel")}</button>
                     </div>
                 </div>
             </div>

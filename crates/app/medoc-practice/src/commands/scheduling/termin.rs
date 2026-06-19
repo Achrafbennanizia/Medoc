@@ -52,6 +52,12 @@ pub async fn create_termin(
     .await
     .ok();
     termin_hint_fulfillment::after_termin_created_best_effort(&pool, &session.user_id, &t).await;
+    let _ = sqlx::query(
+        "UPDATE patient SET status = 'AKTIV', updated_at = CURRENT_TIMESTAMP WHERE id = ?1 AND status = 'NEU'",
+    )
+    .bind(&t.patient_id)
+    .execute(pool.inner())
+    .await;
     Ok(t)
 }
 

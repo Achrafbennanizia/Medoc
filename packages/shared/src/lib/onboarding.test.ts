@@ -19,7 +19,7 @@ describe("onboarding (G6)", () => {
     it("maps nested patient routes to patienten step", () => {
         const step = stepForRoute("ARZT", "patienten/p-smoke-1");
         expect(step?.routePath).toBe("patienten");
-        expect(step?.titleDe).toBe("Patienten");
+        expect(step?.titleKey).toBe("onboarding.arzt.patienten.title");
     });
 
     it("ARZT coverage reaches 100% when all routes done", () => {

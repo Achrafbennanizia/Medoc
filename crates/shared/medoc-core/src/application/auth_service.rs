@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::personal_repo;
 use crate::infrastructure::totp;
+use crate::mvp_security;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -48,6 +49,18 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         let new_hash =
             crypto::hash_password(&req.passwort).map_err(|e| AppError::Internal(e.to_string()))?;
         personal_repo::update_password_hash(pool, &user.id, &new_hash).await?;
+    }
+
+    // TODO(deferred-security): re-enable TOTP when `mvp_security::TOTP_2FA_ENABLED` is true.
+    if !mvp_security::TOTP_2FA_ENABLED {
+        return Ok(Session {
+            user_id: user.id,
+            name: user.name,
+            email: user.email,
+            rolle: user.rolle,
+            permission_overrides: Vec::new(),
+            device_session_id: None,
+        });
     }
 
     let enrolled = personal_repo::is_totp_enrolled(&user);

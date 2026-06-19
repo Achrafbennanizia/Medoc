@@ -23,12 +23,13 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
         const q = query.trim().toLowerCase();
         if (!q) return commands;
         return commands.filter((c) => {
-            const hay = `${c.titleDe} ${c.keywords.join(" ")}`.toLowerCase();
+            const title = t(c.titleKey);
+            const hay = `${title} ${c.keywords.join(" ")}`.toLowerCase();
             return hay.includes(q);
         });
-    }, [commands, query]);
+    }, [commands, query, t]);
 
-    const fuzzyTitles = useMemo(() => commands.map((c) => c.titleDe), [commands]);
+    const fuzzyTitles = useMemo(() => commands.map((c) => t(c.titleKey)), [commands, t]);
     const suggestions = useMemo(() => {
         const disableFuzzy = loadClientSettings().search?.autocompleteSuggestionsEnabled === false;
         return suggestSimilarTitles(query, fuzzyTitles, 2, 5, { disabled: disableFuzzy });
@@ -73,10 +74,10 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
     };
 
     return (
-        <Dialog open={open} onClose={onClose} title="Suche & Schnellzugriff" className="command-palette-dialog">
+        <Dialog open={open} onClose={onClose} title={t("palette.title")} className="command-palette-dialog">
             <div className="command-palette-inner">
                 <label className="sr-only" htmlFor="command-palette-q">
-                    Seiten und Aktionen durchsuchen
+                    {t("palette.search_label")}
                 </label>
                 <div
                     className="input"
@@ -114,7 +115,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                     <ul
                         id="command-palette-list"
                         role="listbox"
-                        aria-label="Treffer"
+                        aria-label={t("palette.hits_aria")}
                         style={{
                             listStyle: "none",
                             margin: 0,
@@ -154,7 +155,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                                         onMouseEnter={() => setSelected(i)}
                                         onClick={() => activate(c.href)}
                                     >
-                                        <span style={{ flex: 1 }}>{c.titleDe}</span>
+                                        <span style={{ flex: 1 }}>{t(c.titleKey)}</span>
                                         <kbd
                                             style={{
                                                 fontSize: 10,
@@ -173,11 +174,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                     </ul>
                 )}
                 <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--fg-4)" }}>
-                    <kbd style={{ padding: "1px 5px", borderRadius: 4, background: "rgba(0,0,0,0.06)" }}>↑</kbd>{" "}
-                    <kbd style={{ padding: "1px 5px", borderRadius: 4, background: "rgba(0,0,0,0.06)" }}>↓</kbd>{" "}
-                    Navigation ·{" "}
-                    <kbd style={{ padding: "1px 5px", borderRadius: 4, background: "rgba(0,0,0,0.06)" }}>Enter</kbd>{" "}
-                    öffnen · Esc schließen
+                    {t("palette.hint")}
                 </p>
             </div>
         </Dialog>

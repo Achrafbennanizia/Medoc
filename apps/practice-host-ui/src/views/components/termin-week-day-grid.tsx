@@ -10,8 +10,8 @@ import {
     useState,
 } from "react";
 import { addDays, addMonths, addWeeks, format, parseISO, startOfWeek } from "date-fns";
-import { de } from "date-fns/locale";
 import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { extractZahnschmerzFdisFromBeschwerden } from "@/lib/dental";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
 import { minutesToUhrzeit } from "@/lib/termin-availability";
@@ -247,6 +247,8 @@ function TerminTimeColumnBody({
     /** Tag- und Wochenansicht: Stundenhöhe aus verfügbarem Raster (ResizeObserver) */
     axisLayout?: { hourPx: number; pxPerMin: number };
 }) {
+    const t = useT();
+    const dateFnsLocale = useDateFnsLocale();
     const hourPx = axisLayout?.hourPx ?? HOUR_PX;
     const pxPerMin = axisLayout?.pxPerMin ?? PX_PER_MIN;
     const axisHeightPx = ((DAY_END_MIN - DAY_START_MIN) / 60) * hourPx;
@@ -303,13 +305,13 @@ function TerminTimeColumnBody({
                 const blockHeight = Math.max(dur * pxPerMin - 2, singleDay ? minDayBlockPx : minWeekBlockPx);
                 const targetDayHint =
                     singleDay && isDragThis && dragState && dragState.currentDatum !== iso
-                        ? `→ ${format(parseISO(dragState.currentDatum), "EEE d. MMM", { locale: de })}`
+                        ? `→ ${format(parseISO(dragState.currentDatum), "EEE d. MMM", { locale: dateFnsLocale })}`
                         : undefined;
                 return (
                     <TerminApptBlockView
                         key={ap.id}
                         termin={ap}
-                        patientName={patientNameById.get(ap.patient_id) ?? "Patient"}
+                        patientName={patientNameById.get(ap.patient_id) ?? t("termin.calendar.patient_fallback")}
                         doctorName={arztNameById?.get(ap.arzt_id)}
                         doctorTone={docTone}
                         compact={!singleDay}
@@ -399,12 +401,13 @@ export function TerminWeekGrid({
     onNewAt: (iso: string, min: number) => void;
     nowMin: () => number;
 }) {
+    const dateFnsLocale = useDateFnsLocale();
     const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
     const days = Array.from({ length: 7 }, (_, i) => addDays(anchor, i));
     const byDate = useMemo(() => {
         const acc: Record<string, Termin[]> = {};
-        for (const t of termine) {
-            (acc[t.datum] ??= []).push(t);
+        for (const termin of termine) {
+            (acc[termin.datum] ??= []).push(termin);
         }
         return acc;
     }, [termine]);
@@ -421,7 +424,7 @@ export function TerminWeekGrid({
                     const iso = format(d, "yyyy-MM-dd");
                     const isToday = iso === format(new Date(), "yyyy-MM-dd");
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    const dow = format(d, "EEEEE", { locale: de }).toUpperCase();
+                    const dow = format(d, "EEEEE", { locale: dateFnsLocale }).toUpperCase();
                     return (
                         <button
                             key={iso}
@@ -430,7 +433,7 @@ export function TerminWeekGrid({
                             onClick={() => onHeaderDay(iso)}
                         >
                             <span className="termin-week-dow-short">{dow}</span>
-                            <span className="termin-week-dow-num">{format(d, "d", { locale: de })}</span>
+                            <span className="termin-week-dow-num">{format(d, "d", { locale: dateFnsLocale })}</span>
                         </button>
                     );
                 })}
@@ -547,6 +550,18 @@ export function TerminDaySplit({
     onEmptyResetFilters?: () => void;
     nowMin: () => number;
 }) {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
+    const weekdayKeys = [
+        "termin.calendar.weekday.mon",
+        "termin.calendar.weekday.tue",
+        "termin.calendar.weekday.wed",
+        "termin.calendar.weekday.thu",
+        "termin.calendar.weekday.fri",
+        "termin.calendar.weekday.sat",
+        "termin.calendar.weekday.sun",
+    ] as const;
     const iso = format(dayDate, "yyyy-MM-dd");
     const { hostRef: dayTimelineRef, layout: dayAxisLayout } = useDayTimelineLayout();
     const arztNameById = useMemo(() => new Map(aerzte.map((a) => [a.id, a.name])), [aerzte]);
@@ -582,17 +597,17 @@ export function TerminDaySplit({
     const miniMonthCard = (
         <div className="card card-pad termin-mini-month-card">
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthOffsetChange((o) => o - 1)}>
+                <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_prev")} onClick={() => onMonthOffsetChange((o) => o - 1)}>
                     <ChevronLeftIcon size={16} />
                 </button>
-                <span className="termin-mini-month-title">{format(first, "MMMM yyyy", { locale: de })}</span>
-                <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthOffsetChange((o) => o + 1)}>
+                <span className="termin-mini-month-title">{format(first, "MMMM yyyy", { locale: dateFnsLocale })}</span>
+                <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_next")} onClick={() => onMonthOffsetChange((o) => o + 1)}>
                     <ChevronRightIcon size={16} />
                 </button>
             </div>
             <div className="termin-mini-cal">
-                {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d, i) => (
-                    <div key={`${d}-${i}`} className="termin-mini-cal-head">{d}</div>
+                {weekdayKeys.map((key, i) => (
+                    <div key={`${key}-${i}`} className="termin-mini-cal-head">{t(key)}</div>
                 ))}
                 {Array.from({ length: 42 }).map((_, idx) => {
                     const dayN = idx - startOffset + 1;
@@ -623,20 +638,20 @@ export function TerminDaySplit({
 
     const tagesuebersichtBlock = (
         <>
-            <div className="termin-side-h3">Tagesübersicht</div>
+            <div className="termin-side-h3">{t("termin.calendar.day_overview")}</div>
             <div className="termin-stat-big">{planned.length}</div>
-            <div className="termin-stat-big-label">Termine geplant</div>
+            <div className="termin-stat-big-label">{t("termin.calendar.planned_count")}</div>
             <div className="termin-stat-row termin-stat-row--day">
                 <span>
-                    <span className="termin-stat-line-label">Auslastung</span>
+                    <span className="termin-stat-line-label">{t("termin.calendar.utilization")}</span>
                     <b className="termin-stat-line-val">{auslastung}%</b>
                 </span>
                 <span>
-                    <span className="termin-stat-line-label">Eingecheckt</span>
+                    <span className="termin-stat-line-label">{t("termin.calendar.checked_in")}</span>
                     <b className="termin-stat-line-val">{termine.filter((t) => t.status === "BESTAETIGT").length}</b>
                 </span>
                 <span>
-                    <span className="termin-stat-line-label">Frei</span>
+                    <span className="termin-stat-line-label">{t("termin.calendar.free")}</span>
                     <b className="termin-stat-line-val">{freiH}h</b>
                 </span>
             </div>
@@ -645,7 +660,7 @@ export function TerminDaySplit({
 
     const naechsterTerminBlock = (
         <>
-            <div className="termin-side-h3">Nächster Termin</div>
+            <div className="termin-side-h3">{t("termin.calendar.next_title")}</div>
             {nextAppt ? (
                 <>
                     <div className="termin-next-time">{nextAppt.uhrzeit.slice(0, 5)}</div>
@@ -655,9 +670,9 @@ export function TerminDaySplit({
                     </div>
                 </>
             ) : sortedToday.length > 0 ? (
-                <p className="termin-next-empty">Kein weiterer Termin ab der aktuellen Uhrzeit.</p>
+                <p className="termin-next-empty">{t("termin.calendar.next_empty_later")}</p>
             ) : (
-                <p className="termin-next-empty">Heute sind keine Termine in der Liste.</p>
+                <p className="termin-next-empty">{t("termin.calendar.next_empty_today")}</p>
             )}
         </>
     );
@@ -667,9 +682,9 @@ export function TerminDaySplit({
             <div className="card card-pad termin-day-main">
                 <div className="termin-day-split-head">
                     <div>
-                        <div className="card-title">{format(dayDate, "EEEE, d. MMMM yyyy", { locale: de })}</div>
+                        <div className="card-title">{format(dayDate, "EEEE, d. MMMM yyyy", { locale: dateFnsLocale })}</div>
                         <div className="card-sub">
-                            {planned.length} Termine · {bestaetigt} bestätigt
+                            {tp("termin.calendar.day_subtitle", { planned: planned.length, confirmed: bestaetigt })}
                         </div>
                     </div>
                     <DoctorLegend aerzte={aerzte} arztToneMap={arztToneMap} />
@@ -682,13 +697,13 @@ export function TerminDaySplit({
                                     <CalendarIcon size={34} />
                                 </span>
                             )}
-                            title="Keine Termine an diesem Tag"
+                            title={t("termin.calendar.empty_day")}
                             description={emptyDescription}
                         />
                         <div className="schedule-day-empty-actions">
-                            <Button type="button" onClick={onEmptyCreate}>Termin anlegen</Button>
+                            <Button type="button" onClick={onEmptyCreate}>{t("termin.calendar.create")}</Button>
                             {emptyHasFilters && onEmptyResetFilters ? (
-                                <Button type="button" variant="ghost" onClick={onEmptyResetFilters}>Filter zurücksetzen</Button>
+                                <Button type="button" variant="ghost" onClick={onEmptyResetFilters}>{t("common.reset_filters")}</Button>
                             ) : null}
                         </div>
                     </div>
@@ -728,7 +743,7 @@ export function TerminDaySplit({
                     </div>
                 )}
             </div>
-            <aside className="termin-day-sidebar" aria-label="Kalender und Tagesübersicht">
+            <aside className="termin-day-sidebar" aria-label={t("termin.calendar.day_overview_aria")}>
                 {miniMonthCard}
                 {compactChrome ? (
                     <div className="card card-pad termin-day-sidebar__summary termin-next-card">

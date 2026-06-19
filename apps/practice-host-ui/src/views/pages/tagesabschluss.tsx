@@ -16,6 +16,7 @@ import { downloadTagesabschlussBerichtPdf } from "@/lib/tagesabschluss-invoice-p
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { Patient, Zahlung } from "@/models/types";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { TagesabschlussForm } from "../components/tagesabschluss-form";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
@@ -25,20 +26,15 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
-function readField(label: string, value: string) {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span className="kpi-label-mini">{label}</span>
-            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value || "—"}</span>
-        </div>
-    );
-}
-
 /**
  * Tagesabschluss — Liste protokollierter Abschlüsse + neuer Lauf / Detail (Kassenabgleich).
  */
 export function TagesabschlussPage() {
     const navigate = useNavigate();
+    const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
+    const timeLocale = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canRead = role != null && allowed("finanzen.read", role);
@@ -59,6 +55,16 @@ export function TagesabschlussPage() {
         [patienten],
     );
 
+    const readField = useCallback(
+        (label: string, value: string) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span className="kpi-label-mini">{label}</span>
+                <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value || "—"}</span>
+            </div>
+        ),
+        [],
+    );
+
     const load = useCallback(
         async (initial?: boolean) => {
             if (initial) {
@@ -77,12 +83,12 @@ export function TagesabschlussPage() {
             } catch (e) {
                 const msg = errorMessage(e);
                 if (initial) setLoadError(msg);
-                else toast(`Aktualisieren fehlgeschlagen: ${msg}`, "error");
+                else toast(tp("common.refresh_failed", { message: msg }), "error");
             } finally {
                 if (initial) setLoading(false);
             }
         },
-        [toast],
+        [toast, tp],
     );
 
     useEffect(() => {
@@ -95,13 +101,13 @@ export function TagesabschlussPage() {
         setSaveBusy(true);
         try {
             const created = await createTagesabschlussProtokoll(data);
-            toast("Tagesabschluss protokolliert und gespeichert.", "success");
+            toast(t("page.tagesabschluss.toast.saved"), "success");
             if (extra.tagesberichtPdf) {
                 try {
                     await downloadTagesabschlussBerichtPdf(created, zahlungen, patienten);
-                    toast("Tagesbericht-PDF erzeugt (Sammelbeleg je Patient zum Stichtag, FA-FIN-INVOICE-Layout).", "success");
+                    toast(t("page.tagesabschluss.toast.pdf_ok"), "success");
                 } catch (e) {
-                    toast(`Tagesbericht (PDF) fehlgeschlagen: ${errorMessage(e)}`, "error");
+                    toast(tp("page.tagesabschluss.toast.pdf_fail", { message: errorMessage(e) }), "error");
                 }
             }
             setCreating(false);
@@ -117,7 +123,7 @@ export function TagesabschlussPage() {
         const id = deleteId;
         try {
             await deleteTagesabschlussProtokoll(id);
-            toast("Protokolleintrag entfernt.", "success");
+            toast(t("page.tagesabschluss.toast.removed"), "success");
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             void load();
@@ -149,7 +155,7 @@ export function TagesabschlussPage() {
     if (!canRead) {
         return (
             <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader title="Tagesabschluss" subtitle="Keine Berechtigung Finanzen (Lesen)." />
+                <VerwaltungPageHeader title={t("page.tagesabschluss.title")} subtitle={t("page.tagesabschluss.no_permission")} />
             </div>
         );
     }
@@ -157,15 +163,15 @@ export function TagesabschlussPage() {
     if (loading) {
         return (
             <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader title="Tagesabschluss" />
-                <PageLoading label="Daten werden geladen…" />
+                <VerwaltungPageHeader title={t("page.tagesabschluss.title")} />
+                <PageLoading label={t("page.tagesabschluss.loading")} />
             </div>
         );
     }
     if (loadError) {
         return (
             <div className="tagesabschluss-page praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader title="Tagesabschluss" />
+                <VerwaltungPageHeader title={t("page.tagesabschluss.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load(true)} />
             </div>
         );
@@ -176,11 +182,11 @@ export function TagesabschlussPage() {
             return (
                 <Card className="produkte-detail-card tagesabschluss-read-print">
                     <CardHeader
-                        title="Neuer Tagesabschluss"
-                        subtitle="Stichtag wählen, Kasse abgleichen, Kassenprüfung setzen, protokollieren — wie bei anderen Verwaltungslisten im rechten Panel."
+                        title={t("page.tagesabschluss.new_title")}
+                        subtitle={t("page.tagesabschluss.new_subtitle")}
                         action={(
                             <Button type="button" size="sm" variant="ghost" onClick={() => setCreating(false)} disabled={saveBusy} className="tagesabschluss-no-print">
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         )}
                     />
@@ -204,7 +210,7 @@ export function TagesabschlussPage() {
                 <Card className="produkte-detail-card tagesabschluss-read-print">
                     <CardHeader
                         title={formatDate(selected.stichtag)}
-                        subtitle={`Protokolliert ${formatDateTime(selected.protokolliert_at)} — gespeicherte Kennzahlen zum Abgleich.`}
+                        subtitle={tp("page.tagesabschluss.detail.subtitle", { date: formatDateTime(selected.protokolliert_at) })}
                         action={(
                             <div className="row tagesabschluss-no-print" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button
@@ -213,18 +219,18 @@ export function TagesabschlussPage() {
                                     variant="secondary"
                                     onClick={() =>
                                         void downloadTagesabschlussBerichtPdf(selected, zahlungen, patienten).catch((e) =>
-                                            toast(`Tagesbericht (PDF): ${errorMessage(e)}`, "error"),
+                                            toast(tp("page.tagesabschluss.toast.pdf_fail", { message: errorMessage(e) }), "error"),
                                         )
                                     }
                                 >
-                                    Tagesbericht (PDF)
+                                    {t("page.tagesabschluss.report_pdf")}
                                 </Button>
                                 <Button type="button" size="sm" variant="secondary" onClick={handlePrintProtokoll}>
-                                    Drucken
+                                    {t("page.tagesabschluss.print")}
                                 </Button>
                                 {canWrite ? (
                                     <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(selected.id)}>
-                                        Eintrag entfernen
+                                        {t("page.tagesabschluss.remove_entry")}
                                     </Button>
                                 ) : null}
                             </div>
@@ -232,40 +238,47 @@ export function TagesabschlussPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
-                            {readField("Stichtag", formatDate(selected.stichtag))}
-                            {readField("Protokolliert", formatDateTime(selected.protokolliert_at))}
-                            {readField("Bargeld laut System (Snapshot)", formatCurrency(selected.bar_laut_system_eur))}
-                            {readField("Einnahmen laut System (Snapshot)", formatCurrency(selected.einnahmen_laut_system_eur))}
-                            {readField("Gezählt (Kasse)", selected.gezaehlt_eur == null ? "—" : formatCurrency(selected.gezaehlt_eur))}
-                            {readField("Abweichung", selected.abweichung_eur == null ? "—" : formatCurrency(selected.abweichung_eur))}
-                            {readField("Bargeld-Abgleich", barOk ? "Stimmig" : "Abweichung / nicht gewichtet")}
-                            {readField("Tageszahlungen (Anzahl / geprüft / alle ok)", `${selected.anzahl_zahlungen_tag} / ${selected.anzahl_kasse_geprueft} / ${alleOk ? "ja" : "nein"}`)}
+                            {readField(t("page.tagesabschluss.field.stichtag"), formatDate(selected.stichtag))}
+                            {readField(t("page.tagesabschluss.field.protokolliert"), formatDateTime(selected.protokolliert_at))}
+                            {readField(t("page.tagesabschluss.field.bar_system"), formatCurrency(selected.bar_laut_system_eur))}
+                            {readField(t("page.tagesabschluss.field.income_system"), formatCurrency(selected.einnahmen_laut_system_eur))}
+                            {readField(t("page.tagesabschluss.field.counted"), selected.gezaehlt_eur == null ? "—" : formatCurrency(selected.gezaehlt_eur))}
+                            {readField(t("page.tagesabschluss.field.deviation"), selected.abweichung_eur == null ? "—" : formatCurrency(selected.abweichung_eur))}
+                            {readField(t("page.tagesabschluss.field.bar_match"), barOk ? t("page.tagesabschluss.bar_ok") : t("page.tagesabschluss.bar_match_bad"))}
+                            {readField(
+                                t("page.tagesabschluss.field.day_payments"),
+                                tp("page.tagesabschluss.day_payments_detail", {
+                                    total: selected.anzahl_zahlungen_tag,
+                                    checked: selected.anzahl_kasse_geprueft,
+                                    allOk: alleOk ? t("common.yes") : t("common.no"),
+                                }),
+                            )}
                         </div>
-                        {selected.notiz ? readField("Bemerkung", selected.notiz) : null}
+                        {selected.notiz ? readField(t("page.tagesabschluss.field.remark"), selected.notiz) : null}
 
                         <div>
-                            <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>Zahlungen am Stichtag (aktuell)</p>
-                            <p className="page-sub" style={{ margin: "0 0 8px", fontSize: 12 }}>Live aus der Zahlungsliste — kann sich nach dem Protokoll ändern.</p>
+                            <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>{t("page.tagesabschluss.payments_title")}</p>
+                            <p className="page-sub" style={{ margin: "0 0 8px", fontSize: 12 }}>{t("page.tagesabschluss.payments_hint")}</p>
                             {zahlungenAmStichtag.length === 0 ? (
-                                <p className="page-sub" style={{ margin: 0 }}>Keine Zahlungen an diesem Tag.</p>
+                                <p className="page-sub" style={{ margin: 0 }}>{t("page.tagesabschluss.no_payments")}</p>
                             ) : (
                                 <div className="card" style={{ overflow: "auto", maxHeight: 220 }}>
                                     <table className="tbl" style={{ minWidth: 400, fontSize: 13, margin: 0 }}>
                                         <thead>
                                             <tr>
-                                                <th style={{ textAlign: "left" }}>Zeit</th>
-                                                <th style={{ textAlign: "left" }}>Patient</th>
-                                                <th>Art</th>
-                                                <th>Status</th>
+                                                <th style={{ textAlign: "left" }}>{t("common.time")}</th>
+                                                <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
+                                                <th>{t("page.tagesabschluss.col.art")}</th>
+                                                <th>{t("common.status")}</th>
                                                 <th style={{ textAlign: "right" }}>€</th>
-                                                <th>Kasse geprüft</th>
+                                                <th>{t("page.tagesabschluss.col.cash_checked")}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {zahlungenAmStichtag.map((z) => (
                                                 <tr key={z.id}>
                                                     <td>
-                                                        {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString("de-DE", {
+                                                        {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString(timeLocale, {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
                                                         })}
@@ -292,8 +305,8 @@ export function TagesabschlussPage() {
             <Card className="produkte-detail-card">
                 <div className="card-pad" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
                     <EmptyState
-                        title="Keine Auswahl"
-                        description="Wählen Sie einen protokollierten Tag in der Liste oder starten Sie einen neuen Tagesabschluss."
+                        title={t("page.tagesabschluss.no_selection.title")}
+                        description={t("page.tagesabschluss.no_selection.desc")}
                     />
                 </div>
             </Card>
@@ -305,16 +318,18 @@ export function TagesabschlussPage() {
             <VerwaltungPageHeader
                 className="tagesabschluss-no-print"
                 titleLevel="h1"
-                title="Tagesabschluss"
+                title={t("page.tagesabschluss.title")}
                 subtitle={
                     <>
-                        Teil von <strong>Finanzen &amp; Berichte</strong> — Kassenabgleich, Liste + Detail. Rechnung als PDF:{" "}
+                        {t("page.tagesabschluss.subtitle_part1")}{" "}
+                        <strong>{t("breadcrumb.finance_reports")}</strong>{" "}
+                        {t("page.tagesabschluss.subtitle_suffix")}{" "}
                         <button
                             type="button"
                             style={{ color: "var(--accent, #0a6)", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}
                             onClick={() => navigate("/verwaltung/finanzen-berichte/rechnung")}
                         >
-                            Rechnung (PDF)
+                            {t("breadcrumb.invoice_pdf")}
                         </button>
                         .
                     </>
@@ -326,7 +341,7 @@ export function TagesabschlussPage() {
                             variant={creating ? "secondary" : "primary"}
                             onClick={creating ? () => setCreating(false) : openCreate}
                         >
-                            {creating ? "Neuer Tagesabschluss abbrechen" : "+ Neuer Tagesabschluss"}
+                            {creating ? t("page.tagesabschluss.new_cancel_btn") : t("page.tagesabschluss.new_btn")}
                         </Button>
                     ) : null
                 }
@@ -335,21 +350,21 @@ export function TagesabschlussPage() {
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list tagesabschluss-protokoll-list">
                     {!canWrite ? (
-                        <p className="page-sub" style={{ fontSize: 13, margin: "0 0 8px" }}>Nur mit Berechtigung Finanzen (Schreiben): neu protokollieren.</p>
+                        <p className="page-sub" style={{ fontSize: 13, margin: "0 0 8px" }}>{t("page.tagesabschluss.write_hint")}</p>
                     ) : null}
-                    <p className="text-title" style={{ margin: "0 0 8px", fontSize: 13 }}>Protokolle</p>
+                    <p className="text-title" style={{ margin: "0 0 8px", fontSize: 13 }}>{t("page.tagesabschluss.protocols")}</p>
                     {protokolle.length === 0 ? (
-                        <p className="page-sub" style={{ margin: 0 }}>Noch kein Tagesabschluss gespeichert — „Neuer Tagesabschluss“ nutzen.</p>
+                        <p className="page-sub" style={{ margin: 0 }}>{t("page.tagesabschluss.empty_protocols")}</p>
                     ) : (
                         <div className="card" style={{ overflow: "auto" }}>
                             <table className="tbl" style={{ minWidth: 400, fontSize: 14, margin: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ textAlign: "left" }}>Stichtag</th>
-                                        <th style={{ textAlign: "left" }}>Protokolliert</th>
-                                        <th style={{ textAlign: "right" }}>Bar (System)</th>
-                                        <th>Bar-Abgleich</th>
-                                        <th>Tageszahlungen</th>
+                                        <th style={{ textAlign: "left" }}>{t("page.tagesabschluss.col.stichtag")}</th>
+                                        <th style={{ textAlign: "left" }}>{t("page.tagesabschluss.col.protokolliert")}</th>
+                                        <th style={{ textAlign: "right" }}>{t("page.tagesabschluss.col.bar_system")}</th>
+                                        <th>{t("page.tagesabschluss.col.bar_match")}</th>
+                                        <th>{t("page.tagesabschluss.col.day_payments")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -368,7 +383,7 @@ export function TagesabschlussPage() {
                                                 <td>{formatDate(row.stichtag)}</td>
                                                 <td style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.protokolliert_at)}</td>
                                                 <td style={{ textAlign: "right" }}>{formatCurrency(row.bar_laut_system_eur)}</td>
-                                                <td>{row.bar_stimmt === 1 ? "Stimmig" : "Prüfen"}</td>
+                                                <td>{row.bar_stimmt === 1 ? t("page.tagesabschluss.bar_ok") : t("page.tagesabschluss.bar_check")}</td>
                                                 <td>
                                                     {row.anzahl_zahlungen_tag}
                                                     {" "}
@@ -376,7 +391,7 @@ export function TagesabschlussPage() {
                                                     {" "}
                                                     {row.anzahl_kasse_geprueft}
                                                     {" "}
-                                                    gepr.
+                                                    {t("page.tagesabschluss.checked_short")}
                                                 </td>
                                             </tr>
                                         );
@@ -393,8 +408,8 @@ export function TagesabschlussPage() {
                 open={deleteId != null}
                 onClose={() => setDeleteId(null)}
                 onConfirm={() => void handleDelete()}
-                title="Protokolleintrag entfernen?"
-                message="Nur der gespeicherte Abschlusseintrag wird gelöscht — Zahlungen in der Kasse bleiben unverändert."
+                title={t("page.tagesabschluss.delete.title")}
+                message={t("page.tagesabschluss.delete.message")}
                 danger
             />
         </div>

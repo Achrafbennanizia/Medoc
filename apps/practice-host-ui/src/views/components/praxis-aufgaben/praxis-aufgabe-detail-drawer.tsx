@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import type { Personal } from "@/models/types";
 import type {
     PraxisAufgabe,
@@ -13,7 +12,7 @@ import {
     updatePraxisAufgabeAdmin,
 } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { errorMessage } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { useDateFnsLocale, useT } from "@/lib/i18n";
 import {
     BoltIcon,
     CheckIcon,
@@ -80,6 +79,7 @@ export function PraxisAufgabeDetailDrawer({
     onEdit,
 }: PraxisAufgabeDetailDrawerProps) {
     const t = useT();
+    const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const titleId = useId();
@@ -197,7 +197,7 @@ export function PraxisAufgabeDetailDrawer({
 
     const layer = (
         <div className="termin-drawer-root" role="presentation">
-            <button type="button" className="termin-drawer-backdrop" aria-label="Schließen" onClick={onClose} />
+            <button type="button" className="termin-drawer-backdrop" aria-label={t("common.close")} onClick={onClose} />
             <div
                 ref={panelRef}
                 className="termin-drawer-panel"
@@ -211,7 +211,7 @@ export function PraxisAufgabeDetailDrawer({
                         <span className={`pill ${aufgabeStatusPillClass(aufgabe.status)}`}>
                             {aufgabeStatusLabel(aufgabe.status)}
                         </span>
-                        <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
+                        <button type="button" className="icon-btn" aria-label={t("common.close")} onClick={onClose}>
                             <XIcon size={18} />
                         </button>
                     </div>
@@ -230,13 +230,13 @@ export function PraxisAufgabeDetailDrawer({
                         <div>
                             <div className="termin-drawer-eyebrow">{tx("page.praxis_tickets.drawer_created")}</div>
                             <div className="termin-drawer-meta-val">
-                                {format(parseISO(aufgabe.created_at), "d. MMM yyyy", { locale: de })}
+                                {format(parseISO(aufgabe.created_at), "d. MMM yyyy", { locale: dateFnsLocale })}
                             </div>
                         </div>
                         <div>
                             <div className="termin-drawer-eyebrow">{tx("page.praxis_tickets.drawer_updated")}</div>
                             <div className="termin-drawer-meta-val">
-                                {format(parseISO(aufgabe.updated_at), "d. MMM yyyy", { locale: de })}
+                                {format(parseISO(aufgabe.updated_at), "d. MMM yyyy", { locale: dateFnsLocale })}
                             </div>
                         </div>
                         <div>

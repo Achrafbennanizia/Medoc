@@ -28,7 +28,7 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Desktop: opens „Speichern unter…“ and writes the file. Browser / plain Vite: `<a download>`.
+ * Desktop: opens "Save as…" and writes the file. Browser / plain Vite: `<a download>`.
  * @returns `true` if a file was written or browser download triggered; `false` if the user cancelled the save dialog (desktop only).
  */
 export async function saveOrDownloadBytes(

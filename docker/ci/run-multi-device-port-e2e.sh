@@ -35,7 +35,7 @@ echo "=== Build headless server binaries ==="
 cargo build -q -p medoc-lan-server -p medoc-company-server
 
 echo ""
-echo "=== Seed master data directory (license + demo users + TOTP) ==="
+echo "=== Seed master data directory (license + demo users) ==="
 export MEDOC_MASTER_DATA_DIR="$MASTER_DIR"
 cargo test -p medoc-e2e --test multi_device_port_http prepare_master_datadir -- --ignored --nocapture
 

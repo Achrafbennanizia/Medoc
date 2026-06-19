@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { XIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { IconButton } from "./icon-button";
 
 export type DismissibleNoticeVariant = "info" | "warning" | "error" | "accent";
@@ -51,6 +52,7 @@ export function DismissibleNotice({
     onDismiss,
     className,
 }: DismissibleNoticeProps) {
+    const t = useT();
     const [visible, setVisible] = useState(() => !dismissKey || !readDismissed(dismissKey));
 
     const dismiss = useCallback(() => {
@@ -80,7 +82,7 @@ export function DismissibleNotice({
                     {subtitle ? <div className="app-notice__subtitle">{subtitle}</div> : null}
                 </div>
                 {closable ? (
-                    <IconButton type="button" className="app-notice__close" aria-label="Schließen" onClick={dismiss}>
+                    <IconButton type="button" className="app-notice__close" aria-label={t("a11y.close")} onClick={dismiss}>
                         <XIcon size={16} />
                     </IconButton>
                 ) : null}

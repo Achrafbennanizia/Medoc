@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
@@ -22,32 +22,7 @@ import {
 const STEP_COUNT = 6;
 
 /** Kurze Arbeitspunkte je Schritt — ergänzen den Fließtext. */
-const STEP_FOCUS_LINES: string[][] = [
-    [
-        "Backup unter „Betrieb“ anlegen und Speicherort dokumentieren.",
-        "Wiederherstellung auf einer Kopie der Datenbank testen.",
-    ],
-    [
-        "Export aus dem Altsystem auf Vollständigkeit und Aktualität prüfen.",
-        "Datenschutz / Auftragsverarbeitung mit dem bisherigen Anbieter klären.",
-    ],
-    [
-        "Pflichtfelder, Dubletten und Kodierungen gegen Referenzlisten prüfen.",
-        "Demo- und Testdatensätze vor Produktivimport entfernen.",
-    ],
-    [
-        "Spalten der Importdatei den MeDoc-Feldern zuordnen und dokumentieren.",
-        "Abweichungen fürs Qualitätsmanagement festhalten.",
-    ],
-    [
-        "Erst Trockenlauf / Import auf Datenbank-Kopie ausführen.",
-        "Stichproben gegen das Altsystem abgleichen.",
-    ],
-    [
-        "Go-Live-Zeitfenster und Eskalationspfad festlegen.",
-        "Logs und Audit-Einträge in den ersten Tagen verstärkt beobachten.",
-    ],
-];
+const STEP_FOCUS_KEY_GROUPS = [["migration.focus.s0_0","migration.focus.s0_1"],["migration.focus.s1_0","migration.focus.s1_1"],["migration.focus.s2_0","migration.focus.s2_1"],["migration.focus.s3_0","migration.focus.s3_1"],["migration.focus.s4_0","migration.focus.s4_1"],["migration.focus.s5_0","migration.focus.s5_1"]] as const;
 
 export type MigrationWizardPageProps = {
     embedded?: boolean;
@@ -155,8 +130,8 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
                                 gap: 6,
                             }}
                         >
-                            {(STEP_FOCUS_LINES[step] ?? []).map((line) => (
-                                <li key={line}>{line}</li>
+                            {((STEP_FOCUS_KEY_GROUPS[step] ?? []) as readonly string[]).map((key) => (
+                                <li key={key}>{t(key)}</li>
                             ))}
                         </ul>
                         <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
@@ -181,7 +156,7 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
             {step >= 2 && MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED ? (
                 <>
                     <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", maxWidth: 720 }}>
-                        Ab Schritt 3: Schnittstellen-Stubs (GDT / DICOM / Scanner) zur technischen Verifikation — keine automatische Datenübernahme.
+                        {t("migration.step3_adapters_hint")}
                     </p>
                     <DeviceFilePanel />
                 </>
@@ -200,6 +175,8 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
  * Rust layer; this UI verifies the wire is end-to-end.
  */
 function DeviceFilePanel() {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [gdtPath, setGdtPath] = useState("");
     const [gdtBusy, setGdtBusy] = useState(false);
@@ -219,7 +196,7 @@ function DeviceFilePanel() {
         try {
             setGdt(await parseGdtFile(gdtPath.trim()));
         } catch (e) {
-            toast(`GDT-Fehler: ${errorMessage(e)}`);
+            toast(tp("migration.device.gdt_error", { message: errorMessage(e) }));
         } finally {
             setGdtBusy(false);
         }
@@ -231,7 +208,7 @@ function DeviceFilePanel() {
         try {
             setDicom(await inspectDicomFile(dicomPath.trim()));
         } catch (e) {
-            toast(`DICOM-Fehler: ${errorMessage(e)}`);
+            toast(tp("migration.device.dicom_error", { message: errorMessage(e) }));
         } finally {
             setDicomBusy(false);
         }
@@ -243,7 +220,7 @@ function DeviceFilePanel() {
         try {
             setDocs(await scannerListRecent(scanFolder.trim(), 20));
         } catch (e) {
-            toast(`Scanner-Fehler: ${errorMessage(e)}`);
+            toast(tp("migration.device.scanner_error", { message: errorMessage(e) }));
         } finally {
             setScanBusy(false);
         }
@@ -251,42 +228,42 @@ function DeviceFilePanel() {
 
     async function attachOne(src: string) {
         if (!attachRoot.trim() || !attachPatient.trim()) {
-            toast("Archiv-Pfad und Patient-ID sind erforderlich.", "error");
+            toast(t("migration.device.require_paths"), "error");
             return;
         }
         try {
             const dest = await scannerAttach(src, attachRoot.trim(), attachPatient.trim());
-            toast(`In Akte abgelegt: ${dest}`, "success");
+            toast(tp("migration.device.attached", { dest }), "success");
         } catch (e) {
-            toast(`Anhängen fehlgeschlagen: ${errorMessage(e)}`);
+            toast(tp("migration.device.attach_failed", { message: errorMessage(e) }));
         }
     }
 
     return (
         <Card>
             <div style={{ padding: 16, paddingTop: 14 }}>
-                <CardHeader title="Daten- & Bildimport (GDT / DICOM / Scanner)" />
+                <CardHeader title={t("migration.device.import_title")} />
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
                     FA-DEV-01..04 · Geräte-Stubs zur lokalen Validierung
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
                     <div>
-                        <Input id="gdt-path" label="GDT-Datei (Pfad)" value={gdtPath} onChange={(e) => setGdtPath(e.target.value)} placeholder="/Users/…/export.gdt" />
-                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runGdt()} disabled={gdtBusy} loading={gdtBusy}>GDT prüfen</Button></div>
+                        <Input id="gdt-path" label={t("migration.device.gdt_file")} value={gdtPath} onChange={(e) => setGdtPath(e.target.value)} placeholder="/Users/…/export.gdt" />
+                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runGdt()} disabled={gdtBusy} loading={gdtBusy}>{t("migration.device.gdt_check")}</Button></div>
                         {gdt ? (
                             <pre style={{ marginTop: 8, fontSize: 12, maxHeight: 200, overflow: "auto", background: "var(--surface-2)", padding: 8, borderRadius: 6 }}>{JSON.stringify(gdt, null, 2)}</pre>
                         ) : null}
                     </div>
                     <div>
-                        <Input id="dicom-path" label="DICOM-Datei (Pfad)" value={dicomPath} onChange={(e) => setDicomPath(e.target.value)} placeholder="/Users/…/image.dcm" />
-                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runDicom()} disabled={dicomBusy} loading={dicomBusy}>DICOM prüfen</Button></div>
+                        <Input id="dicom-path" label={t("migration.device.dicom_file")} value={dicomPath} onChange={(e) => setDicomPath(e.target.value)} placeholder="/Users/…/image.dcm" />
+                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runDicom()} disabled={dicomBusy} loading={dicomBusy}>{t("migration.device.dicom_check")}</Button></div>
                         {dicom ? (
-                            <p style={{ fontSize: 12, marginTop: 8 }}><b>{dicom.is_dicom ? "✓ DICOM erkannt" : "⚠ Keine DICM-Signatur"}</b> · {dicom.size_bytes} Bytes</p>
+                            <p style={{ fontSize: 12, marginTop: 8 }}><b>{dicom.is_dicom ? t("migration.device.dicom_ok") : t("migration.device.dicom_no_sig")}</b> · {dicom.size_bytes} Bytes</p>
                         ) : null}
                     </div>
                 </div>
                 <div style={{ marginTop: 16 }}>
-                    <Input id="scan-folder" label="Scanner-Ordner" value={scanFolder} onChange={(e) => setScanFolder(e.target.value)} placeholder="/Users/…/scans" />
+                    <Input id="scan-folder" label={t("migration.device.scan_folder")} value={scanFolder} onChange={(e) => setScanFolder(e.target.value)} placeholder="/Users/…/scans" />
                     <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45 }}>
                         Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“.
                     </p>
@@ -299,26 +276,26 @@ function DeviceFilePanel() {
                                     try {
                                         await openSystemScanUtility();
                                     } catch (e) {
-                                        toast(`Scanner-Programm: ${errorMessage(e)}`);
+                                        toast(tp("migration.device.scanner_program", { message: errorMessage(e) }));
                                     }
                                 })();
                             }}
                         >
                             System-Scanner öffnen
                         </Button>
-                        <Button type="button" onClick={() => void runScan()} disabled={scanBusy} loading={scanBusy}>Liste aktualisieren</Button>
+                        <Button type="button" onClick={() => void runScan()} disabled={scanBusy} loading={scanBusy}>{t("migration.device.refresh_list")}</Button>
                     </div>
                     {docs.length > 0 ? (
                         <>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-                                <Input id="scan-archive" label="Akten-Archiv-Wurzel" value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/akten" />
-                                <Input id="scan-pid" label="Patient-ID" value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder="seed-pat-001" />
+                                <Input id="scan-archive" label={t("migration.device.archive_root")} value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/akten" />
+                                <Input id="scan-pid" label={t("migration.device.patient_id")} value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder="seed-pat-001" />
                             </div>
                             <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
                                 {docs.map((d) => (
                                     <li key={d.path} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
                                         <span style={{ fontSize: 13 }}>{d.path} <span style={{ color: "var(--fg-3)" }}>({d.bytes} Bytes)</span></span>
-                                        <Button size="sm" variant="ghost" onClick={() => void attachOne(d.path)}>An Akte hängen</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => void attachOne(d.path)}>{t("migration.device.attach_to_record")}</Button>
                                     </li>
                                 ))}
                             </ul>

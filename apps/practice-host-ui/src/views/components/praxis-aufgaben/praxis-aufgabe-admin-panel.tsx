@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
@@ -28,6 +29,8 @@ type Props = {
 const CREATE_HREF = "/tickets/neu";
 
 export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwaltung" }: Props) {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
     const userId = session?.user_id ?? "";
@@ -99,7 +102,7 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
         setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     };
 
-    if (loading) return <PageLoading label="Aufgaben werden geladen…" />;
+    if (loading) return <PageLoading label={t("praxis.aufgaben.admin.loading")} />;
     if (err) return <PageLoadError message={err} onRetry={() => void load()} />;
 
     return (
@@ -114,16 +117,16 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
             {!embedded ? (
                 <WorkspacePageHeader
                     titleLevel="h1"
-                    title="Praxis-Aufgaben"
-                    subtitle="Aufgaben anlegen, zuweisen und den Status verfolgen — zentral für die Praxisleitung."
+                    title={t("praxis.aufgaben.title")}
+                    subtitle={t("praxis.aufgaben.subtitle")}
                     back={{
                         to: backHref,
-                        label: backHref === "/tickets" ? "Praxis-Aufgaben" : "Verwaltung",
+                        label: backHref === "/tickets" ? t("nav.praxis_tickets") : t("nav.verwaltung"),
                     }}
                     actions={
                         <Button type="button" variant="primary" onClick={() => navigate(CREATE_HREF)}>
                             <PlusIcon size={16} />
-                            Neue Aufgabe
+                            {t("breadcrumb.new_task")}
                         </Button>
                     }
                 />
@@ -134,36 +137,39 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
                     <SearchIcon size={16} aria-hidden />
                     <Input
                         id="aufgaben-search"
-                        placeholder="Suchen (Titel, Patient…)"
+                        placeholder={t("praxis.aufgaben.admin.search_ph")}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        aria-label="Aufgaben durchsuchen"
+                        aria-label={t("praxis.aufgaben.admin.search_aria")}
                     />
                 </div>
                 <div className="page-toolbar__filters aufgaben-toolbar-filters">
                     <Select
                         id="aufgaben-filter-status"
-                        aria-label="Status filtern"
+                        aria-label={t("praxis.aufgaben.admin.filter_status_aria")}
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
                         disabled={rows.length === 0}
                         options={[
-                            { value: "", label: `Alle Status (${statusCounts[""] ?? 0})` },
+                            { value: "", label: tp("praxis.aufgaben.admin.all_status", { count: statusCounts[""] ?? 0 }) },
                             ...PRAXIS_AUFGABE_STATUSES.map((s) => ({
                                 value: s.value,
-                                label: `${s.label} (${statusCounts[s.value] ?? 0})`,
+                                label: `${t(`praxis.aufgaben.status.${s.value.toLowerCase()}`)} (${statusCounts[s.value] ?? 0})`,
                             })),
                         ]}
                     />
                     <Select
                         id="aufgaben-filter-typ"
-                        aria-label="Typ filtern"
+                        aria-label={t("praxis.aufgaben.admin.filter_type_aria")}
                         value={filterTyp}
                         onChange={(e) => setFilterTyp(e.target.value)}
                         disabled={rows.length === 0}
                         options={[
-                            { value: "", label: "Alle Typen" },
-                            ...PRAXIS_AUFGABE_TYPS.map((t) => ({ value: t.value, label: t.label })),
+                            { value: "", label: t("praxis.aufgaben.admin.all_types") },
+                            ...PRAXIS_AUFGABE_TYPS.map((row) => ({
+                                value: row.value,
+                                label: t(`praxis.aufgaben.typ.${row.value.toLowerCase()}`),
+                            })),
                         ]}
                     />
                 </div>
@@ -177,12 +183,12 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
                             setFilterTyp("");
                         }}
                     >
-                        Zurücksetzen
+                        {t("common.reset")}
                     </Button>
                 ) : null}
-                <Button type="button" variant="ghost" size="sm" onClick={() => void load()} title="Aktualisieren">
+                <Button type="button" variant="ghost" size="sm" onClick={() => void load()} title={t("common.refresh")}>
                     <FilterIcon size={16} />
-                    Aktualisieren
+                    {t("common.refresh")}
                 </Button>
                 {embedded ? (
                     <Button type="button" variant="primary" onClick={() => navigate(CREATE_HREF)}>
@@ -194,15 +200,15 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
 
             {filtered.length === 0 ? (
                 <EmptyState
-                    title="Keine Aufgaben"
+                    title={t("praxis.aufgaben.empty")}
                     description={
                         rows.length === 0
-                            ? "Legen Sie die erste Aufgabe an."
-                            : "Keine Treffer für die aktuelle Filterung."
+                            ? t("praxis.aufgaben.admin.create_first")
+                            : t("praxis.aufgaben.admin.no_results")
                     }
                     action={
                         rows.length === 0
-                            ? { label: "+ Neue Aufgabe", onClick: () => navigate(CREATE_HREF) }
+                            ? { label: t("praxis.aufgaben.admin.create_new"), onClick: () => navigate(CREATE_HREF) }
                             : undefined
                     }
                 />
@@ -223,7 +229,7 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
                 <PraxisAufgabeDetailDrawer
                     aufgabe={selected}
                     patientName={aufgabePatientLabel(selected.patient_id, patientMap)}
-                    creatorLabel={personalMap.get(selected.created_by)?.name ?? "—"}
+                    creatorLabel={personalMap.get(selected.created_by)?.name ?? t("common.dash")}
                     personal={personal}
                     userId={userId}
                     isArzt={role === "ARZT"}

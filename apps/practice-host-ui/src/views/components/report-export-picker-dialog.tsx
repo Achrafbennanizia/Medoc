@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -21,11 +22,11 @@ import {
 } from "@/lib/report-export";
 import { errorMessage } from "@/lib/utils";
 
-const REPORT_FORMAT_OPTS: { value: ReportExportFormat; label: string }[] = [
-    { value: "pdf", label: "PDF (druckfertig)" },
-    { value: "csv", label: "CSV (Semikolon)" },
-    { value: "json", label: "JSON" },
-    { value: "xml", label: "XML" },
+const REPORT_FORMAT_OPTS = (t: (key: string) => string): { value: ReportExportFormat; label: string }[] => [
+    { value: "pdf", label: t("export.picker.format_pdf") },
+    { value: "csv", label: t("export.picker.format_csv") },
+    { value: "json", label: t("export.report.format_json") },
+    { value: "xml", label: t("export.report.format_xml") },
 ];
 
 export type ReportExportPickerDialogProps = {
@@ -54,6 +55,8 @@ export function ReportExportPickerDialog({
     defaultFormat = "pdf",
     legacyCsv,
 }: ReportExportPickerDialogProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [format, setFormat] = useState<ReportExportFormat>(defaultFormat);
     const [fileName, setFileName] = useState("");
@@ -118,7 +121,7 @@ export function ReportExportPickerDialog({
                 if (b) setFileName(reportFilename(b, defaultFormat));
             } catch (e) {
                 if (!cancelled) {
-                    toast(`Daten laden fehlgeschlagen: ${errorMessage(e)}`, "error");
+                    toast(tp("export.picker.load_failed", { message: errorMessage(e) }), "error");
                     setBundle(null);
                 }
             } finally {
@@ -155,7 +158,7 @@ export function ReportExportPickerDialog({
                     previewUrlRef.current = url;
                     setPreviewUrl(url);
                 } catch (e) {
-                    toast(`Vorschau: ${errorMessage(e)}`, "error");
+                    toast(tp("export.picker.preview_error", { message: errorMessage(e) }), "error");
                     revokePreview();
                 } finally {
                     setPreviewBusy(false);
@@ -183,7 +186,7 @@ export function ReportExportPickerDialog({
 
     const runExport = async () => {
         if (!bundle) {
-            toast("Keine Exportdaten.", "error");
+            toast(t("common.no_export_data"), "error");
             return;
         }
         const finalName = filenameWithFormat(fileName, format);
@@ -245,7 +248,7 @@ export function ReportExportPickerDialog({
             }
             onClose();
         } catch (e) {
-            toast(`Export fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.export_failed", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -260,7 +263,7 @@ export function ReportExportPickerDialog({
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button
                         type="button"
@@ -268,7 +271,7 @@ export function ReportExportPickerDialog({
                         loading={busy}
                         disabled={busy || bundleLoading || !bundle}
                     >
-                        Exportieren
+                        {t("common.export_action")}
                     </Button>
                 </>
             )}
@@ -276,14 +279,14 @@ export function ReportExportPickerDialog({
             <div className="akte-export-dialog-layout">
                 <div className="akte-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        Format und Speicherort. PDF-Vorschau aktualisiert sich kurz nach Änderungen.
+                        {t("export.report.hint")}
                     </p>
                     <Select
                         id="report-export-picker-format"
-                        label="Dateiformat"
+                        label={t("export.picker.format")}
                         value={format}
                         onChange={(e) => setFormat(e.target.value as ReportExportFormat)}
-                        options={REPORT_FORMAT_OPTS}
+                        options={REPORT_FORMAT_OPTS(t)}
                     />
                     {legacyCsv && format === "csv" ? (
                         <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
@@ -293,12 +296,12 @@ export function ReportExportPickerDialog({
                                 onChange={(e) => setUseLegacyCsv(e.target.checked)}
                             />
                             <span className="text-body" style={{ fontSize: 13 }}>
-                                Excel-Kompatibles CSV (Komma, Transaktionsliste)
+                                {t("export.report.legacy_csv")}
                             </span>
                         </label>
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Zielpfad</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -312,12 +315,12 @@ export function ReportExportPickerDialog({
                                     if (p) setFolderOnce(p);
                                 }}
                             >
-                                Anderen Speicherort wählen …
+                                {t("export.picker.another_folder")}
                             </Button>
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Dateiname</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
                         <Input
                             id="report-export-picker-filename"
                             value={fileName}
@@ -328,19 +331,19 @@ export function ReportExportPickerDialog({
                     </div>
                 </div>
                 <div className="akte-export-dialog-preview-col">
-                    <div className="text-label">Vorschau</div>
+                    <div className="text-label">{t("common.preview")}</div>
                     <div className="akte-export-pdf-preview-box">
                         {bundleLoading ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Daten werden geladen …</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.loading_data")}</p>
                         ) : !bundle ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Keine Exportdaten.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_export_data")}</p>
                         ) : format === "pdf" ? (
                             previewBusy ? (
-                                <p className="card-pad card-sub" style={{ margin: 0 }}>PDF wird erzeugt …</p>
+                                <p className="card-pad card-sub" style={{ margin: 0 }}>{t("export.picker.pdf_generating")}</p>
                             ) : previewUrl ? (
-                                <iframe title="PDF-Vorschau" src={previewUrl} />
+                                <iframe title={t("export.report.pdf_preview_title")} src={previewUrl} />
                             ) : (
-                                <p className="card-pad card-sub" style={{ margin: 0 }}>PDF wird vorbereitet …</p>
+                                <p className="card-pad card-sub" style={{ margin: 0 }}>{t("export.picker.pdf_preparing")}</p>
                             )
                         ) : format === "csv" && csvPreviewRows.length > 0 ? (
                             <div className="export-preview-scroll" style={{ maxHeight: 420, overflow: "auto" }}>
@@ -357,7 +360,7 @@ export function ReportExportPickerDialog({
                                 </table>
                             </div>
                         ) : format === "csv" ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Keine CSV-Zeilen.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_csv_rows")}</p>
                         ) : (
                             <pre
                                 className="card card-pad export-preview-pre"

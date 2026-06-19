@@ -7,6 +7,7 @@ use std::time::Instant;
 use tauri::State;
 
 use crate::application::break_glass::{BreakGlassGrant, BreakGlassState};
+use crate::application::mvp_security;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
@@ -32,6 +33,7 @@ pub async fn break_glass_activate(
     reason: String,
     patient_id: Option<String>,
 ) -> Result<(), AppError> {
+    mvp_security::require_break_glass_enabled()?;
     let session = rbac::require(&session_state, "patient.read_medical")?;
     if reason.trim().len() < 10 {
         return Err(AppError::Validation(
@@ -69,6 +71,9 @@ pub fn break_glass_active(
     session_state: State<'_, SessionState>,
     bg: State<'_, BreakGlassStateExt>,
 ) -> Result<Vec<BreakGlassEntry>, AppError> {
+    if !mvp_security::BREAK_GLASS_ENABLED {
+        return Ok(Vec::new());
+    }
     rbac::require(&session_state, "patient.read_medical")?;
     Ok(bg
         .0

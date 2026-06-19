@@ -5,7 +5,7 @@ import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/z
 import { errorMessage, formatDate } from "@/lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -64,15 +64,16 @@ function buildFilterCounts(
     };
 }
 
-function patientStatusPill(p: Patient): { label: string; variant: "primary" | "success" | "default" | "warning" } {
-    if (p.status === "NEU") return { label: "Neu", variant: "primary" };
-    if (p.status === "AKTIV" || p.status === "VALIDIERT") return { label: "In Behandlung", variant: "success" };
-    if (p.status === "READONLY") return { label: "Abgeschlossen", variant: "default" };
+function patientStatusPill(p: Patient, t: (key: string) => string): { label: string; variant: "primary" | "success" | "default" | "warning" } {
+    if (p.status === "NEU") return { label: t("patient.pill.neu"), variant: "primary" };
+    if (p.status === "AKTIV" || p.status === "VALIDIERT") return { label: t("patient.pill.in_behandlung"), variant: "success" };
+    if (p.status === "READONLY") return { label: t("patient.pill.abgeschlossen"), variant: "default" };
     return { label: p.status, variant: "default" };
 }
 
 export function PatientenPage() {
     const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
     const canDeletePatient = role != null && allowed("patient.write_medical", role);
@@ -172,17 +173,17 @@ export function PatientenPage() {
         const csv = buildPatientsMigrationCsv(filtered);
         const d = new Date().toISOString().slice(0, 10);
         return {
-            exportTitle: "Patienten exportieren",
-            hint: "Semikolon-CSV, kompatibel mit Betrieb → Patientenimport.",
+            exportTitle: t("patient.export.title_short"),
+            hint: t("patient.export.hint"),
             suggestedFilename: `medoc-patienten-${d}.csv`,
             textBody: csv,
             mime: "text/csv;charset=utf-8",
         };
-    }, [filtered]);
+    }, [filtered, t]);
 
     const openPatientExport = () => {
         if (filtered.length === 0) {
-            toast("Keine Patienten zum Exportieren (Filter/Suche prüfen).", "info");
+            toast(t("patient.export.toast_empty"), "info");
             return;
         }
         setExportPickerOpen(true);
@@ -203,12 +204,12 @@ export function PatientenPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <WorkspacePageHeader
                 titleLevel="h1"
-                title="Patientenakten"
-                subtitle={`${filtered.length} von ${patienten.length} Patienten`}
+                title={t("patient.page.title")}
+                subtitle={tp("patient.page.subtitle", { filtered: filtered.length, total: patienten.length })}
                 actions={
                     canCreatePatient ? (
                         <button className="btn btn-accent" type="button" onClick={() => navigate("/patienten/neu")}>
-                            <PlusIcon />Neuer Patient
+                            <PlusIcon />{t("patient.new")}
                         </button>
                     ) : null
                 }
@@ -243,47 +244,47 @@ export function PatientenPage() {
                         className="btn btn-subtle"
                         onClick={openPatientExport}
                         disabled={loading || !!loadError || filtered.length === 0}
-                        title="Patientenliste exportieren (Format und Speicherort im Dialog)."
-                        aria-label="Patientenliste exportieren"
+                        title={t("patient.export.title_attr")}
+                        aria-label={t("patient.export.aria")}
                     >
-                        <ExportIcon size={14} aria-hidden /> Exportieren
+                        <ExportIcon size={14} aria-hidden /> {t("patient.export.button")}
                     </button>
                 </div>
             </div>
 
             <div id="patient-status-filters" className="seg" style={{ alignSelf: "flex-start" }}>
                 {[
-                    { id: "ALLE", label: "Alle" },
-                    { id: "IN_BEHANDLUNG", label: "In Behandlung" },
-                    { id: "NEUPATIENT", label: "Neupatienten" },
-                    { id: "RECHNUNG_OFFEN", label: "Rechnung offen" },
-                    { id: "AKTE_OFFEN", label: "Akte offen" },
-                    { id: "ABGESCHLOSSEN", label: "Abgeschlossen" },
+                    { id: "ALLE", labelKey: "patient.filter.ALLE" },
+                    { id: "IN_BEHANDLUNG", labelKey: "patient.filter.IN_BEHANDLUNG" },
+                    { id: "NEUPATIENT", labelKey: "patient.filter.NEUPATIENT" },
+                    { id: "RECHNUNG_OFFEN", labelKey: "patient.filter.RECHNUNG_OFFEN" },
+                    { id: "AKTE_OFFEN", labelKey: "patient.filter.AKTE_OFFEN" },
+                    { id: "ABGESCHLOSSEN", labelKey: "patient.filter.ABGESCHLOSSEN" },
                 ].map((f) => (
                     <button key={f.id} aria-pressed={statusFilter === f.id} onClick={() => setStatusFilter(f.id as PatientStatusFilter)}>
-                        {f.label}{" "}
+                        {t(f.labelKey)}{" "}
                         <span className="seg__count">{filterCounts[f.id as PatientStatusFilter]}</span>
                     </button>
                 ))}
             </div>
 
             {loading ? (
-                <PageLoading label="Patienten werden geladen…" />
+                <PageLoading label={t("patient.loading")} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             ) : patienten.length === 0 && !debouncedSearch.trim() ? (
                 <EmptyState
                     graphic={<UsersIcon size={40} />}
-                    title="Keine Patienten"
-                    description="Legen Sie den ersten Patienten an."
+                    title={t("patient.empty.title")}
+                    description={t("patient.empty.description")}
                 />
             ) : filtered.length === 0 ? (
                 <div className="card card-pad" style={{ maxWidth: 560 }}>
                     <h3 className="page-title" style={{ fontSize: 18 }}>{t("patient.search.no_results")}</h3>
                     <p style={{ color: "var(--fg-3)", fontSize: 14, marginTop: 8 }}>
                         {debouncedSearch.trim()
-                            ? `Suchanfrage: „${debouncedSearch.trim()}“`
-                            : "Keine Treffer für die gewählten Filter."}
+                            ? tp("patient.search.query_label", { query: debouncedSearch.trim() })
+                            : t("patient.search.filter_no_match")}
                     </p>
                     {nameSuggestions.length > 0 ? (
                         <p style={{ color: "var(--fg-2)", fontSize: 13, marginTop: 12 }}>
@@ -293,11 +294,11 @@ export function PatientenPage() {
                     ) : null}
                     <div className="row" style={{ gap: 8, marginTop: 18 }}>
                         <button type="button" className="btn btn-subtle" onClick={() => { setSearch(""); setStatusFilter("ALLE"); }}>
-                            Filter zurücksetzen
+                            {t("common.reset_filters")}
                         </button>
                         {canCreatePatient ? (
                         <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}>
-                            Neuer Patient
+                            {t("patient.new")}
                         </button>
                         ) : null}
                     </div>
@@ -305,11 +306,11 @@ export function PatientenPage() {
             ) : (
                 <div className="card patienten-table card--overflow-visible">
                     <div className="patienten-grid-head">
-                        <div>Patient</div><div>Geburtsdatum</div><div>Kontakt</div><div>Status</div><div />
+                        <div>{t("patient.table.patient")}</div><div>{t("patient.table.birthdate")}</div><div>{t("patient.table.contact")}</div><div>{t("patient.table.status")}</div><div />
                     </div>
                     {filtered.map((p) => {
                         const hue = avatarHueFromId(p.id);
-                        const pill = patientStatusPill(p);
+                        const pill = patientStatusPill(p, t);
                         const openInv = patientHasOpenInvoice(openZahlPatientIds, p.id);
                         return (
                             <div
@@ -323,7 +324,7 @@ export function PatientenPage() {
                                     </div>
                                     <div className="col">
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
-                                        <div style={{ color: "var(--fg-3)", fontSize: 12 }}>{p.geschlecht === "MAENNLICH" ? "Männlich" : p.geschlecht === "WEIBLICH" ? "Weiblich" : "Divers"}</div>
+                                        <div style={{ color: "var(--fg-3)", fontSize: 12 }}>{p.geschlecht === "MAENNLICH" ? t("patient.gender.MAENNLICH") : p.geschlecht === "WEIBLICH" ? t("patient.gender.WEIBLICH") : t("patient.gender.DIVERS")}</div>
                                     </div>
                                 </div>
                                 <div style={{ fontSize: 13 }}>{formatDate(p.geburtsdatum)}</div>
@@ -334,8 +335,8 @@ export function PatientenPage() {
                                 <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                                     <Badge variant={pill.variant}>{pill.label}</Badge>
                                     {openInv ? (
-                                        <span title="Ausstehende oder teilbezahlte Zahlung">
-                                            <Badge variant="warning">€ offen</Badge>
+                                        <span title={t("patient.pill.payment_open_title")}>
+                                            <Badge variant="warning">{t("patient.pill.payment_open")}</Badge>
                                         </span>
                                     ) : null}
                                 </div>
@@ -349,7 +350,7 @@ export function PatientenPage() {
                                         style={{ width: 30, height: 30 }}
                                         aria-haspopup="menu"
                                         aria-expanded={actionMenuPatientId === p.id}
-                                        aria-label={`Aktionen für ${p.name}`}
+                                        aria-label={tp("patient.menu.actions_aria", { name: p.name })}
                                     >
                                         <MoreIcon size={16} />
                                     </button>
@@ -366,7 +367,7 @@ export function PatientenPage() {
                                                         navigate(`/patienten/${p.id}${detailSuffix}`);
                                                     }}
                                                 >
-                                                    Akte öffnen
+                                                    {t("patient.menu.open_record")}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -378,7 +379,7 @@ export function PatientenPage() {
                                                         navigate(`/termine/neu?patient_id=${encodeURIComponent(p.id)}`);
                                                     }}
                                                 >
-                                                    Termin anlegen
+                                                    {t("patient.menu.appointment")}
                                                 </button>
                                                 {canViewMedical ? (
                                                     <button
@@ -391,7 +392,7 @@ export function PatientenPage() {
                                                             navigate(`/rezepte?patient_id=${encodeURIComponent(p.id)}`);
                                                         }}
                                                     >
-                                                        Rezeptansicht
+                                                        {t("patient.menu.prescription")}
                                                     </button>
                                                 ) : null}
                                                 {p.email?.trim() ? (
@@ -405,7 +406,7 @@ export function PatientenPage() {
                                                             window.location.href = `mailto:${encodeURIComponent(p.email!)}`;
                                                         }}
                                                     >
-                                                        E-Mail an {p.email}
+                                                        {tp("patient.menu.email", { email: p.email! })}
                                                     </button>
                                                 ) : null}
                                                 {p.telefon?.trim() ? (
@@ -419,7 +420,7 @@ export function PatientenPage() {
                                                             window.location.href = `tel:${p.telefon!.replace(/\s+/g, "")}`;
                                                         }}
                                                     >
-                                                        Anrufen: {p.telefon}
+                                                        {tp("patient.menu.call", { phone: p.telefon! })}
                                                     </button>
                                                 ) : null}
                                                 {!p.email?.trim() && !p.telefon?.trim() ? (
@@ -430,7 +431,7 @@ export function PatientenPage() {
                                                         disabled
                                                         style={{ opacity: 0.6, cursor: "not-allowed" }}
                                                     >
-                                                        Kein Kontakt hinterlegt
+                                                        {t("patient.menu.no_contact")}
                                                     </button>
                                                 ) : null}
                                                 {canDeletePatient ? (
@@ -443,7 +444,7 @@ export function PatientenPage() {
                                                             setDeleteId(p.id);
                                                         }}
                                                     >
-                                                        Patient löschen…
+                                                        {t("patient.menu.delete")}
                                                     </button>
                                                 ) : null}
                                             </div>
@@ -475,26 +476,26 @@ export function PatientenPage() {
                         }
                     })();
                 }}
-                title="Löschen bestätigen"
-                message="Möchten Sie dieses Objekt wirklich löschen?"
-                confirmLabel="Ja, löschen"
+                title={t("patient.delete.confirm_title")}
+                message={t("patient.delete.confirm_message")}
+                confirmLabel={t("common.yes_delete")}
                 danger
                 loading={deleteBusy}
             />
             <Dialog
                 open={deleteDoneOpen}
                 onClose={() => setDeleteDoneOpen(false)}
-                title="Hinweis"
-                footer={<Button onClick={() => setDeleteDoneOpen(false)}>OK</Button>}
+                title={t("common.notice")}
+                footer={<Button onClick={() => setDeleteDoneOpen(false)}>{t("common.ok")}</Button>}
             >
-                <p style={{ color: "var(--fg-2)", fontSize: 14, margin: 0 }}>Akte wurde gelöscht.</p>
+                <p style={{ color: "var(--fg-2)", fontSize: 14, margin: 0 }}>{t("patient.delete.done")}</p>
             </Dialog>
             <DataExportPickerDialog
                 open={exportPickerOpen}
                 onClose={() => setExportPickerOpen(false)}
-                title="Export — Patientenliste"
-                description="Format und Speicherort. CSV ist kompatibel mit Betrieb → Patientenimport."
-                formats={[{ value: "csv", label: "CSV (Semikolon)" }]}
+                title={t("patient.export.title")}
+                description={t("patient.export.description")}
+                formats={[{ value: "csv", label: t("patient.export.format_csv") }]}
                 defaultFormat="csv"
                 resolvePayload={resolvePatientExport}
             />

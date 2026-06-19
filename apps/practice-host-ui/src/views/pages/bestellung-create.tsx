@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createBestellung, listBestellungen, type Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
@@ -47,20 +48,29 @@ function todayISO(): string {
 }
 
 /** Anzeigetext für Schnellwahl-Vorlage (Lieferant · Kontakt · Produkt). */
-function formatVorlageDatalistLine(v: LieferantPharmaVorlage): string {
-    const base = `${v.lieferant_name} · ${v.pharmaberater_name} · `;
+function formatVorlageDatalistLine(
+    v: LieferantPharmaVorlage,
+    tp: (key: string, params: Record<string, string | number>) => string,
+): string {
     const prod =
         v.produkt_aktiv === 0
-            ? `${v.produkt_name} (Lager: inaktiv)`
+            ? tp("page.bestellung.create.vorlage_line_inactive", { name: v.produkt_name })
             : `${v.produkt_name} · ${v.produkt_kategorie} · ${formatCurrency(v.produkt_preis)}`;
-    return base + prod;
+    return tp("page.bestellung.create.vorlage_line", {
+        supplier: v.lieferant_name,
+        contact: v.pharmaberater_name,
+        product: prod,
+    });
 }
 
-function buildVorlagenDatalistRows(vorlagen: LieferantPharmaVorlage[]) {
+function buildVorlagenDatalistRows(
+    vorlagen: LieferantPharmaVorlage[],
+    tp: (key: string, params: Record<string, string | number>) => string,
+) {
     const seen = new Map<string, number>();
     const rows: { v: LieferantPharmaVorlage; label: string }[] = [];
     for (const v of vorlagen) {
-        const line = formatVorlageDatalistLine(v);
+        const line = formatVorlageDatalistLine(v, tp);
         const c = (seen.get(line) ?? 0) + 1;
         seen.set(line, c);
         const label = c > 1 ? `${line} · #${v.id.slice(0, 8)}` : line;
@@ -69,17 +79,19 @@ function buildVorlagenDatalistRows(vorlagen: LieferantPharmaVorlage[]) {
     return rows;
 }
 
-function validateForm(f: CreateForm, anzahlProdukte: number): string | null {
+function validateForm(f: CreateForm, anzahlProdukte: number, t: (key: string) => string): string | null {
     const menge = Number(f.menge);
-    if (!f.lieferant.trim()) return "Lieferant erforderlich";
-    if (anzahlProdukte < 1) return "Zuerst mindestens ein Produkt im Lager anlegen";
-    if (!f.artikelProduktId.trim()) return "Produkt (Artikel) erforderlich";
-    if (!Number.isFinite(menge) || menge <= 0) return "Menge muss positiv sein";
-    if (f.erwartet_am && f.erwartet_am < todayISO()) return "Erwartet-Datum darf nicht in der Vergangenheit liegen";
+    if (!f.lieferant.trim()) return t("page.bestellung.create.validation.supplier_required");
+    if (anzahlProdukte < 1) return t("page.bestellung.create.validation.products_required");
+    if (!f.artikelProduktId.trim()) return t("page.bestellung.create.validation.article_required");
+    if (!Number.isFinite(menge) || menge <= 0) return t("page.bestellung.create.validation.quantity_positive");
+    if (f.erwartet_am && f.erwartet_am < todayISO()) return t("page.bestellung.create.validation.date_past");
     return null;
 }
 
 export function BestellungCreatePage() {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -151,16 +163,16 @@ export function BestellungCreatePage() {
 
     const artikelProduktOptions = useMemo(
         () => [
-            { value: "", label: "— Produkt aus Lager wählen —" },
+            { value: "", label: t("page.bestellung.create.product_select_ph") },
             ...produkteSorted.map((p) => ({
                 value: p.id,
                 label: produktSelectLabel(p, countProdukteWithName(produkte, p.name)),
             })),
         ],
-        [produkte, produkteSorted],
+        [produkte, produkteSorted, t],
     );
 
-    const vorlagenDatalistRows = useMemo(() => buildVorlagenDatalistRows(vorlagen), [vorlagen]);
+    const vorlagenDatalistRows = useMemo(() => buildVorlagenDatalistRows(vorlagen, tp), [vorlagen, tp]);
     const vorlageByDatalistLabel = useMemo(
         () => new Map(vorlagenDatalistRows.map((r) => [r.label, r.v] as const)),
         [vorlagenDatalistRows],
@@ -187,14 +199,14 @@ export function BestellungCreatePage() {
     }
 
     async function handleCreate() {
-        const err = validateForm(form, produkte.length);
+        const err = validateForm(form, produkte.length, t);
         if (err) {
             setError(err);
             return;
         }
         const produkt = produkte.find((p) => p.id === form.artikelProduktId);
         if (!produkt) {
-            setError("Ungültige Produktauswahl.");
+            setError(t("page.bestellung.create.invalid_product"));
             return;
         }
         const mengeN = Number(String(form.menge).replace(",", "."));
@@ -213,7 +225,7 @@ export function BestellungCreatePage() {
                 pharmaberater: form.pharmaberater.trim() || null,
                 ...(gesamtbetrag != null ? { gesamtbetrag: gesamtbetrag } : {}),
             });
-            toast(`Bestellung ${created.bestellnummer ?? ""} angelegt`, "success");
+            toast(tp("page.bestellung.create.created_toast", { nummer: created.bestellnummer ?? "" }), "success");
             navigate(`/bestellungen?bestellung=${encodeURIComponent(created.id)}`);
         } catch (e) {
             setError(errorMessage(e));
@@ -222,17 +234,17 @@ export function BestellungCreatePage() {
         }
     }
 
-    if (loading) return <PageLoading label="Bestellungen werden geladen…" />;
+    if (loading) return <PageLoading label={t("page.bestellungen.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
-    const validationError = validateForm(form, produkte.length);
+    const validationError = validateForm(form, produkte.length, t);
     const cannotSave = validationError !== null || busy;
 
     return (
         <div className="bestellung-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
             <WorkspacePageHeader
-                title="Neue Bestellung"
-                back={{ onClick: goBack, label: "Bestellungen" }}
+                title={t("page.bestellung.create.title")}
+                back={{ onClick: goBack, label: t("page.bestellungen.title") }}
             />
 
             <datalist id="best-create-lieferant-list">
@@ -247,27 +259,27 @@ export function BestellungCreatePage() {
             </datalist>
 
             <Card className="bestellung-create-page__card card-elevated">
-                <CardHeader title="Bestelldaten" subtitle="Artikel = Produkt aus dem Lager; erwartete Lieferung und Mengen" />
+                <CardHeader title={t("page.bestellung.create.card_title")} subtitle={t("page.bestellung.create.card_sub")} />
                 <div className="card-pad bestellung-create-form">
                     {error ? (
                         <p className="bestellung-create-form__error">{error}</p>
                     ) : null}
                     <p className="bestellung-create-form__hint">
-                        Bestellnummer wird automatisch im Format <code>B-JJJJ-MM-NNNN</code> erzeugt.
+                        {t("page.bestellung.create.order_number_hint")}
                     </p>
                     {vorlagen.length > 0 ? (
                         <div className="bestellung-create-form__field">
                             <Input
                                 id="bc-vorlage"
-                                label="Vorlage (Lieferant + Kontakt + Produkt)"
+                                label={t("page.bestellung.create.template_label")}
                                 list={vorlageDatalistDomId}
                                 value={vorlageInputText}
                                 autoComplete="off"
-                                placeholder="Tippen, filtern oder Eintrag aus Liste wählen…"
+                                placeholder={t("page.bestellung.create.search_ph")}
                                 onChange={(e) => {
-                                    const t = e.target.value;
-                                    setVorlageInputText(t);
-                                    const v = vorlageByDatalistLabel.get(t.trim());
+                                    const val = e.target.value;
+                                    setVorlageInputText(val);
+                                    const v = vorlageByDatalistLabel.get(val.trim());
                                     if (v) {
                                         const p = produkte.find((x) => x.id === v.produkt_id);
                                         setForm((f) => ({
@@ -278,7 +290,7 @@ export function BestellungCreatePage() {
                                         }));
                                         if (v.produkt_id && !p) {
                                             toast(
-                                                "Produkt dieser Vorlage ist im Lager nicht aktiv — bitte Artikel manuell wählen.",
+                                                t("page.bestellung.create.template_inactive_toast"),
                                                 "error",
                                             );
                                         }
@@ -295,7 +307,7 @@ export function BestellungCreatePage() {
                     <div className="bestellung-create-form__grid bestellung-create-form__grid--2">
                         <Input
                             id="bc-lief"
-                            label="Lieferant"
+                            label={t("common.supplier")}
                             list="best-create-lieferant-list"
                             value={form.lieferant}
                             onChange={(e) => {
@@ -305,7 +317,7 @@ export function BestellungCreatePage() {
                         />
                         <Input
                             id="bc-pharma"
-                            label="Pharmaberater / Kontakt"
+                            label={t("page.bestellung.create.pharma_contact")}
                             list="best-create-pharma-list"
                             value={form.pharmaberater}
                             onChange={(e) => {
@@ -317,7 +329,7 @@ export function BestellungCreatePage() {
                     <div className="bestellung-create-form__field bestellung-create-form__artikel-row">
                         <Select
                             id="bc-art"
-                            label="Artikel (Produkt)"
+                            label={t("page.bestellung.create.article_label")}
                             value={form.artikelProduktId}
                             onChange={(e) => {
                                 setVorlageInputText("");
@@ -329,22 +341,22 @@ export function BestellungCreatePage() {
                             <Button
                                 type="button"
                                 variant="secondary"
-                                title="Neues Produkt anlegen (Lager)"
+                                title={t("page.bestellung.create.new_product_title")}
                                 onClick={goNeuesProdukt}
                             >
-                                + Produkt
+                                {t("page.bestellung.create.new_product_btn")}
                             </Button>
                         ) : null}
                     </div>
                     {produkte.length === 0 ? (
                         <p className="bestellung-create-form__note">
-                            Keine Produkte im Lager — zuerst per „+ Produkt“ oder unter Produkte anlegen.
+                            {t("page.bestellung.create.no_products_note")}
                         </p>
                     ) : null}
                     <div className="bestellung-create-form__grid bestellung-create-form__grid--2">
                         <Input
                             id="bc-menge"
-                            label="Menge"
+                            label={t("common.quantity")}
                             type="number"
                             min={1}
                             value={form.menge}
@@ -352,26 +364,26 @@ export function BestellungCreatePage() {
                         />
                         <Input
                             id="bc-einheit"
-                            label="Einheit"
-                            placeholder="z. B. Stück, Pkg."
+                            label={t("common.unit")}
+                            placeholder={t("page.bestellung.create.unit_ph")}
                             value={form.einheit}
                             onChange={(e) => setForm({ ...form, einheit: e.target.value })}
                         />
                     </div>
                     {voraussichtGesamtbetrag != null ? (
                         <div className="bestellung-create-form__betrag">
-                            <div className="form-label form-label--wide">Voraussichtlicher Betrag (Lager-Preis × Menge)</div>
+                            <div className="form-label form-label--wide">{t("page.bestellung.create.amount_label")}</div>
                             <div className="bestellung-create-form__betrag-value">
                                 {formatCurrency(voraussichtGesamtbetrag)}
                             </div>
                             <p className="bestellung-create-form__note">
-                                Entspricht dem Produktpreis im Lager × eingegebene Menge — erscheint in Finanzen unter Ausgaben.
+                                {t("page.bestellung.create.amount_note")}
                             </p>
                         </div>
                     ) : null}
                     <Input
                         id="bc-erw"
-                        label="Erwartet am"
+                        label={t("common.expected_on")}
                         type="date"
                         min={todayISO()}
                         value={form.erwartet_am}
@@ -379,17 +391,17 @@ export function BestellungCreatePage() {
                     />
                     <Textarea
                         id="bc-bem"
-                        label="Bemerkung"
+                        label={t("common.note")}
                         rows={3}
                         value={form.bemerkung}
                         onChange={(e) => setForm({ ...form, bemerkung: e.target.value })}
                     />
                     <div className="bestellung-create-form__actions">
                         <Button type="button" variant="ghost" onClick={goBack} disabled={busy}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button type="button" onClick={() => void handleCreate()} loading={busy} disabled={cannotSave}>
-                            Erstellen
+                            {t("common.create")}
                         </Button>
                     </div>
                 </div>

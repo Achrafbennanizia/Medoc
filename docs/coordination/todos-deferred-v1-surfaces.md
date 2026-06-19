@@ -1,0 +1,32 @@
+# Deferred v1 surfaces (TODO)
+
+**Status:** hidden for v1 (2026-06-18). Flags in [`packages/shared/src/lib/v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts).
+
+## Re-enable checklist
+
+### Regulated connectors
+
+1. Set capability `available: true` in [`integration-capabilities.ts`](../../packages/shared/src/lib/integration-capabilities.ts) when backend is production-ready.
+2. **E-Rezept An TI senden** — [`rezepte.tsx`](../../apps/practice-host-ui/src/views/pages/rezepte.tsx); wire `submit_eprescription` to TI.
+3. **KIM** — add UI only when `send_kim_message` is live.
+4. **Migration GDT/DICOM/Scanner** — set `MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED = true`.
+
+### Lizenz section (screenshot blinds)
+
+1. `LICENSE_USAGE_METERS_ENABLED = true`
+2. `LICENSE_BILLING_CONNECTORS_ENABLED = true` + company portal production billing
+3. `LICENSE_KBV_ROW_ENABLED = true` — wire to real accreditation data
+4. `LICENSE_SUPPORT_ROW_ENABLED = true` — wire to portal contract API
+
+### Export / onboarding
+
+1. `PDF_LAYOUT_TEMPLATE_PICKER_ENABLED = true`
+2. `ONBOARDING_COACHMARK_ENABLED = true` — restore mount in `app-layout.tsx`
+
+### Multi-device
+
+1. `VERBUND_ADMIN_PANEL_V1_ENABLED = true` when Geräteverbund wire ships (v1.1)
+
+## Do NOT blind (has runtime effect)
+
+- **Bestätigung bei kritischen Aktionen (Akte)** — [`akte-confirm-presentation.tsx`](../../apps/practice-host-ui/src/views/components/akte-confirm-presentation.tsx)

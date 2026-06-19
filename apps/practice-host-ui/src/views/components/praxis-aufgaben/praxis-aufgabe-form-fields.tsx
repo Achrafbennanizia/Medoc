@@ -1,8 +1,8 @@
+import { useT } from "@/lib/i18n";
 import type { Patient, Personal } from "@/models/types";
 import type { PraxisAufgabeStatus, PraxisAufgabeTyp } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { Input, Select, Textarea } from "../ui/input";
 import {
-    AUFGABE_NO_PATIENT_LABEL,
     AUFGABE_NO_PATIENT_VALUE,
     PRAXIS_AUFGABE_TYPS,
     selectableAufgabeStatuses,
@@ -28,13 +28,21 @@ export function PraxisAufgabeFormFields({
     canFulfillStatus = false,
     onChange,
 }: Props) {
+    const t = useT();
+    const typOptions = PRAXIS_AUFGABE_TYPS.map((row) => ({
+        value: row.value,
+        label: t(`praxis.aufgaben.typ.${row.value.toLowerCase()}`),
+    }));
     const statusOptions =
         mode === "edit"
             ? selectableAufgabeStatuses({
                   current: form.status,
                   canAdminStatus,
                   canFulfillStatus,
-              })
+              }).map((s) => ({
+                  value: s.value,
+                  label: t(`praxis.aufgaben.status.${s.value.toLowerCase()}`),
+              }))
             : [];
 
     return (
@@ -42,24 +50,24 @@ export function PraxisAufgabeFormFields({
             {mode === "create" ? (
                 <Select
                     id="aufgabe-patient"
-                    label="Patient"
+                    label={t("common.patient")}
                     value={form.patientId}
                     onChange={(e) => onChange({ patientId: e.target.value })}
                     options={[
-                        { value: AUFGABE_NO_PATIENT_VALUE, label: AUFGABE_NO_PATIENT_LABEL },
+                        { value: AUFGABE_NO_PATIENT_VALUE, label: t("praxis.aufgaben.form.no_patient") },
                         ...patients.map((p) => ({ value: p.id, label: p.name })),
                     ]}
                 />
             ) : null}
             <Input
                 id="aufgabe-titel"
-                label="Titel"
+                label={t("common.title_field")}
                 value={form.titel}
                 onChange={(e) => onChange({ titel: e.target.value })}
             />
             <Textarea
                 id="aufgabe-body"
-                label="Beschreibung"
+                label={t("common.description")}
                 rows={4}
                 value={form.body}
                 onChange={(e) => onChange({ body: e.target.value })}
@@ -67,42 +75,42 @@ export function PraxisAufgabeFormFields({
             <div className="praxis-aufgabe-form-fields__row">
                 <Select
                     id="aufgabe-typ"
-                    label="Typ"
+                    label={t("common.type")}
                     value={form.typ}
                     onChange={(e) => onChange({ typ: e.target.value as PraxisAufgabeTyp })}
-                    options={PRAXIS_AUFGABE_TYPS.map((t) => ({ value: t.value, label: t.label }))}
+                    options={typOptions}
                 />
                 {mode === "edit" && statusOptions.length > 1 ? (
                     <Select
                         id="aufgabe-status"
-                        label="Status"
+                        label={t("common.status")}
                         value={form.status}
                         onChange={(e) => onChange({ status: e.target.value as PraxisAufgabeStatus })}
-                        options={statusOptions.map((s) => ({ value: s.value, label: s.label }))}
+                        options={statusOptions}
                     />
                 ) : null}
             </div>
             <div className="praxis-aufgabe-form-fields__row">
                 <Select
                     id="aufgabe-assignee-mode"
-                    label="Zugewiesen an"
+                    label={t("praxis.aufgaben.form.assignee")}
                     value={form.assigneeMode}
                     onChange={(e) =>
                         onChange({ assigneeMode: e.target.value as PraxisAufgabeTaskForm["assigneeMode"] })
                     }
                     options={[
-                        { value: "rezeption", label: "Rezeption (Pool)" },
-                        { value: "user", label: "Bestimmte Person" },
+                        { value: "rezeption", label: t("praxis.aufgaben.form.assignee_pool") },
+                        { value: "user", label: t("praxis.aufgaben.form.assignee_user") },
                     ]}
                 />
                 {form.assigneeMode === "user" ? (
                     <Select
                         id="aufgabe-assignee-user"
-                        label="Person"
+                        label={t("common.person")}
                         value={form.assigneeUserId}
                         onChange={(e) => onChange({ assigneeUserId: e.target.value })}
                         options={[
-                            { value: "", label: "Person wählen…" },
+                            { value: "", label: t("praxis.aufgaben.form.pick_person") },
                             ...personal.map((m) => ({
                                 value: m.id,
                                 label: `${m.name} (${m.rolle})`,

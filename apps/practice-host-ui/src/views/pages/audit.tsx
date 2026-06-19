@@ -1,4 +1,6 @@
+import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { useCallback, useEffect, useState } from "react";
+import { useT, useTParams } from "@/lib/i18n";
 import { exportAuditCsv, listAuditLogsPaged } from "@/systems/practice-host/controllers/audit.controller";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { buildAuditReportBundleFromCsv } from "@/lib/report-export";
@@ -15,6 +17,8 @@ const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
 
 export function AuditPage() {
+    const t = useT();
+    const tp = useTParams();
     const [resp, setResp] = useState<ListResponse<AuditLog> | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
@@ -58,15 +62,15 @@ export function AuditPage() {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <WorkspacePageHeader
-                title="Audit-Log"
-                subtitle={`Seitenweise Ansicht (max. ${PAGE_SIZE_MAX} Einträge pro Seite). Export bleibt vollständig.`}
-                back={{ to: "/", label: "Dashboard" }}
+                title={t("audit.page.title")}
+                subtitle={tp("audit.page.subtitle", { max: PAGE_SIZE_MAX })}
+                back={{ to: "/", label: t("breadcrumb.dashboard") }}
             />
 
             <div className="page-toolbar" style={{ alignItems: "center" }}>
                 <div className="page-toolbar__filters row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
-                        Zeilen
+                        {t("audit.page.rows")}
                         <select
                             className="input-edit"
                             style={{ width: 88, padding: "6px 8px" }}
@@ -83,6 +87,7 @@ export function AuditPage() {
                             ))}
                         </select>
                     </label>
+                    {BREAK_GLASS_ENABLED ? (
                     <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)" }}>
                         <input
                             type="checkbox"
@@ -92,10 +97,11 @@ export function AuditPage() {
                                 setPage(1);
                             }}
                         />
-                        Nur Notfallzugriff (Break-Glass)
+                        {t("audit.page.break_glass_only")}
                     </label>
+                    ) : null}
                     <ReportExportToolbar
-                        dialogTitle="Export — Audit-Log"
+                        dialogTitle={t("audit.page.export_title")}
                         buildBundle={buildExportBundle}
                         defaultFormat="pdf"
                         disabled={total === 0 || !!loadError}
@@ -106,23 +112,26 @@ export function AuditPage() {
 
             {!loading && !loadError && total > 0 ? (
                 <p className="page-sub" style={{ margin: 0 }}>
-                    {total} Einträge gesamt{logs.length > 0 ? ` · Seite ${page} / ${pages}` : ""}
+                    {tp("audit.page.summary", {
+                        total,
+                        pageInfo: logs.length > 0 ? tp("audit.page.summary_page", { page, pages }) : "",
+                    })}
                 </p>
             ) : null}
 
             {loading ? (
-                <PageLoading label="Audit-Einträge werden geladen…" />
+                <PageLoading label={t("audit.page.loading")} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             ) : total === 0 ? (
-                <EmptyState icon="📋" title="Keine Audit-Einträge" />
+                <EmptyState icon="📋" title={t("audit.page.empty")} />
             ) : (
                 <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     <div className="tbl-scroll">
                     <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
-                                <th>Zeitpunkt</th><th>Aktion</th><th>Entität</th><th>Details</th><th>Notfall</th><th>Benutzer</th>
+                                <th>{t("audit.page.col_time")}</th><th>{t("audit.page.col_action")}</th><th>{t("audit.page.col_entity")}</th><th>{t("audit.page.col_details")}</th><th>{t("audit.page.col_emergency")}</th><th>{t("audit.page.col_user")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -135,7 +144,7 @@ export function AuditPage() {
                                     <td>
                                         {l.under_break_glass ? (
                                             <span title={l.break_glass_reason ?? undefined}>
-                                                <Badge variant="warning">Break-Glass</Badge>
+                                                <Badge variant="warning">{t("audit.page.break_glass_badge")}</Badge>
                                             </span>
                                         ) : (
                                             "–"
@@ -157,14 +166,14 @@ export function AuditPage() {
                         style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, borderTop: "1px solid var(--line)" }}
                     >
                         <span style={{ color: "var(--fg-3)", fontSize: 13 }}>
-                            Seite {page} / {pages}
+                            {tp("audit.page.page_of", { page, pages })}
                         </span>
                         <div className="row" style={{ gap: 8 }}>
                             <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                                Zurück
+                                {t("common.back")}
                             </Button>
                             <Button size="sm" variant="ghost" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
-                                Weiter
+                                {t("common.next")}
                             </Button>
                         </div>
                     </div>

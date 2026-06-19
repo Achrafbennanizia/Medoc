@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
     getDbSetupStatus,
@@ -14,6 +15,7 @@ import { Input } from "./ui/input";
  * (when keyring is empty but `db-key.wrap` exists).
  */
 export function DbSetupGate({ children }: { children: ReactNode }) {
+    const t = useT();
     const [status, setStatus] = useState<DbSetupStatus | null>(null);
     const [passphrase, setPassphrase] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -98,7 +100,7 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
                     <Input
                         type="password"
                         autoComplete="new-password"
-                        placeholder="Passphrase bestätigen"
+                        placeholder={t("db.setup.confirm_passphrase_ph")}
                         value={confirm}
                         onChange={(e) => setConfirm(e.target.value)}
                         required

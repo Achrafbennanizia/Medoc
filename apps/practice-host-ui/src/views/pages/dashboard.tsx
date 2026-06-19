@@ -18,7 +18,7 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
@@ -57,15 +57,10 @@ function bestellungWirePill(b: Bestellung, t: (k: string) => string): { label: s
     return { label: `● ${t("dashboard.bestellungen.status_open")}`, cls: "dashboard-wire-pill-status--open" };
 }
 
-function terminStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-        GEPLANT: "Geplant",
-        BESTAETIGT: "Bestätigt",
-        DURCHGEFUEHRT: "Durchgeführt",
-        NICHT_ERSCHIENEN: "Nicht erschienen",
-        ABGESAGT: "Abgesagt",
-    };
-    return map[status] ?? status;
+function terminStatusLabel(status: string, t: (key: string) => string): string {
+    const key = `dashboard.status.${status}`;
+    const v = t(key);
+    return v === key ? status : v;
 }
 
 function initialsFromName(name: string): string {
@@ -77,6 +72,8 @@ function initialsFromName(name: string): string {
 
 export function DashboardPage() {
     const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [termine, setTermine] = useState<Termin[]>([]);
@@ -166,7 +163,7 @@ export function DashboardPage() {
             .catch((e) => {
                 if (!cancelled) {
                     setUpcomingTermine([]);
-                    toast(`Termin-Erinnerungen konnten nicht geladen werden: ${errorMessage(e)}`, "error");
+                    toast(`${t("dashboard.reminders.toast_load_error")}: ${errorMessage(e)}`, "error");
                 }
             });
         return () => {
@@ -188,7 +185,7 @@ export function DashboardPage() {
             .catch((e) => {
                 if (!cancelled) {
                     setPlanNextPending([]);
-                    toast(`Plan-Next-Hinweise konnten nicht geladen werden: ${errorMessage(e)}`, "warning");
+                    toast(`${t("dashboard.plan_next.toast_load_error")}: ${errorMessage(e)}`, "warning");
                 }
             });
         return () => {
@@ -254,7 +251,7 @@ export function DashboardPage() {
             } catch {
                 return;
             }
-            toast("Tagesabschluss: Zeit für den Abschluss heute?", "info");
+            toast(t("dashboard.tagesabschluss.toast"), "info");
         };
         check();
         const id = window.setInterval(check, 30_000);
@@ -416,7 +413,8 @@ export function DashboardPage() {
         return <PageLoading />;
     }
 
-    const today = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
+    const localeTag = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
+    const today = new Intl.DateTimeFormat(localeTag, { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
     const freigabenSub = pruefScanLoading
         ? t("dashboard.freigaben.scanning")
@@ -433,7 +431,7 @@ export function DashboardPage() {
         >
             <WorkspacePageHeader
                 titleLevel="h1"
-                title={`Guten Morgen, ${session?.name ?? "Team"}`}
+                title={tp("dashboard.greeting", { name: session?.name ?? t("dashboard.greeting_fallback") })}
                 subtitle={
                     <>
                         <p className="page-sub" style={{ marginTop: 0 }}>
@@ -624,7 +622,7 @@ export function DashboardPage() {
                                 );
                             })}
                             {filteredStammRows.map((pid) => {
-                                const name = patientNameById.get(pid) ?? "Patient";
+                                const name = patientNameById.get(pid) ?? t("termin.calendar.patient_fallback");
                                 const patient = patientById.get(pid);
                                 const dateStr = patient ? formatDate(patient.created_at.slice(0, 10)) : "—";
                                 const busy = approveBusyId === pid;
@@ -664,7 +662,7 @@ export function DashboardPage() {
                                                         {t("dashboard.freigaben.approve")}
                                                     </button>
                                                 ) : (
-                                                    <Link to={`/patienten/${pid}#stamm`} className="dashboard-wire-approve-btn">
+                                                    <Link to={`/patienten/${pid}#anam`} className="dashboard-wire-approve-btn">
                                                         {t("dashboard.freigaben.open_patient")}
                                                     </Link>
                                                 )}
@@ -792,16 +790,16 @@ export function DashboardPage() {
                         <div className="card dashboard-card-fill">
                             <div className="card-head">
                                 <div>
-                                    <div className="card-title">Termine in den nächsten 24 Stunden</div>
+                                    <div className="card-title">{t("dashboard.reminders.title")}</div>
                                     <div className="card-sub">
-                                        G9 — Erinnerungsliste (kein SMS/E-Mail-Versand; nur Anzeige in der App).
+                                        {t("dashboard.reminders.sub")}
                                     </div>
                                 </div>
                             </div>
                             <div className="dashboard-card-list">
                                 {upcomingTermine.length === 0 ? (
                                     <p style={{ padding: "16px 20px", margin: 0, color: "var(--fg-3)", fontSize: 14 }}>
-                                        Keine anstehenden Termine in den nächsten 24 Stunden.
+                                        {t("dashboard.reminders.empty")}
                                     </p>
                                 ) : (
                                     upcomingTermine.slice(0, 12).map((u) => (
@@ -811,13 +809,13 @@ export function DashboardPage() {
                                                     {u.datum} {u.uhrzeit.slice(0, 5)}
                                                 </div>
                                                 <div className="schedule-day-time-meta">
-                                                    in {u.minutes_until} Min. · {u.art.replace(/_/g, " ")}
+                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {u.art.replace(/_/g, " ")}
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: "right", fontSize: 13 }}>
                                                 <div style={{ fontWeight: 600 }}>{u.patient_name}</div>
                                                 <Link to={`/patienten/${u.patient_id}`} className="dashboard-wire-head-link">
-                                                    Patient öffnen
+                                                    {t("dashboard.reminders.open_patient")}
                                                 </Link>
                                             </div>
                                         </div>
@@ -830,13 +828,13 @@ export function DashboardPage() {
                         <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                             <div style={{ minWidth: 0 }}>
                                 <div className="card-title">
-                                    {t("dashboard.heute.title")} · {new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                                    {t("dashboard.heute.title")} · {new Date().toLocaleDateString(localeTag, { day: "2-digit", month: "2-digit" })}
                                 </div>
                                 <div className="card-sub">{t("dashboard.heute.sub")}</div>
                             </div>
                             <span className="pill accent" style={{ marginLeft: "auto" }}>
                                 <span className="dot" aria-hidden />
-                                Live
+                                {t("common.live")}
                             </span>
                         </div>
                         <div className="dashboard-card-list">
@@ -849,13 +847,13 @@ export function DashboardPage() {
                                 </div>
                             ) : (
                                 heuteTermine.map((r) => {
-                                    const name = patientNameById.get(r.patient_id) ?? "Patient";
+                                    const name = patientNameById.get(r.patient_id) ?? t("termin.calendar.patient_fallback");
                                     const tone = terminIstNotfallMarkiert(r) ? "yellow" : r.status === "BESTAETIGT" ? "blue" : "green";
                                     return (
                                         <div key={r.id} className="dashboard-timeline-row">
                                             <div>
                                                 <div className="schedule-day-time-primary">{r.uhrzeit.slice(0, 5)}</div>
-                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? "Notfall" : r.art.replace(/_/g, " ")}</div>
+                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? t("dashboard.termine.notfall") : r.art.replace(/_/g, " ")}</div>
                                             </div>
                                             <div className="row" style={{ gap: 12 }}>
                                                 <div
@@ -867,10 +865,10 @@ export function DashboardPage() {
                                                 />
                                                 <div>
                                                     <div className="schedule-day-name">{name}</div>
-                                                    <div className="schedule-day-meta-line">{terminStatusLabel(r.status)}</div>
+                                                    <div className="schedule-day-meta-line">{terminStatusLabel(r.status, t)}</div>
                                                 </div>
                                             </div>
-                                            <span className={`pill ${tone === "green" ? "green" : tone === "yellow" ? "yellow" : "blue"}`}>{terminStatusLabel(r.status)}</span>
+                                            <span className={`pill ${tone === "green" ? "green" : tone === "yellow" ? "yellow" : "blue"}`}>{terminStatusLabel(r.status, t)}</span>
                                         </div>
                                     );
                                 })
@@ -883,7 +881,7 @@ export function DashboardPage() {
                             <div className="dashboard-insights-card__inner">
                                 <div className="row" style={{ gap: 10 }}>
                                     <SparkleIcon size={16} />
-                                    <span className="dashboard-insights-card__eyebrow">MEDOC INSIGHTS</span>
+                                    <span className="dashboard-insights-card__eyebrow">{t("dashboard.insights.eyebrow")}</span>
                                 </div>
                                 <div className="dashboard-insights-card__body">{t("dashboard.insights.body")}</div>
                                 <div className="row dashboard-insights-card__actions">

@@ -98,6 +98,14 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return [];
             case "list_aufgabe_team_directory":
                 return [];
+            case "work_time_reconcile_on_login":
+                return { closedStaleCount: 0 };
+            case "work_time_get_preference":
+                return { focusMode: false, autoRecordOnLogin: false, autoRecordOnLogout: false };
+            case "work_time_get_active_session":
+                return null;
+            case "work_time_get_week_overview":
+                return { weekStart: "2026-01-05", sessions: [], totalMinutes: 0, days: [] };
             default:
                 throw new Error(`unmocked IPC in G21 routing smoke: ${cmd}`);
         }
@@ -132,7 +140,7 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         await user.type(pw!, "secret123");
         await user.click(screen.getByRole("button", { name: /Anmelden$/ }));
 
-        expect(await screen.findByRole("heading", { name: /Guten Morgen, Aya M\./ })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Arbeitszeit" })).toBeInTheDocument();
 
         const aside = screen.getByRole("complementary");
         await user.click(within(aside).getByRole("link", { name: /Praxis-Aufgaben/i }));

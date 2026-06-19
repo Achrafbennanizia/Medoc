@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import type { Produkt } from "@/models/types";
+import { formatIpcError } from "./ipc-errors";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -24,8 +25,7 @@ export function formatTpl(template: string, vars: Record<string, string | number
 
 /** Safe string for catch blocks / invoke failures */
 export function errorMessage(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    return String(e);
+    return formatIpcError(e);
 }
 
 export function formatDate(dateStr: string): string {

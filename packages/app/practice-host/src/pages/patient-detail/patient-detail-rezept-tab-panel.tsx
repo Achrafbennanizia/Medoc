@@ -16,6 +16,7 @@ import { Card, CardHeader } from "@/views/components/ui/card";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { FormSection } from "@/views/components/ui/form-section";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
+import { useT, useTParams } from "@/lib/i18n";
 
 export type PatientDetailRezeptTabPanelProps = Omit<
     ReturnType<typeof usePatientDetailRezeptTab>,
@@ -102,10 +103,13 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
         onAttestNameVorlageSave,
     } = props;
 
+    const t = useT();
+    const tp = useTParams();
+
     return (
     <div id="panel-rezept" role="tabpanel" aria-labelledby="tab-rezept">
     <Card className="card-pad">
-        <div className="akte-zahl-modus" role="tablist" aria-label="Ansicht Rezepte oder Atteste" style={{ marginBottom: 16 }}>
+        <div className="akte-zahl-modus" role="tablist" aria-label={t("page.patient_detail.rezept.view_aria")} style={{ marginBottom: 16 }}>
             <button
                 type="button"
                 role="tab"
@@ -117,7 +121,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     setAttestDeleteId(null);
                 }}
             >
-                Rezept
+                {t("page.patient_detail.rezept.tab_rezept")}
             </button>
             <button
                 type="button"
@@ -131,28 +135,28 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     setRezeptDeleteId(null);
                 }}
             >
-                Atteste
+                {t("nav.atteste")}
             </button>
         </div>
         {rezeptAttestSub === "rezept" ? (
         <>
         <CardHeader
-            title="Rezepte"
-            subtitle="Vordefiniertes oder neues Rezept: die Eingabe öffnet sich oben in der Liste — ohne separates Fenster."
+            title={t("page.patient_detail.rezept.title")}
+            subtitle={t("page.patient_detail.rezept.subtitle")}
             action={canWriteMedical ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Button type="button" size="sm" variant="secondary" onClick={openRezeptPick} disabled={!id}>
-                        Vordefiniertes Rezept
+                        {t("page.patient_detail.rezept.predefined_btn")}
                     </Button>
                     <Button type="button" size="sm" onClick={openRezeptNeu} disabled={!id}>
-                        <PlusIcon /> Neues Rezept
+                        <PlusIcon /> {t("page.patient_detail.rezept.new_btn")}
                     </Button>
                 </div>
             ) : null}
         />
         {!canWriteMedical ? (
             <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: 16 }}>
-                Rezepte können nur von Berechtigten mit ärztlicher Freigabe angelegt oder geändert werden. Die Liste ist einsehbar, sofern Ihre Rolle Zugriff auf die Akte hat.
+                {t("page.patient_detail.rezept.readonly_hint")}
             </p>
         ) : null}
 
@@ -162,26 +166,26 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     id="ak-rezept-wizard-panel"
                     className="rezept-akte-panel"
                     role="region"
-                    aria-label="Rezept erfassen"
+                    aria-label={t("page.patient_detail.rezept.wizard_aria")}
                 >
                     <div className="rezept-akte-panel-head">
                         <div>
                             <div className="rezept-akte-panel-title">
-                                {rezeptWizardStep === "pick" ? "Vordefiniertes Rezept wählen" : null}
+                                {rezeptWizardStep === "pick" ? t("page.patient_detail.rezept.wizard_pick_title") : null}
                                 {rezeptWizardStep === "compose"
-                                    ? (rezeptComposerKind === "vorlage" ? "Rezept aus Vorlage" : "Neues Rezept")
+                                    ? (rezeptComposerKind === "vorlage" ? t("page.patient_detail.rezept.wizard_from_template") : t("page.patient_detail.rezept.wizard_new"))
                                     : null}
-                                {rezeptWizardStep === "ask_vorlage" ? "Als Praxis-Vorlage speichern?" : null}
-                                {rezeptWizardStep === "name_vorlage" ? "Name der neuen Vorlage" : null}
+                                {rezeptWizardStep === "ask_vorlage" ? t("page.patient_detail.rezept.wizard_save_template_q") : null}
+                                {rezeptWizardStep === "name_vorlage" ? t("page.patient_detail.rezept.wizard_template_name") : null}
                             </div>
                             {rezeptWizardStep === "pick" ? (
                                 <div className="rezept-akte-panel-sub">
-                                    Namen eingeben oder aus der Liste wählen. Anschließend können Sie die Zeilen anpassen — die Praxis-Vorlage selbst bleibt unverändert.
+                                    {t("page.patient_detail.rezept.pick_sub")}
                                 </div>
                             ) : null}
                             {rezeptWizardStep === "compose" ? (
                                 <div className="rezept-akte-panel-sub">
-                                    Zeilen ergänzen oder bearbeiten, dann für den Patienten speichern.
+                                    {t("page.patient_detail.rezept.compose_sub")}
                                 </div>
                             ) : null}
                         </div>
@@ -194,7 +198,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                             }}
                             disabled={rezeptComposerBusy}
                         >
-                            Schließen
+                            {t("common.close")}
                         </Button>
                     </div>
 
@@ -208,14 +212,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 </datalist>
                                 <Input
                                     id="ak-rz-pick-q"
-                                    label="Vorlage suchen"
+                                    label={t("common.template_search")}
                                     list="ak-rezept-vorlagen-dl"
                                     value={rezeptPickQuery}
                                     onChange={(e) => {
                                         setRezeptPickQuery(e.target.value);
                                         setRezeptPickSelectedId("");
                                     }}
-                                    placeholder="Titel tippen…"
+                                    placeholder={t("common.search_title_ph")}
                                 />
                                 <div
                                     style={{
@@ -229,7 +233,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 >
                                     {rezeptPickFiltered.length === 0 ? (
                                         <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
-                                            Keine Treffer — andere Schreibweise oder unter Verwaltung → Vorlagen anlegen.
+                                            {t("page.patient_detail.rezept.no_results")}
                                         </span>
                                     ) : (
                                         rezeptPickFiltered.slice(0, 24).map((v) => (
@@ -265,7 +269,9 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                             color: "var(--accent-ink)",
                                         }}
                                     >
-                                        Sie haben die Vorlage geändert — es handelt sich um eine <strong>neue Liste</strong> für diesen Patienten. Die hinterlegte Praxis-Vorlage wird nicht überschrieben.
+                                        {t("page.patient_detail.rezept.template_modified").split(t("page.patient_detail.rezept.template_modified_emphasis"))[0]}
+                                        <strong>{t("page.patient_detail.rezept.template_modified_emphasis")}</strong>
+                                        {t("page.patient_detail.rezept.template_modified").split(t("page.patient_detail.rezept.template_modified_emphasis"))[1]}
                                     </p>
                                 ) : null}
                                 {rezeptLines.length > 0 ? (
@@ -273,11 +279,11 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                         <table className="tbl">
                                             <thead>
                                                 <tr>
-                                                    <th>Medikament</th>
-                                                    <th>Wirkstoff</th>
-                                                    <th>Dosierung</th>
-                                                    <th>Dauer</th>
-                                                    <th>Hinweise</th>
+                                                    <th>{t("page.rezepte.col.medication")}</th>
+                                                    <th>{t("page.rezepte.field.active_ingredient")}</th>
+                                                    <th>{t("page.rezepte.col.dosage")}</th>
+                                                    <th>{t("page.rezepte.col.duration")}</th>
+                                                    <th>{t("page.patient_detail.rezept.col.notes")}</th>
                                                     <th />
                                                 </tr>
                                             </thead>
@@ -326,7 +332,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                 variant="ghost"
                                                                 onClick={() => setRezeptLines((prev) => prev.filter((_, j) => j !== i))}
                                                             >
-                                                                Entfernen
+                                                                {t("common.remove")}
                                                             </Button>
                                                         </td>
                                                     </tr>
@@ -350,55 +356,55 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                         marginBottom: 12,
                                     }}
                                 >
-                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Weitere Zeile</div>
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{t("page.patient_detail.rezept.add_line_title")}</div>
                                     {rezeptDraftErr ? (
                                         <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 8px" }}>{rezeptDraftErr}</p>
                                     ) : null}
                                     <Input
                                         id="ak-rz-d-med"
-                                        label="Medikament *"
+                                        label={t("page.rezepte.field.medication")}
                                         list="ak-rezept-med-dl"
                                         value={rezeptDraft.medikament}
                                         onChange={(e) => pickMedForRezeptDraft(e.target.value)}
-                                        placeholder="z. B. Ibuprofen 600 mg"
+                                        placeholder={t("page.rezepte.field.medication_ph")}
                                     />
                                     <Input
                                         id="ak-rz-d-wirk"
-                                        label="Wirkstoff"
+                                        label={t("page.rezepte.field.active_ingredient")}
                                         value={rezeptDraft.wirkstoff}
                                         onChange={(e) => setRezeptDraft({ ...rezeptDraft, wirkstoff: e.target.value })}
                                     />
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <Input
                                             id="ak-rz-d-dos"
-                                            label="Dosierung *"
+                                            label={t("page.rezepte.field.dosage")}
                                             value={rezeptDraft.dosierung}
                                             onChange={(e) => setRezeptDraft({ ...rezeptDraft, dosierung: e.target.value })}
                                         />
                                         <Input
                                             id="ak-rz-d-dauer"
-                                            label="Dauer *"
+                                            label={t("page.rezepte.field.duration")}
                                             value={rezeptDraft.dauer}
                                             onChange={(e) => setRezeptDraft({ ...rezeptDraft, dauer: e.target.value })}
                                         />
                                     </div>
                                     <Textarea
                                         id="ak-rz-d-hin"
-                                        label="Hinweise (Zeile)"
+                                        label={t("page.rezepte.field.notes_line")}
                                         rows={2}
                                         value={rezeptDraft.hinweise}
                                         onChange={(e) => setRezeptDraft({ ...rezeptDraft, hinweise: e.target.value })}
                                     />
                                     <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
                                         <Button type="button" size="sm" variant="secondary" onClick={addRezeptDraftLine}>
-                                            Zeile übernehmen
+                                            {t("page.patient_detail.rezept.add_line_btn")}
                                         </Button>
                                     </div>
                                 </div>
 
                                 <Textarea
                                     id="ak-rz-shared"
-                                    label="Allgemeine Hinweise (alle Zeilen)"
+                                    label={t("page.rezepte.shared_notes")}
                                     rows={2}
                                     value={rezeptSharedNotes}
                                     onChange={(e) => setRezeptSharedNotes(e.target.value)}
@@ -408,19 +414,19 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
 
                         {rezeptWizardStep === "ask_vorlage" ? (
                             <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.5 }}>
-                                <strong>Ja:</strong> zusätzlich eine wiederverwendbare Praxis-Vorlage anlegen (Name im nächsten Schritt).
+                                <strong>{t("common.yes")}:</strong> {t("page.patient_detail.rezept.ask_template_yes")}
                                 {" "}
-                                <strong>Nein:</strong> nur die Rezepte für diesen Patienten speichern.
+                                <strong>{t("common.no")}:</strong> {t("page.patient_detail.rezept.ask_template_no")}
                             </p>
                         ) : null}
 
                         {rezeptWizardStep === "name_vorlage" ? (
                             <Input
                                 id="ak-rz-vorlage-name"
-                                label="Bezeichnung der Vorlage"
+                                label={t("common.template_label")}
                                 value={rezeptNewVorlageTitel}
                                 onChange={(e) => setRezeptNewVorlageTitel(e.target.value)}
-                                placeholder="z. B. Post-OP Schmerztherapie"
+                                placeholder={t("page.patient_detail.rezept.template_ph")}
                             />
                         ) : null}
                     </div>
@@ -429,17 +435,17 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                         {rezeptWizardStep === "pick" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => resetRezeptWizard()}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button type="button" onClick={proceedRezeptPick}>
-                                    Weiter
+                                    {t("common.next")}
                                 </Button>
                             </>
                         ) : null}
                         {rezeptWizardStep === "compose" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => resetRezeptWizard()} disabled={rezeptComposerBusy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -447,24 +453,24 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     loading={rezeptComposerBusy}
                                     disabled={rezeptComposerBusy}
                                 >
-                                    Rezept(e) für Patient speichern
+                                    {t("page.patient_detail.rezept.save_for_patient")}
                                 </Button>
                             </>
                         ) : null}
                         {rezeptWizardStep === "ask_vorlage" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={onRezeptAskVorlageNo}>
-                                    Nein
+                                    {t("common.no")}
                                 </Button>
                                 <Button type="button" onClick={onRezeptAskVorlageYes}>
-                                    Ja
+                                    {t("common.yes")}
                                 </Button>
                             </>
                         ) : null}
                         {rezeptWizardStep === "name_vorlage" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={onRezeptNameVorlageSkip} disabled={rezeptComposerBusy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -472,7 +478,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     loading={rezeptComposerBusy}
                                     disabled={rezeptComposerBusy}
                                 >
-                                    Vorlage anlegen und Rezepte speichern
+                                    {t("page.patient_detail.rezept.save_template_and")}
                                 </Button>
                             </>
                         ) : null}
@@ -481,16 +487,16 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
             ) : null}
 
 
-        <FormSection title="Rezeptliste dieser Akte">
+        <FormSection title={t("page.patient_detail.rezept.list_section")}>
             {rezepte.length === 0 ? (
                 <EmptyState
                     icon="💊"
-                    title="Keine Rezepte in dieser Akte"
+                    title={t("page.patient_detail.rezept.empty_title")}
                     description={canWriteMedical
-                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint direkt oben in der Liste."
-                        : "Für diese Akte wurden noch keine Rezepte erfasst."}
+                        ? t("page.patient_detail.rezept.empty_desc_write")
+                        : t("page.patient_detail.rezept.empty_desc_read")}
                     action={canWriteMedical && id
-                        ? { label: "Neues Rezept", onClick: openRezeptNeu }
+                        ? { label: t("page.patient_detail.rezept.new_btn"), onClick: openRezeptNeu }
                         : undefined}
                 />
             ) : (
@@ -498,12 +504,12 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Medikament</th>
-                                <th>Dosierung</th>
-                                <th>Dauer</th>
-                                <th>Status</th>
-                                <th>Ausgestellt</th>
-                                <th style={{ minWidth: 200 }}>Aktion</th>
+                                <th>{t("page.rezepte.col.medication")}</th>
+                                <th>{t("page.rezepte.col.dosage")}</th>
+                                <th>{t("page.rezepte.col.duration")}</th>
+                                <th>{t("page.rezepte.col.status")}</th>
+                                <th>{t("common.issued")}</th>
+                                <th style={{ minWidth: 200 }}>{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -527,14 +533,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         area="patient_akte_rezept_edit"
                                                         open={canWriteMedical && !!rezeptEdit && !rezeptWizardStep}
                                                         onClose={() => setRezeptEdit(null)}
-                                                        title="Rezept bearbeiten"
+                                                        title={t("page.patient_detail.rezept.edit_title")}
                                                         subtitle={
                                                             rezeptEditUnlocked
-                                                                ? "Änderungen gelten nur für diese Zeile in der Akte."
-                                                                : "Ansicht — Felder sind gesperrt. „Bearbeiten“ wählen zum Ändern."
+                                                                ? t("page.patient_detail.rezept.edit_sub_unlocked")
+                                                                : t("page.patient_detail.rezept.edit_sub_locked")
                                                         }
                                                         inlineId={`ak-rezept-edit-inline-${r.id}`}
-                                                        ariaLabel="Rezept bearbeiten"
+                                                        ariaLabel={t("page.patient_detail.rezept.edit_title")}
                                                         panelVariant="rezept"
                                                         headerExtra={
                                                             !rezeptEditUnlocked ? (
@@ -544,14 +550,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                     size="sm"
                                                                     onClick={() => setRezeptEditUnlocked(true)}
                                                                 >
-                                                                    Bearbeiten
+                                                                    {t("common.edit")}
                                                                 </Button>
                                                             ) : null
                                                         }
                                                         footer={(
                                                             <>
                                                                 <Button type="button" variant="ghost" onClick={() => setRezeptEdit(null)}>
-                                                                    Abbrechen
+                                                                    {t("common.cancel")}
                                                                 </Button>
                                                                 <Button
                                                                     type="button"
@@ -563,14 +569,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                         || !rezeptEditForm.dauer.trim()
                                                                     }
                                                                 >
-                                                                    Speichern
+                                                                    {t("common.save")}
                                                                 </Button>
                                                             </>
                                                         )}
                                                     >
                                                         <Input
                                                             id={`rex-med-${r.id}`}
-                                                            label="Medikament *"
+                                                            label={t("page.rezepte.field.medication")}
                                                             value={rezeptEditForm.medikament}
                                                             disabled={!rezeptEditUnlocked}
                                                             onChange={(e) =>
@@ -581,7 +587,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         />
                                                         <Input
                                                             id={`rex-wirk-${r.id}`}
-                                                            label="Wirkstoff"
+                                                            label={t("page.rezepte.field.active_ingredient")}
                                                             value={rezeptEditForm.wirkstoff}
                                                             disabled={!rezeptEditUnlocked}
                                                             onChange={(e) =>
@@ -593,7 +599,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                             <Input
                                                                 id={`rex-dos-${r.id}`}
-                                                                label="Dosierung *"
+                                                                label={t("page.rezepte.field.dosage")}
                                                                 value={rezeptEditForm.dosierung}
                                                                 disabled={!rezeptEditUnlocked}
                                                                 onChange={(e) =>
@@ -604,7 +610,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                             />
                                                             <Input
                                                                 id={`rex-dauer-${r.id}`}
-                                                                label="Dauer *"
+                                                                label={t("page.rezepte.field.duration")}
                                                                 value={rezeptEditForm.dauer}
                                                                 disabled={!rezeptEditUnlocked}
                                                                 onChange={(e) =>
@@ -616,7 +622,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         </div>
                                                         <Textarea
                                                             id={`rex-hin-${r.id}`}
-                                                            label="Hinweise"
+                                                            label={t("common.notes")}
                                                             rows={2}
                                                             value={rezeptEditForm.hinweise}
                                                             disabled={!rezeptEditUnlocked}
@@ -644,7 +650,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         type="button"
                                                         onClick={() => handlePrintRezept(r)}
                                                     >
-                                                        Exportieren…
+                                                        {t("common.export")}
                                                     </Button>
                                                     {canWriteMedical ? (
                                                         <>
@@ -665,7 +671,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                     setRezeptEdit(r);
                                                                 }}
                                                             >
-                                                                Bearbeiten
+                                                                {t("common.edit")}
                                                             </Button>
                                                             <Button
                                                                 variant="danger"
@@ -676,7 +682,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                     setRezeptDeleteId(r.id);
                                                                 }}
                                                             >
-                                                                Löschen
+                                                                {t("common.delete")}
                                                             </Button>
                                                         </>
                                                     ) : null}
@@ -696,16 +702,20 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     area="patient_akte_rezept_delete"
                     open={canWriteMedical && !!rezeptDeleteId}
                     inlineId="ak-rezept-delete-panel"
-                    title="Rezept löschen"
+                    title={t("page.patient_detail.rezept.delete_title")}
                     message={(() => {
                         const r = rezepte.find((x) => x.id === rezeptDeleteId);
                         return r
-                            ? `Das Rezept „${r.medikament}“ (${r.dosierung}, ${r.dauer}) wirklich löschen?`
-                            : "Dieses Rezept wirklich löschen?";
+                            ? tp("page.patient_detail.rezept.delete_confirm", {
+                                medication: r.medikament,
+                                dosage: r.dosierung,
+                                duration: r.dauer,
+                            })
+                            : t("page.patient_detail.rezept.delete_confirm_generic");
                     })()}
                     onCancel={() => setRezeptDeleteId(null)}
                     onConfirm={() => void handleDeleteRezept()}
-                    confirmLabel="Ja, löschen"
+                    confirmLabel={t("common.yes_delete")}
                     danger
                 />
             ) : null}
@@ -716,22 +726,22 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
         ) : (
         <>
         <CardHeader
-            title="Atteste"
-            subtitle="Wie bei den Rezepten: vordefinierte Praxis-Vorlage wählen oder neu erfassen — der Assistent erscheint oben in der Liste."
+            title={t("page.patient_detail.attest.title")}
+            subtitle={t("page.patient_detail.attest.subtitle")}
             action={canWriteMedical ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Button type="button" size="sm" variant="secondary" onClick={openAttestPick} disabled={!id}>
-                        Vordefiniertes Attest
+                        {t("page.patient_detail.attest.predefined_btn")}
                     </Button>
                     <Button type="button" size="sm" onClick={openAttestNeu} disabled={!id}>
-                        <PlusIcon /> Neues Attest
+                        <PlusIcon /> {t("page.patient_detail.attest.new_btn")}
                     </Button>
                 </div>
             ) : null}
         />
         {!canWriteMedical ? (
             <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: 16 }}>
-                Atteste können nur von Berechtigten mit ärztlicher Freigabe angelegt oder gelöscht werden. Die Liste ist einsehbar, sofern Ihre Rolle Zugriff auf die Akte hat.
+                {t("page.patient_detail.attest.readonly_hint")}
             </p>
         ) : null}
 
@@ -741,26 +751,26 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     id="ak-attest-wizard-panel"
                     className="rezept-akte-panel"
                     role="region"
-                    aria-label="Attest erfassen"
+                    aria-label={t("page.patient_detail.attest.wizard_aria")}
                 >
                     <div className="rezept-akte-panel-head">
                         <div>
                             <div className="rezept-akte-panel-title">
-                                {attestWizardStep === "pick" ? "Vordefiniertes Attest wählen" : null}
+                                {attestWizardStep === "pick" ? t("page.patient_detail.attest.wizard_pick_title") : null}
                                 {attestWizardStep === "compose"
-                                    ? (attestComposerKind === "vorlage" ? "Attest aus Vorlage" : "Neues Attest")
+                                    ? (attestComposerKind === "vorlage" ? t("page.patient_detail.attest.wizard_from_template") : t("page.patient_detail.attest.wizard_new"))
                                     : null}
-                                {attestWizardStep === "ask_vorlage" ? "Als Praxis-Vorlage speichern?" : null}
-                                {attestWizardStep === "name_vorlage" ? "Name der neuen Vorlage" : null}
+                                {attestWizardStep === "ask_vorlage" ? t("page.patient_detail.attest.wizard_save_template_q") : null}
+                                {attestWizardStep === "name_vorlage" ? t("page.patient_detail.attest.wizard_template_name") : null}
                             </div>
                             {attestWizardStep === "pick" ? (
                                 <div className="rezept-akte-panel-sub">
-                                    Namen eingeben oder aus der Liste wählen. Anschließend können Sie Text und Zeitraum anpassen — die Praxis-Vorlage selbst bleibt unverändert.
+                                    {t("page.patient_detail.attest.pick_sub")}
                                 </div>
                             ) : null}
                             {attestWizardStep === "compose" ? (
                                 <div className="rezept-akte-panel-sub">
-                                    Inhalt prüfen, Gültigkeit anpassen, dann für den Patienten speichern.
+                                    {t("page.patient_detail.attest.compose_sub")}
                                 </div>
                             ) : null}
                         </div>
@@ -773,7 +783,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                             }}
                             disabled={attestComposerBusy}
                         >
-                            Schließen
+                            {t("common.close")}
                         </Button>
                     </div>
 
@@ -787,14 +797,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 </datalist>
                                 <Input
                                     id="ak-att-pick-q"
-                                    label="Vorlage suchen"
+                                    label={t("common.template_search")}
                                     list="ak-attest-vorlagen-dl"
                                     value={attestPickQuery}
                                     onChange={(e) => {
                                         setAttestPickQuery(e.target.value);
                                         setAttestPickSelectedId("");
                                     }}
-                                    placeholder="Titel tippen…"
+                                    placeholder={t("common.search_title_ph")}
                                 />
                                 <div
                                     style={{
@@ -808,7 +818,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 >
                                     {attestPickFiltered.length === 0 ? (
                                         <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
-                                            Keine Treffer — unter Verwaltung → Vorlagen (Rezepte und Atteste) anlegen.
+                                            {t("page.patient_detail.attest.no_results")}
                                         </span>
                                     ) : (
                                         attestPickFiltered.slice(0, 24).map((v) => (
@@ -844,7 +854,9 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                             color: "var(--accent-ink)",
                                         }}
                                     >
-                                        Sie haben die Vorlage angepasst — es handelt sich um ein <strong>neues Attest</strong> für diesen Patienten. Die hinterlegte Praxis-Vorlage wird nicht überschrieben.
+                                        {t("page.patient_detail.attest.template_modified").split(t("page.patient_detail.attest.template_modified_emphasis"))[0]}
+                                        <strong>{t("page.patient_detail.attest.template_modified_emphasis")}</strong>
+                                        {t("page.patient_detail.attest.template_modified").split(t("page.patient_detail.attest.template_modified_emphasis"))[1]}
                                     </p>
                                 ) : null}
                                 {attestDraftErr ? (
@@ -852,13 +864,13 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 ) : null}
                                 <Select
                                     id="ak-att-typ"
-                                    label="Attesttyp *"
+                                    label={t("page.patient_detail.attest.field.type")}
                                     value={attestForm.typ}
                                     onChange={(e) => setAttestForm({ ...attestForm, typ: e.target.value })}
                                     options={[...ATTEST_TYP_OPTIONS]}
                                 />
                                 <div className="row" style={{ gap: 16, flexWrap: "wrap", marginTop: 8 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 600 }}>Bescheinigung:</span>
+                                    <span style={{ fontSize: 13, fontWeight: 600 }}>{t("page.patient_detail.attest.certification")}</span>
                                     <label className="row" style={{ gap: 6, fontSize: 13 }}>
                                         <input
                                             type="radio"
@@ -866,7 +878,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                             checked={attestForm.erst_oder_folge === "ERST"}
                                             onChange={() => setAttestForm({ ...attestForm, erst_oder_folge: "ERST" })}
                                         />
-                                        Erstbescheinigung
+                                        {t("page.patient_detail.attest.first_cert")}
                                     </label>
                                     <label className="row" style={{ gap: 6, fontSize: 13 }}>
                                         <input
@@ -875,20 +887,20 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                             checked={attestForm.erst_oder_folge === "FOLGE"}
                                             onChange={() => setAttestForm({ ...attestForm, erst_oder_folge: "FOLGE" })}
                                         />
-                                        Folgebescheinigung
+                                        {t("page.patient_detail.attest.follow_cert")}
                                     </label>
                                 </div>
                                 <Input
                                     id="ak-att-icd"
-                                    label="Diagnose (ICD-10)"
+                                    label={t("page.patient_detail.attest.field.icd")}
                                     value={attestForm.icd10_code}
                                     onChange={(e) => setAttestForm({ ...attestForm, icd10_code: e.target.value })}
-                                    placeholder="z. B. K04.0"
+                                    placeholder={t("page.patient_detail.attest.field.icd_ph")}
                                 />
                                 {attestForm.typ.includes("Arbeitsunfähig") ? (
                                     <Input
                                         id="ak-att-ag"
-                                        label="Arbeitgeber"
+                                        label={t("page.patient_detail.attest.employer")}
                                         value={attestForm.arbeitgeber}
                                         onChange={(e) => setAttestForm({ ...attestForm, arbeitgeber: e.target.value })}
                                     />
@@ -900,15 +912,15 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 </datalist>
                                 <Input
                                     id="ak-att-krank"
-                                    label="Diagnose / Befund *"
+                                    label={t("page.patient_detail.attest.diagnosis")}
                                     list="ak-attest-krank-dl"
                                     value={attestForm.krankheiten}
                                     onChange={(e) => setAttestForm({ ...attestForm, krankheiten: e.target.value })}
-                                    placeholder="Frei eingeben oder aus Vorschlägen wählen"
+                                    placeholder={t("page.patient_detail.attest.diagnosis_ph")}
                                 />
                                 <Input
                                     id="ak-att-tage"
-                                    label="Anzahl der Tage *"
+                                    label={t("page.patient_detail.attest.field.days")}
                                     type="number"
                                     min={1}
                                     max={366}
@@ -927,7 +939,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     <Input
                                         id="ak-att-von"
                                         type="date"
-                                        label="Gültig von *"
+                                        label={`${t("common.valid_from")} *`}
                                         value={attestForm.gueltig_von}
                                         onChange={(e) => {
                                             const von = e.target.value;
@@ -941,14 +953,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     <Input
                                         id="ak-att-bis"
                                         type="date"
-                                        label="Gültig bis *"
+                                        label={`${t("common.valid_until")} *`}
                                         value={attestForm.gueltig_bis}
                                         onChange={(e) => setAttestForm({ ...attestForm, gueltig_bis: e.target.value })}
                                     />
                                 </div>
                                 <Textarea
                                     id="ak-att-ein"
-                                    label="Empfohlene Tätigkeitseinschränkung"
+                                    label={t("page.patient_detail.attest.field.restriction")}
                                     rows={4}
                                     value={attestForm.einschraenkung}
                                     onChange={(e) => setAttestForm({ ...attestForm, einschraenkung: e.target.value })}
@@ -958,19 +970,19 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
 
                         {attestWizardStep === "ask_vorlage" ? (
                             <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.5 }}>
-                                <strong>Ja:</strong> zusätzlich eine wiederverwendbare Praxis-Vorlage anlegen (Name im nächsten Schritt).
+                                <strong>{t("common.yes")}:</strong> {t("page.patient_detail.attest.ask_template_yes")}
                                 {" "}
-                                <strong>Nein:</strong> nur das Attest für diesen Patienten speichern.
+                                <strong>{t("common.no")}:</strong> {t("page.patient_detail.attest.ask_template_no")}
                             </p>
                         ) : null}
 
                         {attestWizardStep === "name_vorlage" ? (
                             <Input
                                 id="ak-att-vorlage-name"
-                                label="Bezeichnung der Vorlage"
+                                label={t("common.template_label")}
                                 value={attestNewVorlageTitel}
                                 onChange={(e) => setAttestNewVorlageTitel(e.target.value)}
-                                placeholder="z. B. Standard AU nach Extraktion"
+                                placeholder={t("page.patient_detail.attest.template_ph")}
                             />
                         ) : null}
                     </div>
@@ -979,17 +991,17 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                         {attestWizardStep === "pick" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => resetAttestWizard()}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button type="button" onClick={proceedAttestPick}>
-                                    Weiter
+                                    {t("common.next")}
                                 </Button>
                             </>
                         ) : null}
                         {attestWizardStep === "compose" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => resetAttestWizard()} disabled={attestComposerBusy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -997,24 +1009,24 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     loading={attestComposerBusy}
                                     disabled={attestComposerBusy}
                                 >
-                                    Attest für Patient speichern
+                                    {t("page.patient_detail.attest.save_for_patient")}
                                 </Button>
                             </>
                         ) : null}
                         {attestWizardStep === "ask_vorlage" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={onAttestAskVorlageNo}>
-                                    Nein
+                                    {t("common.no")}
                                 </Button>
                                 <Button type="button" onClick={onAttestAskVorlageYes}>
-                                    Ja
+                                    {t("common.yes")}
                                 </Button>
                             </>
                         ) : null}
                         {attestWizardStep === "name_vorlage" ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={onAttestNameVorlageSkip} disabled={attestComposerBusy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -1022,7 +1034,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     loading={attestComposerBusy}
                                     disabled={attestComposerBusy}
                                 >
-                                    Vorlage anlegen und Attest speichern
+                                    {t("page.patient_detail.attest.save_template_and")}
                                 </Button>
                             </>
                         ) : null}
@@ -1030,16 +1042,16 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                 </div>
             ) : null}
 
-        <FormSection title="Attestliste dieser Akte">
+        <FormSection title={t("page.patient_detail.attest.list_section")}>
             {atteste.length === 0 ? (
                 <EmptyState
                     icon="📄"
-                    title="Keine Atteste in dieser Akte"
+                    title={t("page.patient_detail.attest.empty_title")}
                     description={canWriteMedical
-                        ? "Nutzen Sie die Buttons oben — der Assistent erscheint direkt oben in der Liste."
-                        : "Für diese Akte wurden noch keine Atteste erfasst."}
+                        ? t("page.patient_detail.attest.empty_desc_write")
+                        : t("page.patient_detail.attest.empty_desc_read")}
                     action={canWriteMedical && id
-                        ? { label: "Neues Attest", onClick: openAttestNeu }
+                        ? { label: t("page.patient_detail.attest.new_btn"), onClick: openAttestNeu }
                         : undefined}
                 />
             ) : (
@@ -1047,11 +1059,11 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     <table className="tbl">
                         <thead>
                             <tr>
-                                <th>Typ</th>
-                                <th>Gültig von</th>
-                                <th>Gültig bis</th>
-                                <th>Ausgestellt</th>
-                                <th style={{ minWidth: 200 }}>Aktion</th>
+                                <th>{t("page.patient_detail.attest.col.type")}</th>
+                                <th>{t("common.valid_from")}</th>
+                                <th>{t("common.valid_until")}</th>
+                                <th>{t("common.issued")}</th>
+                                <th style={{ minWidth: 200 }}>{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1064,7 +1076,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     <td>
                                         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                                             <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
-                                                Exportieren…
+                                                {t("common.export")}
                                             </Button>
                                             {canWriteMedical ? (
                                                 <Button
@@ -1076,7 +1088,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                         setAttestDeleteId(a.id);
                                                     }}
                                                 >
-                                                    Löschen
+                                                    {t("common.delete")}
                                                 </Button>
                                             ) : (
                                                 <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
@@ -1095,16 +1107,20 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                     area="patient_akte_attest_delete"
                     open={canWriteMedical && !!attestDeleteId}
                     inlineId="ak-attest-delete-panel"
-                    title="Attest löschen"
+                    title={t("page.patient_detail.attest.delete_title")}
                     message={(() => {
                         const a = atteste.find((x) => x.id === attestDeleteId);
                         return a
-                            ? `Das Attest „${a.typ}“ (gültig ${formatDate(a.gueltig_von)} – ${formatDate(a.gueltig_bis)}) wirklich löschen?`
-                            : "Dieses Attest wirklich löschen?";
+                            ? tp("page.patient_detail.attest.delete_confirm", {
+                                type: a.typ,
+                                from: formatDate(a.gueltig_von),
+                                to: formatDate(a.gueltig_bis),
+                            })
+                            : t("page.patient_detail.attest.delete_confirm_generic");
                     })()}
                     onCancel={() => setAttestDeleteId(null)}
                     onConfirm={() => void handleDeleteAttest()}
-                    confirmLabel="Ja, löschen"
+                    confirmLabel={t("common.yes_delete")}
                     danger
                 />
             ) : null}

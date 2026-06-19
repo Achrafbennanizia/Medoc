@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -18,6 +19,8 @@ export type DischargeMerkblattDialogProps = {
 };
 
 export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: DischargeMerkblattDialogProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [zusatzHinweise, setZusatzHinweise] = useState("");
     const [ueberweisungHinweise, setUeberweisungHinweise] = useState("");
@@ -42,7 +45,7 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
 
     const runExport = useCallback(async () => {
         if (!patient) {
-            toast("Keine Patientendaten geladen.", "error");
+            toast(t("export.picker.no_patient"), "error");
             return;
         }
         if (!praxisReadiness.ready) {
@@ -69,7 +72,7 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
             });
             onClose();
         } catch (e) {
-            toast(`PDF konnte nicht erstellt werden: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("discharge.merkblatt.pdf_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -88,14 +91,14 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
         <Dialog
             open={open}
             onClose={onClose}
-            title="Entlassungs-Merkblatt (PDF)"
+            title={t("discharge.merkblatt.title")}
             footer={
                 <div className="modal-actions" style={{ justifyContent: "flex-end", gap: 8 }}>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                         Abbrechen
                     </Button>
                     <Button type="button" variant="primary" onClick={() => void runExport()} disabled={busy || !patient}>
-                        {busy ? "Erstellt…" : "PDF erstellen"}
+                        {busy ? t("discharge.merkblatt.creating") : t("discharge.merkblatt.create_pdf")}
                     </Button>
                 </div>
             }
@@ -106,24 +109,24 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
                     Freitextfelder sind optional.
                 </p>
                 <label className="stack gap-1" style={{ fontSize: 13 }}>
-                    <span style={{ fontWeight: 600 }}>Überweisung / weiterführende Versorgung</span>
+                    <span style={{ fontWeight: 600 }}>{t("discharge.merkblatt.referral")}</span>
                     <textarea
                         className="input"
                         rows={3}
                         value={ueberweisungHinweise}
                         onChange={(e) => setUeberweisungHinweise(e.target.value)}
-                        placeholder="z. B. Überweisung an …"
+                        placeholder={t("discharge.merkblatt.referral_ph")}
                         disabled={busy}
                     />
                 </label>
                 <label className="stack gap-1" style={{ fontSize: 13 }}>
-                    <span style={{ fontWeight: 600 }}>Zusätzliche Hinweise / Nachsorge</span>
+                    <span style={{ fontWeight: 600 }}>{t("discharge.merkblatt.extra_notes")}</span>
                     <textarea
                         className="input"
                         rows={3}
                         value={zusatzHinweise}
                         onChange={(e) => setZusatzHinweise(e.target.value)}
-                        placeholder="z. B. Mundhygiene, Kontrolltermin …"
+                        placeholder={t("discharge.merkblatt.extra_ph")}
                         disabled={busy}
                     />
                 </label>

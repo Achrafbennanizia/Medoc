@@ -1,7 +1,7 @@
 /** Sidebar section ordering — keys must exist in {@link NAV_ITEM_DEFINITIONS} (`rbac.ts`). */
 import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
 
-export type NavSectionDefinition = { label: string; items: string[] };
+export type NavSectionDefinition = { labelKey: string; items: string[] };
 
 const BEHANDLUNG_ITEMS: string[] = [
     "/patienten",
@@ -13,13 +13,13 @@ const BEHANDLUNG_ITEMS: string[] = [
 ];
 
 export const NAV_SECTIONS: NavSectionDefinition[] = [
-    { label: "Übersicht", items: ["/", "/termine"] },
+    { labelKey: "nav.section.overview", items: ["/", "/termine"] },
     {
-        label: "Behandlung",
+        labelKey: "nav.section.clinical",
         items: BEHANDLUNG_ITEMS,
     },
     {
-        label: "Praxis",
-        items: ["/finanzen", "/finanzen/kasse", "/bestellungen", "/verwaltung", "/einstellungen"],
+        labelKey: "nav.section.practice",
+        items: ["/finanzen", "/finanzen/kasse", "/bestellungen", "/leistungen", "/produkte", "/personal/arbeitszeit", "/verwaltung", "/einstellungen"],
     },
 ];

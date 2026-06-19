@@ -1,5 +1,6 @@
 import { deriveAnlageDisplayName } from "@/lib/akte-anlagen";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import type { RezeptLine } from "@/lib/medikamente";
 import type { AttestComposerFormFields } from "@/lib/attest-composer";
 import type { Behandlung, BehandlungsKatalogItem } from "@/models/types";
@@ -16,8 +17,13 @@ export function isPatientenakteMissingError(e: unknown): boolean {
     return m.includes("Patientenakte nicht gefunden") || /Patientenakte.*?nicht gefunden/i.test(m);
 }
 
-export const PATIENT_DETAIL_TAB_IDS = ["stamm", "anam", "unter", "behand", "rezept", "anlage", "zahl"] as const;
+export const PATIENT_DETAIL_TAB_IDS = ["anam", "unter", "behand", "rezept", "anlage", "zahl"] as const;
 export type PatientDetailAkteTab = (typeof PATIENT_DETAIL_TAB_IDS)[number];
+
+/** Default akte sub-nav tab when no hash is present (Stammdaten live in the hero header). */
+export function patientDetailDefaultTab(canViewClinical: boolean): PatientDetailAkteTab {
+    return canViewClinical ? "anam" : "rezept";
+}
 
 /** Tabs that require `patient.read_medical` (GAP-01 / REZ need-to-know). */
 export const CLINICAL_PATIENT_DETAIL_TABS = ["anam", "unter", "behand"] as const satisfies readonly PatientDetailAkteTab[];
@@ -45,39 +51,63 @@ export type AkteSavePending =
 export const PATIENT_DETAIL_TOAST_UNDO_MS = 5200;
 
 export function akteSaveConfirmUi(p: AkteSavePending): { title: string; message: string; confirmLabel: string } {
+    const locale = useLocale.getState().locale;
+    const tp = (key: string, params: Record<string, string | number>) =>
+        translateLocaleParams(locale, key, params);
     switch (p.kind) {
         case "rezept_finalize_vorlage":
             return {
-                title: "Vorlage und Rezepte speichern",
-                message: `Praxis-Vorlage „${p.titel}“ anlegen und ${p.lines.length} Rezeptzeile${p.lines.length === 1 ? "" : "n"} speichern?`,
-                confirmLabel: "Speichern",
+                title: t("patient.detail.confirm.rezept_vorlage_title"),
+                message: tp("patient.detail.confirm.rezept_vorlage_message", {
+                    title: p.titel,
+                    count: p.lines.length,
+                    suffix: p.lines.length === 1 ? "" : "n",
+                }),
+                confirmLabel: t("common.save"),
             };
         case "attest_finalize_vorlage":
             return {
-                title: "Vorlage und Attest speichern",
-                message: `Praxis-Vorlage „${p.titel}“ anlegen und das Attest für diesen Patienten speichern?`,
-                confirmLabel: "Speichern",
+                title: t("patient.detail.confirm.attest_vorlage_title"),
+                message: tp("patient.detail.confirm.attest_vorlage_message", { title: p.titel }),
+                confirmLabel: t("common.save"),
             };
         case "anlage_add":
             return {
-                title: "Anlage hinzufügen",
-                message: `Die Datei „${deriveAnlageDisplayName(p.file)}“ dauerhaft in der Akte speichern?`,
-                confirmLabel: "Hinzufügen",
+                title: t("patient.detail.confirm.anlage_add_title"),
+                message: tp("patient.detail.confirm.anlage_add_message", {
+                    name: deriveAnlageDisplayName(p.file),
+                }),
+                confirmLabel: t("common.add"),
             };
         case "anlage_remove":
             return {
-                title: "Anlage entfernen",
-                message: `„${p.name}“ aus den Anlagen entfernen?`,
-                confirmLabel: "Entfernen",
+                title: t("patient.detail.confirm.anlage_remove_title"),
+                message: tp("patient.detail.confirm.anlage_remove_message", { name: p.name }),
+                confirmLabel: t("common.remove"),
             };
         default:
-            return { title: "Bestätigen", message: "Fortfahren?", confirmLabel: "OK" };
+            return {
+                title: t("patient.detail.confirm.generic_title"),
+                message: t("patient.detail.confirm.generic_message"),
+                confirmLabel: t("common.ok"),
+            };
     }
 }
 
 export function patientDetailTabFromHash(hash: string): PatientDetailAkteTab | null {
     const h = hash.replace(/^#/, "");
+    if (h === "stamm") return null;
     return PATIENT_DETAIL_TAB_IDS.includes(h as PatientDetailAkteTab) ? (h as PatientDetailAkteTab) : null;
+}
+
+/** Resolves hash to tab id; legacy `#stamm` maps to the default tab. */
+export function resolvePatientDetailTabFromHash(
+    hash: string,
+    canViewClinical: boolean,
+): PatientDetailAkteTab | null {
+    const h = hash.replace(/^#/, "");
+    if (h === "stamm") return patientDetailDefaultTab(canViewClinical);
+    return patientDetailTabFromHash(hash);
 }
 
 export function rezeptStatusDisplay(status: string): { variant: "success" | "warning" | "default"; label: string } {

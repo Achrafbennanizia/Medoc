@@ -20,8 +20,9 @@ import {
 } from "@/systems/lan/controllers/pairing-scan.controller";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, formatTpl } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT } from "@/lib/i18n";
 
 type Phase = "scan" | "request" | "waiting" | "pin" | "accepted" | "rejected";
 type Transport = "lan" | "bluetooth";
@@ -30,6 +31,7 @@ const POLL_INTERVAL_MS = 2000;
 
 export function PairingScanPage() {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
     const [phase, setPhase] = useState<Phase>("scan");
     const [transport, setTransport] = useState<Transport>("lan");
     const [hits, setHits] = useState<DiscoveredMaster[]>([]);
@@ -45,11 +47,22 @@ export function PairingScanPage() {
     const [pinBusy, setPinBusy] = useState(false);
     const pollRef = useRef<number | null>(null);
 
+    const transportLabel = transport === "bluetooth" ? "Bluetooth" : "LAN";
+
     const stopPoll = () => {
         if (pollRef.current !== null) {
             window.clearInterval(pollRef.current);
             pollRef.current = null;
         }
+    };
+
+    const resetPairing = () => {
+        stopPoll();
+        setPhase("scan");
+        setSubmission(null);
+        setSnapshot(null);
+        setSelected(null);
+        setPinInput("");
     };
 
     const scan = useCallback(async () => {
@@ -63,20 +76,23 @@ export function PairingScanPage() {
             if (masters.length === 0) {
                 toast(
                     transport === "bluetooth"
-                        ? "Keine Master per Bluetooth gefunden. Master muss im LAN-Modus erreichbar sein."
-                        : "Keine Master im LAN gefunden. Sicherstellen, dass medoc-server läuft.",
+                        ? t("page.lan.pairing_scan.toast.no_master_bt")
+                        : t("page.lan.pairing_scan.toast.no_master_lan"),
                     "warning",
                 );
             }
         } catch (e) {
             toast(
-                `${transport === "bluetooth" ? "Bluetooth" : "LAN"}-Scan: ${errorMessage(e)}`,
+                formatTpl(t("page.lan.pairing_scan.toast.scan_err"), {
+                    transport: transportLabel,
+                    error: errorMessage(e),
+                }),
                 "error",
             );
         } finally {
             setScanBusy(false);
         }
-    }, [toast, transport]);
+    }, [toast, t, transport, transportLabel]);
 
     useEffect(() => {
         void scan();
@@ -95,9 +111,14 @@ export function PairingScanPage() {
                         try {
                             await pairingPersistToken(snap.activationToken);
                             setPhase("accepted");
-                            toast("Pairing akzeptiert — Aktivierungstoken gespeichert.", "success");
+                            toast(t("page.lan.pairing_scan.toast.accepted"), "success");
                         } catch (e) {
-                            toast(`Token speichern: ${errorMessage(e)}`, "error");
+                            toast(
+                                formatTpl(t("page.lan.pairing_scan.toast.save_token_err"), {
+                                    error: errorMessage(e),
+                                }),
+                                "error",
+                            );
                         }
                     } else if (snap.awaitingPin) {
                         stopPoll();
@@ -107,20 +128,23 @@ export function PairingScanPage() {
                         setPhase("rejected");
                     }
                 } catch (e) {
-                    toast(`Status: ${errorMessage(e)}`, "warning");
+                    toast(
+                        formatTpl(t("page.lan.pairing_scan.toast.status_err"), { error: errorMessage(e) }),
+                        "warning",
+                    );
                 }
             };
             void tick();
             pollRef.current = window.setInterval(() => void tick(), POLL_INTERVAL_MS);
         },
-        [toast],
+        [toast, t],
     );
 
     const submitPin = async () => {
         if (!submission || !selected) return;
         const digits = pinInput.replace(/\D/g, "");
         if (digits.length !== 4) {
-            toast("Bitte den 4-stelligen Code vom Master eingeben.", "error");
+            toast(t("page.lan.pairing_scan.toast.pin_required"), "error");
             return;
         }
         setPinBusy(true);
@@ -134,10 +158,13 @@ export function PairingScanPage() {
             if (snap.activationToken) {
                 await pairingPersistToken(snap.activationToken);
                 setPhase("accepted");
-                toast("Kopplung abgeschlossen — Aktivierungstoken gespeichert.", "success");
+                toast(t("page.lan.pairing_scan.toast.complete"), "success");
             }
         } catch (e) {
-            toast(`Bestätigungscode: ${errorMessage(e)}`, "error");
+            toast(
+                formatTpl(t("page.lan.pairing_scan.toast.confirm_err"), { error: errorMessage(e) }),
+                "error",
+            );
         } finally {
             setPinBusy(false);
         }
@@ -156,11 +183,11 @@ export function PairingScanPage() {
               }
             : null);
         if (!master) {
-            toast("Master-URL eingeben oder aus der Liste wählen.", "warning");
+            toast(t("page.lan.pairing_scan.toast.select_master"), "warning");
             return;
         }
         if (!label.trim()) {
-            toast("Bitte Gerätebezeichnung eingeben.", "error");
+            toast(t("page.lan.pairing_scan.toast.device_label_required"), "error");
             return;
         }
         setSubmitBusy(true);
@@ -176,7 +203,10 @@ export function PairingScanPage() {
             setPhase("waiting");
             startPolling(result.requestId, master.baseUrl);
         } catch (e) {
-            toast(`Pairing-Anfrage: ${errorMessage(e)}`, "error");
+            toast(
+                formatTpl(t("page.lan.pairing_scan.toast.submit_err"), { error: errorMessage(e) }),
+                "error",
+            );
         } finally {
             setSubmitBusy(false);
         }
@@ -185,16 +215,14 @@ export function PairingScanPage() {
     if (phase === "accepted") {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
-                <h1 className="card-title">Pairing erfolgreich</h1>
-                <p>
-                    Dieses Gerät ist als Replica mit dem Master gekoppelt. Du kannst die App
-                    jetzt normal verwenden — Daten werden im Hintergrund synchronisiert.
-                </p>
+                <h1 className="card-title">{t("page.lan.pairing_scan.title.accepted")}</h1>
+                <p>{t("page.lan.pairing_scan.body.accepted")}</p>
                 <p className="card-sub">
-                    Aktivierungstoken: <code>{snapshot?.activationToken?.slice(0, 32)}…</code>
+                    {t("page.lan.pairing_scan.activation_token")}{" "}
+                    <code>{snapshot?.activationToken?.slice(0, 32)}…</code>
                 </p>
                 <Button type="button" onClick={() => window.location.reload()}>
-                    App neu laden
+                    {t("page.lan.pairing_scan.reload")}
                 </Button>
             </main>
         );
@@ -203,11 +231,8 @@ export function PairingScanPage() {
     if (phase === "rejected") {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
-                <h1 className="card-title">Pairing abgelehnt</h1>
-                <p>
-                    Der Master hat die Anfrage abgelehnt oder zurückgezogen. Bitte mit dem
-                    Praxis-Administrator klären und Pairing erneut starten.
-                </p>
+                <h1 className="card-title">{t("page.lan.pairing_scan.title.rejected")}</h1>
+                <p>{t("page.lan.pairing_scan.body.rejected")}</p>
                 <Button
                     type="button"
                     onClick={() => {
@@ -216,7 +241,7 @@ export function PairingScanPage() {
                         setPhase("scan");
                     }}
                 >
-                    Erneut versuchen
+                    {t("page.lan.pairing_scan.retry")}
                 </Button>
             </main>
         );
@@ -225,14 +250,11 @@ export function PairingScanPage() {
     if (phase === "pin" && submission && selected) {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
-                <h1 className="card-title">Bestätigungscode eingeben</h1>
-                <p>
-                    Der Master hat die Anfrage akzeptiert. Auf dem Master-Gerät wird ein
-                    4-stelliger Code angezeigt — hier eingeben, um die Kopplung abzuschließen.
-                </p>
+                <h1 className="card-title">{t("page.lan.pairing_scan.title.pin")}</h1>
+                <p>{t("page.lan.pairing_scan.body.pin")}</p>
                 <Input
                     id="pairing-pin"
-                    label="Bestätigungscode"
+                    label={t("page.lan.pairing_scan.label.pin")}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={4}
@@ -247,8 +269,13 @@ export function PairingScanPage() {
                     disabled={pinBusy || pinInput.length !== 4}
                     onClick={() => void submitPin()}
                 >
-                    Kopplung abschließen
+                    {t("page.lan.pairing_scan.finish")}
                 </Button>
+                <div className="row" style={{ gap: 8, marginTop: 12 }}>
+                    <Button type="button" variant="ghost" onClick={resetPairing}>
+                        {t("common.cancel")}
+                    </Button>
+                </div>
             </main>
         );
     }
@@ -256,25 +283,33 @@ export function PairingScanPage() {
     if (phase === "waiting" && submission && selected) {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
-                <h1 className="card-title">Warten auf Master-Bestätigung</h1>
-                <p>Auf dem Master akzeptieren: „{selected.label}“ ({selected.baseUrl})</p>
-                <p className="card-sub">
-                    Slave-DeviceID: <code>{submission.deviceId}</code>
+                <h1 className="card-title">{t("page.lan.pairing_scan.title.waiting")}</h1>
+                <p>
+                    {formatTpl(t("page.lan.pairing_scan.waiting_accept"), {
+                        label: selected.label,
+                        url: selected.baseUrl,
+                    })}
                 </p>
                 <p className="card-sub">
-                    Slave-Pubkey: <code style={{ wordBreak: "break-all" }}>{submission.slavePubkey}</code>
+                    {t("page.lan.pairing_scan.slave_device_id")} <code>{submission.deviceId}</code>
                 </p>
                 <p className="card-sub">
-                    Master-Pubkey:{" "}
+                    {t("page.lan.pairing_scan.slave_pubkey")}{" "}
+                    <code style={{ wordBreak: "break-all" }}>{submission.slavePubkey}</code>
+                </p>
+                <p className="card-sub">
+                    {t("page.lan.pairing_scan.master_pubkey")}{" "}
                     <code style={{ wordBreak: "break-all" }}>{submission.masterPubkey}</code>
                 </p>
                 <p className="card-sub">
-                    Status: <strong>{snapshot?.status ?? "PENDING"}</strong>
+                    {t("page.lan.pairing_scan.status")} <strong>{snapshot?.status ?? "PENDING"}</strong>
                 </p>
-                <p className="card-sub">
-                    Vergleiche die Fingerabdrücke mit dem Master-Display, bevor du dem
-                    Pairing zustimmst (Schutz vor MITM).
-                </p>
+                <p className="card-sub">{t("page.lan.pairing_scan.mitm_hint")}</p>
+                <div className="row" style={{ gap: 8, marginTop: 16 }}>
+                    <Button type="button" variant="ghost" onClick={resetPairing}>
+                        {t("common.cancel")}
+                    </Button>
+                </div>
             </main>
         );
     }
@@ -284,12 +319,9 @@ export function PairingScanPage() {
             <header className="card-head">
                 <div>
                     <h1 id="pairing-scan-heading" className="card-title">
-                        Replica koppeln
+                        {t("page.lan.pairing_scan.title")}
                     </h1>
-                    <p className="card-sub">
-                        Master per LAN oder Bluetooth suchen, Pairing-Anfrage senden, auf dem
-                        Master akzeptieren lassen und den 4-stelligen Bestätigungscode eingeben.
-                    </p>
+                    <p className="card-sub">{t("page.lan.pairing_scan.subtitle")}</p>
                     <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <input
@@ -298,7 +330,7 @@ export function PairingScanPage() {
                                 checked={transport === "lan"}
                                 onChange={() => setTransport("lan")}
                             />
-                            LAN (UDP)
+                            {t("page.lan.pairing_scan.transport.lan")}
                         </label>
                         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <input
@@ -307,21 +339,23 @@ export function PairingScanPage() {
                                 checked={transport === "bluetooth"}
                                 onChange={() => setTransport("bluetooth")}
                             />
-                            Bluetooth
+                            {t("page.lan.pairing_scan.transport.bluetooth")}
                         </label>
                     </div>
                 </div>
                 <Button type="button" onClick={() => void scan()} disabled={scanBusy} loading={scanBusy}>
-                    {transport === "bluetooth" ? "Bluetooth scannen" : "LAN scannen"}
+                    {transport === "bluetooth"
+                        ? t("page.lan.pairing_scan.scan_bluetooth")
+                        : t("page.lan.pairing_scan.scan_lan")}
                 </Button>
             </header>
 
             <section style={{ marginTop: 12 }}>
                 <h2 className="card-sub" style={{ margin: 0 }}>
-                    Gefundene Master ({hits.length})
+                    {formatTpl(t("page.lan.pairing_scan.found_masters"), { count: hits.length })}
                 </h2>
                 {hits.length === 0 ? (
-                    <p className="card-sub">Keine Treffer — scanne erneut.</p>
+                    <p className="card-sub">{t("page.lan.pairing_scan.no_hits")}</p>
                 ) : (
                     <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
                         {hits.map((h) => (
@@ -349,9 +383,11 @@ export function PairingScanPage() {
                                     />
                                     <span style={{ flex: 1 }}>
                                         <strong>{h.label}</strong>
-                                        <div className="card-sub">URL: {h.baseUrl}</div>
+                                        <div className="card-sub">
+                                            {t("page.lan.pairing_scan.url")} {h.baseUrl}
+                                        </div>
                                         <div className="card-sub" style={{ wordBreak: "break-all" }}>
-                                            TLS-Fingerabdruck:{" "}
+                                            {t("page.lan.pairing_scan.tls_fingerprint")}{" "}
                                             <code>{h.certSha256.slice(0, 32)}…</code>
                                         </div>
                                     </span>
@@ -364,24 +400,24 @@ export function PairingScanPage() {
 
             <section style={{ marginTop: 16 }}>
                 <h2 className="card-sub" style={{ margin: 0 }}>
-                    Master-URL manuell (Fallback)
+                    {t("page.lan.pairing_scan.manual_title")}
                 </h2>
                 <p className="card-sub">
-                    Wenn der UDP-Scan keinen Treffer liefert, Master-HTTPS-URL einfügen (z. B.{" "}
-                    <code>https://192.168.1.10:8787</code>).
+                    {t("page.lan.pairing_scan.manual_hint")}{" "}
+                    <code>https://192.168.1.10:8787</code>.
                 </p>
                 <Input
                     id="manual-master-url"
-                    label="Master HTTPS-URL"
-                    hint="Vom Master-Operator mitteilen lassen — ohne abschließenden Schrägstrich."
+                    label={t("page.lan.pairing_scan.label.master_url")}
+                    hint={t("page.lan.pairing_scan.hint.master_url")}
                     placeholder="https://192.168.1.10:8787"
                     value={manualUrl}
                     onChange={(e) => setManualUrl(e.target.value)}
                 />
                 <Input
                     id="manual-master-cert"
-                    label="TLS SHA-256 (optional)"
-                    hint="Leaf-Zertifikat SHA-256 (hex, ohne Doppelpunkte) zum Abgleich mit dem Master-Display."
+                    label={t("page.lan.pairing_scan.label.tls_sha256")}
+                    hint={t("page.lan.pairing_scan.hint.tls_sha256")}
                     value={manualCert}
                     onChange={(e) => setManualCert(e.target.value)}
                 />
@@ -390,8 +426,8 @@ export function PairingScanPage() {
             <section style={{ marginTop: 16 }}>
                 <Input
                     id="slave-label"
-                    label="Gerätebezeichnung"
-                    placeholder="z. B. Empfang iPad"
+                    label={t("page.lan.pairing_scan.label.device")}
+                    placeholder={t("page.lan.pairing_scan.placeholder.device")}
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                 />
@@ -402,7 +438,7 @@ export function PairingScanPage() {
                     disabled={submitBusy || (!selected && !manualUrl.trim())}
                     onClick={() => void submit()}
                 >
-                    Pairing-Anfrage senden
+                    {t("page.lan.pairing_scan.submit")}
                 </Button>
             </section>
         </main>

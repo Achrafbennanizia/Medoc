@@ -16,7 +16,6 @@ import {
     startOfMonth,
     startOfWeek,
 } from "date-fns";
-import { de } from "date-fns/locale";
 import { listPersonal } from "@/systems/practice-host/controllers/personal.controller";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -36,6 +35,7 @@ import {
 } from "@/lib/personal-arbeitsplan";
 import {
     newComposeEntryId,
+    parseComposeEntries,
     type ArbeitsplanComposeEntry,
     resolveComposeWorkIntervals,
     composeWorkMinutesForDay,
@@ -54,13 +54,19 @@ import { Select } from "../components/ui/input";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
+import {
+    workTimeGetPreference,
+    workTimeSetPreference,
+} from "@/systems/practice-host/controllers/work-time.controller";
+import { listArbeitsplanAdjustments } from "@/systems/practice-host/controllers/arbeitsplan-adjustment.controller";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 
 const DND_MIME = "application/x-medoc-arbeitsblock";
 /** Maximale sichtbare Timeline-Höhe (px) — Tagesansicht; Woche nutzt horizontale Minizeilen. */
 const MAX_TIMELINE_PX = 256;
 
 const ALL_DAYS: Array<1 | 2 | 3 | 4 | 5 | 6 | 7> = [1, 2, 3, 4, 5, 6, 7];
-const DAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const DAY_SHORT_KEYS = ["mo", "di", "mi", "do", "fr", "sa", "so"] as const;
 
 function fromTimeValue(s: string): { h: number; m: number } | null {
     if (!s) return null;
@@ -228,23 +234,46 @@ function totalIntervalMinutes(iv: [number, number][]): number {
 }
 
 /** z. B. 7 h 30 min */
-function formatDurationMins(mins: number): string {
+function formatDurationMins(
+    mins: number,
+    tp: (key: string, params: Record<string, string | number>) => string,
+): string {
     if (mins <= 0) return "—";
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    if (m === 0) return `${h} h`;
-    return `${h} h ${m} min`;
+    if (m === 0) return tp("page.arbeitsplan.duration.hours", { h });
+    return tp("page.arbeitsplan.duration.hours_minutes", { h, m });
 }
 
-function composeEntryLine(e: ArbeitsplanComposeEntry): string {
+function composeEntryLine(
+    e: ArbeitsplanComposeEntry,
+    t: (key: string) => string,
+    tp: (key: string, params: Record<string, string | number>) => string,
+    dayShort: string[],
+): string {
     if (e.kind === "add_range") {
-        const wd = e.weekdays.length > 0 ? ` · ${e.weekdays.map((d) => DAY_SHORT[d - 1]).join("·")}` : " · Mo–So";
-        return `Arbeit ${e.dateFrom}–${e.dateTo}${wd} · ${minToLabel(e.startMin)}–${minToLabel(e.endMin)}`;
+        const wd =
+            e.weekdays.length > 0
+                ? tp("page.arbeitsplan.compose.entry.weekdays_prefix", {
+                      days: e.weekdays.map((d) => dayShort[d - 1]).join("·"),
+                  })
+                : t("page.arbeitsplan.compose.entry.weekdays_all");
+        return tp("page.arbeitsplan.compose.entry.add_range", {
+            from: e.dateFrom,
+            to: e.dateTo,
+            weekdays: wd,
+            start: minToLabel(e.startMin),
+            end: minToLabel(e.endMin),
+        });
     }
     if (e.kind === "cut_range") {
-        return `Frei / Sperre ${e.dateFrom}–${e.dateTo}`;
+        return tp("page.arbeitsplan.compose.entry.cut_range", { from: e.dateFrom, to: e.dateTo });
     }
-    return `Arbeit ${e.date} · ${minToLabel(e.startMin)}–${minToLabel(e.endMin)}`;
+    return tp("page.arbeitsplan.compose.entry.add_day", {
+        date: e.date,
+        start: minToLabel(e.startMin),
+        end: minToLabel(e.endMin),
+    });
 }
 
 function ArbeitsplanComposeCard(props: {
@@ -261,8 +290,11 @@ function ArbeitsplanComposeCard(props: {
     const {
         people, focusId, onFocusId, useInCalendar, onUseInCalendar, entries, canWrite, onAdd, onRemove,
     } = props;
+    const t = useT();
+    const tp = useTParams();
+    const dayShort = useMemo(() => DAY_SHORT_KEYS.map((k) => t(`page.arbeitsplan.day_short.${k}`)), [t]);
     const [addOpen, setAddOpen] = useState(false);
-    const t = useToastStore((s) => s.add);
+    const toast = useToastStore((s) => s.add);
     const [df, setDf] = useState(() => format(new Date(), "yyyy-MM-dd"));
     const [dt, setDt] = useState(() => format(addDays(new Date(), 30), "yyyy-MM-dd"));
     const [dDay, setDDay] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -283,12 +315,12 @@ function ArbeitsplanComposeCard(props: {
 
     const pushAddRange = () => {
         if (!focusId) {
-            t("Bitte Mitarbeiter wählen.", "error");
+            toast(t("page.arbeitsplan.toast.err.select_staff"), "error");
             return;
         }
         const p = parsePair(tStart, tEnd);
         if (!p) {
-            t("Uhrzeit ungültig (Ende nach Beginn).", "error");
+            toast(t("page.arbeitsplan.toast.err.time_invalid"), "error");
             return;
         }
         onAdd({
@@ -301,13 +333,13 @@ function ArbeitsplanComposeCard(props: {
             startMin: p.startMin,
             endMin: p.endMin,
         });
-        t("Eintrag hinzugefügt", "success");
+        toast(t("page.arbeitsplan.toast.compose_entry_added"), "success");
         setAddOpen(false);
     };
 
     const pushCutRange = () => {
         if (!focusId) {
-            t("Bitte Mitarbeiter wählen.", "error");
+            toast(t("page.arbeitsplan.toast.err.select_staff"), "error");
             return;
         }
         onAdd({
@@ -317,18 +349,18 @@ function ArbeitsplanComposeCard(props: {
             dateFrom: df,
             dateTo: dt,
         });
-        t("Sperrzeitraum hinzugefügt", "success");
+        toast(t("page.arbeitsplan.toast.compose_cut_added"), "success");
         setAddOpen(false);
     };
 
     const pushAddDay = () => {
         if (!focusId) {
-            t("Bitte Mitarbeiter wählen.", "error");
+            toast(t("page.arbeitsplan.toast.err.select_staff"), "error");
             return;
         }
         const p = parsePair(tStart, tEnd);
         if (!p) {
-            t("Uhrzeit ungültig (Ende nach Beginn).", "error");
+            toast(t("page.arbeitsplan.toast.err.time_invalid"), "error");
             return;
         }
         onAdd({
@@ -339,24 +371,24 @@ function ArbeitsplanComposeCard(props: {
             startMin: p.startMin,
             endMin: p.endMin,
         });
-        t("Tages-Arbeit hinzugefügt", "success");
+        toast(t("page.arbeitsplan.toast.compose_day_added"), "success");
         setAddOpen(false);
     };
 
     return (
         <div className="card arbeitsplan-pref-card">
             <CardHeader
-                title="Arbeitsplan bauen"
-                subtitle="Einträge hinzufügen (Arbeitszeiten) oder ausschneiden (Sperr-/Freizeiten). Beliebige Reihenfolge — im Kalender rechts erscheint der aufgelöste Soll-Entwurf für die gewählte Person."
+                title={t("page.arbeitsplan.compose.title")}
+                subtitle={t("page.arbeitsplan.compose.subtitle")}
             />
             <div className="card-pad" style={{ paddingTop: 8, display: "flex", flexDirection: "column", gap: 12 }}>
                 {people.length === 0 ? (
-                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>Zuerst Mitarbeiter in der Teamliste anlegen.</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>{t("page.arbeitsplan.compose.no_staff")}</p>
                 ) : (
                     <>
                         <div className="arbeitsplan-settings-row" style={{ flexWrap: "wrap" }}>
                             <Select
-                                label="Vorschau-Kalender für"
+                                label={t("page.arbeitsplan.compose.preview_for")}
                                 value={focusId}
                                 onChange={(e) => onFocusId(e.target.value)}
                                 options={people.map((p) => ({ value: p.id, label: p.name }))}
@@ -367,12 +399,12 @@ function ArbeitsplanComposeCard(props: {
                                     checked={useInCalendar}
                                     onChange={(e) => onUseInCalendar(e.target.checked)}
                                 />
-                                Soll-Entwurf im Kalender (diese Person)
+                                {t("page.arbeitsplan.compose.draft_in_calendar")}
                             </label>
                         </div>
                         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                             {mine.length === 0 ? (
-                                <li style={{ fontSize: 12.5, color: "var(--fg-3)" }}>Noch keine Einträge — unten <strong>+ Hinzufügen</strong>.</li>
+                                <li style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{t("page.arbeitsplan.compose.empty")}</li>
                             ) : (
                                 mine.map((e) => (
                                     <li
@@ -382,10 +414,10 @@ function ArbeitsplanComposeCard(props: {
                                     >
                                         <span>
                                             <span style={{ color: e.kind === "cut_range" ? "#B45309" : "var(--accent)", fontWeight: 700, marginRight: 6 }}>{e.kind === "cut_range" ? "−" : "+"}</span>
-                                            {composeEntryLine(e)}
+                                            {composeEntryLine(e, t, tp, dayShort)}
                                         </span>
                                         {canWrite ? (
-                                            <button type="button" className="btn btn-ghost" style={{ padding: "2px 8px" }} onClick={() => onRemove(e.id)}>Löschen</button>
+                                            <button type="button" className="btn btn-ghost" style={{ padding: "2px 8px" }} onClick={() => onRemove(e.id)}>{t("page.arbeitsplan.delete")}</button>
                                         ) : null}
                                     </li>
                                 ))
@@ -393,22 +425,22 @@ function ArbeitsplanComposeCard(props: {
                         </ul>
                         {canWrite ? (
                             <div>
-                                <Button type="button" size="sm" onClick={() => setAddOpen((o) => !o)}>+ Hinzufügen</Button>
+                                <Button type="button" size="sm" onClick={() => setAddOpen((o) => !o)}>{t("page.arbeitsplan.add")}</Button>
                                 {addOpen ? (
                                     <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--line)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                                        <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>Zeitraum für die ausgewählte Person. «Arbeitszeitraum» = wiederkehrende Sollzeiten; «Sperrzeitraum» = ganze Tage frei; «Einzeltag» = Arbeitszeit an einem Tag.</p>
+                                        <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>{t("page.arbeitsplan.compose.add_hint")}</p>
                                         <div className="arbeitsplan-time-pair" style={{ gap: 8, flexWrap: "wrap" }}>
                                             <div>
-                                                <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>Von</span>
+                                                <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>{t("page.arbeitsplan.label.from")}</span>
                                                 <input type="date" className="input-edit" value={df} onChange={(e) => setDf(e.target.value)} />
                                             </div>
                                             <div>
-                                                <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>Bis</span>
+                                                <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>{t("page.arbeitsplan.label.to")}</span>
                                                 <input type="date" className="input-edit" value={dt} onChange={(e) => setDt(e.target.value)} />
                                             </div>
                                         </div>
                                         <div>
-                                            <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 4 }}>Wochentage (nur Arbeitszeitraum; leer = alle Tage im Zeitraum)</span>
+                                            <span className="arbeitsplan-settings-group__l" style={{ display: "block", marginBottom: 4 }}>{t("page.arbeitsplan.compose.weekdays_label")}</span>
                                             <div className="arbeitsplan-chips" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                                 {ALL_DAYS.map((d) => {
                                                     const on = wds.has(d);
@@ -423,30 +455,30 @@ function ArbeitsplanComposeCard(props: {
                                                                 else n.add(d);
                                                                 return n;
                                                             })}
-                                                        >{DAY_SHORT[d - 1]}</button>
+                                                        >{dayShort[d - 1]}</button>
                                                     );
                                                 })}
                                             </div>
                                         </div>
                                         <div className="arbeitstage-range-grid arbeitsplan-uhrzeit-grid" style={{ maxWidth: 360 }}>
                                             <div className="arbeitstage-range-grid__field">
-                                                <span className="arbeitstage-range-grid__l">Von</span>
+                                                <span className="arbeitstage-range-grid__l">{t("page.arbeitsplan.label.from")}</span>
                                                 <input type="time" step={300} className="arbeitstage-range-grid__in" value={tStart} onChange={(e) => setTStart(e.target.value)} />
                                             </div>
                                             <div className="arbeitstage-range-grid__field arbeitsplan-uhrzeit-grid__bis">
-                                                <span className="arbeitstage-range-grid__l">Bis</span>
+                                                <span className="arbeitstage-range-grid__l">{t("page.arbeitsplan.label.to")}</span>
                                                 <input type="time" step={300} className="arbeitstage-range-grid__in" value={tEnd} onChange={(e) => setTEnd(e.target.value)} />
                                             </div>
                                         </div>
                                         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                                            <Button type="button" variant="secondary" onClick={pushAddRange}>Arbeitszeitraum sichern</Button>
-                                            <Button type="button" variant="secondary" onClick={pushCutRange}>Sperrzeitraum</Button>
+                                            <Button type="button" variant="secondary" onClick={pushAddRange}>{t("page.arbeitsplan.add_range_btn")}</Button>
+                                            <Button type="button" variant="secondary" onClick={pushCutRange}>{t("page.arbeitsplan.compose.cut_range_btn")}</Button>
                                         </div>
                                         <div style={{ borderTop: "1px dashed var(--line)", paddingTop: 10, marginTop: 4 }}>
-                                            <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>Einzeltag (Datum)</span>
+                                            <span className="arbeitsplan-settings-group__l" style={{ display: "block" }}>{t("page.arbeitsplan.compose.single_day")}</span>
                                             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
                                                 <input type="date" className="input-edit" value={dDay} onChange={(e) => setDDay(e.target.value)} />
-                                                <Button type="button" onClick={pushAddDay}>Arbeit an diesem Tag</Button>
+                                                <Button type="button" onClick={pushAddDay}>{t("page.arbeitsplan.add_day_btn")}</Button>
                                             </div>
                                         </div>
                                     </div>
@@ -461,6 +493,9 @@ function ArbeitsplanComposeCard(props: {
 }
 
 export function PersonalArbeitsplanPage() {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
     const [personal, setPersonal] = useState<Personal[]>([]);
     const [store, setStore] = useState<ArbeitsplanStore>(loadArbeitsplanStore);
     const [loading, setLoading] = useState(true);
@@ -472,6 +507,9 @@ export function PersonalArbeitsplanPage() {
     const [deleteBlockId, setDeleteBlockId] = useState<string | null>(null);
     const [dragKey, setDragKey] = useState(0);
     const [dndActiveId, setDndActiveId] = useState<string | null>(null);
+
+    const [autoRecordOnLogin, setAutoRecordOnLogin] = useState(false);
+    const [autoRecordOnLogout, setAutoRecordOnLogout] = useState(false);
 
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
@@ -502,7 +540,28 @@ export function PersonalArbeitsplanPage() {
         setLoadError(null);
         try {
             setPersonal(await listPersonal());
-            setStore(loadArbeitsplanStore());
+            let nextStore = loadArbeitsplanStore();
+            try {
+                const adjustments = await listArbeitsplanAdjustments({ activeOnly: true });
+                const serverEntries: ArbeitsplanComposeEntry[] = [];
+                for (const adj of adjustments) {
+                    try {
+                        const parsed = JSON.parse(adj.payloadJson) as unknown;
+                        serverEntries.push(...parseComposeEntries([parsed]));
+                    } catch {
+                        /* skip malformed */
+                    }
+                }
+                const ids = new Set(nextStore.composeEntries.map((e) => e.id));
+                const merged = serverEntries.filter((e) => !ids.has(e.id));
+                if (merged.length > 0) {
+                    nextStore = { ...nextStore, composeEntries: [...nextStore.composeEntries, ...merged] };
+                    saveArbeitsplanStore(nextStore);
+                }
+            } catch {
+                /* adjustments optional offline */
+            }
+            setStore(nextStore);
         } catch (e) {
             setLoadError(errorMessage(e));
         } finally {
@@ -512,6 +571,15 @@ export function PersonalArbeitsplanPage() {
     useEffect(() => {
         void load();
     }, [load]);
+    useEffect(() => {
+        if (!canWrite) return;
+        void workTimeGetPreference()
+            .then((p) => {
+                setAutoRecordOnLogin(p.autoRecordOnLogin);
+                setAutoRecordOnLogout(p.autoRecordOnLogout);
+            })
+            .catch(() => undefined);
+    }, [canWrite]);
     useEffect(() => {
         const end = () => setDndActiveId(null);
         window.addEventListener("dragend", end);
@@ -611,7 +679,7 @@ export function PersonalArbeitsplanPage() {
         const start = yToMin(e, col);
         const end = start + duration;
         if (end > maxD) {
-            toast(`Außerhalb des Rasters.`, "error");
+            toast(t("page.arbeitsplan.toast.err.grid"), "error");
             return;
         }
         updateStore((s) => ({
@@ -619,7 +687,7 @@ export function PersonalArbeitsplanPage() {
             blocks: [...s.blocks.filter((x) => x.id !== id), { ...b, date: ymdStr, personalId, startMin: start, endMin: end }],
         }));
         setDragKey((k) => k + 1);
-        toast("Einsatz (Detail) verschoben", "success");
+        toast(t("page.arbeitsplan.toast.block_moved"), "success");
     };
 
     const handleDropWeekHBar = useCallback((e: React.DragEvent, ymdStr: string, personalId: string, el: HTMLDivElement) => {
@@ -633,7 +701,7 @@ export function PersonalArbeitsplanPage() {
         const start = xToMin(e, el, minD, daySpan, settings.snapMin);
         const end = start + duration;
         if (end > maxD) {
-            toast("Außerhalb des Rasters.", "error");
+            toast(t("page.arbeitsplan.toast.err.grid"), "error");
             return;
         }
         updateStore((s) => ({
@@ -641,8 +709,8 @@ export function PersonalArbeitsplanPage() {
             blocks: [...s.blocks.filter((x) => x.id !== id), { ...b, date: ymdStr, personalId, startMin: start, endMin: end }],
         }));
         setDragKey((k) => k + 1);
-        toast("Einsatz (Detail) verschoben", "success");
-    }, [canWrite, store.blocks, minD, daySpan, settings.snapMin, maxD, toast, updateStore]);
+        toast(t("page.arbeitsplan.toast.block_moved"), "success");
+    }, [canWrite, store.blocks, minD, daySpan, settings.snapMin, maxD, toast, updateStore, t]);
 
     const handleCreateWeekEinsatz = useCallback((e: React.MouseEvent, ymdStr: string, personalId: string, el: HTMLDivElement) => {
         if (!canWrite) return;
@@ -650,34 +718,95 @@ export function PersonalArbeitsplanPage() {
         const end = Math.min(maxD, start + 4 * 60);
         if (end <= start) return;
         const id = newBlockId();
-        updateStore((s) => ({ ...s, blocks: [...s.blocks, { id, personalId, date: ymdStr, startMin: start, endMin: end, title: "Einsatz" }] }));
+        const blockTitle = t("page.arbeitsplan.block.default_title");
+        updateStore((s) => ({ ...s, blocks: [...s.blocks, { id, personalId, date: ymdStr, startMin: start, endMin: end, title: blockTitle }] }));
         setDragKey((k) => k + 1);
-        toast("Einsatz hinzugefügt", "success");
-    }, [canWrite, minD, daySpan, settings.snapMin, maxD, toast, updateStore]);
+        toast(t("page.arbeitsplan.toast.block_added"), "success");
+    }, [canWrite, minD, daySpan, settings.snapMin, maxD, toast, updateStore, t]);
 
     const periodLabel = useMemo(() => {
-        if (view === "day") return format(parseISO(dayYmd), "EEEE, d. MMM yyyy", { locale: de });
-        if (view === "week") {
-            return `KW ${getISOWeek(weekStart)} · ${format(weekStart, "d. MMM", { locale: de })} – ${format(addDays(weekStart, 6), "d. MMM yyyy", { locale: de })}`;
+        if (view === "day") {
+            return tp("page.arbeitsplan.period.day", {
+                weekday: format(parseISO(dayYmd), "EEEE", { locale: dateFnsLocale }),
+                date: format(parseISO(dayYmd), "d. MMM yyyy", { locale: dateFnsLocale }),
+            });
         }
-        return format(anchor, "MMMM yyyy", { locale: de });
-    }, [view, dayYmd, weekStart, anchor]);
+        if (view === "week") {
+            return tp("page.arbeitsplan.period.week", {
+                week: getISOWeek(weekStart),
+                start: format(weekStart, "d. MMM", { locale: dateFnsLocale }),
+                end: format(addDays(weekStart, 6), "d. MMM yyyy", { locale: dateFnsLocale }),
+            });
+        }
+        return tp("page.arbeitsplan.period.month", {
+            month: format(anchor, "MMMM yyyy", { locale: dateFnsLocale }),
+        });
+    }, [view, dayYmd, weekStart, anchor, dateFnsLocale, tp]);
 
-    if (loading) return <PageLoading label="Arbeitsplan…" />;
+    if (loading) return <PageLoading label={t("page.arbeitsplan.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
         <div className="personal-arbeitsplan-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 titleLevel="h1"
-                title="Arbeitsplan & Einsätze"
-                subtitle={
-                    <>
-                        Links legen Sie fest, <strong>wann</strong> das Team arbeiten oder pausieren soll — das erscheint als Soll-Zeiten im Kalender. Rechts der Kalender; <strong>Einsätze</strong> sind die verschiebbaren Blöcke darüber. Filter: Arbeit, Pause, Netto.
-                    </>
-                }
-                actions={<Link to="/personal" className="btn btn-subtle">Teamliste</Link>}
+                title={t("page.arbeitsplan.title")}
+                subtitle={t("page.arbeitsplan.subtitle")}
+                actions={<Link to="/personal" className="btn btn-subtle">{t("page.arbeitsplan.link.team")}</Link>}
             />
+
+            {canWrite ? (
+                <div className="card card-pad" style={{ marginBottom: 16 }}>
+                    <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>{t("page.arbeitsplan.time_tracking")}</h2>
+                    <label className="row" style={{ gap: 10, cursor: "pointer", marginBottom: 8 }}>
+                        <input
+                            type="checkbox"
+                            checked={autoRecordOnLogin}
+                            onChange={(e) => {
+                                const next = e.target.checked;
+                                void workTimeSetPreference({ autoRecordOnLogin: next })
+                                    .then((p) => {
+                                        setAutoRecordOnLogin(p.autoRecordOnLogin);
+                                        toast(
+                                            next
+                                                ? t("page.arbeitsplan.toast.auto_login_on")
+                                                : t("page.arbeitsplan.toast.auto_login_off"),
+                                            "success",
+                                        );
+                                    })
+                                    .catch((err) => toast(errorMessage(err), "error"));
+                            }}
+                        />
+                        <span style={{ fontSize: 14 }}>{t("page.arbeitsplan.time_tracking.auto_login")}</span>
+                    </label>
+                    <label className="row" style={{ gap: 10, cursor: "pointer" }}>
+                        <input
+                            type="checkbox"
+                            checked={autoRecordOnLogout}
+                            onChange={(e) => {
+                                const next = e.target.checked;
+                                void workTimeSetPreference({ autoRecordOnLogout: next })
+                                    .then((p) => {
+                                        setAutoRecordOnLogout(p.autoRecordOnLogout);
+                                        toast(
+                                            next
+                                                ? t("page.arbeitsplan.toast.auto_logout_on")
+                                                : t("page.arbeitsplan.toast.auto_logout_off"),
+                                            "success",
+                                        );
+                                    })
+                                    .catch((err) => toast(errorMessage(err), "error"));
+                            }}
+                        />
+                        <span style={{ fontSize: 14 }}>{t("page.arbeitsplan.time_tracking.auto_logout")}</span>
+                    </label>
+                    <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
+                        <Link to="/verwaltung/team/arbeitszeit">{t("page.arbeitsplan.link.team_work_time")}</Link>
+                        {" · "}
+                        <Link to="/personal/arbeitszeit">{t("page.arbeitsplan.link.own_work_time")}</Link>
+                    </p>
+                </div>
+            ) : null}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
@@ -698,14 +827,14 @@ export function PersonalArbeitsplanPage() {
                 />
                 </div>
                 <div className="card card-pad arbeitsplan-cal-card" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overflow: "hidden" }}>
-                    <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>Kalender (alle / gefiltert)</h2>
+                    <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>{t("page.arbeitsplan.calendar.all_filtered")}</h2>
                     <p className="arbeitsplan-cal-preface" style={{ fontSize: 12, color: "var(--fg-3)", margin: 0, lineHeight: 1.35 }}>
-                        <strong>Tag</strong> vertikales Raster. <strong>Woche</strong> pro Person: Soll (Regel) + Einsätze pro Tag. <strong>Monat</strong> Stunden-Übersicht. Kein Zusatz-Scroll im Kalenderkörper.
+                        {t("page.arbeitsplan.calendar.preface")}
                     </p>
                     <div className="arbeitsplan-cal-panel">
                     <div className="arbeitsplan-filter-bar arbeitsplan-filter-bar--compact" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <div className="arbeitsplan-filter-btns" style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-                            <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, marginRight: 2 }}>Anzeige</span>
+                            <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, marginRight: 2 }}>{t("page.arbeitsplan.display")}</span>
                             {(["work", "break", "both", "net"] as const).map((k) => (
                                 <button
                                     key={k}
@@ -713,16 +842,16 @@ export function PersonalArbeitsplanPage() {
                                     className={filterLayer === k ? "btn btn-accent arbeitsplan-view-filter" : "btn btn-ghost arbeitsplan-view-filter"}
                                     onClick={() => setFilterLayer(k)}
                                 >
-                                    {k === "work" ? "Arb." : k === "break" ? "Pause" : k === "both" ? "A+P" : "Netto"}
+                                    {k === "work" ? t("page.arbeitsplan.filter.work") : k === "break" ? t("page.arbeitsplan.filter.break") : k === "both" ? t("page.arbeitsplan.filter.both") : t("page.arbeitsplan.filter.net")}
                                 </button>
                             ))}
                         </div>
                         <div>
                             <span className="kpi-label-mini kpi-label-mini--strong kpi-label-mini--block">
-                                Personen
+                                {t("page.arbeitsplan.people")}
                             </span>
                             <div className="arbeitsplan-chips arbeitsplan-chips--compact">
-                                <button type="button" className={filterPersonSet == null ? "is-active" : undefined} onClick={() => setFilterPersonSet(null)}>Alle</button>
+                                <button type="button" className={filterPersonSet == null ? "is-active" : undefined} onClick={() => setFilterPersonSet(null)}>{t("page.arbeitsplan.all")}</button>
                                 {sortedP.map((p) => {
                                     const on = filterPersonSet == null || filterPersonSet.has(p.id);
                                     return (
@@ -736,7 +865,7 @@ export function PersonalArbeitsplanPage() {
                         </div>
                     </div>
                     <div className="arbeitsplan-toolbar arbeitsplan-toolbar--slim" style={{ marginTop: 0 }}>
-                        <div className="arbeitsplan-seg" role="tablist" aria-label="Ansicht">
+                        <div className="arbeitsplan-seg" role="tablist" aria-label={t("page.arbeitsplan.view.aria")}>
                             {(["day", "week", "month"] as const).map((k) => (
                                 <button
                                     key={k}
@@ -746,7 +875,7 @@ export function PersonalArbeitsplanPage() {
                                     className={view === k ? "is-active" : undefined}
                                     onClick={() => setView(k)}
                                 >
-                                    {k === "day" ? "Tag" : k === "week" ? "Woche" : "Monat"}
+                                    {k === "day" ? t("page.arbeitsplan.view.day") : k === "week" ? t("page.arbeitsplan.view.week") : t("page.arbeitsplan.view.month")}
                                 </button>
                             ))}
                         </div>
@@ -762,12 +891,12 @@ export function PersonalArbeitsplanPage() {
                                 else if (view === "week") setAnchor((a) => addWeeks(a, 1));
                                 else setAnchor((a) => addMonths(a, 1));
                             }}>›</button>
-                            <button type="button" className="btn btn-subtle" onClick={() => setAnchor(startOfDay(new Date()))}>Heute</button>
+                            <button type="button" className="btn btn-subtle" onClick={() => setAnchor(startOfDay(new Date()))}>{t("page.arbeitsplan.today")}</button>
                         </div>
                     </div>
 
                     {sortedP.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)" }}>Kein Personal — in <Link to="/personal">Team</Link> Mitarbeiter anlegen.</p>
+                        <p style={{ color: "var(--fg-3)" }}>{t("page.arbeitsplan.empty.no_staff_calendar")} <Link to="/personal">{t("page.arbeitsplan.link.team_list")}</Link></p>
                     ) : null}
 
                     {view === "month" && sortedP.length > 0 ? (
@@ -802,7 +931,7 @@ export function PersonalArbeitsplanPage() {
                                             const id = newBlockId();
                                             updateStore((s) => ({
                                                 ...s,
-                                                blocks: [...s.blocks, { id, personalId: p.id, date: dayYmd, startMin: 8 * 60, endMin: 12 * 60, title: "Einsatz" }],
+                                                blocks: [...s.blocks, { id, personalId: p.id, date: dayYmd, startMin: 8 * 60, endMin: 12 * 60, title: t("page.arbeitsplan.block.default_title") }],
                                             }));
                                             setDragKey((k) => k + 1);
                                         }}
@@ -816,14 +945,14 @@ export function PersonalArbeitsplanPage() {
                     ) : null}
                     {view === "week" && activePeople.length > 0 ? (
                         <div className="arbeitsplan-cal-embed" key={`w-${getISOWeek(weekStart)}-${dragKey}`}>
-                            <div className="arbeitsplan-week-matrix" role="grid" aria-label="Wochenübersicht je Person und Tag">
-                                <div className="arbeitsplan-week-matrix__corner" aria-hidden>Person / Tag</div>
+                            <div className="arbeitsplan-week-matrix" role="grid" aria-label={t("page.arbeitsplan.week.aria")}>
+                                <div className="arbeitsplan-week-matrix__corner" aria-hidden>{t("page.arbeitsplan.week.corner")}</div>
                                 {weekDays.map((d) => {
                                     const y = ymd(d);
                                     return (
                                         <div key={y} className="arbeitsplan-week-matrix__dhead">
-                                            <span className="arbeitsplan-week-matrix__dow">{format(d, "EEE", { locale: de })}</span>
-                                            <span className="arbeitsplan-week-matrix__dnum">{format(d, "d. MMM", { locale: de })}</span>
+                                            <span className="arbeitsplan-week-matrix__dow">{format(d, "EEE", { locale: dateFnsLocale })}</span>
+                                            <span className="arbeitsplan-week-matrix__dnum">{format(d, "d. MMM", { locale: dateFnsLocale })}</span>
                                         </div>
                                     );
                                 })}
@@ -861,7 +990,7 @@ export function PersonalArbeitsplanPage() {
                                 ))}
                             </div>
                             <p className="arbeitsplan-week-hint" style={{ fontSize: 10.5, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.3 }}>
-                                Zeitachse: links früh, rechts spät ({minToLabel(minD)} – {minToLabel(maxD)}). Doppelklick = Einsatz. Ziehen = verschieben.
+                                {tp("page.arbeitsplan.week.hint", { start: minToLabel(minD), end: minToLabel(maxD) })}
                             </p>
                         </div>
                     ) : null}
@@ -870,18 +999,18 @@ export function PersonalArbeitsplanPage() {
             </div>
 
             <div className="card card-pad">
-                <h2 className="form-section-title" style={{ marginTop: 0 }}>Arbeitszeiten der Mitarbeiter (Soll)</h2>
+                <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitsplan.soll_table.title")}</h2>
                 <div className="arbeitsplan-table-wrap">
                     {sortedP.length === 0 ? (
-                        <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 13 }}>Keine Mitarbeiter in der Teamliste.</p>
+                        <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 13 }}>{t("page.arbeitsplan.empty.no_staff")}</p>
                     ) : (
                         <table className="tbl arbeitsplan-tbl" style={{ width: "100%", fontSize: 12 }}>
                             <thead>
                                 <tr>
-                                    <th>Mitarbeiter</th>
-                                    <th>Soll (Arbeit)</th>
-                                    <th>Pausen</th>
-                                    <th>Netto</th>
+                                    <th>{t("page.arbeitsplan.soll_table.col.staff")}</th>
+                                    <th>{t("page.arbeitsplan.soll_table.col.work")}</th>
+                                    <th>{t("page.arbeitsplan.soll_table.col.pauses")}</th>
+                                    <th>{t("page.arbeitsplan.soll_table.col.net")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -891,8 +1020,8 @@ export function PersonalArbeitsplanPage() {
                                             <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{row.personal.name}</span>
                                         </td>
                                         <td style={{ fontVariantNumeric: "tabular-nums" }}>{row.sollArbeit}</td>
-                                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatDurationMins(row.pausenMin)}</td>
-                                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatDurationMins(row.nettoMin)}</td>
+                                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatDurationMins(row.pausenMin, tp)}</td>
+                                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatDurationMins(row.nettoMin, tp)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -904,8 +1033,8 @@ export function PersonalArbeitsplanPage() {
             <ConfirmDialog
                 open={deleteBlockId != null}
                 onClose={() => setDeleteBlockId(null)}
-                onConfirm={() => { if (deleteBlockId) updateStore((s) => ({ ...s, blocks: s.blocks.filter((b) => b.id !== deleteBlockId) })); setDeleteBlockId(null); toast("Einsatz entfernt", "success"); }}
-                title="Einsatz löschen?" message="Dieser Detail-Einsatz (Block) wird entfernt." confirmLabel="Löschen" danger
+                onConfirm={() => { if (deleteBlockId) updateStore((s) => ({ ...s, blocks: s.blocks.filter((b) => b.id !== deleteBlockId) })); setDeleteBlockId(null); toast(t("page.arbeitsplan.toast.block_removed"), "success"); }}
+                title={t("page.arbeitsplan.confirm.delete_title")} message={t("page.arbeitsplan.confirm.delete_block")} confirmLabel={t("common.delete")} danger
             />
         </div>
     );
@@ -1111,12 +1240,22 @@ function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filt
     onSelectDay: (d: Date) => void;
     composeCal: ComposeCalOpts | null;
 }) {
-    const label = filterLayer === "net" ? "Netto" : filterLayer === "work" ? "Arbeit" : filterLayer === "break" ? "Pause" : "Arb.+Pau.";
+    const t = useT();
+    const tp = useTParams();
+    const dayShort = useMemo(() => DAY_SHORT_KEYS.map((k) => t(`page.arbeitsplan.day_short.${k}`)), [t]);
+    const label =
+        filterLayer === "net"
+            ? t("page.arbeitsplan.month.filter.net")
+            : filterLayer === "work"
+              ? t("page.arbeitsplan.month.filter.work")
+              : filterLayer === "break"
+                ? t("page.arbeitsplan.month.filter.break")
+                : t("page.arbeitsplan.month.filter.both");
     const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
 
     return (
         <div className="cal arbeitsplan-month-cal animate-fade-in" style={{ animationDuration: "240ms" }}>
-            {DAY_SHORT.map((d) => (
+            {dayShort.map((d) => (
                 <div key={d} className="cal-head">
                     {d}
                 </div>
@@ -1150,7 +1289,10 @@ function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filt
                             dayBlocks.length
                                 ? dayBlocks.map((b) => `${minToLabel(b.startMin)} ${b.title}`).join(" · ")
                                 : sumMin > 0
-                                    ? `${label} ${(Math.round((sumMin / 60) * 10) / 10).toString().replace(".", ",")} h`
+                                    ? tp("page.arbeitsplan.month.tooltip.soll", {
+                                          label,
+                                          hours: (Math.round((sumMin / 60) * 10) / 10).toString().replace(".", ","),
+                                      })
                                     : undefined
                         }
                     >
@@ -1179,7 +1321,7 @@ function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filt
                         })}
                         {more > 0 ? (
                             <div style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, padding: "2px 4px" }}>
-                                +{more} weitere
+                                {tp("page.arbeitsplan.month.more", { count: more })}
                             </div>
                         ) : null}
                         {showSollOnly ? (
@@ -1201,7 +1343,10 @@ function ArbeitsplanMonth({ monthDays, monthStart, planPreferences, people, filt
                                     onSelectDay(d);
                                 }}
                             >
-                                {label} {`${Math.round((sumMin / 60) * 10) / 10}`.replace(".", ",")} h
+                                {tp("page.arbeitsplan.month.soll_hours", {
+                                    label,
+                                    hours: `${Math.round((sumMin / 60) * 10) / 10}`.replace(".", ","),
+                                })}
                             </button>
                         ) : null}
                         {empty ? <div style={{ fontSize: 11, color: "var(--fg-4)", padding: "2px 4px" }}>—</div> : null}

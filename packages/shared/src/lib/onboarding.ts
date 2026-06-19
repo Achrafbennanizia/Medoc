@@ -10,34 +10,38 @@ export const ONBOARDING_MIN_COVERAGE_RATIO = 0.8;
 
 export type OnboardingStep = {
     routePath: string;
-    titleDe: string;
-    bodyDe: string;
+    /** i18n key for step title */
+    titleKey: string;
+    /** i18n key for step body */
+    bodyKey: string;
 };
+
+function step(routePath: string, titleKey: string, bodyKey: string): OnboardingStep {
+    return { routePath, titleKey, bodyKey };
+}
 
 const STEPS_BY_ROLE: Record<Rolle, OnboardingStep[]> = {
     ARZT: [
-        { routePath: "", titleDe: "Dashboard", bodyDe: "KPIs, offene Bestellungen und Freigaben auf einen Blick." },
-        { routePath: "patienten", titleDe: "Patienten", bodyDe: "Stammdaten, Akten-Tabs und klinische Dokumentation pro Patient." },
-        { routePath: "akten/zu-validieren", titleDe: "Akten validieren", bodyDe: "Warteschlange für Akten im Status Entwurf oder in Bearbeitung." },
-        { routePath: "termine", titleDe: "Termine", bodyDe: "Kalender mit Konfliktprüfung; Notfall-Filter über Termin-Metadaten." },
-        { routePath: "rezepte", titleDe: "Rezepte", bodyDe: "Rezeptausstellung mit Vorlagen und Kombinationsrezepten." },
-        { routePath: "atteste", titleDe: "Atteste", bodyDe: "Arbeitsunfähigkeits- und Bescheinigungsdokumente." },
-        { routePath: "audit", titleDe: "Audit", bodyDe: "Nachvollziehbarkeit von Lese- und Schreibzugriffen." },
-        { routePath: "statistik", titleDe: "Statistik", bodyDe: "Auswertungen und CSV-Export für Praxissteuerung." },
-        { routePath: "einstellungen", titleDe: "Einstellungen", bodyDe: "Praxis, Sicherheit, Deployment (Master/Replica/LAN-Client) und Geräte-Pairing." },
+        step("", "onboarding.arzt.home.title", "onboarding.arzt.home.body"),
+        step("patienten", "onboarding.arzt.patienten.title", "onboarding.arzt.patienten.body"),
+        step("akten/zu-validieren", "onboarding.arzt.akten_validieren.title", "onboarding.arzt.akten_validieren.body"),
+        step("termine", "onboarding.arzt.termine.title", "onboarding.arzt.termine.body"),
+        step("rezepte", "onboarding.arzt.rezepte.title", "onboarding.arzt.rezepte.body"),
+        step("atteste", "onboarding.arzt.atteste.title", "onboarding.arzt.atteste.body"),
+        step("audit", "onboarding.arzt.audit.title", "onboarding.arzt.audit.body"),
+        step("statistik", "onboarding.arzt.statistik.title", "onboarding.arzt.statistik.body"),
+        step("einstellungen", "onboarding.arzt.einstellungen.title", "onboarding.arzt.einstellungen.body"),
     ],
     REZEPTION: [
-        { routePath: "", titleDe: "Dashboard", bodyDe: "Tagesüberblick: Termine, Bestellungen, Stammdaten-Prüfung." },
-        { routePath: "patienten", titleDe: "Patienten", bodyDe: "Patienten anlegen und Akten für die Behandlung vorbereiten." },
-        { routePath: "termine", titleDe: "Termine", bodyDe: "Termine planen und Status pflegen." },
-        { routePath: "tickets", titleDe: "Praxis-Tickets", bodyDe: "Nachrichten und Aufträge an Ärzt:innen." },
-        { routePath: "bestellungen", titleDe: "Bestellungen", bodyDe: "Materialbestellungen und Wareneingang — Rezeption pflegt Status; kein E-Rezept (MVP)." },
-        { routePath: "finanzen", titleDe: "Finanzen", bodyDe: "Zahlungserfassung (ohne ärztliche Freigabe der Leistung)." },
-        { routePath: "einstellungen", titleDe: "Einstellungen", bodyDe: "Darstellung, Arbeitsabläufe und Konto." },
+        step("", "onboarding.rezeption.home.title", "onboarding.rezeption.home.body"),
+        step("patienten", "onboarding.rezeption.patienten.title", "onboarding.rezeption.patienten.body"),
+        step("termine", "onboarding.rezeption.termine.title", "onboarding.rezeption.termine.body"),
+        step("tickets", "onboarding.rezeption.tickets.title", "onboarding.rezeption.tickets.body"),
+        step("bestellungen", "onboarding.rezeption.bestellungen.title", "onboarding.rezeption.bestellungen.body"),
+        step("finanzen", "onboarding.rezeption.finanzen.title", "onboarding.rezeption.finanzen.body"),
+        step("einstellungen", "onboarding.rezeption.einstellungen.title", "onboarding.rezeption.einstellungen.body"),
     ],
-    // TODO(deferred-roles): STEUERBERATER onboarding — see docs/coordination/todos-deferred-roles.md
     STEUERBERATER: [],
-    // TODO(deferred-roles): PHARMABERATER onboarding
     PHARMABERATER: [],
 };
 

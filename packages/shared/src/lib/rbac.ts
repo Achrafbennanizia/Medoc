@@ -100,6 +100,7 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         ? [{ to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } } as NavItemDefinition]
         : []),
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
+    { to: "/rezepte", labelKey: "nav.rezepte", visibility: { kind: "action", action: "patient.read_medical" } },
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     {
         to: "/finanzen/kasse",
@@ -111,6 +112,11 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     /* `produkt.read` allows every role in Rust; sidebar matches product scope. */
     { to: "/produkte", labelKey: "nav.produkte", visibility: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] } },
     { to: "/verwaltung", labelKey: "nav.verwaltung", visibility: { kind: "action", action: "verwaltung.read" } },
+    {
+        to: "/personal/arbeitszeit",
+        labelKey: "nav.arbeitszeit",
+        visibility: { kind: "action", action: "work_time.self" },
+    },
     // TODO(deferred-roles): { to: "/statistik", visibility: { kind: "roles", roles: ["ARZT", "STEUERBERATER"] } },
     { to: "/statistik", labelKey: "nav.statistik", visibility: { kind: "roles", roles: ["ARZT"] } },
     {
@@ -155,8 +161,10 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     produkte: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
     personal: { kind: "action", action: "personal.read" },
     "personal/arbeitsplan": { kind: "action", action: "personal.read" },
+    "personal/arbeitszeit": { kind: "action", action: "work_time.self" },
+    "verwaltung/team/arbeitszeit": { kind: "action", action: "work_time.team.read" },
     "personal/neu": { kind: "action", action: "personal.write" },
-    statistik: { kind: "roles", roles: ["ARZT"] },
+    statistik: { kind: "action", action: "statistik.read" },
     audit: { kind: "action", action: "audit.read" },
     datenschutz: { kind: "allOf", actions: ["patient.read", "ops.dsgvo"] },
     einstellungen: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
@@ -169,6 +177,7 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     verwaltung: { kind: "action", action: "verwaltung.read" },
     "verwaltung/aufgaben": { kind: "action", action: "verwaltung.read" },
     "verwaltung/team": { kind: "action", action: "verwaltung.team.read" },
+    "verwaltung/krankenbescheinigung": { kind: "action", action: "verwaltung.team.read" },
     "verwaltung/arbeitstage": { kind: "action", action: "verwaltung.praxisplanung.read" },
     "verwaltung/praxisplanung": { kind: "action", action: "verwaltung.praxisplanung.read" },
     "verwaltung/arbeitszeiten": { kind: "action", action: "verwaltung.praxisplanung.read" },

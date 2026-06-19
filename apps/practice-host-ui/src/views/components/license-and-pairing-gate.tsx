@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 /**
  * Post-login gate for the master/replica activation flow.
  *
@@ -28,6 +29,7 @@ type LicenseStatusLite = {
 type Decision = "loading" | "ok" | "needs-license" | "needs-pairing" | "error";
 
 export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
+    const t = useT();
     const [decision, setDecision] = useState<Decision>("loading");
     const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
@@ -83,7 +85,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
     if (decision === "error") {
         return (
             <div className="route-fallback" role="alert">
-                <p>Aktivierung konnte nicht geprüft werden.</p>
+                <p>{t("license.activate.check_failed")}</p>
                 {errorDetail ? <p className="text-muted">{errorDetail}</p> : null}
                 <button type="button" onClick={() => void evaluate()}>
                     Erneut prüfen

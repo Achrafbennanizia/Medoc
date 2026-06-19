@@ -101,10 +101,12 @@ pub fn run() {
                         }
                     }
 
-                    if let Some(bg) = app.try_state::<commands::break_glass_commands::BreakGlassStateExt>() {
-                        crate::infrastructure::database::audit_break_glass::register_break_glass(
-                            Arc::clone(&bg.0),
-                        );
+                    if crate::application::mvp_security::BREAK_GLASS_ENABLED {
+                        if let Some(bg) = app.try_state::<commands::break_glass_commands::BreakGlassStateExt>() {
+                            crate::infrastructure::database::audit_break_glass::register_break_glass(
+                                Arc::clone(&bg.0),
+                            );
+                        }
                     }
 
                     let verify_pool = pool.clone();

@@ -406,9 +406,11 @@ html[data-theme="dark"] {
   }
   html.tauri-frameless .desktop-app-frame__fill .app,
   html.tauri-frameless .desktop-app-frame__fill .login-root,
+  html.tauri-frameless .desktop-app-frame__fill .onboarding-page,
   html.tauri-frameless .desktop-app-frame__fill .route-fallback,
   html.tauri-macos-traffic .desktop-app-frame__fill .app,
   html.tauri-macos-traffic .desktop-app-frame__fill .login-root,
+  html.tauri-macos-traffic .desktop-app-frame__fill .onboarding-page,
   html.tauri-macos-traffic .desktop-app-frame__fill .route-fallback {
     flex: 1 1 auto;
     min-height: 0;
@@ -420,7 +422,9 @@ html[data-theme="dark"] {
     max-height: 100%;
   }
   html.tauri-frameless .login-root,
-  html.tauri-macos-traffic .login-root {
+  html.tauri-macos-traffic .login-root,
+  html.tauri-frameless .onboarding-page,
+  html.tauri-macos-traffic .onboarding-page {
     min-height: 0;
     height: 100%;
     max-height: 100%;
@@ -908,8 +912,63 @@ html[data-theme="dark"] {
     .tbl-scroll .tbl.tbl-kasse { min-width: 560px; }
     .tbl-scroll .tbl.tbl-aufgaben:not(.tbl-aufgaben--compact) { min-width: 760px; }
     .tbl-scroll .tbl.tbl-aufgaben--compact { min-width: 640px; }
-    .tbl-scroll .tbl.produkte-tbl,
-    .tbl-scroll .tbl.leistungen-tbl { min-width: 480px; }
+  .tbl-scroll .tbl.produkte-tbl,
+  .tbl-scroll .tbl.leistungen-tbl,
+  .tbl-scroll .tbl.tbl-personal {
+    min-width: 640px;
+    table-layout: fixed;
+  }
+  .produkte-tbl td,
+  .produkte-tbl th,
+  .tbl-personal td,
+  .tbl-personal th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [dir="rtl"] .app-sidebar {
+    border-inline-end: none;
+    border-inline-start: 1px solid var(--line);
+  }
+  [dir="rtl"] .verwaltung-toc-chev {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .app-breadcrumbs {
+    direction: rtl;
+  }
+  [dir="rtl"] .app-breadcrumbs .breadcrumb-sep {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .command-palette-option {
+    text-align: start;
+  }
+  [dir="rtl"] .page-toolbar {
+    direction: rtl;
+  }
+  [dir="rtl"] .tbl th,
+  [dir="rtl"] .tbl td {
+    text-align: start;
+  }
+  [dir="rtl"] .form-label,
+  [dir="rtl"] .ui-field-label {
+    text-align: start;
+  }
+  [dir="rtl"] .modal-actions,
+  [dir="rtl"] .ios-confirm-actions {
+    flex-direction: row-reverse;
+  }
+  [dir="rtl"] .time-slot-grid {
+    direction: rtl;
+  }
+  [dir="rtl"] .tag-input-shell {
+    direction: rtl;
+  }
+  [dir="rtl"] .app-notice__head {
+    flex-direction: row-reverse;
+  }
+  html[data-arabic-font="1"] body {
+    font-family: "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
     .tbl-scroll .tbl.tbl-finanzen-tx { min-width: 680px; }
   }
   .page-toolbar {
@@ -3048,6 +3107,19 @@ html[data-theme="dark"] {
     color: var(--fg-2);
     font-weight: 600;
   }
+  .patient-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+  }
+  .patient-hero-actions__hint {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
   .patient-hero-row {
     display: flex;
     flex-wrap: wrap;
@@ -4070,6 +4142,82 @@ html[data-theme="dark"] {
   .sb-item.active .count { background: var(--accent); color: #fff; }
   .sb-group-label { font-size: 11px; color: var(--fg-4); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 14px 12px 6px; }
   .login-root { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; background: var(--bg); }
+  .onboarding-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--bg);
+  }
+  .onboarding-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 32px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-sm);
+  }
+  .onboarding-card h1 { margin: 0 0 8px; font-size: 1.35rem; font-weight: 600; }
+  .onboarding-card .card-sub { margin: 0 0 20px; }
+  .onboarding-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .onboarding-actions--row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .onboarding-field {
+    display: block;
+    margin-bottom: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg-2);
+  }
+  .onboarding-field input,
+  .onboarding-field textarea {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--line-strong);
+    background: var(--bg);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--fg);
+  }
+  .onboarding-path-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    margin-top: 6px;
+  }
+  .onboarding-path-row input { flex: 1 1 auto; margin-top: 0; min-width: 0; }
+
+  .onboarding-admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+    list-style: none;
+    padding: 0;
+  }
+
+  .onboarding-admin-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
   .login-art { background: radial-gradient(1000px 600px at 20% 20%, rgba(14,160,126,0.35), transparent 60%), radial-gradient(900px 600px at 80% 80%, rgba(10,132,255,0.28), transparent 60%), linear-gradient(135deg, #0B3B32 0%, #0F1E2B 100%); color: #fff; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
   .login-art::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 22px 22px; opacity: 0.5; }
   .login-form-wrap { display: grid; place-items: center; padding: 40px; }
@@ -10836,4 +10984,86 @@ html[data-theme="dark"] .finanzen-amt--in {
 }
 html[data-theme="dark"] .finanzen-amt--warn {
   color: color-mix(in oklab, var(--orange) 58%, #fff);
+}
+
+.work-time-page {
+  max-width: 960px;
+}
+
+.work-time-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.work-time-week-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.work-time-week-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-3);
+  text-align: center;
+}
+
+.work-time-week-meta {
+  font-size: 10px;
+  color: var(--fg-3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-time-week-bar__track {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  width: 100%;
+  background: color-mix(in oklab, var(--fg-3) 8%, transparent);
+  border-radius: 6px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.work-time-week-bar__soll,
+.work-time-week-bar__ist,
+.work-time-week-bar__open,
+.work-time-week-bar__pause {
+  height: 100%;
+  min-width: 4px;
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
+.work-time-week-bar__soll {
+  background: color-mix(in oklab, var(--fg-3) 35%, transparent);
+  opacity: 0.45;
+}
+
+.work-time-week-bar__ist {
+  background: var(--accent);
+}
+
+.work-time-week-bar__open {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--accent),
+    var(--accent) 4px,
+    color-mix(in oklab, var(--accent) 55%, white) 4px,
+    color-mix(in oklab, var(--accent) 55%, white) 8px
+  );
+}
+
+.work-time-week-bar__pause {
+  background: color-mix(in oklab, var(--orange) 70%, var(--bg));
+}
+
+@media (max-width: 720px) {
+  .work-time-week-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }

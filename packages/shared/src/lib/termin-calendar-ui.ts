@@ -1,5 +1,6 @@
-import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
+import { terminIstNotfallMarkiert, type TerminArtNotizen } from "@/lib/termin-domain";
 import { minutesToUhrzeit } from "@/lib/termin-availability";
+import { t } from "@/lib/i18n";
 import type { Termin } from "@/models/types";
 import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 
@@ -13,26 +14,35 @@ export const TERMIN_STATUS_BADGE: Record<string, TerminBadgeVariant> = {
     ABGESAGT: "warning",
 };
 
-export const TERMIN_ART_FILTER_OPTIONS = [
-    { value: "ERSTBESUCH", label: "Erstbesuch" },
-    { value: "UNTERSUCHUNG", label: "Untersuchung" },
-    { value: "KONTROLLE", label: "Kontrolle" },
-    { value: "BEHANDLUNG", label: "Behandlung" },
-    { value: "NOTFALL", label: "Notfall (Priorität)" },
-    { value: "BERATUNG", label: "Beratung" },
+const TERMIN_ART_KEYS = [
+    "ERSTBESUCH",
+    "UNTERSUCHUNG",
+    "KONTROLLE",
+    "BEHANDLUNG",
+    "NOTFALL",
+    "BERATUNG",
 ] as const;
 
-export const TERMIN_ART_LABEL: Record<string, string> = {
-    KONTROLLE: "Kontrolle",
-    BEHANDLUNG: "Behandlung",
-    BERATUNG: "Beratung",
-    ERSTBESUCH: "Erstbesuch",
-    UNTERSUCHUNG: "Untersuchung",
-};
+/** @deprecated Prefer `terminArtFilterOptions()` for localized labels. */
+export const TERMIN_ART_FILTER_OPTIONS = TERMIN_ART_KEYS.map((value) => ({
+    value,
+    label: value,
+}));
 
-export const TERMIN_NOTFALL_CONFIRM_TITLE = "Notfall-Termin einplanen?";
-export const TERMIN_NOTFALL_CONFIRM_MESSAGE =
-    "Der Notfall-Slot wird direkt vor dem nächsten freien Termin eingeordnet. Der aktuell laufende Patient erhält 8 Minuten Restzeit. Alle später beginnenden Termine verschieben sich automatisch.";
+export function terminArtFilterOptions(): Array<{ value: string; label: string }> {
+    return TERMIN_ART_KEYS.map((value) => ({
+        value,
+        label: t(`termin.art.${value}`),
+    }));
+}
+
+export function terminNotfallConfirmTitle(): string {
+    return t("termin.calendar.notfall_confirm_title");
+}
+
+export function terminNotfallConfirmMessage(): string {
+    return t("termin.calendar.notfall_confirm_message");
+}
 
 export const TERMIN_DAY_START_MIN = 8 * 60;
 export const TERMIN_DAY_END_MIN = 19 * 60;
@@ -53,60 +63,94 @@ export type TerminBlockTone = "green" | "blue" | "accent" | "orange" | "purple";
 export const TERMIN_DOCTOR_TONE_CYCLE = ["green", "blue", "purple", "accent"] as const;
 export type TerminDoctorTone = (typeof TERMIN_DOCTOR_TONE_CYCLE)[number];
 
-export function terminArtLabel(art: string): string {
-    return TERMIN_ART_LABEL[art] ?? art.replace(/_/g, " ");
-}
+type TerminDisplayState = "cancelled" | "done" | "edited" | "confirmed" | "planned";
 
-export function terminArtLabelFromTermin(t: Termin): string {
-    if (terminIstNotfallMarkiert(t)) return "Notfall";
-    return terminArtLabel(t.art);
-}
+const APPOINTMENT_STATE_VARIANT: Record<TerminDisplayState, TerminBadgeVariant> = {
+    cancelled: "error",
+    done: "success",
+    edited: "warning",
+    confirmed: "success",
+    planned: "primary",
+};
 
-export function appointmentStateDisplay(t: Termin): { label: string; variant: TerminBadgeVariant } {
-    if (t.status === "ABGESAGT" || t.status === "NICHT_ERSCHIENEN") {
-        return { label: "Storniert", variant: "error" };
+const APPOINTMENT_STATE_LABEL_KEY: Record<TerminDisplayState, string> = {
+    cancelled: "termin.status.storniert",
+    done: "termin.status.durchgefuehrt",
+    edited: "termin.status.geaendert",
+    confirmed: "termin.status.bestaetigt",
+    planned: "termin.status.geplant",
+};
+
+const CALENDAR_PILL_LABEL_KEY: Record<TerminDisplayState, string> = {
+    cancelled: "termin.calendar.status.abgesagt",
+    done: "termin.calendar.status.erledigt",
+    edited: "termin.calendar.status.geaendert",
+    confirmed: "termin.calendar.status.in_behandlung",
+    planned: "termin.calendar.status.geplant",
+};
+
+function resolveTerminDisplayState(termin: Termin): TerminDisplayState {
+    if (termin.status === "ABGESAGT" || termin.status === "NICHT_ERSCHIENEN") {
+        return "cancelled";
     }
-    if (t.status === "DURCHGEFUEHRT") {
-        return { label: "Durchgeführt", variant: "success" };
+    if (termin.status === "DURCHGEFUEHRT") {
+        return "done";
     }
-    const editedMs = new Date(t.updated_at).getTime() - new Date(t.created_at).getTime();
+    const editedMs = new Date(termin.updated_at).getTime() - new Date(termin.created_at).getTime();
     const edited = editedMs > 60_000;
-    if (edited && (t.status === "GEPLANT" || t.status === "BESTAETIGT")) {
-        return { label: "Geändert", variant: "warning" };
+    if (edited && (termin.status === "GEPLANT" || termin.status === "BESTAETIGT")) {
+        return "edited";
     }
-    if (t.status === "BESTAETIGT") {
-        return { label: "Bestätigt", variant: "success" };
+    if (termin.status === "BESTAETIGT") {
+        return "confirmed";
     }
-    return { label: "Geplant", variant: "primary" };
+    return "planned";
 }
 
-export function stateSoftPillClass(t: Termin): string {
-    const { label } = appointmentStateDisplay(t);
-    if (label === "Storniert") return "red";
-    if (label === "Durchgeführt") return "accent";
-    if (label === "Geändert") return "yellow";
-    if (label === "Bestätigt") return "blue";
-    return "grey";
+export function terminArtLabel(art: string): string {
+    const key = `termin.art.${art}`;
+    const label = t(key);
+    return label !== key ? label : art.replace(/_/g, " ");
 }
 
-export function terminCalendarStatusPill(t: Termin): {
+export function terminArtLabelFromTermin(termin: Termin): string {
+    if (terminIstNotfallMarkiert(termin)) return t("termin.calendar.notfall_label");
+    return terminArtLabel(termin.art);
+}
+
+export function appointmentStateDisplay(termin: Termin): { label: string; variant: TerminBadgeVariant } {
+    const state = resolveTerminDisplayState(termin);
+    return { label: t(APPOINTMENT_STATE_LABEL_KEY[state]), variant: APPOINTMENT_STATE_VARIANT[state] };
+}
+
+export function stateSoftPillClass(termin: Termin): string {
+    switch (resolveTerminDisplayState(termin)) {
+        case "cancelled":
+            return "red";
+        case "done":
+            return "accent";
+        case "edited":
+            return "yellow";
+        case "confirmed":
+            return "blue";
+        default:
+            return "grey";
+    }
+}
+
+export function terminCalendarStatusPill(termin: Termin): {
     label: string;
     tone: "active" | "planned" | "done" | "cancel" | "edit";
 } {
-    if (t.status === "ABGESAGT" || t.status === "NICHT_ERSCHIENEN") {
-        return { label: "Abgesagt", tone: "cancel" };
-    }
-    if (t.status === "DURCHGEFUEHRT") {
-        return { label: "Erledigt", tone: "done" };
-    }
-    const editedMs = new Date(t.updated_at).getTime() - new Date(t.created_at).getTime();
-    if (editedMs > 60_000 && (t.status === "GEPLANT" || t.status === "BESTAETIGT")) {
-        return { label: "Geändert", tone: "edit" };
-    }
-    if (t.status === "BESTAETIGT") {
-        return { label: "In Behandlung", tone: "active" };
-    }
-    return { label: "Geplant", tone: "planned" };
+    const state = resolveTerminDisplayState(termin);
+    const toneByState: Record<TerminDisplayState, "active" | "planned" | "done" | "cancel" | "edit"> = {
+        cancelled: "cancel",
+        done: "done",
+        edited: "edit",
+        confirmed: "active",
+        planned: "planned",
+    };
+    return { label: t(CALENDAR_PILL_LABEL_KEY[state]), tone: toneByState[state] };
 }
 
 export function terminUhrzeitToMinutes(u: string): number {
@@ -126,11 +170,11 @@ export function buildArztToneMap(aerzte: AerztSummary[]): Map<string, TerminDoct
 }
 
 export function blockToneForTermin(
-    termin: Pick<Termin, "art" | "notizen">,
+    event: TerminArtNotizen,
     doctorTone: TerminDoctorTone,
 ): TerminBlockTone {
-    if (terminIstNotfallMarkiert(termin)) return "orange";
-    const fromArt = TERMIN_EVENT_TONE_BY_ART[termin.art];
+    if (terminIstNotfallMarkiert(event)) return "orange";
+    const fromArt = TERMIN_EVENT_TONE_BY_ART[event.art];
     if (fromArt) return fromArt;
     return doctorTone;
 }
@@ -199,7 +243,7 @@ export function computePackedUpdatesAfterMove(
         if (b.start + slotDur > TERMIN_DAY_END_MIN) {
             return {
                 updates: [],
-                error: "Am Tagesende ist kein freier Platz ohne Überschneidung.",
+                error: t("termin.calendar.move_no_space"),
             };
         }
     }

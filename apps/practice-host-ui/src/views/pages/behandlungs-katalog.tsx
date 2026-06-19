@@ -9,6 +9,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { BehandlungsKatalogItem } from "../../models/types";
 import { errorMessage, formatCurrency } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/input";
@@ -29,6 +30,7 @@ const DEFAULT_KATEGORIEN = [
 ];
 
 export function BehandlungsKatalogPage() {
+    const t = useT();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -56,6 +58,14 @@ export function BehandlungsKatalogPage() {
             .sort((a, b) => a.localeCompare(b, "de"))
             .map((value) => ({ value, label: value }));
     }, [rows]);
+
+    const categorySelectOptions = useMemo(
+        () => [
+            ...kategorieOptions,
+            { value: "__custom__", label: t("page.behandlungs_katalog.field.category_custom") },
+        ],
+        [kategorieOptions, t],
+    );
 
     const effectiveKategorie = kategorie === "__custom__" ? customKategorie.trim() : kategorie;
 
@@ -128,7 +138,7 @@ export function BehandlungsKatalogPage() {
         if (!canWrite) return;
         const kat = effectiveKategorie;
         if (!kat || !name.trim()) {
-            toast("Kategorie und Leistungsname sind Pflichtfelder.", "error");
+            toast(t("page.behandlungs_katalog.toast.validation"), "error");
             return;
         }
         setCreateBusy(true);
@@ -139,7 +149,7 @@ export function BehandlungsKatalogPage() {
                 name: name.trim(),
                 default_kosten: price != null && Number.isFinite(price) ? price : null,
             });
-            toast("Leistung im Katalog gespeichert");
+            toast(t("page.behandlungs_katalog.toast.saved"));
             setName("");
             setKosten("");
             setCreating(false);
@@ -156,7 +166,7 @@ export function BehandlungsKatalogPage() {
         if (!selected || !canWrite) return;
         const kat = effectiveKategorie;
         if (!kat || !name.trim()) {
-            toast("Kategorie und Leistungsname sind Pflichtfelder.", "error");
+            toast(t("page.behandlungs_katalog.toast.validation"), "error");
             return;
         }
         setEditBusy(true);
@@ -168,7 +178,7 @@ export function BehandlungsKatalogPage() {
                 default_kosten: price != null && Number.isFinite(price) ? price : null,
                 sort_order: selected.sort_order,
             });
-            toast("Katalogeintrag gespeichert");
+            toast(t("page.behandlungs_katalog.toast.entry_saved"));
             setDetailEdit(false);
             setSelected(updated);
             await reload();
@@ -184,7 +194,7 @@ export function BehandlungsKatalogPage() {
         setBusy(true);
         try {
             await deleteBehandlungsKatalogItem(deleteId);
-            toast("Eintrag deaktiviert");
+            toast(t("page.behandlungs_katalog.toast.deactivated"));
             setSelected((s) => (s?.id === deleteId ? null : s));
             setDeleteId(null);
             setDetailEdit(false);
@@ -201,11 +211,11 @@ export function BehandlungsKatalogPage() {
         [rows],
     );
 
-    if (status === "loading") return <PageLoading label="Katalog wird geladen…" />;
+    if (status === "loading") return <PageLoading label={t("page.behandlungs_katalog.loading")} />;
     if (status === "error" && loadError) {
         return (
             <div className="produkte-page praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader title="Behandlungskatalog" />
+                <VerwaltungPageHeader title={t("page.behandlungs_katalog.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
@@ -223,29 +233,26 @@ export function BehandlungsKatalogPage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Neue Leistung"
-                        subtitle="Katalog für die Akte — Erfassung hier rechts."
+                        title={t("page.behandlungs_katalog.new.title")}
+                        subtitle={t("page.behandlungs_katalog.new.subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelCreate}>
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                             <Select
-                                label="Kategorie"
+                                label={t("page.behandlungs_katalog.field.category")}
                                 value={kategorie}
-                                options={[
-                                    ...kategorieOptions,
-                                    { value: "__custom__", label: "Neue Kategorie (frei) …" },
-                                ]}
+                                options={categorySelectOptions}
                                 onChange={(e) => setKategorie(e.target.value)}
                                 disabled={!canWrite}
                             />
                             {kategorie === "__custom__" ? (
                                 <Input
-                                    label="Kategorie (frei)"
+                                    label={t("page.behandlungs_katalog.field.category_free")}
                                     value={customKategorie}
                                     onChange={(e) => setCustomKategorie(e.target.value)}
                                     disabled={!canWrite}
@@ -253,21 +260,21 @@ export function BehandlungsKatalogPage() {
                             ) : (
                                 <div />
                             )}
-                            <Input label="Leistungsname *" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
+                            <Input label={t("page.behandlungs_katalog.field.name")} value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
                             <Input
-                                label="Standard-Kosten (€)"
+                                label={t("page.behandlungs_katalog.field.cost")}
                                 value={kosten}
                                 onChange={(e) => setKosten(e.target.value)}
-                                placeholder="optional"
+                                placeholder={t("page.behandlungs_katalog.field.optional_ph")}
                                 disabled={!canWrite}
                             />
                         </div>
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleCreate()} disabled={!canWrite || createBusy} loading={createBusy}>
-                                Speichern
+                                {t("common.save")}
                             </Button>
                         </div>
                     </div>
@@ -278,48 +285,45 @@ export function BehandlungsKatalogPage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Eintrag bearbeiten"
-                        subtitle="Änderungen speichern — Katalog für die Akte."
+                        title={t("page.behandlungs_katalog.edit.title")}
+                        subtitle={t("page.behandlungs_katalog.edit.subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelEdit} disabled={editBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                             <Select
-                                label="Kategorie"
+                                label={t("page.behandlungs_katalog.field.category")}
                                 value={kategorie}
-                                options={[
-                                    ...kategorieOptions,
-                                    { value: "__custom__", label: "Neue Kategorie (frei) …" },
-                                ]}
+                                options={categorySelectOptions}
                                 onChange={(e) => setKategorie(e.target.value)}
                             />
                             {kategorie === "__custom__" ? (
                                 <Input
-                                    label="Kategorie (frei)"
+                                    label={t("page.behandlungs_katalog.field.category_free")}
                                     value={customKategorie}
                                     onChange={(e) => setCustomKategorie(e.target.value)}
                                 />
                             ) : (
                                 <div />
                             )}
-                            <Input label="Leistungsname *" value={name} onChange={(e) => setName(e.target.value)} />
+                            <Input label={t("page.behandlungs_katalog.field.name")} value={name} onChange={(e) => setName(e.target.value)} />
                             <Input
-                                label="Standard-Kosten (€)"
+                                label={t("page.behandlungs_katalog.field.cost")}
                                 value={kosten}
                                 onChange={(e) => setKosten(e.target.value)}
-                                placeholder="optional"
+                                placeholder={t("page.behandlungs_katalog.field.optional_ph")}
                             />
                         </div>
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit} disabled={editBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleUpdate()} disabled={editBusy} loading={editBusy}>
-                                Speichern
+                                {t("common.save")}
                             </Button>
                         </div>
                     </div>
@@ -332,15 +336,15 @@ export function BehandlungsKatalogPage() {
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={r.name}
-                        subtitle="Katalogeintrag"
+                        subtitle={t("page.behandlungs_katalog.entry.subtitle")}
                         action={
                             canWrite ? (
                                 <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
-                                        <EditIcon size={14} /> Bearbeiten
+                                        <EditIcon size={14} /> {t("common.edit")}
                                     </Button>
                                     <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>
-                                        <TrashIcon size={14} /> Entfernen
+                                        <TrashIcon size={14} /> {t("common.remove")}
                                     </Button>
                                 </div>
                             ) : null
@@ -348,10 +352,10 @@ export function BehandlungsKatalogPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
-                            {readField("Kategorie", r.kategorie)}
-                            {readField("Standard-Kosten", r.default_kosten != null ? formatCurrency(r.default_kosten) : "—")}
-                            {readField("Sortierung", r.sort_order)}
-                            {readField("Status", r.aktiv ? "Aktiv" : "Inaktiv")}
+                            {readField(t("page.behandlungs_katalog.field.category"), r.kategorie)}
+                            {readField(t("page.behandlungs_katalog.detail.cost"), r.default_kosten != null ? formatCurrency(r.default_kosten) : "—")}
+                            {readField(t("page.behandlungs_katalog.detail.sort"), r.sort_order)}
+                            {readField(t("page.behandlungs_katalog.detail.status"), r.aktiv ? t("page.behandlungs_katalog.status.active") : t("page.behandlungs_katalog.status.inactive"))}
                         </div>
                     </div>
                 </Card>
@@ -361,8 +365,8 @@ export function BehandlungsKatalogPage() {
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                     {canWrite
-                        ? "Wählen Sie eine Leistung in der Tabelle, oder „+ Neue Leistung“ für die Erfassung hier."
-                        : "Wählen Sie eine Zeile für Details."}
+                        ? t("page.behandlungs_katalog.select_hint_write")
+                        : t("page.behandlungs_katalog.select_hint_read")}
                 </p>
             </Card>
         );
@@ -371,18 +375,18 @@ export function BehandlungsKatalogPage() {
     return (
         <div className="produkte-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
-                title="Behandlungskatalog"
-                subtitle="Vordefinierte Kategorien und Leistungsnamen für die Akte — Liste links, anlegen und Details rechts."
+                title={t("page.behandlungs_katalog.title")}
+                subtitle={t("page.behandlungs_katalog.subtitle")}
                 actions={
                     canWrite ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Abbrechen" : "+ Neue Leistung"}
+                            {creating ? t("page.behandlungs_katalog.new_cancel") : t("page.behandlungs_katalog.new_btn")}
                         </Button>
                     ) : null
                 }
             />
 
-            {!canWrite ? <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>Nur mit Schreibrecht (z. B. Arzt) bearbeitbar.</p> : null}
+            {!canWrite ? <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>{t("page.behandlungs_katalog.read_only")}</p> : null}
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list">
@@ -390,8 +394,8 @@ export function BehandlungsKatalogPage() {
                         <Card className="card-pad">
                             <EmptyState
                                 icon="🦷"
-                                title="Keine Einträge im Katalog"
-                                description={canWrite ? "Rechts die Maske mit „+ Neue Leistung“ öffnen." : "Keine Leistungen hinterlegt."}
+                                title={t("page.behandlungs_katalog.empty.title")}
+                                description={canWrite ? t("page.behandlungs_katalog.empty.desc_write") : t("page.behandlungs_katalog.empty.desc_read")}
                             />
                         </Card>
                     ) : (
@@ -399,9 +403,9 @@ export function BehandlungsKatalogPage() {
                             <table className="tbl tbl-fluid">
                                 <thead>
                                     <tr>
-                                        <th scope="col">Kategorie</th>
-                                        <th scope="col">Leistungsname</th>
-                                        <th scope="col" style={{ textAlign: "right" }}>Standard</th>
+                                        <th scope="col">{t("page.behandlungs_katalog.col.category")}</th>
+                                        <th scope="col">{t("page.behandlungs_katalog.col.name")}</th>
+                                        <th scope="col" style={{ textAlign: "right" }}>{t("page.behandlungs_katalog.col.standard")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -436,9 +440,9 @@ export function BehandlungsKatalogPage() {
                 open={!!deleteId}
                 onClose={() => !busy && setDeleteId(null)}
                 onConfirm={() => void handleDelete()}
-                title="Eintrag entfernen"
-                message="Der Katalogeintrag wird deaktiviert und erscheint nicht mehr in der Auswahl."
-                confirmLabel="Ja, entfernen"
+                title={t("page.behandlungs_katalog.delete.title")}
+                message={t("page.behandlungs_katalog.delete.message")}
+                confirmLabel={t("page.behandlungs_katalog.delete.confirm")}
                 danger
                 loading={busy}
             />

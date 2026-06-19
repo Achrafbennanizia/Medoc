@@ -37,7 +37,12 @@ pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePo
     open_pool_with_migrations(app_data_dir).await
 }
 
-async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
+/// Re-open `medoc.db` after SQLCipher rekey (caller must have closed the prior pool).
+pub async fn reopen_app_pool(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
+    open_pool_with_migrations(app_data_dir).await
+}
+
+pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
     let db_path = app_dir.join("medoc.db");
     maybe_migrate_plaintext_db(app_dir, &db_path).await?;
     let key = resolve_sqlcipher_key(app_dir)?;
@@ -93,13 +98,15 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     if existing > 0 {
         migrations::run_legacy_embedded_migrations(pool).await?;
         migrations::run_rust_only_migrations(pool).await?;
-        return Ok(());
+    } else {
+        sqlx::migrate!("./migrations")
+            .run(pool)
+            .await
+            .map_err(|e| AppError::Internal(format!("SQL-Migration: {e}")))?;
+        migrations::run_rust_only_migrations(pool).await?;
+        migrations::run_post_migration_seed(pool).await?;
     }
-    sqlx::migrate!("./migrations")
-        .run(pool)
-        .await
-        .map_err(|e| AppError::Internal(format!("SQL-Migration: {e}")))?;
-    migrations::run_rust_only_migrations(pool).await?;
-    migrations::run_post_migration_seed(pool).await?;
+    // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-ARZT cap).
+    crate::mvp_security::ensure_staff_quota_db_triggers(pool).await?;
     Ok(())
 }

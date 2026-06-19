@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Patient, Personal } from "@/models/types";
@@ -34,6 +35,8 @@ export function PraxisAufgabeAdminGrid({
     onOpen,
     onEdit,
 }: Props) {
+    const t = useT();
+    const tp = useTParams();
     return (
         <div className="card aufgaben-table-card tbl-data-card card--overflow-visible">
             <div className="tbl-scroll">
@@ -54,29 +57,29 @@ export function PraxisAufgabeAdminGrid({
                     <thead>
                         <tr>
                             <th scope="col" className="aufgaben-th-updated">
-                                Aktualisiert
+                                {t("praxis.aufgaben.admin.col_updated")}
                             </th>
                             <th scope="col" className="aufgaben-th-titel">
-                                Titel
+                                {t("praxis.aufgaben.admin.col_title")}
                             </th>
                             {!compact ? (
                                 <>
                                     <th scope="col" className="aufgaben-th-patient">
-                                        Patient
+                                        {t("praxis.aufgaben.admin.col_patient")}
                                     </th>
                                     <th scope="col" className="aufgaben-th-typ">
-                                        Typ
+                                        {t("praxis.aufgaben.admin.col_type")}
                                     </th>
                                     <th scope="col" className="aufgaben-th-assignee">
-                                        Zugewiesen
+                                        {t("praxis.aufgaben.admin.col_assignee")}
                                     </th>
                                 </>
                             ) : null}
                             <th scope="col" className="aufgaben-th-status">
-                                Status
+                                {t("praxis.aufgaben.admin.col_status")}
                             </th>
-                            <th scope="col" className="aufgaben-th-action" aria-label="Aktion">
-                                <span className="sr-only">Aktion</span>
+                            <th scope="col" className="aufgaben-th-action" aria-label={t("praxis.aufgaben.admin.col_action")}>
+                                <span className="sr-only">{t("praxis.aufgaben.admin.col_action")}</span>
                             </th>
                         </tr>
                     </thead>
@@ -101,7 +104,7 @@ export function PraxisAufgabeAdminGrid({
                                     ].join(" ")}
                                     tabIndex={canOpen ? 0 : undefined}
                                     role={canOpen ? "link" : undefined}
-                                    aria-label={canOpen ? `Aufgabe ${row.titel} öffnen` : undefined}
+                                    aria-label={canOpen ? tp("praxis.aufgaben.open_aria", { title: row.titel }) : undefined}
                                     onClick={canOpen ? () => onOpen(row) : undefined}
                                     onKeyDown={onRowKeyDown}
                                     aria-disabled={!canOpen}
@@ -147,7 +150,7 @@ export function PraxisAufgabeAdminGrid({
                                                 type="button"
                                                 size="sm"
                                                 variant="ghost"
-                                                aria-label={`${row.titel} bearbeiten`}
+                                                aria-label={tp("praxis.aufgaben.admin.edit_aria", { title: row.titel })}
                                                 onClick={() => onEdit(row)}
                                             >
                                                 <EditIcon size={14} aria-hidden />

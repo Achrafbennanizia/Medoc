@@ -1,13 +1,29 @@
+import { useLocale, useT } from "@/lib/i18n";
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { WindowChromeMaximizeIcon, WindowChromeMinimizeIcon, WindowChromeRestoreIcon, XIcon } from "@/lib/icons";
 import { DesktopChromeProvider } from "./desktop-chrome";
 import { resolveDesktopChromeMode } from "./resolve-desktop-chrome-mode";
 
-const WINDOW_TITLE = "MeDoc – Zahnarztpraxis Management";
+const WINDOW_TITLE_KEY = "app.window_title";
 
 export function DesktopWindowFrame({ children }: { children: ReactNode }) {
+    const t = useT();
+    const locale = useLocale((s) => s.locale);
     const mode = useMemo(() => resolveDesktopChromeMode(), []);
     const [maximized, setMaximized] = useState(false);
+
+    useEffect(() => {
+        const title = t(WINDOW_TITLE_KEY);
+        document.title = title;
+        void (async () => {
+            try {
+                const { getCurrentWindow } = await import("@tauri-apps/api/window");
+                await getCurrentWindow().setTitle(title);
+            } catch {
+                /* browser / tests */
+            }
+        })();
+    }, [locale, t]);
 
     useLayoutEffect(() => {
         const root = document.documentElement;
@@ -109,21 +125,21 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
             <div className="desktop-app-frame">
                 <header className="desktop-titlebar desktop-titlebar--frameless-invisible">
                     <div className="desktop-titlebar__drag" data-tauri-drag-region>
-                        <span className="desktop-titlebar__title sr-only">{WINDOW_TITLE}</span>
+                        <span className="desktop-titlebar__title sr-only">{t(WINDOW_TITLE_KEY)}</span>
                     </div>
-                    <div className="desktop-titlebar__controls" role="group" aria-label="Fenster">
-                        <button type="button" className="desktop-titlebar__btn" onClick={onMinimize} aria-label="Minimieren">
+                    <div className="desktop-titlebar__controls" role="group" aria-label={t("desktop.window_controls")}>
+                        <button type="button" className="desktop-titlebar__btn" onClick={onMinimize} aria-label={t("desktop.minimize")}>
                             <WindowChromeMinimizeIcon size={11} aria-hidden />
                         </button>
                         <button
                             type="button"
                             className="desktop-titlebar__btn"
                             onClick={onToggleMaximize}
-                            aria-label={maximized ? "Wiederherstellen" : "Maximieren"}
+                            aria-label={maximized ? t("desktop.restore") : t("desktop.maximize")}
                         >
                             {maximized ? <WindowChromeRestoreIcon size={11} aria-hidden /> : <WindowChromeMaximizeIcon size={11} aria-hidden />}
                         </button>
-                        <button type="button" className="desktop-titlebar__btn desktop-titlebar__btn--close" onClick={onClose} aria-label="Schließen">
+                        <button type="button" className="desktop-titlebar__btn desktop-titlebar__btn--close" onClick={onClose} aria-label={t("common.close")}>
                             <XIcon size={12} aria-hidden />
                         </button>
                     </div>

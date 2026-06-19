@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 /**
  * Master license activation gate.
  *
@@ -37,6 +38,8 @@ type LicenseStatus = {
 };
 
 export function LicenseActivatePage(props: { onActivated?: () => void }) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [status, setStatus] = useState<LicenseStatus | null>(null);
     const [token, setToken] = useState("");
@@ -47,9 +50,9 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
             const cur = await practiceSystem.invoke<LicenseStatus>("current_license_status");
             setStatus(cur);
         } catch (e) {
-            toast(`Lizenzstatus: ${errorMessage(e)}`, "error");
+            toast(tp("license.activate.status_error", { message: errorMessage(e) }), "error");
         }
-    }, [toast]);
+    }, [toast, tp]);
 
     useEffect(() => {
         void reload();
@@ -57,7 +60,7 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
 
     const activate = async () => {
         if (!token.trim()) {
-            toast("Bitte Lizenz-Token einfügen.", "error");
+            toast(t("license.activate.token_required"), "error");
             return;
         }
         setBusy(true);
@@ -67,18 +70,18 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
             });
             setStatus(result);
             if (result.valid) {
-                toast("Lizenz aktiviert.", "success");
+                toast(t("license.activate.success"), "success");
                 setToken("");
                 props.onActivated?.();
             } else {
-                toast(`Lizenz ungültig: ${result.reason ?? "unbekannter Grund"}`, "error");
+                toast(tp("license.activate.invalid", { reason: result.reason ?? "?" }), "error");
             }
         } catch (e) {
             const msg = errorMessage(e);
             toast(
                 msg.toLowerCase().includes("forbidden") || msg.toLowerCase().includes("verboten")
-                    ? `Aktivierung nicht möglich: ${msg}. Bitte erneut anmelden oder Administrator kontaktieren.`
-                    : `Aktivierung: ${msg}`,
+                    ? tp("license.activate.forbidden", { message: msg })
+                    : tp("license.activate.error", { message: msg }),
                 "error",
             );
         } finally {
@@ -88,12 +91,11 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
 
     return (
         <main className="card-pad" style={{ maxWidth: 720, margin: "32px auto" }}>
-            <h1 className="card-title">Lizenz aktivieren</h1>
+            <h1 className="card-title">{t("license.activate.title")}</h1>
             <p className="card-sub">
-                Dieses Gerät ist der Master. Bitte den von uns gelieferten Lizenz-Token
-                einfügen (Format <code>v2.&lt;base64&gt;.&lt;base64&gt;</code> für
-                neue, gerätegebundene Lizenzen oder die ältere v1-Variante
-                <code>&lt;json&gt;.&lt;sig&gt;</code>).
+                {t("license.activate.intro")}{" "}
+                <code>v2.&lt;base64&gt;.&lt;base64&gt;</code> {t("license.activate.token_hint")}
+                <code>&lt;json&gt;.&lt;sig&gt;</code>.
             </p>
 
             {status?.valid ? (
@@ -105,9 +107,9 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                         padding: 12,
                         marginTop: 12,
                     }}
-                    aria-label="Aktive Lizenz"
+                    aria-label={t("license.activate.active_aria")}
                 >
-                    <strong>Aktive Lizenz ({status.format ?? "?"})</strong>
+                    <strong>{tp("license.activate.active_label", { format: status.format ?? "?" })}</strong>
                     <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
                         {JSON.stringify(status.licenseV2 ?? status.license, null, 2)}
                     </pre>
@@ -126,7 +128,7 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                         className="card-sub"
                         style={{ display: "block", marginBottom: 4 }}
                     >
-                        Lizenz-Token
+                        {t("license.activate.token_label")}
                     </label>
                     <textarea
                         id="license-token"
@@ -146,7 +148,7 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                     />
                     {status?.reason ? (
                         <p className="card-sub" style={{ color: "var(--text-danger)" }}>
-                            Letzter Fehler: {status.reason}
+                            {tp("license.activate.last_error", { reason: status.reason })}
                         </p>
                     ) : null}
                     <Button
@@ -156,7 +158,7 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                         disabled={busy || token.trim().length === 0}
                         onClick={() => void activate()}
                     >
-                        Lizenz aktivieren
+                        {t("license.activate.button")}
                     </Button>
                 </section>
             )}

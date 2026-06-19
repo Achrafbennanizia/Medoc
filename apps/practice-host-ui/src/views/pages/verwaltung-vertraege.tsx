@@ -28,6 +28,7 @@ import {
 } from "@/systems/practice-host/controllers/vertrag.controller";
 import { pickVertragPdfFile, openSystemScanUtility, scannerAttachVertragAppData, scannerListRecent } from "@/systems/practice-host/controllers/system.controller";
 import { allowed, parseRole } from "@/lib/rbac";
+import { useT, useTParams } from "@/lib/i18n";
 import { useAuthStore } from "@/models/store/auth-store";
 import { EditIcon, BoltIcon } from "@/lib/icons";
 
@@ -35,9 +36,9 @@ const LS_VERTRAG_SCAN_FOLDER = "medoc-vertrag-scan-folder";
 
 type LaufzeitModus = "unbefristet" | "befristet";
 
-const LAUFZEIT_OPTIONS: { value: LaufzeitModus; label: string }[] = [
-    { value: "unbefristet", label: "Unbefristet (offen, kein festes Enddatum)" },
-    { value: "befristet", label: "Befristet (Laufzeit von – bis)" },
+const LAUFZEIT_OPTIONS: { value: LaufzeitModus; labelKey: string }[] = [
+    { value: "unbefristet", labelKey: "page.verwaltung.vertraege.laufzeit.unbefristet" },
+    { value: "befristet", labelKey: "page.verwaltung.vertraege.laufzeit.befristet" },
 ];
 
 type FormState = {
@@ -78,6 +79,8 @@ function formFromVertrag(v: VertragItem): FormState {
  * Dauer- und Dienstverträge — wie Produkte: Liste links, Erfassung & Bearbeiten rechts (SQLite).
  */
 export function VerwaltungVertraegePage() {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canWrite = role != null && allowed("verwaltung.vertraege.write", role);
@@ -119,10 +122,10 @@ export function VerwaltungVertraegePage() {
             const rows = await listVertraegeFromBackend();
             setVertraege(rows);
         } catch (e) {
-            toast(`Verträge laden: ${errorMessage(e)}`, "error");
+            toast(tp("page.verwaltung.vertraege.toast.load_error", { message: errorMessage(e) }), "error");
             setVertraege([]);
         }
-    }, [toast]);
+    }, [toast, tp]);
 
     useEffect(() => {
         void (async () => {
@@ -137,17 +140,17 @@ export function VerwaltungVertraegePage() {
 
     const validate = (f: FormState): boolean => {
         const e: typeof formErrors = {};
-        if (!f.bezeichnung.trim()) e.bezeichnung = "Bitte Bezeichnung eingeben.";
-        if (!f.partner.trim()) e.partner = "Bitte Partner / Lieferant eingeben.";
+        if (!f.bezeichnung.trim()) e.bezeichnung = t("page.verwaltung.vertraege.validation.designation");
+        if (!f.partner.trim()) e.partner = t("page.verwaltung.vertraege.validation.partner");
         const b = f.betrag.trim() === "" ? 0 : parseEuroInput(f.betrag);
-        if (b == null) e.betrag = "Ungültiger Betrag.";
-        else if (b < 0) e.betrag = "Betrag darf nicht negativ sein.";
+        if (b == null) e.betrag = t("page.verwaltung.vertraege.validation.amount_invalid");
+        else if (b < 0) e.betrag = t("page.verwaltung.vertraege.validation.amount_negative");
 
         if (f.laufzeitModus === "befristet") {
-            if (!f.periodeVon) e.periodeVon = "Von-Datum wählen.";
-            if (!f.periodeBis) e.periodeBis = "Bis-Datum wählen.";
+            if (!f.periodeVon) e.periodeVon = t("page.verwaltung.vertraege.validation.period_from");
+            if (!f.periodeBis) e.periodeBis = t("page.verwaltung.vertraege.validation.period_to");
             if (f.periodeVon && f.periodeBis && f.periodeVon > f.periodeBis) {
-                e.periode = "Von muss vor oder am Bis-Datum liegen.";
+                e.periode = t("page.verwaltung.vertraege.validation.period_order");
             }
         }
         setFormErrors(e);
@@ -211,9 +214,9 @@ export function VerwaltungVertraegePage() {
                 await refreshFromBackend();
                 setCreating(false);
                 setSelected(row);
-                toast("Vertrag erfasst.", "success");
+                toast(t("page.verwaltung.vertraege.toast.created"), "success");
             } catch (e) {
-                toast(`Speichern: ${errorMessage(e)}`, "error");
+                toast(tp("page.verwaltung.vertraege.toast.save_error", { message: errorMessage(e) }), "error");
             }
         })();
     };
@@ -227,16 +230,16 @@ export function VerwaltungVertraegePage() {
                 await refreshFromBackend();
                 setSelected(row);
                 setDetailEdit(false);
-                toast("Vertrag gespeichert.", "success");
+                toast(t("page.verwaltung.vertraege.toast.saved"), "success");
             } catch (e) {
-                toast(`Speichern: ${errorMessage(e)}`, "error");
+                toast(tp("page.verwaltung.vertraege.toast.save_error", { message: errorMessage(e) }), "error");
             }
         })();
     };
 
     const refreshScanList = async () => {
         if (!scanFolder.trim()) {
-            toast("Bitte Scanner-Ordner angeben.", "error");
+            toast(t("page.verwaltung.vertraege.toast.scan_folder_required"), "error");
             return;
         }
         setScanBusy(true);
@@ -249,7 +252,7 @@ export function VerwaltungVertraegePage() {
                 /* ignore */
             }
         } catch (e) {
-            toast(`Scanner: ${errorMessage(e)}`, "error");
+            toast(tp("page.verwaltung.vertraege.toast.scan_error", { message: errorMessage(e) }), "error");
         } finally {
             setScanBusy(false);
         }
@@ -265,9 +268,9 @@ export function VerwaltungVertraegePage() {
             await refreshFromBackend();
             setSelected(row);
             setScanDialogOpen(false);
-            toast("Vertragsdokument verknüpft.", "success");
+            toast(t("page.verwaltung.vertraege.toast.attach_ok"), "success");
         } catch (e) {
-            toast(`Anhängen: ${errorMessage(e)}`, "error");
+            toast(tp("page.verwaltung.vertraege.toast.attach_error", { message: errorMessage(e) }), "error");
         } finally {
             setAttachBusy(false);
         }
@@ -279,7 +282,7 @@ export function VerwaltungVertraegePage() {
         try {
             src = await pickVertragPdfFile();
         } catch (e) {
-            toast(`Dateiauswahl: ${errorMessage(e)}`, "error");
+            toast(tp("page.verwaltung.vertraege.toast.pick_error", { message: errorMessage(e) }), "error");
             return;
         }
         if (!src) return;
@@ -290,9 +293,9 @@ export function VerwaltungVertraegePage() {
             await upsertVertragOnBackend(row);
             await refreshFromBackend();
             setSelected(row);
-            toast("PDF wurde gespeichert und verknüpft.", "success");
+            toast(t("page.verwaltung.vertraege.toast.attach_pdf_ok"), "success");
         } catch (e) {
-            toast(`Anhängen: ${errorMessage(e)}`, "error");
+            toast(tp("page.verwaltung.vertraege.toast.attach_error", { message: errorMessage(e) }), "error");
         } finally {
             setAttachBusy(false);
         }
@@ -306,9 +309,9 @@ export function VerwaltungVertraegePage() {
                 await upsertVertragOnBackend(row);
                 await refreshFromBackend();
                 setSelected(row);
-                toast("Dokument-Verknüpfung entfernt.", "success");
+                toast(t("page.verwaltung.vertraege.toast.unlink_ok"), "success");
             } catch (e) {
-                toast(`Speichern: ${errorMessage(e)}`, "error");
+                toast(tp("page.verwaltung.vertraege.toast.save_error", { message: errorMessage(e) }), "error");
             }
         })();
     };
@@ -319,7 +322,7 @@ export function VerwaltungVertraegePage() {
             try {
                 await openVertragDokument(selected.id);
             } catch (e) {
-                toast(`Öffnen: ${errorMessage(e)}`, "error");
+                toast(tp("page.verwaltung.vertraege.toast.open_error", { message: errorMessage(e) }), "error");
             }
         })();
     };
@@ -335,60 +338,60 @@ export function VerwaltungVertraegePage() {
 
     const formBody = (
         <>
-            <FormSection title="Vertragspartner & Leistung">
+            <FormSection title={t("page.verwaltung.vertraege.section.partner")}>
                 <Input
                     id="v-bez"
-                    label="Bezeichnung"
+                    label={t("page.verwaltung.vertraege.field.designation")}
                     value={form.bezeichnung}
                     onChange={(e) => setForm((p) => ({ ...p, bezeichnung: e.target.value }))}
                     error={formErrors.bezeichnung}
-                    placeholder="z. B. Miete, Labor, Versicherung"
+                    placeholder={t("page.verwaltung.vertraege.field.designation_ph")}
                 />
                 <Input
                     id="v-partner"
-                    label="Partner / Anbieter"
+                    label={t("page.verwaltung.vertraege.field.partner")}
                     value={form.partner}
                     onChange={(e) => setForm((p) => ({ ...p, partner: e.target.value }))}
                     error={formErrors.partner}
-                    placeholder="Firmenname, Kontakt"
+                    placeholder={t("page.verwaltung.vertraege.field.partner_ph")}
                 />
             </FormSection>
-            <FormSection title="Kosten & Zahlungsrhythmus">
+            <FormSection title={t("page.verwaltung.vertraege.section.costs")}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                     <Input
                         id="v-betrag"
-                        label="Betrag (€)"
+                        label={t("page.verwaltung.vertraege.field.amount")}
                         value={form.betrag}
                         onChange={(e) => setForm((p) => ({ ...p, betrag: e.target.value }))}
                         error={formErrors.betrag}
-                        placeholder="z. B. 3200 oder 0 (variabel)"
+                        placeholder={t("page.verwaltung.vertraege.field.amount_ph")}
                     />
                     <Select
                         id="v-int"
-                        label="Intervall (Betrag gilt …)"
+                        label={t("page.verwaltung.vertraege.field.interval")}
                         value={form.intervall}
                         onChange={(e) => setForm((p) => ({ ...p, intervall: e.target.value as VertragIntervall }))}
                         options={VERTRAG_INTERVALL_OPTIONS}
                     />
                 </div>
                 <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                    Der Betrag bezieht sich exakt auf das gewählte Intervall. „0 €“ = variabler Betrag, nur zur Dokumentation.
+                    {t("page.verwaltung.vertraege.section.costs_hint")}
                 </p>
             </FormSection>
-            <FormSection title="Laufzeit">
+            <FormSection title={t("page.verwaltung.vertraege.section.runtime")}>
                 <Select
                     id="v-lauf"
-                    label="Dauer"
+                    label={t("page.verwaltung.vertraege.field.duration")}
                     value={form.laufzeitModus}
                     onChange={(e) => setForm((p) => ({ ...p, laufzeitModus: e.target.value as LaufzeitModus }))}
-                    options={LAUFZEIT_OPTIONS}
+                    options={LAUFZEIT_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                 />
                 {form.laufzeitModus === "befristet" ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                         <Input
                             id="v-von"
                             type="date"
-                            label="Laufzeit von"
+                            label={t("page.verwaltung.vertraege.field.runtime_from")}
                             value={form.periodeVon}
                             onChange={(e) => setForm((p) => ({ ...p, periodeVon: e.target.value }))}
                             error={formErrors.periodeVon}
@@ -396,7 +399,7 @@ export function VerwaltungVertraegePage() {
                         <Input
                             id="v-bis"
                             type="date"
-                            label="Laufzeit bis"
+                            label={t("page.verwaltung.vertraege.field.runtime_to")}
                             value={form.periodeBis}
                             onChange={(e) => setForm((p) => ({ ...p, periodeBis: e.target.value }))}
                             min={form.periodeVon || undefined}
@@ -405,12 +408,12 @@ export function VerwaltungVertraegePage() {
                     </div>
                 ) : (
                     <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>
-                        Unbefristet: kein fester Ablaufdatum; hier nur zur Übersicht.
+                        {t("page.verwaltung.vertraege.laufzeit.unbefristet_hint")}
                     </p>
                 )}
                 {formErrors.periode ? <p className="page-sub" style={{ color: "var(--red)", margin: 0, fontSize: 12 }}>{formErrors.periode}</p> : null}
             </FormSection>
-            <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Stichtag für Laufzeit: {heute}</p>
+            <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>{tp("page.verwaltung.vertraege.runtime_stichtag", { date: heute })}</p>
         </>
     );
 
@@ -419,11 +422,11 @@ export function VerwaltungVertraegePage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Neuer Vertrag"
-                        subtitle="Erfassung hier rechts — Betrag, Intervall, Laufzeit."
+                        title={t("page.verwaltung.vertraege.create_title")}
+                        subtitle={t("page.verwaltung.vertraege.create_subtitle")}
                         action={(
                             <Button type="button" size="sm" variant="ghost" onClick={cancelCreate}>
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         )}
                     />
@@ -431,10 +434,10 @@ export function VerwaltungVertraegePage() {
                         {formBody}
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={handleCreate}>
-                                Speichern
+                                {t("common.save")}
                             </Button>
                         </div>
                     </div>
@@ -445,11 +448,11 @@ export function VerwaltungVertraegePage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Vertrag bearbeiten"
-                        subtitle="Änderungen speichern."
+                        title={t("page.verwaltung.vertraege.edit_title")}
+                        subtitle={t("page.verwaltung.vertraege.edit_subtitle")}
                         action={(
                             <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         )}
                     />
@@ -457,10 +460,10 @@ export function VerwaltungVertraegePage() {
                         {formBody}
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={handleUpdate}>
-                                Speichern
+                                {t("common.save")}
                             </Button>
                         </div>
                     </div>
@@ -474,16 +477,16 @@ export function VerwaltungVertraegePage() {
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={v.bezeichnung}
-                        subtitle="Vertrag"
+                        subtitle={t("page.verwaltung.vertraege.detail.contract")}
                         action={(
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 {canWrite ? (
                                     <>
                                         <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
-                                            <EditIcon size={14} /> Bearbeiten
+                                            <EditIcon size={14} /> {t("common.edit")}
                                         </Button>
                                         <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(v.id)}>
-                                            Löschen
+                                            {t("common.delete")}
                                         </Button>
                                     </>
                                 ) : null}
@@ -491,37 +494,35 @@ export function VerwaltungVertraegePage() {
                         )}
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        {readField("Partner", v.partner)}
-                        {readField("Betrag / Intervall", formatVertragbetragzeile(v.betrag, v.intervall))}
-                        {readField("Laufzeit", formatVertragLaufzeit(v))}
+                        {readField(t("page.verwaltung.vertraege.read.partner"), v.partner)}
+                        {readField(t("page.verwaltung.vertraege.read.amount_interval"), formatVertragbetragzeile(v.betrag, v.intervall))}
+                        {readField(t("page.verwaltung.vertraege.read.runtime"), formatVertragLaufzeit(v))}
                         <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                            <span className="page-sub" style={{ fontSize: 12, margin: 0 }}>Status (heute):</span>
-                            {aktiv ? <Badge variant="success">Aktiv</Badge> : <Badge variant="warning">Außerhalb Laufzeit</Badge>}
+                            <span className="page-sub" style={{ fontSize: 12, margin: 0 }}>{t("page.verwaltung.vertraege.detail.status_today")}</span>
+                            {aktiv ? <Badge variant="success">{t("page.verwaltung.vertraege.badge.active")}</Badge> : <Badge variant="warning">{t("page.verwaltung.vertraege.badge.inactive")}</Badge>}
                         </div>
-                        {readField("Richtwert", formatMonatsaequivalenzText(v))}
-                        <FormSection title="Vertragsdokument (Scan / Datei)">
+                        {readField(t("page.verwaltung.vertraege.detail.reference"), formatMonatsaequivalenzText(v))}
+                        <FormSection title={t("page.verwaltung.vertraege.doc.section")}>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                                PDF auswählen oder Datei aus dem Scanner-Ordner übernehmen — Kopie unter{" "}
-                                <code style={{ fontSize: 11 }}>medoc-data/vertraege/{"{Vertrag-ID}"}/</code>{" "}
-                                (Benutzerverzeichnis), Pfad in der Datenbank; öffnen über „Dokument öffnen“.
+                                {t("page.verwaltung.vertraege.doc.hint")}
                             </p>
                             {v.dokumentPfad ? (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                    <span className="kpi-label-mini">Gespeicherter Pfad</span>
+                                    <span className="kpi-label-mini">{t("page.verwaltung.vertraege.doc.path_label")}</span>
                                     <span style={{ fontSize: 12, color: "var(--fg-2)", wordBreak: "break-all" }}>{v.dokumentPfad}</span>
                                     <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                         <Button type="button" size="sm" variant="secondary" onClick={() => void tryOpenVertragDokument()}>
-                                            Dokument öffnen
+                                            {t("page.verwaltung.vertraege.btn.open_doc")}
                                         </Button>
                                         {canWrite ? (
                                             <Button type="button" size="sm" variant="ghost" onClick={clearVertragDokument}>
-                                                Verknüpfung entfernen
+                                                {t("page.verwaltung.vertraege.btn.unlink")}
                                             </Button>
                                         ) : null}
                                     </div>
                                 </div>
                             ) : (
-                                <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Noch kein Dokument verknüpft.</p>
+                                <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>{t("page.verwaltung.vertraege.doc.empty")}</p>
                             )}
                             {canWrite ? (
                                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -535,7 +536,7 @@ export function VerwaltungVertraegePage() {
                                             setScanDialogOpen(true);
                                         }}
                                     >
-                                        <BoltIcon size={14} /> Aus Scanner übernehmen…
+                                        <BoltIcon size={14} /> {t("page.verwaltung.vertraege.btn.attach_scan")}
                                     </Button>
                                     <Button
                                         type="button"
@@ -545,7 +546,7 @@ export function VerwaltungVertraegePage() {
                                         loading={attachBusy}
                                         onClick={() => void attachLocalPdfToSelected()}
                                     >
-                                        PDF auswählen…
+                                        {t("page.verwaltung.vertraege.btn.pick_pdf")}
                                     </Button>
                                 </div>
                             ) : null}
@@ -557,7 +558,7 @@ export function VerwaltungVertraegePage() {
         return (
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    Wählen Sie eine Zeile in der Tabelle, oder „+ Vertrag erfassen“.
+                    {t("page.verwaltung.vertraege.empty_detail")}
                 </p>
             </Card>
         );
@@ -566,19 +567,19 @@ export function VerwaltungVertraegePage() {
     return (
         <div className="verwaltung-menu-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
-                title="Verträge"
-                subtitle="Laufende Kosten: Betrag pro Tag, Woche, Monat oder Jahr; unbefristet oder mit Laufzeit — Liste links, Details rechts."
+                title={t("page.verwaltung.vertraege.title")}
+                subtitle={t("page.verwaltung.vertraege.subtitle")}
                 actions={
                     canWrite ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Abbrechen" : "+ Vertrag erfassen"}
+                            {creating ? t("common.cancel") : t("page.verwaltung.vertraege.btn.create")}
                         </Button>
                     ) : null
                 }
             />
 
             {!hydrated ? (
-                <p className="page-sub" style={{ margin: 0 }}>Lade Verträge…</p>
+                <p className="page-sub" style={{ margin: 0 }}>{t("page.verwaltung.vertraege.loading")}</p>
             ) : (
                 <div className="produkte-workspace">
                     <div className="produkte-workspace__list">
@@ -587,18 +588,18 @@ export function VerwaltungVertraegePage() {
                                 <thead>
                                     <tr>
                                         <th scope="col" style={{ width: 40 }} aria-hidden> </th>
-                                        <th scope="col">Bezeichnung / Partner</th>
-                                        <th scope="col" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Betrag / Intervall</th>
-                                        <th scope="col">Laufzeit</th>
-                                        <th scope="col" style={{ whiteSpace: "nowrap" }}>Status</th>
-                                        <th scope="col" style={{ textAlign: "right", minWidth: 100 }}>Richtwert</th>
+                                        <th scope="col">{t("page.verwaltung.vertraege.col.designation_partner")}</th>
+                                        <th scope="col" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{t("page.verwaltung.vertraege.col.amount_interval")}</th>
+                                        <th scope="col">{t("page.verwaltung.vertraege.col.runtime")}</th>
+                                        <th scope="col" style={{ whiteSpace: "nowrap" }}>{t("page.verwaltung.vertraege.col.status")}</th>
+                                        <th scope="col" style={{ textAlign: "right", minWidth: 100 }}>{t("page.verwaltung.vertraege.col.reference")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {vertraege.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="page-sub" style={{ padding: 20 }}>
-                                                Noch keine Verträge. Rechts erfassen oder Tabelle erscheint mit Daten.
+                                                {t("page.verwaltung.vertraege.empty_table")}
                                             </td>
                                         </tr>
                                     ) : (
@@ -612,7 +613,7 @@ export function VerwaltungVertraegePage() {
                                                     onClick={() => selectRow(v)}
                                                     style={{ cursor: "pointer" }}
                                                 >
-                                                    <td style={{ color: "var(--fg-3)", textAlign: "center" }} title={v.dokumentPfad ? "Mit Dokument" : undefined}>
+                                                    <td style={{ color: "var(--fg-3)", textAlign: "center" }} title={v.dokumentPfad ? t("page.verwaltung.vertraege.title_with_doc") : undefined}>
                                                         {v.dokumentPfad ? "📎" : "📄"}
                                                     </td>
                                                     <td>
@@ -624,7 +625,7 @@ export function VerwaltungVertraegePage() {
                                                     </td>
                                                     <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatVertragLaufzeit(v)}</td>
                                                     <td>
-                                                        {aktiv ? <Badge variant="success">Aktiv</Badge> : <Badge variant="warning">Außerhalb</Badge>}
+                                                        {aktiv ? <Badge variant="success">{t("page.verwaltung.vertraege.badge.active")}</Badge> : <Badge variant="warning">{t("page.verwaltung.vertraege.badge.outside")}</Badge>}
                                                     </td>
                                                     <td style={{ textAlign: "right", fontSize: 12, color: "var(--fg-3)" }}>
                                                         {formatMonatsaequivalenzText(v)}
@@ -647,25 +648,23 @@ export function VerwaltungVertraegePage() {
                     if (attachBusy) return;
                     setScanDialogOpen(false);
                 }}
-                title="Scanner: Vertragsdokument"
+                title={t("page.verwaltung.vertraege.scan.dialog_title")}
                 footer={(
                     <Button type="button" variant="ghost" onClick={() => setScanDialogOpen(false)} disabled={attachBusy}>
-                        Schließen
+                        {t("common.close")}
                     </Button>
                 )}
             >
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <p className="page-sub" style={{ margin: 0, fontSize: 13 }}>
-                        Ordner angeben, in den Ihr Scan-Gerät die Dateien schreibt — dann Liste aktualisieren und eine Datei dem Vertrag{" "}
-                        <strong>{selected?.bezeichnung ?? ""}</strong> zuordnen. Die Kopie landet unter{" "}
-                        <code style={{ fontSize: 11 }}>medoc-data/vertraege/{"{Vertrag-ID}"}/</code>.
+                        {tp("page.verwaltung.vertraege.scan.intro", { name: selected?.bezeichnung ?? "" })}
                     </p>
                     <Input
                         id="vertrag-scan-folder"
-                        label="Scanner-Ordner"
+                        label={t("page.verwaltung.vertraege.field.scan_folder")}
                         value={scanFolder}
                         onChange={(e) => setScanFolder(e.target.value)}
-                        placeholder="/Users/…/scans"
+                        placeholder={t("page.verwaltung.vertraege.field.scan_folder_ph")}
                     />
                     <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                         <Button
@@ -677,15 +676,15 @@ export function VerwaltungVertraegePage() {
                                     try {
                                         await openSystemScanUtility();
                                     } catch (e) {
-                                        toast(`Scanner-Programm: ${errorMessage(e)}`, "error");
+                                        toast(tp("page.verwaltung.vertraege.toast.scanner_app_error", { message: errorMessage(e) }), "error");
                                     }
                                 })();
                             }}
                         >
-                            System-Scanner öffnen
+                            {t("page.verwaltung.vertraege.btn.scanner_open")}
                         </Button>
                         <Button type="button" onClick={() => void refreshScanList()} disabled={scanBusy} loading={scanBusy}>
-                            Liste aktualisieren
+                            {t("page.verwaltung.vertraege.btn.refresh_list")}
                         </Button>
                     </div>
                     {scanDocs.length > 0 ? (
@@ -704,7 +703,7 @@ export function VerwaltungVertraegePage() {
                                 >
                                     <span style={{ fontSize: 13, minWidth: 0, wordBreak: "break-all" }}>
                                         {d.path}{" "}
-                                        <span style={{ color: "var(--fg-3)" }}>({d.bytes} Bytes)</span>
+                                        <span style={{ color: "var(--fg-3)" }}>{tp("page.verwaltung.vertraege.scan.bytes", { bytes: d.bytes })}</span>
                                     </span>
                                     <Button
                                         type="button"
@@ -714,13 +713,13 @@ export function VerwaltungVertraegePage() {
                                         loading={attachBusy}
                                         onClick={() => void attachScanToSelected(d.path)}
                                     >
-                                        Übernehmen
+                                        {t("page.verwaltung.vertraege.scan.apply")}
                                     </Button>
                                 </li>
                             ))}
                         </ul>
                     ) : (
-                        <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Keine passenden Dateien — Ordner prüfen und „Liste aktualisieren“.</p>
+                        <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>{t("page.verwaltung.vertraege.scan.empty")}</p>
                     )}
                 </div>
             </Dialog>
@@ -738,15 +737,15 @@ export function VerwaltungVertraegePage() {
                             setSelected((s) => (s?.id === rid ? null : s));
                             setDeleteId(null);
                             setDetailEdit(false);
-                            toast("Vertrag entfernt.", "success");
+                            toast(t("page.verwaltung.vertraege.toast.deleted"), "success");
                         } catch (e) {
-                            toast(`Löschen: ${errorMessage(e)}`, "error");
+                            toast(tp("page.verwaltung.vertraege.toast.delete_error", { message: errorMessage(e) }), "error");
                         }
                     })();
                 }}
-                title="Vertrag löschen?"
-                message="Dieser Eintrag wird dauerhaft aus der Vertragsübersicht (Datenbank) entfernt."
-                confirmLabel="Löschen"
+                title={t("page.verwaltung.vertraege.confirm.delete_title")}
+                message={t("page.verwaltung.vertraege.confirm.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
         </div>

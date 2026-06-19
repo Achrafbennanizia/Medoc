@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import {
     listAbwesenheiten,
     createAbwesenheit,
@@ -9,6 +10,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Abwesenheit } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
+import { useDateFnsLocale, useT } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -35,7 +37,19 @@ function parseIso(s: string): Date | null {
     return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
+const WEEKDAY_KEYS = [
+    "page.arbeitsplan.day_short.mo",
+    "page.arbeitsplan.day_short.di",
+    "page.arbeitsplan.day_short.mi",
+    "page.arbeitsplan.day_short.do",
+    "page.arbeitsplan.day_short.fr",
+    "page.arbeitsplan.day_short.sa",
+    "page.arbeitsplan.day_short.so",
+] as const;
+
 export function ArbeitstagePage() {
+    const t = useT();
+    const dateFnsLocale = useDateFnsLocale();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -76,8 +90,8 @@ export function ArbeitstagePage() {
     }, [reload]);
 
     const monthLabel = useMemo(
-        () => new Date(calYear, calMonth, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" }),
-        [calYear, calMonth],
+        () => format(new Date(calYear, calMonth, 1), "LLLL yyyy", { locale: dateFnsLocale }),
+        [calYear, calMonth, dateFnsLocale],
     );
 
     const calendarCells = useMemo(() => {
@@ -142,7 +156,7 @@ export function ArbeitstagePage() {
     const submit = async () => {
         if (!canWrite) return;
         if (!typ.trim() || !vonTag || !bisTag) {
-            toast("Typ und Zeitraum (von/bis) sind erforderlich.", "error");
+            toast(t("page.arbeitstage.toast.validation"), "error");
             return;
         }
         try {
@@ -155,7 +169,7 @@ export function ArbeitstagePage() {
                     von_uhrzeit: vonUhr.trim() || undefined,
                     bis_uhrzeit: bisUhr.trim() || undefined,
                 });
-                toast("Eintrag gespeichert");
+                toast(t("page.arbeitstage.toast.saved"));
             } else {
                 await createAbwesenheit({
                     typ: typ.trim(),
@@ -165,12 +179,12 @@ export function ArbeitstagePage() {
                     von_uhrzeit: vonUhr.trim() || undefined,
                     bis_uhrzeit: bisUhr.trim() || undefined,
                 });
-                toast("Eintrag hinzugefügt");
+                toast(t("page.arbeitsplan.toast.compose_entry_added"));
             }
             resetForm();
             await reload();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
     };
 
@@ -178,31 +192,31 @@ export function ArbeitstagePage() {
         if (!deleteId || !canWrite) return;
         try {
             await deleteAbwesenheit(deleteId);
-            toast("Eintrag gelöscht");
+            toast(t("page.arbeitstage.toast.deleted"));
             setDeleteId(null);
             if (editingId === deleteId) resetForm();
             await reload();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
     };
 
-    if (status === "loading") return <PageLoading label="Arbeitstage werden geladen…" />;
+    if (status === "loading") return <PageLoading label={t("page.arbeitstage.loading")} />;
     if (status === "error" && loadError) return <PageLoadError message={loadError} onRetry={() => void reload()} />;
 
     return (
         <div className="praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 titleLevel="h1"
-                title="Arbeitstage verwalten"
-                subtitle="Urlaub und Abwesenheiten — Kalender und Liste"
+                title={t("page.arbeitstage.title")}
+                subtitle={t("page.arbeitstage.subtitle")}
             />
 
             <ConfirmDialog
                 open={Boolean(deleteId)}
-                title="Löschen bestätigen:"
-                message="Möchten Sie dieses Objekt wirklich löschen?"
-                confirmLabel="Ja, löschen"
+                title={t("patient.detail.header.delete_confirm.title")}
+                message={t("page.arbeitstage.delete.message")}
+                confirmLabel={t("common.yes_delete")}
                 danger
                 onConfirm={() => void confirmDelete()}
                 onClose={() => setDeleteId(null)}
@@ -210,7 +224,7 @@ export function ArbeitstagePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <div className="card card-pad">
-                    <h2 className="form-section-title" style={{ marginTop: 0 }}>Kalender</h2>
+                    <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitstage.calendar")}</h2>
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
                         <Button type="button" variant="ghost" size="sm" onClick={() => {
                             if (calMonth === 0) {
@@ -233,8 +247,8 @@ export function ArbeitstagePage() {
                         </Button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 text-center" style={{ fontSize: 11, color: "var(--fg-3)", marginBottom: 4 }}>
-                        {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((d) => (
-                            <div key={d}>{d}</div>
+                        {WEEKDAY_KEYS.map((key) => (
+                            <div key={key}>{t(key)}</div>
                         ))}
                     </div>
                     <div className="grid grid-cols-7 gap-1">
@@ -268,17 +282,17 @@ export function ArbeitstagePage() {
                         })}
                     </div>
                     <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 10, marginBottom: 0 }}>
-                        Erstes Datum setzt „Von“, zweites „Bis“. Erneut wählen setzt neu.
+                        {t("page.arbeitstage.calendar.hint")}
                     </p>
                 </div>
 
                 <div className="card card-pad">
-                    <h2 className="form-section-title" style={{ marginTop: 0 }}>Urlaub hinzufügen</h2>
-                    <Input label="Typ" value={typ} onChange={(e) => setTyp(e.target.value)} disabled={!canWrite} />
-                    <Input label="Kommentar" value={kommentar} onChange={(e) => setKommentar(e.target.value)} disabled={!canWrite} />
-                    <div className="arbeitstage-range-grid" role="group" aria-label="Datums- und Uhrzeitraum">
+                    <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitstage.add_title")}</h2>
+                    <Input label={t("common.type")} value={typ} onChange={(e) => setTyp(e.target.value)} disabled={!canWrite} />
+                    <Input label={t("page.arbeitstage.field.comment")} value={kommentar} onChange={(e) => setKommentar(e.target.value)} disabled={!canWrite} />
+                    <div className="arbeitstage-range-grid" role="group" aria-label={t("page.arbeitstage.range_aria")}>
                         <div className="arbeitstage-range-grid__field">
-                            <label htmlFor="arbeitstage-von-tag" className="arbeitstage-range-grid__l">Von dem Tag</label>
+                            <label htmlFor="arbeitstage-von-tag" className="arbeitstage-range-grid__l">{t("page.arbeitstage.field.from_day")}</label>
                             <input
                                 id="arbeitstage-von-tag"
                                 type="date"
@@ -289,7 +303,7 @@ export function ArbeitstagePage() {
                             />
                         </div>
                         <div className="arbeitstage-range-grid__field">
-                            <label htmlFor="arbeitstage-bis-tag" className="arbeitstage-range-grid__l">Bis dem Tag</label>
+                            <label htmlFor="arbeitstage-bis-tag" className="arbeitstage-range-grid__l">{t("page.arbeitstage.field.to_day")}</label>
                             <input
                                 id="arbeitstage-bis-tag"
                                 type="date"
@@ -300,7 +314,7 @@ export function ArbeitstagePage() {
                             />
                         </div>
                         <div className="arbeitstage-range-grid__field">
-                            <label htmlFor="arbeitstage-von-uhr" className="arbeitstage-range-grid__l">Von der Uhrzeit</label>
+                            <label htmlFor="arbeitstage-von-uhr" className="arbeitstage-range-grid__l">{t("page.arbeitstage.field.from_time")}</label>
                             <input
                                 id="arbeitstage-von-uhr"
                                 type="time"
@@ -311,7 +325,7 @@ export function ArbeitstagePage() {
                             />
                         </div>
                         <div className="arbeitstage-range-grid__field">
-                            <label htmlFor="arbeitstage-bis-uhr" className="arbeitstage-range-grid__l">Bis der Uhrzeit</label>
+                            <label htmlFor="arbeitstage-bis-uhr" className="arbeitstage-range-grid__l">{t("page.arbeitstage.field.to_time")}</label>
                             <input
                                 id="arbeitstage-bis-uhr"
                                 type="time"
@@ -325,29 +339,29 @@ export function ArbeitstagePage() {
                     <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                         {canWrite ? (
                             <>
-                                <Button type="button" onClick={() => void submit()}>{editingId ? "Speichern" : "Hinzufügen"}</Button>
+                                <Button type="button" onClick={() => void submit()}>{editingId ? t("common.save") : t("common.add")}</Button>
                                 {editingId ? (
-                                    <Button type="button" variant="ghost" onClick={resetForm}>Abbrechen</Button>
+                                    <Button type="button" variant="ghost" onClick={resetForm}>{t("common.cancel")}</Button>
                                 ) : null}
                             </>
                         ) : (
-                            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>Nur Lesen — keine Berechtigung zum Bearbeiten.</span>
+                            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{t("page.arbeitstage.read_only")}</span>
                         )}
                     </div>
                 </div>
             </div>
 
             <div className="card card-pad">
-                <h2 className="form-section-title" style={{ marginTop: 0 }}>Einträge</h2>
+                <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitstage.entries")}</h2>
                 <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
                             <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line)" }}>
-                                <th style={{ padding: "8px 6px" }}>Von</th>
-                                <th style={{ padding: "8px 6px" }}>Bis</th>
-                                <th style={{ padding: "8px 6px" }}>Uhrzeit</th>
-                                <th style={{ padding: "8px 6px" }}>Typ</th>
-                                <th style={{ padding: "8px 6px" }}>Kommentar</th>
+                                <th style={{ padding: "8px 6px" }}>{t("page.arbeitsplan.label.from")}</th>
+                                <th style={{ padding: "8px 6px" }}>{t("page.arbeitsplan.label.to")}</th>
+                                <th style={{ padding: "8px 6px" }}>{t("page.arbeitstage.col.time")}</th>
+                                <th style={{ padding: "8px 6px" }}>{t("common.type")}</th>
+                                <th style={{ padding: "8px 6px" }}>{t("page.arbeitstage.field.comment")}</th>
                                 {canWrite ? <th style={{ padding: "8px 6px", width: 88 }}> </th> : null}
                             </tr>
                         </thead>
@@ -366,8 +380,8 @@ export function ArbeitstagePage() {
                                     {canWrite ? (
                                         <td style={{ padding: "8px 6px" }}>
                                             <div className="row" style={{ gap: 6 }}>
-                                                <button type="button" className="btn btn-ghost" aria-label="Bearbeiten" onClick={() => startEdit(r)}><EditIcon /></button>
-                                                <button type="button" className="btn btn-ghost" aria-label="Löschen" onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
+                                                <button type="button" className="btn btn-ghost" aria-label={t("page.arbeitstage.a11y.edit")} onClick={() => startEdit(r)}><EditIcon /></button>
+                                                <button type="button" className="btn btn-ghost" aria-label={t("page.arbeitstage.a11y.delete")} onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
                                             </div>
                                         </td>
                                     ) : null}
@@ -375,7 +389,7 @@ export function ArbeitstagePage() {
                             ))}
                         </tbody>
                     </table>
-                    {rows.length === 0 ? <p style={{ color: "var(--fg-3)", marginTop: 12 }}>Keine Einträge.</p> : null}
+                    {rows.length === 0 ? <p style={{ color: "var(--fg-3)", marginTop: 12 }}>{t("page.arbeitstage.empty")}</p> : null}
                 </div>
             </div>
         </div>

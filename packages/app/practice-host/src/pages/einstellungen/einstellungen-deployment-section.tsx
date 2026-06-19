@@ -42,35 +42,36 @@ import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select } from "@/views/components/ui/input";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 
-const MODE_OPTIONS: { value: DeploymentMode; label: string; hint: string }[] = [
+const MODE_OPTIONS = (t: (key: string) => string): { value: DeploymentMode; label: string; hint: string }[] => [
     {
         value: "practice_desktop",
-        label: "Praxis-Desktop (eigenständig)",
-        hint: "Lokale Datenbank auf diesem Gerät. Optional: LAN-Server auf demselben Rechner starten.",
+        label: t("settings.deployment.mode.practice_desktop"),
+        hint: t("settings.deployment.mode.practice_desktop_hint"),
     },
     {
         value: "lan_client",
-        label: "LAN-Client (ohne lokale DB)",
-        hint: "Verbindet sich nur mit einem entfernten medoc-server — z. B. Tablet im WLAN.",
+        label: t("settings.deployment.mode.lan_client"),
+        hint: t("settings.deployment.mode.lan_client_hint"),
     },
     {
         value: "serverless_peer",
-        label: "Serverless-Peer (Offline-Sync)",
-        hint: "Eigene Datenbank; synchronisiert direkt mit dem Master-Gerät im LAN.",
+        label: t("settings.deployment.mode.serverless_peer"),
+        hint: t("settings.deployment.mode.serverless_peer_hint"),
     },
 ];
 
-const ROLE_OPTIONS: { value: DeviceRole; label: string; hint: string }[] = [
+const ROLE_OPTIONS = (t: (key: string) => string): { value: DeviceRole; label: string; hint: string }[] => [
     {
         value: "MASTER",
-        label: "Master (Hauptgerät)",
-        hint: "Autoritative Praxis-Datenbank. Replicas koppeln sich über Pairing an dieses Gerät.",
+        label: t("settings.deployment.role.master"),
+        hint: t("settings.deployment.role.master_hint"),
     },
     {
         value: "REPLICA",
-        label: "Replica (Zweitgerät)",
-        hint: "Lokale DB mit Offline-Warteschlange; synchronisiert mit dem Master wenn erreichbar.",
+        label: t("settings.deployment.role.replica"),
+        hint: t("settings.deployment.role.replica_hint"),
     },
 ];
 
@@ -84,6 +85,8 @@ function Mono({ children }: { children: ReactNode }) {
 
 function ServerlessMasterLanCompact() {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const [status, setStatus] = useState<LanServerStatusPayload | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -91,7 +94,7 @@ function ServerlessMasterLanCompact() {
         try {
             setStatus(await lanServerStatus());
         } catch (e) {
-            toast(`LAN-Status: ${errorMessage(e)}`, "warning");
+            toast(tp("settings.deployment.toast.lan_status", { message: errorMessage(e) }), "warning");
         }
     }, [toast]);
 
@@ -105,9 +108,9 @@ function ServerlessMasterLanCompact() {
         setBusy(true);
         try {
             setStatus(await lanServerStart());
-            toast("HTTPS-Server gestartet — Replicas können diesen Master finden.", "success");
+            toast(t("settings.deployment.toast.https_started"), "success");
         } catch (e) {
-            toast(`Start: ${errorMessage(e)}`, "error");
+            toast(tp("settings.deployment.toast.start_error", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -118,9 +121,9 @@ function ServerlessMasterLanCompact() {
         try {
             await lanServerStop();
             await refresh();
-            toast("HTTPS-Server gestoppt.", "info");
+            toast(t("settings.deployment.toast.https_stopped"), "info");
         } catch (e) {
-            toast(`Stopp: ${errorMessage(e)}`, "error");
+            toast(tp("settings.deployment.toast.stop_error", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -132,11 +135,11 @@ function ServerlessMasterLanCompact() {
         <div className="settings-serverless-lan">
             <div className="settings-row" style={{ borderTop: "1px solid var(--line)", paddingInline: 0, alignItems: "flex-start" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <b>Master im LAN erreichbar machen</b>
+                    <b>{t("settings.deployment.lan_master_title")}</b>
                     <div className="card-sub">
                         {running
-                            ? `HTTPS aktiv auf Port ${status?.httpPort ?? "—"}. Replicas scannen das LAN oder nutzen die URL unten.`
-                            : "Starten Sie den eingebetteten HTTPS-Server, damit Replicas Pairing-Anfragen senden können."}
+                            ? tp("settings.deployment.lan_running", { port: status?.httpPort ?? "—" })
+                            : t("settings.deployment.lan_stopped")}
                     </div>
                     {running && status?.suggestedBaseUrls?.length ? (
                         <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "var(--fg-2)" }}>
@@ -149,22 +152,22 @@ function ServerlessMasterLanCompact() {
                     ) : null}
                     {running && status?.tlsCertSha256 ? (
                         <div className="card-sub" style={{ marginTop: 8 }}>
-                            <b>TLS SHA-256 (für Replica-Abgleich):</b> <Mono>{status.tlsCertSha256}</Mono>
+                            <b>{t("settings.deployment.tls_sha256")}</b> <Mono>{status.tlsCertSha256}</Mono>
                         </div>
                     ) : null}
                 </div>
                 <div className="row" style={{ gap: 8, flexShrink: 0 }}>
                     {running ? (
                         <Button type="button" variant="secondary" size="sm" loading={busy} disabled={busy} onClick={() => void stop()}>
-                            Stoppen
+                            {t("settings.deployment.https_stop")}
                         </Button>
                     ) : (
                         <Button type="button" size="sm" loading={busy} disabled={busy} onClick={() => void start()}>
-                            HTTPS starten
+                            {t("settings.deployment.https_start")}
                         </Button>
                     )}
                     <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void refresh()}>
-                        Aktualisieren
+                        {t("common.refresh")}
                     </Button>
                 </div>
             </div>
@@ -177,6 +180,8 @@ export function EinstellungenDeploymentSection({
     showPairingInbox = false,
 }: { embedded?: boolean; showPairingInbox?: boolean } = {}) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const canAckAuditBreak =
         session?.rolle != null &&
@@ -228,7 +233,7 @@ export function EinstellungenDeploymentSection({
                 setMasterInfo(null);
             }
         } catch (e) {
-            toast(`Verbindungsstatus: ${errorMessage(e)}`, "error");
+            toast(tp("settings.deployment.toast.connection_status", { message: errorMessage(e) }), "error");
         }
     }, [toast]);
 
@@ -286,12 +291,12 @@ export function EinstellungenDeploymentSection({
             setDeploymentModeCache(next.mode);
             resetPracticeTransportCache();
             if (opts?.startPairing) {
-                toast("Replica-Rolle gespeichert — Kopplungs-Assistent wird geöffnet …", "success");
+                toast(t("settings.deployment.toast.replica_saved"), "success");
                 window.location.reload();
                 return;
             }
             await reload();
-            toast("Serverless-Einstellungen gespeichert.", "success");
+            toast(t("settings.deployment.toast.saved"), "success");
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
@@ -308,12 +313,15 @@ export function EinstellungenDeploymentSection({
                     ? ` Mesh: ${report.mesh.errors.join("; ")}`
                     : "";
             if (report.error) {
-                toast(`Sync teilweise fehlgeschlagen: ${report.error}${meshHint}`, "warning");
+                toast(tp("settings.deployment.toast.sync_partial", { error: report.error, meshHint }), "warning");
             } else {
                 toast(
                     report.mesh && report.mesh.attempted > 0
-                        ? `Synchronisation abgeschlossen (Mesh: ${report.mesh.succeeded}/${report.mesh.attempted}).`
-                        : "Synchronisation abgeschlossen.",
+                        ? tp("settings.deployment.toast.sync_done_mesh", {
+                              succeeded: report.mesh.succeeded,
+                              attempted: report.mesh.attempted,
+                          })
+                        : t("settings.deployment.toast.sync_done"),
                     "success",
                 );
             }
@@ -328,19 +336,21 @@ export function EinstellungenDeploymentSection({
     const isMaster = cfg.role === "MASTER";
     const isReplica = cfg.role === "REPLICA";
     const isPaired = Boolean(cfg.activationToken?.trim());
+    const modeOptions = MODE_OPTIONS(t);
     const visibleModes = SYSTEM_LEGACY_DEPLOYMENT_MODES_ENABLED
-        ? MODE_OPTIONS
-        : MODE_OPTIONS.filter((o) => o.value === "serverless_peer");
+        ? modeOptions
+        : modeOptions.filter((o) => o.value === "serverless_peer");
+    const roleOptions = ROLE_OPTIONS(t);
 
     const heading = (
         <>
             <div className="card-title" id={embedded ? undefined : "deployment-heading"}>
-                {SYSTEM_SERVERLESS_FOCUS_ENABLED ? "Serverless-Verbindung" : "Bereitstellung & Sync"}
+                {SYSTEM_SERVERLESS_FOCUS_ENABLED ? t("settings.deployment.title_serverless") : t("settings.deployment.title_classic")}
             </div>
             <div className="card-sub">
                 {SYSTEM_SERVERLESS_FOCUS_ENABLED
-                    ? "Master-Gerät und Replicas teilen sich eine Praxis-Datenbank über HTTPS im lokalen Netz. Pairing schützt die Verbindung per Ed25519-Aktivierungstoken."
-                    : "Drei unabhängige Systeme: Desktop-App, LAN-Server (lokal/remote), Firmen-Server."}
+                    ? t("settings.deployment.subtitle_serverless")
+                    : t("settings.deployment.subtitle_classic")}
             </div>
         </>
     );
@@ -353,7 +363,7 @@ export function EinstellungenDeploymentSection({
                     role="alert"
                     closable={false}
                     className="settings-serverless-audit-block"
-                    title="Audit-Kette — Betrieb gesperrt"
+                    title={t("settings.deployment.audit_blocked_title")}
                     subtitle={
                         <>
                             HTTPS-Server, Pairing und Speichern sind blockiert, bis die Audit-Störung quittiert wird
@@ -378,15 +388,12 @@ export function EinstellungenDeploymentSection({
                                                     if (result.chainOk) {
                                                         toast(
                                                             result.deletedRows > 0
-                                                                ? `Audit-Kette repariert (${result.deletedRows} Einträge entfernt).`
-                                                                : "Audit-Kette ist intakt.",
+                                                                ? tp("settings.deployment.toast.audit_repaired", { count: result.deletedRows })
+                                                                : t("settings.deployment.toast.audit_intact"),
                                                             "success",
                                                         );
                                                     } else {
-                                                        toast(
-                                                            "Audit-Kette konnte nicht vollständig repariert werden — bitte quittieren oder Support.",
-                                                            "error",
-                                                        );
+                                                        toast(t("settings.deployment.toast.audit_repair_failed"), "error");
                                                     }
                                                     await loadAuditChain();
                                                     await reload();
@@ -398,7 +405,7 @@ export function EinstellungenDeploymentSection({
                                             })()
                                         }
                                     >
-                                        Kette reparieren
+                                        {t("settings.deployment.repair_chain")}
                                     </Button>
                                 ) : null}
                                 {canAckAuditBreak ? (
@@ -413,7 +420,7 @@ export function EinstellungenDeploymentSection({
                                                 setAuditAckBusy(true);
                                                 try {
                                                     await acknowledgeAuditChainBreak();
-                                                    toast("Audit-Störung quittiert — Serverless-Funktionen wieder aktiv.", "success");
+                                                    toast(t("settings.deployment.toast.ack_audit"), "success");
                                                     await loadAuditChain();
                                                     await reload();
                                                 } catch (e) {
@@ -424,13 +431,13 @@ export function EinstellungenDeploymentSection({
                                             })()
                                         }
                                     >
-                                        Störung quittieren
+                                        {t("settings.deployment.ack_break")}
                                     </Button>
                                 ) : null}
                             </>
                         ) : (
                             <p className="card-sub" style={{ margin: 0 }}>
-                                Bitte einen Arzt mit Administratorrechten die Störung in der Kopfleiste quittieren lassen.
+                                {t("settings.deployment.ack_break_hint")}
                             </p>
                         )
                     }
@@ -441,7 +448,7 @@ export function EinstellungenDeploymentSection({
                 <div className="settings-row" style={{ marginTop: embedded ? 0 : 12 }}>
                     <Select
                         id="deployment-mode"
-                        label="Betriebsmodus"
+                        label={t("settings.deployment.operation_mode")}
                         value={cfg.mode}
                         options={visibleModes.map((o) => ({ value: o.value, label: o.label }))}
                         onChange={(e) => setCfg((c) => ({ ...c, mode: e.target.value as DeploymentMode }))}
@@ -450,27 +457,27 @@ export function EinstellungenDeploymentSection({
             ) : null}
             {!SYSTEM_SERVERLESS_FOCUS_ENABLED ? (
                 <p className="card-sub" style={{ marginTop: 4 }}>
-                    {MODE_OPTIONS.find((o) => o.value === cfg.mode)?.hint}
+                    {visibleModes.find((o) => o.value === cfg.mode)?.hint}
                 </p>
             ) : null}
 
             <div className="settings-row" style={{ marginTop: SYSTEM_SERVERLESS_FOCUS_ENABLED ? 0 : 12 }}>
                 <Select
                     id="deployment-role"
-                    label="Geräterolle"
+                    label={t("settings.deployment.device_role")}
                     value={cfg.role}
-                    options={ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                    options={roleOptions.map((o) => ({ value: o.value, label: o.label }))}
                     onChange={(e) => setCfg((c) => ({ ...c, role: e.target.value as DeviceRole }))}
                 />
             </div>
             <p className="card-sub" style={{ marginTop: 4 }}>
-                {ROLE_OPTIONS.find((o) => o.value === cfg.role)?.hint}
+                {roleOptions.find((o) => o.value === cfg.role)?.hint}
             </p>
 
             <div className="settings-row" style={{ marginTop: 8 }}>
                 <Input
                     id="device-label"
-                    label="Gerätebezeichnung"
+                    label={t("settings.deployment.device_label")}
                     value={cfg.deviceLabel}
                     onChange={(e) => setCfg((c) => ({ ...c, deviceLabel: e.target.value }))}
                     placeholder={isMaster ? "z. B. Empfang MacBook (Master)" : "z. B. Behandlungszimmer iPad"}
@@ -490,7 +497,7 @@ export function EinstellungenDeploymentSection({
                                 background: "var(--surface-accent)",
                             }}
                         >
-                            <strong>Master-Fingerabdrücke</strong> (zum Abgleich auf Replicas)
+                            <strong>{t("settings.deployment.master_fingerprints")}</strong> {t("settings.deployment.master_fingerprints_hint")}
                             <br />
                             Device-ID: <Mono>{masterInfo.masterDeviceId}</Mono>
                             <br />
@@ -511,11 +518,11 @@ export function EinstellungenDeploymentSection({
                         }}
                     >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <b>Verbindung zum Master</b>
+                            <b>{t("settings.deployment.master_connection")}</b>
                             <div className="card-sub">
                                 {isPaired
-                                    ? "Gekoppelt — Änderungen werden bei Erreichbarkeit synchronisiert."
-                                    : "Noch nicht gekoppelt. Speichern Sie die Replica-Rolle und folgen Sie dem Kopplungs-Assistenten."}
+                                    ? t("settings.deployment.replica_paired")
+                                    : t("settings.deployment.replica_unpaired")}
                             </div>
                             {isPaired ? (
                                 <>
@@ -543,7 +550,7 @@ export function EinstellungenDeploymentSection({
                                         disabled={syncBusy}
                                         onClick={() => void runSync()}
                                     >
-                                        Jetzt synchronisieren
+                                        {t("settings.deployment.sync_now")}
                                     </Button>
                                     <Button
                                         type="button"
@@ -556,7 +563,7 @@ export function EinstellungenDeploymentSection({
                                             })
                                         }
                                     >
-                                        Neu koppeln
+                                        {t("settings.deployment.repair_pairing")}
                                     </Button>
                                 </>
                             ) : (
@@ -567,7 +574,7 @@ export function EinstellungenDeploymentSection({
                                     disabled={busy}
                                     onClick={() => void save({ startPairing: true })}
                                 >
-                                    Replica koppeln
+                                    {t("settings.deployment.pair_replica")}
                                 </Button>
                             )}
                         </div>
@@ -580,8 +587,8 @@ export function EinstellungenDeploymentSection({
                     <div className="settings-row" style={{ marginTop: 8 }}>
                         <Input
                             id="master-url"
-                            label="Master HTTPS-URL"
-                            hint="Basis-URL des medoc-server, z. B. https://192.168.1.10:8787"
+                            label={t("settings.deployment.master_url")}
+                            hint={t("settings.deployment.master_url_hint")}
                             value={cfg.masterBaseUrl}
                             onChange={(e) => setCfg((c) => ({ ...c, masterBaseUrl: e.target.value }))}
                             placeholder="https://192.168.1.10:8787"
@@ -594,7 +601,7 @@ export function EinstellungenDeploymentSection({
                                 checked={cfg.unstableMesh}
                                 onChange={(e) => setCfg((c) => ({ ...c, unstableMesh: e.target.checked }))}
                             />
-                            <span className="card-sub">Mesh-Sync zwischen Replicas (experimentell)</span>
+                            <span className="card-sub">{t("settings.deployment.mesh_sync")}</span>
                         </label>
                     ) : null}
                 </>
@@ -602,21 +609,21 @@ export function EinstellungenDeploymentSection({
 
             {status ? (
                 <div className="card-sub" style={{ marginTop: 12 }}>
-                    Gerät-ID: <Mono>{status.localDeviceId}</Mono>
+                    {t("settings.deployment.device_id")} <Mono>{status.localDeviceId}</Mono>
                     {status.pendingOutbox > 0 ? (
                         <>
                             {" "}
-                            · <strong>{status.pendingOutbox}</strong> ausstehende Sync-Einträge
+                            · <strong>{tp("settings.deployment.pending_sync_entries", { count: status.pendingOutbox })}</strong>
                         </>
                     ) : (
-                        <> · Sync-Warteschlange leer</>
+                        <> · {t("settings.deployment.sync_queue_empty")}</>
                     )}
                 </div>
             ) : null}
 
             <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
                 <Button type="button" loading={busy} disabled={busy} onClick={() => void save()}>
-                    Speichern
+                    {t("common.save")}
                 </Button>
                 {isReplica && isPaired ? (
                     <Button
@@ -626,7 +633,7 @@ export function EinstellungenDeploymentSection({
                         disabled={syncBusy}
                         onClick={() => void runSync()}
                     >
-                        Jetzt synchronisieren
+                        {t("settings.deployment.sync_now")}
                     </Button>
                 ) : null}
             </div>

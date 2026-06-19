@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useT, useTParams } from "@/lib/i18n";
+import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import {
     BREAK_GLASS_WINDOW_SECS,
     breakGlassActive,
@@ -19,6 +21,10 @@ function formatRemaining(totalSecs: number): string {
  * ISO 22600-style visibility: shows when break-glass is active for the signed-in user.
  */
 export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
+    if (!BREAK_GLASS_ENABLED) return null;
+
+    const t = useT();
+    const tp = useTParams();
     const [mine, setMine] = useState<BreakGlassEntry[]>([]);
     const [names, setNames] = useState<Map<string, string>>(new Map());
 
@@ -79,8 +85,8 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
         ...mine.map((e) => Math.max(0, BREAK_GLASS_WINDOW_SECS - Number(e.elapsed_secs ?? 0))),
     );
     const patientBits = mine.map((e) => {
-        if (!e.patient_id) return "ohne konkreten Patientenbezug";
-        return names.get(e.patient_id) ?? `Patient ${e.patient_id.slice(0, 8)}…`;
+        if (!e.patient_id) return t("break_glass.banner.no_patient");
+        return names.get(e.patient_id) ?? tp("break_glass.banner.patient_fallback", { id: e.patient_id.slice(0, 8) });
     });
     const patientLabel = [...new Set(patientBits)].join(", ");
     const dismissKey = `break-glass-${userId}-${mine.map((e) => `${e.patient_id ?? "none"}-${e.elapsed_secs}`).sort().join("-")}`;
@@ -91,8 +97,12 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
             role="status"
             className="break-glass-banner"
             dismissKey={dismissKey}
-            title="Notfallzugriff aktiv"
-            subtitle={`${patientLabel} — verbleibend ${formatRemaining(remainSecs)} (max. ${Math.floor(BREAK_GLASS_WINDOW_SECS / 60)} Min. ab Aktivierung)`}
+            title={t("break_glass.banner.title")}
+            subtitle={tp("break_glass.banner.subtitle", {
+                patients: patientLabel,
+                remaining: formatRemaining(remainSecs),
+                maxMin: Math.floor(BREAK_GLASS_WINDOW_SECS / 60),
+            })}
         />
     );
 }

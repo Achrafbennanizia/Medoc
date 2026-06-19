@@ -20,6 +20,7 @@ import { localCapability } from "@/lib/integration-capabilities";
 import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import type { Patient, DokumentVorlage } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import {
@@ -44,6 +45,8 @@ import {
  * Export über strukturierte Vorlage (Format, Pfad aus Export-Einstellungen).
  */
 export function RezeptePage() {
+    const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const eprescriptionLive = localCapability("eprescription")?.available ?? false;
     const toast = useToastStore((s) => s.add);
@@ -98,14 +101,14 @@ export function RezeptePage() {
         if (exists) {
             setSelectedPatient(pid);
         } else {
-            toast("Der verknüpfte Patient wurde nicht gefunden.", "error");
+            toast(t("page.rezepte.toast.linked_patient_not_found"), "error");
         }
         setSearchParams((prev) => {
             const next = new URLSearchParams(prev);
             next.delete("patient_id");
             return next;
         }, { replace: true });
-    }, [patients, searchParams, setSearchParams, toast]);
+    }, [patients, searchParams, setSearchParams, toast, t]);
 
     const fetchRezepte = useCallback(async () => {
         if (!selectedPatient) {
@@ -160,12 +163,16 @@ export function RezeptePage() {
         const items = parseRezeptVorlagePayload(v.payload);
         const newLines = vorlageItemsToLines(items);
         if (newLines.length === 0) {
-            toast("Vorlage enthält keine Medikamente.", "error");
+            toast(t("page.rezepte.toast.template_no_meds"), "error");
             return;
         }
         setLines((prev) => [...prev, ...newLines]);
         setDraftError(null);
-        toast(`Vorlage „${v.titel}“ übernommen (${newLines.length} Zeile${newLines.length === 1 ? "" : "n"}).`);
+        toast(tp("page.rezepte.toast.template_applied", {
+            title: v.titel,
+            count: newLines.length,
+            suffix: newLines.length === 1 ? "" : "n",
+        }));
     }
 
     function pickMedikament(label: string) {
@@ -179,9 +186,9 @@ export function RezeptePage() {
     }
 
     function validateLine(line: RezeptLine): string | null {
-        if (!line.medikament.trim()) return "Bitte Medikament wählen oder eingeben.";
-        if (!line.dosierung.trim()) return "Bitte Dosierung angeben.";
-        if (!line.dauer.trim()) return "Bitte Dauer angeben.";
+        if (!line.medikament.trim()) return t("page.rezepte.validation.med_required");
+        if (!line.dosierung.trim()) return t("page.rezepte.validation.dosage_required");
+        if (!line.dauer.trim()) return t("page.rezepte.validation.duration_required");
         return null;
     }
 
@@ -207,7 +214,7 @@ export function RezeptePage() {
             queue.push({ ...draft });
         }
         if (queue.length === 0) {
-            setDraftError("Mindestens eine Medikamentenzeile hinzufügen.");
+            setDraftError(t("page.rezepte.validation.min_one_line"));
             return;
         }
         setCreating(true);
@@ -228,7 +235,7 @@ export function RezeptePage() {
                 created.push(r);
                 okCount += 1;
             }
-            toast(`${okCount} Rezept${okCount === 1 ? "" : "e"} erstellt`);
+            toast(okCount === 1 ? t("page.rezepte.toast.created_one") : tp("page.rezepte.toast.created_many", { count: okCount }));
             setShowCreate(false);
             resetCreateForm();
             await fetchRezepte();
@@ -236,7 +243,9 @@ export function RezeptePage() {
                 printCombo(created);
             }
         } catch (e) {
-            toast(`${okCount > 0 ? `${okCount} angelegt, dann ` : ""}Fehler: ${errorMessage(e)}`, "error");
+            toast(okCount > 0
+                ? tp("page.rezepte.toast.create_partial", { created: okCount, message: errorMessage(e) })
+                : `${t("common.error_prefix")} ${errorMessage(e)}`, "error");
             await fetchRezepte();
         } finally {
             setCreating(false);
@@ -272,11 +281,11 @@ export function RezeptePage() {
         if (!deleteId) return;
         try {
             await deleteRezept(deleteId);
-            toast("Rezept gelöscht");
+            toast(t("page.rezepte.toast.deleted"));
             setDeleteId(null);
             await fetchRezepte();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         }
     }
 
@@ -305,9 +314,9 @@ export function RezeptePage() {
                 doctor_lanr: eRez.lanr.trim(),
                 issued_at: eRezeptTarget.ausgestellt_am.slice(0, 10),
             });
-            toast("E-Rezept-Daten gültig (PZN/KVNR/LANR)", "success");
+            toast(t("page.rezepte.toast.eprescription_valid"), "success");
         } catch (e) {
-            toast(`E-Rezept-Validierung fehlgeschlagen: ${errorMessage(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally {
             setERezBusy(false);
         }
@@ -327,11 +336,11 @@ export function RezeptePage() {
                 doctor_lanr: eRez.lanr.trim(),
                 issued_at: eRezeptTarget.ausgestellt_am.slice(0, 10),
             });
-            toast(`An TI gesendet — Task ${token.task_id}`, "success");
+            toast(tp("page.rezepte.toast.ti_sent", { taskId: token.task_id }), "success");
             setERezeptTarget(null);
         } catch (e) {
             // Backend currently returns "TI-Konnektor erforderlich" — surface verbatim.
-            toast(`TI-Übermittlung: ${errorMessage(e)}`, "info");
+            toast(tp("page.rezepte.toast.ti_submit", { message: errorMessage(e) }), "info");
         } finally {
             setERezBusy(false);
         }
@@ -347,7 +356,9 @@ export function RezeptePage() {
             items.length === 1 ? suggestRezeptExportBasename(first) : suggestRezeptComboExportBasename(items);
         const pname = patient?.name ?? "";
         const exportPreviewTitle =
-            items.length === 1 ? `Rezept — ${pname}` : `Kombinationsrezept (${items.length}) — ${pname}`;
+            items.length === 1
+                ? tp("page.rezepte.export_single", { name: pname })
+                : tp("page.rezepte.export_combo", { count: items.length, name: pname });
         setHtmlExport({ bundle, suggestedBasename, exportPreviewTitle });
     }
 
@@ -362,36 +373,39 @@ export function RezeptePage() {
     return (
         <div className="praxis-workspace-page animate-fade-in">
             <WorkspacePageHeader
-                title="Rezepte & Atteste"
-                subtitle={`${filteredRezepte.length} von ${rezepte.length} Rezepten · Atteste über Atteste-Seite`}
+                title={t("page.rezepte.title")}
+                subtitle={tp("page.rezepte.subtitle", {
+                    filtered: filteredRezepte.length,
+                    total: rezepte.length,
+                })}
                 actions={
                     <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                         <div className="input" style={{ width: "min(220px, 100%)", flex: "1 1 220px" }}>
                             <input
-                                placeholder="Medikament filtern…"
+                                placeholder={t("page.rezepte.filter_placeholder")}
                                 value={medFilter}
                                 onChange={(e) => setMedFilter(e.target.value)}
-                                aria-label="Rezepte nach Medikament filtern"
+                                aria-label={t("page.rezepte.filter_aria")}
                             />
                         </div>
                         {medFilter ? (
-                            <Button variant="ghost" onClick={() => setMedFilter("")}>Filter löschen</Button>
+                            <Button variant="ghost" onClick={() => setMedFilter("")}>{t("page.rezepte.filter_clear")}</Button>
                         ) : null}
-                        <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>+ Neues Rezept</Button>
+                        <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>{t("page.rezepte.new")}</Button>
                     </div>
                 }
             />
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
-                <div className="card kpi"><div className="kpi-label">Ausgestellt (7 Tage)</div><div className="kpi-val">{kpi.weekCount}</div></div>
-                <div className="card kpi"><div className="kpi-label">Nicht ausgestellt / offen</div><div className="kpi-val">{kpi.pending}</div></div>
-                <div className="card kpi"><div className="kpi-label">Status „ausgestellt“</div><div className="kpi-val">{kpi.pct}%</div></div>
+                <div className="card kpi"><div className="kpi-label">{t("page.rezepte.kpi.issued_7d")}</div><div className="kpi-val">{kpi.weekCount}</div></div>
+                <div className="card kpi"><div className="kpi-label">{t("page.rezepte.kpi.pending")}</div><div className="kpi-val">{kpi.pending}</div></div>
+                <div className="card kpi"><div className="kpi-label">{t("page.rezepte.kpi.issued_pct")}</div><div className="kpi-val">{kpi.pct}%</div></div>
             </div>
 
             <Card className="card-pad">
-                <CardHeader title="Patient auswählen" />
+                <CardHeader title={t("page.rezepte.select_patient")} />
                 {patientsLoading ? (
-                    <p className="text-body text-on-surface-variant" role="status">Patienten werden geladen…</p>
+                    <p className="text-body text-on-surface-variant" role="status">{t("page.rezepte.loading_patients")}</p>
                 ) : patientsError ? (
                     <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
                 ) : (
@@ -402,8 +416,8 @@ export function RezeptePage() {
                         disabled={patients.length === 0}
                         options={[
                             ...(patients.length === 0
-                                ? [{ value: "", label: "Keine Patienten angelegt" }]
-                                : [{ value: "", label: "– Patient wählen –" }]),
+                                ? [{ value: "", label: t("page.rezepte.no_patients") }]
+                                : [{ value: "", label: t("page.rezepte.choose_patient") }]),
                             ...patients.map((p) => ({ value: p.id, label: p.name })),
                         ]}
                     />
@@ -411,18 +425,18 @@ export function RezeptePage() {
             </Card>
 
             {patientsLoading || patientsError ? null : !selectedPatient ? (
-                <p className="text-body text-on-surface-variant">Bitte einen Patienten auswählen.</p>
+                <p className="text-body text-on-surface-variant">{t("page.rezepte.select_patient_hint")}</p>
             ) : listLoading ? (
-                <PageLoading label="Rezepte werden geladen…" />
+                <PageLoading label={t("page.rezepte.loading")} />
             ) : listError ? (
                 <PageLoadError message={listError} onRetry={() => void fetchRezepte()} />
             ) : rezepte.length === 0 ? (
-                <EmptyState graphic={<PackageIcon size={40} />} title="Keine Rezepte vorhanden" />
+                <EmptyState graphic={<PackageIcon size={40} />} title={t("page.rezepte.empty")} />
             ) : filteredRezepte.length === 0 ? (
                 <EmptyState
                     graphic={<SearchIcon size={40} />}
-                    title="Keine Treffer für den Filter"
-                    description='Filter löschen oder Suchbegriff anpassen.'
+                    title={t("page.rezepte.no_filter_results")}
+                    description={t("page.rezepte.no_filter_results_desc")}
                 />
             ) : (
                 <div className="card tbl-data-card">
@@ -430,7 +444,7 @@ export function RezeptePage() {
                     <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
-                                <th>Medikament</th><th>PZN</th><th>Typ</th><th>Dosierung</th><th>Dauer</th><th>Datum</th><th>Status</th><th>Aktionen</th>
+                                <th>{t("page.rezepte.col.medication")}</th><th>{t("page.rezepte.col.pzn")}</th><th>{t("page.rezepte.col.type")}</th><th>{t("page.rezepte.col.dosage")}</th><th>{t("page.rezepte.col.duration")}</th><th>{t("page.rezepte.col.date")}</th><th>{t("page.rezepte.col.status")}</th><th>{t("page.rezepte.col.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -444,9 +458,9 @@ export function RezeptePage() {
                                     <td>{formatDate(r.ausgestellt_am)}</td>
                                     <td>{r.status}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                        <Button size="sm" onClick={() => handlePrint(r)}>Exportieren…</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => openERezeptDialog(r)}>e-Rezept</Button>
-                                        <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>Löschen</Button>
+                                        <Button size="sm" onClick={() => handlePrint(r)}>{t("page.rezepte.export")}</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => openERezeptDialog(r)}>{t("page.rezepte.eprescription")}</Button>
+                                        <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>{t("common.delete")}</Button>
                                     </td>
                                 </tr>
                             ))}
@@ -459,18 +473,18 @@ export function RezeptePage() {
             <Dialog
                 open={showCreate}
                 onClose={() => { if (!creating) { setShowCreate(false); resetCreateForm(); } }}
-                title="Neues Rezept (Kombinationsrezept möglich)"
+                title={t("page.rezepte.create_title")}
                 footer={<>
-                    <Button variant="ghost" onClick={() => { setShowCreate(false); resetCreateForm(); }} disabled={creating}>Abbrechen</Button>
+                    <Button variant="ghost" onClick={() => { setShowCreate(false); resetCreateForm(); }} disabled={creating}>{t("common.cancel")}</Button>
                     <Button
                         onClick={() => void handleCreate()}
                         disabled={creating || (lines.length === 0 && validateLine(draft) !== null)}
                     >
                         {creating
-                            ? "Wird gespeichert…"
+                            ? t("page.rezepte.saving")
                             : lines.length + (validateLine(draft) === null ? 1 : 0) > 1
-                                ? `${lines.length + (validateLine(draft) === null ? 1 : 0)} Rezepte erstellen`
-                                : "Rezept erstellen"}
+                                ? tp("page.rezepte.create_many", { count: lines.length + (validateLine(draft) === null ? 1 : 0) })
+                                : t("page.rezepte.create_one")}
                     </Button>
                 </>}
             >
@@ -481,80 +495,79 @@ export function RezeptePage() {
                 </datalist>
 
                 <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 0, marginBottom: 8 }}>
-                    Mehrere Medikamente können kaskadierend hinzugefügt werden – jede Zeile wird als eigenständiges Rezept gespeichert
-                    und beim Speichern automatisch als Kombinationsrezept gedruckt.
+                    {t("page.rezepte.create_hint")}
                 </p>
 
                 {vorlagen.length > 0 ? (
                     <div style={{ marginBottom: 12 }}>
                         <Select
                             id="rez-vorlage"
-                            label="Vorlage übernehmen (optional)"
+                            label={t("page.rezepte.template_select")}
                             value={vorlageId}
                             onChange={(e) => applyVorlage(e.target.value)}
                             options={[
-                                { value: "", label: "— Vorlage wählen —" },
+                                { value: "", label: t("page.rezepte.template_choose") },
                                 ...vorlagen.map((v) => ({ value: v.id, label: v.titel })),
                             ]}
                         />
                         <p style={{ fontSize: 11, color: "var(--fg-3)", margin: "4px 0 0" }}>
-                            Vorlagen aus „Verwaltung → Rezepte und Atteste vordefinieren“. Übernommene Zeilen werden zur Liste unten hinzugefügt.
+                            {t("page.rezepte.template_hint")}
                         </p>
                     </div>
                 ) : null}
 
                 <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Neue Zeile</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{t("page.rezepte.new_line")}</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         <Input
                             id="rez-med"
-                            label="Medikament *"
+                            label={t("page.rezepte.field.medication")}
                             list="rez-med-suggestions"
-                            placeholder="z. B. Ibuprofen 600 mg"
+                            placeholder={t("page.rezepte.field.medication_ph")}
                             value={draft.medikament}
                             onChange={(e) => pickMedikament(e.target.value)}
                             error={draftError && !draft.medikament.trim() ? draftError : undefined}
                         />
                         <Input
                             id="rez-wirk"
-                            label="Wirkstoff"
+                            label={t("page.rezepte.field.active_ingredient")}
                             value={draft.wirkstoff}
                             onChange={(e) => setDraft({ ...draft, wirkstoff: e.target.value })}
                         />
                         <Input
                             id="rez-dos"
-                            label="Dosierung *"
+                            label={t("page.rezepte.field.dosage")}
                             value={draft.dosierung}
                             onChange={(e) => setDraft({ ...draft, dosierung: e.target.value })}
-                            placeholder="z. B. 1-0-1"
+                            placeholder={t("page.rezepte.field.dosage_ph")}
                             error={draftError && !draft.dosierung.trim() ? draftError : undefined}
                         />
                         <Input
                             id="rez-dau"
-                            label="Dauer *"
+                            label={t("page.rezepte.field.duration")}
                             value={draft.dauer}
                             onChange={(e) => setDraft({ ...draft, dauer: e.target.value })}
-                            placeholder="z. B. 7 Tage"
+                            placeholder={t("page.rezepte.field.duration_ph")}
                             error={draftError && !draft.dauer.trim() ? draftError : undefined}
                         />
                     </div>
                     <Textarea
                         id="rez-hin"
-                        label="Hinweise (Zeile)"
+                        label={t("page.rezepte.field.notes_line")}
                         value={draft.hinweise}
                         onChange={(e) => setDraft({ ...draft, hinweise: e.target.value })}
                         rows={2}
                     />
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                         <Button type="button" variant="secondary" onClick={handleAddLine} disabled={creating}>
-                            + Hinzufügen
+                            {t("page.rezepte.add_line")}
                         </Button>
                     </div>
                 </div>
 
                 <Textarea
                     id="rez-shared-hinweise"
-                    label="Allgemeine Hinweise (für alle Zeilen)"
+                    label={t("page.rezepte.shared_notes")}
                     value={sharedHinweise}
                     onChange={(e) => setSharedHinweise(e.target.value)}
                     rows={2}
@@ -562,11 +575,11 @@ export function RezeptePage() {
 
                 <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-                        Zeilen ({lines.length})
+                        {tp("page.rezepte.lines_title", { count: lines.length })}
                     </div>
                     {lines.length === 0 ? (
                         <p style={{ color: "var(--fg-3)", fontSize: 13, margin: 0 }}>
-                            Noch keine Medikamente. Mindestens eine Zeile muss vorhanden sein – die obige Eingabe wird beim Speichern automatisch übernommen.
+                            {t("page.rezepte.lines_empty")}
                         </p>
                     ) : (
                         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -586,7 +599,7 @@ export function RezeptePage() {
                                         {line.hinweise ? ` · ${line.hinweise}` : ""}
                                     </div>
                                     <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(idx)} disabled={creating}>
-                                        Entfernen
+                                        {t("common.remove")}
                                     </Button>
                                 </li>
                             ))}
@@ -599,33 +612,32 @@ export function RezeptePage() {
                 open={!!deleteId}
                 onClose={() => setDeleteId(null)}
                 onConfirm={handleDelete}
-                title="Rezept löschen"
-                message="Möchten Sie dieses Rezept wirklich löschen?"
-                confirmLabel="Löschen"
+                title={t("page.rezepte.delete_title")}
+                message={t("page.rezepte.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
 
             <Dialog
                 open={!!eRezeptTarget}
                 onClose={() => setERezeptTarget(null)}
-                title={`E-Rezept – ${eRezeptTarget?.medikament ?? ""}`}
+                title={tp("page.rezepte.eprescription_title", { medication: eRezeptTarget?.medikament ?? "" })}
                 footer={<>
-                    <Button variant="ghost" onClick={() => setERezeptTarget(null)} disabled={eRezBusy}>Schließen</Button>
-                    <Button variant="secondary" onClick={() => void handleValidateERezept()} disabled={eRezBusy} loading={eRezBusy}>Validieren</Button>
+                    <Button variant="ghost" onClick={() => setERezeptTarget(null)} disabled={eRezBusy}>{t("common.close")}</Button>
+                    <Button variant="secondary" onClick={() => void handleValidateERezept()} disabled={eRezBusy} loading={eRezBusy}>{t("page.rezepte.validate")}</Button>
                     {eprescriptionLive ? (
-                        <Button onClick={() => void handleSubmitERezept()} disabled={eRezBusy} loading={eRezBusy}>An TI senden</Button>
+                        <Button onClick={() => void handleSubmitERezept()} disabled={eRezBusy} loading={eRezBusy}>{t("page.rezepte.send_ti")}</Button>
                     ) : null}
                 </>}
             >
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
-                    Eingaben werden nur lokal validiert (PZN-Prüfziffer, KVNR-/LANR-Format). Der eigentliche Versand
-                    via Telematikinfrastruktur erfordert HBA-Karte und Konnektor.
+                    {t("page.rezepte.eprescription_hint")}
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <Input id="er-kvnr" label="KVNR (1 Buchstabe + 9 Ziffern)" value={eRez.kvnr} onChange={(e) => setERez({ ...eRez, kvnr: e.target.value })} placeholder="A123456789" />
-                    <Input id="er-pzn" label="PZN (8 Ziffern)" value={eRez.pzn} onChange={(e) => setERez({ ...eRez, pzn: e.target.value })} placeholder="12345678" />
-                    <Input id="er-lanr" label="LANR (9 Ziffern)" value={eRez.lanr} onChange={(e) => setERez({ ...eRez, lanr: e.target.value })} placeholder="123456789" />
-                    <Input id="er-qty" label="Menge" type="number" value={eRez.quantity} onChange={(e) => setERez({ ...eRez, quantity: e.target.value })} />
+                    <Input id="er-kvnr" label={t("page.rezepte.field.kvnr")} value={eRez.kvnr} onChange={(e) => setERez({ ...eRez, kvnr: e.target.value })} placeholder="A123456789" />
+                    <Input id="er-pzn" label={t("page.rezepte.field.pzn")} value={eRez.pzn} onChange={(e) => setERez({ ...eRez, pzn: e.target.value })} placeholder="12345678" />
+                    <Input id="er-lanr" label={t("page.rezepte.field.lanr")} value={eRez.lanr} onChange={(e) => setERez({ ...eRez, lanr: e.target.value })} placeholder="123456789" />
+                    <Input id="er-qty" label={t("common.quantity")} type="number" value={eRez.quantity} onChange={(e) => setERez({ ...eRez, quantity: e.target.value })} />
                 </div>
             </Dialog>
             {htmlExport ? (

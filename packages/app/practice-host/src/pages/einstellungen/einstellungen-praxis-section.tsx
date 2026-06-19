@@ -16,6 +16,7 @@ import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 import { EinstellungenPraxisBillingSection } from "./einstellungen-praxis-billing";
 
 function formatAddrOneLine(addr: string): string {
@@ -39,6 +40,8 @@ export function EinstellungenPraxisSection({
     canEditPraxis = true,
 }: EinstellungenPraxisSectionProps) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const [editPraxisName, setEditPraxisName] = useState(false);
     const [draftPraxisName, setDraftPraxisName] = useState("");
     const [editPraxisAddr, setEditPraxisAddr] = useState(false);
@@ -108,48 +111,48 @@ export function EinstellungenPraxisSection({
             const next = { ...p, ...patch };
             saveInvoicePraxisToStorage(next);
             void syncInvoicePraxisToAppKv(next).catch((e) => {
-                toast(`Praxis-Synchronisation fehlgeschlagen: ${errorMessage(e)}`, "warning");
+                toast(tp("settings.praxis.toast.sync_failed", { message: errorMessage(e) }), "warning");
             });
             return next;
         });
     }
 
     function savePraxisName() {
-        const t = draftPraxisName.trim();
-        if (!t) {
-            toast("Praxisname erforderlich", "error");
+        const name = draftPraxisName.trim();
+        if (!name) {
+            toast(t("settings.praxis.toast.name_required"), "error");
             return;
         }
-        applyPraxisPatch({ name: t });
-        toast("Praxisname gespeichert", "success");
+        applyPraxisPatch({ name });
+        toast(t("settings.praxis.toast.name_saved"), "success");
         setEditPraxisName(false);
     }
 
     function savePraxisAddr() {
-        const t = draftPraxisAddr.trim();
-        if (!t) {
-            toast("Adresse erforderlich", "error");
+        const addr = draftPraxisAddr.trim();
+        if (!addr) {
+            toast(t("settings.praxis.toast.address_required"), "error");
             return;
         }
         applyPraxisPatch({ addr: draftPraxisAddr });
-        toast("Adresse gespeichert", "success");
+        toast(t("settings.praxis.toast.address_saved"), "success");
         setEditPraxisAddr(false);
     }
 
     function savePraxisOeffnungszeiten() {
         applyPraxisPatch({ oeffnungszeiten: draftPraxisOeffnungszeiten.trim() || undefined });
-        toast("Öffnungszeiten gespeichert", "success");
+        toast(t("settings.praxis.toast.hours_saved"), "success");
         setEditPraxisOeffnungszeiten(false);
     }
 
     function savePraxisKv() {
-        const t = draftPraxisKv.trim();
-        if (!t) {
-            toast("KV-Nummer erforderlich", "error");
+        const kv = draftPraxisKv.trim();
+        if (!kv) {
+            toast(t("settings.praxis.toast.kv_required"), "error");
             return;
         }
-        applyPraxisPatch({ kv_nummer: t });
-        toast("KV-Nummer gespeichert", "success");
+        applyPraxisPatch({ kv_nummer: kv });
+        toast(t("settings.praxis.toast.kv_saved"), "success");
         setEditPraxisKv(false);
     }
 
@@ -167,9 +170,9 @@ export function EinstellungenPraxisSection({
     function savePraxisExtra() {
         saveInvoicePraxisToStorage(praxis);
         void syncInvoicePraxisToAppKv(praxis).catch((e) => {
-            toast(`Praxis-Synchronisation fehlgeschlagen: ${errorMessage(e)}`, "warning");
+            toast(tp("settings.praxis.toast.sync_failed", { message: errorMessage(e) }), "warning");
         });
-        toast("Kontakt & Steuern gespeichert", "success");
+        toast(t("settings.praxis.toast.contact_saved"), "success");
         setEditPraxisExtra(false);
         setPraxisExtraSnapshot(null);
     }
@@ -192,15 +195,15 @@ export function EinstellungenPraxisSection({
         const bsnr = (praxis.bsnr ?? "").trim();
         const iban = (praxis.bankverbindung_iban ?? "").trim();
         if (zanr && !isValidPraxisDigitId(zanr)) {
-            toast("ZANR: genau 9 Ziffern erforderlich", "error");
+            toast(t("settings.praxis.toast.zanr_invalid"), "error");
             return;
         }
         if (bsnr && !isValidPraxisDigitId(bsnr)) {
-            toast("BSNR: genau 9 Ziffern erforderlich", "error");
+            toast(t("settings.praxis.toast.bsnr_invalid"), "error");
             return;
         }
         if (iban && !isValidPraxisIban(iban)) {
-            toast("IBAN: ungültiges Format (DE: DE + 20 Ziffern)", "error");
+            toast(t("settings.praxis.toast.iban_invalid"), "error");
             return;
         }
         const zt = praxis.zahlungsziel_tage ?? 14;
@@ -213,9 +216,9 @@ export function EinstellungenPraxisSection({
         setPraxis(next);
         saveInvoicePraxisToStorage(next);
         void syncInvoicePraxisToAppKv(next).catch((e) => {
-            toast(`Praxis-Synchronisation fehlgeschlagen: ${errorMessage(e)}`, "warning");
+            toast(tp("settings.praxis.toast.sync_failed", { message: errorMessage(e) }), "warning");
         });
-        toast("Rechnungs-Stammdaten gespeichert", "success");
+        toast(t("settings.praxis.toast.billing_saved"), "success");
         setEditPraxisBilling(false);
         setPraxisBillingSnapshot(null);
     }
@@ -225,7 +228,7 @@ export function EinstellungenPraxisSection({
         e.target.value = "";
         if (!f) return;
         if (f.size > 750_000) {
-            toast("Datei zu groß (max. ca. 750 KB)", "error");
+            toast(t("settings.praxis.toast.file_too_large"), "error");
             return;
         }
         setLogoBusy(true);
@@ -239,9 +242,9 @@ export function EinstellungenPraxisSection({
             const mime = f.type && f.type.startsWith("image/") ? f.type : "image/png";
             await setAppKv("praxis.logo.v1", JSON.stringify({ mime, data }));
             setLogoPreviewUrl(`data:${mime};base64,${data}`);
-            toast("Logo gespeichert", "success");
+            toast(t("settings.praxis.toast.logo_saved"), "success");
         } catch (err) {
-            toast(`Logo: ${err instanceof Error ? err.message : String(err)}`, "error");
+            toast(tp("settings.praxis.toast.logo_failed", { message: err instanceof Error ? err.message : String(err) }), "error");
         } finally {
             setLogoBusy(false);
         }
@@ -252,11 +255,9 @@ export function EinstellungenPraxisSection({
     <section className="settings-subcard">
         <div className="card-head">
             <div>
-                <div className="card-title">Praxis</div>
+                <div className="card-title">{t("settings.nav.praxis")}</div>
                 <p className="card-sub">
-                    {canEditPraxis
-                        ? "Grunddaten · werden auf Rezepten und Rechnungen gedruckt"
-                        : "Grunddaten zur Ansicht — Änderungen durch die Praxisleitung"}
+                    {canEditPraxis ? t("settings.praxis.subtitle_edit") : t("settings.praxis.subtitle_readonly")}
                 </p>
             </div>
         </div>
@@ -265,14 +266,14 @@ export function EinstellungenPraxisSection({
                 variant="warning"
                 dismissKey="praxis-billing-incomplete"
                 className="settings-praxis-billing-notice"
-                title="Wichtig: Pflichtangaben fehlen"
-                subtitle="Für Rechnungen/Rezepte bitte Behandler-Name, ZANR, BSNR und IBAN ausfüllen."
+                title={t("settings.praxis.billing_notice_title")}
+                subtitle={t("settings.praxis.billing_notice_subtitle")}
             />
         ) : null}
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">
-                    <b>Praxisname</b>
+                    <b>{t("settings.praxis.name_label")}</b>
                     <span className="req" aria-hidden>
                         *
                     </span>
@@ -285,10 +286,10 @@ export function EinstellungenPraxisSection({
                         <Input
                             value={draftPraxisName}
                             onChange={(e) => setDraftPraxisName(e.target.value)}
-                            aria-label="Praxisname"
+                            aria-label={t("settings.praxis.name_label")}
                             style={{ minWidth: 160, maxWidth: 280 }}
                         />
-                        <Button type="button" onClick={() => void savePraxisName()}>Speichern</Button>
+                        <Button type="button" onClick={() => void savePraxisName()}>{t("common.save")}</Button>
                         <Button
                             type="button"
                             variant="secondary"
@@ -297,7 +298,7 @@ export function EinstellungenPraxisSection({
                                 setEditPraxisName(false);
                             }}
                         >
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </>
                 ) : canEditPraxis ? (
@@ -309,7 +310,7 @@ export function EinstellungenPraxisSection({
                             setEditPraxisName(true);
                         }}
                     >
-                        Bearbeiten
+                        {t("common.edit")}
                     </Button>
                 ) : null}
             </div>
@@ -318,7 +319,7 @@ export function EinstellungenPraxisSection({
             <div className="row" style={{ width: "100%", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                     <span className="settings-field-label">
-                        <b>Adresse</b>
+                        <b>{t("settings.praxis.address_label")}</b>
                         <span className="req" aria-hidden>
                             *
                         </span>
@@ -328,7 +329,7 @@ export function EinstellungenPraxisSection({
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
                     {canEditPraxis && editPraxisAddr ? (
                         <>
-                            <Button type="button" onClick={() => void savePraxisAddr()}>Speichern</Button>
+                            <Button type="button" onClick={() => void savePraxisAddr()}>{t("common.save")}</Button>
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -337,7 +338,7 @@ export function EinstellungenPraxisSection({
                                     setEditPraxisAddr(false);
                                 }}
                             >
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         </>
                     ) : canEditPraxis ? (
@@ -349,18 +350,24 @@ export function EinstellungenPraxisSection({
                                 setEditPraxisAddr(true);
                             }}
                         >
-                            Bearbeiten
+                            {t("common.edit")}
                         </Button>
                     ) : null}
                 </div>
             </div>
             {canEditPraxis && editPraxisAddr ? (
-                <PraxisAddressArea label="Adresse bearbeiten" value={draftPraxisAddr} onChange={setDraftPraxisAddr} />
+                <PraxisAddressArea
+                    label={t("settings.praxis.edit_address")}
+                    placeholder={t("settings.praxis.address_placeholder")}
+                    hint={t("settings.praxis.address_hint")}
+                    value={draftPraxisAddr}
+                    onChange={setDraftPraxisAddr}
+                />
             ) : null}
         </div>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                <b>Öffnungszeiten</b>
+                <b>{t("settings.praxis.hours_label")}</b>
                 <div className="settings-row-muted">{(praxis.oeffnungszeiten ?? "").trim() || "—"}</div>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
@@ -369,11 +376,11 @@ export function EinstellungenPraxisSection({
                         <Input
                             value={draftPraxisOeffnungszeiten}
                             onChange={(e) => setDraftPraxisOeffnungszeiten(e.target.value)}
-                            aria-label="Öffnungszeiten"
-                            placeholder="z. B. Mo–Fr 08:00–18:00 · Sa 09:00–13:00"
+                            aria-label={t("settings.praxis.hours_label")}
+                            placeholder={t("settings.praxis.hours_placeholder")}
                             style={{ minWidth: 160, maxWidth: 320 }}
                         />
-                        <Button type="button" onClick={() => void savePraxisOeffnungszeiten()}>Speichern</Button>
+                        <Button type="button" onClick={() => void savePraxisOeffnungszeiten()}>{t("common.save")}</Button>
                         <Button
                             type="button"
                             variant="secondary"
@@ -382,7 +389,7 @@ export function EinstellungenPraxisSection({
                                 setEditPraxisOeffnungszeiten(false);
                             }}
                         >
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </>
                 ) : canEditPraxis ? (
@@ -394,7 +401,7 @@ export function EinstellungenPraxisSection({
                             setEditPraxisOeffnungszeiten(true);
                         }}
                     >
-                        Bearbeiten
+                        {t("common.edit")}
                     </Button>
                 ) : null}
             </div>
@@ -403,7 +410,7 @@ export function EinstellungenPraxisSection({
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">
-                    <b>KV-Nummer</b>
+                    <b>{t("settings.praxis.kv_label")}</b>
                     <span className="req" aria-hidden>
                         *
                     </span>
@@ -416,10 +423,10 @@ export function EinstellungenPraxisSection({
                         <Input
                             value={draftPraxisKv}
                             onChange={(e) => setDraftPraxisKv(e.target.value)}
-                            aria-label="KV-Nummer"
+                            aria-label={t("settings.praxis.kv_label")}
                             style={{ minWidth: 160, maxWidth: 220 }}
                         />
-                        <Button type="button" onClick={() => void savePraxisKv()}>Speichern</Button>
+                        <Button type="button" onClick={() => void savePraxisKv()}>{t("common.save")}</Button>
                         <Button
                             type="button"
                             variant="secondary"
@@ -428,7 +435,7 @@ export function EinstellungenPraxisSection({
                                 setEditPraxisKv(false);
                             }}
                         >
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </>
                 ) : (
@@ -440,7 +447,7 @@ export function EinstellungenPraxisSection({
                             setEditPraxisKv(true);
                         }}
                     >
-                        Bearbeiten
+                        {t("common.edit")}
                     </Button>
                 )}
             </div>
@@ -449,8 +456,8 @@ export function EinstellungenPraxisSection({
         {canEditPraxis ? (
         <div className="settings-row" style={{ alignItems: "center" }}>
             <div>
-                <b>Logo</b>
-                <div className="card-sub">Wird auf Dokumenten im PDF-Export verwendet</div>
+                <b>{t("settings.praxis.logo")}</b>
+                <div className="card-sub">{t("settings.praxis.logo_hint")}</div>
             </div>
             <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {logoPreviewUrl ? (
@@ -460,7 +467,7 @@ export function EinstellungenPraxisSection({
                 <Button type="button" variant="secondary" loading={logoBusy} disabled={logoBusy} onClick={() => document.getElementById("praxis-logo-file")?.click()}>
                     <span className="row" style={{ gap: 8, alignItems: "center" }}>
                         <UploadCircleIcon size={18} />
-                        Hochladen
+                        {t("settings.praxis.upload")}
                     </span>
                 </Button>
             </div>
@@ -470,20 +477,20 @@ export function EinstellungenPraxisSection({
         <>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                <b>Kontakt, Web &amp; Steuern</b>
-                <div className="settings-row-muted">Telefon, E-Mail, USt-IdNr. … für PDF-Kopf</div>
+                <b>{t("settings.praxis.contact_web_tax")}</b>
+                <div className="settings-row-muted">{t("settings.praxis.contact_web_tax_hint")}</div>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
                 {editPraxisExtra ? (
                     <>
-                        <Button type="button" onClick={() => void savePraxisExtra()}>Speichern</Button>
+                        <Button type="button" onClick={() => void savePraxisExtra()}>{t("common.save")}</Button>
                         <Button type="button" variant="secondary" onClick={() => void cancelPraxisExtra()}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </>
                 ) : (
                     <Button type="button" variant="secondary" onClick={() => void startEditPraxisExtra()}>
-                        Bearbeiten
+                        {t("common.edit")}
                     </Button>
                 )}
             </div>
@@ -493,22 +500,22 @@ export function EinstellungenPraxisSection({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input
                         id="px-tel"
-                        label="Telefon"
+                        label={t("common.phone")}
                         type="tel"
                         value={praxis.telefon ?? ""}
                         onChange={(e) => setPraxis((p) => ({ ...p, telefon: e.target.value }))}
                     />
-                    <Input id="px-fax" label="Fax" value={praxis.fax ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, fax: e.target.value }))} />
+                    <Input id="px-fax" label={t("settings.praxis.fax")} value={praxis.fax ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, fax: e.target.value }))} />
                     <Input
                         id="px-em"
-                        label="E-Mail"
+                        label={t("common.email")}
                         type="email"
                         value={praxis.email ?? ""}
                         onChange={(e) => setPraxis((p) => ({ ...p, email: e.target.value }))}
                     />
-                    <Input id="px-web" label="Webseite" type="url" value={praxis.web ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, web: e.target.value }))} />
-                    <Input id="px-ust" label="USt-IdNr." value={praxis.ust_id ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, ust_id: e.target.value }))} />
-                    <Input id="px-st" label="Steuernummer" value={praxis.steuernummer ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, steuernummer: e.target.value }))} />
+                    <Input id="px-web" label={t("settings.praxis.website")} type="url" value={praxis.web ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, web: e.target.value }))} />
+                    <Input id="px-ust" label={t("settings.praxis.vat_id")} value={praxis.ust_id ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, ust_id: e.target.value }))} />
+                    <Input id="px-st" label={t("settings.praxis.tax_number")} value={praxis.steuernummer ?? ""} onChange={(e) => setPraxis((p) => ({ ...p, steuernummer: e.target.value }))} />
                 </div>
             </div>
         ) : null}
@@ -524,8 +531,8 @@ export function EinstellungenPraxisSection({
         ) : null}
         <button type="button" className="settings-row-clickable" onClick={() => onOpenArbeitsablaeufe()}>
             <div>
-                <b>Termine &amp; Kalender</b>
-                <div className="settings-row-muted">Puffer, Erinnerungen, Standardansicht</div>
+                <b>{t("settings.praxis.termine_calendar")}</b>
+                <div className="settings-row-muted">{t("settings.praxis.termine_calendar_hint")}</div>
             </div>
             <span className="settings-chevron" aria-hidden>
                 <ChevronRightIcon size={18} />
@@ -536,7 +543,19 @@ export function EinstellungenPraxisSection({
     );
 }
 
-function PraxisAddressArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function PraxisAddressArea({
+    label,
+    placeholder,
+    hint,
+    value,
+    onChange,
+}: {
+    label: string;
+    placeholder: string;
+    hint: string;
+    value: string;
+    onChange: (v: string) => void;
+}) {
     const id = "praxis-addr";
     return (
         <label className="input-wrap" htmlFor={id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -547,12 +566,12 @@ function PraxisAddressArea({ label, value, onChange }: { label: string; value: s
                 rows={5}
                 autoComplete="street-address"
                 spellCheck={false}
-                placeholder={"Straße Hausnummer\nPLZ Ort"}
+                placeholder={placeholder}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
             />
             <p className="card-sub settings-praxis-field-hint" style={{ margin: 0 }}>
-                Eine Zeile pro Zeile wie auf dem Briefpapier; Leerzeilen mit Enter.
+                {hint}
             </p>
         </label>
     );

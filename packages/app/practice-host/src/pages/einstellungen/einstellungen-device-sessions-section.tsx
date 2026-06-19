@@ -9,12 +9,16 @@ import {
     type DeviceSessionRow,
 } from "@/systems/practice-host/controllers/device-session.controller";
 import { ShieldIcon } from "@/lib/icons";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 /** Eigene Gerätesitzungen — Einstellungen → Sicherheit. */
 export function EinstellungenDeviceSessionsSection() {
+    const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const toast = useToastStore((s) => s.add);
     const [deviceSessions, setDeviceSessions] = useState<DeviceSessionRow[]>([]);
     const [deviceSessionsBusy, setDeviceSessionsBusy] = useState(false);
@@ -45,10 +49,10 @@ export function EinstellungenDeviceSessionsSection() {
         setRevokeOtherBusy(true);
         try {
             const n = await revokeMyOtherDeviceSessions();
-            toast(`${n} andere Geräte abgemeldet`, "success");
+            toast(tp("settings.device_sessions.toast.revoked_others", { count: n }), "success");
             await refreshDeviceSessions();
         } catch (e) {
-            toast(`Abmelden: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("settings.device_sessions.toast.revoke_error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setRevokeOtherBusy(false);
         }
@@ -60,7 +64,7 @@ export function EinstellungenDeviceSessionsSection() {
             const report = await investigateMyDeviceSession(row.id);
             setInvestigation(report);
         } catch (e) {
-            toast(`Untersuchung: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("settings.device_sessions.toast.investigate_error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setInvestigateBusyId(null);
         }
@@ -70,13 +74,13 @@ export function EinstellungenDeviceSessionsSection() {
         setTrustBusyId(row.id);
         try {
             const updated = await setMyDeviceSessionTrusted(row.id, trusted);
-            toast(trusted ? "Gerät als vertrauenswürdig markiert" : "Vertrauen widerrufen", "success");
+            toast(trusted ? t("settings.device_sessions.toast.trusted") : t("settings.device_sessions.toast.untrusted"), "success");
             setDeviceSessions((list) => list.map((s) => (s.id === updated.id ? updated : s)));
             if (investigation?.session.id === updated.id) {
                 setInvestigation((prev) => (prev ? { ...prev, session: updated } : prev));
             }
         } catch (e) {
-            toast(`Vertrauen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("settings.device_sessions.toast.trust_error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setTrustBusyId(null);
         }
@@ -87,14 +91,14 @@ export function EinstellungenDeviceSessionsSection() {
         setRevokeBusyId(revokeTarget.id);
         try {
             await revokeMyDeviceSession(revokeTarget.id);
-            toast("Gerät abgemeldet", "success");
+            toast(t("settings.device_sessions.toast.revoked"), "success");
             setRevokeTarget(null);
             if (investigation?.session.id === revokeTarget.id) {
                 setInvestigation(null);
             }
             await refreshDeviceSessions();
         } catch (e) {
-            toast(`Abmelden: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("settings.device_sessions.toast.revoke_error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setRevokeBusyId(null);
         }
@@ -102,22 +106,34 @@ export function EinstellungenDeviceSessionsSection() {
 
     const otherCount = deviceSessions.filter((r) => !r.is_current).length;
     const suspectedCount = deviceSessions.filter((r) => r.is_suspected).length;
+    const suspectedSuffix = suspectedCount === 1 ? "" : locale === "de" ? "en" : "s";
+
+    const trustStatusLabel = (session: DeviceSessionRow) => {
+        if (session.is_trusted) {
+            const since = session.trusted_at
+                ? tp("settings.device_sessions.trust_status.trusted_since", { date: session.trusted_at })
+                : "";
+            return tp("settings.device_sessions.trust_status.trusted", { since });
+        }
+        if (session.is_suspected) return t("settings.device_sessions.trust_status.suspected");
+        return t("settings.device_sessions.trust_status.unchecked");
+    };
 
     return (
         <section className="settings-subcard settings-device-sessions-card">
             <div className="card-head settings-device-sessions-card-head">
                 <div className="settings-device-sessions-head">
                     <div className="settings-device-sessions-head-copy">
-                        <div className="card-title">Gerätesitzungen</div>
+                        <div className="card-title">{t("settings.device_sessions.title")}</div>
                         <div className="card-sub">
                             {deviceSessionsBusy
-                                ? "Geräte werden geladen …"
-                                : "Aktive Anmeldungen dieses Benutzerkontos"}
+                                ? t("settings.device_sessions.loading")
+                                : t("settings.device_sessions.subtitle")}
                         </div>
                     </div>
                     {!deviceSessionsBusy ? (
                         <span className="settings-device-sessions-count settings-pill-blue">
-                            {deviceSessions.length} aktiv
+                            {tp("settings.device_sessions.count_active", { count: deviceSessions.length })}
                         </span>
                     ) : null}
                 </div>
@@ -125,13 +141,13 @@ export function EinstellungenDeviceSessionsSection() {
 
             {suspectedCount > 0 && !deviceSessionsBusy ? (
                 <div className="settings-device-sessions-alert" role="status">
-                    {suspectedCount} verdächtige Sitzung{suspectedCount === 1 ? "" : "en"} — bitte prüfen und ggf. abmelden.
+                    {tp("settings.device_sessions.alert", { count: suspectedCount, suffix: suspectedSuffix })}
                 </div>
             ) : null}
 
             {deviceSessions.length === 0 && !deviceSessionsBusy ? (
                 <div className="settings-device-sessions-empty">
-                    Keine Einträge — nach erneutem Anmelden erscheint dieses Gerät hier.
+                    {t("settings.device_sessions.empty")}
                 </div>
             ) : (
                 <ul className="settings-device-sessions-list">
@@ -148,21 +164,21 @@ export function EinstellungenDeviceSessionsSection() {
                             </span>
                             <div className="settings-device-session-body">
                                 <div className="settings-device-session-title-row">
-                                    <b>{(row.device_label ?? "").trim() || "Gerät"}</b>
+                                    <b>{(row.device_label ?? "").trim() || t("settings.device_sessions.default_device")}</b>
                                     {row.is_current ? (
-                                        <span className="settings-pill-green">Diese Sitzung</span>
+                                        <span className="settings-pill-green">{t("settings.device_sessions.pill.current")}</span>
                                     ) : row.is_trusted ? (
-                                        <span className="settings-pill-trusted">Vertrauenswürdig</span>
+                                        <span className="settings-pill-trusted">{t("settings.device_sessions.pill.trusted")}</span>
                                     ) : row.is_suspected ? (
-                                        <span className="settings-pill-orange">Verdächtig</span>
+                                        <span className="settings-pill-orange">{t("settings.device_sessions.pill.suspected")}</span>
                                     ) : null}
                                 </div>
                                 <div className="settings-device-session-meta">
                                     {(row.user_agent ?? "").slice(0, 120) || "—"}
                                 </div>
                                 <div className="settings-device-session-meta">
-                                    Zuletzt aktiv: {row.last_seen_at}
-                                    {row.trusted_at ? ` · Vertraut seit ${row.trusted_at}` : ""}
+                                    {tp("settings.device_sessions.last_active", { time: row.last_seen_at })}
+                                    {row.trusted_at ? tp("settings.device_sessions.trusted_since", { time: row.trusted_at }) : ""}
                                 </div>
                                 {row.is_suspected && row.suspected_reasons.length > 0 ? (
                                     <ul className="settings-device-session-reasons">
@@ -182,7 +198,7 @@ export function EinstellungenDeviceSessionsSection() {
                                         disabled={investigateBusyId != null || revokeBusyId != null || trustBusyId != null}
                                         onClick={() => void openInvestigation(row)}
                                     >
-                                        Untersuchen
+                                        {t("settings.device_sessions.investigate")}
                                     </Button>
                                     {row.is_trusted ? (
                                         <Button
@@ -193,7 +209,7 @@ export function EinstellungenDeviceSessionsSection() {
                                             disabled={investigateBusyId != null || revokeBusyId != null || trustBusyId != null}
                                             onClick={() => void setTrusted(row, false)}
                                         >
-                                            Vertrauen widerrufen
+                                            {t("settings.device_sessions.revoke_trust")}
                                         </Button>
                                     ) : (
                                         <Button
@@ -204,7 +220,7 @@ export function EinstellungenDeviceSessionsSection() {
                                             disabled={investigateBusyId != null || revokeBusyId != null || trustBusyId != null}
                                             onClick={() => void setTrusted(row, true)}
                                         >
-                                            Vertrauen
+                                            {t("settings.device_sessions.trust")}
                                         </Button>
                                     )}
                                     <Button
@@ -215,7 +231,7 @@ export function EinstellungenDeviceSessionsSection() {
                                         disabled={investigateBusyId != null || revokeBusyId != null || trustBusyId != null}
                                         onClick={() => setRevokeTarget(row)}
                                     >
-                                        Abmelden
+                                        {t("settings.device_sessions.sign_out")}
                                     </Button>
                                 </div>
                             ) : null}
@@ -226,7 +242,7 @@ export function EinstellungenDeviceSessionsSection() {
 
             <div className="settings-device-sessions-foot">
                 <p className="settings-device-sessions-foot-hint">
-                    Andere Geräte dieses Kontos abmelden — Ihr Passwort bleibt gültig.
+                    {t("settings.device_sessions.foot_hint")}
                 </p>
                 <Button
                     type="button"
@@ -235,14 +251,16 @@ export function EinstellungenDeviceSessionsSection() {
                     disabled={revokeOtherBusy || deviceSessionsBusy || otherCount === 0}
                     onClick={() => void revokeOtherDeviceSessions()}
                 >
-                    {otherCount > 0 ? `${otherCount} andere abmelden` : "Keine anderen Geräte"}
+                    {otherCount > 0
+                        ? tp("settings.device_sessions.revoke_others", { count: otherCount })
+                        : t("settings.device_sessions.no_others")}
                 </Button>
             </div>
 
             <Dialog
                 open={investigation != null}
                 onClose={() => setInvestigation(null)}
-                title="Gerätesitzung untersuchen"
+                title={t("settings.device_sessions.dialog.title")}
                 className="settings-device-session-investigate-dialog"
                 footer={
                     investigation && !investigation.session.is_current ? (
@@ -254,7 +272,7 @@ export function EinstellungenDeviceSessionsSection() {
                                     loading={trustBusyId === investigation.session.id}
                                     onClick={() => void setTrusted(investigation.session, false)}
                                 >
-                                    Vertrauen widerrufen
+                                    {t("settings.device_sessions.revoke_trust")}
                                 </Button>
                             ) : (
                                 <Button
@@ -263,7 +281,7 @@ export function EinstellungenDeviceSessionsSection() {
                                     loading={trustBusyId === investigation.session.id}
                                     onClick={() => void setTrusted(investigation.session, true)}
                                 >
-                                    Vertrauen
+                                    {t("settings.device_sessions.trust")}
                                 </Button>
                             )}
                             <Button
@@ -272,7 +290,7 @@ export function EinstellungenDeviceSessionsSection() {
                                 loading={revokeBusyId === investigation.session.id}
                                 onClick={() => setRevokeTarget(investigation.session)}
                             >
-                                Gerät abmelden
+                                {t("settings.device_sessions.sign_out")}
                             </Button>
                         </div>
                     ) : null
@@ -282,45 +300,39 @@ export function EinstellungenDeviceSessionsSection() {
                     <div className="settings-device-session-investigate">
                         <dl className="settings-device-session-investigate-grid">
                             <div>
-                                <dt>Gerät</dt>
+                                <dt>{t("settings.device_sessions.dialog.device")}</dt>
                                 <dd>{investigation.session.device_label}</dd>
                             </div>
                             <div>
-                                <dt>Erstellt</dt>
+                                <dt>{t("settings.device_sessions.dialog.created")}</dt>
                                 <dd>{investigation.session.created_at}</dd>
                             </div>
                             <div>
-                                <dt>Zuletzt aktiv</dt>
+                                <dt>{t("settings.device_sessions.dialog.last_active")}</dt>
                                 <dd>{investigation.session.last_seen_at}</dd>
                             </div>
                             <div>
-                                <dt>Aktive Sitzungen gesamt</dt>
+                                <dt>{t("settings.device_sessions.dialog.total_sessions")}</dt>
                                 <dd>{investigation.active_session_count}</dd>
                             </div>
                             <div>
-                                <dt>Gleicher Gerätename</dt>
+                                <dt>{t("settings.device_sessions.dialog.same_device")}</dt>
                                 <dd>{investigation.same_device_label_count}</dd>
                             </div>
                             <div>
-                                <dt>Vertrauensstatus</dt>
-                                <dd>
-                                    {investigation.session.is_trusted
-                                        ? `Vertrauenswürdig${investigation.session.trusted_at ? ` (seit ${investigation.session.trusted_at})` : ""}`
-                                        : investigation.session.is_suspected
-                                          ? "Verdächtig"
-                                          : "Ungeprüft"}
-                                </dd>
+                                <dt>{t("settings.device_sessions.dialog.trust_status")}</dt>
+                                <dd>{trustStatusLabel(investigation.session)}</dd>
                             </div>
                         </dl>
                         <div>
-                            <p className="settings-device-session-investigate-label">User-Agent</p>
+                            <p className="settings-device-session-investigate-label">{t("settings.device_sessions.dialog.user_agent")}</p>
                             <pre className="settings-device-session-investigate-ua">
                                 {investigation.session.user_agent || "—"}
                             </pre>
                         </div>
                         {investigation.session.suspected_reasons.length > 0 ? (
                             <div>
-                                <p className="settings-device-session-investigate-label">Risikoindikatoren</p>
+                                <p className="settings-device-session-investigate-label">{t("settings.device_sessions.dialog.risk_indicators")}</p>
                                 <ul className="settings-device-session-reasons">
                                     {investigation.session.suspected_reasons.map((r) => (
                                         <li key={r}>{r}</li>
@@ -330,7 +342,7 @@ export function EinstellungenDeviceSessionsSection() {
                         ) : null}
                         {investigation.recent_logins.length > 0 ? (
                             <div>
-                                <p className="settings-device-session-investigate-label">Letzte Anmeldeereignisse</p>
+                                <p className="settings-device-session-investigate-label">{t("settings.device_sessions.dialog.recent_logins")}</p>
                                 <ul className="settings-device-session-audit-list">
                                     {investigation.recent_logins.map((entry) => (
                                         <li key={entry.id}>
@@ -352,13 +364,15 @@ export function EinstellungenDeviceSessionsSection() {
                 open={revokeTarget != null}
                 onClose={() => setRevokeTarget(null)}
                 onConfirm={() => void confirmRevokeOne()}
-                title="Gerät abmelden?"
+                title={t("settings.device_sessions.confirm_revoke.title")}
                 message={
                     revokeTarget
-                        ? `„${revokeTarget.device_label}“ wird abgemeldet. Die Sitzung kann sich nicht mehr mit dem bestehenden Token anmelden.`
+                        ? tp("settings.device_sessions.confirm_revoke.message", {
+                              label: revokeTarget.device_label ?? t("settings.device_sessions.default_device"),
+                          })
                         : ""
                 }
-                confirmLabel="Abmelden"
+                confirmLabel={t("settings.device_sessions.sign_out")}
                 danger
                 loading={revokeBusyId != null}
             />

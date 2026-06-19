@@ -19,8 +19,11 @@ import { canAccessVerbundAdminPanel } from "@/lib/rbac";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 
 export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
+    const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const status = useVerbundStore((s) => s.status);
     const toast = useToastStore((s) => s.add);
@@ -52,7 +55,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
 
     if (!allowed) {
         return embedded ? null : (
-            <p className="card-sub">Geräteverbund-Administration nur für Ärzte auf einem ADMIN-Sitz.</p>
+            <p className="card-sub">{t("settings.geraeteverbund.admin_only")}</p>
         );
     }
 
@@ -61,17 +64,23 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
     return (
         <section className="settings-subcard">
             <div className="card-head">
-                <div className="card-title">Geräteverbund</div>
+                <div className="card-title">{t("settings.geraeteverbund.title")}</div>
                 {usage ? (
                     <div className="card-sub">
-                        ADMIN {usage.adminUsed}/{usage.maxAdmin} · MEMBER {usage.memberUsed}/{usage.maxMember} ·
-                        gesamt {usage.totalUsed}/{usage.maxTotal}
+                        {tp("settings.geraeteverbund.usage", {
+                            adminUsed: usage.adminUsed,
+                            maxAdmin: usage.maxAdmin,
+                            memberUsed: usage.memberUsed,
+                            maxMember: usage.maxMember,
+                            totalUsed: usage.totalUsed,
+                            maxTotal: usage.maxTotal,
+                        })}
                     </div>
                 ) : null}
             </div>
 
-            <h3>Ausstehende Anfragen</h3>
-            {pending.length === 0 ? <p className="card-sub">Keine offenen Kopplungsanfragen.</p> : null}
+            <h3>{t("settings.geraeteverbund.pending_title")}</h3>
+            {pending.length === 0 ? <p className="card-sub">{t("settings.geraeteverbund.no_pending")}</p> : null}
             <ul>
                 {pending.map((req) => (
                     <li key={req.id}>
@@ -79,7 +88,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                         {req.hostname ? ` (${req.hostname})` : null} — {req.requestedRole}
                         {req.suggestedReclaimFingerprint ? (
                             <p className="card-sub">
-                                Vermutliche Neuinstallation — ersetzt Sitz{" "}
+                                {t("settings.geraeteverbund.reclaim_hint")}{" "}
                                 <code>{req.suggestedReclaimFingerprint}</code>
                             </p>
                         ) : null}
@@ -94,7 +103,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                                     try {
                                         await verbundReclaimDevice(req.suggestedReclaimFingerprint!);
                                         await reload();
-                                        toast("Alter Sitz freigegeben.", "success");
+                                        toast(t("settings.geraeteverbund.reclaim_toast"), "success");
                                     } catch (e) {
                                         toast(errorMessage(e), "error");
                                     } finally {
@@ -102,7 +111,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                                     }
                                 }}
                             >
-                                Sitz freigeben
+                                {t("settings.geraeteverbund.release_seat")}
                             </Button>
                         ) : null}
                         <Button
@@ -125,7 +134,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                                 }
                             }}
                         >
-                            Annehmen
+                            {t("settings.geraeteverbund.accept")}
                         </Button>
                         <Button
                             type="button"
@@ -137,18 +146,18 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                                 await reload();
                             }}
                         >
-                            Ablehnen
+                            {t("settings.geraeteverbund.reject")}
                         </Button>
                         {sasById[req.id] ? (
                             <p>
-                                <strong>4-stelliger Code:</strong> {sasById[req.id]}
+                                <strong>{t("settings.geraeteverbund.code_label")}</strong> {sasById[req.id]}
                             </p>
                         ) : null}
                     </li>
                 ))}
             </ul>
 
-            <h3>Aktive Geräte</h3>
+            <h3>{t("settings.geraeteverbund.active_devices")}</h3>
             <ul>
                 {devices.map((d) => (
                     <li key={d.fingerprint}>
@@ -159,7 +168,7 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                             variant="secondary"
                             onClick={() => void verbundRevokeDevice(d.fingerprint).then(reload)}
                         >
-                            Widerrufen
+                            {t("settings.geraeteverbund.revoke")}
                         </Button>
                         <Button
                             type="button"
@@ -169,24 +178,24 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
                                 void verbundBlockDevice(d.fingerprint, "manuell").then(reload)
                             }
                         >
-                            Sperren
+                            {t("settings.geraeteverbund.block")}
                         </Button>
                     </li>
                 ))}
             </ul>
 
-            <h3>Blockliste</h3>
-            <p className="card-sub">Gesperrte Fingerprints können hier wieder freigegeben werden (API: unblock).</p>
+            <h3>{t("settings.geraeteverbund.blocklist_title")}</h3>
+            <p className="card-sub">{t("settings.geraeteverbund.blocklist_hint")}</p>
             <Button
                 type="button"
                 size="sm"
                 variant="secondary"
                 onClick={() => {
-                    const fp = window.prompt("Fingerprint zum Entsperren:");
+                    const fp = window.prompt(t("settings.geraeteverbund.unblock_prompt"));
                     if (fp) void verbundUnblockDevice(fp).then(reload);
                 }}
             >
-                Gerät entsperren…
+                {t("settings.geraeteverbund.unblock")}
             </Button>
         </section>
     );

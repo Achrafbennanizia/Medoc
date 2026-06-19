@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { forwardAkteToPhysicians } from "@/systems/practice-host/controllers/akte-workflow.controller";
 import {
@@ -13,13 +14,13 @@ import { Select, Textarea } from "./ui/input";
 
 export type PatientAkteWorkflowMode = "ticket" | "forward" | "aufgabe" | null;
 
-const AUFGABE_TYP_OPTS: { value: PraxisAufgabeTyp; label: string }[] = [
-    { value: "ABRECHNUNG", label: "Abrechnung" },
-    { value: "TERMIN", label: "Termin" },
-    { value: "DRUCK", label: "Druck" },
-    { value: "STAMMDATEN", label: "Stammdaten" },
-    { value: "SONSTIGES", label: "Sonstiges" },
-];
+const AUFGABE_TYP_KEYS = [
+    "ABRECHNUNG",
+    "TERMIN",
+    "DRUCK",
+    "STAMMDATEN",
+    "SONSTIGES",
+] as const satisfies readonly PraxisAufgabeTyp[];
 
 type ToastFn = (message: string, variant?: "info" | "error" | "success") => void;
 
@@ -31,6 +32,7 @@ export function PatientAkteWorkflowDialogs(props: {
     role: Role;
     toast: ToastFn;
 }) {
+    const t = useT();
     const { mode, onClose, patientId, currentUserId, role, toast } = props;
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
     const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export function PatientAkteWorkflowDialogs(props: {
     const submitTicket = async () => {
         const body = ticketBody.trim();
         if (!ticketArztId || !body) {
-            toast("Arzt und Nachricht ausfüllen.", "error");
+            toast(t("patient.akte.workflow.fill_doctor_message"), "error");
             return;
         }
         setBusy(true);
@@ -100,7 +102,7 @@ export function PatientAkteWorkflowDialogs(props: {
                 body,
                 assigneeUserId: ticketArztId,
             });
-            toast("Aufgabe an Arzt erstellt.", "success");
+            toast(t("patient.akte.workflow.ticket_created"), "success");
             onClose();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -112,7 +114,7 @@ export function PatientAkteWorkflowDialogs(props: {
     const submitAufgabe = async () => {
         const titel = aufgabeTitel.trim();
         if (!titel) {
-            toast("Titel ausfüllen.", "error");
+            toast(t("patient.akte.workflow.fill_title"), "error");
             return;
         }
         setBusy(true);
@@ -127,8 +129,8 @@ export function PatientAkteWorkflowDialogs(props: {
             });
             toast(
                 aufgabeRezId.trim()
-                    ? "Private Aufgabe an Rezeption gesendet."
-                    : "Aufgabe an Rezeption (Pool) erstellt.",
+                    ? t("patient.akte.workflow.aufgabe_private_sent")
+                    : t("patient.akte.workflow.aufgabe_pool_created"),
                 "success",
             );
             onClose();
@@ -145,7 +147,7 @@ export function PatientAkteWorkflowDialogs(props: {
             .map(([id]) => id)
             .filter((id) => id && id !== currentUserId);
         if (ids.length === 0) {
-            toast("Mindestens einen anderen Arzt auswählen.", "error");
+            toast(t("patient.akte.workflow.pick_doctor"), "error");
             return;
         }
         setBusy(true);
@@ -155,7 +157,7 @@ export function PatientAkteWorkflowDialogs(props: {
                 arztIds: ids,
                 message: forwardNote.trim() || null,
             });
-            toast("Review angefragt.", "success");
+            toast(t("patient.akte.workflow.review_requested"), "success");
             onClose();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -173,14 +175,14 @@ export function PatientAkteWorkflowDialogs(props: {
             <Dialog
                 open={mode === "ticket"}
                 onClose={onClose}
-                title="Aufgabe an Arzt"
+                title={t("patient.akte.workflow.ticket_title")}
                 footer={(
                     <div className="modal-actions">
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitTicket()} disabled={busy || !!loadErr}>
-                            {busy ? "Senden…" : "Senden"}
+                            {busy ? t("common.sending") : t("common.send")}
                         </Button>
                     </div>
                 )}
@@ -188,7 +190,7 @@ export function PatientAkteWorkflowDialogs(props: {
                 {loadErr ? <p className="page-sub" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Arzt</span>
+                        <span className="text-sm text-muted">{t("patient.akte.workflow.recipient")}</span>
                         <Select
                             value={ticketArztId}
                             onChange={(e) => setTicketArztId(e.target.value)}
@@ -197,16 +199,16 @@ export function PatientAkteWorkflowDialogs(props: {
                         />
                     </label>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Nachricht</span>
+                        <span className="text-sm text-muted">{t("patient.akte.workflow.message")}</span>
                         <Textarea
                             rows={4}
                             value={ticketBody}
                             onChange={(e) => setTicketBody(e.target.value)}
-                            placeholder="Kurze strukturierte Anfrage an den behandelnden Arzt…"
+                            placeholder={t("patient.akte.workflow.message_ph")}
                         />
                     </label>
                     <p className="page-sub" style={{ margin: 0 }}>
-                        Nur Sie und der gewählte Arzt sehen diese Aufgabe (wie ein Chat).
+                        {t("patient.akte.workflow.message_private")}
                     </p>
                 </div>
             </Dialog>
@@ -214,52 +216,55 @@ export function PatientAkteWorkflowDialogs(props: {
             <Dialog
                 open={mode === "aufgabe"}
                 onClose={onClose}
-                title="Aufgabe an Rezeption"
+                title={t("patient.akte.workflow.aufgabe_title")}
                 footer={(
                     <div className="modal-actions">
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitAufgabe()} disabled={busy}>
-                            {busy ? "Senden…" : "Anlegen"}
+                            {busy ? t("common.sending") : t("common.create_task")}
                         </Button>
                     </div>
                 )}
             >
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <p className="page-sub" style={{ margin: 0 }}>
-                        Wählen Sie eine Person für eine private Aufgabe — oder „Rezeption (Pool)“ für alle an der Rezeption.
+                        {t("patient.akte.workflow.pool_hint")}
                     </p>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Empfänger</span>
+                        <span className="text-sm text-muted">{t("patient.akte.workflow.recipient")}</span>
                         <Select
                             value={aufgabeRezId || "__pool__"}
                             onChange={(e) => setAufgabeRezId(e.target.value === "__pool__" ? "" : e.target.value)}
                             options={[
-                                { value: "__pool__", label: "Rezeption (Pool — alle)" },
+                                { value: "__pool__", label: t("patient.akte.workflow.aufgabe_pool") },
                                 ...rezeption.map((r) => ({ value: r.id, label: r.name })),
                             ]}
                         />
                     </label>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Typ</span>
+                        <span className="text-sm text-muted">{t("common.type")}</span>
                         <Select
                             value={aufgabeTyp}
                             onChange={(e) => setAufgabeTyp(e.target.value as PraxisAufgabeTyp)}
-                            options={AUFGABE_TYP_OPTS.map((o) => ({ value: o.value, label: o.label }))}
+                            options={AUFGABE_TYP_KEYS.map((value) => ({
+                                value,
+                                label: t(`patient.akte.workflow.aufgabe_typ.${value.toLowerCase()}`),
+                            }))}
                         />
                     </label>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Titel *</span>
+                        <span className="text-sm text-muted">{t("common.title_field")} *</span>
                         <input
                             className="input"
                             value={aufgabeTitel}
                             onChange={(e) => setAufgabeTitel(e.target.value)}
-                            placeholder="z. B. Termin vereinbaren"
+                            placeholder={t("patient.akte.workflow.subject_ph")}
                         />
                     </label>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Beschreibung</span>
+                        <span className="text-sm text-muted">{t("common.description")}</span>
                         <Textarea
                             rows={3}
                             value={aufgabeBody}
@@ -272,14 +277,14 @@ export function PatientAkteWorkflowDialogs(props: {
             <Dialog
                 open={mode === "forward"}
                 onClose={onClose}
-                title="Akte — Review anfragen"
+                title={t("patient.akte.workflow.forward_title")}
                 footer={(
                     <div className="modal-actions">
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitForward()} disabled={busy || !!loadErr}>
-                            {busy ? "Senden…" : "Benachrichtigen"}
+                            {busy ? t("common.sending") : t("common.notify")}
                         </Button>
                     </div>
                 )}
@@ -287,7 +292,7 @@ export function PatientAkteWorkflowDialogs(props: {
                 {loadErr ? <p className="page-sub" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <p className="page-sub" style={{ margin: 0 }}>
-                        Ausgewählte Ärzt:innen erhalten eine In-App-Meldung mit Link-Kontext zu dieser Akte.
+                        {t("patient.akte.workflow.forward_hint")}
                     </p>
                     <div className="stack" style={{ gap: 8 }}>
                         {aerzte
@@ -304,7 +309,7 @@ export function PatientAkteWorkflowDialogs(props: {
                             ))}
                     </div>
                     <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">Optionaler Hinweis</span>
+                        <span className="text-sm text-muted">{t("patient.akte.workflow.forward_note")}</span>
                         <Textarea rows={3} value={forwardNote} onChange={(e) => setForwardNote(e.target.value)} />
                     </label>
                 </div>

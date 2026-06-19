@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { NAV_ICONS } from "@/lib/icons";
@@ -27,8 +28,10 @@ function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
     }
 }
 
-/** Shared Verwaltung TOC: real `<a href>` rows, RBAC-filtered, keyboard-safe (Enter + Space). */
+/** Shared admin TOC: real `<a href>` rows, RBAC-filtered, keyboard-safe (Enter + Space). */
 export function VerwaltungTocPage({ title, subtitle, links }: Props) {
+    const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const visible = links.filter((l) =>
         l.requires != null && l.requires !== ""
@@ -51,14 +54,14 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
                             {useIcons ? (
                                 <>
                                     <th scope="col" className="verwaltung-toc-col-icon" aria-hidden />
-                                    <th scope="col">Kategorie</th>
-                                    <th scope="col">Kurzinfo</th>
+                                    <th scope="col">{t("verwaltung.toc.col_category")}</th>
+                                    <th scope="col">{t("verwaltung.toc.col_summary")}</th>
                                     <th scope="col" className="verwaltung-toc-col-chev" aria-hidden />
                                 </>
                             ) : (
                                 <>
-                                    <th scope="col">Bereich</th>
-                                    <th scope="col">Beschreibung</th>
+                                    <th scope="col">{t("verwaltung.toc.col_section")}</th>
+                                    <th scope="col">{t("verwaltung.toc.col_description")}</th>
                                     <th scope="col" className="verwaltung-toc-col-chev" aria-hidden />
                                 </>
                             )}
@@ -66,7 +69,7 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
                     </thead>
                     <tbody>
                         {visible.map((item) => {
-                            const label = `${item.title}: öffnen`;
+                            const label = tp("verwaltung.toc.open_aria", { title: item.title });
                             const Ic = item.iconKey ? (NAV_ICONS[item.iconKey] ?? NAV_ICONS["/verwaltung"]!) : null;
                             const colSpan = useIcons ? 4 : 3;
                             return (
@@ -77,7 +80,7 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
                                             role="link"
                                             className={`verwaltung-toc-row-link${useIcons ? " verwaltung-toc-row-link--icons" : ""}`}
                                             aria-label={label}
-                                            title="Öffnen"
+                                            title={t("common.open")}
                                             onKeyDown={onLinkKeyDown}
                                         >
                                             {useIcons && Ic ? (

@@ -38,6 +38,12 @@ pub fn load_or_create() -> Result<SigningKey, AppError> {
     Ok(SigningKey::from_bytes(&arr))
 }
 
+/// One-time import from owner activation manifest (32-byte ed25519 seed).
+pub fn import_seed(seed: [u8; 32]) -> Result<SigningKey, AppError> {
+    secret_store::store_bytes_replace(SECRET_ACCOUNT, &seed)?;
+    Ok(SigningKey::from_bytes(&seed))
+}
+
 fn from_hex(hex: &str) -> Result<SigningKey, AppError> {
     if hex.len() != 64 {
         return Err(AppError::Validation(

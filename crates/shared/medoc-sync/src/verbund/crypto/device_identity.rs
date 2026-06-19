@@ -22,6 +22,23 @@ impl DeviceIdentity {
         Self::from_seed_bytes(&bytes)
     }
 
+    /// Load identity when already provisioned; does not mint a throwaway key.
+    pub fn try_load() -> Result<Option<Self>, AppError> {
+        if let Ok(env) = std::env::var("MEDOC_VERBUND_DEVICE_SECRET") {
+            return Ok(Some(Self::from_seed_hex(env.trim())?));
+        }
+        match secret_store::load_bytes_if_exists(DEVICE_KEY_ACCOUNT)? {
+            Some(bytes) => Ok(Some(Self::from_seed_bytes(&bytes)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// One-time import from owner activation manifest (32-byte ed25519 seed).
+    pub fn import_seed(seed: [u8; 32]) -> Result<Self, AppError> {
+        secret_store::store_bytes_replace(DEVICE_KEY_ACCOUNT, &seed)?;
+        Self::from_seed_bytes(&seed)
+    }
+
     fn from_seed_hex(hex: &str) -> Result<Self, AppError> {
         if hex.len() != 64 {
             return Err(AppError::Validation(

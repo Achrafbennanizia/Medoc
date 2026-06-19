@@ -5,6 +5,8 @@ import { listPatienten } from "@/systems/practice-host/controllers/patient.contr
 import { filterRezeptionKassenQueue } from "@/lib/tagesabschluss";
 import { allowed, parseRole } from "@/lib/rbac";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
+import { zahlungsartLabel } from "@/lib/finance-order-labels";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import type { Patient, Zahlung } from "@/models/types";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Badge } from "../components/ui/badge";
@@ -21,20 +23,13 @@ function todayYmd(): string {
     return `${y}-${m}-${day}`;
 }
 
-function zahlungsartLabel(art: string): string {
-    const map: Record<string, string> = {
-        BAR: "Bar",
-        KARTE: "Karte",
-        UEBERWEISUNG: "Überweisung",
-        RECHNUNG: "Rechnung",
-    };
-    return map[art] ?? art;
-}
-
 /**
  * Rezeption-only Kassenübersicht: heute erfasste Zahlungen, die im Tagesabschluss noch nicht bestätigt sind.
  */
 export function FinanzenKassePage() {
+    const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
     const role = session?.rolle ? parseRole(session.rolle) : null;
@@ -77,11 +72,20 @@ export function FinanzenKassePage() {
 
     const heuteSum = useMemo(() => heuteOffen.reduce((s, z) => s + z.betrag, 0), [heuteOffen]);
 
+    const paymentPluralSuffix =
+        heuteOffen.length === 1
+            ? ""
+            : locale === "de"
+              ? "en"
+              : locale === "fr"
+                ? "s"
+                : "s";
+
     if (loading) {
         return (
             <div className="finanzen-kasse-page praxis-workspace-page animate-fade-in">
-                <WorkspacePageHeader title="Kasseneingänge" />
-                <PageLoading label="Zahlungen werden geladen…" />
+                <WorkspacePageHeader title={t("page.finanzen_kasse.title")} />
+                <PageLoading label={t("page.finanzen_kasse.loading")} />
             </div>
         );
     }
@@ -89,7 +93,7 @@ export function FinanzenKassePage() {
     if (loadError) {
         return (
             <div className="finanzen-kasse-page praxis-workspace-page animate-fade-in">
-                <WorkspacePageHeader title="Kasseneingänge" />
+                <WorkspacePageHeader title={t("page.finanzen_kasse.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             </div>
         );
@@ -98,12 +102,12 @@ export function FinanzenKassePage() {
     return (
         <div className="finanzen-kasse-page praxis-workspace-page animate-fade-in">
             <WorkspacePageHeader
-                title="Kasseneingänge"
-                subtitle="Ihre heute erfassten Zahlungen, die noch nicht über den Tagesabschluss bestätigt wurden. Vollständige Finanzübersicht und Abschluss sind nur für die Praxisleitung sichtbar."
+                title={t("page.finanzen_kasse.title")}
+                subtitle={t("page.finanzen_kasse.subtitle")}
                 actions={
                     canWriteZahlung ? (
                         <Button type="button" onClick={() => navigate("/finanzen/kasse/neu")}>
-                            + Neue Zahlung
+                            {t("page.finanzen_kasse.cta_new")}
                         </Button>
                     ) : null
                 }
@@ -111,31 +115,35 @@ export function FinanzenKassePage() {
 
             <div className="finanzen-kasse-page__kpi card card-elevated">
                 <div>
-                    <div className="kpi-label-mini">Heute offen</div>
+                    <div className="kpi-label-mini">{t("page.finanzen_kasse.kpi_label")}</div>
                     <div className="finanzen-kasse-page__kpi-value">{formatCurrency(heuteSum)}</div>
                     <div className="finanzen-kasse-page__kpi-meta">
-                        {heuteOffen.length} Zahlung{heuteOffen.length === 1 ? "" : "en"} · Stichtag {heute}
+                        {tp("page.finanzen_kasse.kpi_meta", {
+                            count: heuteOffen.length,
+                            plural: paymentPluralSuffix,
+                            date: heute,
+                        })}
                     </div>
                 </div>
-                <Badge variant="warning">Wartet auf Tagesabschluss</Badge>
+                <Badge variant="warning">{t("page.finanzen_kasse.badge_pending")}</Badge>
             </div>
 
             <section className="finanzen-kasse-page__list card card-elevated tbl-data-card">
                 <div className="card-head">
                     <div>
-                        <div className="card-title">Heute erfasst</div>
-                        <div className="card-sub">Noch nicht im Tagesabschluss bestätigt</div>
+                        <div className="card-title">{t("page.finanzen_kasse.list_title")}</div>
+                        <div className="card-sub">{t("page.finanzen_kasse.list_sub")}</div>
                     </div>
                 </div>
                 {heuteOffen.length === 0 ? (
                     <div className="finanzen-kasse-page__list-empty">
                         <EmptyState
-                            title="Alles erfasst"
-                            description="Keine offenen Kasseneingänge für heute — oder alle wurden bereits im Tagesabschluss bestätigt."
+                            title={t("page.finanzen_kasse.empty_title")}
+                            description={t("page.finanzen_kasse.empty_desc")}
                             action={
                                 canWriteZahlung
                                     ? {
-                                          label: "+ Neue Zahlung",
+                                          label: t("page.finanzen_kasse.cta_new"),
                                           onClick: () => navigate("/finanzen/kasse/neu"),
                                       }
                                     : undefined
@@ -154,11 +162,13 @@ export function FinanzenKassePage() {
                             </colgroup>
                             <thead>
                                 <tr>
-                                    <th scope="col">Zeit</th>
-                                    <th scope="col">Patient</th>
-                                    <th scope="col">Art</th>
-                                    <th scope="col" className="tbl-th-num">Betrag</th>
-                                    <th scope="col">Status</th>
+                                    <th scope="col">{t("common.time")}</th>
+                                    <th scope="col">{t("common.patient")}</th>
+                                    <th scope="col">{t("drawer.finanzen_tx.kind_art")}</th>
+                                    <th scope="col" className="tbl-th-num">
+                                        {t("common.amount")}
+                                    </th>
+                                    <th scope="col">{t("common.status")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -170,10 +180,10 @@ export function FinanzenKassePage() {
                                                 {patientName(z.patient_id)}
                                             </Link>
                                         </td>
-                                        <td className="kasse-td-art">{zahlungsartLabel(z.zahlungsart)}</td>
+                                        <td className="kasse-td-art">{zahlungsartLabel(z.zahlungsart, t)}</td>
                                         <td className="tbl-td-num">{formatCurrency(z.betrag)}</td>
                                         <td className="kasse-td-status">
-                                            <Badge variant="warning">Offen</Badge>
+                                            <Badge variant="warning">{t("page.finanzen_kasse.status_open")}</Badge>
                                         </td>
                                     </tr>
                                 ))}

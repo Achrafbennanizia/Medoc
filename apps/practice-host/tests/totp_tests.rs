@@ -12,6 +12,7 @@ async fn migrated_pool() -> sqlx::SqlitePool {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn arzt_without_totp_requires_enrollment() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -41,6 +42,7 @@ async fn arzt_without_totp_requires_enrollment() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn enrolled_arzt_requires_totp_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -69,6 +71,7 @@ async fn enrolled_arzt_requires_totp_code() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn enrolled_arzt_logs_in_with_valid_totp() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -104,6 +107,7 @@ async fn enrolled_arzt_logs_in_with_valid_totp() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn rezeption_without_totp_can_login() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -129,6 +133,7 @@ async fn rezeption_without_totp_can_login() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn confirm_enrollment_persists() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -162,6 +167,7 @@ async fn confirm_enrollment_persists() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
@@ -215,6 +221,7 @@ async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
 }
 
 #[tokio::test]
+#[ignore = "2FA disabled for MVP"]
 async fn deactivate_totp_cancels_pending_without_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();

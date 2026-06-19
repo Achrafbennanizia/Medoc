@@ -8,6 +8,7 @@ import { deriveAnlageDisplayName, fileToBase64ForAnlage } from "@/lib/akte-anlag
 import type { AkteSavePending } from "@/lib/patient-detail-utils";
 import type { Patientenakte } from "@/models/types";
 import type { PatientDetailRezeptTabHandle } from "./patient-detail-rezept-tab";
+import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type UsePatientDetailAkteSaveArgs = {
@@ -36,6 +37,8 @@ export function usePatientDetailAkteSave({
     refreshAnlagen,
 }: UsePatientDetailAkteSaveArgs) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
 
     const flushAkteSave = async () => {
         const p = akteSaveConfirm;
@@ -71,14 +74,14 @@ export function usePatientDetailAkteSave({
                         mime_type: p.file.type || "application/octet-stream",
                         bytes_base64: b64,
                     });
-                    toast("Anlage gespeichert", "success");
+                    toast(t("patient.detail.toast.anlage_saved"), "success");
                     await refreshAnlagen(akte.id);
                     break;
                 }
                 case "anlage_remove": {
                     await deleteAkteAnlage(p.id);
                     if (akte) await refreshAnlagen(akte.id);
-                    toast("Anlage entfernt", "info");
+                    toast(t("patient.detail.toast.anlage_removed"), "info");
                     break;
                 }
                 default:
@@ -88,7 +91,7 @@ export function usePatientDetailAkteSave({
             if (e instanceof Error && (e.message === "invalid-json" || e.message === "invalid-betrag")) {
                 /* bereits per Toast gemeldet */
             } else {
-                toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
             }
         } finally {
             setAkteSaveBusy(false);

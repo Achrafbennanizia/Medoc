@@ -72,7 +72,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )
     .bind(&id)
     .bind(&data.name)
@@ -88,6 +88,66 @@ pub async fn create(
     find_by_id(pool, &id)
         .await?
         .ok_or(AppError::Internal("Insert failed".into()))
+}
+
+/// Insert staff row inside an open `BEGIN IMMEDIATE` transaction (quota enforced by caller).
+pub async fn create_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    data: &CreatePersonal,
+    hash: &str,
+) -> Result<Personal, AppError> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let rolle = serde_json::to_string(&data.rolle)
+        .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+        .trim_matches('"')
+        .to_uppercase();
+
+    sqlx::query(
+        "INSERT INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )
+    .bind(&id)
+    .bind(&data.name)
+    .bind(&data.email)
+    .bind(hash)
+    .bind(&rolle)
+    .bind(&data.taetigkeitsbereich)
+    .bind(&data.fachrichtung)
+    .bind(&data.telefon)
+    .execute(&mut **tx)
+    .await?;
+
+    find_by_id_in_tx(tx, &id)
+        .await?
+        .ok_or(AppError::Internal("Insert failed".into()))
+}
+
+/// Atomic create with staff-quota enforcement (`BEGIN IMMEDIATE`).
+pub async fn create_with_quota(
+    pool: &SqlitePool,
+    data: &CreatePersonal,
+    hash: &str,
+) -> Result<Personal, AppError> {
+    let rolle = serde_json::to_string(&data.rolle)
+        .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+        .trim_matches('"')
+        .to_string();
+    let mut tx = crate::mvp_security::begin_immediate_quota_tx(pool).await?;
+    crate::mvp_security::enforce_staff_quota_on_conn(&mut tx, &rolle, None).await?;
+    let p = create_in_tx(&mut tx, data, hash).await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(p)
+}
+
+async fn find_by_id_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: &str,
+) -> Result<Option<Personal>, AppError> {
+    let row = sqlx::query_as::<_, Personal>("SELECT * FROM personal WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(&mut **tx)
+        .await?;
+    Ok(row)
 }
 
 pub async fn update(
@@ -147,6 +207,78 @@ pub async fn update(
         .ok_or(AppError::Internal("Update failed".into()))
 }
 
+/// Update staff row inside an open transaction.
+pub async fn update_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: &str,
+    data: &UpdatePersonal,
+) -> Result<Personal, AppError> {
+    let existing = find_by_id_in_tx(tx, id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+
+    let name = data.name.as_deref().unwrap_or(&existing.name);
+    let email = data.email.as_deref().unwrap_or(&existing.email);
+    let rolle = match data.rolle.as_ref() {
+        Some(r) => serde_json::to_string(r)
+            .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_uppercase(),
+        None => existing.rolle.clone(),
+    };
+    let verfuegbar = data.verfuegbar.unwrap_or(existing.verfuegbar);
+
+    let taetigkeitsbereich = match data.taetigkeitsbereich.as_deref() {
+        None => existing.taetigkeitsbereich.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+    let fachrichtung = match data.fachrichtung.as_deref() {
+        None => existing.fachrichtung.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+    let telefon = match data.telefon.as_deref() {
+        None => existing.telefon.clone(),
+        Some(t) if t.trim().is_empty() => None,
+        Some(t) => Some(t.trim().to_string()),
+    };
+
+    sqlx::query(
+        "UPDATE personal SET name = ?1, email = ?2, rolle = ?3, taetigkeitsbereich = ?4,
+         fachrichtung = ?5, telefon = ?6, verfuegbar = ?7, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?8",
+    )
+    .bind(name)
+    .bind(email)
+    .bind(&rolle)
+    .bind(taetigkeitsbereich)
+    .bind(fachrichtung)
+    .bind(telefon)
+    .bind(verfuegbar)
+    .bind(id)
+    .execute(&mut **tx)
+    .await?;
+
+    find_by_id_in_tx(tx, id)
+        .await?
+        .ok_or(AppError::Internal("Update failed".into()))
+}
+
+/// Atomic role-change update with staff-quota enforcement (`BEGIN IMMEDIATE`).
+pub async fn update_with_quota(
+    pool: &SqlitePool,
+    id: &str,
+    data: &UpdatePersonal,
+    target_rolle: &str,
+) -> Result<Personal, AppError> {
+    let mut tx = crate::mvp_security::begin_immediate_quota_tx(pool).await?;
+    crate::mvp_security::enforce_staff_quota_on_conn(&mut tx, target_rolle, Some(id)).await?;
+    let p = update_in_tx(&mut tx, id, data).await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(p)
+}
+
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     sqlx::query("DELETE FROM personal WHERE id = ?1")
         .bind(id)
@@ -204,5 +336,9 @@ pub fn is_totp_enrolled(user: &Personal) -> bool {
 }
 
 pub fn totp_required_for_role(rolle: &str) -> bool {
+    // When TOTP_2FA_ENABLED is false, all callers see optional 2FA (no inverted branches needed).
+    if !crate::mvp_security::TOTP_2FA_ENABLED {
+        return false;
+    }
     rolle.eq_ignore_ascii_case("ARZT")
 }

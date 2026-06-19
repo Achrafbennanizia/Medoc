@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { ProduktForm } from "@/lib/produkt-form-model";
+import { useT } from "@/lib/i18n";
 import { Input, Textarea } from "./ui/input";
 
 export function ProduktFormFields({
@@ -13,19 +14,20 @@ export function ProduktFormFields({
     idPrefix: string;
     kategorieVorschlaege: string[];
 }) {
+    const t = useT();
     const kategorieDatalistId = useId();
     return (
         <>
             <Input
                 id={`${idPrefix}-name`}
-                label="Name"
+                label={t("common.name")}
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
             />
             <div>
                 <Input
                     id={`${idPrefix}-kat`}
-                    label="Kategorie"
+                    label={t("common.category")}
                     value={form.kategorie}
                     list={kategorieDatalistId}
                     autoComplete="off"
@@ -42,7 +44,7 @@ export function ProduktFormFields({
                 type="number"
                 min={0}
                 step="0.01"
-                label="Preis (€)"
+                label={t("common.price_eur")}
                 value={form.preis}
                 onChange={(e) => setForm((p) => ({ ...p, preis: e.target.value }))}
             />
@@ -50,21 +52,21 @@ export function ProduktFormFields({
                 <Input
                     id={`${idPrefix}-bestand`}
                     type="number"
-                    label="Bestand"
+                    label={t("common.stock")}
                     value={form.bestand}
                     onChange={(e) => setForm((p) => ({ ...p, bestand: e.target.value }))}
                 />
                 <Input
                     id={`${idPrefix}-mindest`}
                     type="number"
-                    label="Mindestbestand"
+                    label={t("common.min_stock")}
                     value={form.mindestbestand}
                     onChange={(e) => setForm((p) => ({ ...p, mindestbestand: e.target.value }))}
                 />
             </div>
             <Textarea
                 id={`${idPrefix}-beschr`}
-                label="Beschreibung"
+                label={t("common.description")}
                 rows={3}
                 value={form.beschreibung}
                 onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))}

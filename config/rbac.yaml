@@ -70,3 +70,7 @@ permissions:
   aufgabe.status.fulfill: clinical_frontdesk
   # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
   aufgabe.status.admin: arzt_only
+  work_time.self: clinical_frontdesk
+  work_time.team.read: arzt_only
+  work_time.admin: arzt_only
+  statistik.read: arzt_only

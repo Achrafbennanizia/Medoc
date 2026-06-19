@@ -9,6 +9,7 @@ import {
     stepForRoute,
     stepsForRole,
 } from "@/lib/onboarding";
+import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { DismissibleNotice } from "./ui/dismissible-notice";
@@ -19,6 +20,8 @@ export type OnboardingCoachmarkProps = {
 };
 
 export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const location = useLocation();
     const [completed, setCompleted] = useState<string[]>([]);
@@ -42,9 +45,9 @@ export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
             .then((p) => setCompleted(p.completedRoutes))
             .catch((e) => {
                 setCompleted([]);
-                toast(`Einführungs-Fortschritt konnte nicht geladen werden: ${errorMessage(e)}`, "warning");
+                toast(tp("onboarding.toast.load_failed", { error: errorMessage(e) }), "warning");
             });
-    }, [rolle, routePath, toast]);
+    }, [rolle, routePath, toast, tp]);
 
     const onDone = useCallback(async () => {
         if (!rolle || !step) return;
@@ -53,9 +56,9 @@ export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
             setCompleted(next.completedRoutes);
             setDismissed(true);
         } catch (e) {
-            toast(`Einführungs-Fortschritt konnte nicht gespeichert werden: ${errorMessage(e)}`, "error");
+            toast(tp("onboarding.toast.save_failed", { error: errorMessage(e) }), "error");
         }
-    }, [rolle, step, toast]);
+    }, [rolle, step, toast, tp]);
 
     if (!rolle || !step || dismissed || completed.includes(step.routePath)) {
         return null;
@@ -69,26 +72,26 @@ export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
             className="app-notice--fixed"
             variant="info"
             role="region"
-            ariaLabel="Einführung"
+            ariaLabel={t("onboarding.coachmark.aria")}
             onDismiss={() => setDismissed(true)}
-            title={
-                <>
-                    Einführung · Schritt {idx + 1}/{total} · {Math.round(ratio * 100)} % Routen
-                </>
-            }
-            subtitle={step.titleDe}
+            title={tp("onboarding.coachmark.progress", {
+                step: idx + 1,
+                total,
+                pct: Math.round(ratio * 100),
+            })}
+            subtitle={t(step.titleKey)}
             actions={
                 <>
                     <Button type="button" variant="ghost" size="sm" onClick={() => setDismissed(true)}>
-                        Später
+                        {t("onboarding.coachmark.later")}
                     </Button>
                     <Button type="button" size="sm" onClick={() => void onDone()}>
-                        Verstanden
+                        {t("onboarding.coachmark.understood")}
                     </Button>
                 </>
             }
         >
-            {step.bodyDe}
+            {t(step.bodyKey)}
         </DismissibleNotice>
     );
 }

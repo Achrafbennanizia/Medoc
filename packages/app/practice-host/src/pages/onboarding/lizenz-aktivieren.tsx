@@ -1,14 +1,17 @@
+import { useT } from "@/lib/i18n";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { verbundActivateLicense } from "@/systems/practice-host/controllers/verbund.controller";
 import { useVerbundStore } from "@/models/store/verbund-store";
+import { OnboardingShell } from "@/views/components/onboarding-shell";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 /** Onboarding path: activate license and become cluster owner (first ADMIN seat). */
 export function LizenzAktivierenOnboardingPage() {
+    const t = useT();
     const navigate = useNavigate();
     const setStatus = useVerbundStore((s) => s.setStatus);
     const toast = useToastStore((s) => s.add);
@@ -17,7 +20,7 @@ export function LizenzAktivierenOnboardingPage() {
 
     const activate = async () => {
         if (!token.trim()) {
-            toast("Bitte Lizenzschlüssel einfügen.", "error");
+            toast(t("onboarding.license.paste_key"), "error");
             return;
         }
         setBusy(true);
@@ -25,10 +28,10 @@ export function LizenzAktivierenOnboardingPage() {
             const status = await verbundActivateLicense(token.trim());
             setStatus(status);
             if (status.licensed) {
-                toast("Lizenz und Verbund aktiviert.", "success");
+                toast(t("onboarding.license.success"), "success");
                 navigate("/login", { replace: true });
             } else {
-                toast("Lizenz ungültig.", "error");
+                toast(t("onboarding.license.invalid"), "error");
             }
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -38,19 +41,26 @@ export function LizenzAktivierenOnboardingPage() {
     };
 
     return (
-        <main className="license-gate-card" style={{ maxWidth: 720, margin: "32px auto" }}>
-            <h1>Lizenz aktivieren</h1>
-            <p className="card-sub">Dieses Gerät wird Eigentümer des Praxis-Verbunds (erster ADMIN-Sitz).</p>
-            <textarea
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                rows={4}
-                style={{ width: "100%" }}
-                placeholder="Lizenzschlüssel"
-            />
-            <Button type="button" disabled={busy} onClick={() => void activate()}>
-                Aktivieren
-            </Button>
-        </main>
+        <OnboardingShell>
+            <h1>{t("onboarding.license.title")}</h1>
+            <p className="card-sub">{t("onboarding.license.owner_hint")}</p>
+            <label className="onboarding-field">
+                {t("onboarding.license.key_label")}
+                <textarea
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    rows={4}
+                    placeholder={t("onboarding.license.key_ph")}
+                />
+            </label>
+            <div className="onboarding-actions onboarding-actions--row">
+                <Button type="button" disabled={busy} onClick={() => void activate()}>
+                    {t("onboarding.license.activate_btn")}
+                </Button>
+                <Link to="/onboarding/aktivierung" className="btn btn-subtle">
+                    {t("onboarding.license.back")}
+                </Link>
+            </div>
+        </OnboardingShell>
     );
 }

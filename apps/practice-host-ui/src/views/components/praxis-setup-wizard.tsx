@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useMemo, useState, type FC } from "react";
 import {
     getInvoicePraxisFromStorage,
@@ -16,12 +17,20 @@ type Props = {
 };
 
 export const PraxisSetupWizard: FC<Props> = ({ open, onClose }) => {
+    const t = useT();
+    const tp = useTParams();
     const [step, setStep] = useState(0);
     const [draft, setDraft] = useState<InvoicePraxis>(() => getInvoicePraxisFromStorage());
 
     const steps = useMemo(
-        () => ["Praxis-Grunddaten", "Behandler & Zulassung", "Bankverbindung", "Steuerdaten", "Zusammenfassung"],
-        [],
+        () => [
+            t("praxis.setup.step_basics"),
+            t("praxis.setup.step_provider"),
+            t("praxis.setup.step_bank"),
+            t("praxis.setup.step_tax"),
+            t("praxis.setup.step_summary"),
+        ],
+        [t],
     );
 
     const save = async () => {
@@ -41,24 +50,24 @@ export const PraxisSetupWizard: FC<Props> = ({ open, onClose }) => {
         <Dialog
             open={open}
             onClose={dismissLater}
-            title={`Praxis einrichten (${step + 1}/${steps.length})`}
+            title={tp("praxis.setup.title", { step: step + 1, total: steps.length })}
             footer={
                 <>
                     <Button type="button" variant="ghost" onClick={dismissLater}>
-                        Später einrichten
+                        {t("praxis.setup.later")}
                     </Button>
                     {step > 0 ? (
                         <Button type="button" variant="secondary" onClick={() => setStep((s) => s - 1)}>
-                            Zurück
+                            {t("common.back")}
                         </Button>
                     ) : null}
                     {step < steps.length - 1 ? (
                         <Button type="button" onClick={() => setStep((s) => s + 1)}>
-                            Weiter
+                            {t("common.next")}
                         </Button>
                     ) : (
                         <Button type="button" onClick={() => void save()}>
-                            Speichern
+                            {t("common.save")}
                         </Button>
                     )}
                 </>
@@ -69,41 +78,41 @@ export const PraxisSetupWizard: FC<Props> = ({ open, onClose }) => {
             </p>
             {step === 0 ? (
                 <div className="grid gap-3">
-                    <Input label="Praxisname" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-                    <Textarea label="Adresse" rows={3} value={draft.addr} onChange={(e) => setDraft({ ...draft, addr: e.target.value })} />
-                    <Input label="Telefon" value={draft.telefon ?? ""} onChange={(e) => setDraft({ ...draft, telefon: e.target.value })} />
-                    <Input label="E-Mail" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+                    <Input label={t("praxis.setup.practice_name")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                    <Textarea label={t("praxis.setup.address")} rows={3} value={draft.addr} onChange={(e) => setDraft({ ...draft, addr: e.target.value })} />
+                    <Input label={t("praxis.setup.phone")} value={draft.telefon ?? ""} onChange={(e) => setDraft({ ...draft, telefon: e.target.value })} />
+                    <Input label={t("praxis.setup.email")} value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
                 </div>
             ) : null}
             {step === 1 ? (
                 <div className="grid gap-3">
                     <Input
-                        label="Behandler-Name"
+                        label={t("praxis.setup.behandler")}
                         value={draft.behandler_name ?? ""}
                         onChange={(e) => setDraft({ ...draft, behandler_name: e.target.value })}
                     />
                     <Input
-                        label="Berufsbezeichnung"
+                        label={t("praxis.setup.berufsbezeichnung")}
                         value={draft.berufsbezeichnung ?? ""}
                         onChange={(e) => setDraft({ ...draft, berufsbezeichnung: e.target.value })}
                     />
-                    <Input label="ZANR" value={draft.zanr ?? ""} onChange={(e) => setDraft({ ...draft, zanr: e.target.value })} />
-                    <Input label="BSNR" value={draft.bsnr ?? ""} onChange={(e) => setDraft({ ...draft, bsnr: e.target.value })} />
+                    <Input label={t("praxis.setup.zanr")} value={draft.zanr ?? ""} onChange={(e) => setDraft({ ...draft, zanr: e.target.value })} />
+                    <Input label={t("praxis.setup.bsnr")} value={draft.bsnr ?? ""} onChange={(e) => setDraft({ ...draft, bsnr: e.target.value })} />
                 </div>
             ) : null}
             {step === 2 ? (
                 <div className="grid gap-3">
-                    <Input label="IBAN" value={draft.bankverbindung_iban ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_iban: e.target.value })} />
-                    <Input label="BIC" value={draft.bankverbindung_bic ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bic: e.target.value })} />
-                    <Input label="Bank" value={draft.bankverbindung_bank ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bank: e.target.value })} />
+                    <Input label={t("praxis.setup.iban")} value={draft.bankverbindung_iban ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_iban: e.target.value })} />
+                    <Input label={t("praxis.setup.bic")} value={draft.bankverbindung_bic ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bic: e.target.value })} />
+                    <Input label={t("praxis.setup.bank")} value={draft.bankverbindung_bank ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bank: e.target.value })} />
                 </div>
             ) : null}
             {step === 3 ? (
                 <div className="grid gap-3">
-                    <Input label="USt-IdNr." value={draft.ust_id ?? ""} onChange={(e) => setDraft({ ...draft, ust_id: e.target.value })} />
-                    <Input label="Steuernummer" value={draft.steuernummer ?? ""} onChange={(e) => setDraft({ ...draft, steuernummer: e.target.value })} />
+                    <Input label={t("praxis.setup.tax_id")} value={draft.ust_id ?? ""} onChange={(e) => setDraft({ ...draft, ust_id: e.target.value })} />
+                    <Input label={t("praxis.setup.tax_number")} value={draft.steuernummer ?? ""} onChange={(e) => setDraft({ ...draft, steuernummer: e.target.value })} />
                     <Input
-                        label="USt-Befreiungshinweis"
+                        label={t("praxis.setup.tax_exempt")}
                         value={draft.ust_befreiung_hinweis ?? ""}
                         onChange={(e) => setDraft({ ...draft, ust_befreiung_hinweis: e.target.value })}
                     />
@@ -115,9 +124,18 @@ export const PraxisSetupWizard: FC<Props> = ({ open, onClose }) => {
                         <strong>{draft.name}</strong>
                     </div>
                     <pre style={{ whiteSpace: "pre-wrap", margin: "8px 0" }}>{draft.addr}</pre>
-                    <div>Behandler: {(draft.behandler_name ?? "").trim() || "—"}</div>
-                    <div>ZANR/BSNR: {draft.zanr ?? "—"} / {draft.bsnr ?? "—"}</div>
-                    <div>IBAN: {draft.bankverbindung_iban ?? "—"}</div>
+                    <div>
+                        {tp("praxis.setup.summary_behandler", {
+                            name: (draft.behandler_name ?? "").trim() || t("common.dash"),
+                        })}
+                    </div>
+                    <div>
+                        {tp("praxis.setup.summary_zanr_bsnr", {
+                            zanr: draft.zanr ?? t("common.dash"),
+                            bsnr: draft.bsnr ?? t("common.dash"),
+                        })}
+                    </div>
+                    <div>{tp("praxis.setup.summary_iban", { iban: draft.bankverbindung_iban ?? t("common.dash") })}</div>
                 </div>
             ) : null}
         </Dialog>

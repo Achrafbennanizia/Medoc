@@ -3,7 +3,6 @@
  * Rolls back is not possible for IPC after success — Arbeitsplan snapshot is restored on localStorage failure.
  */
 import {
-    cancelArbeitsplanBlocksForDateRange,
     loadArbeitsplanStore,
     saveArbeitsplanStore,
     type ArbeitsplanStore,

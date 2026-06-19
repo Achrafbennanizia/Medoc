@@ -1,13 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-06-10 (Refactor & harden pass started)
+**Last updated:** 2026-06-18 (Work-Time program complete)
 
 ## Now
 
+- **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
+- **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
@@ -21,7 +23,19 @@ Active cost-priority delivery plan and test allow-list:
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
 
-## Done (2026-06-07 — MVP plan todos)
+## Done (2026-06-18 — Work-Time & Team Overview)
+
+- Schema + RBAC + extended work_time/krank/adjustment IPC (294 handlers).
+- Employee `/personal/arbeitszeit`, admin `/verwaltung/team/arbeitszeit`, Krankenbescheinigung Verwaltung, Statistik `sec-arbeitszeit`.
+- Per-user auto-record prefs; REZEPTION post-login → Arbeitszeit; focus-mode nav filter.
+
+## Done (2026-06-16 — Admin installer + offline keygen)
+
+- **`installer/medoc-keygen`:** C++ tool (libsodium, Argon2id + XChaCha20 manifest); Windows/Unix; `--passphrase-file` / `--passphrase-env`.
+- **`installer/build-*.sh`:** keygen + app installer orchestration; `tauri.conf.json` bundle targets extended.
+- **Rust:** `verbund/activation.rs` import + `activate_cluster_license` preserves imported keys.
+- **IPC/UI:** `import_activation_manifest`; `/onboarding/aktivierung`.
+- **CI:** `.github/workflows/release.yml`.
 
 ## Done (2026-06-07 — MVP plan todos)
 
@@ -45,6 +59,10 @@ Active cost-priority delivery plan and test allow-list:
 3. **Optional:** `VALIDATE_DOCKER_FULL=1 bash scripts/validate-docker.sh` (Tauri in Docker)
 
 ## Later
+
+- **Break-Glass (re-enable):** Set `BREAK_GLASS_ENABLED = true` in `mvp_security.rs` + `mvp-security-config.ts` — checklist [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **2FA / TOTP (re-enable):** Set `TOTP_2FA_ENABLED = true` — same checklist; un-ignore `totp_tests.rs`.
+- **Staff limit (raise or license-wire):** Adjust `MAX_ARZT` / `MAX_REZEPTION` / `MAX_TOTAL_PERSONAL` in `mvp_security.rs` — currently **1 ARZT + 4 REZEPTION**.
 
 - **Einstellungen → Benachrichtigungen (re-enable):** Set `BENACHRICHTIGUNGEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal push / notification microservices are deployed and `companyPortalFetchFeatureFlags` is production-ready. Panel: `einstellungen-benachrichtigungen-section.tsx`; gate: `settingsSectionVisible("benachrichtigungen", …)`.
 - **Einstellungen → System — ausgeblendete Panels (re-enable):** Flags in `settings-ui-flags.ts` — set `SYSTEM_SERVERLESS_FOCUS_ENABLED = false` to restore full System panel; or enable individually:

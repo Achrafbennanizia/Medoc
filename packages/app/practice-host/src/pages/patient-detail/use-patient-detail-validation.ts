@@ -8,6 +8,7 @@ import {
     setAkteItemValidated,
     setAkteSectionValidated,
 } from "@/systems/practice-host/controllers/validation.controller";
+import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type UsePatientDetailValidationArgs = {
@@ -24,6 +25,8 @@ export function usePatientDetailValidation({
     setValidation,
     setItemValidation,
 }: UsePatientDetailValidationArgs) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
 
     const refreshValidationFromBackend = useCallback(async () => {
@@ -42,7 +45,7 @@ export function usePatientDetailValidation({
                 await refreshValidationFromBackend();
             } catch (e) {
                 useToastStore.getState().add(
-                    `Validierung laden: ${e instanceof Error ? e.message : String(e)}`,
+                    tp("patient.validation.load_error", { message: e instanceof Error ? e.message : String(e) }),
                     "error",
                 );
             }
@@ -57,14 +60,14 @@ export function usePatientDetailValidation({
                 if (section === "stamm") {
                     await setAkteSectionValidated(patientId, "stamm", by);
                     await setAkteSectionValidated(patientId, "anam", by);
-                    toast("Stammdaten und Anamnese als geprüft markiert.", "success");
+                    toast(t("patient.validation.stamm_marked"), "success");
                 } else {
                     await setAkteSectionValidated(patientId, section, by);
-                    toast(`„${VAL_SECTION_LABEL[section]}“ als geprüft markiert.`, "success");
+                    toast(tp("patient.validation.section_marked", { section: VAL_SECTION_LABEL[section] }), "success");
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
-                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+                toast(tp("patient.validation.error", { message: e instanceof Error ? e.message : String(e) }), "error");
             }
         },
         [patientId, sessionUserId, toast, refreshValidationFromBackend],
@@ -77,10 +80,10 @@ export function usePatientDetailValidation({
                 if (section === "stamm") {
                     await clearAkteValidation(patientId, "stamm");
                     await clearAkteValidation(patientId, "anam");
-                    toast("Validierung für Stammdaten und Anamnese zurückgesetzt.", "info");
+                    toast(t("patient.validation.stamm_revoked"), "info");
                 } else {
                     await clearAkteValidation(patientId, section);
-                    toast(`Validierung für „${VAL_SECTION_LABEL[section]}“ zurückgesetzt.`, "info");
+                    toast(tp("patient.validation.section_revoked", { section: VAL_SECTION_LABEL[section] }), "info");
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
@@ -96,7 +99,7 @@ export function usePatientDetailValidation({
             try {
                 await setAkteItemValidated(patientId, itemKey, sessionUserId ?? null);
                 await refreshValidationFromBackend();
-                toast(`„${label}“ als geprüft markiert.`, "success");
+                toast(tp("patient.validation.item_marked", { label }), "success");
             } catch (e) {
                 toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
             }
@@ -110,7 +113,7 @@ export function usePatientDetailValidation({
             try {
                 await clearAkteValidation(patientId, itemKey);
                 await refreshValidationFromBackend();
-                toast(`Validierung für „${shortLabel}“ zurückgesetzt.`, "info");
+                toast(tp("patient.validation.item_revoked", { label: shortLabel }), "info");
             } catch (e) {
                 toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
             }

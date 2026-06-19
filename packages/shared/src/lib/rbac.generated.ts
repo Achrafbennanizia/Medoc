@@ -16,6 +16,7 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "patient.write_medical":
         case "personal.read":
         case "personal.write":
+        case "statistik.read":
         case "verwaltung.praxisplanung.read":
         case "verwaltung.praxisplanung.write":
         case "verwaltung.read":
@@ -24,6 +25,8 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "verwaltung.vorlagen.write":
         case "vorlagen.read":
         case "vorlagen.write":
+        case "work_time.admin":
+        case "work_time.team.read":
             return role === "ARZT";
         case "aufgabe.status.fulfill":
         case "bestellung.read":
@@ -45,6 +48,7 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "verwaltung.lager.write":
         case "verwaltung.vertraege.read":
         case "verwaltung.vertraege.write":
+        case "work_time.self":
             return role === "ARZT" || role === "REZEPTION";
         case "finanzen.reception.view":
             return role === "REZEPTION";
@@ -81,6 +85,7 @@ export const RBAC_ALL_ACTIONS = [
     "personal.write",
     "produkt.read",
     "produkt.write",
+    "statistik.read",
     "termin.list_aerzte",
     "termin.read",
     "termin.write",
@@ -98,4 +103,7 @@ export const RBAC_ALL_ACTIONS = [
     "verwaltung.vorlagen.write",
     "vorlagen.read",
     "vorlagen.write",
+    "work_time.admin",
+    "work_time.self",
+    "work_time.team.read",
 ] as const;

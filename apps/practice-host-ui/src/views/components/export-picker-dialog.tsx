@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -84,6 +85,8 @@ function AkteExportPickerInner({
     canReadFinanzen,
     canAuditRead,
 }: ExportPickerAkteProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [sections, setSections] = useState<AkteExportSectionsState>(() => defaultAkteExportSections());
     const [format, setFormat] = useState<AkteExportFileFormat>("pdf");
@@ -207,7 +210,7 @@ function AkteExportPickerInner({
                     previewUrlRef.current = url;
                     setPreviewUrl(url);
                 } catch (e) {
-                    toast(`Vorschau: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    toast(tp("export.picker.preview_error", { message: e instanceof Error ? e.message : String(e) }), "error");
                     revokePreview();
                 } finally {
                     setPreviewBusy(false);
@@ -234,11 +237,11 @@ function AkteExportPickerInner({
 
     const runExport = async () => {
         if (!patient) {
-            toast("Keine Patientendaten geladen.", "error");
+            toast(t("export.picker.no_patient"), "error");
             return;
         }
         if (!anySelected) {
-            toast("Bitte mindestens einen Export-Bereich auswählen.", "info");
+            toast(t("export.picker.pick_section"), "info");
             return;
         }
         if (format === "pdf" && !praxisReadiness.ready) {
@@ -267,11 +270,11 @@ function AkteExportPickerInner({
                 const fn = name.endsWith(".pdf") ? name : `${name}.pdf`;
                 await finishExportWithSettings({
                     format: "pdf",
-                    title: "Patientenakte — Export",
+                    title: t("export.picker.akte_export_title"),
                     hint:
                         tplChoice !== "__default__"
-                            ? "Vorlagenwahl ist für Akten-PDF noch an die Rendering-Pipeline anzubinden."
-                            : "PDF gemäß gewählter Bereiche. Anlagen nur als Metadaten.",
+                            ? t("export.picker.hint_akte_template")
+                            : t("export.picker.hint_akte_pdf"),
                     suggestedFilename: fn,
                     mime: "application/pdf",
                     binaryBody: bytes,
@@ -297,13 +300,13 @@ function AkteExportPickerInner({
                 const finalName = name.toLowerCase().endsWith(`.${ext}`) ? name : `${base}.${ext}`;
                 await finishExportWithSettings({
                     format: prevFmt,
-                    title: "Patientenakte — Export",
+                    title: t("export.picker.akte_export_title"),
                     hint:
                         format === "csv"
-                            ? "CSV: Meta + flacher Datenbereich (Semikolon)."
+                            ? t("export.picker.hint_csv")
                             : format === "xml"
-                              ? "XML: EhrExtract-Hülle, eingebettetes FHIR-JSON."
-                              : "JSON: documentManifest + FHIR + Domain.",
+                              ? t("export.picker.hint_xml")
+                              : t("export.picker.hint_json"),
                     suggestedFilename: finalName,
                     mime:
                         format === "csv"
@@ -317,7 +320,7 @@ function AkteExportPickerInner({
             }
             onClose();
         } catch (e) {
-            toast(`Export fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.export_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -325,26 +328,26 @@ function AkteExportPickerInner({
 
     const templateOptions = useMemo(() => {
         const o: { value: string; label: string }[] = [
-            { value: "__default__", label: "Standard (System)" },
-            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: `${b.name} (eingebaut)` })),
-            ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? `${r.name} (Standard)` : r.name })),
+            { value: "__default__", label: t("export.picker.template_default") },
+            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: tp("export.picker.template_builtin", { name: b.name }) })),
+            ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? tp("export.picker.template_standard", { name: r.name }) : r.name })),
         ];
         return o;
-    }, [builtins, userTpl]);
+    }, [builtins, userTpl, t, tp]);
 
     return (
         <Dialog
             open={open}
             onClose={onClose}
-            title="Export — Patientenakte"
+            title={t("export.picker.akte_title")}
             className="modal--akte-export modal--wide"
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button type="button" onClick={() => void runExport()} loading={busy} disabled={busy || !patient}>
-                        Exportieren
+                        {t("common.export_action")}
                     </Button>
                 </>
             )}
@@ -352,31 +355,31 @@ function AkteExportPickerInner({
             <div className="akte-export-dialog-layout">
                 <div className="akte-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        Bereiche, Format und Speicherort. PDF-Vorschau aktualisiert sich kurz nach Änderungen.
+                        {t("export.picker.akte_sections_hint")}
                     </p>
                     <Select
                         id="export-picker-akte-format"
-                        label="Dateiformat"
+                        label={t("export.picker.format")}
                         value={format}
                         onChange={(e) => setFormat(e.target.value as AkteExportFileFormat)}
                         options={[
-                            { value: "pdf", label: "PDF (druckfertig)" },
-                            { value: "json", label: "JSON" },
-                            { value: "xml", label: "XML" },
-                            { value: "csv", label: "CSV (Semikolon)" },
+                            { value: "pdf", label: t("export.picker.format_pdf") },
+                            { value: "json", label: t("common.format_json") },
+                            { value: "xml", label: t("common.format_xml") },
+                            { value: "csv", label: t("export.picker.format_csv") },
                         ]}
                     />
                     {PDF_LAYOUT_TEMPLATE_PICKER_ENABLED ? (
                     <Select
                         id="export-picker-akte-template"
-                        label="Dokumentvorlage (PDF-Layout)"
+                        label={t("export.picker.template_pdf_layout")}
                         value={tplChoice}
                         onChange={(e) => setTplChoice(e.target.value)}
                         options={templateOptions}
                     />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Zielpfad</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -390,12 +393,12 @@ function AkteExportPickerInner({
                                     if (p) setFolderOnce(p);
                                 }}
                             >
-                                Anderen Speicherort wählen …
+                                {t("export.picker.another_folder")}
                             </Button>
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Dateiname</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
                         <Input
                             id="export-picker-akte-filename"
                             value={fileName}
@@ -411,7 +414,7 @@ function AkteExportPickerInner({
                         </datalist>
                     </div>
                     <fieldset style={{ border: "1px solid var(--border-1)", borderRadius: 8, padding: "12px 14px", margin: 0 }}>
-                        <legend className="text-label" style={{ padding: "0 6px" }}>Inhalte</legend>
+                        <legend className="text-label" style={{ padding: "0 6px" }}>{t("export.picker.contents")}</legend>
                         <div className="col" style={{ gap: 10 }}>
                             {AKTE_EXPORT_SECTION_META.map((row) => {
                                 const disMed = row.needsMedical && !canViewClinical;
@@ -443,7 +446,7 @@ function AkteExportPickerInner({
                                             {dis ? (
                                                 <span className="text-caption text-on-surface-variant">
                                                     {" "}
-                                                    — für Ihre Rolle nicht verfügbar
+                                                    {t("common.not_available_for_role")}
                                                 </span>
                                             ) : null}
                                         </span>
@@ -454,16 +457,16 @@ function AkteExportPickerInner({
                     </fieldset>
                 </div>
                 <div className="akte-export-dialog-preview-col">
-                    <div className="text-label">Vorschau (PDF)</div>
+                    <div className="text-label">{t("common.preview_pdf")}</div>
                     <div className="akte-export-pdf-preview-box">
                         {format !== "pdf" ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Vorschau nur für PDF.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.preview_pdf_only")}</p>
                         ) : previewBusy ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>PDF wird erzeugt …</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("export.picker.pdf_generating")}</p>
                         ) : previewUrl ? (
-                            <iframe title="PDF-Vorschau" src={previewUrl} />
+                            <iframe title={t("export.preview.pdf_preview")} src={previewUrl} />
                         ) : (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Bereiche wählen; Vorschau erscheint automatisch.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.preview_select_sections")}</p>
                         )}
                     </div>
                 </div>
@@ -480,11 +483,11 @@ function AkteExportPickerInner({
 
 export type HtmlExportDocumentKind = Extract<DocumentKind, "attest" | "rezept" | "quittung">;
 
-const CLINICAL_EXPORT_FORMAT_OPTS: { value: ExportFileFormat; label: string }[] = [
-    { value: "pdf", label: "PDF (druckfertig)" },
-    { value: "csv", label: "CSV (Semikolon)" },
-    { value: "json", label: "JSON" },
-    { value: "xml", label: "XML" },
+const CLINICAL_EXPORT_FORMAT_OPTS = (t: (key: string) => string): { value: ExportFileFormat; label: string }[] => [
+    { value: "pdf", label: t("export.picker.format_pdf") },
+    { value: "csv", label: t("export.picker.format_csv") },
+    { value: "json", label: t("common.format_json") },
+    { value: "xml", label: t("common.format_xml") },
 ];
 
 function clinicalFilenameBase(raw: string, fallbackBasename: string): string {
@@ -539,6 +542,8 @@ function HtmlDocumentExportPickerInner({
     bundle,
     hint,
 }: HtmlDocumentExportPickerProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [fileName, setFileName] = useState("");
     const [busy, setBusy] = useState(false);
@@ -565,7 +570,7 @@ function HtmlDocumentExportPickerInner({
         if (tplChoice === "__default__") {
             const b = builtins[0];
             if (b) return { payload: structuredClone(b.payload), displayName: b.name };
-            return { payload: emptyDocumentTemplatePayloadV1(), displayName: "Standard" };
+            return { payload: emptyDocumentTemplatePayloadV1(), displayName: t("export.picker.template_default") };
         }
         const row = userTpl.find((r) => r.id === tplChoice);
         if (row) {
@@ -575,9 +580,9 @@ function HtmlDocumentExportPickerInner({
         const b = builtins[0];
         return {
             payload: b ? structuredClone(b.payload) : emptyDocumentTemplatePayloadV1(),
-            displayName: b?.name ?? "Standard",
+            displayName: b?.name ?? t("export.picker.template_default"),
         };
-    }, [tplChoice, builtins, userTpl]);
+    }, [tplChoice, builtins, userTpl, t]);
 
     useEffect(() => {
         if (!open) return;
@@ -661,7 +666,7 @@ function HtmlDocumentExportPickerInner({
                     pdfPreviewUrlRef.current = url;
                     setPdfPreviewUrl(url);
                 } catch (e) {
-                    toast(`PDF-Vorschau: ${e instanceof Error ? e.message : String(e)}`, "error");
+                    toast(tp("export.picker.preview_pdf_error", { message: e instanceof Error ? e.message : String(e) }), "error");
                     revokePdfPreview();
                 } finally {
                     setPdfPreviewBusy(false);
@@ -686,17 +691,17 @@ function HtmlDocumentExportPickerInner({
     const effectiveFormatHint = useMemo(() => {
         if (!formatsCfg) return "";
         const eff = defaultFormatForKind(formatsCfg, templateKind);
-        return `Standard aus Einstellungen für „${DOCUMENT_KIND_LABEL[templateKind]}“: ${eff.toUpperCase()}`;
-    }, [formatsCfg, templateKind]);
+        return tp("export.picker.settings_default", { kind: DOCUMENT_KIND_LABEL[templateKind], format: eff.toUpperCase() });
+    }, [formatsCfg, templateKind, tp]);
 
     const templateOptions = useMemo(() => {
         const o: { value: string; label: string }[] = [
-            { value: "__default__", label: "Standard (System)" },
-            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: `${b.name} (eingebaut)` })),
-            ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? `${r.name} (Standard)` : r.name })),
+            { value: "__default__", label: t("export.picker.template_default") },
+            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: tp("export.picker.template_builtin", { name: b.name }) })),
+            ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? tp("export.picker.template_standard", { name: r.name }) : r.name })),
         ];
         return o;
-    }, [builtins, userTpl]);
+    }, [builtins, userTpl, t, tp]);
 
     const csvPreviewRows = useMemo(() => parseDelimitedGrid(stripBom(bundle.csvText)).rows, [bundle.csvText]);
 
@@ -709,7 +714,7 @@ function HtmlDocumentExportPickerInner({
             bundle.jsonText.trim().length > 0 ||
             bundle.xmlText.trim().length > 0;
         if (!hasPayload) {
-            toast("Kein Dokumentinhalt.", "error");
+            toast(t("export.picker.no_document"), "error");
             return;
         }
         if (format === "pdf" && !praxisReadiness.ready) {
@@ -778,13 +783,13 @@ function HtmlDocumentExportPickerInner({
             }
             onClose();
         } catch (e) {
-            toast(`Export fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.export_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setBusy(false);
         }
     };
 
-    const dialogTitle = `Export — ${DOCUMENT_KIND_LABEL[templateKind]}`;
+    const dialogTitle = tp("export.picker.clinical_title", { kind: DOCUMENT_KIND_LABEL[templateKind] });
     const hasContent =
         bundle.pdfBodyLines.length > 0 ||
         bundle.csvText.trim().length > 0 ||
@@ -800,10 +805,10 @@ function HtmlDocumentExportPickerInner({
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button type="button" onClick={() => void runExport()} loading={busy} disabled={busy || !hasContent}>
-                        Exportieren
+                        {t("common.export_action")}
                     </Button>
                 </>
             )}
@@ -811,15 +816,14 @@ function HtmlDocumentExportPickerInner({
             <div className="akte-export-dialog-layout">
                 <div className="akte-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        Standardpfad und Format pro Dokumentart aus den Export-Einstellungen (falls gesetzt), sonst PDF und
-                        Dokumente-Ordner. Strukturierte Vorlage, kein Freitext-HTML.
+                        {t("export.picker.clinical_hint")}
                     </p>
                     <Select
                         id="export-picker-clinical-format"
-                        label="Dateiformat"
+                        label={t("export.picker.format")}
                         value={format}
                         onChange={(e) => setFormat(e.target.value as ExportFileFormat)}
-                        options={CLINICAL_EXPORT_FORMAT_OPTS.map((o) => ({ value: o.value, label: o.label }))}
+                        options={CLINICAL_EXPORT_FORMAT_OPTS(t)}
                     />
                     {effectiveFormatHint ? (
                         <p className="text-caption text-on-surface-variant" style={{ margin: "-4px 0 0", fontSize: 12 }}>
@@ -829,14 +833,14 @@ function HtmlDocumentExportPickerInner({
                     {PDF_LAYOUT_TEMPLATE_PICKER_ENABLED ? (
                     <Select
                         id="export-picker-clinical-template"
-                        label="Dokumentvorlage"
+                        label={t("export.picker.template")}
                         value={tplChoice}
                         onChange={(e) => setTplChoice(e.target.value)}
                         options={templateOptions}
                     />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Standardpfad für Exporte</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.default_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -850,12 +854,12 @@ function HtmlDocumentExportPickerInner({
                                     if (p) setFolderOnce(p);
                                 }}
                             >
-                                Anderen Speicherort wählen …
+                                {t("export.picker.another_folder")}
                             </Button>
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Dateiname (ohne oder mit Endung)</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename_with_ext")}</div>
                         <Input
                             id="export-picker-clinical-filename"
                             value={fileName}
@@ -866,17 +870,17 @@ function HtmlDocumentExportPickerInner({
                     </div>
                 </div>
                 <div className="akte-export-dialog-preview-col">
-                    <div className="text-label">Vorschau</div>
+                    <div className="text-label">{t("common.preview")}</div>
                     <div className="akte-export-pdf-preview-box">
                         {!hasContent ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Kein Inhalt.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.empty")}</p>
                         ) : format === "pdf" ? (
                             pdfPreviewBusy ? (
-                                <p className="card-pad card-sub" style={{ margin: 0 }}>PDF wird erzeugt …</p>
+                                <p className="card-pad card-sub" style={{ margin: 0 }}>{t("export.picker.pdf_generating")}</p>
                             ) : pdfPreviewUrl ? (
-                                <iframe title="PDF-Vorschau" src={pdfPreviewUrl} />
+                                <iframe title={t("export.preview.pdf_preview")} src={pdfPreviewUrl} />
                             ) : (
-                                <p className="card-pad card-sub" style={{ margin: 0 }}>PDF wird vorbereitet …</p>
+                                <p className="card-pad card-sub" style={{ margin: 0 }}>{t("export.picker.pdf_preparing")}</p>
                             )
                         ) : format === "csv" && csvPreviewRows.length > 0 ? (
                             <div className="export-preview-scroll" style={{ maxHeight: 420, overflow: "auto" }}>
@@ -893,7 +897,7 @@ function HtmlDocumentExportPickerInner({
                                 </table>
                             </div>
                         ) : format === "csv" ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Keine CSV-Zeilen.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_csv_rows")}</p>
                         ) : (
                             <pre
                                 className="card card-pad export-preview-pre"

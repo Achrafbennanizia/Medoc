@@ -8,6 +8,7 @@ use argon2::{Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use keyring::Entry;
 use rand::RngCore;
+use sqlx::SqlitePool;
 use zeroize::Zeroizing;
 
 use crate::error::AppError;
@@ -72,6 +73,82 @@ pub fn env_override_key() -> Option<Vec<u8>> {
 
 pub fn try_keyring_key() -> Option<Vec<u8>> {
     keyring_load().ok()
+}
+
+/// Import a pre-generated 32-byte SQLCipher key (owner activation manifest).
+pub fn import_raw_key(key: &[u8; 32]) -> Result<(), AppError> {
+    if env_override_key().is_some() {
+        tracing::warn!(
+            target: "medoc::security",
+            event = "ACTIVATION_DB_KEY_SKIP",
+            hint = "MEDOC_DB_KEY gesetzt — Manifest-DB-Schlüssel wird nicht importiert (Dev-Override aktiv)"
+        );
+        return Ok(());
+    }
+    if try_keyring_key().is_some() {
+        return Err(AppError::Validation(
+            "SQLCipher-Schlüssel bereits eingerichtet.".into(),
+        ));
+    }
+    keyring_store(key)
+}
+
+/// Apply manifest SQLCipher key during owner activation.
+///
+/// When the app bootstrapped with an ephemeral keyring key (no `db-key.wrap`), replaces
+/// `medoc.db` with a fresh file under the manifest key. Caller must reopen via
+/// [`crate::infrastructure::database::connection::reopen_app_pool`] when this returns `true`.
+pub async fn apply_activation_sqlcipher_key(
+    pool: &SqlitePool,
+    app_dir: &Path,
+    db_path: &Path,
+    new_key: &[u8; 32],
+) -> Result<bool, AppError> {
+    if env_override_key().is_some() {
+        tracing::warn!(
+            target: "medoc::security",
+            event = "ACTIVATION_DB_KEY_SKIP",
+            hint = "MEDOC_DB_KEY gesetzt — Manifest-DB-Schlüssel wird nicht importiert (Dev-Override aktiv)"
+        );
+        return Ok(false);
+    }
+    if wrap_path(app_dir).exists() {
+        return Err(AppError::Validation(
+            "Aktivierungsimport nicht möglich: Datenbank-Passphrase ist bereits eingerichtet. \
+             Importieren Sie das Aktivierungsmanifest vor der DB-Passphrase."
+                .into(),
+        ));
+    }
+
+    let Some(old_key) = try_keyring_key() else {
+        keyring_store(new_key)?;
+        return Ok(false);
+    };
+
+    let old_arr: [u8; 32] = old_key
+        .try_into()
+        .map_err(|_| AppError::Internal("SQLCipher-Schlüssel ungültige Länge".into()))?;
+
+    if old_arr == *new_key {
+        return Ok(false);
+    }
+
+    pool.close().await;
+
+    if db_path.exists() {
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = PathBuf::from(format!("{}{suffix}", db_path.display()));
+            let _ = std::fs::remove_file(sidecar);
+        }
+        std::fs::remove_file(db_path).map_err(|e| {
+            AppError::Internal(format!(
+                "medoc.db konnte vor Aktivierungsimport nicht ersetzt werden: {e}"
+            ))
+        })?;
+    }
+
+    keyring_store(new_key)?;
+    Ok(true)
 }
 
 pub fn is_provisioned(app_dir: &Path) -> bool {

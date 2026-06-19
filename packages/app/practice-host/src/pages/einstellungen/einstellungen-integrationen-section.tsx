@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import {
     DEFAULT_CLIENT_SETTINGS,
     mergeClientSettingsPatch,
@@ -20,6 +21,8 @@ export function EinstellungenIntegrationenSection({
     integrations,
     onPersistClient,
 }: EinstellungenIntegrationenSectionProps) {
+    const t = useT();
+    const tp = useTParams();
     const ep = portalIntegrations?.eprescription as { status?: string; detail?: string } | undefined;
     const epP = portalIntegrationPill(ep?.status);
     const datev = portalIntegrations?.datev as { status?: string; detail?: string } | undefined;
@@ -34,16 +37,12 @@ export function EinstellungenIntegrationenSection({
         <section className="settings-subcard">
             <div className="card-head">
                 <div>
-                    <div className="card-title">Integrationen</div>
-                    <div className="card-sub">
-                        Anbindungen und Schnittstellen — Statuszeilen vom Hersteller-Portal, wenn unter System
-                        konfiguriert.
-                    </div>
+                    <div className="card-title">{t("settings.integrations.title")}</div>
+                    <div className="card-sub">{t("settings.integrations.subtitle")}</div>
                 </div>
             </div>
             <p className="text-body text-on-surface-variant" style={{ margin: "0 0 8px", fontSize: 13 }}>
-                Lokale Produktiv-Version: folgende Schnittstellen sind{" "}
-                <strong>nicht live</strong> — Schalter und Aktionen dienen nur der Vorbereitung oder Demo.
+                {t("settings.integrations.local_not_live")}
             </p>
             <ul style={{ margin: "0 0 16px", paddingLeft: 20, fontSize: 12.5, color: "var(--fg-3)" }}>
                 {LOCAL_INTEGRATION_CAPABILITIES.map((c) => (
@@ -54,7 +53,7 @@ export function EinstellungenIntegrationenSection({
             </ul>
             <div className="settings-row">
                 <div>
-                    <b>eRezept (Gematik)</b>
+                    <b>{t("settings.integrations.eprescription")}</b>
                     <div className="card-sub">
                         {ep?.detail ?? LOCAL_INTEGRATION_CAPABILITIES.find((x) => x.id === "eprescription")?.reasonDe}
                     </div>
@@ -65,17 +64,17 @@ export function EinstellungenIntegrationenSection({
                 <div>
                     <b>DATEV</b>
                     <div className="card-sub">
-                        Monatlicher Buchhaltungsexport
+                        {t("settings.integrations.datev_billing")}
                         {datev?.detail ? (
                             <>
                                 <br />
-                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>Hersteller: {datev.detail}</span>
+                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{tp("settings.integrations.datev_manufacturer", { detail: datev.detail })}</span>
                             </>
                         ) : null}
                     </div>
                 </div>
                 <SettingsSwitch
-                    ariaLabel="DATEV"
+                    ariaLabel={t("settings.integrations.datev_aria")}
                     checked={integrations.datev !== false}
                     onChange={() =>
                         onPersistClient((c) => {
@@ -88,22 +87,22 @@ export function EinstellungenIntegrationenSection({
             </div>
             <div className="settings-row">
                 <div>
-                    <b>DocCheck SSO</b>
-                    <div className="card-sub">{dc?.detail ?? "Single Sign-On für Team"}</div>
+                    <b>{t("settings.integrations.sso_title")}</b>
+                    <div className="card-sub">{dc?.detail ?? t("settings.integrations.sso_detail")}</div>
                 </div>
                 <span className={dcP.className}>{dcP.label}</span>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>TK-Direktabrechnung</b>
-                    <div className="card-sub">{tk?.detail ?? "Kassenärztliche Abrechnung via KIM"}</div>
+                    <b>{t("settings.integrations.tk_title")}</b>
+                    <div className="card-sub">{tk?.detail ?? t("settings.integrations.tk_detail")}</div>
                 </div>
                 <span className={tkP.className}>{tkP.label}</span>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Labor (Dental Union)</b>
-                    <div className="card-sub">{lab?.detail ?? "Auftragsweiterleitung"}</div>
+                    <b>{t("settings.integrations.lab_title")}</b>
+                    <div className="card-sub">{lab?.detail ?? t("settings.integrations.lab_detail")}</div>
                 </div>
                 <span className={labP.className}>{labP.label}</span>
             </div>

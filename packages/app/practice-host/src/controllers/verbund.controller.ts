@@ -8,6 +8,15 @@ export type AdminEndpoint = {
     instanceName: string;
 };
 
+export type JoinAdminTarget = {
+    host: string;
+    port: number;
+};
+
+export type JoinRequestResult = KopplungHandle & {
+    handshakeTranscriptB64: string;
+};
+
 export type KopplungHandle = {
     sessionId: string;
     fingerprint: string;
@@ -33,8 +42,29 @@ export type GeraetView = {
     lastSeen: string | null;
 };
 
+export type ImportActivationResult = {
+    status: VerbundStatusSnapshot;
+    manifestRemoved: boolean;
+    clusterId?: string;
+    deviceFingerprint?: string;
+    requiresAppReload: boolean;
+};
+
+export const ONBOARDING_LICENSE_PENDING_KEY = "medoc.onboarding.pending_license";
+
 export async function verbundGetStatus(): Promise<VerbundStatusSnapshot> {
     return tauriInvoke("verbund_status_cmd");
+}
+
+export async function verbundPickActivationManifest(): Promise<string | null> {
+    return tauriInvoke("pick_activation_manifest_file");
+}
+
+export async function verbundImportActivation(
+    manifestPath: string,
+    passphrase: string,
+): Promise<ImportActivationResult> {
+    return tauriInvoke("import_activation_manifest", { manifestPath, passphrase });
 }
 
 export async function verbundActivateLicense(licenseKey: string): Promise<VerbundStatusSnapshot> {
@@ -47,18 +77,25 @@ export async function verbundDiscoverAdmins(): Promise<AdminEndpoint[]> {
 
 export async function verbundSendJoinRequest(
     requestedRole: "ADMIN" | "MEMBER",
-): Promise<KopplungHandle> {
+    admin: JoinAdminTarget,
+): Promise<JoinRequestResult> {
     return tauriInvoke("verbund_send_join_request", {
-        payload: { requestedRole, handshakeTranscriptB64: "" },
+        payload: {
+            requestedRole,
+            adminHost: admin.host,
+            adminPort: admin.port,
+            handshakeTranscriptB64: "",
+        },
     });
 }
 
 export async function verbundSubmitSas(
     handle: KopplungHandle,
     digits: string,
+    handshakeTranscriptB64: string,
 ): Promise<{ success: boolean; alreadyProvisioned: boolean }> {
     return tauriInvoke("verbund_submit_sas", {
-        payload: { handle, digits, handshakeTranscriptB64: "" },
+        payload: { handle, digits, handshakeTranscriptB64 },
     });
 }
 

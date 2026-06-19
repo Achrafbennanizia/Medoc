@@ -1,65 +1,26 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import type { BestellStatus, Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
 import type { Zahlung } from "@/models/types";
 import type { FinanzTxRow } from "@/lib/report-export";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+    bestellStatusDisplay,
+    bestellStatusOptions,
+    bezugKurz,
+    vorgangText,
+    zahlStatusDisplay,
+    zahlungsartLabel,
+} from "@/lib/finance-order-labels";
+import { useDateFnsLocale, useT } from "@/lib/i18n";
 import { ExportIcon, PackageIcon, UsersIcon, XIcon } from "@/lib/icons";
 import { Select } from "./ui/input";
-
-const BESTELL_STATUS_OPTIONS: readonly { value: BestellStatus; label: string }[] = [
-    { value: "OFFEN", label: "Offen" },
-    { value: "UNTERWEGS", label: "Unterwegs" },
-    { value: "GELIEFERT", label: "Geliefert" },
-    { value: "STORNIERT", label: "Storniert" },
-];
 
 function pillClass(variant: "success" | "warning" | "default"): string {
     if (variant === "success") return "pill green";
     if (variant === "warning") return "pill orange";
     return "pill grey";
-}
-
-function zahlStatusDisplay(status: string): { variant: "success" | "warning" | "default"; label: string } {
-    const s = status.trim();
-    if (s === "BEZAHLT") return { variant: "success", label: "Bezahlt" };
-    if (s === "TEILBEZAHLT") return { variant: "warning", label: "Teilbezahlt" };
-    if (s === "AUSSTEHEND") return { variant: "warning", label: "Ausstehend" };
-    if (s === "STORNIERT") return { variant: "default", label: "Storniert" };
-    return { variant: "default", label: s || "—" };
-}
-
-function bestellStatusDe(s: string): { variant: "success" | "warning" | "default"; label: string } {
-    if (s === "GELIEFERT") return { variant: "success", label: "Geliefert" };
-    if (s === "UNTERWEGS") return { variant: "warning", label: "Unterwegs" };
-    if (s === "OFFEN") return { variant: "warning", label: "Offen" };
-    if (s === "STORNIERT") return { variant: "default", label: "Storniert" };
-    return { variant: "default", label: s };
-}
-
-function zahlungsartLabel(art: string): string {
-    const map: Record<string, string> = {
-        BAR: "Bar",
-        KARTE: "Karte",
-        UEBERWEISUNG: "Überweisung",
-        RECHNUNG: "Rechnung",
-    };
-    return map[art] ?? art;
-}
-
-function bezugKurz(z: Zahlung): string {
-    if (z.behandlung_id) return "Behandlung";
-    if (z.untersuchung_id) return "Untersuchung";
-    return "Direktzahlung";
-}
-
-function vorgangText(z: Zahlung): string {
-    const b = bezugKurz(z);
-    const note = (z.beschreibung ?? "").trim();
-    if (note) return b === "Direktzahlung" ? note : `${b} — ${note}`;
-    return b;
 }
 
 export function finanzenTxRowKey(row: FinanzTxRow): string {
@@ -93,8 +54,11 @@ export function FinanzenTxDetailDrawer({
     quittungBusy = false,
     statusUpdatingBestellId = null,
 }: FinanzenTxDetailDrawerProps) {
+    const t = useT();
+    const dateFnsLocale = useDateFnsLocale();
     const titleId = useId();
     const panelRef = useRef<HTMLDivElement>(null);
+    const bestellStatusSelectOptions = useMemo(() => bestellStatusOptions(t), [t]);
 
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;
@@ -119,20 +83,20 @@ export function FinanzenTxDetailDrawer({
         row.kind === "bestellung" ? (
             (() => {
                 const b = row.b;
-                const st = bestellStatusDe(b.status);
+                const st = bestellStatusDisplay(b.status, t);
                 const bBetragEur = b.gesamtbetrag;
                 const hasBetrag = bBetragEur != null && Number.isFinite(bBetragEur);
-                const amtLabel = hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen";
+                const amtLabel = hasBetrag ? `−${formatCurrency(bBetragEur)}` : t("drawer.finanzen_tx.amount_open");
                 return (
                     <>
                         <div className="termin-drawer-head">
                             <span className={pillClass(st.variant)}>{st.label}</span>
-                            <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
+                            <button type="button" className="icon-btn" aria-label={t("common.close")} onClick={onClose}>
                                 <XIcon size={18} />
                             </button>
                         </div>
                         <div className="termin-drawer-section">
-                            <div className="termin-drawer-eyebrow">Bestellung</div>
+                            <div className="termin-drawer-eyebrow">{t("drawer.finanzen_tx.eyebrow_bestellung")}</div>
                             <h2 id={titleId} className="termin-drawer-title">
                                 {b.artikel}
                             </h2>
@@ -143,17 +107,17 @@ export function FinanzenTxDetailDrawer({
                         </div>
                         <div className="termin-drawer-meta-row">
                             <div>
-                                <div className="termin-drawer-eyebrow">Datum</div>
+                                <div className="termin-drawer-eyebrow">{t("common.date")}</div>
                                 <div className="termin-drawer-meta-val">
-                                    {format(parseISO(b.created_at), "d. MMM yyyy", { locale: de })}
+                                    {format(parseISO(b.created_at), "d. MMM yyyy", { locale: dateFnsLocale })}
                                 </div>
                             </div>
                             <div>
-                                <div className="termin-drawer-eyebrow">Betrag</div>
+                                <div className="termin-drawer-eyebrow">{t("common.amount")}</div>
                                 <div className="termin-drawer-meta-val">{amtLabel}</div>
                             </div>
                             <div>
-                                <div className="termin-drawer-eyebrow">Menge</div>
+                                <div className="termin-drawer-eyebrow">{t("common.quantity")}</div>
                                 <div className="termin-drawer-meta-val">
                                     {b.menge != null ? `${b.menge}${b.einheit ? ` ${b.einheit}` : ""}` : "—"}
                                 </div>
@@ -161,18 +125,18 @@ export function FinanzenTxDetailDrawer({
                         </div>
                         <div className="ios-list">
                             <div className="ios-row">
-                                <div className="termin-drawer-eyebrow">Lieferant</div>
+                                <div className="termin-drawer-eyebrow">{t("common.supplier")}</div>
                                 <div className="termin-drawer-meta-val">{b.lieferant}</div>
                             </div>
                             {b.pharmaberater ? (
                                 <div className="ios-row">
-                                    <div className="termin-drawer-eyebrow">Kontakt</div>
+                                    <div className="termin-drawer-eyebrow">{t("common.contact")}</div>
                                     <div className="termin-drawer-meta-val">{b.pharmaberater}</div>
                                 </div>
                             ) : null}
                             {b.erwartet_am ? (
                                 <div className="ios-row">
-                                    <div className="termin-drawer-eyebrow">Erwartet</div>
+                                    <div className="termin-drawer-eyebrow">{t("common.expected")}</div>
                                     <div className="termin-drawer-meta-val">{formatDate(b.erwartet_am)}</div>
                                 </div>
                             ) : null}
@@ -180,23 +144,23 @@ export function FinanzenTxDetailDrawer({
                         <div className="termin-drawer-actions row">
                             <button type="button" className="btn btn-subtle" onClick={() => onOpenBestellung(b.id)}>
                                 <PackageIcon size={14} />
-                                Bestellung
+                                {t("drawer.finanzen_tx.btn_bestellung")}
                             </button>
                         </div>
                         {canUpdateBestellStatus ? (
                             <div className="termin-drawer-panel-foot">
                                 <div className="termin-drawer-section">
-                                    <div className="termin-drawer-eyebrow">Status ändern</div>
+                                    <div className="termin-drawer-eyebrow">{t("drawer.finanzen_tx.change_status")}</div>
                                     <Select
                                         id={`fin-drawer-best-status-${b.id}`}
                                         className="finanzen-zahl-status-select w-full min-w-0"
-                                        aria-label={`Bestellstatus: ${b.artikel}`}
+                                        aria-label={`${t("common.status")}: ${b.artikel}`}
                                         value={b.status}
                                         disabled={statusUpdatingBestellId === b.id}
                                         onChange={(e) =>
                                             onBestellStatusChange?.(b, e.target.value as BestellStatus)
                                         }
-                                        options={BESTELL_STATUS_OPTIONS.map((o) => ({
+                                        options={bestellStatusSelectOptions.map((o) => ({
                                             value: o.value,
                                             label: o.label,
                                         }))}
@@ -210,7 +174,7 @@ export function FinanzenTxDetailDrawer({
         ) : (
             (() => {
                 const z = row.z;
-                const st = zahlStatusDisplay(z.status);
+                const st = zahlStatusDisplay(z.status, t);
                 const cur = formatCurrency(Math.abs(z.betrag));
                 const zahlungAmt =
                     z.status === "STORNIERT"
@@ -224,47 +188,47 @@ export function FinanzenTxDetailDrawer({
                     <>
                         <div className="termin-drawer-head">
                             <span className={pillClass(st.variant)}>{st.label}</span>
-                            <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
+                            <button type="button" className="icon-btn" aria-label={t("common.close")} onClick={onClose}>
                                 <XIcon size={18} />
                             </button>
                         </div>
                         <div className="termin-drawer-section">
-                            <div className="termin-drawer-eyebrow">Zahlung</div>
+                            <div className="termin-drawer-eyebrow">{t("drawer.finanzen_tx.eyebrow_zahlung")}</div>
                             <h2 id={titleId} className="termin-drawer-title">
-                                {vorgangText(z)}
+                                {vorgangText(z, t)}
                             </h2>
                             <div className="termin-drawer-sub">
-                                {patientName} · {zahlungsartLabel(z.zahlungsart)}
+                                {patientName} · {zahlungsartLabel(z.zahlungsart, t)}
                             </div>
                         </div>
                         <div className="termin-drawer-meta-row">
                             <div>
-                                <div className="termin-drawer-eyebrow">Datum</div>
+                                <div className="termin-drawer-eyebrow">{t("common.date")}</div>
                                 <div className="termin-drawer-meta-val">
-                                    {format(parseISO(z.created_at), "d. MMM yyyy", { locale: de })}
+                                    {format(parseISO(z.created_at), "d. MMM yyyy", { locale: dateFnsLocale })}
                                 </div>
                             </div>
                             <div>
-                                <div className="termin-drawer-eyebrow">Betrag</div>
+                                <div className="termin-drawer-eyebrow">{t("common.amount")}</div>
                                 <div className="termin-drawer-meta-val">{zahlungAmt}</div>
                             </div>
                             <div>
-                                <div className="termin-drawer-eyebrow">Art</div>
-                                <div className="termin-drawer-meta-val">{zahlungsartLabel(z.zahlungsart)}</div>
+                                <div className="termin-drawer-eyebrow">{t("drawer.finanzen_tx.kind_art")}</div>
+                                <div className="termin-drawer-meta-val">{zahlungsartLabel(z.zahlungsart, t)}</div>
                             </div>
                         </div>
                         <div className="ios-list">
                             <div className="ios-row">
-                                <div className="termin-drawer-eyebrow">Patient</div>
+                                <div className="termin-drawer-eyebrow">{t("common.patient")}</div>
                                 <div className="termin-drawer-meta-val">{patientName}</div>
                             </div>
                             <div className="ios-row">
-                                <div className="termin-drawer-eyebrow">Bezug</div>
-                                <div className="termin-drawer-meta-val">{bezugKurz(z)}</div>
+                                <div className="termin-drawer-eyebrow">{t("common.reference")}</div>
+                                <div className="termin-drawer-meta-val">{bezugKurz(z, t)}</div>
                             </div>
                             {(z.beschreibung ?? "").trim() ? (
                                 <div className="ios-row">
-                                    <div className="termin-drawer-eyebrow">Beschreibung</div>
+                                    <div className="termin-drawer-eyebrow">{t("common.description")}</div>
                                     <div className="termin-drawer-meta-val">{z.beschreibung}</div>
                                 </div>
                             ) : null}
@@ -278,12 +242,12 @@ export function FinanzenTxDetailDrawer({
                                     onClick={() => onQuittungExport?.(z)}
                                 >
                                     <ExportIcon size={14} />
-                                    Quittung
+                                    {t("drawer.finanzen_tx.btn_quittung")}
                                 </button>
                             ) : null}
                             <button type="button" className="btn btn-subtle" onClick={() => onOpenAkte(z.patient_id)}>
                                 <UsersIcon size={14} />
-                                Akte
+                                {t("drawer.finanzen_tx.btn_akte")}
                             </button>
                         </div>
                     </>
@@ -293,7 +257,7 @@ export function FinanzenTxDetailDrawer({
 
     return createPortal(
         <div className="termin-drawer-root" role="presentation">
-            <button type="button" className="termin-drawer-backdrop" aria-label="Schließen" onClick={onClose} />
+            <button type="button" className="termin-drawer-backdrop" aria-label={t("common.close")} onClick={onClose} />
             <div
                 ref={panelRef}
                 className="termin-drawer-panel"

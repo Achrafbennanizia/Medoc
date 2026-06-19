@@ -1,3 +1,4 @@
+import { useT, useTParams, translateLocale } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -16,27 +17,27 @@ function escapeHtml(s: string): string {
         .replace(/"/g, "&quot;");
 }
 
-function formatLabel(format: ExportPreviewPayload["format"]): string {
+function formatLabel(format: ExportPreviewPayload["format"], t: (key: string) => string): string {
     switch (format) {
         case "csv":
-            return "CSV (Tabelle)";
+            return t("common.format_csv_table");
         case "html":
-            return "HTML";
+            return t("common.format_html");
         case "json":
-            return "JSON";
+            return t("common.format_json");
         case "xml":
-            return "XML";
+            return t("common.format_xml");
         case "pdf":
-            return "PDF";
+            return t("common.format_pdf");
         case "zip":
-            return "ZIP-Archiv";
+            return t("common.format_zip");
         default:
             return format;
     }
 }
 
 function buildPrintHtmlTable(rows: string[][]): string {
-    if (rows.length === 0) return "<p>Keine Daten.</p>";
+    if (rows.length === 0) return `<p>${translateLocale("de", "common.no_data")}</p>`;
     const [head, ...body] = rows;
     const th = (head ?? []).map((c) => `<th>${escapeHtml(c)}</th>`).join("");
     const trs = body
@@ -79,7 +80,7 @@ function printHtmlInHiddenIframe(title: string, innerHtml: string): void {
   .meta { color: #555; font-size: 12px; margin-bottom: 16px; }
 </style></head><body>
 <h1>${escapeHtml(title)}</h1>
-<div class="meta">MeDoc · Export</div>
+<div class="meta">${escapeHtml(translateLocale("de", "export.preview.meta"))}</div>
 ${innerHtml}
 </body></html>`;
     doc.open();
@@ -160,6 +161,8 @@ export type ExportPreviewDialogProps = {
 };
 
 export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [fileName, setFileName] = useState(payload.suggestedFilename);
     const [saveBusy, setSaveBusy] = useState(false);
@@ -258,10 +261,10 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
             return;
         }
         if (payload.format === "zip") {
-            toast("ZIP-Archive werden nicht gedruckt — bitte „In Datei speichern“ nutzen.", "info");
+            toast(t("common.zip_no_print"), "info");
             return;
         }
-        toast("Für diesen Export ist keine Druckvorschau verfügbar.", "info");
+        toast(t("common.no_print_preview"), "info");
     };
 
     const handleSave = async () => {
@@ -270,24 +273,24 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
         try {
             if (payload.format === "pdf" || payload.format === "zip") {
                 if (!payload.binaryBody?.length) {
-                    toast("Keine Dateidaten zum Speichern.", "error");
+                    toast(t("common.no_file_data"), "error");
                     return;
                 }
                 const copy = new Uint8Array(payload.binaryBody.byteLength);
                 copy.set(payload.binaryBody);
                 const ok = await saveOrDownloadBytes(name, copy, mimeForSave());
-                if (ok) toast("Datei gespeichert.", "success");
+                if (ok) toast(t("common.file_saved"), "success");
             } else {
                 const text = currentTextForSave();
                 if (!text) {
-                    toast("Kein Inhalt zum Speichern.", "error");
+                    toast(t("common.no_content_to_save"), "error");
                     return;
                 }
                 const ok = await saveOrDownloadText(name, text, mimeForSave());
-                if (ok) toast("Datei gespeichert.", "success");
+                if (ok) toast(t("common.file_saved"), "success");
             }
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("export.preview.save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setSaveBusy(false);
         }
@@ -316,7 +319,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                                             type="button"
                                             className="export-preview-sort-btn"
                                             onClick={() => handleHeaderClick(i)}
-                                            title="Spalte sortieren"
+                                            title={t("common.sort_column")}
                                         >
                                             {h}
                                             {sortCol === i ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
@@ -336,7 +339,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                         </tbody>
                     </table>
                     <p className="export-preview-footnote text-caption text-on-surface-variant" style={{ margin: "10px 0 0" }}>
-                        {body.length} Datenzeile{body.length === 1 ? "" : "n"} · Sortierung wirkt auf die gespeicherte Datei.
+                        {tp("common.no_data_rows", { count: body.length, n: body.length === 1 ? "" : "n" })}
                     </p>
                 </div>
             );
@@ -354,14 +357,14 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
         if (payload.format === "html" && payload.textBody) {
             return (
                 <div className="export-preview-pdf-wrap export-preview-html-wrap">
-                    <iframe title="HTML-Vorschau" srcDoc={payload.textBody} className="export-preview-pdf-frame" />
+                    <iframe title={t("export.preview.html_preview")} srcDoc={payload.textBody} className="export-preview-pdf-frame" />
                 </div>
             );
         }
         if (payload.format === "pdf" && pdfUrl) {
             return (
                 <div className="export-preview-pdf-wrap">
-                    <iframe title="PDF-Vorschau" src={pdfUrl} className="export-preview-pdf-frame" />
+                    <iframe title={t("export.preview.pdf_preview")} src={pdfUrl} className="export-preview-pdf-frame" />
                 </div>
             );
         }
@@ -369,13 +372,12 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
             return (
                 <div className="card card-pad export-preview-zip">
                     <p className="text-body" style={{ margin: 0 }}>
-                        Archiv ({byteLabel}) — Vorschau nicht als Tabelle möglich. Speichern Sie die Datei und öffnen Sie sie
-                        mit Ihrem Archivprogramm.
+                        {tp("export.preview.zip_hint", { size: byteLabel })}
                     </p>
                 </div>
             );
         }
-        return <p className="text-body text-on-surface-variant">Keine Vorschau verfügbar.</p>;
+        return <p className="text-body text-on-surface-variant">{t("common.no_preview_available")}</p>;
     };
 
     return (
@@ -387,20 +389,20 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
             footer={
                 <>
                     <Button type="button" variant="ghost" onClick={onClose}>
-                        Schließen
+                        {t("common.close")}
                     </Button>
                     <Button type="button" variant="secondary" onClick={handlePrint}>
-                        Drucken
+                        {t("common.print")}
                     </Button>
                     <Button type="button" onClick={() => void handleSave()} loading={saveBusy} disabled={saveBusy}>
-                        In Datei speichern…
+                        {t("common.save_to_file")}
                     </Button>
                 </>
             }
         >
             <div className="export-preview-dialog-inner col" style={{ gap: 14 }}>
                 <div className="export-preview-badges row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <span className="pill blue">{formatLabel(payload.format)}</span>
+                    <span className="pill blue">{formatLabel(payload.format, t)}</span>
                     {payload.hint ? (
                         <span className="text-body text-on-surface-variant" style={{ fontSize: 13 }}>
                             {payload.hint}
@@ -409,7 +411,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                 </div>
                 <Input
                     id="export-filename"
-                    label="Dateiname"
+                    label={t("export.picker.filename")}
                     value={fileName}
                     onChange={(e) => setFileName(e.target.value)}
                     className="input-edit"

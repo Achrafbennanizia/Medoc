@@ -4,6 +4,7 @@
 //! atomic 3/7/10 caps, seat certificates, and provisioning guards.
 
 pub mod crypto;
+pub mod activation;
 mod entities;
 mod enums;
 mod identity;

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
-import { de, enUS } from "date-fns/locale";
 import { useToastStore } from "./ui/toast-store";
 import { CheckIcon, PackageIcon, PillIcon, SparkleIcon, ChevronRightIcon } from "@/lib/icons";
 import {
@@ -10,7 +9,7 @@ import {
     markInAppNotificationRead,
 } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import type { InAppNotification } from "@/models/types";
-import { useLocale, useT } from "@/lib/i18n";
+import { useDateFnsLocale, useT } from "@/lib/i18n";
 
 type Tone = "orange" | "red" | "green" | "blue" | "grey";
 
@@ -57,20 +56,19 @@ function iconForKind(kind: string): FC<{ size?: number }> {
     return SparkleIcon;
 }
 
-function formatNotifTime(raw: string, locale: "de" | "en"): string {
-    const loc = locale === "en" ? enUS : de;
+function formatNotifTime(raw: string, dateFnsLocale: ReturnType<typeof useDateFnsLocale>): string {
     const normalized = raw.includes("T") ? raw : `${raw.replace(" ", "T")}`;
     const d = new Date(normalized);
     if (Number.isNaN(d.getTime())) return raw;
-    return formatDistanceToNow(d, { addSuffix: true, locale: loc });
+    return formatDistanceToNow(d, { addSuffix: true, locale: dateFnsLocale });
 }
 
-function mapToRows(items: InAppNotification[], locale: "de" | "en"): NotifRow[] {
+function mapToRows(items: InAppNotification[], dateFnsLocale: ReturnType<typeof useDateFnsLocale>): NotifRow[] {
     return items.map((n) => ({
         id: n.id,
         title: n.title,
         sub: n.body,
-        time: formatNotifTime(n.created_at, locale),
+        time: formatNotifTime(n.created_at, dateFnsLocale),
         tone: toneForKind(n.kind),
         unread: !n.read_at,
         Icon: iconForKind(n.kind),
@@ -88,7 +86,7 @@ export function NotificationsPopover({
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const t = useT();
-    const locale = useLocale((s) => s.locale);
+    const dateFnsLocale = useDateFnsLocale();
     const [items, setItems] = useState<NotifRow[]>([]);
     const [loadError, setLoadError] = useState(false);
 
@@ -96,12 +94,12 @@ export function NotificationsPopover({
         try {
             setLoadError(false);
             const list = await listInAppNotifications();
-            setItems(mapToRows(list, locale));
+            setItems(mapToRows(list, dateFnsLocale));
         } catch {
             setLoadError(true);
             setItems([]);
         }
-    }, [locale]);
+    }, [dateFnsLocale]);
 
     useEffect(() => {
         void reload();
@@ -177,7 +175,7 @@ export function NotificationsPopover({
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{t("app.notifications.title")}</div>
                 {unreadN > 0 ? (
                     <span className="pill accent" style={{ marginLeft: 4 }}>
-                        {unreadN} {locale === "en" ? "new" : "neu"}
+                        {unreadN} {t("common.new")}
                     </span>
                 ) : null}
                 <span className="spacer" style={{ flex: 1 }} />

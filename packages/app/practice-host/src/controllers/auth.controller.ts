@@ -22,10 +22,11 @@ export async function login(
     });
     useAuthStore.getState().setSession(session);
     try {
-        const { workTimeGetAutoRecordOnLogin, workTimeReconcileOnLogin, workTimeStart } =
+        const { workTimeGetPreference, workTimeReconcileOnLogin, workTimeStart } =
             await import("@/systems/practice-host/controllers/work-time.controller");
         await workTimeReconcileOnLogin();
-        if (await workTimeGetAutoRecordOnLogin()) {
+        const pref = await workTimeGetPreference();
+        if (pref.autoRecordOnLogin) {
             await workTimeStart(true);
         }
     } catch {
@@ -36,8 +37,12 @@ export async function login(
 
 export async function logout(): Promise<void> {
     try {
-        const { workTimeEnd } = await import("@/systems/practice-host/controllers/work-time.controller");
-        await workTimeEnd();
+        const { workTimeGetPreference, workTimeEnd } =
+            await import("@/systems/practice-host/controllers/work-time.controller");
+        const pref = await workTimeGetPreference();
+        if (pref.autoRecordOnLogout) {
+            await workTimeEnd();
+        }
     } catch {
         /* no open session */
     }
@@ -54,4 +59,10 @@ export async function checkSession(): Promise<Session | null> {
 /// Refresh the session's last-activity timestamp so the idle timeout resets.
 export async function touchSession(): Promise<boolean> {
     return practiceSystem.invoke<boolean>("touch_session");
+}
+
+/** Post-login landing path: REZEPTION → Arbeitszeit; others → dashboard. */
+export async function postLoginPath(session: Session): Promise<string> {
+    if (session.rolle === "REZEPTION") return "/personal/arbeitszeit";
+    return "/";
 }

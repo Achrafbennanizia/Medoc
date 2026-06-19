@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { PatientComboField } from "../components/patient-combo-field";
@@ -20,11 +20,14 @@ import { errorMessage, formatDate } from "@/lib/utils";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import { bundleAttestExport, suggestAttestExportBasename, type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
+import { useT, useTParams } from "@/lib/i18n";
 
 /**
  * Attestverwaltung (FA-ATT-01..04).
  */
 export function AttestePage() {
+    const t = useT();
+    const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const toast = useToastStore((s) => s.add);
     const [patients, setPatients] = useState<Patient[]>([]);
@@ -48,6 +51,17 @@ export function AttestePage() {
         gueltig_von: today,
         gueltig_bis: today,
     });
+
+    const attestTypeOptions = useMemo(
+        () => [
+            { value: "Arbeitsunfähigkeitsbescheinigung", label: t("page.atteste.type.arbeitsunfaehigkeit") },
+            { value: "Sportbefreiung", label: t("page.atteste.type.sport") },
+            { value: "Schulbefreiung", label: t("page.atteste.type.schule") },
+            { value: "Behandlungsbestätigung", label: t("page.atteste.type.behandlung") },
+            { value: "Sonstiges", label: t("page.atteste.type.sonstiges") },
+        ],
+        [t],
+    );
 
     const loadPatients = useCallback(async () => {
         setPatientsLoading(true);
@@ -103,12 +117,12 @@ export function AttestePage() {
                 gueltig_von: form.gueltig_von,
                 gueltig_bis: form.gueltig_bis,
             });
-            toast("Attest erstellt");
+            toast(t("page.atteste.toast.created"));
             setShowCreate(false);
             setForm({ typ: form.typ, inhalt: "", gueltig_von: today, gueltig_bis: today });
             await fetchAtteste();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         }
     }
 
@@ -116,11 +130,11 @@ export function AttestePage() {
         if (!deleteId) return;
         try {
             await deleteAttest(deleteId);
-            toast("Attest gelöscht");
+            toast(t("page.atteste.toast.deleted"));
             setDeleteId(null);
             await fetchAtteste();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         }
     }
 
@@ -129,55 +143,60 @@ export function AttestePage() {
         setHtmlExport({
             bundle: bundleAttestExport(a, pat),
             suggestedBasename: suggestAttestExportBasename(a),
-            exportPreviewTitle: `Attest — ${pat?.name ?? a.patient_id}`,
+            exportPreviewTitle: tp("page.atteste.export_preview", { name: pat?.name ?? a.patient_id }),
         });
     }
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <WorkspacePageHeader
-                title="Atteste"
+                title={t("page.atteste.title")}
                 actions={
                     <Button onClick={() => setShowCreate(true)} disabled={!selectedPatient}>
-                        + Neues Attest
+                        {t("page.atteste.new")}
                     </Button>
                 }
             />
 
             <Card className="card-pad">
-                <CardHeader title="Patient auswählen" />
+                <CardHeader title={t("page.atteste.select_patient")} />
                 {patientsLoading ? (
-                    <p className="text-body text-on-surface-variant" role="status">Patienten werden geladen…</p>
+                    <p className="text-body text-on-surface-variant" role="status">{t("common.loading_patients")}</p>
                 ) : patientsError ? (
                     <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
                 ) : (
                     <PatientComboField
                         id="att-patient"
-                        label="Patient"
+                        label={t("common.patient")}
                         patienten={patients}
                         patientId={selectedPatient}
                         onPatientIdChange={setSelectedPatient}
                         disabled={patients.length === 0}
-                        placeholder={patients.length === 0 ? "Keine Patienten angelegt" : "Patient suchen…"}
+                        placeholder={patients.length === 0 ? t("page.rezepte.no_patients") : t("common.search_patient_ph")}
                     />
                 )}
             </Card>
 
             {patientsLoading || patientsError ? null : !selectedPatient ? (
-                <p className="text-body text-on-surface-variant">Bitte einen Patienten auswählen.</p>
+                <p className="text-body text-on-surface-variant">{t("page.atteste.select_patient_hint")}</p>
             ) : listLoading ? (
-                <PageLoading label="Atteste werden geladen…" />
+                <PageLoading label={t("page.atteste.loading")} />
             ) : listError ? (
                 <PageLoadError message={listError} onRetry={() => void fetchAtteste()} />
             ) : atteste.length === 0 ? (
-                <EmptyState icon="📄" title="Keine Atteste vorhanden" />
+                <EmptyState icon="📄" title={t("page.atteste.empty")} />
             ) : (
                 <div className="card tbl-data-card">
                     <div className="tbl-scroll">
                     <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
-                                <th>Typ</th><th>ICD-10</th><th>Gültig von</th><th>Gültig bis</th><th>Ausgestellt</th><th>Aktionen</th>
+                                <th>{t("common.type")}</th>
+                                <th>{t("page.patient_detail.attest.field.icd")}</th>
+                                <th>{t("common.valid_from")}</th>
+                                <th>{t("common.valid_until")}</th>
+                                <th>{t("common.issued")}</th>
+                                <th>{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -189,8 +208,8 @@ export function AttestePage() {
                                     <td>{formatDate(a.gueltig_bis)}</td>
                                     <td>{formatDate(a.ausgestellt_am)}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                                        <Button size="sm" onClick={() => openAttestExport(a)}>Exportieren…</Button>
-                                        <Button size="sm" variant="danger" onClick={() => setDeleteId(a.id)}>Löschen</Button>
+                                        <Button size="sm" onClick={() => openAttestExport(a)}>{t("common.export")}</Button>
+                                        <Button size="sm" variant="danger" onClick={() => setDeleteId(a.id)}>{t("common.delete")}</Button>
                                     </td>
                                 </tr>
                             ))}
@@ -203,39 +222,33 @@ export function AttestePage() {
             <Dialog
                 open={showCreate}
                 onClose={() => setShowCreate(false)}
-                title="Neues Attest"
+                title={t("page.atteste.create_title")}
                 footer={<>
-                    <Button variant="ghost" onClick={() => setShowCreate(false)}>Abbrechen</Button>
-                    <Button onClick={handleCreate} disabled={!form.typ || !form.inhalt}>Erstellen</Button>
+                    <Button variant="ghost" onClick={() => setShowCreate(false)}>{t("common.cancel")}</Button>
+                    <Button onClick={handleCreate} disabled={!form.typ || !form.inhalt}>{t("common.create")}</Button>
                 </>}
             >
                 <Select
                     id="att-typ"
-                    label="Attesttyp *"
+                    label={t("page.atteste.field.type")}
                     value={form.typ}
                     onChange={(e) => setForm({ ...form, typ: e.target.value })}
-                    options={[
-                        { value: "Arbeitsunfähigkeitsbescheinigung", label: "Arbeitsunfähigkeitsbescheinigung" },
-                        { value: "Sportbefreiung", label: "Sportbefreiung" },
-                        { value: "Schulbefreiung", label: "Schulbefreiung" },
-                        { value: "Behandlungsbestätigung", label: "Behandlungsbestätigung" },
-                        { value: "Sonstiges", label: "Sonstiges" },
-                    ]}
+                    options={attestTypeOptions}
                 />
                 <div className="grid grid-cols-2 gap-3">
-                    <Input id="att-vo" type="date" label="Gültig von *" value={form.gueltig_von} onChange={(e) => setForm({ ...form, gueltig_von: e.target.value })} />
-                    <Input id="att-bi" type="date" label="Gültig bis *" value={form.gueltig_bis} onChange={(e) => setForm({ ...form, gueltig_bis: e.target.value })} />
+                    <Input id="att-vo" type="date" label={`${t("common.valid_from")} *`} value={form.gueltig_von} onChange={(e) => setForm({ ...form, gueltig_von: e.target.value })} />
+                    <Input id="att-bi" type="date" label={`${t("common.valid_until")} *`} value={form.gueltig_bis} onChange={(e) => setForm({ ...form, gueltig_bis: e.target.value })} />
                 </div>
-                <Textarea id="att-inh" label="Inhalt *" rows={6} value={form.inhalt} onChange={(e) => setForm({ ...form, inhalt: e.target.value })} />
+                <Textarea id="att-inh" label={t("page.atteste.field.content")} rows={6} value={form.inhalt} onChange={(e) => setForm({ ...form, inhalt: e.target.value })} />
             </Dialog>
 
             <ConfirmDialog
                 open={!!deleteId}
                 onClose={() => setDeleteId(null)}
                 onConfirm={handleDelete}
-                title="Attest löschen"
-                message="Möchten Sie dieses Attest wirklich löschen?"
-                confirmLabel="Löschen"
+                title={t("page.atteste.delete_title")}
+                message={t("page.atteste.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
             {htmlExport ? (

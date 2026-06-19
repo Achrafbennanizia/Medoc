@@ -7,6 +7,7 @@ import {
     SYSTEM_OPS_EXTRAS_ENABLED,
     SYSTEM_SERVERLESS_FOCUS_ENABLED,
 } from "@/lib/settings-ui-flags";
+import { useT } from "@/lib/i18n";
 import { EinstellungenCompanyPortalSection } from "@/systems/company-portal/pages/einstellungen-company-portal-section";
 import { EinstellungenLanHostSection } from "@/systems/lan/pages/einstellungen-lan-host";
 import { EinstellungenDeploymentSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-deployment-section";
@@ -19,16 +20,15 @@ export type EinstellungenSystemSectionProps = {
 };
 
 export function EinstellungenSystemSection({ canOpsSystem }: EinstellungenSystemSectionProps) {
+    const t = useT();
+
     if (SYSTEM_SERVERLESS_FOCUS_ENABLED) {
         return (
             <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
                 <div className="card-head">
                     <div>
-                        <div className="card-title">System</div>
-                        <div className="card-sub">
-                            Serverless-Verbindung: Master-Gerät und Replicas synchronisieren klinische Daten im LAN —
-                            ohne dedizierten Server auf jedem Zweitgerät.
-                        </div>
+                        <div className="card-title">{t("settings.system.title")}</div>
+                        <div className="card-sub">{t("settings.system.subtitle_serverless")}</div>
                     </div>
                 </div>
                 <div className="settings-system-stack settings-system-stack--flush">
@@ -43,8 +43,8 @@ export function EinstellungenSystemSection({ canOpsSystem }: EinstellungenSystem
         <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
             <div className="card-head">
                 <div>
-                    <div className="card-title">System</div>
-                    <div className="card-sub">Diagnose, Performance, Daten und Betrieb</div>
+                    <div className="card-title">{t("settings.system.title")}</div>
+                    <div className="card-sub">{t("settings.system.subtitle_classic")}</div>
                 </div>
             </div>
             <div className="settings-system-stack">
@@ -61,7 +61,7 @@ export function EinstellungenSystemSection({ canOpsSystem }: EinstellungenSystem
             </div>
             {!SYSTEM_APPEARANCE_TOGGLES_ENABLED && !SYSTEM_AKTE_PHOTO_VIEWER_ENABLED && !SYSTEM_DIAGNOSTICS_ENABLED && !SYSTEM_OPS_EXTRAS_ENABLED ? (
                 <p className="card-sub" style={{ padding: "12px var(--card-pad-x)" }}>
-                    Weitere Systemoptionen sind vorübergehend ausgeblendet.
+                    {t("settings.system.hidden")}
                 </p>
             ) : null}
         </section>

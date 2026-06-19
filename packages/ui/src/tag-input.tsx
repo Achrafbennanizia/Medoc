@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { XIcon } from "@/lib/icons";
+import { useT, useTParams } from "@/lib/i18n";
 
 const TAG_COLORS = ["#30D158", "#FF453A", "#0A84FF", "#AF52DE", "#FF9F0A"] as const;
 
@@ -13,7 +14,9 @@ type TagInputProps = {
 };
 
 /** Multi-value chips + optional suggestions (wireframe „Beschwerden“). */
-export function TagInput({ label, value, onChange, placeholder = "Eingabe und Enter", suggestions = [], error }: TagInputProps) {
+export function TagInput({ label, value, onChange, placeholder, suggestions = [], error }: TagInputProps) {
+    const t = useT();
+    const tParams = useTParams();
     const id = useId();
     const [draft, setDraft] = useState("");
     const inputId = `${id}-tag`;
@@ -71,7 +74,7 @@ export function TagInput({ label, value, onChange, placeholder = "Eingabe und En
                             type="button"
                             className="icon-btn"
                             style={{ width: 20, height: 20, color: "var(--fg-2)" }}
-                            aria-label={`${tag} entfernen`}
+                            aria-label={tParams("a11y.remove_tag", { tag })}
                             onClick={() => onChange(value.filter((x) => x !== tag))}
                         >
                             <XIcon size={12} />
@@ -88,7 +91,7 @@ export function TagInput({ label, value, onChange, placeholder = "Eingabe und En
                             add(draft);
                         }
                     }}
-                    placeholder={value.length === 0 ? placeholder : ""}
+                    placeholder={value.length === 0 ? (placeholder ?? t("common.tag_input_placeholder")) : ""}
                     style={{ flex: "1 1 120px", minWidth: 100, border: "none", outline: "none", fontSize: 14, background: "transparent" }}
                 />
             </div>

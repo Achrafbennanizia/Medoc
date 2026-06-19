@@ -86,13 +86,13 @@ export function EinstellungenLizenzSection({
             <section className="settings-subcard settings-license-hero-wrap" style={{ overflow: "hidden", padding: 0 }}>
                 <div className="settings-license-hero">
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                        <span className="settings-pill-accent">{portalFetchBusy ? "…" : licenseStatus?.valid ? "Aktiv" : "Inaktiv"}</span>
+                        <span className="settings-pill-accent">{portalFetchBusy ? "…" : licenseStatus?.valid ? t("settings.license.status_active") : t("settings.license.inactive")}</span>
                         <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("settings.license.plan_label")}</span>
                     </div>
                     <p style={{ margin: "12px 0 0", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em" }}>
                         {planTitle ?? (
                             <>
-                                MeDoc Praxis <span style={{ color: "var(--accent)" }}>Pro</span>
+                                {t("settings.license.pro")}
                             </>
                         )}
                     </p>
@@ -101,19 +101,19 @@ export function EinstellungenLizenzSection({
                     </p>
                     <div className="settings-license-hero__grid">
                         <div className="settings-license-metric">
-                            Monatsgebühr
+                            {t("settings.license.monthly_fee")}
                             <strong>
                                 {portalSummary ? formatEurFromCents(portalSummary.monthly_fee_cents) : "€ 189,00"}
                             </strong>
                         </div>
                         <div className="settings-license-metric">
-                            Nächste Abbuchung
+                            {t("settings.license.next_billing")}
                             <strong>{portalSummary ? formatDeDateShort(portalSummary.next_billing_iso) : "01.05.2026"}</strong>
                         </div>
                         {LICENSE_BILLING_CONNECTORS_ENABLED ? (
                             <div className="settings-license-metric">
-                                Zahlungsmethode
-                                <strong>{portalSummary ? "Im Abrechnungsportal" : "SEPA · · 4821"}</strong>
+                                {t("settings.license.payment_method")}
+                                <strong>{portalSummary ? t("settings.license.billing_portal") : t("settings.license.sepa_demo")}</strong>
                             </div>
                         ) : null}
                     </div>
@@ -131,7 +131,7 @@ export function EinstellungenLizenzSection({
                                 }
                             }}
                         >
-                            Rechnungen
+                            {t("settings.license.invoices_btn")}
                         </Button>
                         <Button
                             type="button"
@@ -144,7 +144,7 @@ export function EinstellungenLizenzSection({
                                 }
                             }}
                         >
-                            Plan wechseln
+                            {t("settings.license.change_plan")}
                         </Button>
                     </div>
                     ) : null}
@@ -153,12 +153,12 @@ export function EinstellungenLizenzSection({
             {LICENSE_USAGE_METERS_ENABLED ? (
             <section className="settings-subcard">
                 <div className="card-head">
-                    <div className="card-title">Nutzung diesen Monat</div>
+                    <div className="card-title">{t("settings.license.usage_title")}</div>
                 </div>
                 <div className="card-pad" style={{ display: "grid", gap: 16 }}>
                     <div>
                         <div className="row" style={{ justifyContent: "space-between", fontSize: 13 }}>
-                            <span>Aktive Behandler</span>
+                            <span>{t("settings.license.active_handlers")}</span>
                             <span style={{ fontWeight: 650 }}>
                                 {portalActiveUsers} / {portalMaxUsers}
                             </span>
@@ -169,7 +169,7 @@ export function EinstellungenLizenzSection({
                     </div>
                     <div>
                         <div className="row" style={{ justifyContent: "space-between", fontSize: 13 }}>
-                            <span>Speicher</span>
+                            <span>{t("settings.license.storage")}</span>
                             <span style={{ fontWeight: 650 }}>
                                 {portalStorageUsed} GB / {portalStorageGb} GB
                             </span>
@@ -180,7 +180,7 @@ export function EinstellungenLizenzSection({
                     </div>
                     <div>
                         <div className="row" style={{ justifyContent: "space-between", fontSize: 13 }}>
-                            <span>eRezepte / Monat</span>
+                            <span>{t("settings.license.erezept_month")}</span>
                             <span style={{ fontWeight: 650 }}>{erLabel}</span>
                         </div>
                         <div className="settings-progress" aria-hidden>
@@ -192,11 +192,11 @@ export function EinstellungenLizenzSection({
             ) : null}
             <section className="settings-subcard">
                 <div className="card-head">
-                    <div className="card-title">Lizenz-Details</div>
+                    <div className="card-title">{t("settings.license.details_title")}</div>
                 </div>
                 <div className="settings-row" style={{ alignItems: "flex-start" }}>
                     <div>
-                        <b>Lizenznummer</b>
+                        <b>{t("settings.license.license_number")}</b>
                         <div className="settings-row-muted">{portalLicId}</div>
                     </div>
                     <Button
@@ -205,43 +205,43 @@ export function EinstellungenLizenzSection({
                         size="sm"
                         onClick={() => {
                             void navigator.clipboard?.writeText(portalLicId).then(
-                                () => toast("Kopiert", "success"),
-                                () => toast("Kopieren nicht möglich", "error"),
+                                () => toast(t("common.copied"), "success"),
+                                () => toast(t("common.copy_failed_short"), "error"),
                             );
                         }}
                     >
-                        Kopieren
+                        {t("common.copy")}
                     </Button>
                 </div>
                 <div className="settings-row">
                     <div>
-                        <b>Desktop-Lizenz</b>
+                        <b>{t("settings.license.desktop_license")}</b>
                         <div className="settings-row-muted">
                             {activeV2
-                                ? `${activeV2.edition} · Gerät ${activeV2.deviceId.slice(0, 8)}… · ${activeV2.customerId}`
+                                ? `${activeV2.edition} · ${tp("settings.license.device_suffix", { id: activeV2.deviceId.slice(0, 8) })} · ${activeV2.customerId}`
                                 : activeV1
                                   ? `${activeV1.edition} · ${activeV1.customerId}`
-                                  : "Keine gültige Lizenz hinterlegt"}
+                                  : t("settings.license.no_valid")}
                         </div>
                     </div>
                     <span className={licenseStatus?.valid ? "settings-pill-green" : "settings-pill-gray"}>
-                        {licenseStatus?.valid ? "Aktiv" : "Inaktiv"}
+                        {licenseStatus?.valid ? t("settings.license.status_active") : t("settings.license.inactive")}
                     </span>
                 </div>
                 {LICENSE_KBV_ROW_ENABLED ? (
                 <div className="settings-row">
                     <div>
-                        <b>KBV-Zulassung</b>
-                        <div className="settings-row-muted">Zugelassen bis 31.12.2027</div>
+                        <b>{t("settings.license.kbv_approval")}</b>
+                        <div className="settings-row-muted">{t("settings.license.kbv_until")}</div>
                     </div>
-                    <span className="settings-pill-green">Aktiv</span>
+                    <span className="settings-pill-green">{t("settings.license.status_active")}</span>
                 </div>
                 ) : null}
                 {LICENSE_SUPPORT_ROW_ENABLED ? (
                 <div className="settings-row">
                     <div>
-                        <b>Support-Vertrag</b>
-                        <div className="settings-row-muted">Premium · 24/7 · Antwort unter 2h</div>
+                        <b>{t("settings.license.support_contract")}</b>
+                        <div className="settings-row-muted">{t("settings.license.support_detail")}</div>
                     </div>
                     <span className="settings-chevron" aria-hidden>
                         <ChevronRightIcon size={18} />
@@ -251,10 +251,10 @@ export function EinstellungenLizenzSection({
                 <div className="card-pad" style={{ paddingTop: 0 }}>
                     <Input
                         id="lic-token-card"
-                        label="Lizenz-Token"
+                        label={t("settings.license.token_label")}
                         value={licenseToken}
                         onChange={(e) => onLicenseTokenChange(e.target.value)}
-                        placeholder="v2.… oder v1-Token einfügen"
+                        placeholder={t("settings.license.import_ph")}
                     />
                     <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
                         <Button
@@ -264,7 +264,7 @@ export function EinstellungenLizenzSection({
                             loading={licBusy}
                             onClick={() => void onVerifyLicense()}
                         >
-                            Prüfen
+                            {t("settings.license.verify_btn")}
                         </Button>
                         <Button
                             type="button"
@@ -272,7 +272,7 @@ export function EinstellungenLizenzSection({
                             loading={licBusy}
                             onClick={() => void onActivateLicense()}
                         >
-                            Aktivieren
+                            {t("settings.license.activate_btn")}
                         </Button>
                         {canClearLicense && licenseStatus?.valid && onClearLicense ? (
                             <Button
@@ -282,7 +282,7 @@ export function EinstellungenLizenzSection({
                                 loading={licBusy}
                                 onClick={() => void onClearLicense()}
                             >
-                                Lizenz entfernen
+                                {t("settings.license.clear_btn")}
                             </Button>
                         ) : null}
                     </div>
@@ -295,8 +295,8 @@ export function EinstellungenLizenzSection({
                             }}
                         >
                             {licenseStatus.valid
-                                ? `Lizenz gültig (${licenseStatus.format ?? "?"})`
-                                : `Ungültig: ${licenseStatus.reason ?? "Fehler"}`}
+                                ? tp("settings.license.valid_with_format", { format: licenseStatus.format ?? "?" })
+                                : tp("settings.license.invalid", { reason: licenseStatus.reason ?? t("common.error") })}
                         </p>
                     ) : null}
                 </div>

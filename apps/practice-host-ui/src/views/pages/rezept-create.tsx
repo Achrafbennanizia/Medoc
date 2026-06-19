@@ -4,6 +4,7 @@ import { getPatient } from "@/systems/practice-host/controllers/patient.controll
 import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import { createRezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { errorMessage } from "@/lib/utils";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import type { DokumentVorlage } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Button } from "../components/ui/button";
@@ -26,14 +27,17 @@ import {
 } from "@/lib/medikamente";
 import type { Patient } from "../../models/types";
 
-function validateRezeptLine(line: RezeptLine): string | null {
-    if (!line.medikament.trim()) return "Bitte Medikament wählen oder eingeben.";
-    if (!line.dosierung.trim()) return "Bitte Dosierung angeben.";
-    if (!line.dauer.trim()) return "Bitte Dauer angeben.";
+function validateRezeptLine(line: RezeptLine, t: (key: string) => string): string | null {
+    if (!line.medikament.trim()) return t("page.rezepte.validation.med_required");
+    if (!line.dosierung.trim()) return t("page.rezepte.validation.dosage_required");
+    if (!line.dauer.trim()) return t("page.rezepte.validation.duration_required");
     return null;
 }
 
 export function RezeptCreatePage() {
+    const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const { id: patientId } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -94,15 +98,16 @@ export function RezeptCreatePage() {
             const items = parseRezeptVorlagePayload(v.payload);
             const newLines = vorlageItemsToLines(items);
             if (newLines.length === 0) {
-                toast("Vorlage enthält keine Medikamente.", "error");
+                toast(t("page.rezepte.toast.template_no_meds"), "error");
                 return;
             }
             setVorlageSelect(vorlageId);
             setLines((prev) => [...prev, ...newLines]);
             setDraftError(null);
-            toast(`Vorlage „${v.titel}“ eingefügt (${newLines.length} Zeile${newLines.length === 1 ? "" : "n"}).`);
+            const suffix = newLines.length === 1 ? "" : locale === "de" ? "n" : "s";
+            toast(tp("page.rezepte.toast.template_applied", { title: v.titel, count: newLines.length, suffix }));
         },
-        [vorlagen, toast],
+        [vorlagen, toast, t, tp, locale],
     );
 
     useEffect(() => {
@@ -115,8 +120,8 @@ export function RezeptCreatePage() {
     }, [searchParams, vorlagen, applyVorlage, navigate]);
 
     const vorlageOptions = useMemo(
-        () => [{ value: "", label: "— Vorlage auswählen —" }, ...vorlagen.map((v) => ({ value: v.id, label: v.titel }))],
-        [vorlagen],
+        () => [{ value: "", label: t("page.rezepte.template_choose") }, ...vorlagen.map((v) => ({ value: v.id, label: v.titel }))],
+        [vorlagen, t],
     );
 
     const vorlagenPreview = useMemo(
@@ -141,7 +146,7 @@ export function RezeptCreatePage() {
     };
 
     const addLine = () => {
-        const err = validateRezeptLine(draft);
+        const err = validateRezeptLine(draft, t);
         if (err) {
             setDraftError(err);
             return;
@@ -158,9 +163,9 @@ export function RezeptCreatePage() {
     const handleSave = async () => {
         if (!patientId || !session) return;
         const queue: RezeptLine[] = [...lines];
-        if (validateRezeptLine(draft) === null) queue.push({ ...draft });
+        if (validateRezeptLine(draft, t) === null) queue.push({ ...draft });
         if (queue.length === 0) {
-            setDraftError("Mindestens eine Medikamentenzeile hinzufügen.");
+            setDraftError(t("page.rezepte.validation.min_one_line"));
             return;
         }
         setCreating(true);
@@ -189,11 +194,16 @@ export function RezeptCreatePage() {
                 });
                 ok += 1;
             }
-            toast(`${ok} Rezept${ok === 1 ? "" : "e"} erstellt`, "success");
+            toast(
+                ok === 1 ? t("page.rezepte.toast.created_one") : tp("page.rezepte.toast.created_many", { count: ok }),
+                "success",
+            );
             navigate(`/patienten/${patientId}#rezept`);
         } catch (e) {
             setError(
-                `${ok > 0 ? `${ok} angelegt, dann ` : ""}${errorMessage(e)}`,
+                ok > 0
+                    ? tp("page.rezepte.toast.create_partial", { created: ok, message: errorMessage(e) })
+                    : errorMessage(e),
             );
         } finally {
             setCreating(false);
@@ -203,33 +213,33 @@ export function RezeptCreatePage() {
     if (!patientId) {
         return (
             <div className="animate-fade-in p-4">
-                <p className="text-body text-on-surface-variant">Kein Patient angegeben.</p>
+                <p className="text-body text-on-surface-variant">{t("page.rezepte.create.no_patient")}</p>
             </div>
         );
     }
 
-    if (loadingPatient) return <PageLoading label="Patient wird geladen…" />;
+    if (loadingPatient) return <PageLoading label={t("page.rezepte.loading_patients")} />;
     if (loadError || !patient) {
-        return <PageLoadError message={loadError ?? "Patient nicht gefunden."} onRetry={() => void loadPatient()} />;
+        return <PageLoadError message={loadError ?? t("page.rezepte.toast.linked_patient_not_found")} onRetry={() => void loadPatient()} />;
     }
 
-    const nLines = lines.length + (validateRezeptLine(draft) === null ? 1 : 0);
+    const nLines = lines.length + (validateRezeptLine(draft, t) === null ? 1 : 0);
     const cannotSave = nLines === 0 || creating;
 
     return (
         <div className="praxis-workspace-page animate-fade-in">
             <WorkspacePageHeader
                 titleLevel="h1"
-                title="Neues Rezept"
+                title={t("page.rezepte.create.page_title")}
                 eyebrow={patient.name}
-                back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+                back={{ to: `/patienten/${patientId}#rezept`, label: t("patient.detail.title") }}
             />
 
             <div style={{ maxWidth: 920 }}>
             <Card>
                     <CardHeader
-                        title="Kombinationsrezept"
-                        subtitle="Vorlagen fügen fertige Zeilen ein. Manuelle Zeilen unten ergänzen — jede Zeile wird als eigenes Rezept gespeichert."
+                        title={t("page.rezepte.create.combo_title")}
+                        subtitle={t("page.rezepte.create.combo_subtitle")}
                     />
                     <div style={{ padding: "0 16px 16px" }}>
                         {error ? (
@@ -243,7 +253,7 @@ export function RezeptCreatePage() {
 
                         <div className="rezept-vorlagen-panel">
                             <div className="form-overline">
-                                Praxis-Vorlagen
+                                {t("page.rezepte.create.templates_section")}
                             </div>
                             {vorlagen.length > 0 ? (
                                 <>
@@ -251,7 +261,7 @@ export function RezeptCreatePage() {
                                         <div className="flex-1 min-w-0">
                                             <Select
                                                 id="rc-vorlage"
-                                                label="Vorlage"
+                                                label={t("page.rezepte.create.template_label")}
                                                 value={vorlageSelect}
                                                 options={vorlageOptions}
                                                 onChange={(e) => setVorlageSelect(e.target.value)}
@@ -263,7 +273,7 @@ export function RezeptCreatePage() {
                                             disabled={!vorlageSelect}
                                             onClick={() => applyVorlage(vorlageSelect)}
                                         >
-                                            In Liste einfügen
+                                            {t("page.rezepte.create.insert_btn")}
                                         </Button>
                                     </div>
                                     <div className="rezept-vorlagen-chips">
@@ -273,7 +283,7 @@ export function RezeptCreatePage() {
                                                 type="button"
                                                 className="rezept-vorlage-chip"
                                                 onClick={() => applyVorlage(id)}
-                                                title={n === 0 ? "Vorlage ohne Medikamente" : `${n} Zeile(n) einfügen`}
+                                                title={n === 0 ? t("page.rezepte.create.template_empty_title") : tp("page.rezepte.create.template_lines_title", { count: n })}
                                                 disabled={n === 0}
                                             >
                                                 <span className="rezept-vorlage-chip-title">{titel}</span>
@@ -284,11 +294,11 @@ export function RezeptCreatePage() {
                                 </>
                             ) : (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", lineHeight: 1.5 }}>
-                                    Noch keine Vorlagen angelegt — unter{" "}
+                                    {t("page.rezepte.create.no_templates_lead")}{" "}
                                     <button type="button" className="linkish" onClick={() => navigate("/verwaltung/vorlagen")}>
-                                        Verwaltung → Vorlagen
+                                        {t("page.rezepte.create.verwaltung_link")}
                                     </button>{" "}
-                                    können Sie z. B. Standard-Schemata hinterlegen. Danach erscheinen sie hier automatisch.
+                                    {t("page.rezepte.create.no_templates_tail")}
                                 </p>
                             )}
                         </div>
@@ -308,43 +318,43 @@ export function RezeptCreatePage() {
                                 background: "rgba(0,0,0,0.02)",
                             }}
                         >
-                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Neue Zeile</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{t("page.rezepte.new_line")}</div>
                             {draftError ? (
                                 <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 8px" }}>{draftError}</p>
                             ) : null}
                             <Input
                                 id="rc-med"
-                                label="Medikament *"
+                                label={t("page.rezepte.field.medication")}
                                 list="rc-med-suggestions"
                                 value={draft.medikament}
                                 onChange={(e) => pickMed(e.target.value)}
-                                placeholder="z. B. Ibuprofen 600 mg"
+                                placeholder={t("page.rezepte.field.medication_ph")}
                             />
                             <Input
                                 id="rc-wirk"
-                                label="Wirkstoff"
+                                label={t("page.rezepte.field.active_ingredient")}
                                 value={draft.wirkstoff}
                                 onChange={(e) => setDraft({ ...draft, wirkstoff: e.target.value })}
                             />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
                                     id="rc-dos"
-                                    label="Dosierung *"
+                                    label={t("page.rezepte.field.dosage")}
                                     value={draft.dosierung}
                                     onChange={(e) => setDraft({ ...draft, dosierung: e.target.value })}
-                                    placeholder="z. B. 1-0-1"
+                                    placeholder={t("page.rezepte.field.dosage_ph")}
                                 />
                                 <Input
-                                    id="rc-dauer"
-                                    label="Dauer *"
+                                    id="rc-dur"
+                                    label={t("page.rezepte.field.duration")}
                                     value={draft.dauer}
                                     onChange={(e) => setDraft({ ...draft, dauer: e.target.value })}
-                                    placeholder="z. B. 7 Tage"
+                                    placeholder={t("page.rezepte.field.duration_ph")}
                                 />
                             </div>
                             <Textarea
                                 id="rc-hin"
-                                label="Hinweise (Zeile)"
+                                label={t("page.rezepte.field.notes_line")}
                                 rows={2}
                                 value={draft.hinweise}
                                 onChange={(e) => setDraft({ ...draft, hinweise: e.target.value })}
@@ -352,13 +362,13 @@ export function RezeptCreatePage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
                                 <Input
                                     id="rc-pzn"
-                                    label="PZN"
+                                    label={t("page.rezepte.field.pzn")}
                                     value={draft.pzn}
                                     onChange={(e) => setDraft({ ...draft, pzn: e.target.value })}
                                 />
                                 <Select
                                     id="rc-dar"
-                                    label="Darreichungsform"
+                                    label={t("page.rezepte.field.darreichungsform")}
                                     value={draft.darreichungsform}
                                     options={[
                                         { value: "", label: "—" },
@@ -368,7 +378,7 @@ export function RezeptCreatePage() {
                                 />
                                 <Select
                                     id="rc-pack"
-                                    label="Packungsgröße"
+                                    label={t("page.rezepte.field.packungsgroesse")}
                                     value={draft.packungsgroesse}
                                     options={[
                                         { value: "", label: "—" },
@@ -378,7 +388,7 @@ export function RezeptCreatePage() {
                                 />
                                 <Input
                                     id="rc-menge"
-                                    label="Menge"
+                                    label={t("page.rezepte.field.menge")}
                                     type="number"
                                     min={1}
                                     value={draft.menge}
@@ -386,7 +396,7 @@ export function RezeptCreatePage() {
                                 />
                                 <Select
                                     id="rc-typ"
-                                    label="Rezepttyp"
+                                    label={t("page.rezepte.field.rezepttyp")}
                                     value={draft.rezept_typ}
                                     options={REZEPT_TYP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                                     onChange={(e) =>
@@ -398,7 +408,7 @@ export function RezeptCreatePage() {
                                 />
                                 <Input
                                     id="rc-icd"
-                                    label="ICD-10"
+                                    label={t("page.rezepte.field.icd10")}
                                     list="rc-icd-suggestions"
                                     value={draft.icd10_code}
                                     onChange={(e) => setDraft({ ...draft, icd10_code: e.target.value })}
@@ -415,18 +425,18 @@ export function RezeptCreatePage() {
                                     checked={draft.aut_idem}
                                     onChange={(e) => setDraft({ ...draft, aut_idem: e.target.checked })}
                                 />
-                                aut idem (Substitution erlaubt)
+                                {t("page.rezepte.field.aut_idem")}
                             </label>
                             <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={addLine}>
-                                    + Zeile zur Liste
+                                    {t("page.rezepte.create.add_line_btn")}
                                 </Button>
                             </div>
                         </div>
 
                         <Textarea
                             id="rc-shared"
-                            label="Allgemeine Hinweise (für alle Zeilen)"
+                            label={t("page.rezepte.shared_notes")}
                             rows={2}
                             value={shared}
                             onChange={(e) => setShared(e.target.value)}
@@ -434,20 +444,20 @@ export function RezeptCreatePage() {
 
                         <div style={{ marginTop: 12 }}>
                             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
-                                Zeilen ({lines.length})
+                                {tp("page.rezepte.lines_title", { count: lines.length })}
                             </div>
                             {lines.length === 0 ? (
                                 <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>
-                                    Noch keine Zeilen — eine Vorlage einfügen oder unten ausfüllen und „Zeile zur Liste“ wählen.
+                                    {t("page.rezepte.create.lines_empty_hint")}
                                 </p>
                             ) : (
                                 <div style={{ overflowX: "auto" }}>
                                     <table className="tbl">
                                         <thead>
                                             <tr>
-                                                <th>Medikament</th>
-                                                <th>Dosierung</th>
-                                                <th>Dauer</th>
+                                                <th>{t("page.rezepte.col.medication")}</th>
+                                                <th>{t("page.rezepte.col.dosage")}</th>
+                                                <th>{t("page.rezepte.col.duration")}</th>
                                                 <th style={{ width: 100 }} />
                                             </tr>
                                         </thead>
@@ -459,7 +469,7 @@ export function RezeptCreatePage() {
                                                     <td>{ln.dauer}</td>
                                                     <td>
                                                         <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(i)}>
-                                                            Entfernen
+                                                            {t("common.remove")}
                                                         </Button>
                                                     </td>
                                                 </tr>
@@ -472,18 +482,18 @@ export function RezeptCreatePage() {
 
                         <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
                             <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>
-                                Nach dem Speichern: Akte · Tab „Rezepte &amp; Atteste“.
+                                {t("page.rezepte.create.after_save_hint")}
                             </p>
                             <div className="row" style={{ gap: 8 }}>
                                 <Button variant="ghost" onClick={() => navigate(`/patienten/${patientId}#rezept`)} disabled={creating}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button onClick={() => void handleSave()} loading={creating} disabled={cannotSave}>
                                     {creating
-                                        ? "Wird gespeichert…"
+                                        ? t("page.rezepte.saving")
                                         : nLines > 1
-                                            ? `${nLines} Rezepte erstellen`
-                                            : "Rezept erstellen"}
+                                            ? tp("page.rezepte.create_many", { count: nLines })
+                                            : t("page.rezepte.create_one")}
                                 </Button>
                             </div>
                         </div>

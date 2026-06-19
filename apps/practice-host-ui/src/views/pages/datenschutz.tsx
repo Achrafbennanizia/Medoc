@@ -103,7 +103,7 @@ export function DatenschutzPage() {
         <div className="praxis-workspace-page animate-fade-in">
             <WorkspacePageHeader
                 title={t("page.datenschutz.title")}
-                back={{ to: "/einstellungen", label: "Einstellungen" }}
+                back={{ to: "/einstellungen", label: t("page.datenschutz.back_settings") }}
                 subtitle={
                     <>
                         {t("page.datenschutz.intro_prefix")}
@@ -223,9 +223,9 @@ export function DatenschutzPage() {
             <DataExportPickerDialog
                 open={exportPatient != null}
                 onClose={() => setExportPatient(null)}
-                title="Export — DSGVO-Datenpaket"
-                description="JSON-Auskunft nach Art. 15 DSGVO — Format und Speicherort."
-                formats={[{ value: "json", label: "JSON" }]}
+                title={t("page.datenschutz.export_title")}
+                description={t("page.datenschutz.export_desc")}
+                formats={[{ value: "json", label: t("common.format_json") }]}
                 defaultFormat="json"
                 resolvePayload={resolveDsgvoExport}
             />

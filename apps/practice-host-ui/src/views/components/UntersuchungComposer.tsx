@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Input, Select, Textarea } from "./ui/input";
+import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import { DentalChart } from "./DentalChart";
 import type { Zahnbefund } from "@/models/types";
@@ -24,27 +25,7 @@ import { parseUntersuchungV1, UNTERSUCHUNG_V1_EMPTY, type UntersuchungV1 } from 
  *   - ergebnisse   ← JSON (UntersuchungV1) für Detailansicht / Export
  */
 
-const PSI_OPTS = [
-    { value: "", label: "—" },
-    { value: "0", label: "0 (gesund)" },
-    { value: "1", label: "1 (BOP)" },
-    { value: "2", label: "2 (Konkremente)" },
-    { value: "3", label: "3 (Sondiertiefe 4–5 mm)" },
-    { value: "4", label: "4 (Sondiertiefe ≥ 6 mm)" },
-    { value: "*", label: "*-Befund (Furkation/Rezession)" },
-];
-
-const SECTIONS = [
-    { id: "haupt", label: "Hauptbeschwerde" },
-    { id: "extra", label: "Extraoral" },
-    { id: "intra", label: "Intraoral" },
-    { id: "hart", label: "Zahnbefund" },
-    { id: "paro", label: "Parodontal" },
-    { id: "funk", label: "Funktion" },
-    { id: "rx", label: "Bildgebung" },
-    { id: "diag", label: "Diagnose & Plan" },
-] as const;
-type SectionId = (typeof SECTIONS)[number]["id"];
+type SectionId = "haupt" | "extra" | "intra" | "hart" | "paro" | "funk" | "rx" | "diag";
 
 export interface UntersuchungSubmit {
     beschwerden: string;
@@ -95,6 +76,34 @@ export function UntersuchungComposer({
     variant = "create",
     locked = false,
 }: Props) {
+    const t = useT();
+    const tp = useTParams();
+    const psiOpts = useMemo(
+        () => [
+            { value: "", label: t("untersuchung.composer.psi_empty") },
+            { value: "0", label: t("untersuchung.composer.psi_0") },
+            { value: "1", label: t("untersuchung.composer.psi_1") },
+            { value: "2", label: t("untersuchung.composer.psi_2") },
+            { value: "3", label: t("untersuchung.composer.psi_3") },
+            { value: "4", label: t("untersuchung.composer.psi_4") },
+            { value: "*", label: t("untersuchung.composer.psi_star") },
+        ],
+        [t],
+    );
+    const sections = useMemo(
+        () =>
+            [
+                { id: "haupt" as const, label: t("untersuchung.composer.section_haupt") },
+                { id: "extra" as const, label: t("untersuchung.composer.section_extra") },
+                { id: "intra" as const, label: t("untersuchung.composer.section_intra") },
+                { id: "hart" as const, label: t("untersuchung.composer.section_hart") },
+                { id: "paro" as const, label: t("untersuchung.composer.section_paro") },
+                { id: "funk" as const, label: t("untersuchung.composer.section_funk") },
+                { id: "rx" as const, label: t("untersuchung.composer.section_rx") },
+                { id: "diag" as const, label: t("untersuchung.composer.section_diag") },
+            ],
+        [t],
+    );
     const [data, setData] = useState<UntersuchungV1>(() =>
         initialFromRecord ? initialDataFromRecord(initialFromRecord) : UNTERSUCHUNG_V1_EMPTY,
     );
@@ -128,7 +137,11 @@ export function UntersuchungComposer({
         setBusy(true);
         try {
             const beschwerden =
-                [data.chiefComplaint, data.painLocation && `Lokalisation: ${data.painLocation}`, data.painVas && `Schmerz VAS ${data.painVas}/10`]
+                [
+                    data.chiefComplaint,
+                    data.painLocation && tp("untersuchung.composer.pain_location_prefix", { location: data.painLocation }),
+                    data.painVas && tp("untersuchung.composer.pain_vas_prefix", { vas: data.painVas }),
+                ]
                     .filter(Boolean)
                     .join(" · ") || "";
             const diagnose = data.diagnosis || "";
@@ -142,8 +155,8 @@ export function UntersuchungComposer({
     return (
         <div className="col" style={{ gap: 16 }}>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div className="seg seg--wrap" role="tablist" aria-label="Untersuchung Sektionen">
-                    {SECTIONS.map((s) => (
+                <div className="seg seg--wrap" role="tablist" aria-label={t("untersuchung.composer.sections_aria")}>
+                    {sections.map((s) => (
                         <button
                             key={s.id}
                             type="button"
@@ -156,34 +169,34 @@ export function UntersuchungComposer({
                     ))}
                 </div>
                 <div style={{ flex: 1 }} />
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>Erfasst: {completion}%</span>
+                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{tp("untersuchung.composer.captured", { pct: completion })}</span>
             </div>
 
             {section === "haupt" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Textarea
                         id="u-haupt-bes"
-                        label="Hauptbeschwerde *"
+                        label={t("untersuchung.composer.chief")}
                         value={data.chiefComplaint}
                         onChange={(e) => upd("chiefComplaint", e.target.value)}
                         rows={3}
-                        placeholder="Schmerz, Druck, Blutung, Ästhetik, Routine…"
+                        placeholder={t("untersuchung.composer.chief_ph")}
                         disabled={locked}
                     />
                     <Input
                         id="u-pain-vas"
-                        label="Schmerz (VAS 0–10)"
+                        label={t("untersuchung.composer.pain_vas")}
                         value={data.painVas}
                         onChange={(e) => upd("painVas", e.target.value)}
-                        placeholder="0–10"
+                        placeholder={t("untersuchung.composer.pain_vas_ph")}
                         disabled={locked}
                     />
                     <Input
                         id="u-pain-loc"
-                        label="Lokalisation"
+                        label={t("untersuchung.composer.pain_location")}
                         value={data.painLocation}
                         onChange={(e) => upd("painLocation", e.target.value)}
-                        placeholder="z. B. Reg. 36 Quadrant III"
+                        placeholder={t("untersuchung.composer.pain_location_ph")}
                         disabled={locked}
                     />
                 </div>
@@ -191,26 +204,26 @@ export function UntersuchungComposer({
 
             {section === "extra" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Textarea id="u-extra-asym" label="Asymmetrie / Schwellungen" value={data.extraoral.asymmetry} onChange={(e) => updGroup("extraoral", { asymmetry: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-extra-lymph" label="Lymphknoten (cervico-fazial)" value={data.extraoral.lymphNodes} onChange={(e) => updGroup("extraoral", { lymphNodes: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-extra-tmj" label="Kiefergelenk (TMG)" value={data.extraoral.tmj} onChange={(e) => updGroup("extraoral", { tmj: e.target.value })} rows={2} placeholder="Knacken, Krepitation, Mundöffnung mm" disabled={locked} />
-                    <Textarea id="u-extra-musc" label="Muskulatur (M. masseter / temporalis)" value={data.extraoral.muscles} onChange={(e) => updGroup("extraoral", { muscles: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-extra-asym" label={t("untersuchung.composer.asymmetry")} value={data.extraoral.asymmetry} onChange={(e) => updGroup("extraoral", { asymmetry: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-extra-lymph" label={t("untersuchung.composer.lymph")} value={data.extraoral.lymphNodes} onChange={(e) => updGroup("extraoral", { lymphNodes: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-extra-tmj" label={t("untersuchung.composer.tmj")} value={data.extraoral.tmj} onChange={(e) => updGroup("extraoral", { tmj: e.target.value })} rows={2} placeholder={t("untersuchung.composer.tmj_ph")} disabled={locked} />
+                    <Textarea id="u-extra-musc" label={t("untersuchung.composer.muscles")} value={data.extraoral.muscles} onChange={(e) => updGroup("extraoral", { muscles: e.target.value })} rows={2} disabled={locked} />
                 </div>
             )}
 
             {section === "intra" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Textarea id="u-intra-muc" label="Mundschleimhaut" value={data.intraoral.mucosa} onChange={(e) => updGroup("intraoral", { mucosa: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-intra-tng" label="Zunge / Mundboden" value={data.intraoral.tongue} onChange={(e) => updGroup("intraoral", { tongue: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-intra-ging" label="Gingiva (Konsistenz / Farbe)" value={data.intraoral.gingiva} onChange={(e) => updGroup("intraoral", { gingiva: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-intra-sal" label="Speicheldrüsen / Speichelfluss" value={data.intraoral.salivary} onChange={(e) => updGroup("intraoral", { salivary: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-intra-muc" label={t("untersuchung.composer.mucosa")} value={data.intraoral.mucosa} onChange={(e) => updGroup("intraoral", { mucosa: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-intra-tng" label={t("untersuchung.composer.tongue")} value={data.intraoral.tongue} onChange={(e) => updGroup("intraoral", { tongue: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-intra-ging" label={t("untersuchung.composer.gingiva")} value={data.intraoral.gingiva} onChange={(e) => updGroup("intraoral", { gingiva: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-intra-sal" label={t("untersuchung.composer.salivary")} value={data.intraoral.salivary} onChange={(e) => updGroup("intraoral", { salivary: e.target.value })} rows={2} disabled={locked} />
                 </div>
             )}
 
             {section === "hart" && (
                 <div className="col" style={{ gap: 8 }}>
                     <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>
-                        Befund je Zahn: Doppelklick öffnet Statusauswahl. Befunde werden direkt am Patienten gespeichert.
+                        {t("untersuchung.composer.dental_hint")}
                     </p>
                     <DentalChart befunde={befunde} disabled={locked} onApply={async (tooth, statusKey) => { await onApplyTooth(tooth, statusKey); }} />
                 </div>
@@ -218,52 +231,52 @@ export function UntersuchungComposer({
 
             {section === "paro" && (
                 <div className="col" style={{ gap: 12 }}>
-                    <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>PSI je Sextant (S1 17–14, S2 13–23, S3 24–27, S4 47–44, S5 43–33, S6 34–37).</p>
+                    <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>{t("untersuchung.composer.psi_hint")}</p>
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
                         {(["s1", "s2", "s3", "s4", "s5", "s6"] as const).map((k, i) => (
                             <Select
                                 key={k}
-                                label={`Sextant ${i + 1}`}
+                                label={tp("untersuchung.composer.sextant", { n: i + 1 })}
                                 value={data.psi[k]}
-                                options={PSI_OPTS}
+                                options={psiOpts}
                                 onChange={(e) => updGroup("psi", { [k]: e.target.value } as never)}
                                 disabled={locked}
                             />
                         ))}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input id="u-bop" label="BOP %" value={data.bopPercent} onChange={(e) => upd("bopPercent", e.target.value)} placeholder="z. B. 18" disabled={locked} />
-                        <Input id="u-plaque" label="Plaque-Index" value={data.plaqueIndex} onChange={(e) => upd("plaqueIndex", e.target.value)} placeholder="0–3" disabled={locked} />
-                        <Input id="u-hyg" label="Mundhygiene" value={data.hygieneScore} onChange={(e) => upd("hygieneScore", e.target.value)} placeholder="gut / mittel / schlecht" disabled={locked} />
+                        <Input id="u-bop" label={t("untersuchung.composer.bop")} value={data.bopPercent} onChange={(e) => upd("bopPercent", e.target.value)} placeholder={t("untersuchung.composer.bop_ph")} disabled={locked} />
+                        <Input id="u-plaque" label={t("untersuchung.composer.plaque")} value={data.plaqueIndex} onChange={(e) => upd("plaqueIndex", e.target.value)} placeholder={t("untersuchung.composer.plaque_ph")} disabled={locked} />
+                        <Input id="u-hyg" label={t("untersuchung.composer.hygiene")} value={data.hygieneScore} onChange={(e) => upd("hygieneScore", e.target.value)} placeholder={t("untersuchung.composer.hygiene_ph")} disabled={locked} />
                     </div>
                 </div>
             )}
 
             {section === "funk" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Textarea id="u-fun-cmd" label="CMD-Befund" value={data.function.cmd} onChange={(e) => updGroup("function", { cmd: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-fun-brux" label="Bruxismus / Parafunktion" value={data.function.bruxism} onChange={(e) => updGroup("function", { bruxism: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-fun-splint" label="Schiene / Reha" value={data.function.splint} onChange={(e) => updGroup("function", { splint: e.target.value })} rows={2} disabled={locked} />
-                    <Textarea id="u-fun-other" label="Weitere Befunde / Okklusion" value={data.function.notes} onChange={(e) => updGroup("function", { notes: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-fun-cmd" label={t("untersuchung.composer.cmd")} value={data.function.cmd} onChange={(e) => updGroup("function", { cmd: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-fun-brux" label={t("untersuchung.composer.bruxism")} value={data.function.bruxism} onChange={(e) => updGroup("function", { bruxism: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-fun-splint" label={t("untersuchung.composer.splint")} value={data.function.splint} onChange={(e) => updGroup("function", { splint: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-fun-other" label={t("untersuchung.composer.function_notes")} value={data.function.notes} onChange={(e) => updGroup("function", { notes: e.target.value })} rows={2} disabled={locked} />
                 </div>
             )}
 
             {section === "rx" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Textarea id="u-rx-ord" label="Veranlasste Bildgebung" value={data.imaging.ordered} onChange={(e) => updGroup("imaging", { ordered: e.target.value })} rows={2} placeholder="z. B. OPG, BWL, PA-Status" disabled={locked} />
-                    <Textarea id="u-rx-find" label="Röntgen-/Befund-Notiz" value={data.imaging.findings} onChange={(e) => updGroup("imaging", { findings: e.target.value })} rows={2} disabled={locked} />
+                    <Textarea id="u-rx-ord" label={t("untersuchung.composer.imaging_ordered")} value={data.imaging.ordered} onChange={(e) => updGroup("imaging", { ordered: e.target.value })} rows={2} placeholder={t("untersuchung.composer.imaging_ordered_ph")} disabled={locked} />
+                    <Textarea id="u-rx-find" label={t("untersuchung.composer.imaging_note")} value={data.imaging.findings} onChange={(e) => updGroup("imaging", { findings: e.target.value })} rows={2} disabled={locked} />
                 </div>
             )}
 
             {section === "diag" && (
                 <div className="col" style={{ gap: 12 }}>
-                    <Textarea id="u-diag" label="Diagnose *" value={data.diagnosis} onChange={(e) => upd("diagnosis", e.target.value)} rows={3} placeholder="z. B. K02.1 Karies dentini Reg. 36 distal" disabled={locked} />
-                    <Textarea id="u-plan" label="Therapieempfehlung / Plan" value={data.plan} onChange={(e) => upd("plan", e.target.value)} rows={4} placeholder="Empfohlene Behandlungen, Sitzungen, Recall" disabled={locked} />
+                    <Textarea id="u-diag" label={t("untersuchung.composer.diagnosis")} value={data.diagnosis} onChange={(e) => upd("diagnosis", e.target.value)} rows={3} placeholder={t("untersuchung.composer.diagnosis_ph")} disabled={locked} />
+                    <Textarea id="u-plan" label={t("untersuchung.composer.plan")} value={data.plan} onChange={(e) => upd("plan", e.target.value)} rows={4} placeholder={t("untersuchung.composer.plan_ph")} disabled={locked} />
                 </div>
             )}
 
             <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-                <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>Abbrechen</Button>
+                <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>{t("common.cancel")}</Button>
                 <Button
                     type="button"
                     onClick={() => void submit()}
@@ -276,7 +289,7 @@ export function UntersuchungComposer({
                     }
                     loading={busy}
                 >
-                    {variant === "edit" ? "Änderungen speichern" : "Untersuchung speichern"}
+                    {variant === "edit" ? t("untersuchung.composer.save_changes") : t("untersuchung.composer.save")}
                 </Button>
             </div>
         </div>

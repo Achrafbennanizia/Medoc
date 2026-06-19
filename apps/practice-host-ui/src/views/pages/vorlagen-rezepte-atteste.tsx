@@ -5,6 +5,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { DokumentVorlage } from "../../models/types";
 import { errorMessage } from "@/lib/utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -36,6 +37,8 @@ function previewPayload(v: DokumentVorlage): string {
 export function VorlagenRezepteAttestePage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -94,12 +97,12 @@ export function VorlagenRezepteAttestePage() {
         if (!deleteId) return;
         try {
             await deleteDokumentVorlage(deleteId);
-            toast("Vorlage gelöscht");
+            toast(t("page.vorlagen.toast.deleted"));
             setSelected((s) => (s?.id === deleteId ? null : s));
             setDeleteId(null);
             await reload();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
     };
 
@@ -108,11 +111,27 @@ export function VorlagenRezepteAttestePage() {
         [rows],
     );
 
-    if (status === "loading") return <PageLoading label="Vorlagen werden geladen…" />;
+    const editorTitle = useMemo(() => {
+        if (editorSpec?.type === "new") {
+            return editorSpec.kind === "REZEPT"
+                ? t("page.vorlagen.editor.new_rezept")
+                : t("page.vorlagen.editor.new_attest");
+        }
+        if (editorSpec) {
+            const r = rows.find((x) => x.id === editorSpec.id);
+            if (!r) return t("page.vorlagen.editor.edit");
+            return r.kind === "REZEPT"
+                ? t("page.vorlagen.editor.edit_rezept")
+                : t("page.vorlagen.editor.edit_attest");
+        }
+        return "";
+    }, [editorSpec, rows, t]);
+
+    if (status === "loading") return <PageLoading label={t("page.vorlagen.loading")} />;
     if (status === "error" && loadError) {
         return (
             <div className="produkte-page praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader title="Rezepte und Atteste vordefinieren" />
+                <VerwaltungPageHeader title={t("page.vorlagen.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
@@ -132,24 +151,13 @@ export function VorlagenRezepteAttestePage() {
         setSearchParams({ bearbeiten: r.id }, { replace: false });
     };
 
-    const editorTitle =
-        editorSpec?.type === "new"
-            ? (editorSpec.kind === "REZEPT" ? "Neues Rezept" : "Neues Attest")
-            : editorSpec
-              ? (() => {
-                    const r = rows.find((x) => x.id === editorSpec.id);
-                    if (!r) return "Vorlage bearbeiten";
-                    return r.kind === "REZEPT" ? "Rezept-Vorlage bearbeiten" : "Attest-Vorlage bearbeiten";
-                })()
-              : "";
-
     const sidePanel = (() => {
         if (editorSpec && canWrite) {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={editorTitle}
-                        subtitle="Eingebettet auf dieser Seite (gleiches Prinzip wie „Neues Rezept“ hier — kein separater Editor-Pfad nötig)"
+                        subtitle={t("page.vorlagen.editor.subtitle")}
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                         {editorSpec.type === "new" ? (
@@ -179,7 +187,7 @@ export function VorlagenRezepteAttestePage() {
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={r.titel}
-                        subtitle={r.kind === "REZEPT" ? "Rezept-Vorlage" : "Attest-Vorlage"}
+                        subtitle={r.kind === "REZEPT" ? t("page.vorlagen.detail.rezept") : t("page.vorlagen.detail.attest")}
                         action={
                             canWrite ? (
                                 <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -189,17 +197,17 @@ export function VorlagenRezepteAttestePage() {
                                         variant="secondary"
                                         onClick={() => openEdit(r)}
                                     >
-                                        <EditIcon size={14} /> Bearbeiten
+                                        <EditIcon size={14} /> {t("common.edit")}
                                     </Button>
                                     <Button type="button" variant="danger" size="sm" onClick={() => setDeleteId(r.id)}>
-                                        <TrashIcon size={14} /> Löschen
+                                        <TrashIcon size={14} /> {t("common.delete")}
                                     </Button>
                                 </div>
                             ) : null
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        <VerwaltungReadField label="Vorschau / Inhalt" value={previewPayload(r)} />
+                        <VerwaltungReadField label={t("page.vorlagen.preview")} value={previewPayload(r)} />
                     </div>
                 </Card>
             );
@@ -207,8 +215,7 @@ export function VorlagenRezepteAttestePage() {
         return (
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    Wählen Sie eine Vorlage in der Tabelle, oder legen Sie mit <strong>Rezept einstellen</strong> bzw.{" "}
-                    <strong>Atteste einstellen</strong> eine neue Vorlage in diesem Bereich an.
+                    {t("page.vorlagen.pick_hint")}
                 </p>
             </Card>
         );
@@ -218,29 +225,25 @@ export function VorlagenRezepteAttestePage() {
         <div className="produkte-page praxis-workspace-page animate-fade-in">
             <ConfirmDialog
                 open={Boolean(deleteId)}
-                title="Löschen bestätigen"
-                message="Möchten Sie diese Vorlage wirklich löschen?"
-                confirmLabel="Ja, löschen"
+                title={t("page.vorlagen.delete.title")}
+                message={t("page.vorlagen.delete.message")}
+                confirmLabel={t("common.yes_delete")}
                 danger
                 onConfirm={() => void doDelete()}
                 onClose={() => setDeleteId(null)}
             />
 
             <VerwaltungPageHeader
-                title="Rezepte und Atteste vordefinieren"
-                subtitle={
-                    <>
-                        Vorlagen für die Patientenakte — Liste links, Rechts: Details oder <strong>Neues Rezept / Attest</strong> in dieser Ansicht (wie Produkte, ohne Extra-Route).
-                    </>
-                }
+                title={t("page.vorlagen.title")}
+                subtitle={t("page.vorlagen.subtitle")}
                 actions={
                     canWrite ? (
                         <>
                             <Button type="button" variant="secondary" onClick={openNewAttest}>
-                                Atteste einstellen
+                                {t("page.vorlagen.new_attest")}
                             </Button>
                             <Button type="button" onClick={openNewRezept}>
-                                Rezept einstellen
+                                {t("page.vorlagen.new_rezept")}
                             </Button>
                         </>
                     ) : null
@@ -253,8 +256,8 @@ export function VorlagenRezepteAttestePage() {
                         <Card className="card-pad">
                             <EmptyState
                                 icon="📋"
-                                title="Keine Vorlagen"
-                                description="Legen Sie eine über die Buttons oben an (öffnet den Editor rechts auf dieser Seite)."
+                                title={t("page.vorlagen.empty.title")}
+                                description={t("page.vorlagen.empty.desc")}
                             />
                         </Card>
                     ) : (
@@ -262,9 +265,9 @@ export function VorlagenRezepteAttestePage() {
                             <table className="tbl produkte-tbl">
                                 <thead>
                                     <tr>
-                                        <th scope="col">Titel</th>
-                                        <th scope="col">Typ</th>
-                                        <th scope="col">Behandlung / Medikation</th>
+                                        <th scope="col">{t("page.vorlagen.col.title")}</th>
+                                        <th scope="col">{t("page.vorlagen.col.type")}</th>
+                                        <th scope="col">{t("page.vorlagen.col.content")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -288,12 +291,12 @@ export function VorlagenRezepteAttestePage() {
                                                 onClick={() => pickRow()}
                                                 onKeyDown={rowKeyDown}
                                                 style={{ cursor: "pointer" }}
-                                                aria-label={`Vorlage ${r.titel} anzeigen`}
+                                                aria-label={tp("page.vorlagen.aria.show", { title: r.titel })}
                                             >
                                                 <td>
                                                     <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.titel}</span>
                                                 </td>
-                                                <td>{r.kind === "REZEPT" ? "Rezept" : "Attest"}</td>
+                                                <td>{r.kind === "REZEPT" ? t("page.vorlagen.type.rezept") : t("page.vorlagen.type.attest")}</td>
                                                 <td style={{ color: "var(--fg-3)", fontSize: 13 }}>{previewPayload(r)}</td>
                                             </tr>
                                         );

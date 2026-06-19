@@ -36,6 +36,7 @@
                 "./src/systems/company-portal/*"
             ],
             "@medoc/shared/*": ["../../packages/shared/src/*"],
+            "#shared-locales/*": ["../../packages/shared/locales/*"],
             "@medoc/ui/*": ["../../packages/ui/src/*"],
             "@medoc/system-practice/*": ["../../packages/app/practice-host/src/*"],
             "@medoc/system-lan/*": ["../../packages/server/lan/src/*"],
@@ -45,7 +46,8 @@
     },
     "include": [
         "src",
-        "../../packages/**/src"
+        "../../packages/**/src",
+        "../../packages/shared/locales/**/*.json"
     ],
     "exclude": [
         "src/**/*.test.ts",

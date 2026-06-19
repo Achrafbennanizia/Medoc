@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "@/systems/practice-host/controllers/auth.controller";
+import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.controller";
 import { BREAK_GLASS_ENABLED, TOTP_2FA_ENABLED } from "@/lib/mvp-security-config";
 import {
     confirmTotpEnrollmentLogin,
@@ -39,7 +39,7 @@ function persistRememberMe(remember: boolean, email: string) {
     }
 }
 
-function formatLoginError(err: unknown, rateLimitedMsg: string): string {
+function formatLoginError(err: unknown, rateLimitedMsg: string, failedMsg: string): string {
     const raw =
         typeof err === "string" ? err : err instanceof Error ? err.message : (() => {
             try {
@@ -63,7 +63,7 @@ function formatLoginError(err: unknown, rateLimitedMsg: string): string {
     try {
         return JSON.stringify(err);
     } catch {
-        return "Anmeldung fehlgeschlagen";
+        return failedMsg;
     }
 }
 
@@ -98,9 +98,9 @@ export function LoginPage() {
     };
 
     const finishLogin = async (totp?: string) => {
-        await login(email, passwort, { ...deviceOpts, totp_code: totp });
+        const session = await login(email, passwort, { ...deviceOpts, totp_code: totp });
         persistRememberMe(rememberMe, email);
-        navigate("/");
+        navigate(await postLoginPath(session));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -137,7 +137,7 @@ export function LoginPage() {
                 throw err;
             }
         } catch (err) {
-            setError(formatLoginError(err, t("login.rate_limited")));
+            setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
         } finally {
             setLoading(false);
         }
@@ -150,7 +150,7 @@ export function LoginPage() {
             const dto = await startTotpEnrollmentLogin(email, passwort);
             setEnrollment(dto);
         } catch (err) {
-            setError(formatLoginError(err, t("login.rate_limited")));
+            setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
         } finally {
             setLoading(false);
         }
@@ -169,10 +169,10 @@ export function LoginPage() {
                     className="login-window-chrome"
                     data-tauri-drag-region
                     onMouseDown={handleMacWindowDrag}
-                    aria-label="Fenster verschieben"
+                    aria-label={t("login.window_drag_aria")}
                 >
                     <span className="login-window-chrome__hint" aria-hidden>
-                        MeDoc
+                        {t("login.brand")}
                     </span>
                 </header>
             ) : null}
@@ -187,19 +187,19 @@ export function LoginPage() {
                         <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "grid", placeItems: "center" }}>
                             <PinIcon size={18} />
                         </div>
-                        <div style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>MeDoc <span style={{ opacity: 0.6, fontWeight: 400 }}>Praxisverwaltung</span></div>
+                        <div style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>{t("login.brand")} <span style={{ opacity: 0.6, fontWeight: 400 }}>{t("login.brand_subtitle")}</span></div>
                     </div>
                     <div style={{ marginTop: 48 }}>
                         <h1 style={{ fontSize: 44, fontWeight: 700, letterSpacing: "-0.03em", margin: "0 0 14px", maxWidth: 460, lineHeight: 1.05 }}>
-                            Behandeln Sie Patienten — nicht Software.
+                            {t("login.hero_title")}
                         </h1>
                         <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", maxWidth: 460, lineHeight: 1.55 }}>
-                            Termine, Akten, Abrechnung und Rezepte in einer ruhigen, fokussierten Oberfläche.
+                            {t("login.hero_subtitle")}
                         </p>
                     </div>
                 </div>
                 <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18, flexWrap: "wrap" }}>
-                    <span>Build {import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE}</span>
+                    <span>{t("login.build")} {import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE}</span>
                 </div>
             </div>
 
@@ -211,21 +211,20 @@ export function LoginPage() {
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
                         <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }} tabIndex={-1}>
-                            Anmelden
+                            {t("auth.login")}
                         </h2>
                         {import.meta.env.DEV ? (
                             <span
                                 className="pill solid-amber"
-                                title="Nur in Entwicklungs-Builds sichtbar"
+                                title={t("login.dev_badge_title")}
                                 style={{ fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase" }}
                             >
-                                Dev-Build
+                                {t("login.dev_badge")}
                             </span>
                         ) : null}
                     </div>
                     <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 28 }}>
-                        Die Rolle entsteht ausschließlich aus Ihrem Benutzerkonto nach erfolgreicher Anmeldung — nicht über
-                        Einstellungen auf dieser Seite.
+                        {t("login.role_hint")}
                     </p>
                     {error && (
                         <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
@@ -235,25 +234,24 @@ export function LoginPage() {
                     {TOTP_2FA_ENABLED && step === "enroll" ? (
                         <>
                             <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
-                                Als Arzt ist die Zwei-Faktor-Authentifizierung Pflicht. Scannen Sie den Schlüssel in Ihrer
-                                Authenticator-App (z. B. FreeOTP, Google Authenticator).
+                                {t("login.totp_enroll_body")}
                             </p>
                             {!enrollment ? (
                                 <button type="button" className="btn btn-secondary" disabled={loading} onClick={() => void handleStartEnroll()}>
-                                    Einrichtung starten
+                                    {t("login.totp_start_setup")}
                                 </button>
                             ) : (
                                 <>
                                     <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
-                                        Manueller Schlüssel: <code>{enrollment.secret_base32}</code>
+                                        {t("login.totp_manual_key")} <code>{enrollment.secret_base32}</code>
                                     </p>
                                     <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
-                                        <a href={enrollment.provisioning_uri}>otpauth://-Link öffnen</a>
+                                        <a href={enrollment.provisioning_uri}>{t("login.totp_otpauth_link")}</a>
                                     </p>
-                                    <label htmlFor="enroll-code" className="form-label">Bestätigungscode</label>
+                                    <label htmlFor="enroll-code" className="form-label">{t("login.totp_confirm_code")}</label>
                                     {import.meta.env.DEV ? (
                                         <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
-                                            Dev-Build: <code>1234</code> reicht — kein Authenticator nötig.
+                                            {t("login.dev_totp_hint").replace("{code}", "1234")}
                                         </p>
                                     ) : null}
                                     <input
@@ -279,19 +277,19 @@ export function LoginPage() {
                                     setEnrollCode("");
                                 }}
                             >
-                                Zurück
+                                {t("common.back")}
                             </button>
                         </>
                     ) : null}
                     {TOTP_2FA_ENABLED && step === "totp" ? (
                         <>
                             <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
-                                Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.
+                                {t("login.totp_verify_body")}
                                 {import.meta.env.DEV ? (
-                                    <> Dev-Build: alternativ <code>1234</code> eingeben.</>
+                                    <> {t("login.dev_totp_alt").replace("{code}", "1234")}</>
                                 ) : null}
                             </p>
-                            <label htmlFor="totp-code" className="form-label">Authenticator-Code</label>
+                            <label htmlFor="totp-code" className="form-label">{t("login.totp_code_label")}</label>
                             <input
                                 id="totp-code"
                                 className="input-edit"
@@ -313,23 +311,23 @@ export function LoginPage() {
                                     setTotpCode("");
                                 }}
                             >
-                                Zurück
+                                {t("common.back")}
                             </button>
                         </>
                     ) : null}
                     {step === "credentials" ? (
                     <>
-                    <label htmlFor="email" className="form-label">E-Mail</label>
+                    <label htmlFor="email" className="form-label">{t("auth.email")}</label>
                     <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-                        <label htmlFor="passwort" className="form-label form-label--mb-0">Passwort</label>
+                        <label htmlFor="passwort" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button
                             type="button"
                             aria-describedby="login-teaser-hint"
-                            onClick={() => setHelperMsg("Passwort zurücksetzen ist für diese Demonstrator-Version nicht angebunden. In einer Ausbaustufe: Anbindung an Praxis-IT oder Selbstservice.")}
+                            onClick={() => setHelperMsg(t("login.password_reset_hint"))}
                             style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}
                         >
-                            Vergessen? <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>(demnächst)</span>
+                            {t("login.password_forgot")} <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>{t("login.password_forgot_soon")}</span>
                         </button>
                     </div>
                     <div className="input login-password-input-row" style={{ marginBottom: 8 }}>
@@ -363,7 +361,7 @@ export function LoginPage() {
                     <div className="row" style={{ marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5, flexWrap: "wrap", gap: 8 }}>
                         <label className="row" style={{ gap: 8 }}>
                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-                            E-Mail auf diesem Gerät merken (nur lokal, für die nächste Anmeldung vorbefüllen)
+                            {t("login.remember_email")}
                         </label>
                     </div>
                     </>
@@ -386,13 +384,13 @@ export function LoginPage() {
                             />
                         ) : null}
                         {TOTP_2FA_ENABLED && step === "totp"
-                            ? "Code prüfen"
+                            ? t("login.submit_verify_code")
                             : TOTP_2FA_ENABLED && step === "enroll"
-                              ? "Einrichtung abschließen"
-                              : "Anmelden"}
+                              ? t("login.submit_complete_setup")
+                              : t("auth.login")}
                     </button>
                     <p id="login-teaser-hint" className="sr-only">
-                        Zertifizierungs- und Infrastruktur-Claims erscheinen nur, wenn sie produktiv hinterlegt sind.
+                        {t("login.cert_hint_sr")}
                     </p>
                     {helperMsg ? (
                         <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
@@ -406,8 +404,7 @@ export function LoginPage() {
                 </form>
                 {import.meta.env.DEV && (
                     <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.45 }}>
-                        <strong>Dev-Build:</strong> Anmeldedaten stammen aus Ihrer lokalen Datenbank (Seed-/Fixture-SQL oder
-                        manuell angelegter Benutzer) — es gibt hier keine fest eingetragenen Demo-Passwörter.
+                        <strong>{t("login.dev_badge")}:</strong> {t("login.dev_db_hint")}
                     </p>
                 )}
             </div>

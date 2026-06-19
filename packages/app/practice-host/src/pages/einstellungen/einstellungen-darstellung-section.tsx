@@ -13,6 +13,7 @@ import {
     FONT_STACK_PREVIEW_FAMILY,
 } from "@/lib/font-stack-preset";
 import type { Locale } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { DARK_SIDEBAR_SETTINGS_ENABLED } from "@/lib/settings-ui-flags";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -43,24 +44,33 @@ export function EinstellungenDarstellungSection({
     onPersistClient,
 }: EinstellungenDarstellungSectionProps) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
+
+    const colorSchemeHint =
+        colorSchemePref === "system"
+            ? t("settings.appearance.color_scheme.system")
+            : colorSchemePref === "dark"
+              ? t("settings.appearance.color_scheme.dark")
+              : t("settings.appearance.color_scheme.light");
+
+    const densityOptions = [
+        { id: "cozy" as const, label: t("settings.density.comfortable") },
+        { id: "compact" as const, label: t("settings.density.compact") },
+        { id: "spacious" as const, label: t("settings.density.spacious") },
+    ];
 
     return (
         <section className="settings-subcard settings-subcard--segment-safe">
             <div className="card-head">
-                <div className="card-title">Darstellung</div>
+                <div className="card-title">{t("settings.appearance.title")}</div>
             </div>
             <div className="settings-row settings-row--wrap">
                 <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                    <b>Erscheinungsbild</b>
-                    <div className="card-sub">
-                        {colorSchemePref === "system"
-                            ? "Folgt Hell/Dunkel der Systemeinstellung"
-                            : colorSchemePref === "dark"
-                              ? "Dunkle Oberfläche in der gesamten App"
-                              : "Helle Oberfläche"}
-                    </div>
+                    <b>{t("settings.appearance.color_scheme.label")}</b>
+                    <div className="card-sub">{colorSchemeHint}</div>
                 </div>
-                <div className="settings-lang-seg" role="group" aria-label="Erscheinungsbild">
+                <div className="settings-lang-seg" role="group" aria-label={t("settings.appearance.color_scheme.aria")}>
                     <button
                         type="button"
                         className={`settings-lang-seg__btn${colorSchemePref === "light" ? " is-active" : ""}`}
@@ -71,7 +81,7 @@ export function EinstellungenDarstellungSection({
                             })
                         }
                     >
-                        Hell
+                        {t("settings.appearance.theme.light")}
                     </button>
                     <button
                         type="button"
@@ -83,7 +93,7 @@ export function EinstellungenDarstellungSection({
                             })
                         }
                     >
-                        Dunkel
+                        {t("settings.appearance.theme.dark")}
                     </button>
                     <button
                         type="button"
@@ -95,22 +105,22 @@ export function EinstellungenDarstellungSection({
                             })
                         }
                     >
-                        System
+                        {t("settings.appearance.theme.system")}
                     </button>
                 </div>
             </div>
             {DARK_SIDEBAR_SETTINGS_ENABLED ? (
                 <div className="settings-row">
                     <div>
-                        <b>Dunkle Seitenleiste</b>
+                        <b>{t("settings.appearance.dark_sidebar")}</b>
                         <div className="card-sub">
                             {resolvedTheme === "dark"
-                                ? "Bei dunklem Erscheinungsbild immer aktiv"
-                                : "Nur die linke Navigation dunkel darstellen"}
+                                ? t("settings.appearance.dark_sidebar.forced")
+                                : t("settings.appearance.dark_sidebar.optional")}
                         </div>
                     </div>
                     <SettingsSwitch
-                        ariaLabel="Dunkle Seitenleiste"
+                        ariaLabel={t("settings.appearance.dark_sidebar.aria")}
                         disabled={resolvedTheme === "dark"}
                         checked={appearance.darkSidebar}
                         onChange={() =>
@@ -124,10 +134,10 @@ export function EinstellungenDarstellungSection({
             ) : null}
             <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
                 <div>
-                    <b>Schriftart</b>
+                    <b>{t("settings.appearance.font")}</b>
                     <div className="card-sub">{FONT_STACK_HINTS[fontStack]}</div>
                 </div>
-                <div className="settings-font-seg" role="group" aria-label="Schriftart" style={{ width: "100%", justifyContent: "stretch" }}>
+                <div className="settings-font-seg" role="group" aria-label={t("settings.appearance.font")} style={{ width: "100%", justifyContent: "stretch" }}>
                     {FONT_STACK_ORDER.map((id) => (
                         <button
                             key={id}
@@ -141,12 +151,12 @@ export function EinstellungenDarstellungSection({
                                     const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, fontStack: id } });
                                 });
-                                toast(`Schrift: ${FONT_STACK_LABELS[id]}`, "success");
+                                toast(tp("settings.appearance.toast.font", { label: FONT_STACK_LABELS[id] }), "success");
                             }}
                         >
                             <span className="settings-font-seg__label">{FONT_STACK_LABELS[id]}</span>
                             <span className="settings-font-seg__sample" aria-hidden>
-                                Patient · 14 pt
+                                {t("settings.appearance.font.sample")}
                             </span>
                         </button>
                     ))}
@@ -154,17 +164,11 @@ export function EinstellungenDarstellungSection({
             </div>
             <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
                 <div>
-                    <b>Dichte</b>
-                    <div className="card-sub">Gemütlich · Kompakt · Weit — aktuell {densityLabel}</div>
+                    <b>{t("settings.appearance.density")}</b>
+                    <div className="card-sub">{tp("settings.appearance.density.current", { label: densityLabel })}</div>
                 </div>
-                <div className="settings-density-seg" role="group" aria-label="Raster-Dichte" style={{ width: "100%", justifyContent: "stretch" }}>
-                    {(
-                        [
-                            { id: "cozy" as const, label: "Gemütlich" },
-                            { id: "compact" as const, label: "Kompakt" },
-                            { id: "spacious" as const, label: "Weit" },
-                        ] as const
-                    ).map((opt) => (
+                <div className="settings-density-seg" role="group" aria-label={t("settings.appearance.density.aria")} style={{ width: "100%", justifyContent: "stretch" }}>
+                    {densityOptions.map((opt) => (
                         <button
                             key={opt.id}
                             type="button"
@@ -176,7 +180,7 @@ export function EinstellungenDarstellungSection({
                                     const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, density: opt.id } });
                                 });
-                                toast(`Dichte: ${opt.label}`, "info");
+                                toast(tp("settings.appearance.toast.density", { label: opt.label }), "info");
                             }}
                         >
                             {opt.label}
@@ -186,26 +190,32 @@ export function EinstellungenDarstellungSection({
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Sprache</b>
-                    <div className="card-sub">Oberfläche</div>
+                    <b>{t("settings.appearance.language")}</b>
+                    <div className="card-sub">{t("settings.appearance.language.ui")}</div>
                 </div>
-                <div className="settings-lang-seg" role="group" aria-label="Sprache">
+                <div className="settings-lang-seg" role="group" aria-label={t("settings.appearance.language.aria")}>
                     <button type="button" className={`settings-lang-seg__btn${locale === "de" ? " is-active" : ""}`} onClick={() => onLocaleChange("de")}>
                         DE
                     </button>
                     <button type="button" className={`settings-lang-seg__btn${locale === "en" ? " is-active" : ""}`} onClick={() => onLocaleChange("en")}>
                         EN
                     </button>
+                    <button type="button" className={`settings-lang-seg__btn${locale === "fr" ? " is-active" : ""}`} onClick={() => onLocaleChange("fr")}>
+                        FR
+                    </button>
+                    <button type="button" className={`settings-lang-seg__btn${locale === "ar" ? " is-active" : ""}`} onClick={() => onLocaleChange("ar")}>
+                        AR
+                    </button>
                 </div>
             </div>
             <div className="settings-row settings-row--wrap settings-row--accent">
                 <div className="settings-row-clickable__label">
-                    <b>Akzentfarbe</b>
+                    <b>{t("settings.appearance.accent")}</b>
                     <div className="settings-row-muted">
-                        {ACCENT_LABELS[accentPresetId]} · Buttons, Links und Fokus
+                        {tp("settings.appearance.accent.hint", { label: ACCENT_LABELS[accentPresetId] })}
                     </div>
                 </div>
-                <div role="radiogroup" aria-label="Akzentfarbe" className="settings-accent-inline">
+                <div role="radiogroup" aria-label={t("settings.appearance.accent.aria")} className="settings-accent-inline">
                     {ACCENT_ORDER.map((id: AccentId) => (
                         <button
                             key={id}
@@ -222,7 +232,7 @@ export function EinstellungenDarstellungSection({
                                     const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, accentPreset: id } });
                                 });
-                                toast(`Akzent: ${ACCENT_LABELS[id]}`, "success");
+                                toast(tp("settings.appearance.toast.accent", { label: ACCENT_LABELS[id] }), "success");
                             }}
                         />
                     ))}

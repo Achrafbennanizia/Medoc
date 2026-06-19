@@ -1,6 +1,66 @@
 # Validation ledger
 
-**Last updated:** 2026-06-16 (v1 pre-commit gates)
+**Last updated:** 2026-06-18 (Full UI i18n program)
+
+## Full UI i18n program — verified (2026-06-18, continued)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity | `npm run i18n:verify` | **PASS** — 1632 keys × 4 locales |
+| Hardcoded scan | `node scripts/i18n-scan-hardcoded.mjs` | **PASS** — 0 new vs baseline (345 hits frozen) |
+| Onboarding i18n | `titleKey`/`bodyKey` in `onboarding.ts` + coachmark | **DONE** |
+| Frontend build | `npm run build` | **PASS** |
+
+**Follow-up fixes:** onboarding coachmark, praxis billing labels, deployment section labels, workflows section scan hits, scanner false-positive skip for `Termin[]` types, baseline refreshed 423→345.
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program initial)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity | `npm run i18n:verify` | **PASS** — 1545 keys × 4 locales (de/en/fr/ar) |
+| Locale unit tests | `npm test -- packages/shared/src/lib/i18n-locales.test.ts` | **PASS** (5 tests, incl. RTL helper) |
+| Hardcoded German baseline | `node scripts/i18n-scan-hardcoded.mjs --baseline` | **BASELINE** — 423 hits (CI fails on new hits only) |
+| Frontend tests | `npm test` | **PASS** (245 tests) |
+| Frontend build | `npm run build` | **PASS** |
+| Rust ValidationCode | `cargo test -p medoc-practice` | **PASS** (compiles; LAN HTTP maps `ValidationCode`) |
+| Docs | `docs/i18n.md` | **ADDED** |
+
+**Delivered:** i18next + JSON catalogs; command palette `titleKey`; breadcrumb keys; packages/ui a11y; high-traffic practice pages; LAN/company server pages; packages/app settings + patient detail; RTL CSS + Arabic font; `AppError::ValidationCode` + `ipc-errors.ts`; error.* keys for work_time/auth/praxis_aufgabe.
+
+**Remaining (non-blocking):** ~423 baseline hardcoded German hits in lower-traffic pages/components; full Rust `Validation` → code migration outside high-traffic commands.
+
+---
+
+**Prior last updated:** 2026-06-18 (Work-Time program)
+
+## Work-Time program — verified (2026-06-18)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust build | `cargo build -p medoc-practice` | **PASS** |
+| work_time unit tests | `cargo test -p medoc-practice --lib work_time` | **PASS** (2 tests) |
+| Invoke registry | `cargo test -p medoc-practice --test invoke_command_registry_tests` + `cargo test -p medoc --test invoke_registration_tests` | **PASS** (294 handlers) |
+| Frontend | `npm test` + `npm run build` | **PASS** (242 tests) |
+
+---
+
+**Prior last updated:** 2026-06-16 (staff quota trigger DDL)
+
+## Staff quota trigger DDL — verified (2026-06-16)
+
+| Item | Command | Result |
+| ---- | ------- | ------ |
+| Trigger DDL unit tests | `cargo test -p medoc-core staff_quota_trigger_ddl` | **PASS** (3 tests) |
+| Staff quota integration | `cargo test -p medoc-core --test staff_quota_tests` | **PASS** (13 tests) |
+| MVP security gates | `cargo test -p medoc-core --test mvp_security_gates_tests` | **PASS** (7 tests) |
+
+`reinstall_staff_quota_db_triggers` DROP+CREATEs triggers from `staff_quota_limits()`; fingerprint in `app_kv` `mvp.staff_quota.limits.v1`.
+
+---
+
+**Prior last updated:** 2026-06-16 (v1 pre-commit gates)
 
 ## v1 pre-commit gates — verified (2026-06-16)
 

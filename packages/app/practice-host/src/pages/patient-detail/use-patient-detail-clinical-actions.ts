@@ -37,11 +37,10 @@ import type { BehandlungAkteComposerPanelProps } from "@/views/components/behand
 import {
     behandlungHasBillableLeistung,
     openZahlTabAfterBillableBehandlung,
-    openZahlTabAfterBillableUntersuchung,
     type ZahlNewFormState,
 } from "@/lib/billing-open-booking";
-import type { UntersuchungBillingFormState } from "@/views/components/untersuchung-billing-fields";
 import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type BehandFormState = {
@@ -105,8 +104,6 @@ export type UsePatientDetailClinicalActionsArgs = {
     setBehandDeleteId: (v: string | null) => void;
     untersuchungForm: { beschwerden: string; ergebnisse: string; diagnose: string };
     setUntersuchungForm: Dispatch<SetStateAction<{ beschwerden: string; ergebnisse: string; diagnose: string }>>;
-    unterBillingForm: UntersuchungBillingFormState;
-    setUnterBillingForm: Dispatch<SetStateAction<UntersuchungBillingFormState>>;
     setShowUnterComposer: (v: boolean) => void;
     unterEdit: Untersuchung | null;
     setUnterEdit: (v: Untersuchung | null) => void;
@@ -132,6 +129,8 @@ export type UsePatientDetailClinicalActionsArgs = {
 export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalActionsArgs) {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const {
         patientId,
         patient,
@@ -160,8 +159,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         setBehandDeleteId,
         untersuchungForm,
         setUntersuchungForm,
-        unterBillingForm,
-        setUnterBillingForm,
         setShowUnterComposer,
         unterEdit,
         setUnterEdit,
@@ -199,7 +196,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 email: editForm.email || null,
                 adresse: editForm.adresse || null,
             });
-            toast("Patient gespeichert", "success", {
+            toast(t("patient.detail.toast.patient_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
@@ -211,14 +208,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         });
                         await load();
                     } catch (err) {
-                        toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                        toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
                     }
                 },
             });
             setShowEditPatient(false);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -260,7 +257,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             if (behandEditId) {
                 await updateBehandlung({ id: behandEditId, ...payload });
-                toast("Behandlung aktualisiert", "success", {
+                toast(t("patient.detail.toast.behand_updated"), "success", {
                     durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                     onUndo: async () => {
                         if (!prevBh) return;
@@ -268,7 +265,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                             await updateBehandlung(behandlungToUpdatePayload(prevBh));
                             await load();
                         } catch (err) {
-                            toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                            toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
                         }
                     },
                 });
@@ -276,20 +273,20 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             } else {
                 const created = await createBehandlung({ akte_id: akte.id, ...payload });
                 savedBehandlungId = created.id;
-                toast("Behandlung dokumentiert", "success", {
+                toast(t("patient.detail.toast.behand_documented"), "success", {
                     durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                     onUndo: async () => {
                         try {
                             await deleteBehandlung(created.id);
                             await load();
                         } catch (err) {
-                            toast(`Fehler: ${err instanceof Error ? err.message : String(err)}`, "error");
+                            toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
                         }
                     },
                 });
             }
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
             return;
         }
         if (patientId && payload.termin_erforderlich) {
@@ -303,7 +300,9 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                     setPlanNext(merged);
                 } catch (err) {
                     toast(
-                        `Folgetermin-Hinweis: ${err instanceof Error ? err.message : String(err)}`,
+                        tp("patient.detail.toast.followup_hint_failed", {
+                            message: err instanceof Error ? err.message : String(err),
+                        }),
                         "error",
                     );
                 }
@@ -324,38 +323,22 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 setShowZahlComposer,
                 setZahlNewForm,
             });
-            toast(
-                "Abrechnungsbereich geöffnet — offene Buchung wurde angelegt oder ist bereits vorhanden.",
-                "info",
-            );
+            toast(t("patient.detail.toast.billing_area_opened"), "info");
         }
     };
 
     const runSaveBehandlung = () => {
         if (!akte) return;
         if (behandEditId && !behandFormUnlocked) {
-            toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
+            toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
         if (!behandForm.kategorie.trim() || !behandForm.leistungsname.trim()) {
-            toast("Kategorie und Leistungsname auswählen oder eintragen.", "error");
+            toast(t("patient.detail.toast.category_leistung_required"), "error");
             return;
         }
         void persistBehandlungAfterConfirm();
     };
-
-    const parseUnterGesamtkosten = (raw: string): number | null => {
-        const t = raw.trim();
-        if (!t) return null;
-        const n = Number(t.replace(",", "."));
-        return Number.isFinite(n) ? n : null;
-    };
-
-    const unterBillingPayload = () => ({
-        kategorie: unterBillingForm.kategorie.trim() || null,
-        leistungsname: unterBillingForm.leistungsname.trim() || null,
-        gesamtkosten: parseUnterGesamtkosten(unterBillingForm.gesamtkosten),
-    });
 
     const persistUntersuchungCreate = async (data: {
         beschwerden: string;
@@ -363,52 +346,32 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         ergebnisseJson: string;
     }) => {
         if (!akte) return;
-        const billing = unterBillingPayload();
-        const g = billing.gesamtkosten;
-        const billable = behandlungHasBillableLeistung(billing.leistungsname, g);
         try {
             const created = await createUntersuchung({
                 akte_id: akte.id,
                 beschwerden: data.beschwerden.trim() || null,
                 ergebnisse: data.ergebnisseJson.trim() || null,
                 diagnose: data.diagnose.trim() || null,
-                ...billing,
+                kategorie: null,
+                leistungsname: null,
+                gesamtkosten: null,
             });
-            toast("Untersuchung erfasst", "success", {
+            toast(t("patient.detail.toast.untersuchung_captured"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
                         await deleteUntersuchung(created.id);
                         await load();
                     } catch (e) {
-                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
                     }
                 },
             });
             setShowUnterComposer(false);
             setUntersuchungForm({ beschwerden: "", ergebnisse: "", diagnose: "" });
-            setUnterBillingForm({
-                kategorie: "",
-                leistungsname: "",
-                leistungKatalogId: "",
-                gesamtkosten: "",
-            });
             await load();
-            if (sessionRolle === "ARZT" && billable) {
-                openZahlTabAfterBillableUntersuchung({
-                    untersuchungId: created.id,
-                    gesamtkosten: g,
-                    goTab,
-                    setShowZahlComposer,
-                    setZahlNewForm,
-                });
-                toast(
-                    "Abrechnungsbereich geöffnet — offene Buchung wurde angelegt oder ist bereits vorhanden.",
-                    "info",
-                );
-            }
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -434,16 +397,10 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
     }) => {
         if (!unterEdit) return;
         const uid = unterEdit.id;
-        const billing = unterBillingPayload();
-        const g = billing.gesamtkosten;
-        const billable = behandlungHasBillableLeistung(billing.leistungsname, g);
         const prevSnap = {
             beschwerden: unterEdit.beschwerden,
             diagnose: unterEdit.diagnose,
             ergebnisse: unterEdit.ergebnisse,
-            kategorie: unterEdit.kategorie,
-            leistungsname: unterEdit.leistungsname,
-            gesamtkosten: unterEdit.gesamtkosten,
         };
         try {
             await updateUntersuchung({
@@ -451,9 +408,11 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 beschwerden: payload.beschwerden.trim() || null,
                 ergebnisse: payload.ergebnisseJson.trim() || null,
                 diagnose: payload.diagnose.trim() || null,
-                ...billing,
+                kategorie: unterEdit.kategorie ?? null,
+                leistungsname: unterEdit.leistungsname ?? null,
+                gesamtkosten: unterEdit.gesamtkosten ?? null,
             });
-            toast("Untersuchung gespeichert", "success", {
+            toast(t("patient.detail.toast.untersuchung_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
@@ -462,33 +421,20 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                             beschwerden: prevSnap.beschwerden ?? null,
                             ergebnisse: prevSnap.ergebnisse ?? null,
                             diagnose: prevSnap.diagnose ?? null,
-                            kategorie: prevSnap.kategorie ?? null,
-                            leistungsname: prevSnap.leistungsname ?? null,
-                            gesamtkosten: prevSnap.gesamtkosten ?? null,
+                            kategorie: unterEdit.kategorie ?? null,
+                            leistungsname: unterEdit.leistungsname ?? null,
+                            gesamtkosten: unterEdit.gesamtkosten ?? null,
                         });
                         await load();
                     } catch (e) {
-                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
                     }
                 },
             });
             setUnterEdit(null);
             await load();
-            if (sessionRolle === "ARZT" && billable) {
-                openZahlTabAfterBillableUntersuchung({
-                    untersuchungId: uid,
-                    gesamtkosten: g,
-                    goTab,
-                    setShowZahlComposer,
-                    setZahlNewForm,
-                });
-                toast(
-                    "Abrechnungsbereich geöffnet — offene Buchung wurde angelegt oder ist bereits vorhanden.",
-                    "info",
-                );
-            }
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -510,7 +456,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             antworten = JSON.parse(merged || "{}");
         } catch {
-            toast("Anamnese: Ungültiges Datenformat");
+            toast(t("patient.detail.toast.anamnese_invalid"));
             return;
         }
         const rollbackJson = anamneseJson;
@@ -520,7 +466,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             rollbackParsed = JSON.parse(mergeQuickIntoAnamneseJson(rollbackJson, rollbackQuick) || "{}");
         } catch {
-            toast("Anamnese: Ungültiges Datenformat");
+            toast(t("patient.detail.toast.anamnese_invalid"));
             return;
         }
         try {
@@ -529,7 +475,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 antworten,
                 unterschrieben: anamneseSign,
             });
-            toast("Anamnese gespeichert", "success", {
+            toast(t("patient.detail.toast.anamnese_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
@@ -540,7 +486,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         });
                         await load();
                     } catch (e) {
-                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
                     }
                 },
             });
@@ -548,7 +494,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setAnamEditing(false);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -556,11 +502,11 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         if (!behandDeleteId) return;
         try {
             await deleteBehandlung(behandDeleteId);
-            toast("Behandlung gelöscht");
+            toast(t("patient.detail.toast.behand_deleted"));
             setBehandDeleteId(null);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -568,11 +514,11 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         if (!unterDeleteId) return;
         try {
             await deleteUntersuchung(unterDeleteId);
-            toast("Untersuchung gelöscht");
+            toast(t("patient.detail.toast.untersuchung_deleted"));
             setUnterDeleteId(null);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -582,11 +528,11 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             await deletePatient(patientId);
             clearPatientScopedBrowserStorage(patientId);
-            toast("Akte wurde gelöscht");
+            toast(t("patient.detail.toast.akte_deleted"));
             setPatientDeleteOpen(false);
             navigate("/patienten");
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setPatientDeleteBusy(false);
         }
@@ -600,16 +546,16 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, "de"))
             .map((value) => ({ value, label: value }));
-        return [{ value: "", label: "— Kategorie wählen —" }, ...rest];
-    }, [katalog, behandForm.kategorie]);
+        return [{ value: "", label: t("patient.detail.behand.category_pick") }, ...rest];
+    }, [katalog, behandForm.kategorie, t]);
 
     const leistungOptions = useMemo(() => {
         if (!behandForm.kategorie) {
-            return [{ value: "", label: "— zuerst Kategorie wählen —" }];
+            return [{ value: "", label: t("patient.detail.behand.category_first") }];
         }
         const filtered = katalog.filter((k) => k.kategorie === behandForm.kategorie);
-        return [{ value: "", label: "— Leistung wählen —" }, ...filtered.map((k) => ({ value: k.id, label: k.name }))];
-    }, [katalog, behandForm.kategorie]);
+        return [{ value: "", label: t("patient.detail.behand.leistung_pick") }, ...filtered.map((k) => ({ value: k.id, label: k.name }))];
+    }, [katalog, behandForm.kategorie, t]);
 
     const behandlungGroups = useMemo(() => {
         const keyOf = (b: Behandlung) => {
@@ -651,7 +597,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             if (!b) return;
             const bn = (b.behandlungsnummer ?? "").trim();
             if (!bn) {
-                toast("Diese Zeile hat keine B.Nummer — bitte andere Zeile wählen.", "info");
+                toast(t("patient.detail.toast.no_b_number"), "info");
                 return;
             }
             const same = behandlungen.filter((x) => (x.behandlungsnummer ?? "").trim() === bn);
@@ -672,7 +618,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             });
             setSelectedBehandTooth(b.zaehne ?? null);
         },
-        [behandlungen, katalog, toast, setContinueFromBehandlungId, setBehandForm, setSelectedBehandTooth],
+        [behandlungen, katalog, toast, t, setContinueFromBehandlungId, setBehandForm, setSelectedBehandTooth],
     );
 
     const continueBehandlungOptions = useMemo(

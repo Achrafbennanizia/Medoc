@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DocumentKind } from "@/lib/document-template-schema";
@@ -13,13 +14,14 @@ type Props = {
 };
 
 export const PraxisReadinessDialog: FC<Props> = ({ open, documentKind, result, onClose }) => {
+    const t = useT();
     const navigate = useNavigate();
     if (!open || result.ready) return null;
     return (
         <Dialog
             open={open}
             onClose={onClose}
-            title="Praxis-Stammdaten unvollständig"
+            title={t("praxis.readiness.title")}
             footer={
                 <>
                     <Button type="button" variant="secondary" onClick={onClose}>

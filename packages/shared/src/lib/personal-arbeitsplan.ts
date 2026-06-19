@@ -3,7 +3,8 @@
  * Persistenz: localStorage (gleiches Gerät).
  */
 import { addDays, format, getISODay, parseISO, startOfWeek } from "date-fns";
-import { de } from "date-fns/locale";
+import { de as dateFnsDe } from "date-fns/locale/de";
+import type { Locale as DateFnsLocale } from "date-fns";
 import type { PlanPreference } from "./arbeitsplan-preferences";
 import { defaultLayerForScope } from "./arbeitsplan-preferences";
 import type { ArbeitsplanComposeEntry } from "./arbeitsplan-compose";
@@ -295,12 +296,17 @@ export function minToLabel(min: number): string {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export function formatDeDate(ymd: string): string {
+export function formatLocalizedDate(ymd: string, locale: DateFnsLocale): string {
     try {
-        return format(parseISO(ymd), "EEEE, d. MMM yyyy", { locale: de });
+        return format(parseISO(ymd), "EEEE, d. MMM yyyy", { locale });
     } catch {
         return ymd;
     }
+}
+
+/** @deprecated Use formatLocalizedDate with dateFnsLocaleFor()/useDateFnsLocale(). */
+export function formatDeDate(ymd: string): string {
+    return formatLocalizedDate(ymd, dateFnsDe);
 }
 
 /** Wochenstart Montag */

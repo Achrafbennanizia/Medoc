@@ -23,7 +23,9 @@ export type VerbundStatusSnapshot = {
 
 type VerbundStore = {
     status: VerbundStatusSnapshot | null;
+    loadError: string | null;
     setStatus: (status: VerbundStatusSnapshot | null) => void;
+    setLoadError: (error: string | null) => void;
     needsOnboarding: () => boolean;
 };
 
@@ -47,10 +49,14 @@ export const VERBUND_STATUS_READY: VerbundStatusSnapshot = {
 
 export const useVerbundStore = create<VerbundStore>((set, get) => ({
     status: null,
+    loadError: null,
     setStatus: (status) => set({ status }),
+    setLoadError: (loadError) => set({ loadError }),
     needsOnboarding: () => {
         const s = get().status;
         if (!s) return true;
-        return !s.licensed && !s.provisioned;
+        if (s.licensed) return false;
+        if (s.provisioned && !s.isOwner) return false;
+        return true;
     },
 }));

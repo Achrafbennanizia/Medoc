@@ -1,0 +1,2044 @@
+{
+  "en": [
+    {
+      "k": "behandlung.composer.catalog_ph",
+      "v": "Aus Katalog waehlen oder frei eintragen"
+    },
+    {
+      "k": "behandlung.delete_title",
+      "v": "Behandlung loeschen"
+    },
+    {
+      "k": "bilanz.no_payments",
+      "v": "Keine Zahlungen."
+    },
+    {
+      "k": "bilanz.toast.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.export_failed",
+      "v": "Export fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.no_csv_rows",
+      "v": "Keine CSV-Zeilen."
+    },
+    {
+      "k": "common.no_data",
+      "v": "Keine Daten."
+    },
+    {
+      "k": "common.no_entries",
+      "v": "Keine Eintraege."
+    },
+    {
+      "k": "common.no_export_data",
+      "v": "Keine Exportdaten."
+    },
+    {
+      "k": "common.no_preview",
+      "v": "Keine Vorschau."
+    },
+    {
+      "k": "common.no_preview_available",
+      "v": "Keine Vorschau verfuegbar."
+    },
+    {
+      "k": "common.not_available_for_role",
+      "v": "— fuer Ihre Rolle nicht verfuegbar"
+    },
+    {
+      "k": "common.open",
+      "v": "Öffnen"
+    },
+    {
+      "k": "common.please_pick_date",
+      "v": "Bitte ein Datum waehlen."
+    },
+    {
+      "k": "common.preview",
+      "v": "Vorschau"
+    },
+    {
+      "k": "common.preview_pdf",
+      "v": "Vorschau (PDF)"
+    },
+    {
+      "k": "common.preview_pdf_only",
+      "v": "Vorschau nur fuer PDF."
+    },
+    {
+      "k": "common.preview_select_sections",
+      "v": "Bereiche waehlen; Vorschau erscheint automatisch."
+    },
+    {
+      "k": "common.role_denied",
+      "v": "Keine Berechtigung"
+    },
+    {
+      "k": "dental.mini.no_findings",
+      "v": "Keine erfassten Befunde."
+    },
+    {
+      "k": "dental.mini.no_treatments",
+      "v": "Keine Behandlungen zu diesem Zahn."
+    },
+    {
+      "k": "discharge.merkblatt.extra_notes",
+      "v": "Zusaetzliche Hinweise / Nachsorge"
+    },
+    {
+      "k": "discharge.merkblatt.intro",
+      "v": "Enthaelt Stammdaten, die letzte dokumentierte Behandlung, einen Auszug der Rezepte sowie den naechsten Termin. Freitextfelder sind optional."
+    },
+    {
+      "k": "discharge.merkblatt.referral",
+      "v": "Überweisung / weiterfuehrende Versorgung"
+    },
+    {
+      "k": "discharge.merkblatt.referral_ph",
+      "v": "z. B. Überweisung an …"
+    },
+    {
+      "k": "discharge.merkblatt.title",
+      "v": "Entlassungs-Merkblatt (PDF)"
+    },
+    {
+      "k": "document.print.no_prescription",
+      "v": "Keine Rezeptdaten."
+    },
+    {
+      "k": "document.print.prescription_title",
+      "v": "Rezept"
+    },
+    {
+      "k": "document.print.signature",
+      "v": "Unterschrift Ärztin/Arzt"
+    },
+    {
+      "k": "export.picker.akte_export_title",
+      "v": "Patientenakte — Export"
+    },
+    {
+      "k": "export.picker.akte_sections_hint",
+      "v": "Bereiche, Format und Speicherort. PDF-Vorschau aktualisiert sich kurz nach Änderungen."
+    },
+    {
+      "k": "export.picker.akte_title",
+      "v": "Export — Patientenakte"
+    },
+    {
+      "k": "export.picker.another_folder",
+      "v": "Anderen Speicherort waehlen …"
+    },
+    {
+      "k": "export.picker.clinical_hint",
+      "v": "Standardpfad und Format pro Dokumentart aus den Export-Einstellungen (falls gesetzt), sonst PDF und Dokumente-Ordner. Strukturierte Vorlage, kein Freitext-HTML."
+    },
+    {
+      "k": "export.picker.default_path",
+      "v": "Standardpfad fuer Exporte"
+    },
+    {
+      "k": "export.picker.hint_akte_template",
+      "v": "Vorlagenwahl ist fuer Akten-PDF noch an die Rendering-Pipeline anzubinden."
+    },
+    {
+      "k": "export.picker.no_patient",
+      "v": "Keine Patientendaten geladen."
+    },
+    {
+      "k": "export.picker.pdf_generating",
+      "v": "PDF wird erzeugt …"
+    },
+    {
+      "k": "export.picker.pdf_preparing",
+      "v": "PDF wird vorbereitet …"
+    },
+    {
+      "k": "export.picker.pick_section",
+      "v": "Bitte mindestens einen Export-Bereich auswaehlen."
+    },
+    {
+      "k": "export.picker.preview_error",
+      "v": "Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.preview_pdf_error",
+      "v": "PDF-Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.settings_default",
+      "v": "Standard aus Einstellungen fuer „{kind}“: {format}"
+    },
+    {
+      "k": "export.preview.html_preview",
+      "v": "HTML-Vorschau"
+    },
+    {
+      "k": "export.preview.pdf_preview",
+      "v": "PDF-Vorschau"
+    },
+    {
+      "k": "export.preview.save_failed",
+      "v": "Speichern fehlgeschlagen: {message}"
+    },
+    {
+      "k": "export.preview.zip_hint",
+      "v": "Archiv ({size}) — Vorschau nicht als Tabelle moeglich. Speichern Sie die Datei und oeffnen Sie sie mit Ihrem Archivprogramm."
+    },
+    {
+      "k": "leistungen.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "leistungen.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "leistungen.empty",
+      "v": "Keine Leistungen vorhanden"
+    },
+    {
+      "k": "migration.device.attach_failed",
+      "v": "Anhaengen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "migration.device.attach_to_record",
+      "v": "An Akte haengen"
+    },
+    {
+      "k": "migration.device.attached",
+      "v": "In Akte abgelegt: {dest}"
+    },
+    {
+      "k": "migration.device.dicom_no_sig",
+      "v": "⚠ Keine DICM-Signatur"
+    },
+    {
+      "k": "migration.device.scan_hint",
+      "v": "Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“."
+    },
+    {
+      "k": "migration.focus.s0_0",
+      "v": "Backup unter „Betrieb“ anlegen und Speicherort dokumentieren."
+    },
+    {
+      "k": "onboarding.license.owner_hint",
+      "v": "Dieses Geraet wird Eigentuemer des Praxis-Verbunds (erster ADMIN-Sitz)."
+    },
+    {
+      "k": "ops.page.import_skipped",
+      "v": "Übersprungen: {count}"
+    },
+    {
+      "k": "page.bestellung.detail.loading",
+      "v": "Bestellung wird geoeffnet…"
+    },
+    {
+      "k": "page.datenschutz.export_desc",
+      "v": "JSON-Auskunft nach Art. 15 DSGVO — Format und Speicherort."
+    },
+    {
+      "k": "page.praxisplanung.link_arbeitstage_desc",
+      "v": "Abwesenheiten, Praxisferien und Feiertage fuer das Team hinterlegen."
+    },
+    {
+      "k": "page.praxisplanung.link_praeferenzen_desc",
+      "v": "Terminregeln, Pufferzeiten und Standardverhalten fuer die Terminuebersicht festlegen."
+    },
+    {
+      "k": "page.praxisplanung.link_sperrzeiten_desc",
+      "v": "Ganze Tage, halbe Tage oder kurzfristige Schliessungen fuer einzelne Daten hinterlegen."
+    },
+    {
+      "k": "page.praxisplanung.subtitle",
+      "v": "Globale Praxis-Vorgaben — die Terminuebersicht nutzt diese Einstellungen statt eines lokalen Pause-Blocks. Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.edit.subtitle",
+      "v": "Änderungen unten speichern — gleiche Felder wie bei neuer Regel."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.hint",
+      "v": "Waehlen Sie eine Sperrzeit in der Tabelle, oder „+ Neue Sperrregel“ fuer die Eingabe hier."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.title",
+      "v": "Keine Sonder-Sperrzeiten"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.loading",
+      "v": "Sperrzeiten werden geladen…"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.subtitle",
+      "v": "Sperrungen fuer die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte)."
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_bilanzen_desc",
+      "v": "Übersicht, Export und Assistent „Neuer Bilanz“."
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_rechnung_title",
+      "v": "Rechnung (PDF)"
+    },
+    {
+      "k": "page.verwaltung_lager.link_bestellstamm_desc",
+      "v": "Lieferanten, Kontakte und Kombinationen fuer „Neue Bestellung“."
+    },
+    {
+      "k": "page.verwaltung_lager.link_produkte_desc",
+      "v": "Material, Artikel und Lager — Bestand und Auswahl fuer Behandlungen."
+    },
+    {
+      "k": "page.verwaltung_lager.link_vertraege_desc",
+      "v": "Miete, Service, Versicherung — laufende Kosten und Dauerauftraege (Ausgabenseite)."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_behandlung_desc",
+      "v": "Kategorien und Leistungen fuer die Patientenakte (Auswahl bei Behandlungen)."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_leistungen_desc",
+      "v": "Katalog und GOZ-orientierte Leistungen, Honorarlogik und Textbausteine."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_vorlagen_desc",
+      "v": "Vordefinierte Rezepte, Attest-Texte und Formulare."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool",
+      "v": "Rezeption (Pool — alle)"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool_created",
+      "v": "Aufgabe an Rezeption (Pool) erstellt."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_private_sent",
+      "v": "Private Aufgabe an Rezeption gesendet."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_title",
+      "v": "Aufgabe an Rezeption"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_typ.abrechnung",
+      "v": "Abrechnung"
+    },
+    {
+      "k": "patient.akte.workflow.fill_doctor_message",
+      "v": "Arzt und Nachricht ausfuellen."
+    },
+    {
+      "k": "patient.akte.workflow.forward_hint",
+      "v": "Ausgewaehlte Ärzt:innen erhalten eine In-App-Meldung mit Link-Kontext zu dieser Akte."
+    },
+    {
+      "k": "patient.akte.workflow.forward_note",
+      "v": "Optionaler Hinweis"
+    },
+    {
+      "k": "patient.akte.workflow.forward_title",
+      "v": "Akte — Review anfragen"
+    },
+    {
+      "k": "patient.akte.workflow.message_ph",
+      "v": "Kurze strukturierte Anfrage an den behandelnden Arzt…"
+    },
+    {
+      "k": "patient.akte.workflow.message_private",
+      "v": "Nur Sie und der gewaehlte Arzt sehen diese Aufgabe (wie ein Chat)."
+    },
+    {
+      "k": "patient.akte.workflow.pick_doctor",
+      "v": "Mindestens einen anderen Arzt auswaehlen."
+    },
+    {
+      "k": "patient.akte.workflow.pool_hint",
+      "v": "Waehlen Sie eine Person fuer eine private Aufgabe — oder „Rezeption (Pool)“ fuer alle an der Rezeption."
+    },
+    {
+      "k": "patient.akte.workflow.ticket_created",
+      "v": "Aufgabe an Arzt erstellt."
+    },
+    {
+      "k": "patient.akte.workflow.ticket_title",
+      "v": "Aufgabe an Arzt"
+    },
+    {
+      "k": "patient.detail.anam.overview",
+      "v": "Übersicht"
+    },
+    {
+      "k": "patient.detail.unter.delete_title",
+      "v": "Untersuchung loeschen"
+    },
+    {
+      "k": "patient.detail.unter.empty",
+      "v": "Keine Untersuchungen."
+    },
+    {
+      "k": "patient.detail.zahl.case_after_save",
+      "v": "Fall nach Speichern (Soll vs. Summe):"
+    },
+    {
+      "k": "patient.detail.zahl.empty",
+      "v": "Keine Zahlungen vorhanden."
+    },
+    {
+      "k": "patient.validation.item_revoked",
+      "v": "Validierung fuer „{label}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.section_revoked",
+      "v": "Validierung fuer „{section}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.stamm_marked",
+      "v": "Stammdaten und Anamnese als geprueft markiert."
+    },
+    {
+      "k": "patient.validation.stamm_revoked",
+      "v": "Validierung fuer Stammdaten und Anamnese zurueckgesetzt."
+    },
+    {
+      "k": "praxis.aufgaben.admin.loading",
+      "v": "Aufgaben werden geladen…"
+    },
+    {
+      "k": "praxis.aufgaben.admin.no_results",
+      "v": "Keine Treffer fuer die aktuelle Filterung."
+    },
+    {
+      "k": "praxis.aufgaben.empty",
+      "v": "Keine Aufgaben"
+    },
+    {
+      "k": "praxis.aufgaben.form.assignee_pool",
+      "v": "Rezeption (Pool)"
+    },
+    {
+      "k": "praxis.aufgaben.status.erledigt_rezeption",
+      "v": "Erledigt (Rezeption)"
+    },
+    {
+      "k": "praxis.aufgaben.subtitle",
+      "v": "Aufgaben anlegen, zuweisen und den Status verfolgen — zentral fuer die Praxisleitung."
+    },
+    {
+      "k": "praxis.aufgaben.typ.abrechnung",
+      "v": "Abrechnung"
+    },
+    {
+      "k": "produkte.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "produkte.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "produkte.empty",
+      "v": "Keine Produkte vorhanden"
+    },
+    {
+      "k": "rezept.edit.saved",
+      "v": "Rezept gespeichert"
+    },
+    {
+      "k": "rezept.edit.subtitle",
+      "v": "AMVV-Felder (PZN, Darreichungsform, Rezepttyp) fuer den PDF-Export."
+    },
+    {
+      "k": "settings.about.check_update_failed",
+      "v": "Update-Pruefung fehlgeschlagen: {message}"
+    },
+    {
+      "k": "settings.about.title",
+      "v": "Über die Anwendung"
+    },
+    {
+      "k": "settings.deployment.ack_break_hint",
+      "v": "Bitte einen Arzt mit Administratorrechten die Störung in der Kopfleiste quittieren lassen."
+    },
+    {
+      "k": "settings.deployment.audit_blocked_body",
+      "v": "HTTPS-Server, Pairing und Speichern sind blockiert, bis die Audit-Störung quittiert wird"
+    },
+    {
+      "k": "settings.deployment.lan_stopped",
+      "v": "Starten Sie den eingebetteten HTTPS-Server, damit Replicas Pairing-Anfragen senden können."
+    },
+    {
+      "k": "settings.deployment.mode.practice_desktop",
+      "v": "Praxis-Desktop (eigenständig)"
+    },
+    {
+      "k": "settings.deployment.mode.practice_desktop_hint",
+      "v": "Lokale Datenbank auf diesem Gerät. Optional: LAN-Server auf demselben Rechner starten."
+    },
+    {
+      "k": "settings.deployment.mode.serverless_peer_hint",
+      "v": "Eigene Datenbank; synchronisiert direkt mit dem Master-Gerät im LAN."
+    },
+    {
+      "k": "settings.deployment.replica_paired",
+      "v": "Gekoppelt — Änderungen werden bei Erreichbarkeit synchronisiert."
+    },
+    {
+      "k": "settings.deployment.replica_unpaired",
+      "v": "Noch nicht gekoppelt. Speichern Sie die Replica-Rolle und folgen Sie dem Kopplungs-Assistenten."
+    },
+    {
+      "k": "settings.deployment.role.master",
+      "v": "Master (Hauptgerät)"
+    },
+    {
+      "k": "settings.deployment.role.master_hint",
+      "v": "Autoritative Praxis-Datenbank. Replicas koppeln sich über Pairing an dieses Gerät."
+    },
+    {
+      "k": "settings.deployment.role.replica",
+      "v": "Replica (Zweitgerät)"
+    },
+    {
+      "k": "settings.geraeteverbund.admin_only",
+      "v": "Geraeteverbund-Administration nur fuer Ärzte auf einem ADMIN-Sitz."
+    },
+    {
+      "k": "settings.geraeteverbund.no_pending",
+      "v": "Keine offenen Kopplungsanfragen."
+    },
+    {
+      "k": "settings.integrations.sso_detail",
+      "v": "Single Sign-On fuer Team"
+    },
+    {
+      "k": "settings.integrations.tk_detail",
+      "v": "Kassenaerztliche Abrechnung via KIM"
+    },
+    {
+      "k": "settings.migration.body",
+      "v": "MVP v0.1: strukturierter CSV-Patientenimport ueber den Assistenten. VDDS/BDT-Vollimport und GDT/DICOM-Live-Import folgen in spaeteren Versionen."
+    },
+    {
+      "k": "settings.notifications.critical_detail",
+      "v": "Lagerbestand, Freigaben ueber 24h"
+    },
+    {
+      "k": "settings.workflows.noshow_label",
+      "v": "No-Show Behandlung"
+    },
+    {
+      "k": "settings.workflows.onboarding_progress",
+      "v": "{steps} Schritte fuer {role}."
+    },
+    {
+      "k": "settings.workflows.onboarding_reset_failed",
+      "v": "Zuruecksetzen fehlgeschlagen: {error}"
+    },
+    {
+      "k": "settings.workflows.tagesabschluss_hint",
+      "v": "Hinweis-Toast auf dem Dashboard (einmal pro Tag)."
+    },
+    {
+      "k": "settings.workflows.termine_default_hint",
+      "v": "Wird beim ersten Öffnen von /termine verwendet; die Ansicht in der Terminuebersicht aktualisiert diesen Standard."
+    },
+    {
+      "k": "untersuchung.billing.service_catalog",
+      "v": "Leistung aus Katalog"
+    },
+    {
+      "k": "untersuchung.billing.service_catalog_pick",
+      "v": "— Leistung aus Katalog —"
+    },
+    {
+      "k": "untersuchung.composer.chief_ph",
+      "v": "Schmerz, Druck, Blutung, Ästhetik, Routine…"
+    },
+    {
+      "k": "untersuchung.composer.save",
+      "v": "Untersuchung speichern"
+    },
+    {
+      "k": "untersuchung.composer.save_changes",
+      "v": "Änderungen speichern"
+    },
+    {
+      "k": "verwaltung.finanzen.subtitle",
+      "v": "Tagesabschluss, Rechnungs-PDF und Bilanzen — Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "verwaltung.leistungen.subtitle",
+      "v": "Leistungstexte, Kataloge fuer die Akte sowie Vorlagen fuer Rezepte und Atteste."
+    },
+    {
+      "k": "verwaltung.team.subtitle",
+      "v": "Personalverwaltung und Arbeitsplan waehlen — Zeile antippen zum Öffnen."
+    },
+    {
+      "k": "vorlage.editor.loading",
+      "v": "Editor wird geladen…"
+    },
+    {
+      "k": "zahlung.create.denied_sub",
+      "v": "Zahlungen mit Zuordnung zu Behandlung/Untersuchung sind fuer Ihre Rolle nicht verfuegbar."
+    },
+    {
+      "k": "zahlung.create.subtitle",
+      "v": "Patient waehlen, offene Behandlung oder Untersuchung zuordnen, Betrag erfassen."
+    }
+  ],
+  "fr": [
+    {
+      "k": "akte.anlagen.apply",
+      "v": "Übernehmen"
+    },
+    {
+      "k": "akte.anlagen.label_in_record",
+      "v": "Bezeichnung in der Akte"
+    },
+    {
+      "k": "anamnese.visual.history_title",
+      "v": "Vorerkrankungen & Anamnese"
+    },
+    {
+      "k": "anamnese.visual.insurance_title",
+      "v": "Versicherung & Zuordnung"
+    },
+    {
+      "k": "behandlung.composer.aria",
+      "v": "Behandlung erfassen"
+    },
+    {
+      "k": "behandlung.composer.catalog_ph",
+      "v": "Aus Katalog waehlen oder frei eintragen"
+    },
+    {
+      "k": "behandlung.composer.continue_hint",
+      "v": "Jede Zeile zeigt B-Nummer, Sitzung, Leistung und Datum. Leistung aus Katalog wird passend zur gewahlten Zeile gesetzt."
+    },
+    {
+      "k": "behandlung.composer.locked_hint",
+      "v": " — Ansicht: „Bearbeiten“ zum Entsperren."
+    },
+    {
+      "k": "behandlung.composer.manage_catalog",
+      "v": "Katalog verwalten"
+    },
+    {
+      "k": "behandlung.composer.notes",
+      "v": "Notizen (Behandlung)"
+    },
+    {
+      "k": "behandlung.composer.plan_next_hint",
+      "v": "Nur wenn ein Folgetermin geplant ist: erscheint automatisch als kompakter Hinweis fur die Rezeption (Dashboard + Neuer Termin), zusatzlich zur Akte „Plan nachsten Termin“."
+    },
+    {
+      "k": "behandlung.composer.save",
+      "v": "Behandlung speichern"
+    },
+    {
+      "k": "behandlung.composer.save_changes",
+      "v": "Änderungen speichern"
+    },
+    {
+      "k": "behandlung.composer.service_catalog",
+      "v": "Leistung aus Katalog"
+    },
+    {
+      "k": "behandlung.composer.title_continue",
+      "v": "Behandlung fortsetzen"
+    },
+    {
+      "k": "behandlung.composer.title_edit",
+      "v": "Behandlung bearbeiten"
+    },
+    {
+      "k": "behandlung.composer.title_new",
+      "v": "Neue Behandlung"
+    },
+    {
+      "k": "behandlung.delete_title",
+      "v": "Behandlung loeschen"
+    },
+    {
+      "k": "bilanz.no_payments",
+      "v": "Keine Zahlungen."
+    },
+    {
+      "k": "bilanz.toast.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.export_failed",
+      "v": "Export fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.no_content_to_save",
+      "v": "Kein Inhalt zum Speichern."
+    },
+    {
+      "k": "common.no_csv_rows",
+      "v": "Keine CSV-Zeilen."
+    },
+    {
+      "k": "common.no_data",
+      "v": "Keine Daten."
+    },
+    {
+      "k": "common.no_entries",
+      "v": "Keine Eintraege."
+    },
+    {
+      "k": "common.no_export_data",
+      "v": "Keine Exportdaten."
+    },
+    {
+      "k": "common.no_file_data",
+      "v": "Keine Dateidaten zum Speichern."
+    },
+    {
+      "k": "common.no_preview",
+      "v": "Keine Vorschau."
+    },
+    {
+      "k": "common.no_preview_available",
+      "v": "Keine Vorschau verfuegbar."
+    },
+    {
+      "k": "common.not_available_for_role",
+      "v": "— fuer Ihre Rolle nicht verfuegbar"
+    },
+    {
+      "k": "common.open",
+      "v": "Öffnen"
+    },
+    {
+      "k": "common.please_pick_date",
+      "v": "Bitte ein Datum waehlen."
+    },
+    {
+      "k": "common.preview",
+      "v": "Vorschau"
+    },
+    {
+      "k": "common.preview_pdf",
+      "v": "Vorschau (PDF)"
+    },
+    {
+      "k": "common.preview_pdf_only",
+      "v": "Vorschau nur fuer PDF."
+    },
+    {
+      "k": "common.preview_select_sections",
+      "v": "Bereiche waehlen; Vorschau erscheint automatisch."
+    },
+    {
+      "k": "common.role_denied",
+      "v": "Keine Berechtigung"
+    },
+    {
+      "k": "dental.mini.no_findings",
+      "v": "Keine erfassten Befunde."
+    },
+    {
+      "k": "dental.mini.no_treatments",
+      "v": "Keine Behandlungen zu diesem Zahn."
+    },
+    {
+      "k": "discharge.merkblatt.extra_notes",
+      "v": "Zusaetzliche Hinweise / Nachsorge"
+    },
+    {
+      "k": "discharge.merkblatt.intro",
+      "v": "Enthaelt Stammdaten, die letzte dokumentierte Behandlung, einen Auszug der Rezepte sowie den naechsten Termin. Freitextfelder sind optional."
+    },
+    {
+      "k": "discharge.merkblatt.referral",
+      "v": "Überweisung / weiterfuehrende Versorgung"
+    },
+    {
+      "k": "discharge.merkblatt.referral_ph",
+      "v": "z. B. Überweisung an …"
+    },
+    {
+      "k": "discharge.merkblatt.title",
+      "v": "Entlassungs-Merkblatt (PDF)"
+    },
+    {
+      "k": "document.print.no_prescription",
+      "v": "Keine Rezeptdaten."
+    },
+    {
+      "k": "document.print.prescription_title",
+      "v": "Rezept"
+    },
+    {
+      "k": "document.print.signature",
+      "v": "Unterschrift Ärztin/Arzt"
+    },
+    {
+      "k": "export.picker.akte_export_title",
+      "v": "Patientenakte — Export"
+    },
+    {
+      "k": "export.picker.akte_sections_hint",
+      "v": "Bereiche, Format und Speicherort. PDF-Vorschau aktualisiert sich kurz nach Änderungen."
+    },
+    {
+      "k": "export.picker.akte_title",
+      "v": "Export — Patientenakte"
+    },
+    {
+      "k": "export.picker.another_folder",
+      "v": "Anderen Speicherort waehlen …"
+    },
+    {
+      "k": "export.picker.clinical_hint",
+      "v": "Standardpfad und Format pro Dokumentart aus den Export-Einstellungen (falls gesetzt), sonst PDF und Dokumente-Ordner. Strukturierte Vorlage, kein Freitext-HTML."
+    },
+    {
+      "k": "export.picker.default_path",
+      "v": "Standardpfad fuer Exporte"
+    },
+    {
+      "k": "export.picker.hint_akte_template",
+      "v": "Vorlagenwahl ist fuer Akten-PDF noch an die Rendering-Pipeline anzubinden."
+    },
+    {
+      "k": "export.picker.no_patient",
+      "v": "Keine Patientendaten geladen."
+    },
+    {
+      "k": "export.picker.pdf_generating",
+      "v": "PDF wird erzeugt …"
+    },
+    {
+      "k": "export.picker.pdf_preparing",
+      "v": "PDF wird vorbereitet …"
+    },
+    {
+      "k": "export.picker.pick_section",
+      "v": "Bitte mindestens einen Export-Bereich auswaehlen."
+    },
+    {
+      "k": "export.picker.preview_error",
+      "v": "Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.preview_pdf_error",
+      "v": "PDF-Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.settings_default",
+      "v": "Standard aus Einstellungen fuer „{kind}“: {format}"
+    },
+    {
+      "k": "export.preview.html_preview",
+      "v": "HTML-Vorschau"
+    },
+    {
+      "k": "export.preview.pdf_preview",
+      "v": "PDF-Vorschau"
+    },
+    {
+      "k": "export.preview.save_failed",
+      "v": "Speichern fehlgeschlagen: {message}"
+    },
+    {
+      "k": "export.preview.zip_hint",
+      "v": "Archiv ({size}) — Vorschau nicht als Tabelle moglich. Speichern Sie die Datei und offnen Sie sie mit Ihrem Archivprogramm."
+    },
+    {
+      "k": "leistungen.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "leistungen.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "leistungen.empty",
+      "v": "Keine Leistungen vorhanden"
+    },
+    {
+      "k": "migration.device.attach_failed",
+      "v": "Anhaengen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "migration.device.attach_to_record",
+      "v": "An Akte haengen"
+    },
+    {
+      "k": "migration.device.attached",
+      "v": "In Akte abgelegt: {dest}"
+    },
+    {
+      "k": "migration.device.dicom_no_sig",
+      "v": "⚠ Keine DICM-Signatur"
+    },
+    {
+      "k": "migration.device.scan_hint",
+      "v": "Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“."
+    },
+    {
+      "k": "migration.focus.s0_0",
+      "v": "Backup unter „Betrieb“ anlegen und Speicherort dokumentieren."
+    },
+    {
+      "k": "onboarding.license.owner_hint",
+      "v": "Dieses Geraet wird Eigentuemer des Praxis-Verbunds (erster ADMIN-Sitz)."
+    },
+    {
+      "k": "onboarding.license.paste_key",
+      "v": "Bitte Lizenzschlussel einfugen."
+    },
+    {
+      "k": "ops.page.import_skipped",
+      "v": "Übersprungen: {count}"
+    },
+    {
+      "k": "page.bestellung.detail.loading",
+      "v": "Bestellung wird geoeffnet…"
+    },
+    {
+      "k": "page.datenschutz.export_desc",
+      "v": "JSON-Auskunft nach Art. 15 DSGVO — Format und Speicherort."
+    },
+    {
+      "k": "page.praxisplanung.subtitle",
+      "v": "Globale Praxis-Vorgaben — die Terminuebersicht nutzt diese Einstellungen statt eines lokalen Pause-Blocks. Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.edit.subtitle",
+      "v": "Änderungen unten speichern — gleiche Felder wie bei neuer Regel."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.hint",
+      "v": "Waehlen Sie eine Sperrzeit in der Tabelle, oder „+ Neue Sperrregel“ fuer die Eingabe hier."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.title",
+      "v": "Keine Sonder-Sperrzeiten"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.loading",
+      "v": "Sperrzeiten werden geladen…"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.subtitle",
+      "v": "Sperrungen fuer die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte)."
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_bilanzen_desc",
+      "v": "Übersicht, Export und Assistent „Neuer Bilanz“."
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_rechnung_title",
+      "v": "Rechnung (PDF)"
+    },
+    {
+      "k": "page.verwaltung_lager.link_bestellstamm_desc",
+      "v": "Lieferanten, Kontakte und Kombinationen fur „Neue Bestellung“."
+    },
+    {
+      "k": "page.verwaltung_lager.link_vertraege_desc",
+      "v": "Miete, Service, Versicherung — laufende Kosten und Dauerauftrage (Ausgabenseite)."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_behandlung_desc",
+      "v": "Kategorien und Leistungen fur die Patientenakte (Auswahl bei Behandlungen)."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_leistungen_desc",
+      "v": "Katalog und GOZ-orientierte Leistungen, Honorarlogik und Textbausteine."
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_vorlagen_desc",
+      "v": "Vordefinierte Rezepte, Attest-Texte und Formulare."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool",
+      "v": "Rezeption (Pool — alle)"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool_created",
+      "v": "Aufgabe an Rezeption (Pool) erstellt."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_private_sent",
+      "v": "Private Aufgabe an Rezeption gesendet."
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_title",
+      "v": "Aufgabe an Rezeption"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_typ.abrechnung",
+      "v": "Abrechnung"
+    },
+    {
+      "k": "patient.akte.workflow.fill_doctor_message",
+      "v": "Arzt und Nachricht ausfullen."
+    },
+    {
+      "k": "patient.akte.workflow.forward_hint",
+      "v": "Ausgewahlte Ärzt:innen erhalten eine In-App-Meldung mit Link-Kontext zu dieser Akte."
+    },
+    {
+      "k": "patient.akte.workflow.forward_note",
+      "v": "Optionaler Hinweis"
+    },
+    {
+      "k": "patient.akte.workflow.forward_title",
+      "v": "Akte — Review anfragen"
+    },
+    {
+      "k": "patient.akte.workflow.message_ph",
+      "v": "Kurze strukturierte Anfrage an den behandelnden Arzt…"
+    },
+    {
+      "k": "patient.akte.workflow.message_private",
+      "v": "Nur Sie und der gewahlte Arzt sehen diese Aufgabe (wie ein Chat)."
+    },
+    {
+      "k": "patient.akte.workflow.pick_doctor",
+      "v": "Mindestens einen anderen Arzt auswahlen."
+    },
+    {
+      "k": "patient.akte.workflow.pool_hint",
+      "v": "Wahlen Sie eine Person fur eine private Aufgabe — oder „Rezeption (Pool)“ fur alle an der Rezeption."
+    },
+    {
+      "k": "patient.akte.workflow.ticket_created",
+      "v": "Aufgabe an Arzt erstellt."
+    },
+    {
+      "k": "patient.akte.workflow.ticket_title",
+      "v": "Aufgabe an Arzt"
+    },
+    {
+      "k": "patient.detail.anam.overview",
+      "v": "Übersicht"
+    },
+    {
+      "k": "patient.detail.unter.delete_title",
+      "v": "Untersuchung loeschen"
+    },
+    {
+      "k": "patient.detail.unter.empty",
+      "v": "Keine Untersuchungen."
+    },
+    {
+      "k": "patient.detail.zahl.case_after_save",
+      "v": "Fall nach Speichern (Soll vs. Summe):"
+    },
+    {
+      "k": "patient.detail.zahl.empty",
+      "v": "Keine Zahlungen vorhanden."
+    },
+    {
+      "k": "patient.validation.item_revoked",
+      "v": "Validierung fuer „{label}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.section_revoked",
+      "v": "Validierung fuer „{section}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.stamm_marked",
+      "v": "Stammdaten und Anamnese als geprueft markiert."
+    },
+    {
+      "k": "patient.validation.stamm_revoked",
+      "v": "Validierung fuer Stammdaten und Anamnese zurueckgesetzt."
+    },
+    {
+      "k": "praxis.aufgaben.admin.loading",
+      "v": "Aufgaben werden geladen…"
+    },
+    {
+      "k": "praxis.aufgaben.admin.no_results",
+      "v": "Keine Treffer fur die aktuelle Filterung."
+    },
+    {
+      "k": "praxis.aufgaben.empty",
+      "v": "Keine Aufgaben"
+    },
+    {
+      "k": "praxis.aufgaben.form.assignee_pool",
+      "v": "Rezeption (Pool)"
+    },
+    {
+      "k": "praxis.aufgaben.status.erledigt_rezeption",
+      "v": "Erledigt (Rezeption)"
+    },
+    {
+      "k": "praxis.aufgaben.subtitle",
+      "v": "Aufgaben anlegen, zuweisen und den Status verfolgen — zentral fuer die Praxisleitung."
+    },
+    {
+      "k": "praxis.aufgaben.typ.abrechnung",
+      "v": "Abrechnung"
+    },
+    {
+      "k": "produkte.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "produkte.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "produkte.empty",
+      "v": "Keine Produkte vorhanden"
+    },
+    {
+      "k": "rezept.edit.saved",
+      "v": "Rezept gespeichert"
+    },
+    {
+      "k": "rezept.edit.subtitle",
+      "v": "AMVV-Felder (PZN, Darreichungsform, Rezepttyp) fuer den PDF-Export."
+    },
+    {
+      "k": "settings.about.check_update_failed",
+      "v": "Update-Pruefung fehlgeschlagen: {message}"
+    },
+    {
+      "k": "settings.about.title",
+      "v": "Über die Anwendung"
+    },
+    {
+      "k": "settings.deployment.ack_break_hint",
+      "v": "Bitte einen Arzt mit Administratorrechten die Storung in der Kopfleiste quittieren lassen."
+    },
+    {
+      "k": "settings.deployment.audit_blocked_body",
+      "v": "HTTPS-Server, Pairing und Speichern sind blockiert, bis die Audit-Storung quittiert wird"
+    },
+    {
+      "k": "settings.deployment.replica_paired",
+      "v": "Gekoppelt — Änderungen werden bei Erreichbarkeit synchronisiert."
+    },
+    {
+      "k": "settings.deployment.replica_unpaired",
+      "v": "Noch nicht gekoppelt. Speichern Sie die Replica-Rolle und folgen Sie dem Kopplungs-Assistenten."
+    },
+    {
+      "k": "settings.geraeteverbund.admin_only",
+      "v": "Geraeteverbund-Administration nur fuer Ärzte auf einem ADMIN-Sitz."
+    },
+    {
+      "k": "settings.geraeteverbund.no_pending",
+      "v": "Keine offenen Kopplungsanfragen."
+    },
+    {
+      "k": "settings.integrations.sso_detail",
+      "v": "Single Sign-On fuer Team"
+    },
+    {
+      "k": "settings.integrations.tk_detail",
+      "v": "Kassenaerztliche Abrechnung via KIM"
+    },
+    {
+      "k": "settings.notifications.critical_detail",
+      "v": "Lagerbestand, Freigaben ueber 24h"
+    },
+    {
+      "k": "settings.workflows.noshow_label",
+      "v": "No-Show Behandlung"
+    },
+    {
+      "k": "settings.workflows.onboarding_reset_failed",
+      "v": "Zurucksetzen fehlgeschlagen: {error}"
+    },
+    {
+      "k": "settings.workflows.tagesabschluss_hint",
+      "v": "Hinweis-Toast auf dem Dashboard (einmal pro Tag)."
+    },
+    {
+      "k": "settings.workflows.termine_default_hint",
+      "v": "Wird beim ersten Öffnen von /termine verwendet; die Ansicht in der Terminubersicht aktualisiert diesen Standard."
+    },
+    {
+      "k": "untersuchung.billing.service_catalog",
+      "v": "Leistung aus Katalog"
+    },
+    {
+      "k": "untersuchung.billing.service_catalog_pick",
+      "v": "— Leistung aus Katalog —"
+    },
+    {
+      "k": "untersuchung.composer.chief_ph",
+      "v": "Schmerz, Druck, Blutung, Ästhetik, Routine…"
+    },
+    {
+      "k": "untersuchung.composer.save",
+      "v": "Untersuchung speichern"
+    },
+    {
+      "k": "untersuchung.composer.save_changes",
+      "v": "Änderungen speichern"
+    },
+    {
+      "k": "untersuchung.composer.sections_aria",
+      "v": "Untersuchung Sektionen"
+    },
+    {
+      "k": "verwaltung.finanzen.subtitle",
+      "v": "Tagesabschluss, Rechnungs-PDF und Bilanzen — Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "verwaltung.leistungen.subtitle",
+      "v": "Leistungstexte, Kataloge fuer die Akte sowie Vorlagen fuer Rezepte und Atteste."
+    },
+    {
+      "k": "verwaltung.team.subtitle",
+      "v": "Personalverwaltung und Arbeitsplan waehlen — Zeile antippen zum Öffnen."
+    },
+    {
+      "k": "vorlage.editor.loading",
+      "v": "Editor wird geladen…"
+    },
+    {
+      "k": "zahlung.create.assignment_hint",
+      "v": "Zuordnung ueber B-Nr. / U-Nr. — bei Behandlungen mit Sollkosten"
+    },
+    {
+      "k": "zahlung.create.denied_sub",
+      "v": "Zahlungen mit Zuordnung zu Behandlung/Untersuchung sind fuer Ihre Rolle nicht verfuegbar."
+    },
+    {
+      "k": "zahlung.create.subtitle",
+      "v": "Patient waehlen, offene Behandlung oder Untersuchung zuordnen, Betrag erfassen."
+    }
+  ],
+  "ar": [
+    {
+      "k": "akte.anlagen.apply",
+      "v": "· Übernehmen ·"
+    },
+    {
+      "k": "akte.anlagen.label_in_record",
+      "v": "· Bezeichnung in der Akte ·"
+    },
+    {
+      "k": "akte.anlagen.open_external",
+      "v": "· Extern öffnen… ·"
+    },
+    {
+      "k": "akte.anlagen.rename",
+      "v": "· Bezeichnung ändern… ·"
+    },
+    {
+      "k": "akte.anlagen.reset_validation",
+      "v": "· Prüfung zurücksetzen ·"
+    },
+    {
+      "k": "akte.anlagen.set_doc_type",
+      "v": "· Dokumenttyp ändern… ·"
+    },
+    {
+      "k": "akte.anlagen.upload_hint",
+      "v": "· Röntgenbilder, Einverständniserklärungen, Fotos · PDF, JPG, PNG, DCM bis 50 MB ·"
+    },
+    {
+      "k": "anamnese.visual.history_title",
+      "v": "· Vorerkrankungen & Anamnese ·"
+    },
+    {
+      "k": "anamnese.visual.insurance_title",
+      "v": "· Versicherung & Zuordnung ·"
+    },
+    {
+      "k": "behandlung.composer.aria",
+      "v": "· Behandlung erfassen ·"
+    },
+    {
+      "k": "behandlung.composer.catalog_ph",
+      "v": "Aus Katalog waehlen oder frei eintragen"
+    },
+    {
+      "k": "behandlung.composer.continue_hint",
+      "v": "· Jede Zeile zeigt B-Nummer, Sitzung, Leistung und Datum. Leistung aus Katalog wird passend zur gewählten Zeile gesetzt. ·"
+    },
+    {
+      "k": "behandlung.composer.followup_yes",
+      "v": "· Ja — Folgetermin nötig ·"
+    },
+    {
+      "k": "behandlung.composer.locked_hint",
+      "v": "·  — Ansicht: „Bearbeiten“ zum Entsperren. ·"
+    },
+    {
+      "k": "behandlung.composer.manage_catalog",
+      "v": "· Katalog verwalten ·"
+    },
+    {
+      "k": "behandlung.composer.notes",
+      "v": "· Notizen (Behandlung) ·"
+    },
+    {
+      "k": "behandlung.composer.plan_next",
+      "v": "· Nächsten Termin planen (optional) ·"
+    },
+    {
+      "k": "behandlung.composer.plan_next_hint",
+      "v": "· Nur wenn ein Folgetermin geplant ist: erscheint automatisch als kompakter Hinweis für die Rezeption (Dashboard + Neuer Termin), zusätzlich zur Akte „Plan nächsten Termin“. ·"
+    },
+    {
+      "k": "behandlung.composer.save",
+      "v": "· Behandlung speichern ·"
+    },
+    {
+      "k": "behandlung.composer.save_changes",
+      "v": "· Änderungen speichern ·"
+    },
+    {
+      "k": "behandlung.composer.service_catalog",
+      "v": "· Leistung aus Katalog ·"
+    },
+    {
+      "k": "behandlung.composer.title_continue",
+      "v": "· Behandlung fortsetzen ·"
+    },
+    {
+      "k": "behandlung.composer.title_edit",
+      "v": "· Behandlung bearbeiten ·"
+    },
+    {
+      "k": "behandlung.composer.title_new",
+      "v": "· Neue Behandlung ·"
+    },
+    {
+      "k": "behandlung.delete_title",
+      "v": "Behandlung loeschen"
+    },
+    {
+      "k": "bilanz.no_payments",
+      "v": "Keine Zahlungen."
+    },
+    {
+      "k": "bilanz.toast.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.delete_failed",
+      "v": "Loeschen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.export_failed",
+      "v": "Export fehlgeschlagen: {message}"
+    },
+    {
+      "k": "common.no_content_to_save",
+      "v": "· Kein Inhalt zum Speichern. ·"
+    },
+    {
+      "k": "common.no_csv_rows",
+      "v": "Keine CSV-Zeilen."
+    },
+    {
+      "k": "common.no_data",
+      "v": "Keine Daten."
+    },
+    {
+      "k": "common.no_entries",
+      "v": "Keine Eintraege."
+    },
+    {
+      "k": "common.no_export_data",
+      "v": "Keine Exportdaten."
+    },
+    {
+      "k": "common.no_file_data",
+      "v": "· Keine Dateidaten zum Speichern. ·"
+    },
+    {
+      "k": "common.no_preview",
+      "v": "Keine Vorschau."
+    },
+    {
+      "k": "common.no_preview_available",
+      "v": "Keine Vorschau verfuegbar."
+    },
+    {
+      "k": "common.no_print_preview",
+      "v": "· Für diesen Export ist keine Druckvorschau verfügbar. ·"
+    },
+    {
+      "k": "common.not_available_for_role",
+      "v": "— fuer Ihre Rolle nicht verfuegbar"
+    },
+    {
+      "k": "common.open",
+      "v": "Öffnen"
+    },
+    {
+      "k": "common.please_pick_date",
+      "v": "Bitte ein Datum waehlen."
+    },
+    {
+      "k": "common.preview",
+      "v": "Vorschau"
+    },
+    {
+      "k": "common.preview_pdf",
+      "v": "Vorschau (PDF)"
+    },
+    {
+      "k": "common.preview_pdf_only",
+      "v": "Vorschau nur fuer PDF."
+    },
+    {
+      "k": "common.preview_select_sections",
+      "v": "Bereiche waehlen; Vorschau erscheint automatisch."
+    },
+    {
+      "k": "common.role_denied",
+      "v": "Keine Berechtigung"
+    },
+    {
+      "k": "dental.mini.no_findings",
+      "v": "Keine erfassten Befunde."
+    },
+    {
+      "k": "dental.mini.no_treatments",
+      "v": "Keine Behandlungen zu diesem Zahn."
+    },
+    {
+      "k": "discharge.merkblatt.extra_notes",
+      "v": "Zusaetzliche Hinweise / Nachsorge"
+    },
+    {
+      "k": "discharge.merkblatt.intro",
+      "v": "Enthaelt Stammdaten, die letzte dokumentierte Behandlung, einen Auszug der Rezepte sowie den naechsten Termin. Freitextfelder sind optional."
+    },
+    {
+      "k": "discharge.merkblatt.referral",
+      "v": "Überweisung / weiterfuehrende Versorgung"
+    },
+    {
+      "k": "discharge.merkblatt.referral_ph",
+      "v": "z. B. Überweisung an …"
+    },
+    {
+      "k": "discharge.merkblatt.title",
+      "v": "Entlassungs-Merkblatt (PDF)"
+    },
+    {
+      "k": "document.print.no_prescription",
+      "v": "Keine Rezeptdaten."
+    },
+    {
+      "k": "document.print.prescription_title",
+      "v": "Rezept"
+    },
+    {
+      "k": "document.print.signature",
+      "v": "Unterschrift Ärztin/Arzt"
+    },
+    {
+      "k": "export.picker.akte_export_title",
+      "v": "Patientenakte — Export"
+    },
+    {
+      "k": "export.picker.akte_sections_hint",
+      "v": "Bereiche, Format und Speicherort. PDF-Vorschau aktualisiert sich kurz nach Änderungen."
+    },
+    {
+      "k": "export.picker.akte_title",
+      "v": "Export — Patientenakte"
+    },
+    {
+      "k": "export.picker.another_folder",
+      "v": "Anderen Speicherort waehlen …"
+    },
+    {
+      "k": "export.picker.clinical_hint",
+      "v": "Standardpfad und Format pro Dokumentart aus den Export-Einstellungen (falls gesetzt), sonst PDF und Dokumente-Ordner. Strukturierte Vorlage, kein Freitext-HTML."
+    },
+    {
+      "k": "export.picker.default_path",
+      "v": "Standardpfad fuer Exporte"
+    },
+    {
+      "k": "export.picker.hint_akte_template",
+      "v": "Vorlagenwahl ist fuer Akten-PDF noch an die Rendering-Pipeline anzubinden."
+    },
+    {
+      "k": "export.picker.no_patient",
+      "v": "Keine Patientendaten geladen."
+    },
+    {
+      "k": "export.picker.pdf_generating",
+      "v": "PDF wird erzeugt …"
+    },
+    {
+      "k": "export.picker.pdf_preparing",
+      "v": "PDF wird vorbereitet …"
+    },
+    {
+      "k": "export.picker.pick_section",
+      "v": "Bitte mindestens einen Export-Bereich auswaehlen."
+    },
+    {
+      "k": "export.picker.preview_error",
+      "v": "Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.preview_pdf_error",
+      "v": "PDF-Vorschau: {message}"
+    },
+    {
+      "k": "export.picker.settings_default",
+      "v": "Standard aus Einstellungen fuer „{kind}“: {format}"
+    },
+    {
+      "k": "export.preview.html_preview",
+      "v": "· HTML-Vorschau ·"
+    },
+    {
+      "k": "export.preview.pdf_preview",
+      "v": "· PDF-Vorschau ·"
+    },
+    {
+      "k": "export.preview.save_failed",
+      "v": "Speichern fehlgeschlagen: {message}"
+    },
+    {
+      "k": "export.preview.zip_hint",
+      "v": "· Archiv ({size}) — Vorschau nicht als Tabelle möglich. Speichern Sie die Datei und öffnen Sie sie mit Ihrem Archivprogramm. ·"
+    },
+    {
+      "k": "leistungen.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "leistungen.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "leistungen.empty",
+      "v": "Keine Leistungen vorhanden"
+    },
+    {
+      "k": "migration.device.attach_failed",
+      "v": "Anhaengen fehlgeschlagen: {message}"
+    },
+    {
+      "k": "migration.device.attach_to_record",
+      "v": "An Akte haengen"
+    },
+    {
+      "k": "migration.device.attached",
+      "v": "In Akte abgelegt: {dest}"
+    },
+    {
+      "k": "migration.device.dicom_no_sig",
+      "v": "⚠ Keine DICM-Signatur"
+    },
+    {
+      "k": "migration.device.scan_hint",
+      "v": "Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“."
+    },
+    {
+      "k": "migration.focus.s0_0",
+      "v": "Backup unter „Betrieb“ anlegen und Speicherort dokumentieren."
+    },
+    {
+      "k": "onboarding.license.invalid",
+      "v": "· Lizenz ungültig. ·"
+    },
+    {
+      "k": "onboarding.license.owner_hint",
+      "v": "Dieses Geraet wird Eigentuemer des Praxis-Verbunds (erster ADMIN-Sitz)."
+    },
+    {
+      "k": "onboarding.license.paste_key",
+      "v": "· Bitte Lizenzschlüssel einfügen. ·"
+    },
+    {
+      "k": "onboarding.verbund.subtitle",
+      "v": "· Diese Installation ist noch keinem Praxis-Verbund zugeordnet. Wählen Sie, ob Sie eine neue Praxis einrichten oder einem bestehenden Verbund beitreten. ·"
+    },
+    {
+      "k": "ops.page.import_skipped",
+      "v": "Übersprungen: {count}"
+    },
+    {
+      "k": "page.bestellung.detail.loading",
+      "v": "Bestellung wird geoeffnet…"
+    },
+    {
+      "k": "page.datenschutz.export_desc",
+      "v": "· JSON-Auskunft nach Art. 15 DSGVO — Format und Speicherort. ·"
+    },
+    {
+      "k": "page.praxisplanung.link_arbeitstage_desc",
+      "v": "· Abwesenheiten, Praxisferien und Feiertage für das Team hinterlegen. ·"
+    },
+    {
+      "k": "page.praxisplanung.link_praeferenzen_desc",
+      "v": "· Terminregeln, Pufferzeiten und Standardverhalten für die Terminübersicht festlegen. ·"
+    },
+    {
+      "k": "page.praxisplanung.link_praeferenzen_title",
+      "v": "· Praxis-Präferenzen ·"
+    },
+    {
+      "k": "page.praxisplanung.link_sperrzeiten_desc",
+      "v": "· Ganze Tage, halbe Tage oder kurzfristige Schließungen für einzelne Daten hinterlegen. ·"
+    },
+    {
+      "k": "page.praxisplanung.subtitle",
+      "v": "Globale Praxis-Vorgaben — die Terminuebersicht nutzt diese Einstellungen statt eines lokalen Pause-Blocks. Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.edit.subtitle",
+      "v": "Änderungen unten speichern — gleiche Felder wie bei neuer Regel."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.hint",
+      "v": "Waehlen Sie eine Sperrzeit in der Tabelle, oder „+ Neue Sperrregel“ fuer die Eingabe hier."
+    },
+    {
+      "k": "page.sonder_sperrzeiten.empty.title",
+      "v": "Keine Sonder-Sperrzeiten"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.loading",
+      "v": "Sperrzeiten werden geladen…"
+    },
+    {
+      "k": "page.sonder_sperrzeiten.subtitle",
+      "v": "Sperrungen fuer die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte)."
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_bilanzen_desc",
+      "v": "· Übersicht, Export und Assistent „Neuer Bilanz“. ·"
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_rechnung_desc",
+      "v": "· Rechnungs-PDF erzeugen — gleiche Arbeitsfläche wie andere Verwaltungslisten. ·"
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_rechnung_title",
+      "v": "· Rechnung (PDF) ·"
+    },
+    {
+      "k": "page.verwaltung_finanzen.link_tagesabschluss_desc",
+      "v": "· Kassenabgleich, protokollierte Tagesabschlüsse und Tageszahlen — Liste + Detail. ·"
+    },
+    {
+      "k": "page.verwaltung_lager.link_bestellstamm_desc",
+      "v": "· Lieferanten, Kontakte und Kombinationen für „Neue Bestellung“. ·"
+    },
+    {
+      "k": "page.verwaltung_lager.link_produkte_desc",
+      "v": "· Material, Artikel und Lager — Bestand und Auswahl für Behandlungen. ·"
+    },
+    {
+      "k": "page.verwaltung_lager.link_vertraege_desc",
+      "v": "· Miete, Service, Versicherung — laufende Kosten und Daueraufträge (Ausgabenseite). ·"
+    },
+    {
+      "k": "page.verwaltung_lager.link_vertraege_title",
+      "v": "· Verträge ·"
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_behandlung_desc",
+      "v": "· Kategorien und Leistungen für die Patientenakte (Auswahl bei Behandlungen). ·"
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_leistungen_desc",
+      "v": "· Katalog und GOZ-orientierte Leistungen, Honorarlogik und Textbausteine. ·"
+    },
+    {
+      "k": "page.verwaltung_leistungen.link_vorlagen_desc",
+      "v": "· Vordefinierte Rezepte, Attest-Texte und Formulare. ·"
+    },
+    {
+      "k": "page.verwaltung_team.link_arbeitsplan_desc",
+      "v": "· Arbeits- & Pausenregeln, Kalender (Tag, Woche, Monat) und Einsätze pro Person — inkl. Netto (Arbeit − Pause). ·"
+    },
+    {
+      "k": "page.verwaltung_team.link_arbeitsplan_title",
+      "v": "· Arbeitsplan & Einsätze ·"
+    },
+    {
+      "k": "page.verwaltung_team.link_personal_desc",
+      "v": "· Mitarbeiter anlegen und bearbeiten, Rollen und Zugänge. ·"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool",
+      "v": "· Rezeption (Pool — alle) ·"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_pool_created",
+      "v": "· Aufgabe an Rezeption (Pool) erstellt. ·"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_private_sent",
+      "v": "· Private Aufgabe an Rezeption gesendet. ·"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_title",
+      "v": "· Aufgabe an Rezeption ·"
+    },
+    {
+      "k": "patient.akte.workflow.aufgabe_typ.abrechnung",
+      "v": "· Abrechnung ·"
+    },
+    {
+      "k": "patient.akte.workflow.fill_doctor_message",
+      "v": "· Arzt und Nachricht ausfüllen. ·"
+    },
+    {
+      "k": "patient.akte.workflow.fill_title",
+      "v": "· Titel ausfüllen. ·"
+    },
+    {
+      "k": "patient.akte.workflow.forward_hint",
+      "v": "· Ausgewählte Ärzt:innen erhalten eine In-App-Meldung mit Link-Kontext zu dieser Akte. ·"
+    },
+    {
+      "k": "patient.akte.workflow.forward_note",
+      "v": "· Optionaler Hinweis ·"
+    },
+    {
+      "k": "patient.akte.workflow.forward_title",
+      "v": "· Akte — Review anfragen ·"
+    },
+    {
+      "k": "patient.akte.workflow.message_ph",
+      "v": "· Kurze strukturierte Anfrage an den behandelnden Arzt… ·"
+    },
+    {
+      "k": "patient.akte.workflow.message_private",
+      "v": "· Nur Sie und der gewählte Arzt sehen diese Aufgabe (wie ein Chat). ·"
+    },
+    {
+      "k": "patient.akte.workflow.pick_doctor",
+      "v": "· Mindestens einen anderen Arzt auswählen. ·"
+    },
+    {
+      "k": "patient.akte.workflow.pool_hint",
+      "v": "· Wählen Sie eine Person für eine private Aufgabe — oder „Rezeption (Pool)“ für alle an der Rezeption. ·"
+    },
+    {
+      "k": "patient.akte.workflow.ticket_created",
+      "v": "· Aufgabe an Arzt erstellt. ·"
+    },
+    {
+      "k": "patient.akte.workflow.ticket_title",
+      "v": "· Aufgabe an Arzt ·"
+    },
+    {
+      "k": "patient.detail.anam.overview",
+      "v": "Übersicht"
+    },
+    {
+      "k": "patient.detail.unter.delete_title",
+      "v": "Untersuchung loeschen"
+    },
+    {
+      "k": "patient.detail.unter.empty",
+      "v": "Keine Untersuchungen."
+    },
+    {
+      "k": "patient.detail.zahl.case_after_save",
+      "v": "Fall nach Speichern (Soll vs. Summe):"
+    },
+    {
+      "k": "patient.detail.zahl.empty",
+      "v": "Keine Zahlungen vorhanden."
+    },
+    {
+      "k": "patient.validation.item_revoked",
+      "v": "Validierung fuer „{label}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.section_revoked",
+      "v": "Validierung fuer „{section}“ zurueckgesetzt."
+    },
+    {
+      "k": "patient.validation.stamm_marked",
+      "v": "Stammdaten und Anamnese als geprueft markiert."
+    },
+    {
+      "k": "patient.validation.stamm_revoked",
+      "v": "Validierung fuer Stammdaten und Anamnese zurueckgesetzt."
+    },
+    {
+      "k": "praxis.aufgaben.admin.loading",
+      "v": "· Aufgaben werden geladen… ·"
+    },
+    {
+      "k": "praxis.aufgaben.admin.no_results",
+      "v": "· Keine Treffer für die aktuelle Filterung. ·"
+    },
+    {
+      "k": "praxis.aufgaben.empty",
+      "v": "Keine Aufgaben"
+    },
+    {
+      "k": "praxis.aufgaben.form.assignee_pool",
+      "v": "· Rezeption (Pool) ·"
+    },
+    {
+      "k": "praxis.aufgaben.form.pick_person",
+      "v": "· Person wählen… ·"
+    },
+    {
+      "k": "praxis.aufgaben.status.erledigt_rezeption",
+      "v": "· Erledigt (Rezeption) ·"
+    },
+    {
+      "k": "praxis.aufgaben.status.zurueck",
+      "v": "· Zurück ·"
+    },
+    {
+      "k": "praxis.aufgaben.subtitle",
+      "v": "Aufgaben anlegen, zuweisen und den Status verfolgen — zentral fuer die Praxisleitung."
+    },
+    {
+      "k": "praxis.aufgaben.typ.abrechnung",
+      "v": "· Abrechnung ·"
+    },
+    {
+      "k": "praxis.setup.later",
+      "v": "· Später einrichten ·"
+    },
+    {
+      "k": "produkte.detail.edit_sub",
+      "v": "Bearbeiten — Änderungen mit Speichern uebernehmen."
+    },
+    {
+      "k": "produkte.detail.read_sub",
+      "v": "Nur lesen — Bearbeiten oeffnet die Eingabefelder."
+    },
+    {
+      "k": "produkte.empty",
+      "v": "Keine Produkte vorhanden"
+    },
+    {
+      "k": "rezept.edit.saved",
+      "v": "Rezept gespeichert"
+    },
+    {
+      "k": "rezept.edit.subtitle",
+      "v": "AMVV-Felder (PZN, Darreichungsform, Rezepttyp) fuer den PDF-Export."
+    },
+    {
+      "k": "settings.about.check_update_failed",
+      "v": "Update-Pruefung fehlgeschlagen: {message}"
+    },
+    {
+      "k": "settings.about.title",
+      "v": "Über die Anwendung"
+    },
+    {
+      "k": "settings.deployment.ack_break",
+      "v": "· Störung quittieren ·"
+    },
+    {
+      "k": "settings.deployment.ack_break_hint",
+      "v": "· Bitte einen Arzt mit Administratorrechten die Störung in der Kopfleiste quittieren lassen. ·"
+    },
+    {
+      "k": "settings.deployment.audit_blocked_body",
+      "v": "· HTTPS-Server, Pairing und Speichern sind blockiert, bis die Audit-Störung quittiert wird ·"
+    },
+    {
+      "k": "settings.deployment.lan_stopped",
+      "v": "· Starten Sie den eingebetteten HTTPS-Server, damit Replicas Pairing-Anfragen senden können. ·"
+    },
+    {
+      "k": "settings.deployment.mode.practice_desktop",
+      "v": "· Praxis-Desktop (eigenständig) ·"
+    },
+    {
+      "k": "settings.deployment.mode.practice_desktop_hint",
+      "v": "· Lokale Datenbank auf diesem Gerät. Optional: LAN-Server auf demselben Rechner starten. ·"
+    },
+    {
+      "k": "settings.deployment.mode.serverless_peer_hint",
+      "v": "· Eigene Datenbank; synchronisiert direkt mit dem Master-Gerät im LAN. ·"
+    },
+    {
+      "k": "settings.deployment.replica_paired",
+      "v": "· Gekoppelt — Änderungen werden bei Erreichbarkeit synchronisiert. ·"
+    },
+    {
+      "k": "settings.deployment.replica_unpaired",
+      "v": "· Noch nicht gekoppelt. Speichern Sie die Replica-Rolle und folgen Sie dem Kopplungs-Assistenten. ·"
+    },
+    {
+      "k": "settings.deployment.role.master",
+      "v": "· Master (Hauptgerät) ·"
+    },
+    {
+      "k": "settings.deployment.role.master_hint",
+      "v": "· Autoritative Praxis-Datenbank. Replicas koppeln sich über Pairing an dieses Gerät. ·"
+    },
+    {
+      "k": "settings.deployment.role.replica",
+      "v": "· Replica (Zweitgerät) ·"
+    },
+    {
+      "k": "settings.deployment.subtitle_classic",
+      "v": "· Drei unabhängige Systeme: Desktop-App, LAN-Server (lokal/remote), Firmen-Server. ·"
+    },
+    {
+      "k": "settings.deployment.subtitle_serverless",
+      "v": "· Master-Gerät und Replicas teilen sich eine Praxis-Datenbank über HTTPS im lokalen Netz. Pairing schützt die Verbindung per Ed25519-Aktivierungstoken. ·"
+    },
+    {
+      "k": "settings.geraeteverbund.admin_only",
+      "v": "Geraeteverbund-Administration nur fuer Ärzte auf einem ADMIN-Sitz."
+    },
+    {
+      "k": "settings.geraeteverbund.no_pending",
+      "v": "Keine offenen Kopplungsanfragen."
+    },
+    {
+      "k": "settings.integrations.sso_detail",
+      "v": "Single Sign-On fuer Team"
+    },
+    {
+      "k": "settings.integrations.tk_detail",
+      "v": "Kassenaerztliche Abrechnung via KIM"
+    },
+    {
+      "k": "settings.migration.body",
+      "v": "· MVP v0.1: strukturierter CSV-Patientenimport über den Assistenten. VDDS/BDT-Vollimport und GDT/DICOM-Live-Import folgen in späteren Versionen. ·"
+    },
+    {
+      "k": "settings.migration.not_allowed",
+      "v": "· Für diese Rolle nicht freigeschaltet. ·"
+    },
+    {
+      "k": "settings.notifications.critical_detail",
+      "v": "Lagerbestand, Freigaben ueber 24h"
+    },
+    {
+      "k": "settings.system.hidden",
+      "v": "· Weitere Systemoptionen sind vorübergehend ausgeblendet. ·"
+    },
+    {
+      "k": "settings.system.subtitle_serverless",
+      "v": "· Serverless-Verbindung: Master-Gerät und Replicas synchronisieren klinische Daten im LAN — ohne dedizierten Server auf jedem Zweitgerät. ·"
+    },
+    {
+      "k": "settings.workflows.calendar_drag_hint",
+      "v": "· Tages- und Wochenansicht: Termine per Maus verschieben. Aus = nur öffnen und bearbeiten. ·"
+    },
+    {
+      "k": "settings.workflows.noshow_label",
+      "v": "· No-Show Behandlung ·"
+    },
+    {
+      "k": "settings.workflows.onboarding_progress",
+      "v": "· {steps} Schritte für {role}. ·"
+    },
+    {
+      "k": "settings.workflows.onboarding_reset",
+      "v": "· Einführung zurücksetzen ·"
+    },
+    {
+      "k": "settings.workflows.onboarding_reset_done",
+      "v": "· Einführung zurückgesetzt. ·"
+    },
+    {
+      "k": "settings.workflows.onboarding_reset_failed",
+      "v": "· Zurücksetzen fehlgeschlagen: {error} ·"
+    },
+    {
+      "k": "settings.workflows.tagesabschluss_hint",
+      "v": "· Hinweis-Toast auf dem Dashboard (einmal pro Tag). ·"
+    },
+    {
+      "k": "settings.workflows.termine_default_hint",
+      "v": "· Wird beim ersten Öffnen von /termine verwendet; die Ansicht in der Terminübersicht aktualisiert diesen Standard. ·"
+    },
+    {
+      "k": "untersuchung.billing.category_pick",
+      "v": "· — Kategorie wählen — ·"
+    },
+    {
+      "k": "untersuchung.billing.service_catalog",
+      "v": "· Leistung aus Katalog ·"
+    },
+    {
+      "k": "untersuchung.billing.service_catalog_pick",
+      "v": "· — Leistung aus Katalog — ·"
+    },
+    {
+      "k": "untersuchung.composer.chief_ph",
+      "v": "Schmerz, Druck, Blutung, Ästhetik, Routine…"
+    },
+    {
+      "k": "untersuchung.composer.dental_hint",
+      "v": "· Befund je Zahn: Doppelklick öffnet Statusauswahl. Befunde werden direkt am Patienten gespeichert. ·"
+    },
+    {
+      "k": "untersuchung.composer.save",
+      "v": "Untersuchung speichern"
+    },
+    {
+      "k": "untersuchung.composer.save_changes",
+      "v": "Änderungen speichern"
+    },
+    {
+      "k": "untersuchung.composer.sections_aria",
+      "v": "· Untersuchung Sektionen ·"
+    },
+    {
+      "k": "untersuchung.composer.tmj_ph",
+      "v": "· Knacken, Krepitation, Mundöffnung mm ·"
+    },
+    {
+      "k": "verwaltung.finanzen.subtitle",
+      "v": "Tagesabschluss, Rechnungs-PDF und Bilanzen — Zeile waehlen zum Öffnen."
+    },
+    {
+      "k": "verwaltung.leistungen.subtitle",
+      "v": "Leistungstexte, Kataloge fuer die Akte sowie Vorlagen fuer Rezepte und Atteste."
+    },
+    {
+      "k": "verwaltung.team.subtitle",
+      "v": "Personalverwaltung und Arbeitsplan waehlen — Zeile antippen zum Öffnen."
+    },
+    {
+      "k": "vorlage.editor.loading",
+      "v": "Editor wird geladen…"
+    },
+    {
+      "k": "zahlung.create.assignment_hint",
+      "v": "Zuordnung ueber B-Nr. / U-Nr. — bei Behandlungen mit Sollkosten"
+    },
+    {
+      "k": "zahlung.create.denied_sub",
+      "v": "Zahlungen mit Zuordnung zu Behandlung/Untersuchung sind fuer Ihre Rolle nicht verfuegbar."
+    },
+    {
+      "k": "zahlung.create.subtitle",
+      "v": "Patient waehlen, offene Behandlung oder Untersuchung zuordnen, Betrag erfassen."
+    }
+  ]
+}

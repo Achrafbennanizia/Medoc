@@ -12,8 +12,11 @@
 
 pub mod application;
 pub mod break_glass;
+pub mod mvp_security;
 pub mod company;
 pub mod discovery;
 pub mod domain;
 pub mod error;
 pub mod infrastructure;
+
+pub use argon2;

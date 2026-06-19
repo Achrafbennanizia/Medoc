@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import {
@@ -18,6 +19,8 @@ import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 
 export function LoggingPage() {
+    const t = useT();
+    const tp = useTParams();
     const [level, setLevel] = useState<LogLevel>("INFO");
     const [logDir, setLogDir] = useState<string>("");
     const [exampleLogFile, setExampleLogFile] = useState<string | null>(null);
@@ -54,22 +57,22 @@ export function LoggingPage() {
         try {
             await setLogLevel(next);
             setLevel(next);
-            setMessage(`Log-Level auf ${next} gesetzt.`);
+            setMessage(tp("logging.level_set", { level: next }));
         } catch (e) {
-            setMessage(`Level konnte nicht gesetzt werden: ${errorMessage(e)}`);
+            setMessage(tp("logging.level_set_failed", { message: errorMessage(e) }));
         }
     }
 
     const resolveLogExport = useCallback(async () => {
         const bytes = await exportLogs();
         return {
-            exportTitle: "Log-Export",
-            hint: "Letzte 7 Tage, maskierte Protokolldateien.",
+            exportTitle: t("logging.export.title"),
+            hint: t("logging.export.hint"),
             suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
             binaryBody: new Uint8Array(bytes),
             mime: "application/zip",
         };
-    }, []);
+    }, [t]);
 
     async function handleVerify() {
         setBusy(true);
@@ -78,11 +81,11 @@ export function LoggingPage() {
             const broken = await verifyAuditChain();
             setMessage(
                 broken
-                    ? `⚠ Audit-Kette gebrochen bei Eintrag ${broken}`
-                    : "✓ Audit-Kette ist intakt."
+                    ? tp("logging.audit_broken", { id: broken })
+                    : t("logging.audit_ok"),
             );
         } catch (e: unknown) {
-            setMessage(`Prüfung fehlgeschlagen: ${errorMessage(e)}`);
+            setMessage(tp("logging.verify_failed", { message: errorMessage(e) }));
         } finally {
             setBusy(false);
         }
@@ -91,15 +94,15 @@ export function LoggingPage() {
     if (initLoading) {
         return (
             <div className="praxis-workspace-page animate-fade-in">
-                <WorkspacePageHeader title="Logs & Observability" />
-                <PageLoading label="Log-Einstellungen werden geladen…" />
+                <WorkspacePageHeader title={t("logging.title")} />
+                <PageLoading label={t("logging.loading")} />
             </div>
         );
     }
     if (initError) {
         return (
             <div className="praxis-workspace-page animate-fade-in">
-                <WorkspacePageHeader title="Logs & Observability" />
+                <WorkspacePageHeader title={t("logging.title")} />
                 <PageLoadError message={initError} onRetry={() => void loadMeta()} />
             </div>
         );
@@ -107,13 +110,12 @@ export function LoggingPage() {
 
     return (
         <div className="praxis-workspace-page animate-fade-in">
-            <WorkspacePageHeader title="Logs & Observability" />
+            <WorkspacePageHeader title={t("logging.title")} />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Log-Level</h3>
+                <h3 className="text-title">{t("logging.level_section")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Bestimmt die Detailtiefe der Anwendungs-Logs. Änderung wirkt sofort
-                    ohne Neustart (NFA-LOG-10).
+                    {t("logging.level_section_hint")}
                 </p>
                 <div className="flex gap-2">
                     {LEVELS.map((l) => (
@@ -130,35 +132,32 @@ export function LoggingPage() {
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Logverzeichnis</h3>
+                <h3 className="text-title">{t("logging.dir_section")}</h3>
                 <p className="text-body font-mono text-on-surface-variant">{logDir}</p>
                 {exampleLogFile ? (
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 12 }}>
-                        Beispielpfad (App-Kanal): <span className="font-mono">{exampleLogFile}</span>
+                        {t("logging.example_path")} <span className="font-mono">{exampleLogFile}</span>
                     </p>
                 ) : null}
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Logs exportieren</h3>
+                <h3 className="text-title">{t("logging.export_section")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Erstellt ein ZIP-Archiv der letzten 7 Tage aller Logdateien für
-                    Support-Anfragen. Sensible Werte werden automatisch maskiert
-                    (NFA-LOG-09).
+                    {t("logging.export_section_hint")}
                 </p>
                 <Button type="button" variant="secondary" onClick={() => setExportPickerOpen(true)} disabled={busy}>
-                    <ExportIcon size={14} /> Exportieren
+                    <ExportIcon size={14} /> {t("common.export")}
                 </Button>
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Audit-Log-Integrität</h3>
+                <h3 className="text-title">{t("logging.audit_integrity")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Prüft die HMAC-Hash-Kette des Audit-Logs auf Manipulationen
-                    (NFA-SEC-04++).
+                    {t("logging.verify_hint")}
                 </p>
                 <Button type="button" variant="secondary" onClick={() => void handleVerify()} disabled={busy}>
-                    Integrität prüfen
+                    {t("logging.verify_btn")}
                 </Button>
             </div>
 
@@ -168,9 +167,9 @@ export function LoggingPage() {
             <DataExportPickerDialog
                 open={exportPickerOpen}
                 onClose={() => setExportPickerOpen(false)}
-                title="Export — Logs"
-                description="ZIP-Archiv der letzten 7 Tage (maskiert)."
-                formats={[{ value: "zip", label: "ZIP-Archiv" }]}
+                title={t("logging.export_dialog_title")}
+                description={t("logging.export.description")}
+                formats={[{ value: "zip", label: t("logging.export.zip_label") }]}
                 defaultFormat="zip"
                 resolvePayload={resolveLogExport}
             />

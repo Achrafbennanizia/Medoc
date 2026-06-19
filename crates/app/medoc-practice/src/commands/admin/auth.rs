@@ -1,5 +1,6 @@
 use crate::application::auth_service::{self, LoginRequest, Session};
 use crate::application::device_session_service;
+use crate::application::mvp_security;
 use crate::application::rbac;
 use crate::error::AppError;
 use crate::infrastructure::database::personal_repo;
@@ -180,10 +181,28 @@ pub async fn logout(
     if let Some(ref id) = device_id {
         let _ = device_session_repo::end(&pool, id).await;
     }
-    let mut guard = session_state.lock_session();
-    if let Some((s, _)) = guard.as_ref() {
-        log_security!(info, event = "LOGOUT", user_id = %s.user_id);
+    let work_time_logout = {
+        let guard = session_state.lock_session();
+        guard.as_ref().map(|(s, _)| {
+            log_security!(info, event = "LOGOUT", user_id = %s.user_id);
+            s.user_id.clone()
+        })
+    };
+    if let Some(user_id) = work_time_logout {
+        if let Ok(pref) =
+            crate::commands::work_time_commands::get_or_create_preference(&pool, &user_id).await
+        {
+            if pref.auto_record_on_logout {
+                let _ = crate::commands::work_time_commands::end_open_session_for_user(
+                    &pool,
+                    &user_id,
+                    "logout",
+                )
+                .await;
+            }
+        }
     }
+    let mut guard = session_state.lock_session();
     *guard = None;
     Ok(())
 }
@@ -263,7 +282,7 @@ pub async fn revoke_my_other_device_sessions(
     let keep = session
         .device_session_id
         .as_deref()
-        .ok_or_else(|| AppError::Validation("Keine Geräte-Sitzungs-ID".into()))?;
+        .ok_or_else(|| AppError::validation_code("error.auth.no_device_session_id"))?;
     let n = device_session_repo::end_other_than(&pool, &session.user_id, keep).await?;
     audit_repo::create(
         &pool,
@@ -357,14 +376,13 @@ pub async fn start_totp_enrollment_login(
     email: String,
     passwort: String,
 ) -> Result<TotpEnrollmentDto, AppError> {
+    mvp_security::require_totp_enabled()?;
     auth_service::verify_credentials(&pool, &email, &passwort).await?;
     let user = personal_repo::find_by_email(&pool, &email)
         .await?
         .ok_or(AppError::Unauthorized)?;
     if !personal_repo::totp_required_for_role(&user.rolle) {
-        return Err(AppError::Validation(
-            "Zwei-Faktor ist für diese Rolle optional — bitte nach Anmeldung einrichten".into(),
-        ));
+        return Err(AppError::validation_code("error.auth.totp_optional_role"));
     }
     if personal_repo::is_totp_enrolled(&user) {
         return Err(AppError::Conflict("Zwei-Faktor ist bereits aktiv".into()));
@@ -383,6 +401,7 @@ pub async fn confirm_totp_enrollment_login(
     passwort: String,
     code: String,
 ) -> Result<(), AppError> {
+    mvp_security::require_totp_enabled()?;
     auth_service::verify_credentials(&pool, &email, &passwort).await?;
     let user = personal_repo::find_by_email(&pool, &email)
         .await?
@@ -390,11 +409,9 @@ pub async fn confirm_totp_enrollment_login(
     let secret = user
         .totp_secret
         .as_deref()
-        .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
+        .ok_or_else(|| AppError::validation_code("error.auth.totp_setup_not_started"))?;
     if !totp::verify_code(secret, &code)? {
-        return Err(AppError::Validation(
-            "Ungültiger Code — bitte erneut versuchen".into(),
-        ));
+        return Err(AppError::validation_code("error.auth.totp_invalid_code"));
     }
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import type { Produkt } from "@/models/types";
 import {
     deleteBestellung,
@@ -13,25 +12,13 @@ import {
 } from "@/systems/practice-host/controllers/bestellung.controller";
 import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import { bestellStatusDisplay, bestellStatusOptions } from "@/lib/finance-order-labels";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { EditIcon, XIcon } from "@/lib/icons";
 import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
-
-const STATUS_LABEL: Record<BestellStatus, string> = {
-    OFFEN: "Offen",
-    UNTERWEGS: "Unterwegs",
-    GELIEFERT: "Geliefert",
-    STORNIERT: "Storniert",
-};
-
-const STATUS_OPTIONS: { value: BestellStatus; label: string }[] = [
-    { value: "OFFEN", label: "Offen" },
-    { value: "UNTERWEGS", label: "Unterwegs" },
-    { value: "GELIEFERT", label: "Geliefert" },
-    { value: "STORNIERT", label: "Storniert" },
-];
 
 function todayISO(): string {
     return new Date().toISOString().slice(0, 10);
@@ -43,17 +30,18 @@ function isOverdue(b: Bestellung): boolean {
     return b.erwartet_am < todayISO();
 }
 
-function statusPill(status: BestellStatus, overdue: boolean): { className: string; label: string } {
-    if (overdue) return { className: "pill orange", label: "Überfällig" };
+function statusPill(status: BestellStatus, overdue: boolean, t: (key: string) => string): { className: string; label: string } {
+    if (overdue) return { className: "pill orange", label: t("page.bestellungen.status.ueberfaellig") };
+    const st = bestellStatusDisplay(status, t);
     switch (status) {
         case "OFFEN":
-            return { className: "pill grey", label: "Offen" };
+            return { className: "pill grey", label: st.label };
         case "UNTERWEGS":
-            return { className: "pill blue", label: "Unterwegs" };
+            return { className: "pill blue", label: st.label };
         case "GELIEFERT":
-            return { className: "pill green", label: "Geliefert" };
+            return { className: "pill green", label: st.label };
         case "STORNIERT":
-            return { className: "pill grey", label: "Storniert" };
+            return { className: "pill grey", label: st.label };
     }
 }
 
@@ -96,6 +84,9 @@ export function BestellungDetailDrawer({
     onUpdated,
     onDeleted,
 }: BestellungDetailDrawerProps) {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
     const titleId = useId();
     const panelRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
@@ -109,8 +100,9 @@ export function BestellungDetailDrawer({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [produkte, setProdukte] = useState<Produkt[]>([]);
 
+    const statusOptions = useMemo(() => bestellStatusOptions(t), [t]);
     const overdue = useMemo(() => isOverdue(bestellung), [bestellung]);
-    const pill = statusPill(bestellung.status, overdue);
+    const pill = statusPill(bestellung.status, overdue, t);
 
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;
@@ -162,18 +154,21 @@ export function BestellungDetailDrawer({
     const artikelProduktOptionsEdit = useMemo(() => {
         const base = produkteSorted.map((p) => ({ value: p.id, label: `${p.name} · ${p.kategorie}` }));
         if (!draft) {
-            return [{ value: "", label: "— Produkt wählen —" }, ...base];
+            return [{ value: "", label: t("drawer.bestellung.pick_product") }, ...base];
         }
         const hasMatch = produkte.some((p) => p.name === draft.artikel);
         if (!hasMatch && draft.artikel.trim()) {
             return [
-                { value: "", label: "— Produkt wählen —" },
-                { value: "__legacy", label: `${draft.artikel} (nicht im Lager)` },
+                { value: "", label: t("drawer.bestellung.pick_product") },
+                {
+                    value: "__legacy",
+                    label: tp("drawer.bestellung.product_legacy", { name: draft.artikel }),
+                },
                 ...base,
             ];
         }
-        return [{ value: "", label: "— Produkt wählen —" }, ...base];
-    }, [produkteSorted, produkte, draft]);
+        return [{ value: "", label: t("drawer.bestellung.pick_product") }, ...base];
+    }, [produkteSorted, produkte, draft, t, tp]);
 
     function goNeuesProdukt() {
         const returnTo = `/bestellungen?bestellung=${bestellung.id}`;
@@ -200,15 +195,15 @@ export function BestellungDetailDrawer({
         if (!draft) return;
         const menge = Number(draft.menge);
         if (!draft.lieferant.trim()) {
-            setSaveError("Lieferant erforderlich");
+            setSaveError(t("drawer.bestellung.validation_lieferant"));
             return;
         }
         if (!draft.artikel.trim()) {
-            setSaveError("Artikel erforderlich");
+            setSaveError(t("drawer.bestellung.validation_artikel"));
             return;
         }
         if (!Number.isFinite(menge) || menge <= 0) {
-            setSaveError("Menge muss positiv sein");
+            setSaveError(t("drawer.bestellung.validation_menge"));
             return;
         }
 
@@ -227,7 +222,7 @@ export function BestellungDetailDrawer({
             onUpdated(updated);
             setEditing(false);
             setDraft(null);
-            toast("Änderungen gespeichert", "success");
+            toast(t("drawer.bestellung.toast_saved"), "success");
         } catch (e) {
             setSaveError(errorMessage(e));
         } finally {
@@ -242,9 +237,15 @@ export function BestellungDetailDrawer({
         try {
             const updated = await updateBestellungStatus(bestellung.id, next);
             onUpdated(updated);
-            toast(`Status: ${STATUS_LABEL[previous]} → ${STATUS_LABEL[next]}`, "success");
+            toast(
+                tp("drawer.bestellung.toast_status", {
+                    from: bestellStatusDisplay(previous, t).label,
+                    to: bestellStatusDisplay(next, t).label,
+                }),
+                "success",
+            );
         } catch (e) {
-            toast(`Status-Wechsel fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("drawer.bestellung.toast_status_failed", { message: errorMessage(e) }), "error");
         } finally {
             setStatusBusy(false);
         }
@@ -253,11 +254,11 @@ export function BestellungDetailDrawer({
     async function handleDelete() {
         try {
             await deleteBestellung(bestellung.id);
-            toast("Bestellung gelöscht", "success");
+            toast(t("drawer.bestellung.toast_deleted"), "success");
             onDeleted(bestellung.id);
             onClose();
         } catch (e) {
-            toast(`Löschen fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("drawer.bestellung.toast_delete_failed", { message: errorMessage(e) }), "error");
         } finally {
             setConfirmDelete(false);
         }
@@ -272,13 +273,13 @@ export function BestellungDetailDrawer({
         <>
             <div className="termin-drawer-head">
                 <span className={pill.className}>{pill.label}</span>
-                <button type="button" className="icon-btn" aria-label="Schließen" onClick={onClose}>
+                <button type="button" className="icon-btn" aria-label={t("common.close")} onClick={onClose}>
                     <XIcon size={18} />
                 </button>
             </div>
 
             <div className="termin-drawer-section">
-                <div className="termin-drawer-eyebrow">Bestellung</div>
+                <div className="termin-drawer-eyebrow">{t("drawer.bestellung.eyebrow")}</div>
                 <h2 id={titleId} className="termin-drawer-title">
                     {bestellung.bestellnummer ?? "—"}
                 </h2>
@@ -289,7 +290,7 @@ export function BestellungDetailDrawer({
 
             <div className="termin-drawer-meta-row">
                 <div>
-                    <div className="termin-drawer-eyebrow">Erwartet</div>
+                    <div className="termin-drawer-eyebrow">{t("common.expected")}</div>
                     <div
                         className="termin-drawer-meta-val"
                         style={overdue ? { color: "var(--red)" } : undefined}
@@ -298,23 +299,23 @@ export function BestellungDetailDrawer({
                     </div>
                 </div>
                 <div>
-                    <div className="termin-drawer-eyebrow">Menge</div>
+                    <div className="termin-drawer-eyebrow">{t("common.quantity")}</div>
                     <div className="termin-drawer-meta-val">
                         {bestellung.menge}
                         {bestellung.einheit ? ` ${bestellung.einheit}` : ""}
                     </div>
                 </div>
                 <div>
-                    <div className="termin-drawer-eyebrow">Betrag</div>
+                    <div className="termin-drawer-eyebrow">{t("common.amount")}</div>
                     <div className="termin-drawer-meta-val">{betragLabel}</div>
                 </div>
             </div>
 
             {canWrite && !editing ? (
                 <div className="termin-drawer-section">
-                    <div className="termin-drawer-eyebrow">Status-Workflow</div>
+                    <div className="termin-drawer-eyebrow">{t("drawer.bestellung.status_workflow")}</div>
                     <div className="bestellung-drawer-workflow">
-                        {STATUS_OPTIONS.map((opt) => {
+                        {statusOptions.map((opt) => {
                             const active = opt.value === bestellung.status;
                             return (
                                 <button
@@ -331,36 +332,34 @@ export function BestellungDetailDrawer({
                         })}
                     </div>
                     {overdue ? (
-                        <p className="bestellung-drawer-overdue-hint">
-                            Erwartetes Lieferdatum überschritten — Status aktualisieren oder Lieferant kontaktieren.
-                        </p>
+                        <p className="bestellung-drawer-overdue-hint">{t("drawer.bestellung.overdue_hint")}</p>
                     ) : null}
                 </div>
             ) : null}
 
             <div className="termin-drawer-section">
                 <div className="termin-drawer-eyebrow">
-                    {editing ? "Bestelldaten bearbeiten" : "Bestelldaten"}
+                    {editing ? t("drawer.bestellung.edit_data") : t("drawer.bestellung.order_data")}
                 </div>
                 {editing && draft ? (
                     <div className="bestellung-drawer-edit">
                         {saveError ? <p className="bestellung-drawer-save-error">{saveError}</p> : null}
                         <Input
                             id="bdrawer-lief"
-                            label="Lieferant"
+                            label={t("common.supplier")}
                             value={draft.lieferant}
                             onChange={(e) => setDraft({ ...draft, lieferant: e.target.value })}
                         />
                         <Input
                             id="bdrawer-pharma"
-                            label="Pharmaberater / Kontakt"
+                            label={t("drawer.bestellung.contact")}
                             value={draft.pharmaberater}
                             onChange={(e) => setDraft({ ...draft, pharmaberater: e.target.value })}
                         />
                         <div className="bestellung-drawer-edit-artikel">
                             <Select
                                 id="bdrawer-art"
-                                label="Artikel (Produkt)"
+                                label={t("drawer.bestellung.article_product")}
                                 value={artikelProduktValue}
                                 onChange={(e) => {
                                     const v = e.target.value;
@@ -376,14 +375,14 @@ export function BestellungDetailDrawer({
                             />
                             {canAddProdukt ? (
                                 <Button type="button" variant="secondary" size="sm" onClick={goNeuesProdukt}>
-                                    + Produkt
+                                    {t("drawer.bestellung.new_product")}
                                 </Button>
                             ) : null}
                         </div>
                         <div className="bestellung-drawer-edit-grid">
                             <Input
                                 id="bdrawer-menge"
-                                label="Menge"
+                                label={t("common.quantity")}
                                 type="number"
                                 min={1}
                                 value={draft.menge}
@@ -391,21 +390,21 @@ export function BestellungDetailDrawer({
                             />
                             <Input
                                 id="bdrawer-einheit"
-                                label="Einheit"
+                                label={t("common.unit")}
                                 value={draft.einheit}
                                 onChange={(e) => setDraft({ ...draft, einheit: e.target.value })}
                             />
                         </div>
                         <Input
                             id="bdrawer-erw"
-                            label="Erwartet am"
+                            label={t("common.expected_on")}
                             type="date"
                             value={draft.erwartet_am}
                             onChange={(e) => setDraft({ ...draft, erwartet_am: e.target.value })}
                         />
                         <Textarea
                             id="bdrawer-bem"
-                            label="Bemerkung"
+                            label={t("common.note")}
                             rows={3}
                             value={draft.bemerkung}
                             onChange={(e) => setDraft({ ...draft, bemerkung: e.target.value })}
@@ -414,26 +413,26 @@ export function BestellungDetailDrawer({
                 ) : (
                     <div className="ios-list">
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Lieferant</div>
+                            <div className="termin-drawer-eyebrow">{t("common.supplier")}</div>
                             <div className="termin-drawer-meta-val">{bestellung.lieferant}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Pharmaberater / Kontakt</div>
+                            <div className="termin-drawer-eyebrow">{t("drawer.bestellung.contact")}</div>
                             <div className="termin-drawer-meta-val">{bestellung.pharmaberater ?? "—"}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Artikel</div>
+                            <div className="termin-drawer-eyebrow">{t("common.article")}</div>
                             <div className="termin-drawer-meta-val">{bestellung.artikel}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Geliefert am</div>
+                            <div className="termin-drawer-eyebrow">{t("common.delivered_on")}</div>
                             <div className="termin-drawer-meta-val">
                                 {bestellung.geliefert_am ? formatDate(bestellung.geliefert_am) : "—"}
                             </div>
                         </div>
                         {(bestellung.bemerkung ?? "").trim() ? (
                             <div className="ios-row">
-                                <div className="termin-drawer-eyebrow">Bemerkung</div>
+                                <div className="termin-drawer-eyebrow">{t("common.note")}</div>
                                 <div className="termin-drawer-meta-val termin-drawer-meta-val--pre">
                                     {bestellung.bemerkung}
                                 </div>
@@ -445,26 +444,26 @@ export function BestellungDetailDrawer({
 
             {!editing ? (
                 <div className="termin-drawer-section">
-                    <div className="termin-drawer-eyebrow">Metadaten</div>
+                    <div className="termin-drawer-eyebrow">{t("common.metadata")}</div>
                     <div className="ios-list">
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Status</div>
-                            <div className="termin-drawer-meta-val">{STATUS_LABEL[bestellung.status]}</div>
+                            <div className="termin-drawer-eyebrow">{t("common.status")}</div>
+                            <div className="termin-drawer-meta-val">{bestellStatusDisplay(bestellung.status, t).label}</div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Erstellt am</div>
+                            <div className="termin-drawer-eyebrow">{t("common.created_at")}</div>
                             <div className="termin-drawer-meta-val">
-                                {format(parseISO(bestellung.created_at), "d. MMM yyyy, HH:mm", { locale: de })}
+                                {format(parseISO(bestellung.created_at), "d. MMM yyyy, HH:mm", { locale: dateFnsLocale })}
                             </div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Zuletzt geändert</div>
+                            <div className="termin-drawer-eyebrow">{t("common.updated_at")}</div>
                             <div className="termin-drawer-meta-val">
-                                {format(parseISO(bestellung.updated_at), "d. MMM yyyy, HH:mm", { locale: de })}
+                                {format(parseISO(bestellung.updated_at), "d. MMM yyyy, HH:mm", { locale: dateFnsLocale })}
                             </div>
                         </div>
                         <div className="ios-row">
-                            <div className="termin-drawer-eyebrow">Erstellt von</div>
+                            <div className="termin-drawer-eyebrow">{t("common.created_by")}</div>
                             <div className="termin-drawer-meta-val termin-drawer-meta-val--mono">
                                 {bestellung.created_by}
                             </div>
@@ -479,20 +478,20 @@ export function BestellungDetailDrawer({
                         {editing ? (
                             <>
                                 <Button variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button onClick={() => void saveEdit()} loading={saveBusy} disabled={saveBusy}>
-                                    Speichern
+                                    {t("common.save")}
                                 </Button>
                             </>
                         ) : (
                             <>
                                 <Button variant="secondary" onClick={() => void startEdit()}>
                                     <EditIcon />
-                                    Bearbeiten
+                                    {t("common.edit")}
                                 </Button>
                                 <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-                                    Löschen
+                                    {t("common.delete")}
                                 </Button>
                             </>
                         )}
@@ -504,9 +503,11 @@ export function BestellungDetailDrawer({
                 open={confirmDelete}
                 onClose={() => setConfirmDelete(false)}
                 onConfirm={handleDelete}
-                title="Bestellung löschen"
-                message={`Möchten Sie die Bestellung ${bestellung.bestellnummer ?? ""} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
-                confirmLabel="Löschen"
+                title={t("drawer.bestellung.delete_title")}
+                message={tp("drawer.bestellung.delete_confirm", {
+                    num: bestellung.bestellnummer ?? "",
+                })}
+                confirmLabel={t("common.delete")}
                 danger
             />
         </>
@@ -514,7 +515,7 @@ export function BestellungDetailDrawer({
 
     return createPortal(
         <div className="termin-drawer-root" role="presentation">
-            <button type="button" className="termin-drawer-backdrop" aria-label="Schließen" onClick={onClose} />
+            <button type="button" className="termin-drawer-backdrop" aria-label={t("common.close")} onClick={onClose} />
             <div
                 ref={panelRef}
                 className="termin-drawer-panel"

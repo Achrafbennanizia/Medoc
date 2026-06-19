@@ -1,6 +1,6 @@
 # Geplant — project status for future development
 
-**Last updated:** 2026-06-10  
+**Last updated:** 2026-06-18  
 **Purpose:** Authoritative register of features **not yet active** in the product. Maintained here in coordination docs — **not** as in-app UI lists.
 
 **How to use**
@@ -15,7 +15,10 @@
 
 | Item | Status | Notes | Evidence |
 | ---- | ------ | ----- | -------- |
-| Organisations-2FA erzwingen | Geplant | Praxis-weite Richtlinie über Hersteller-Portal; client JSON only today | Comment block in `einstellungen-sicherheit-section.tsx` |
+| Break-Glass (Notfallzugriff) | **Deferred (MVP off)** | IPC + audit schema remain; UI hidden | [`todos-deferred-security-features.md`](todos-deferred-security-features.md), `mvp_security.rs` |
+| TOTP 2FA (ARZT-Pflicht) | **Deferred (MVP off)** | Password-only login; TOTP IPC gated | Same checklist |
+| Staff cap 5 (1 ARZT + 4 REZEPTION) | **Active (MVP)** | Enforced on create/update; `get_staff_quota` IPC | `mvp_security.rs`, `personal.tsx` |
+| Organisations-2FA erzwingen | Geplant | Praxis-weite Richtlinie über Hersteller-Portal; blocked until TOTP re-enabled | Comment block in `einstellungen-sicherheit-section.tsx` |
 | HBA / eGK-Kartenleser | Geplant | Live-Status vom Terminal (Orga 6141) | Portal stub; legacy UI commented out |
 | Audit-Kettenprüfung in Einstellungen | Geplant | Integritätsstatus direkt in Sicherheit | `getAuditChainStatus` used on Ops page only |
 | Auto-Sperre: Minuten wählen | Geplant | Feineinstellung der Inaktivitätsdauer | Toggle Ein/Aus mit festen 5 Min. |
@@ -44,10 +47,30 @@ See also [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) for GAP-08/09/12 skips
 
 ---
 
+## v1 deferred surfaces (Wave 1 blinds)
+
+| Item | Status | Flag / evidence |
+| ---- | ------ | ----------------- |
+| E-Rezept **An TI senden** | **Hidden** | `integration-capabilities.ts` · `eprescription.available: false` |
+| Lizenz Nutzung diesen Monat | **Hidden** | `LICENSE_USAGE_METERS_ENABLED` |
+| Lizenz Zahlungsmethode / Rechnungen / Plan wechseln | **Hidden** | `LICENSE_BILLING_CONNECTORS_ENABLED` |
+| KBV-Zulassung row | **Hidden** | `LICENSE_KBV_ROW_ENABLED` |
+| Support-Vertrag row | **Hidden** | `LICENSE_SUPPORT_ROW_ENABLED` |
+| PDF Dokumentvorlage picker | **Hidden** | `PDF_LAYOUT_TEMPLATE_PICKER_ENABLED` |
+| Einführung coachmark (NFA-USE-09) | **Hidden** | `ONBOARDING_COACHMARK_ENABLED` |
+| Migration GDT/DICOM/Scanner steps | **Hidden** | `MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED` |
+| Geräteverbund admin panel | **Hidden** | `VERBUND_ADMIN_PANEL_V1_ENABLED` (v1.1) |
+| KIM / process_payment / DICOM C-STORE | **No UI** | stubs only — see [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
+
+Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) · program: [`v1-completion-program.md`](v1-completion-program.md)
+
+---
+
 ## Checklist index
 
 | Topic | Document |
 | ----- | -------- |
+| v1 surface blinds | [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
 | Advisor roles re-enable | [`todos-deferred-roles.md`](todos-deferred-roles.md) |
 | Datenschutz UI re-enable | [`todos-deferred-features.md`](todos-deferred-features.md) |
 | Gap IDs & v0.1 scope | [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) |

@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { listLeistungen, createLeistung, deleteLeistung, updateLeistung } from "@/systems/practice-host/controllers/leistung.controller";
@@ -66,6 +67,8 @@ function formValid(f: LeistungForm): boolean {
 }
 
 export function LeistungenPage() {
+    const t = useT();
+    const tp = useTParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const [leistungen, setLeistungen] = useState<Leistung[]>([]);
     const [loading, setLoading] = useState(true);
@@ -101,12 +104,12 @@ export function LeistungenPage() {
             } catch (e) {
                 const msg = errorMessage(e);
                 if (isInitial) setLoadError(msg);
-                else toast(`Aktualisieren fehlgeschlagen: ${msg}`, "error");
+                else toast(tp("common.refresh_failed", { message: msg }), "error");
             } finally {
                 if (isInitial) setLoading(false);
             }
         },
-        [toast],
+        [toast, tp],
     );
 
     useEffect(() => {
@@ -160,7 +163,7 @@ export function LeistungenPage() {
                 preis: p.preis,
                 beschreibung: p.beschreibung,
             });
-            toast("Leistung erstellt", "success");
+            toast(t("leistungen.toast.created"), "success");
             setCreateForm(emptyForm());
             setCreating(false);
             setSelected(created);
@@ -187,7 +190,7 @@ export function LeistungenPage() {
                 aktiv: p.aktiv,
             });
             setDetailEdit(false);
-            toast("Leistung gespeichert", "success");
+            toast(t("leistungen.toast.saved"), "success");
             void load();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -201,7 +204,7 @@ export function LeistungenPage() {
         const id = deleteId;
         try {
             await deleteLeistung(id);
-            toast("Leistung gelöscht", "success");
+            toast(t("leistungen.toast.deleted"), "success");
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);
@@ -233,7 +236,7 @@ export function LeistungenPage() {
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span className="kpi-label-mini">{label}</span>
-            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? "—" : value}</span>
+            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? t("common.em_dash") : value}</span>
         </div>
     );
 
@@ -242,11 +245,11 @@ export function LeistungenPage() {
             return (
                 <Card className="leistungen-detail-card">
                     <CardHeader
-                        title="Neue Leistung"
-                        subtitle="Erfassung rechts in diesem Bereich, ohne separate Vollbild-Seite."
+                        title={t("leistungen.create.title")}
+                        subtitle={t("leistungen.create.subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelCreate}>
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         }
                     />
@@ -254,10 +257,10 @@ export function LeistungenPage() {
                         <LeistungFormFields form={createForm} setForm={setCreateForm} idPrefix="lst-new" kategorieVorschlaege={kategorieVorschlaege} showAktiv={false} />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleCreate()} disabled={!formValid(createForm) || createBusy} loading={createBusy}>
-                                Erstellen
+                                {t("common.create")}
                             </Button>
                         </div>
                     </div>
@@ -269,16 +272,16 @@ export function LeistungenPage() {
                 <Card className="leistungen-detail-card">
                     <CardHeader
                         title={selected.name}
-                        subtitle={detailEdit ? "Bearbeiten — Änderungen mit Speichern übernehmen." : "Nur lesen — Bearbeiten öffnet die Eingabefelder."}
+                        subtitle={detailEdit ? t("leistungen.detail.edit_sub") : t("leistungen.detail.read_sub")}
                         action={canWrite && !detailEdit ? (
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected)); }}>
                                     <EditIcon size={14} />
                                     {" "}
-                                    Bearbeiten
+                                    {t("common.edit")}
                                 </Button>
                                 <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(selected.id)}>
-                                    Löschen
+                                    {t("common.delete")}
                                 </Button>
                             </div>
                         ) : null}
@@ -289,22 +292,22 @@ export function LeistungenPage() {
                                 <LeistungFormFields form={editForm} setForm={setEditForm} idPrefix="lst-edit" kategorieVorschlaege={kategorieVorschlaege} showAktiv />
                                 <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
-                                        Abbrechen
+                                        {t("common.cancel")}
                                     </Button>
                                     <Button type="button" onClick={() => void handleUpdate()} disabled={!formValid(editForm) || saveBusy} loading={saveBusy}>
-                                        Speichern
+                                        {t("common.save")}
                                     </Button>
                                 </div>
                             </div>
                         ) : (
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="leistungen-read-grid">
-                                {readField("Name", selected.name)}
-                                {readField("Kategorie", selected.kategorie)}
-                                {readField("Preis (€)", formatCurrency(selected.preis))}
-                                {readField("Status", selected.aktiv ? "Aktiv" : "Inaktiv")}
-                                <div style={{ gridColumn: "1 / -1" }}>{readField("Beschreibung", selected.beschreibung ?? "—")}</div>
+                                {readField(t("common.name"), selected.name)}
+                                {readField(t("common.category"), selected.kategorie)}
+                                {readField(t("common.price_eur"), formatCurrency(selected.preis))}
+                                {readField(t("common.status"), selected.aktiv ? t("common.active") : t("common.inactive"))}
+                                <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.description"), selected.beschreibung ?? t("common.em_dash"))}</div>
                                 <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--fg-3)" }}>
-                                    Zuletzt geändert: {formatDateTime(selected.updated_at)}
+                                    {tp("common.last_modified", { date: formatDateTime(selected.updated_at) })}
                                 </div>
                             </div>
                         )}
@@ -316,8 +319,8 @@ export function LeistungenPage() {
             <Card className="card-pad leistungen-detail-card leistungen-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                     {canWrite
-                        ? "Wählen Sie eine Zeile für Details, oder „+ Neue Leistung“ — die Eingabemaske erscheint hier."
-                        : "Wählen Sie eine Zeile in der Tabelle, um die Details zu sehen."}
+                        ? t("leistungen.panel_empty_write")
+                        : t("leistungen.panel_empty_read")}
                 </p>
             </Card>
         );
@@ -327,19 +330,19 @@ export function LeistungenPage() {
         <div className="leistungen-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 showBack={canGoVerwaltung}
-                title="Leistungen"
-                subtitle="Katalog und Preise — Liste links, anlegen, lesen und bearbeiten im rechten Bereich."
+                title={t("leistungen.page.title")}
+                subtitle={t("leistungen.page.subtitle")}
                 actions={
                     canWrite ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Neue Leistung abbrechen" : "+ Neue Leistung"}
+                            {creating ? t("leistungen.cancel_create_btn") : t("leistungen.new_btn")}
                         </Button>
                     ) : null
                 }
             />
 
             {loading ? (
-                <PageLoading label="Leistungen werden geladen…" />
+                <PageLoading label={t("leistungen.loading")} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             ) : (
@@ -349,8 +352,8 @@ export function LeistungenPage() {
                             <Card className="card-pad">
                                 <EmptyState
                                     icon="🦷"
-                                    title="Keine Leistungen vorhanden"
-                                    description={canWrite ? "Rechts erscheint die Maske, sobald Sie „+ Neue Leistung“ wählen." : "Keine Einträge im Katalog."}
+                                    title={t("leistungen.empty")}
+                                    description={canWrite ? t("leistungen.empty_create_hint") : t("leistungen.empty_catalog")}
                                 />
                             </Card>
                         ) : (
@@ -358,9 +361,9 @@ export function LeistungenPage() {
                                 <table className="tbl leistungen-tbl">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Kategorie</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>Preis</th>
+                                            <th scope="col">{t("common.name")}</th>
+                                            <th scope="col">{t("common.category")}</th>
+                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.price")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -381,13 +384,13 @@ export function LeistungenPage() {
                                                     onClick={() => pick()}
                                                     onKeyDown={onRowKeyDown}
                                                     style={{ cursor: "pointer" }}
-                                                    aria-label={`Leistung ${l.name} anzeigen`}
+                                                    aria-label={tp("common.row_show_aria", { entity: t("leistungen.entity"), name: l.name })}
                                                 >
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{l.name}</span>
                                                         {!l.aktiv ? (
                                                             <span style={{ marginLeft: 8, display: "inline-block" }}>
-                                                                <Badge variant="warning">Inaktiv</Badge>
+                                                                <Badge variant="warning">{t("common.inactive")}</Badge>
                                                             </span>
                                                         ) : null}
                                                     </td>
@@ -410,9 +413,9 @@ export function LeistungenPage() {
                 open={!!deleteId}
                 onClose={() => setDeleteId(null)}
                 onConfirm={() => void handleDelete()}
-                title="Leistung löschen"
-                message="Möchten Sie diese Leistung wirklich löschen? Eine Löschung deaktiviert den Eintrag im Katalog."
-                confirmLabel="Löschen"
+                title={t("leistungen.delete_title")}
+                message={t("leistungen.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
         </div>
@@ -432,19 +435,20 @@ function LeistungFormFields({
     kategorieVorschlaege: string[];
     showAktiv: boolean;
 }) {
+    const t = useT();
     const kategorieDatalistId = useId();
     return (
         <>
             <Input
                 id={`${idPrefix}-name`}
-                label="Name"
+                label={t("common.name")}
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
             />
             <div>
                 <Input
                     id={`${idPrefix}-kat`}
-                    label="Kategorie"
+                    label={t("common.category")}
                     value={form.kategorie}
                     list={kategorieDatalistId}
                     autoComplete="off"
@@ -461,13 +465,13 @@ function LeistungFormFields({
                 type="number"
                 min={0}
                 step="0.01"
-                label="Preis (€)"
+                label={t("common.price_eur")}
                 value={form.preis}
                 onChange={(e) => setForm((p) => ({ ...p, preis: e.target.value }))}
             />
             <Textarea
                 id={`${idPrefix}-beschr`}
-                label="Beschreibung"
+                label={t("common.description")}
                 rows={3}
                 value={form.beschreibung}
                 onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))}
@@ -479,7 +483,7 @@ function LeistungFormFields({
                         checked={form.aktiv}
                         onChange={(e) => setForm((p) => ({ ...p, aktiv: e.target.checked }))}
                     />
-                    Aktiv (deaktivierte Leistungen erscheinen nicht mehr in der Liste)
+                    {t("leistungen.aktiv_hint")}
                 </label>
             ) : null}
         </>
