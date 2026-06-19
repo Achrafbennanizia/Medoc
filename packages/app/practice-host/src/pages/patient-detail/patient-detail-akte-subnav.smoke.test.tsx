@@ -5,7 +5,7 @@ import { patientDetailTabBlocked, patientDetailTabVisible } from "@/lib/patient-
 import { PatientDetailAkteSubnav } from "./patient-detail-akte-subnav";
 
 const baseProps = {
-    activeTab: "stamm" as const,
+    activeTab: "anam" as const,
     validation: { stamm: true, anam: true, unter: true, behand: true, rezept: true, anlage: true, zahl: true },
     anlagen: [],
     zahlungen: [],

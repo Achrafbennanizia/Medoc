@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import type { BehandlungsKatalogItem } from "@/models/types";
 import { Input, Select } from "./ui/input";
 
@@ -23,15 +24,16 @@ type Props = {
 };
 
 export function UntersuchungBillingFields({ katalog, form, setForm, locked = false }: Props) {
+    const t = useT();
     const kategorieOptions = [
-        { value: "", label: "— Kategorie wählen —" },
+        { value: "", label: t("untersuchung.billing.category_pick") },
         ...Array.from(new Set(katalog.map((k) => k.kategorie).filter(Boolean))).map((c) => ({
             value: c,
             label: c,
         })),
     ];
     const leistungOptions = [
-        { value: "", label: "— Leistung aus Katalog —" },
+        { value: "", label: t("untersuchung.billing.service_catalog_pick") },
         ...katalog
             .filter((k) => !form.kategorie.trim() || k.kategorie === form.kategorie)
             .map((k) => ({ value: k.id, label: `${k.name} (${k.kategorie})` })),
@@ -47,10 +49,10 @@ export function UntersuchungBillingFields({ katalog, form, setForm, locked = fal
                 borderBottom: "1px solid var(--line)",
             }}
         >
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Abrechnungsleistung (optional)</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t("untersuchung.billing.title")}</div>
             <div className="grid-2" style={{ gap: 10 }}>
                 <Select
-                    label="Kategorie"
+                    label={t("untersuchung.billing.category")}
                     value={form.kategorie}
                     options={kategorieOptions}
                     disabled={locked}
@@ -66,7 +68,7 @@ export function UntersuchungBillingFields({ katalog, form, setForm, locked = fal
                     }}
                 />
                 <Select
-                    label="Leistung aus Katalog"
+                    label={t("untersuchung.billing.service_catalog")}
                     value={form.leistungKatalogId || ""}
                     options={leistungOptions}
                     disabled={locked}
@@ -86,7 +88,7 @@ export function UntersuchungBillingFields({ katalog, form, setForm, locked = fal
                     }}
                 />
                 <Input
-                    label="Leistungsname (Text)"
+                    label={t("untersuchung.billing.service_name")}
                     value={form.leistungsname}
                     disabled={locked}
                     onChange={(e) =>
@@ -96,10 +98,10 @@ export function UntersuchungBillingFields({ katalog, form, setForm, locked = fal
                             leistungKatalogId: "",
                         })
                     }
-                    placeholder="Aus Katalog oder frei — für Abrechnung erforderlich"
+                    placeholder={t("behandlung.composer.catalog_ph")}
                 />
                 <Input
-                    label="Gesamtkosten (€)"
+                    label={t("untersuchung.billing.cost")}
                     value={form.gesamtkosten}
                     disabled={locked}
                     onChange={(e) => setForm({ ...form, gesamtkosten: e.target.value })}

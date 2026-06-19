@@ -1,7 +1,7 @@
 import { type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { addMonths, format } from "date-fns";
-import { de } from "date-fns/locale";
 import type { Termin } from "@/models/types";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import {
     monthCalPatientLoadAccentHex,
@@ -31,6 +31,18 @@ export function TerminMonthCalendar({
     patientLoadSettings,
     onPickDay,
 }: TerminMonthCalendarProps) {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
+    const weekdayKeys = [
+        "termin.calendar.weekday.mon",
+        "termin.calendar.weekday.tue",
+        "termin.calendar.weekday.wed",
+        "termin.calendar.weekday.thu",
+        "termin.calendar.weekday.fri",
+        "termin.calendar.weekday.sat",
+        "termin.calendar.weekday.sun",
+    ] as const;
     const anchor = addMonths(new Date(), monthOffset);
     const y = anchor.getFullYear();
     const m = anchor.getMonth();
@@ -47,15 +59,15 @@ export function TerminMonthCalendar({
         <div className="card card-pad termin-month-view">
             <div className="month-view-topbar">
                 <div className="row month-view-period" style={{ gap: 8, fontWeight: 600, alignItems: "center" }}>
-                    <button type="button" className="icon-btn" aria-label="Vorheriger Monat" onClick={() => onMonthChange((o) => o - 1)}><ChevronLeftIcon size={16} /></button>
-                    <span className="month-view-period-label">{format(first, "MMMM yyyy", { locale: de })}</span>
-                    <button type="button" className="icon-btn" aria-label="Nächster Monat" onClick={() => onMonthChange((o) => o + 1)}><ChevronRightIcon size={16} /></button>
+                    <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_prev")} onClick={() => onMonthChange((o) => o - 1)}><ChevronLeftIcon size={16} /></button>
+                    <span className="month-view-period-label">{format(first, "MMMM yyyy", { locale: dateFnsLocale })}</span>
+                    <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_next")} onClick={() => onMonthChange((o) => o + 1)}><ChevronRightIcon size={16} /></button>
                 </div>
-                <button type="button" className="btn btn-subtle" onClick={() => onMonthChange(0)}>Heute</button>
+                <button type="button" className="btn btn-subtle" onClick={() => onMonthChange(0)}>{t("common.today")}</button>
                 <DoctorLegend aerzte={aerzte} arztToneMap={arztToneMap} />
             </div>
             <div className="cal termine-month-cal">
-                {["MO", "DI", "MI", "DO", "FR", "SA", "SO"].map((d) => <div className="cal-head" key={d}>{d}</div>)}
+                {weekdayKeys.map((key) => <div className="cal-head" key={key}>{t(key)}</div>)}
                 {Array.from({ length: total }).map((_, idx) => {
                     const day = idx - startOffset + 1;
                     const inMonth = day > 0 && day <= daysInMonth;
@@ -67,9 +79,9 @@ export function TerminMonthCalendar({
                     const loadTier = terminCount > 0 ? monthCalPatientLoadTier(terminCount, patientLoadSettings) : null;
                     const loadHex =
                         loadTier != null ? monthCalPatientLoadAccentHex(loadTier, patientLoadSettings) : null;
-                    const loadLabelDe =
-                        loadTier === "few" ? "wenig" : loadTier === "medium" ? "mittel" : loadTier === "high" ? "hoch" : "";
-                    const terminBadgeText = terminCount === 1 ? "1 Termin" : `${terminCount} Termine`;
+                    const loadLabel =
+                        loadTier === "few" ? t("termin.calendar.load.few") : loadTier === "medium" ? t("termin.calendar.load.medium") : loadTier === "high" ? t("termin.calendar.load.high") : "";
+                    const terminBadgeText = terminCount === 1 ? t("termin.calendar.planned_one") : tp("termin.calendar.planned_label", { count: terminCount });
                     return (
                         <div
                             key={idx}
@@ -95,13 +107,13 @@ export function TerminMonthCalendar({
                                                 ? ({ "--termin-pill-accent": loadHex } as CSSProperties)
                                                 : undefined
                                         }
-                                        aria-label={`${terminBadgeText}, Auslastung ${loadLabelDe}`}
-                                        title={`${terminBadgeText} · Auslastung ${loadLabelDe}`}
+                                        aria-label={`${terminBadgeText}, ${t("termin.calendar.load_label")} ${loadLabel}`}
+                                        title={`${terminBadgeText} · ${t("termin.calendar.load_label")} ${loadLabel}`}
                                     >
                                         {terminBadgeText}
                                     </div>
                                 ) : (
-                                    <div className="cal-cell-termin-pill cal-cell-termin-pill--empty" aria-label="Keine Termine">
+                                    <div className="cal-cell-termin-pill cal-cell-termin-pill--empty" aria-label={t("termin.calendar.no_appointments_day")}>
                                         —
                                     </div>
                                 )

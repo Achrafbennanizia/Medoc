@@ -1,23 +1,21 @@
 import { Link } from "react-router-dom";
+import { useT } from "@/lib/i18n";
+import { OnboardingShell } from "@/views/components/onboarding-shell";
 
 export function VerbundOnboardingPage() {
+    const t = useT();
     return (
-        <div className="license-gate-page">
-            <div className="license-gate-card">
-                <h1>MeDoc einrichten</h1>
-                <p className="card-sub">
-                    Diese Installation ist noch keinem Praxis-Verbund zugeordnet. Wählen Sie, ob Sie
-                    eine neue Praxis einrichten oder einem bestehenden Verbund beitreten.
-                </p>
-                <div className="license-gate-actions" style={{ display: "flex", gap: 12, flexDirection: "column" }}>
-                    <Link to="/onboarding/lizenz" className="btn btn-accent">
-                        Diese Praxis neu einrichten
-                    </Link>
-                    <Link to="/onboarding/beitreten" className="btn btn-subtle">
-                        Diesem Praxis-Verbund beitreten
-                    </Link>
-                </div>
+        <OnboardingShell>
+            <h1>{t("onboarding.verbund.title")}</h1>
+            <p className="card-sub">{t("onboarding.verbund.subtitle")}</p>
+            <div className="onboarding-actions">
+                <Link to="/onboarding/aktivierung" className="btn btn-accent">
+                    {t("onboarding.verbund.setup_new")}
+                </Link>
+                <Link to="/onboarding/beitreten" className="btn btn-subtle">
+                    {t("onboarding.verbund.join")}
+                </Link>
             </div>
-        </div>
+        </OnboardingShell>
     );
 }

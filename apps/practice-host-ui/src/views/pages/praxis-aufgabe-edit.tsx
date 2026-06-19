@@ -11,6 +11,7 @@ import type { Patient, Personal } from "@/models/types";
 import { errorMessage } from "@/lib/utils";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
+import { useT } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
@@ -36,6 +37,7 @@ function rowToForm(row: PraxisAufgabe): PraxisAufgabeTaskForm {
 }
 
 export function PraxisAufgabeEditPage() {
+    const t = useT();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
@@ -65,7 +67,7 @@ export function PraxisAufgabeEditPage() {
                 listPatienten(),
                 loadAufgabeTeamDirectory(role, session?.permission_overrides),
             ]);
-            const row = tasks.find((t) => t.id === id);
+            const row = tasks.find((task) => task.id === id);
             if (!row) {
                 setNotFound(true);
                 return;
@@ -86,7 +88,7 @@ export function PraxisAufgabeEditPage() {
 
     const save = async () => {
         if (!id || !form || !form.titel.trim()) {
-            toast("Titel ist Pflicht.", "error");
+            toast(t("common.title_required"), "error");
             return;
         }
         setBusy(true);
@@ -100,7 +102,7 @@ export function PraxisAufgabeEditPage() {
                 assigneeRole: form.assigneeMode === "rezeption" ? "REZEPTION" : null,
                 assigneeUserId: form.assigneeMode === "user" ? form.assigneeUserId || null : null,
             });
-            toast("Aufgabe gespeichert.", "success");
+            toast(t("praxis.aufgaben.toast.saved"), "success");
             navigate(BACK_HREF);
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -109,14 +111,14 @@ export function PraxisAufgabeEditPage() {
         }
     };
 
-    if (loading) return <PageLoading label="Aufgabe wird geladen…" />;
+    if (loading) return <PageLoading label={t("praxis.aufgaben.edit.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
     if (notFound || !form) {
         return (
             <EmptyState
-                title="Aufgabe nicht gefunden"
-                description="Die Aufgabe existiert nicht oder Sie haben keinen Zugriff."
-                action={{ label: "Zurück zur Liste", onClick: () => navigate(BACK_HREF) }}
+                title={t("praxis.aufgaben.edit.not_found_title")}
+                description={t("praxis.aufgaben.edit.not_found_desc")}
+                action={{ label: t("common.back"), onClick: () => navigate(BACK_HREF) }}
             />
         );
     }
@@ -125,13 +127,13 @@ export function PraxisAufgabeEditPage() {
         <div className="praxis-aufgabe-edit-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 titleLevel="h1"
-                title="Aufgabe bearbeiten"
+                title={t("praxis.aufgaben.edit.title")}
                 subtitle={form.titel}
-                back={{ to: BACK_HREF, label: "Praxis-Aufgaben" }}
+                back={{ to: BACK_HREF, label: t("praxis.aufgaben.title") }}
             />
 
             <Card className="card-elevated praxis-aufgabe-edit-page__card">
-                <CardHeader title="Aufgabendetails" />
+                <CardHeader title={t("praxis.aufgaben.create.card_title")} />
                 <div className="card-pad">
                     <PraxisAufgabeFormFields
                         mode="edit"
@@ -144,11 +146,11 @@ export function PraxisAufgabeEditPage() {
                     />
                     <div className="row" style={{ gap: 8, marginTop: 16 }}>
                         <Button type="button" variant="primary" disabled={busy} onClick={() => void save()}>
-                            Speichern
+                            {t("common.save")}
                         </Button>
                         <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate(BACK_HREF)}>
                             <ChevronLeftIcon size={16} />
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </div>
                 </div>

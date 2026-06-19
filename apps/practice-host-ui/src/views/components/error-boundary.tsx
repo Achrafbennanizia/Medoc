@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
@@ -32,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
         return (
             <div role="alert" className="min-h-screen flex items-center justify-center bg-surface p-6">
                 <div className="max-w-md w-full bg-surface-container rounded-xl p-6 border border-error/30">
-                    <h1 className="text-title text-error font-semibold">Unerwarteter Fehler</h1>
+                    <h1 className="text-title text-error font-semibold">{t("common.unexpected_error")}</h1>
                     <p className="mt-2 text-body text-on-surface-variant">
                         Ein interner Fehler ist aufgetreten. Bitte laden Sie die Anwendung neu.
                         Falls das Problem weiterhin besteht, exportieren Sie die Logs unter

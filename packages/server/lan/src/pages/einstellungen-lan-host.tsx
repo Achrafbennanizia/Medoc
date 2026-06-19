@@ -21,6 +21,8 @@ import { resetPracticeTransportCache } from "@/systems/practice-host/adapters/pr
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT } from "@/lib/i18n";
+import { errorMessage, formatTpl } from "@/lib/utils";
 
 /** Inline switch matching Einstellungen — duplicated minimally to avoid exporting private helper from einstellungen.tsx */
 function Switch({
@@ -63,6 +65,7 @@ function Mono({ children }: { children: ReactNode }) {
 
 export function EinstellungenLanHostSection({ embedded = false }: { embedded?: boolean } = {}) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
     const [cfg, setCfg] = useState<LanServerConfigV1>(DEFAULT_CFG);
     const [status, setStatus] = useState<LanServerStatusPayload | null>(null);
     const [busy, setBusy] = useState(false);
@@ -85,9 +88,9 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
             });
             setStatus(s);
         } catch (e) {
-            toast(`LAN-Einstellungen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(formatTpl(t("page.lan.host.toast.load_err"), { error: errorMessage(e) }), "error");
         }
-    }, [toast]);
+    }, [toast, t]);
 
     useEffect(() => {
         void refresh();
@@ -103,10 +106,10 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         setBusy(true);
         try {
             await lanServerSetConfig(cfg);
-            toast("LAN-Konfiguration gespeichert", "success");
+            toast(t("page.lan.host.toast.config_saved"), "success");
             await refresh();
         } catch (e) {
-            toast(`Speichern: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(formatTpl(t("page.lan.host.toast.save_err"), { error: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -117,9 +120,9 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         try {
             const s = await lanServerStart();
             setStatus(s);
-            toast("LAN-Server gestartet", "success");
+            toast(t("page.lan.host.toast.started"), "success");
         } catch (e) {
-            toast(`Start: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(formatTpl(t("page.lan.host.toast.start_err"), { error: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -130,9 +133,9 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         try {
             await lanServerStop();
             await refresh();
-            toast("LAN-Server gestoppt", "success");
+            toast(t("page.lan.host.toast.stopped"), "success");
         } catch (e) {
-            toast(`Stopp: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(formatTpl(t("page.lan.host.toast.stop_err"), { error: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -143,9 +146,14 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         try {
             const h = await lanServerScan(scanFilter.trim() || undefined);
             setHits(h);
-            toast(h.length ? `${h.length} Host(s) im LAN gefunden` : "Keine Antworten (Firewall prüfen)", "info");
+            toast(
+                h.length
+                    ? formatTpl(t("page.lan.host.toast.scan_found"), { count: h.length })
+                    : t("page.lan.host.toast.scan_none"),
+                "info",
+            );
         } catch (e) {
-            toast(`Scan: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(formatTpl(t("page.lan.host.toast.scan_err"), { error: errorMessage(e) }), "error");
         } finally {
             setScanBusy(false);
         }
@@ -156,8 +164,8 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         resetPracticeTransportCache();
         toast(
             isLanClientActive(lanClient)
-                ? "LAN-Client-Modus aktiv — Seite neu laden empfohlen"
-                : "LAN-Client-Modus deaktiviert",
+                ? t("page.lan.host.toast.client_active")
+                : t("page.lan.host.toast.client_inactive"),
             "success",
         );
     };
@@ -166,7 +174,7 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         const host = h.fromAddr.includes(":") ? h.fromAddr.split(":")[0]! : h.fromAddr;
         const base = `https://${host}:${h.httpPort}`;
         setLanClient((c) => ({ ...c, baseUrl: base }));
-        toast(`Basis-URL übernommen: ${base}`, "info");
+        toast(formatTpl(t("page.lan.host.toast.base_url_applied"), { url: base }), "info");
     };
 
     const running = status?.running ?? false;
@@ -174,11 +182,11 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
 
     const heading = (
         <>
-            <div className="card-title">LAN-Host / Zweitgeräte</div>
+            <div className="card-title">{t("page.lan.host.title")}</div>
             <div className="card-sub">
-                Stellt dieselbe SQLite-Datenbank authentifiziert per <strong>HTTPS</strong> (selbstsigniertes Zertifikat)
-                im lokalen Netz bereit — für einen zweiten PC, Tablet oder <Mono>medoc-server</Mono>.
-                Clients müssen den Zertifikats-Fingerabdruck pinnen; Klartext-HTTP wird nicht angeboten.
+                {t("page.lan.host.subtitle_lead")} <strong>{t("page.lan.host.subtitle_mid")}</strong>{" "}
+                {t("page.lan.host.subtitle_before_server")} <Mono>medoc-server</Mono>
+                {t("page.lan.host.subtitle_after_server")}
             </div>
         </>
     );
@@ -187,15 +195,18 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
         <>
             <div className="settings-row" style={{ alignItems: "flex-start", borderTop: "none", paddingTop: 0 }}>
                 <div style={{ flex: 1 }}>
-                    <b>Serverstatus</b>
+                    <b>{t("page.lan.host.server_status")}</b>
                     <div className="card-sub">
                         {running
-                            ? `Aktiv · HTTPS ${status?.httpPort ?? "—"} · UDP-Suche ${status?.discoveryPort ?? "—"}`
-                            : "Gestoppt — starten Sie den Dienst, wenn Zweitgeräte diesen Rechner als Host nutzen sollen."}
+                            ? formatTpl(t("page.lan.host.status_active"), {
+                                  httpPort: status?.httpPort ?? "—",
+                                  discoveryPort: status?.discoveryPort ?? "—",
+                              })
+                            : t("page.lan.host.status_stopped")}
                     </div>
                     {running && status?.tlsCertSha256 ? (
                         <div className="card-sub" style={{ marginTop: 8 }}>
-                            <b>Zertifikat SHA-256:</b> <Mono>{status.tlsCertSha256}</Mono>
+                            <b>{t("page.lan.host.cert_sha256")}</b> <Mono>{status.tlsCertSha256}</Mono>
                         </div>
                     ) : null}
                     {running && status?.suggestedBaseUrls?.length ? (
@@ -210,39 +221,38 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                 </div>
                 <div className="row" style={{ gap: 8 }}>
                     <Button type="button" variant="secondary" loading={busy} disabled={busy || running} onClick={() => void start()}>
-                        Starten
+                        {t("page.lan.host.server_start")}
                     </Button>
                     <Button type="button" variant="ghost" loading={busy} disabled={busy || !running} onClick={() => void stop()}>
-                        Stoppen
+                        {t("page.lan.host.server_stop")}
                     </Button>
                 </div>
             </div>
 
             <div className="card-head" style={{ marginTop: 8 }}>
                 <div>
-                    <div className="card-title">Konfiguration</div>
+                    <div className="card-title">{t("page.lan.host.config_section")}</div>
                     <div className="card-sub">
-                        <Mono>0.0.0.0</Mono> = alle Netzwerkschnittstellen; für nur diesen Rechner ohne LAN-Zugriff:{" "}
-                        <Mono>127.0.0.1</Mono>
+                        <Mono>0.0.0.0</Mono> {t("page.lan.host.bind_hint_mid")} <Mono>127.0.0.1</Mono>
                     </div>
                 </div>
             </div>
             <div className="card-pad" style={{ display: "grid", gap: 12, maxWidth: 520 }}>
                 <Input
                     id="lan-bind"
-                    label="Bind-Adresse (TCP)"
+                    label={t("page.lan.host.label_bind")}
                     value={cfg.bindAddr}
                     onChange={(e) => setCfg({ ...cfg, bindAddr: e.target.value })}
                 />
                 <Input
                     id="lan-http"
-                    label="HTTPS-Port"
+                    label={t("page.lan.host.label_https")}
                     value={String(cfg.httpPort)}
                     onChange={(e) => setCfg({ ...cfg, httpPort: Number.parseInt(e.target.value, 10) || cfg.httpPort })}
                 />
                 <Input
                     id="lan-udp"
-                    label="UDP-Suche (Discovery)"
+                    label={t("page.lan.host.label_udp")}
                     value={String(cfg.udpDiscoveryPort)}
                     onChange={(e) =>
                         setCfg({ ...cfg, udpDiscoveryPort: Number.parseInt(e.target.value, 10) || cfg.udpDiscoveryPort })
@@ -250,7 +260,7 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                 />
                 <Input
                     id="lan-label"
-                    label="Anzeigename (Beacon)"
+                    label={t("page.lan.host.label_beacon")}
                     value={cfg.instanceLabel}
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                         setCfg({ ...cfg, instanceLabel: e.target.value })
@@ -258,38 +268,38 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                 />
                 <div className="settings-row">
                     <div>
-                        <b>Mit App starten</b>
-                        <div className="card-sub">Server ca. 1,5 s nach Start automatisch anbinden</div>
+                        <b>{t("page.lan.host.auto_start")}</b>
+                        <div className="card-sub">{t("page.lan.host.auto_start_hint")}</div>
                     </div>
                     <Switch
-                        ariaLabel="LAN-Server mit App starten"
+                        ariaLabel={t("page.lan.host.auto_start_aria")}
                         checked={cfg.autoStartWithApp}
                         onChange={(next) => setCfg({ ...cfg, autoStartWithApp: next })}
                     />
                 </div>
                 <Button type="button" onClick={() => void saveCfg()} loading={busy} disabled={busy}>
-                    Konfiguration speichern
+                    {t("page.lan.host.config_save")}
                 </Button>
             </div>
 
             <div className="card-head" style={{ marginTop: 12 }}>
                 <div>
-                    <div className="card-title">LAN durchsuchen</div>
-                    <div className="card-sub">UDP-Broadcast — andere Geräte mit laufendem MeDoc-Host antworten kurz (Firewall/Gäste-WLAN beachten).</div>
+                    <div className="card-title">{t("page.lan.host.scan_section")}</div>
+                    <div className="card-sub">{t("page.lan.host.scan_hint")}</div>
                 </div>
             </div>
             <div className="card-pad" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
                 <div style={{ flex: "1 1 220px" }}>
                     <Input
                         id="lan-scan-filter"
-                        label="Label enthält (optional)"
+                        label={t("page.lan.host.label_scan_filter")}
                         value={scanFilter}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setScanFilter(e.target.value)}
-                        placeholder="z. B. Praxis"
+                        placeholder={t("page.lan.host.scan_filter_ph")}
                     />
                 </div>
                 <Button type="button" variant="secondary" loading={scanBusy} disabled={scanBusy} onClick={() => void scan()}>
-                    Jetzt suchen (ca. 2,5 s)
+                    {t("page.lan.host.scan_btn")}
                 </Button>
             </div>
             {hits.length ? (
@@ -297,10 +307,10 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                     <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
                         <thead>
                             <tr>
-                                <th align="left">Quelle</th>
-                                <th align="left">HTTPS</th>
-                                <th align="left">Label</th>
-                                <th align="left">Version</th>
+                                <th align="left">{t("page.lan.host.col_source")}</th>
+                                <th align="left">{t("page.lan.host.col_https")}</th>
+                                <th align="left">{t("page.lan.host.col_label")}</th>
+                                <th align="left">{t("page.lan.host.col_version")}</th>
                                 <th align="left" />
                             </tr>
                         </thead>
@@ -317,7 +327,7 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                                             variant="ghost"
                                             onClick={() => applyDiscoveryHit(h)}
                                         >
-                                            Als Client-URL
+                                            {t("page.lan.host.scan_as_client")}
                                         </Button>
                                     </td>
                                 </tr>
@@ -329,14 +339,13 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
 
             <div className="card-head" style={{ marginTop: 16 }}>
                 <div>
-                    <div className="card-title">LAN-Client (dieses Gerät)</div>
+                    <div className="card-title">{t("page.lan.host.client_section")}</div>
                     <div className="card-sub">
-                        Verbindet die App per HTTPS mit einem anderen MeDoc-Host statt lokaler Tauri-IPC. Nur
-                        API-Routen des LAN-Servers sind verfügbar (Patienten, Termine, Profil, Praxis-KV).
+                        {t("page.lan.host.client_hint")}
                         {lanClientOn ? (
                             <>
                                 {" "}
-                                <strong style={{ color: "var(--accent)" }}>Modus aktiv.</strong>
+                                <strong style={{ color: "var(--accent)" }}>{t("page.lan.host.client_active")}</strong>
                             </>
                         ) : null}
                     </div>
@@ -345,18 +354,18 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
             <div className="card-pad" style={{ display: "grid", gap: 12, maxWidth: 520 }}>
                 <div className="settings-row">
                     <div>
-                        <b>LAN-Client-Modus</b>
-                        <div className="card-sub">Erfordert Basis-URL und JWT nach Anmeldung am Host</div>
+                        <b>{t("page.lan.host.client_mode")}</b>
+                        <div className="card-sub">{t("page.lan.host.client_mode_hint")}</div>
                     </div>
                     <Switch
-                        ariaLabel="LAN-Client-Modus"
+                        ariaLabel={t("page.lan.host.client_mode_aria")}
                         checked={lanClient.enabled}
                         onChange={(next) => setLanClient({ ...lanClient, enabled: next })}
                     />
                 </div>
                 <Input
                     id="lan-client-base"
-                    label="Host-Basis-URL (HTTPS)"
+                    label={t("page.lan.host.client_base_url")}
                     value={lanClient.baseUrl}
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                         setLanClient({ ...lanClient, baseUrl: e.target.value.trim() })
@@ -365,42 +374,36 @@ export function EinstellungenLanHostSection({ embedded = false }: { embedded?: b
                 />
                 <Input
                     id="lan-client-token"
-                    label="Zugriffstoken (JWT)"
+                    label={t("page.lan.host.client_jwt")}
                     type={showLanToken ? "text" : "password"}
                     value={lanClient.accessToken}
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                         setLanClient({ ...lanClient, accessToken: e.target.value.trim() })
                     }
-                    placeholder="Nach POST /api/v1/auth/login"
+                    placeholder={t("page.lan.host.client_jwt_ph")}
                 />
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Button type="button" variant="secondary" onClick={() => setShowLanToken((v) => !v)}>
-                        {showLanToken ? "Token verbergen" : "Token anzeigen"}
+                        {showLanToken ? t("page.lan.host.hide_token") : t("page.lan.host.show_token")}
                     </Button>
                     <Button type="button" onClick={saveLanClient}>
-                        Client-Konfiguration speichern
+                        {t("page.lan.host.client_save")}
                     </Button>
                 </div>
                 <p className="card-sub" style={{ margin: 0, lineHeight: 1.5 }}>
-                    Anmeldung im LAN-Client-Modus nutzt <Mono>POST /api/v1/auth/login</Mono>; das Token wird nach
-                    erfolgreicher Anmeldung automatisch gespeichert.
+                    {t("page.lan.host.client_jwt_hint")}
                 </p>
             </div>
 
             <div className="settings-highlight-card" style={{ marginTop: 14 }}>
                 <div className="card-title" style={{ fontSize: 14 }}>
-                    API (Kurzüberblick)
+                    {t("page.lan.host.api_headline")}
                 </div>
                 <p className="card-sub" style={{ marginTop: 8, lineHeight: 1.55 }}>
-                    <Mono>GET /health</Mono> · <Mono>GET /api/v1/ping</Mono> · <Mono>POST /api/v1/auth/login</Mono> (JSON mit email/passwort)
-                    · geschützt: <Mono>Authorization: Bearer …</Mono> für <Mono>GET /api/v1/patienten</Mono>,{" "}
-                    <Mono>GET /api/v1/termine?datum=YYYY-MM-DD</Mono>, Praxis-KV wie in der App:{" "}
-                    <Mono>GET /api/v1/app-kv?key=…</Mono>, <Mono>PUT /api/v1/app-kv</Mono> <Mono>{"{ key, value }"}</Mono>,{" "}
-                    <Mono>DELETE /api/v1/app-kv?key=…</Mono> (gleiche Schlüssel/RBAC wie Tauri <Mono>get_app_kv</Mono>).
+                    {t("page.lan.host.api_routes")}
                 </p>
                 <p className="card-sub" style={{ marginTop: 8, lineHeight: 1.55 }}>
-                    Headless: Binary <Mono>medoc-server --data-dir …</Mono> — Verzeichnis muss dieselbe <Mono>medoc.db</Mono> wie diese
-                    Installation verwenden.
+                    {t("page.lan.host.api_headless")}
                 </p>
             </div>
         </>

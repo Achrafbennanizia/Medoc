@@ -1,3 +1,4 @@
+import { translateLocale } from "@/lib/i18n";
 import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
 import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
@@ -18,6 +19,8 @@ import {
     buildRezeptPdfLayout,
     type ClinicalPdfLayout,
 } from "@/lib/clinical-pdf-layout";
+
+const docT = (key: string) => translateLocale("de", key);
 
 function rezeptStatusLabel(status: string): string {
     const s = status.trim();
@@ -492,11 +495,11 @@ export function buildAttestPrintHtml(a: Attest, patient: Patient | null): string
             <h1>${typ}</h1>
             <div class="row"><span class="label">Patient:</span>${patientLine}</div>
             <div class="row"><span class="label">Geburtsdatum:</span>${geb}</div>
-            <div class="row"><span class="label">Gültig:</span>${span}</div>
+            <div class="row"><span class="label">${docT("document.print.valid")}</span>${span}</div>
             <div class="row"><span class="label">Ausgestellt:</span>${aus}</div>
             <hr/>
             <div class="body">${bodyHtml}</div>
-            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
+            <p style="margin-top:3cm">______________________<br/>${docT("document.print.signature")}</p>
             </body></html>`;
 }
 
@@ -521,7 +524,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
     const geb = patient ? escapeHtml(formatDate(patient.geburtsdatum)) : "";
     const aus = escapeHtml(formatDate(r.ausgestellt_am));
     const statusLabel = escapeHtml(rezeptStatusLabel(r.status));
-    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Rezept</title>
+    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>${docT("document.print.prescription_title")}</title>
             <style>
               body{font-family:Helvetica,Arial,sans-serif;padding:24px;color:#111;line-height:1.45}
               h1{font-size:20px;margin:0 0 16px}
@@ -544,7 +547,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
                 <tr><th scope="row">Hinweise</th><td>${hin}</td></tr>
               </tbody>
             </table>
-            <p style="margin-top:48px">______________________<br/><span style="font-size:12px">Unterschrift Ärztin/Arzt</span></p>
+            <p style="margin-top:48px">______________________<br/><span style="font-size:12px">${docT("document.print.signature")}</span></p>
             <p class="muted">Aus MeDoc gedruckt.</p>
             </body></html>`;
 }
@@ -552,7 +555,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
 /** Mehrere Rezepte auf einem Ausdruck (Rezeptübersicht). */
 export function buildRezepteComboPrintHtml(items: Rezept[], patient: Patient | null): string {
     if (items.length === 0) {
-        return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Rezept</title></head><body><p>Keine Rezeptdaten.</p></body></html>`;
+        return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Rezept</title></head><body><p>${docT("document.print.no_prescription")}</p></body></html>`;
     }
     const first = items[0]!;
     const title = items.length === 1 ? "Rezept" : `Kombinationsrezept (${items.length})`;
@@ -573,7 +576,7 @@ export function buildRezepteComboPrintHtml(items: Rezept[], patient: Patient | n
             <div class="row"><span class="label">Datum:</span>${escapeHtml(datum)}</div>
             <hr/>
             ${body}
-            <p style="margin-top:3cm">______________________<br/>Unterschrift Ärztin/Arzt</p>
+            <p style="margin-top:3cm">______________________<br/>${docT("document.print.signature")}</p>
             </body></html>`;
 }
 

@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createZahlung, listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
@@ -44,12 +45,13 @@ function ZahlFinanzenOrPageWrap({
     onClose: () => void;
     children: ReactNode;
 }) {
+    const t = useT();
     if (!isFinanzen) {
         return (
             <Card className="zahlung-create-page__card card-elevated">
                 <CardHeader
-                    title="Zahlungsdaten"
-                    subtitle="Patient wählen, offene Behandlung oder Untersuchung zuordnen, Betrag erfassen."
+                    title={t("zahlung.create.payment_data")}
+                    subtitle={t("zahlung.create.subtitle")}
                 />
                 <div className="card-pad">{children}</div>
             </Card>
@@ -57,16 +59,16 @@ function ZahlFinanzenOrPageWrap({
     }
     const subtitle =
         embedVariant === "kasse"
-            ? "Erfassen Sie Bar- oder Kartenzahlungen — sie erscheinen unten in der Liste bis zum Tagesabschluss."
-            : "Erfassung neben der Transaktionsliste — nicht auf einer separaten Route (wie Produkte).";
+            ? t("zahlung.create.embed_kasse_sub")
+            : t("zahlung.create.embed_finanzen_sub");
     return (
         <Card className="produkte-detail-card zahl-finanzen-embed card--overflow-visible">
             <CardHeader
-                title="Neue Zahlung"
+                title={t("zahlung.create.title")}
                 subtitle={subtitle}
                 action={(
                     <Button type="button" size="sm" variant="ghost" onClick={onClose}>
-                        Schließen
+                        {t("common.close")}
                     </Button>
                 )}
             />
@@ -83,6 +85,8 @@ export type ZahlungCreatePanelProps = {
 };
 
 function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: ZahlungCreatePanelProps) {
+    const t = useT();
+    const tp = useTParams();
     const isFinanzenEmbed = variant === "finanzen" || variant === "kasse";
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -176,9 +180,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
     );
 
     const zahlLinkOptions = useMemo(() => {
-        if (!patientId) return [{ value: "", label: "—" }];
+        if (!patientId) return [{ value: "", label: t("common.em_dash") }];
         return buildOpenZahlLinkSelectOptions(zahlungenPatient, patientId, behandlungen, untersuchungen);
-    }, [patientId, zahlungenPatient, behandlungen, untersuchungen]);
+    }, [patientId, zahlungenPatient, behandlungen, untersuchungen, t]);
 
     useEffect(() => {
         if (!patientId || !linkKind || !linkId) return;
@@ -238,20 +242,20 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
 
     const submit = async () => {
         if (!canListLines) {
-            setFormError("Keine Berechtigung für Zahlungszuordnung.");
+            setFormError(t("zahlung.create.error.no_permission"));
             return;
         }
         if (!patientId) {
-            setFormError("Bitte einen Patienten wählen.");
+            setFormError(t("zahlung.create.error.patient_required"));
             return;
         }
         if (!linkKind || !linkId.trim()) {
-            setFormError("Bitte eine Behandlung (B) oder Untersuchung (U) zuordnen.");
+            setFormError(t("zahlung.create.error.link_required"));
             return;
         }
         const betragN = Number(String(betrag).replace(",", "."));
         if (!Number.isFinite(betragN) || betragN <= 0) {
-            setFormError("Bitte gültigen Zahlbetrag eingeben.");
+            setFormError(t("zahlung.create.error.amount_invalid"));
             return;
         }
         const selBh = linkKind === "behand" ? behandlungen.find((b) => b.id === linkId) : undefined;
@@ -268,7 +272,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         }
         if (linkKind === "behand" && openBefore != null && betragN > openBefore + ZAHL_EUR_EPS) {
             setFormError(
-                `Der Zahlbetrag darf den offenen Betrag (${formatCurrency(openBefore)}) nicht übersteigen.`,
+                tp("zahlung.create.error.amount_exceeds", { amount: formatCurrency(openBefore) }),
             );
             return;
         }
@@ -285,7 +289,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                 untersuchung_id: linkKind === "unter" ? linkId : undefined,
                 betrag_erwartet: openBefore,
             });
-            toast("Zahlung erfasst", "success");
+            toast(t("zahlung.create.toast.saved"), "success");
             if (isFinanzenEmbed && onFinanzenSaved) {
                 onFinanzenSaved();
                 return;
@@ -322,10 +326,10 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
     if (listLoading) {
         return isFinanzenEmbed ? (
             <div className="card produkte-detail-card" style={{ padding: 20 }}>
-                <PageLoading label="Daten werden geladen…" />
+                <PageLoading label={t("common.loading_data")} />
             </div>
         ) : (
-            <PageLoading label="Daten werden geladen…" />
+            <PageLoading label={t("common.loading_data")} />
         );
     }
     if (loadError) {
@@ -358,16 +362,16 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
         <div className={isFinanzenEmbed ? undefined : "zahlung-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in"}>
             {!isFinanzenEmbed ? (
                 <WorkspacePageHeader
-                    title="Neue Zahlung"
-                    back={{ onClick: () => navigate(backTarget), label: fromKasse ? "Kasseneingänge" : "Finanzen" }}
+                    title={t("zahlung.create.title")}
+                    back={{ onClick: () => navigate(backTarget), label: fromKasse ? t("zahlung.create.back_kasse") : t("zahlung.create.back_finanzen") }}
                 />
             ) : null}
 
             {!canListLines ? (
                 <Card>
                     <CardHeader
-                        title="Keine Berechtigung"
-                        subtitle="Zahlungen mit Zuordnung zu Behandlung/Untersuchung sind für Ihre Rolle nicht verfügbar."
+                        title={t("common.role_denied")}
+                        subtitle={t("zahlung.create.denied_sub")}
                     />
                 </Card>
             ) : (
@@ -379,12 +383,11 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                     <div className="zahlung-create-form">
                         {!isFinanzenEmbed ? (
                             <p className="bestellung-create-form__hint">
-                                Zuordnung über <strong>B-Nr.</strong> / <strong>U-Nr.</strong> — bei Behandlungen mit Sollkosten
-                                darf nicht mehr gezahlt werden als offen.
+                                {t("zahlung.create.assignment_hint")}
                             </p>
                         ) : (
                             <p className="bestellung-create-form__hint">
-                                Gleiche Prüflogik wie die volle Seite: B-Nr. / U-Nr., Soll, offener Betrag.
+                                {t("zahlung.create.embed_hint")}
                             </p>
                         )}
                         {formError ? (
@@ -392,7 +395,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                         ) : null}
                             <PatientComboField
                                 id="zc-patient"
-                                label="Patient *"
+                                label={t("zahlung.create.patient_label")}
                                 patienten={patienten}
                                 patientId={patientId}
                                 onPatientIdChange={onPatientChange}
@@ -406,14 +409,14 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                     }}
                                 >
                                     <div className="form-label form-label--wide form-label--mb-10">
-                                        Bisherige Zahlungen (dieser Patient)
+                                        {t("zahlung.create.history_title")}
                                     </div>
                                     <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--fg-3)" }}>
-                                        Überblick vor neuer Buchung — Abgleich mit B-Nr./U-Nr. (nicht bloß dem Notizfeld).
+                                        {t("zahlung.create.history_hint")}
                                     </p>
                                     {zahlungenPatientSorted.length === 0 ? (
                                         <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                            Noch keine Zahlungen in dieser Akte.
+                                            {t("zahlung.create.history_empty")}
                                         </p>
                                     ) : (
                                         <div className="zahl-hist-table-wrap">
@@ -427,11 +430,11 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                 </colgroup>
                                                 <thead>
                                                     <tr>
-                                                        <th scope="col">Datum</th>
-                                                        <th scope="col">Bezug (B-Nr. / U-Nr.)</th>
-                                                        <th scope="col" className="tbl-th-num">Betrag</th>
-                                                        <th scope="col">Art</th>
-                                                        <th scope="col">Status</th>
+                                                        <th scope="col">{t("zahlung.create.history_col_date")}</th>
+                                                        <th scope="col">{t("zahlung.create.history_col_ref")}</th>
+                                                        <th scope="col" className="tbl-th-num">{t("zahlung.create.history_col_amount")}</th>
+                                                        <th scope="col">{t("zahlung.create.history_col_art")}</th>
+                                                        <th scope="col">{t("zahlung.create.history_col_status")}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -454,22 +457,21 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                 </div>
                             ) : null}
                             {akteLoading ? (
-                                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>Behandlungen werden geladen…</p>
+                                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>{t("zahlung.create.behand_loading")}</p>
                             ) : null}
                             {noLinks && patientId && !akteLoading && !hasClinicalLines ? (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                    Es sind noch keine Behandlungen oder Untersuchungen in dieser Akte — bitte zuerst
-                                    klinische Einträge anlegen, dann die Zahlung zuordnen.
+                                    {t("zahlung.create.no_clinical_lines")}
                                 </p>
                             ) : null}
                             {noLinks && patientId && !akteLoading && hasClinicalLines ? (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                    Keine offene Zuordnung: Alle Behandlungssollen dieser Akte sind ausgeglichen.
+                                    {t("zahlung.create.no_open_links")}
                                 </p>
                             ) : null}
                             <Select
                                 id="zc-zahl-link"
-                                label="Zuordnung (nur offene Zeilen) *"
+                                label={t("zahlung.create.link_label")}
                                 value={zahlLinkValue}
                                 options={zahlLinkOptions}
                                 disabled={!patientId || noLinks || akteLoading}
@@ -507,35 +509,35 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
                                                 >
                                                     <div className="form-label form-label--wide form-label--mb-10">
-                                                        Kosten & offener Betrag (Behandlung)
+                                                        {t("zahlung.create.behand_cost_title")}
                                                     </div>
                                                     <div
                                                         className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                                                         style={{ fontSize: 14 }}
                                                     >
                                                         <div>
-                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Kosten (Soll)</div>
-                                                            <div style={{ fontWeight: 700 }}>{gesamt != null ? formatCurrency(gesamt) : "—"}</div>
+                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("zahlung.create.cost_should")}</div>
+                                                            <div style={{ fontWeight: 700 }}>{gesamt != null ? formatCurrency(gesamt) : t("common.em_dash")}</div>
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Bereits gezahlt</div>
+                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("zahlung.create.paid_so_far")}</div>
                                                             <div style={{ fontWeight: 600 }}>{formatCurrency(paidSum)}</div>
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Offen jetzt</div>
+                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("zahlung.create.open_now")}</div>
                                                             <div
                                                                 style={{
                                                                     fontWeight: 700,
                                                                     color: openNow != null && openNow > 0 ? "var(--fg-1)" : "var(--fg-3)",
                                                                 }}
                                                             >
-                                                                {openNow != null ? formatCurrency(openNow) : "—"}
+                                                                {openNow != null ? formatCurrency(openNow) : t("common.em_dash")}
                                                             </div>
                                                         </div>
                                                         {add > 0 && openAfter != null ? (
                                                             <div>
                                                                 <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
-                                                                    Nach dieser Zahlung offen
+                                                                    {t("zahlung.create.open_after")}
                                                                 </div>
                                                                 <div style={{ fontWeight: 600 }}>{formatCurrency(openAfter)}</div>
                                                             </div>
@@ -544,7 +546,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                 </div>
                                                 <div>
                                                     <div className="form-label form-label--wide">
-                                                        Zahlungsverlauf zu dieser Zeile
+                                                        {t("zahlung.create.behand_history_title")}
                                                     </div>
                                                     {hist.length > 0 ? (
                                                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
@@ -563,7 +565,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                         </ul>
                                                     ) : (
                                                         <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                                            Noch keine Buchung zu dieser Behandlungszeile.
+                                                            {t("zahlung.create.behand_history_empty")}
                                                         </p>
                                                     )}
                                                 </div>
@@ -572,7 +574,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     style={{ gap: 12, flexWrap: "wrap", alignItems: "center" }}
                                                 >
                                                     <span style={{ fontSize: 13, color: "var(--fg-3)" }}>
-                                                        Fall nach Speichern (Soll vs. Summe):
+                                                        {t("zahlung.create.preview_after_save")}
                                                     </span>
                                                     <Badge
                                                         variant={previewCase === "BEZAHLT"
@@ -582,9 +584,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                             : "default"}
                                                     >
                                                         {previewCase === "BEZAHLT"
-                                                            ? "Ausgeglichen"
+                                                            ? t("zahlung.create.preview_balanced")
                                                             : previewCase === "TEILBEZAHLT"
-                                                            ? "Noch offen"
+                                                            ? t("zahlung.create.preview_still_open")
                                                             : previewCase}
                                                     </Badge>
                                                 </div>
@@ -609,29 +611,28 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                     style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
                                                 >
                                                     <div className="form-label form-label--wide form-label--mb-8">
-                                                        Untersuchung (ohne Sollkosten)
+                                                        {t("zahlung.create.untersuch_title")}
                                                     </div>
                                                     <div
                                                         className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                                                         style={{ fontSize: 14 }}
                                                     >
                                                         <div>
-                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Kosten (Soll)</div>
-                                                            <div style={{ fontWeight: 600 }}>—</div>
+                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("zahlung.create.cost_should")}</div>
+                                                            <div style={{ fontWeight: 600 }}>{t("common.em_dash")}</div>
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Bereits gezahlt (Summe)</div>
+                                                            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("zahlung.create.paid_sum")}</div>
                                                             <div style={{ fontWeight: 600 }}>{formatCurrency(paidU)}</div>
                                                         </div>
                                                     </div>
                                                     <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                                                        Einzelbuchungen werden ohne Restbetrag gegen ein Soll geführt; der Verlauf
-                                                        zeigt alle Zahlungen zu dieser Untersuchung.
+                                                        {t("zahlung.create.untersuch_no_should_hint")}
                                                     </p>
                                                 </div>
                                                 <div>
                                                     <div className="form-label form-label--wide">
-                                                        Zahlungsverlauf
+                                                        {t("zahlung.create.untersuch_history_title")}
                                                     </div>
                                                     {histU.length > 0 ? (
                                                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
@@ -650,7 +651,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                         </ul>
                                                     ) : (
                                                         <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                                            Noch keine Zahlung zu dieser Untersuchung.
+                                                            {t("zahlung.create.untersuch_history_empty")}
                                                         </p>
                                                     )}
                                                 </div>
@@ -666,7 +667,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                         step="0.01"
                                         min={0}
                                         max={zahlNeuMaxBetragEur != null ? zahlNeuMaxBetragEur : undefined}
-                                        label="Zahlbetrag (€) *"
+                                        label={t("zahlung.create.payment_amount_label")}
                                         value={betrag}
                                         onChange={(e) => setBetrag(e.target.value)}
                                         onBlur={(e) => {
@@ -676,7 +677,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                             if (n > zahlNeuMaxBetragEur + ZAHL_EUR_EPS) {
                                                 setBetrag(String(roundMoney2(zahlNeuMaxBetragEur)));
                                                 toast(
-                                                    `Betrag auf maximal ${formatCurrency(zahlNeuMaxBetragEur)} begrenzt (offener Betrag).`,
+                                                    tp("zahlung.create.amount_max_toast", { amount: formatCurrency(zahlNeuMaxBetragEur) }),
                                                     "info",
                                                 );
                                             }
@@ -684,13 +685,13 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                     />
                                     {zahlNeuMaxBetragEur != null ? (
                                         <p className="bestellung-create-form__note">
-                                            Höchstens {formatCurrency(zahlNeuMaxBetragEur)} (aktuell offen für diese Behandlung).
+                                            {tp("zahlung.create.amount_max_hint", { amount: formatCurrency(zahlNeuMaxBetragEur) })}
                                         </p>
                                     ) : null}
                                 </div>
                                 <Select
                                     id="zc-art"
-                                    label="Zahlungsart"
+                                    label={t("zahlung.create.payment_method")}
                                     value={zahlungsart}
                                     onChange={(e) => setZahlungsart(e.target.value as ZahlungsArt)}
                                     options={[...ZAHLUNG_ART_SELECT]}
@@ -699,23 +700,23 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                             <div>
                                 <Textarea
                                     id="zc-beschr"
-                                    label="Beschreibung (optional)"
+                                    label={t("zahlung.create.desc_label")}
                                     rows={2}
                                     value={beschreibung}
                                     onChange={(e) => setBeschreibung(e.target.value)}
                                 />
                                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                                    Interne Notiz. Die fachliche Zuordnung der Zahlung erfolgt über B-Nr. / U-Nr. oben.
+                                    {t("zahlung.create.desc_hint")}
                                 </p>
                             </div>
                             <div className="zahlung-create-form__actions">
                                 {linkKind === "behand" && disabledBehandNoOpen ? (
                                     <span className="bestellung-create-form__note" style={{ flex: "1 1 200px", marginRight: "auto" }}>
-                                        Für diese Behandlung ist kein weiterer Betrag offen (Soll bereits gedeckt).
+                                        {t("zahlung.create.behand_no_open")}
                                     </span>
                                 ) : null}
                                 <Button type="button" variant="ghost" onClick={handleCancel} disabled={busy}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -729,7 +730,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                         || akteLoading
                                     }
                                 >
-                                    Zahlung speichern
+                                    {t("zahlung.create.save_btn")}
                                 </Button>
                             </div>
                     </div>

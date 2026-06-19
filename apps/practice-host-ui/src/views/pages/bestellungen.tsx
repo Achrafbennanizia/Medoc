@@ -10,7 +10,9 @@ import { BestellungDetailDrawer } from "../components/bestellung-detail-drawer";
 import { listBestellungen, type Bestellung, type BestellStatus } from "@/systems/practice-host/controllers/bestellung.controller";
 import { useAuthStore } from "@/models/store/auth-store";
 import { allowed, parseRole } from "@/lib/rbac";
-import { errorMessage, formatDate } from "@/lib/utils";
+import { errorMessage, formatDate, formatCurrency } from "@/lib/utils";
+import { bestellStatusDisplay } from "@/lib/finance-order-labels";
+import { useT, useTParams } from "@/lib/i18n";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 type StatusFilter = "ALL" | BestellStatus;
@@ -25,21 +27,18 @@ function isOverdue(b: Bestellung): boolean {
     return b.erwartet_am < todayISO();
 }
 
-function statusBadgeReadonly(status: BestellStatus, overdue: boolean) {
-    if (overdue) return <Badge variant="error">Überfällig</Badge>;
-    switch (status) {
-        case "OFFEN":
-            return <Badge>Offen</Badge>;
-        case "UNTERWEGS":
-            return <span className="pill blue">Unterwegs</span>;
-        case "GELIEFERT":
-            return <Badge variant="success">Geliefert</Badge>;
-        case "STORNIERT":
-            return <Badge variant="error">Storniert</Badge>;
-    }
+function statusBadgeReadonly(status: BestellStatus, overdue: boolean, t: (key: string) => string) {
+    if (overdue) return <Badge variant="error">{t("page.bestellungen.status.ueberfaellig")}</Badge>;
+    const st = bestellStatusDisplay(status, t);
+    if (status === "UNTERWEGS") return <span className="pill blue">{st.label}</span>;
+    if (status === "GELIEFERT") return <Badge variant="success">{st.label}</Badge>;
+    if (status === "STORNIERT") return <Badge variant="error">{st.label}</Badge>;
+    return <Badge>{st.label}</Badge>;
 }
 
 export function BestellungenPage() {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
@@ -70,11 +69,11 @@ export function BestellungenPage() {
         } catch (e) {
             const msg = errorMessage(e);
             if (initial) setLoadError(msg);
-            else toast(`Aktualisieren fehlgeschlagen: ${msg}`);
+            else toast(tp("common.refresh_failed", { message: msg }));
         } finally {
             if (initial) setLoading(false);
         }
-    }, [toast]);
+    }, [toast, tp]);
 
     useEffect(() => {
         void load({ initial: true });
@@ -123,17 +122,28 @@ export function BestellungenPage() {
         setRows((list) => list.filter((row) => row.id !== id));
     };
 
-    if (loading) return <PageLoading label="Bestellungen werden geladen…" />;
+    const statusOptions = useMemo(
+        () => [
+            { value: "ALL" as const, label: tp("page.bestellungen.status.all", { count: rows.length }) },
+            { value: "OFFEN" as const, label: t("page.bestellungen.status.offen") },
+            { value: "UNTERWEGS" as const, label: t("page.bestellungen.status.unterwegs") },
+            { value: "GELIEFERT" as const, label: t("page.bestellungen.status.geliefert") },
+            { value: "STORNIERT" as const, label: t("page.bestellungen.status.storniert") },
+        ],
+        [rows.length, t, tp],
+    );
+
+    if (loading) return <PageLoading label={t("page.bestellungen.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />;
 
     return (
         <div className="bestellungen-page praxis-workspace-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
-                title="Bestellungen"
-                subtitle="Lieferungen und Bestellvorgänge der Praxis im Überblick."
+                title={t("page.bestellungen.title")}
+                subtitle={t("page.bestellungen.subtitle_v2")}
                 actions={
                     canWrite ? (
-                        <Button onClick={() => navigate("/bestellungen/neu")}>+ Neue Bestellung</Button>
+                        <Button onClick={() => navigate("/bestellungen/neu")}>{t("page.bestellungen.cta_new")}</Button>
                     ) : null
                 }
             />
@@ -144,7 +154,7 @@ export function BestellungenPage() {
                         id="best-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Suchen: Lieferant, Artikel, Bestellnr…"
+                        placeholder={t("page.bestellungen.search_ph")}
                         disabled={rows.length === 0}
                     />
                 </div>
@@ -154,18 +164,12 @@ export function BestellungenPage() {
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
                         disabled={rows.length === 0}
-                        options={[
-                            { value: "ALL", label: `Alle Status (${rows.length})` },
-                            { value: "OFFEN", label: "Offen" },
-                            { value: "UNTERWEGS", label: "Unterwegs" },
-                            { value: "GELIEFERT", label: "Geliefert" },
-                            { value: "STORNIERT", label: "Storniert" },
-                        ]}
+                        options={statusOptions}
                     />
                 </div>
                 {rows.length > 0 && (search || statusFilter !== "ALL") ? (
                     <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
-                        Zurücksetzen
+                        {t("common.reset")}
                     </Button>
                 ) : null}
             </div>
@@ -173,17 +177,23 @@ export function BestellungenPage() {
             {rows.length === 0 ? (
                 <EmptyState
                     icon="📦"
-                    title="Noch keine Bestellungen"
-                    description={canWrite ? "Erfasse deine erste Bestellung." : "Sobald Bestellungen vorhanden sind, erscheinen sie hier."}
-                    action={canWrite ? { label: "+ Neue Bestellung", onClick: () => navigate("/bestellungen/neu") } : undefined}
+                    title={t("page.bestellungen.empty_title")}
+                    description={
+                        canWrite ? t("page.bestellungen.empty_write_desc") : t("page.bestellungen.empty_desc")
+                    }
+                    action={
+                        canWrite
+                            ? { label: t("page.bestellungen.cta_new"), onClick: () => navigate("/bestellungen/neu") }
+                            : undefined
+                    }
                 />
             ) : filtered.length === 0 ? (
                 <EmptyState
                     icon="🔎"
-                    title="Keine Treffer"
-                    description="Kein Eintrag passt zu Suche oder Filter."
+                    title={t("page.bestellungen.empty_filtered_title")}
+                    description={t("page.bestellungen.empty_filtered_desc")}
                     action={{
-                        label: "Filter zurücksetzen",
+                        label: t("common.reset_filters"),
                         onClick: () => { setSearch(""); setStatusFilter("ALL"); },
                     }}
                 />
@@ -197,23 +207,27 @@ export function BestellungenPage() {
                             <col className="bestellungen-col-art" />
                             <col className="bestellungen-col-menge" />
                             <col className="bestellungen-col-erw" />
+                            <col className="bestellungen-col-preis" />
                             <col className="bestellungen-col-status" />
                         </colgroup>
                         <thead>
                             <tr>
-                                <th scope="col">Bestellnr.</th>
-                                <th scope="col">Lieferant</th>
-                                <th scope="col">Artikel</th>
-                                <th scope="col">Menge</th>
-                                <th scope="col">Erwartet</th>
-                                <th scope="col">Status</th>
+                                <th scope="col">{t("page.bestellungen.col_bestellnr")}</th>
+                                <th scope="col">{t("page.bestellungen.col.supplier")}</th>
+                                <th scope="col">{t("page.bestellungen.col_artikel")}</th>
+                                <th scope="col">{t("page.bestellungen.col_menge")}</th>
+                                <th scope="col">{t("page.bestellungen.col.eta")}</th>
+                                <th scope="col">{t("page.bestellungen.col_preis")}</th>
+                                <th scope="col">{t("page.bestellungen.col.status")}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((r) => {
                                 const overdue = isOverdue(r);
                                 const isSelected = selectedId === r.id;
-                                const rowLabel = `Bestellung ${r.bestellnummer ?? r.id} öffnen`;
+                                const rowLabel = tp("page.bestellungen.open_row", {
+                                    label: r.bestellnummer ?? r.id,
+                                });
                                 const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
                                     if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
@@ -234,7 +248,7 @@ export function BestellungenPage() {
                                         role="button"
                                         aria-label={rowLabel}
                                         aria-pressed={isSelected}
-                                        title="Details öffnen"
+                                        title={t("page.bestellungen.open_details")}
                                         onClick={() => openDrawer(r.id)}
                                         onKeyDown={onRowKeyDown}
                                     >
@@ -263,12 +277,20 @@ export function BestellungenPage() {
                                                 <span className="page-sub">—</span>
                                             )}
                                         </td>
+                                        <td className="bestellungen-td-preis">
+                                            {r.gesamtbetrag != null && Number.isFinite(r.gesamtbetrag)
+                                                ? formatCurrency(r.gesamtbetrag)
+                                                : "—"}
+                                        </td>
                                         <td className="bestellungen-td-status">
                                             <div className="bestellungen-status-cell">
-                                                {statusBadgeReadonly(r.status, overdue)}
+                                                {statusBadgeReadonly(r.status, overdue, t)}
                                                 {overdue && r.status !== "GELIEFERT" && r.status !== "STORNIERT" ? (
-                                                    <span className="bestellungen-overdue-hint" title="Liefertermin liegt in der Vergangenheit">
-                                                        Überfällig
+                                                    <span
+                                                        className="bestellungen-overdue-hint"
+                                                        title={t("page.bestellungen.overdue_hint")}
+                                                    >
+                                                        {t("page.bestellungen.status.ueberfaellig")}
                                                     </span>
                                                 ) : null}
                                             </div>

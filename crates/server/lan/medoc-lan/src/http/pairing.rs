@@ -40,7 +40,7 @@ impl IntoResponse for ApiError {
             AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
-            AppError::Validation(_) => StatusCode::BAD_REQUEST,
+            AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
             AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };

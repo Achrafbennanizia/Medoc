@@ -53,13 +53,14 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
 
     let hash = bcrypt::hash("passwort123", 12)
         .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
-    sqlx::query(
-        "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon) VALUES
-        ('seed-arzt-002', 'Dr. Sarah Klein', 'sarah@praxis.de', ?1, 'ARZT', 'Oralchirurgie', 'Oralchirurgie', '+49 421 900100')",
-    )
-    .bind(&hash)
-    .execute(pool)
-    .await?;
+    // TODO(deferred-security): seed-arzt-001 exceeds MVP 1-ARZT quota — re-enable with todos-deferred-security-features.md
+    // sqlx::query(
+    //     "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon) VALUES
+    //     ('seed-arzt-001', 'Dr. Sarah Klein', 'sarah@praxis.de', ?1, 'ARZT', 'Oralchirurgie', 'Oralchirurgie', '+49 421 900100')",
+    // )
+    // .bind(&hash)
+    // .execute(pool)
+    // .await?;
     // TODO(deferred-roles): seed-ctl-001 (STEUERBERATER), seed-pharma-001 (PHARMABERATER) — todos-deferred-roles.md
     // Ensure FK-referenced demo staff exists even when personal already had rows.
     sqlx::query(
@@ -263,9 +264,9 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
         sqlx::query(
             "INSERT INTO termin (id, datum, uhrzeit, art, status, notizen, beschwerden, patient_id, arzt_id) VALUES
             ('seed-ter-001', date('now','localtime'), '08:30', 'ERSTBESUCH', 'BESTAETIGT', 'Anamnese aufnehmen', 'Kalt-/Warmempfindlichkeit', 'seed-pat-001', 'seed-arzt-001'),
-            ('seed-ter-002', date('now','localtime'), '10:00', 'UNTERSUCHUNG', 'GEPLANT', 'PA-Status erfassen', 'Zahnfleischbluten', 'seed-pat-002', 'seed-arzt-002'),
+            ('seed-ter-002', date('now','localtime'), '10:00', 'UNTERSUCHUNG', 'GEPLANT', 'PA-Status erfassen', 'Zahnfleischbluten', 'seed-pat-002', 'seed-arzt-001'),
             ('seed-ter-003', date('now','localtime','+1 day'), '09:15', 'BEHANDLUNG', 'GEPLANT', 'Kompositfuellung geplant', 'Druckschmerz Zahn 16', 'seed-pat-001', 'seed-arzt-001'),
-            ('seed-ter-004', date('now','localtime','+2 day'), '14:00', 'KONTROLLE', 'DURCHGEFUEHRT', 'Post-OP Kontrolle', NULL, 'seed-pat-003', 'seed-arzt-002'),
+            ('seed-ter-004', date('now','localtime','+2 day'), '14:00', 'KONTROLLE', 'DURCHGEFUEHRT', 'Post-OP Kontrolle', NULL, 'seed-pat-003', 'seed-arzt-001'),
             ('seed-ter-005', date('now','localtime','-1 day'), '11:30', 'BERATUNG', 'ABGESAGT', 'Aesthetik-Beratung', NULL, 'seed-pat-005', 'seed-arzt-001')",
         )
         .execute(pool)
@@ -294,7 +295,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
         sqlx::query(
             "INSERT INTO rezept (id, patient_id, arzt_id, medikament, wirkstoff, dosierung, dauer, hinweise, status) VALUES
             ('seed-rez-001','seed-pat-002','seed-arzt-001','Amoxicillin 1000mg','Amoxicillin','1-0-1','7 Tage','Nach den Mahlzeiten einnehmen','AUSGESTELLT'),
-            ('seed-rez-002','seed-pat-003','seed-arzt-002','Ibuprofen 600mg','Ibuprofen','1-1-1 bei Bedarf','5 Tage','Max. 3 Tabletten/Tag','AUSGESTELLT')",
+            ('seed-rez-002','seed-pat-003','seed-arzt-001','Ibuprofen 600mg','Ibuprofen','1-1-1 bei Bedarf','5 Tage','Max. 3 Tabletten/Tag','AUSGESTELLT')",
         )
         .execute(pool)
         .await?;
@@ -307,7 +308,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
         sqlx::query(
             "INSERT INTO attest (id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis) VALUES
             ('seed-att-001','seed-pat-001','seed-arzt-001','Arbeitsunfaehigkeit','Patientin ist nach oralchirurgischem Eingriff arbeitsunfaehig.',date('now','localtime'),date('now','localtime','+3 day')),
-            ('seed-att-002','seed-pat-005','seed-arzt-002','Sportbefreiung','Voruebergehende Sportbefreiung nach Kiefergelenkbeschwerden.',date('now','localtime','-1 day'),date('now','localtime','+14 day'))",
+            ('seed-att-002','seed-pat-005','seed-arzt-001','Sportbefreiung','Voruebergehende Sportbefreiung nach Kiefergelenkbeschwerden.',date('now','localtime','-1 day'),date('now','localtime','+14 day'))",
         )
         .execute(pool)
         .await?;
@@ -338,9 +339,9 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "INSERT OR IGNORE INTO termin (id, datum, uhrzeit, art, status, notizen, beschwerden, patient_id, arzt_id) VALUES
         ('seed-ter-006', date('now','localtime','+3 day'), '08:45', 'KONTROLLE', 'BESTAETIGT', 'Recall-Termin', NULL, 'seed-pat-006', 'seed-arzt-001'),
-        ('seed-ter-007', date('now','localtime','+3 day'), '11:00', 'BEHANDLUNG', 'GEPLANT', 'Fissurenversiegelung', 'Empfindlichkeit beim Kauen', 'seed-pat-007', 'seed-arzt-002'),
+        ('seed-ter-007', date('now','localtime','+3 day'), '11:00', 'BEHANDLUNG', 'GEPLANT', 'Fissurenversiegelung', 'Empfindlichkeit beim Kauen', 'seed-pat-007', 'seed-arzt-001'),
         ('seed-ter-008', date('now','localtime','+4 day'), '09:30', 'BERATUNG', 'GEPLANT', 'Schienentherapie Aufklaerung', 'Morgendliche Kieferschmerzen', 'seed-pat-008', 'seed-arzt-001'),
-        ('seed-ter-009', date('now','localtime','-2 day'), '15:10', 'UNTERSUCHUNG', 'NICHT_ERSCHIENEN', 'Telefonische Nachverfolgung', NULL, 'seed-pat-006', 'seed-arzt-002'),
+        ('seed-ter-009', date('now','localtime','-2 day'), '15:10', 'UNTERSUCHUNG', 'NICHT_ERSCHIENEN', 'Telefonische Nachverfolgung', NULL, 'seed-pat-006', 'seed-arzt-001'),
         ('seed-ter-010', date('now','localtime','+5 day'), '13:40', 'ERSTBESUCH', 'GEPLANT', 'Neupatientenaufnahme', 'Druckschmerz rechts unten', 'seed-pat-008', 'seed-arzt-001')",
     )
     .execute(pool)
@@ -364,7 +365,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
 
     sqlx::query(
         "INSERT OR IGNORE INTO attest (id, patient_id, arzt_id, typ, inhalt, gueltig_von, gueltig_bis) VALUES
-        ('seed-att-003','seed-pat-007','seed-arzt-002','Behandlungsbestaetigung','Bestaetigung ueber erfolgte zahnmedizinische Beratung.',date('now','localtime'),date('now','localtime','+30 day'))",
+        ('seed-att-003','seed-pat-007','seed-arzt-001','Behandlungsbestaetigung','Bestaetigung ueber erfolgte zahnmedizinische Beratung.',date('now','localtime'),date('now','localtime','+30 day'))",
     )
     .execute(pool)
     .await?;
@@ -566,12 +567,12 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "INSERT OR IGNORE INTO termin (id, datum, uhrzeit, art, status, notizen, beschwerden, patient_id, arzt_id, created_at) VALUES
         ('seed-ter-h01', date('now','localtime','-40 day'),  '09:00','UNTERSUCHUNG','DURCHGEFUEHRT','Routine','—','seed-pat-001','seed-arzt-001', datetime('now','localtime','-40 day')),
-        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','BEHANDLUNG','DURCHGEFUEHRT','Komposit',NULL,'seed-pat-002','seed-arzt-002', datetime('now','localtime','-70 day')),
+        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','BEHANDLUNG','DURCHGEFUEHRT','Komposit',NULL,'seed-pat-002','seed-arzt-001', datetime('now','localtime','-70 day')),
         ('seed-ter-h03', date('now','localtime','-100 day'), '14:00','KONTROLLE','DURCHGEFUEHRT','Recall',NULL,'seed-pat-003','seed-arzt-001', datetime('now','localtime','-100 day')),
         ('seed-ter-h04', date('now','localtime','-130 day'), '08:30','BERATUNG','DURCHGEFUEHRT','Schiene',NULL,'seed-pat-004','seed-arzt-001', datetime('now','localtime','-130 day')),
-        ('seed-ter-h05', date('now','localtime','-160 day'), '15:30','UNTERSUCHUNG','DURCHGEFUEHRT','PA-Status',NULL,'seed-pat-005','seed-arzt-002', datetime('now','localtime','-160 day')),
+        ('seed-ter-h05', date('now','localtime','-160 day'), '15:30','UNTERSUCHUNG','DURCHGEFUEHRT','PA-Status',NULL,'seed-pat-005','seed-arzt-001', datetime('now','localtime','-160 day')),
         ('seed-ter-h06', date('now','localtime','-25 day'),  '10:00','KONTROLLE','DURCHGEFUEHRT','Recall',NULL,'seed-pat-006','seed-arzt-001', datetime('now','localtime','-25 day')),
-        ('seed-ter-h07', date('now','localtime','-90 day'),  '13:00','BEHANDLUNG','DURCHGEFUEHRT','Endo',NULL,'seed-pat-007','seed-arzt-002', datetime('now','localtime','-90 day')),
+        ('seed-ter-h07', date('now','localtime','-90 day'),  '13:00','BEHANDLUNG','DURCHGEFUEHRT','Endo',NULL,'seed-pat-007','seed-arzt-001', datetime('now','localtime','-90 day')),
         ('seed-ter-h08', date('now','localtime','-180 day'), '16:00','BERATUNG','DURCHGEFUEHRT','Erst-Konsil',NULL,'seed-pat-008','seed-arzt-001', datetime('now','localtime','-180 day'))",
     ).execute(pool).await?;
 

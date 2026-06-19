@@ -44,6 +44,43 @@ pub fn load_or_create_bytes(
     Ok(raw)
 }
 
+/// Returns true when the keyring entry for `account` already has a value.
+pub fn account_exists(account: &str) -> Result<bool, AppError> {
+    let entry = Entry::new(SERVICE, account)
+        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+    Ok(entry.get_password().is_ok())
+}
+
+/// Store explicit key material once (fails if the account already exists).
+pub fn store_bytes(account: &str, raw: &[u8]) -> Result<(), AppError> {
+    if account_exists(account)? {
+        return Err(AppError::Validation(format!(
+            "Keyring-Konto bereits belegt: {account}"
+        )));
+    }
+    store_bytes_replace(account, raw)
+}
+
+/// Store key material, replacing any existing entry (owner activation import).
+pub fn store_bytes_replace(account: &str, raw: &[u8]) -> Result<(), AppError> {
+    let entry = Entry::new(SERVICE, account)
+        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+    store_in_keyring(&entry, raw, account)
+}
+
+/// Load key material when present; does not create a new key.
+pub fn load_bytes_if_exists(account: &str) -> Result<Option<Vec<u8>>, AppError> {
+    if let Some(bytes) = env_override_bytes(account) {
+        return Ok(Some(bytes));
+    }
+    let entry = Entry::new(SERVICE, account)
+        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+    match entry.get_password() {
+        Ok(encoded) => decode_stored_bytes(&encoded, account).map(Some),
+        Err(_) => Ok(None),
+    }
+}
+
 fn env_override_bytes(account: &str) -> Option<Vec<u8>> {
     let var = match account {
         "audit-hmac-key" => std::env::var("MEDOC_AUDIT_KEY").ok(),

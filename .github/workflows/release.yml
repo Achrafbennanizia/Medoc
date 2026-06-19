@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+
+jobs:
+  build-keygen:
+    name: medoc-keygen (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: medoc-keygen-linux-x86_64
+          - os: macos-latest
+            artifact: medoc-keygen-macos
+          - os: windows-latest
+            artifact: medoc-keygen-windows-x86_64.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libsodium (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
+      - name: Install libsodium (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libsodium cmake
+      - name: Build keygen (Unix)
+        if: runner.os != 'Windows'
+        run: bash installer/build-keygen.sh
+      - name: Build keygen (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake -y
+          vcpkg install libsodium:x64-windows
+          cmake -S installer/medoc-keygen -B installer/medoc-keygen/build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          cmake --build installer/medoc-keygen/build --config Release
+          New-Item -ItemType Directory -Force -Path installer/dist | Out-Null
+          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen.exe installer/dist/medoc-keygen-windows-x86_64.exe
+          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen-verify.exe installer/dist/medoc-keygen-verify-windows-x86_64.exe
+      - name: Upload keygen artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: installer/dist/*
+
+  activation-smoke:
+    name: Activation interop smoke
+    runs-on: ubuntu-latest
+    needs: [build-keygen]
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
+      - run: bash installer/build-keygen.sh
+      - name: Generate and verify manifest
+        run: |
+          echo 'correct horse battery staple' > /tmp/pw.txt
+          ./installer/dist/medoc-keygen-linux-* --out /tmp/activation.json --passphrase-file /tmp/pw.txt
+          ./installer/dist/medoc-keygen-verify-linux-* /tmp/activation.json 'correct horse battery staple'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: Rust activation unwrap test
+        run: MEDOC_VENDOR_PUBKEY=$MEDOC_VENDOR_PUBKEY cargo test -p medoc-sync activation::tests::unwrap_matches_cpp_keygen_when_available -- --nocapture
+
+  build-installer:
+    name: App installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [activation-smoke]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bundles: deb,rpm,appimage
+          - os: macos-latest
+            bundles: dmg,app
+          - os: windows-latest
+            bundles: nsis,msi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux Tauri deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - run: npm ci
+      - run: npm run build -w medoc
+      - name: Tauri bundle
+        run: npm run tauri build -w medoc -- --bundles ${{ matrix.bundles }}
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: medoc-installer-${{ matrix.os }}
+          path: apps/practice-host/target/release/bundle/**/*

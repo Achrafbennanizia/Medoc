@@ -33,6 +33,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
+import { useT, useTParams } from "@/lib/i18n";
 
 const todayYmd = () => new Date().toISOString().slice(0, 10);
 
@@ -44,6 +45,8 @@ const newRow = (): LineRow => ({ id: `r-${Date.now()}-${Math.random().toString(3
  * Rechnung (PDF) — FA-FIN-INVOICE: B-/U-Zeilen aus der Patientenakte, Nummer/Praxis/Datum/Brutto automatisch.
  */
 export function VerwaltungFinanzWerkzeugePage() {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
@@ -99,7 +102,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                     setSelectedHistoryId((cur) => cur ?? h[0]!.id);
                 }
             } catch (e) {
-                toast(`Rechnungsverlauf: ${errorMessage(e)}`, "error");
+                toast(tp("page.verwaltung_finanz_werkzeuge.toast.history_error", { message: errorMessage(e) }), "error");
                 setInvoiceHistory([]);
             }
         })();
@@ -152,7 +155,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                     setBehandlungen([]);
                     setUntersuchungen([]);
                     setPatientZahlungen([]);
-                    toast(`Akte: ${errorMessage(e)}`, "error");
+                    toast(tp("page.verwaltung_finanz_werkzeuge.toast.akte_error", { message: errorMessage(e) }), "error");
                 }
             } finally {
                 if (!cancel) setAktenBusy(false);
@@ -203,23 +206,23 @@ export function VerwaltungFinanzWerkzeugePage() {
         }
         const p = patienten.find((x) => x.id === patientId);
         if (!p) {
-            toast("Bitte einen Patienten wählen.");
+            toast(t("page.verwaltung_finanz_werkzeuge.toast.choose_patient"));
             return;
         }
         if (aktenBusy) {
-            toast("Patientenakte wird noch geladen…");
+            toast(t("page.verwaltung_finanz_werkzeuge.toast.akte_loading"));
             return;
         }
         const withLinks = lines.filter((x) => x.link);
         if (withLinks.length === 0) {
-            toast("Bitte mindestens eine Leistung (B-/U-Zeile) wählen.");
+            toast(t("page.verwaltung_finanz_werkzeuge.toast.need_line"));
             return;
         }
         const pdfLines = withLinks
             .map((row) => lineFromLeistungWahl(row.link, patientId, behandlungen, untersuchungen, patientZahlungen))
             .filter((x): x is NonNullable<typeof x> => x != null);
         if (pdfLines.length === 0) {
-            toast("Leistungszeilen konnten nicht aufgebaut werden.");
+            toast(t("page.verwaltung_finanz_werkzeuge.toast.lines_failed"));
             return;
         }
         const h = await listRechnungDocuments(INVOICE_HISTORY_MAX);
@@ -262,8 +265,8 @@ export function VerwaltungFinanzWerkzeugePage() {
             const bytes = await renderInvoicePdf(payload);
             openExportPreview({
                 format: "pdf",
-                title: "Rechnung (PDF)",
-                hint: `Vorschau · Nummer ${num}, Datum ${invoiceDate}. Der Verlauf wird nach Erzeugung aktualisiert; PDF hier drucken oder speichern.`,
+                title: t("page.verwaltung_finanz_werkzeuge.pdf_preview_title"),
+                hint: tp("page.verwaltung_finanz_werkzeuge.pdf_preview_hint", { number: num, date: invoiceDate }),
                 suggestedFilename: `rechnung-${num.replace(/[^\w.-]+/g, "_")}.pdf`,
                 binaryBody: new Uint8Array(bytes),
             });
@@ -280,9 +283,9 @@ export function VerwaltungFinanzWerkzeugePage() {
             setInvoiceHistory(await listRechnungDocuments(INVOICE_HISTORY_MAX));
             setSelectedHistoryId(newId);
             setCreating(false);
-            toast("Rechnungs-PDF erzeugt und im Verlauf gespeichert.", "success");
+            toast(t("page.verwaltung_finanz_werkzeuge.toast.pdf_saved"), "success");
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("page.verwaltung_finanz_werkzeuge.toast.error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setInvBusy(false);
         }
@@ -319,13 +322,13 @@ export function VerwaltungFinanzWerkzeugePage() {
             const bytes = await renderInvoicePdf(inv);
             openExportPreview({
                 format: "pdf",
-                title: "Rechnung erneut exportieren",
-                hint: `PDF · Rechnung ${inv.number}`,
+                title: t("page.verwaltung_finanz_werkzeuge.export_again_title"),
+                hint: tp("page.verwaltung_finanz_werkzeuge.toast.redownload_hint", { number: inv.number }),
                 suggestedFilename: `rechnung-${inv.number.replace(/[^\w.-]+/g, "_")}.pdf`,
                 binaryBody: new Uint8Array(bytes),
             });
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("page.verwaltung_finanz_werkzeuge.toast.error", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
             setInvBusy(false);
         }
@@ -334,15 +337,15 @@ export function VerwaltungFinanzWerkzeugePage() {
     if (loading) {
         return (
             <div className="praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader titleLevel="h1" title="Rechnung (PDF)" />
-                <PageLoading label="Daten werden geladen…" />
+                <VerwaltungPageHeader titleLevel="h1" title={t("page.verwaltung_finanz_werkzeuge.title")} />
+                <PageLoading label={t("page.verwaltung_finanz_werkzeuge.loading")} />
             </div>
         );
     }
     if (loadError) {
         return (
             <div className="praxis-workspace-page animate-fade-in">
-                <VerwaltungPageHeader titleLevel="h1" title="Rechnung (PDF)" />
+                <VerwaltungPageHeader titleLevel="h1" title={t("page.verwaltung_finanz_werkzeuge.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             </div>
         );
@@ -353,8 +356,8 @@ export function VerwaltungFinanzWerkzeugePage() {
             <div className="praxis-workspace-page animate-fade-in">
                 <VerwaltungPageHeader
                     titleLevel="h1"
-                    title="Rechnung (PDF)"
-                    subtitle="Keine Berechtigung Finanzen (Lesen)."
+                    title={t("page.verwaltung_finanz_werkzeuge.title")}
+                    subtitle={t("page.verwaltung_finanz_werkzeuge.no_permission_read")}
                 />
             </div>
         );
@@ -365,60 +368,58 @@ export function VerwaltungFinanzWerkzeugePage() {
     const invoiceFormCard = (
         <Card className="produkte-detail-card card--overflow-visible">
             <CardHeader
-                title="Rechnung als PDF (FA-FIN-INVOICE)"
-                subtitle="Leistung auswählen: nur Untersuchungs- & Behandlungszeilen der Patientenakte. Kosten und Gezahlt (i. S.) kommen aus den Buchungen."
+                title={t("page.verwaltung_finanz_werkzeuge.form_title")}
+                subtitle={t("page.verwaltung_finanz_werkzeuge.form_subtitle")}
                 action={(
                     <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/verwaltung/finanzen-berichte/tagesabschluss")}>
-                        Tagesabschluss
+                        {t("page.verwaltung_finanz_werkzeuge.tagesabschluss_btn")}
                     </Button>
                 )}
             />
             <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                 {!canWriteZahlung ? (
-                    <p style={{ color: "var(--fg-3)", fontSize: 14, margin: 0 }}>Nur mit Berechtigung Finanzen (Schreiben): Rechnung erzeugen.</p>
+                    <p style={{ color: "var(--fg-3)", fontSize: 14, margin: 0 }}>{t("page.verwaltung_finanz_werkzeuge.no_permission_write")}</p>
                 ) : null}
                 <Select
                     id="inv-wz-patient"
-                    label="Empfänger (Patient)"
+                    label={t("page.verwaltung_finanz_werkzeuge.recipient")}
                     value={patientId}
                     disabled={!canWriteZahlung}
                     onChange={(e) => {
                         setPatientId(e.target.value);
                         setLines([newRow()]);
                     }}
-                    options={[{ value: "", label: "– Patient –" }, ...patienten.map((p) => ({ value: p.id, label: p.name }))]}
+                    options={[{ value: "", label: t("page.verwaltung_finanz_werkzeuge.choose_patient") }, ...patienten.map((p) => ({ value: p.id, label: p.name }))]}
                 />
                 <Input
                     id="inv-wz-num"
-                    label="Rechnungsnummer (automatisch)"
-                    value={rechnungNr || "— (Patient wählen)"}
+                    label={t("page.verwaltung_finanz_werkzeuge.invoice_number_auto")}
+                    value={rechnungNr || t("page.verwaltung_finanz_werkzeuge.choose_patient_ph")}
                     readOnly
                     tabIndex={-1}
                 />
-                <Input id="inv-wz-date" type="date" label="Datum" value={invoiceDate} readOnly tabIndex={-1} />
+                <Input id="inv-wz-date" type="date" label={t("common.date")} value={invoiceDate} readOnly tabIndex={-1} />
                 <Input
                     id="inv-wz-practice"
-                    label="Praxis (Name)"
+                    label={t("page.verwaltung_finanz_werkzeuge.practice_name")}
                     value={praxis.name}
                     readOnly
                     tabIndex={-1}
                 />
                 <Textarea
                     id="inv-wz-practice-addr"
-                    label="Praxis (Adresse, je Zeile)"
+                    label={t("page.verwaltung_finanz_werkzeuge.practice_addr")}
                     value={praxis.addr}
                     readOnly
                     tabIndex={-1}
                 />
                 <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>
-                    Praxisname und -adresse aus App-Speicher (
-                    <code>medoc-invoice-praxis-v1</code>
-                    ). Optional später in Einstellungen pflegbar.
+                    {t("page.verwaltung_finanz_werkzeuge.practice_hint")}
                 </p>
 
-                {aktenBusy ? <p className="page-sub" style={{ margin: 0 }}>Akte wird geladen…</p> : null}
+                {aktenBusy ? <p className="page-sub" style={{ margin: 0 }}>{t("page.verwaltung_finanz_werkzeuge.akte_loading")}</p> : null}
 
-                <div className="text-title" style={{ fontSize: 14, margin: "4px 0 0" }}>Leistungszeilen (B-/U-Akte)</div>
+                <div className="text-title" style={{ fontSize: 14, margin: "4px 0 0" }}>{t("page.verwaltung_finanz_werkzeuge.lines_title")}</div>
                 {lines.map((row, idx) => (
                     <div
                         key={row.id}
@@ -426,7 +427,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                         style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--surface-1)" }}
                     >
                         <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>Leistung {idx + 1}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>{tp("page.verwaltung_finanz_werkzeuge.line_n", { index: idx + 1 })}</span>
                             {canWriteZahlung && lines.length > 1 ? (
                                 <Button
                                     type="button"
@@ -434,13 +435,13 @@ export function VerwaltungFinanzWerkzeugePage() {
                                     variant="ghost"
                                     onClick={() => setLines((prev) => prev.filter((x) => x.id !== row.id))}
                                 >
-                                    Zeile entfernen
+                                    {t("page.verwaltung_finanz_werkzeuge.remove_line")}
                                 </Button>
                             ) : null}
                         </div>
                         <Select
                             id={`inv-line-${row.id}`}
-                            label="Leistungsbeschreibung (Untersuchung / Behandlung)"
+                            label={t("page.verwaltung_finanz_werkzeuge.line_desc")}
                             value={row.link}
                             disabled={!canWriteZahlung || !patientId || linkOptions.length <= 1}
                             onChange={(e) => {
@@ -459,7 +460,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                                     patientZahlungen,
                                 );
                                 if (!b) {
-                                    return <p className="page-sub" style={{ margin: 0 }}>Leistung nicht gefunden (Akte leeren?).</p>;
+                                    return <p className="page-sub" style={{ margin: 0 }}>{t("page.verwaltung_finanz_werkzeuge.line_not_found")}</p>;
                                 }
                                 return (
                                     <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--fg-2)", whiteSpace: "pre-wrap" }}>{b.description}</div>
@@ -472,23 +473,23 @@ export function VerwaltungFinanzWerkzeugePage() {
                 {canWriteZahlung && patientId ? (
                     <div>
                         <Button type="button" size="sm" variant="secondary" onClick={addLine}>
-                            Weitere Leistung
+                            {t("page.verwaltung_finanz_werkzeuge.add_line")}
                         </Button>
                     </div>
                 ) : null}
 
                 <Input
                     id="inv-wz-line-total"
-                    label="Betrag brutto (EUR) – Summe der Positionen"
+                    label={t("page.verwaltung_finanz_werkzeuge.amount_gross")}
                     value={builtLines.length > 0 ? formatCurrency(betragBruttoEur) : "—"}
                     readOnly
                     tabIndex={-1}
                 />
-                <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>Berechnet aus Soll/Gezahlt je B-/U-Zeile (i. S. = im System, nicht storniert).</p>
+                <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>{t("page.verwaltung_finanz_werkzeuge.amount_hint")}</p>
 
                 <Textarea
                     id="inv-wz-note"
-                    label="Notiz auf der Rechnung (optional)"
+                    label={t("page.verwaltung_finanz_werkzeuge.note_label")}
                     value={note}
                     disabled={!canWriteZahlung}
                     onChange={(e) => setNote(e.target.value)}
@@ -496,10 +497,10 @@ export function VerwaltungFinanzWerkzeugePage() {
                 {canWriteZahlung ? (
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                         <Button type="button" variant="ghost" onClick={resetForm} disabled={invBusy}>
-                            Felder leeren
+                            {t("page.verwaltung_finanz_werkzeuge.clear_fields")}
                         </Button>
                         <Button type="button" onClick={() => void handleInvoicePdf()} disabled={invBusy} loading={invBusy}>
-                            PDF erzeugen
+                            {t("page.verwaltung_finanz_werkzeuge.generate_pdf")}
                         </Button>
                     </div>
                 ) : null}
@@ -510,7 +511,7 @@ export function VerwaltungFinanzWerkzeugePage() {
     const readModeCard = selectedEntry ? (
         <Card className="produkte-detail-card card--overflow-visible">
             <CardHeader
-                title="Rechnung (Lesen)"
+                title={t("page.verwaltung_finanz_werkzeuge.read_mode")}
                 subtitle={formatDateTime(selectedEntry.createdAt)}
                 action={(
                     <Button
@@ -521,30 +522,30 @@ export function VerwaltungFinanzWerkzeugePage() {
                         disabled={invBusy}
                         loading={invBusy}
                     >
-                        PDF erneut
+                        {t("page.verwaltung_finanz_werkzeuge.export_again")}
                     </Button>
                 )}
             />
             <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                <Input id="read-inv-num" label="Rechnungsnummer" value={selectedEntry.invoice.number} readOnly tabIndex={-1} />
-                <Input id="read-inv-date" type="date" label="Rechnungsdatum" value={selectedEntry.invoice.date} readOnly tabIndex={-1} />
-                <Input id="read-rec" label="Empfänger" value={selectedEntry.invoice.recipient_name} readOnly tabIndex={-1} />
+                <Input id="read-inv-num" label={t("page.verwaltung_finanz_werkzeuge.invoice_number")} value={selectedEntry.invoice.number} readOnly tabIndex={-1} />
+                <Input id="read-inv-date" type="date" label={t("page.verwaltung_finanz_werkzeuge.invoice_date")} value={selectedEntry.invoice.date} readOnly tabIndex={-1} />
+                <Input id="read-rec" label={t("common.recipient")} value={selectedEntry.invoice.recipient_name} readOnly tabIndex={-1} />
                 <Textarea
                     id="read-rec-addr"
-                    label="Adresse (Empfänger)"
+                    label={t("page.verwaltung_finanz_werkzeuge.read_addr")}
                     value={selectedEntry.invoice.recipient_address.join("\n")}
                     readOnly
                     tabIndex={-1}
                 />
-                <Input id="read-pr" label="Praxis" value={selectedEntry.invoice.practice_name} readOnly tabIndex={-1} />
+                <Input id="read-pr" label={t("page.verwaltung_finanz_werkzeuge.practice_name")} value={selectedEntry.invoice.practice_name} readOnly tabIndex={-1} />
                 <Textarea
                     id="read-pr-addr"
-                    label="Praxis (Adresse)"
+                    label={t("page.verwaltung_finanz_werkzeuge.read_practice_addr")}
                     value={selectedEntry.invoice.practice_address.join("\n")}
                     readOnly
                     tabIndex={-1}
                 />
-                <p className="text-title" style={{ fontSize: 14, margin: 0 }}>Positionen</p>
+                <p className="text-title" style={{ fontSize: 14, margin: 0 }}>{t("common.positions")}</p>
                 {selectedEntry.invoice.lines.map((line, i) => (
                     <div key={i} className="card card-pad" style={{ background: "var(--surface-1)" }}>
                         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--fg-2)", whiteSpace: "pre-wrap" }}>{line.description}</p>
@@ -555,23 +556,16 @@ export function VerwaltungFinanzWerkzeugePage() {
                 ))}
                 <Input
                     id="read-sum"
-                    label="Summe brutto (EUR)"
+                    label={t("common.sum_gross")}
                     value={formatCurrency(sumInvoiceEur(selectedEntry.invoice))}
                     readOnly
                     tabIndex={-1}
                 />
                 {selectedEntry.invoice.note ? (
-                    <Textarea id="read-note" label="Notiz" value={selectedEntry.invoice.note} readOnly tabIndex={-1} />
+                    <Textarea id="read-note" label={t("common.note")} value={selectedEntry.invoice.note} readOnly tabIndex={-1} />
                 ) : null}
                 <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>
-                    Verlauf in der Datenbank (
-                    <code>rechnung_document</code>
-                    {") "}
-                    — maximal
-                    {" "}
-                    {INVOICE_HISTORY_MAX}
-                    {" "}
-                    Einträge in der Ansicht.
+                    {tp("page.verwaltung_finanz_werkzeuge.history_hint", { max: INVOICE_HISTORY_MAX })}
                 </p>
             </div>
         </Card>
@@ -581,11 +575,11 @@ export function VerwaltungFinanzWerkzeugePage() {
         <Card className="produkte-detail-card produkte-detail-card--empty">
             <div className="card-pad">
                 <EmptyState
-                    title="Keine Rechnung gewählt"
+                    title={t("page.verwaltung_finanz_werkzeuge.empty_title")}
                     description={
                         canWriteZahlung
-                            ? "Links eine Zeile im Verlauf wählen oder „+ Neue Rechnung“ für eine neue Rechnung."
-                            : "Wählen Sie links eine Rechnung aus dem Verlauf (nur Lesen: kein neues PDF anlegen)."
+                            ? t("page.verwaltung_finanz_werkzeuge.empty_desc_write")
+                            : t("page.verwaltung_finanz_werkzeuge.empty_desc_read")
                     }
                 />
             </div>
@@ -602,16 +596,16 @@ export function VerwaltungFinanzWerkzeugePage() {
         <div className="rechnung-pdf-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 titleLevel="h1"
-                title="Rechnung (PDF)"
+                title={t("page.verwaltung_finanz_werkzeuge.title")}
                 subtitle={
                     <>
-                        Teil von <strong>Finanzen &amp; Berichte</strong> — Rechnung aus dem Druck-Backend, Leistung aus der Akte; Verlauf in SQLite. Tagesbericht/Abgleich:{" "}
+                        {t("page.verwaltung_finanz_werkzeuge.subtitle_part1")}{" "}
                         <button
                             type="button"
                             style={{ color: "var(--accent, #0a6)", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}
                             onClick={() => navigate("/verwaltung/finanzen-berichte/tagesabschluss")}
                         >
-                            Tagesabschluss
+                            {t("page.verwaltung_finanz_werkzeuge.subtitle_tagesabschluss")}
                         </button>
                         .
                     </>
@@ -619,7 +613,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                 actions={
                     canWriteZahlung ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Neue Rechnung abbrechen" : "+ Neue Rechnung"}
+                            {creating ? t("page.verwaltung_finanz_werkzeuge.cancel_create") : t("page.verwaltung_finanz_werkzeuge.create_title")}
                         </Button>
                     ) : null
                 }
@@ -627,21 +621,21 @@ export function VerwaltungFinanzWerkzeugePage() {
 
             <div className="produkte-workspace">
                 <div className="produkte-workspace__list">
-                    <p className="text-title" style={{ margin: "0 0 8px", fontSize: 13 }}>Rechnungsverlauf</p>
+                    <p className="text-title" style={{ margin: "0 0 8px", fontSize: 13 }}>{t("page.verwaltung_finanz_werkzeuge.history_title")}</p>
                     {invoiceHistory.length === 0 ? (
                         <p className="page-sub" style={{ margin: 0, fontSize: 14 }}>
-                            Noch keine Rechnung erzeugt. Mit „+ Neue Rechnung“ starten.
+                            {t("page.verwaltung_finanz_werkzeuge.history_empty")}
                         </p>
                     ) : (
                         <div className="card produkte-table-card" style={{ overflow: "auto" }}>
                             <table className="tbl produkte-tbl tbl-fluid" style={{ fontSize: 14, margin: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th scope="col" style={{ textAlign: "left" }}>Rechnung</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>Datum</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>Empfänger</th>
-                                        <th scope="col" style={{ textAlign: "right" }}>Summe</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>Erzeugt</th>
+                                        <th scope="col" style={{ textAlign: "left" }}>{t("page.verwaltung_finanz_werkzeuge.col.invoice")}</th>
+                                        <th scope="col" style={{ textAlign: "left" }}>{t("common.date")}</th>
+                                        <th scope="col" style={{ textAlign: "left" }}>{t("common.recipient")}</th>
+                                        <th scope="col" style={{ textAlign: "right" }}>{t("common.sum_gross")}</th>
+                                        <th scope="col" style={{ textAlign: "left" }}>{t("page.verwaltung_finanz_werkzeuge.col.created")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>

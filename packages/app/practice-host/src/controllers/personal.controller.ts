@@ -113,3 +113,16 @@ export async function grantPersonalAllPermissions(personalId: string): Promise<n
 export async function adminUnlockBruteForce(targetEmail: string): Promise<number> {
     return practiceSystem.invoke<number>("admin_unlock_brute_force", { target_email: targetEmail.trim() });
 }
+
+export interface StaffQuota {
+    max_arzt: number;
+    max_rezeption: number;
+    max_total: number;
+    used_arzt: number;
+    used_rezeption: number;
+    used_total: number;
+}
+
+export async function getStaffQuota(): Promise<StaffQuota> {
+    return practiceSystem.invoke<StaffQuota>("get_staff_quota");
+}

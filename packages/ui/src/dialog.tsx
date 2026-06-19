@@ -202,7 +202,7 @@ export type IosConfirmActionsProps = {
 };
 
 export function IosConfirmActions({
-    cancelLabel = "Abbrechen",
+    cancelLabel,
     confirmLabel,
     onCancel,
     onConfirm,
@@ -210,11 +210,13 @@ export function IosConfirmActions({
     loading = false,
     destructive = false,
 }: IosConfirmActionsProps) {
+    const t = useT();
     const busy = disabled || loading;
+    const cancel = cancelLabel ?? t("common.cancel");
     return (
-        <div className="ios-confirm-actions" role="group" aria-label="Aktionen">
+        <div className="ios-confirm-actions" role="group" aria-label={t("a11y.dialog_actions")}>
             <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={busy}>
-                {cancelLabel}
+                {cancel}
             </button>
             <span className="ios-confirm-actions__vsep" aria-hidden="true" />
             <button

@@ -4,6 +4,7 @@ import {
     type ClientSettingsV1,
 } from "@/lib/client-settings";
 import { SettingsSwitch } from "@/views/components/settings-switch";
+import { useT, useTParams } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
 
 type NotificationPrefs = NonNullable<ClientSettingsV1["notifications"]>;
@@ -19,22 +20,27 @@ export function EinstellungenBenachrichtigungenSection({
     portalFlags,
     onPersistClient,
 }: EinstellungenBenachrichtigungenSectionProps) {
+    const t = useT();
+    const tp = useTParams();
     const { canOpsSystem } = useRbac();
+    const liveLabel = t("common.live");
+    const offLabel = t("common.off");
+
     return (
         <section className="settings-subcard">
             <div className="card-head">
                 <div>
-                    <div className="card-title">Benachrichtigungen</div>
-                    <div className="card-sub">Hinweise und Erinnerungen in der App</div>
+                    <div className="card-title">{t("settings.notifications.title")}</div>
+                    <div className="card-sub">{t("settings.notifications.subtitle")}</div>
                 </div>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Push-Benachrichtigungen</b>
-                    <div className="card-sub">Neue Freigaben, Termine, Bestellungen</div>
+                    <b>{t("settings.notifications.push")}</b>
+                    <div className="card-sub">{t("settings.notifications.push_detail")}</div>
                 </div>
                 <SettingsSwitch
-                    ariaLabel="Push-Benachrichtigungen"
+                    ariaLabel={t("settings.notifications.push_aria")}
                     checked={notifications.push !== false}
                     onChange={() =>
                         onPersistClient((c) => {
@@ -47,11 +53,11 @@ export function EinstellungenBenachrichtigungenSection({
             </div>
             <div className="settings-row">
                 <div>
-                    <b>E-Mail-Zusammenfassung</b>
-                    <div className="card-sub">Täglich um 18:00</div>
+                    <b>{t("settings.notifications.email")}</b>
+                    <div className="card-sub">{t("settings.notifications.email_detail")}</div>
                 </div>
                 <SettingsSwitch
-                    ariaLabel="E-Mail-Zusammenfassung"
+                    ariaLabel={t("settings.notifications.email_aria")}
                     checked={notifications.emailSummary !== false}
                     onChange={() =>
                         onPersistClient((c) => {
@@ -64,11 +70,11 @@ export function EinstellungenBenachrichtigungenSection({
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Kritische Warnungen</b>
-                    <div className="card-sub">Lagerbestand, Freigaben über 24h</div>
+                    <b>{t("settings.notifications.critical")}</b>
+                    <div className="card-sub">{t("settings.notifications.critical_detail")}</div>
                 </div>
                 <SettingsSwitch
-                    ariaLabel="Kritische Warnungen"
+                    ariaLabel={t("settings.notifications.critical_aria")}
                     checked={notifications.criticalWarnings !== false}
                     onChange={() =>
                         onPersistClient((c) => {
@@ -81,11 +87,11 @@ export function EinstellungenBenachrichtigungenSection({
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Patienten-SMS (Erinnerungen)</b>
-                    <div className="card-sub">24h vor dem Termin</div>
+                    <b>{t("settings.notifications.patient_sms")}</b>
+                    <div className="card-sub">{t("settings.notifications.patient_sms_detail")}</div>
                 </div>
                 <SettingsSwitch
-                    ariaLabel="Patienten-SMS"
+                    ariaLabel={t("settings.notifications.sms_aria")}
                     checked={notifications.patientSms === true}
                     onChange={() =>
                         onPersistClient((c) => {
@@ -99,10 +105,12 @@ export function EinstellungenBenachrichtigungenSection({
             {canOpsSystem && portalFlags && typeof portalFlags === "object" ? (
                 <div className="card-pad" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 12 }}>
                     <div className="card-sub" style={{ margin: 0, fontSize: 12.5 }}>
-                        <b>Hersteller-Lieferung</b> (bei aktivem Hersteller-Portal): Push{" "}
-                        {portalFlags.notifications_push_delivery === true ? "live" : "aus"}, E-Mail-Digest{" "}
-                        {portalFlags.notifications_email_digest_delivery === true ? "live" : "aus"}, Patienten-SMS{" "}
-                        {portalFlags.notifications_patient_sms_delivery === true ? "live" : "aus"}.
+                        <b>{t("settings.notifications.manufacturer")}</b>{" "}
+                        {tp("settings.notifications.manufacturer_detail", {
+                            push: portalFlags.notifications_push_delivery === true ? liveLabel : offLabel,
+                            email: portalFlags.notifications_email_digest_delivery === true ? liveLabel : offLabel,
+                            sms: portalFlags.notifications_patient_sms_delivery === true ? liveLabel : offLabel,
+                        })}
                     </div>
                 </div>
             ) : null}

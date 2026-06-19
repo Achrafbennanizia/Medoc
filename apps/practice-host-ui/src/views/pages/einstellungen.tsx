@@ -16,7 +16,7 @@ import {
     currentLicenseStatus,
     clearLicense,
 } from "@/systems/practice-host/controllers/settings-page.controller";
-import { useLocale } from "@/lib/i18n";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import {
     DEFAULT_CLIENT_SETTINGS,
     loadClientSettings,
@@ -66,7 +66,7 @@ import {
     UsersIcon,
 } from "@/lib/icons";
 
-const SETTINGS_BREADCRUMB_FALLBACK = "Konto · Darstellung · Arbeitsabläufe — weitere unten in der Liste";
+const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
 
 const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
 
@@ -87,6 +87,8 @@ const TAB_QUERY: Record<SettingsSection, string> = {
 };
 
 export function EinstellungenPage() {
+    const t = useT();
+    const tp = useTParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const session = useAuthStore((s) => s.session);
@@ -212,13 +214,13 @@ export function EinstellungenPage() {
             return;
         }
         if (newPw !== confirmPw) {
-            toast("Passwörter stimmen nicht überein");
+            toast(t("settings.password.mismatch"));
             return;
         }
         setPwBusy(true);
         try {
             await changePassword(oldPw, newPw);
-            toast("Passwort geändert");
+            toast(t("settings.password.changed"));
             try {
                 localStorage.setItem(PW_CHANGED_LS, String(Date.now()));
             } catch {
@@ -230,7 +232,7 @@ export function EinstellungenPage() {
             setConfirmPw("");
             setPwDialogOpen(false);
         } catch (e) {
-            toast(`Fehler: ${(e as Error).message ?? e}`);
+            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
         } finally {
             setPwBusy(false);
         }
@@ -242,9 +244,9 @@ export function EinstellungenPage() {
         try {
             const st = await verifyLicense(licenseToken.trim());
             setLicenseStatus(st);
-            toast(st.valid ? "Lizenz gültig" : `Ungültig: ${st.reason ?? "—"}`, st.valid ? "success" : "info");
+            toast(st.valid ? t("settings.license.valid") : tp("settings.license.invalid", { reason: st.reason ?? "—" }), st.valid ? "success" : "info");
         } catch (e) {
-            toast(`Fehler: ${(e as Error).message ?? e}`);
+            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
         } finally {
             setLicBusy(false);
         }
@@ -257,20 +259,20 @@ export function EinstellungenPage() {
             const st = await activateLicense(licenseToken.trim());
             setLicenseStatus(st);
             if (st.valid) {
-                toast("Lizenz aktiviert", "success");
+                toast(t("settings.license.activated"), "success");
                 setLicenseToken("");
             } else {
-                toast(`Aktivierung fehlgeschlagen: ${st.reason ?? "—"}`, "error");
+                toast(tp("settings.license.activate_failed", { reason: st.reason ?? "—" }), "error");
             }
         } catch (e) {
-            toast(`Fehler: ${(e as Error).message ?? e}`, "error");
+            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
         } finally {
             setLicBusy(false);
         }
     }
 
     async function handleClearLicense() {
-        if (!window.confirm("Desktop-Lizenz wirklich entfernen? Die App startet danach wieder im Aktivierungsmodus.")) {
+        if (!window.confirm(t("settings.license.clear_confirm"))) {
             return;
         }
         setLicBusy(true);
@@ -279,9 +281,9 @@ export function EinstellungenPage() {
             const st = await currentLicenseStatus();
             setLicenseStatus(st);
             setLicenseToken("");
-            toast("Lizenz entfernt", "success");
+            toast(t("settings.license.cleared"), "success");
         } catch (e) {
-            toast(`Fehler: ${(e as Error).message ?? e}`, "error");
+            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
         } finally {
             setLicBusy(false);
         }
@@ -291,9 +293,9 @@ export function EinstellungenPage() {
         try {
             await savePraxisPraeferenzen(praef);
             setPraefDirty(false);
-            toast("Termin-Präferenzen gespeichert (Praxis-weit in der Datenbank)", "success");
+            toast(t("settings.praef.saved"), "success");
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("settings.praef.save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -305,31 +307,31 @@ export function EinstellungenPage() {
         [setSearchParams],
     );
 
-    const primaryNavAll: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
-        { id: "praxis", label: "Praxis", icon: StethoscopeIcon },
-        { id: "konto", label: "Konto", icon: UsersIcon },
-        { id: "benachrichtigungen", label: "Benachrichtigungen", icon: BellIcon },
-        { id: "sicherheit", label: "Sicherheit", icon: ShieldIcon },
-        { id: "lizenz", label: "Lizenz & Abo", icon: KeyRoundIcon },
-        { id: "integrationen", label: "Integrationen", icon: BoltIcon },
-        { id: "migration", label: "Migration", icon: DownloadIcon },
-        { id: "darstellung", label: "Darstellung", icon: SunIcon },
+    const primaryNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
+        { id: "praxis", labelKey: "settings.nav.praxis", icon: StethoscopeIcon },
+        { id: "konto", labelKey: "settings.nav.konto", icon: UsersIcon },
+        { id: "benachrichtigungen", labelKey: "settings.nav.benachrichtigungen", icon: BellIcon },
+        { id: "sicherheit", labelKey: "settings.nav.sicherheit", icon: ShieldIcon },
+        { id: "lizenz", labelKey: "settings.nav.lizenz", icon: KeyRoundIcon },
+        { id: "integrationen", labelKey: "settings.nav.integrationen", icon: BoltIcon },
+        { id: "migration", labelKey: "settings.nav.migration", icon: DownloadIcon },
+        { id: "darstellung", labelKey: "settings.nav.darstellung", icon: SunIcon },
     ];
 
-    const advancedNavAll: Array<{ id: SettingsSection; label: string; icon: FC<{ size?: number }> }> = [
-        { id: "arbeitsablaeufe", label: "Arbeitsabläufe", icon: SlidersHorizontalIcon },
-        { id: "system", label: "System", icon: SettingsIcon },
-        { id: "ueber", label: "Über die Anwendung", icon: InfoIcon },
+    const advancedNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
+        { id: "arbeitsablaeufe", labelKey: "settings.nav.arbeitsablaeufe", icon: SlidersHorizontalIcon },
+        { id: "system", labelKey: "settings.nav.system", icon: SettingsIcon },
+        { id: "ueber", labelKey: "settings.nav.ueber", icon: InfoIcon },
     ];
 
     const primaryNav = primaryNavAll.filter((item) => canSettingsSection(item.id));
     const advancedNav = advancedNavAll.filter((item) => canSettingsSection(item.id));
 
     const settingsBreadcrumb = useMemo(() => {
-        const labels = [...primaryNav, ...advancedNav].slice(0, 5).map((i) => i.label);
-        if (labels.length === 0) return SETTINGS_BREADCRUMB_FALLBACK;
+        const labels = [...primaryNav, ...advancedNav].slice(0, 5).map((i) => t(i.labelKey));
+        if (labels.length === 0) return t(SETTINGS_BREADCRUMB_FALLBACK);
         return `${labels.join(" · ")}${labels.length >= 5 ? " — …" : ""}`;
-    }, [primaryNav, advancedNav]);
+    }, [primaryNav, advancedNav, t]);
 
     useEffect(() => {
         if (canSettingsSection(activeSection)) return;
@@ -341,7 +343,7 @@ export function EinstellungenPage() {
     const accentPresetId = normalizeAccentId(appearance.accentPreset);
     const fontStack = normalizeFontStack(appearance.fontStack);
     const densityLabel =
-        appearance.density === "compact" ? "Kompakt" : appearance.density === "spacious" ? "Weit" : "Gemütlich";
+        appearance.density === "compact" ? t("settings.density.compact") : appearance.density === "spacious" ? t("settings.density.spacious") : t("settings.density.comfortable");
     const wf = client.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
     const searchPrefs = client.search ?? DEFAULT_CLIENT_SETTINGS.search!;
     const security = client.security ?? DEFAULT_CLIENT_SETTINGS.security!;
@@ -353,12 +355,12 @@ export function EinstellungenPage() {
     return (
         <div className="settings-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
-                title="Einstellungen"
+                title={t("settings.page.title")}
                 subtitle={<p className="page-sub settings-page-breadcrumb">{settingsBreadcrumb}</p>}
             />
 
             <div className="split settings-shell" style={{ gridTemplateColumns: "minmax(220px, 260px) 1fr", alignItems: "start" }}>
-                <nav className="settings-nav-card settings-nav" aria-label="Einstellungen Abschnitte">
+                <nav className="settings-nav-card settings-nav" aria-label={t("settings.nav.sections_aria")}>
                     <div className="settings-nav-list">
                         {primaryNav.map((item) => {
                             const Icon = item.icon;
@@ -370,14 +372,14 @@ export function EinstellungenPage() {
                                     onClick={() => setSection(item.id)}
                                 >
                                     <Icon size={18} aria-hidden />
-                                    <span className="settings-nav-label">{item.label}</span>
+                                    <span className="settings-nav-label">{t(item.labelKey)}</span>
                                 </button>
                             );
                         })}
                         {advancedNav.length > 0 ? (
                             <>
                         <div className="settings-nav-sep" aria-hidden />
-                        <div className="settings-nav-muted">Erweitert</div>
+                        <div className="settings-nav-muted">{t("settings.nav.advanced")}</div>
                             </>
                         ) : null}
                         {advancedNav.map((item) => {
@@ -390,7 +392,7 @@ export function EinstellungenPage() {
                                     onClick={() => setSection(item.id)}
                                 >
                                     <Icon size={18} aria-hidden />
-                                    <span className="settings-nav-label">{item.label}</span>
+                                    <span className="settings-nav-label">{t(item.labelKey)}</span>
                                 </button>
                             );
                         })}
@@ -398,7 +400,7 @@ export function EinstellungenPage() {
                 </nav>
                 <div className="settings-panel-stack">
                     {!canSettingsSection(activeSection) ? (
-                        <AccessDeniedView detail="Dieser Einstellungen-Bereich ist für Ihre Rolle nicht freigegeben." />
+                        <AccessDeniedView detail={t("settings.access_denied")} />
                     ) : null}
                     {canSettingsSection(activeSection) && activeSection === "praxis" ? (
                         <EinstellungenPraxisSection
@@ -498,11 +500,11 @@ export function EinstellungenPage() {
             <Dialog
                 open={pwDialogOpen}
                 onClose={() => setPwDialogOpen(false)}
-                title="Passwort ändern"
+                title={t("settings.password.change_title")}
                 footer={(
                     <>
                         <Button variant="ghost" type="button" onClick={() => setPwDialogOpen(false)}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             type="button"
@@ -510,7 +512,7 @@ export function EinstellungenPage() {
                             disabled={pwBusy || !oldPw || !newPw}
                             loading={pwBusy}
                         >
-                            Speichern
+                            {t("common.save")}
                         </Button>
                     </>
                 )}
@@ -519,7 +521,7 @@ export function EinstellungenPage() {
                     <Input
                         id="old-pw"
                         type="password"
-                        label="Aktuelles Passwort"
+                        label={t("settings.password.current")}
                         autoComplete="current-password"
                         value={oldPw}
                         onChange={(e) => setOldPw(e.target.value)}
@@ -527,7 +529,7 @@ export function EinstellungenPage() {
                     <Input
                         id="new-pw"
                         type="password"
-                        label="Neues Passwort"
+                        label={t("settings.password.new")}
                         autoComplete="new-password"
                         value={newPw}
                         onChange={(e) => setNewPw(e.target.value)}
@@ -536,7 +538,7 @@ export function EinstellungenPage() {
                     <Input
                         id="conf-pw"
                         type="password"
-                        label="Neues Passwort wiederholen"
+                        label={t("settings.password.confirm")}
                         autoComplete="new-password"
                         value={confirmPw}
                         onChange={(e) => setConfirmPw(e.target.value)}

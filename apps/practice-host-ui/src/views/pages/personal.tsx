@@ -6,6 +6,7 @@ import {
     createPersonal,
     deletePersonal,
     deletePersonalPermissionOverride,
+    getStaffQuota,
     grantPersonalAllPermissions,
     listPersonal,
     listPersonalPermissionOverrides,
@@ -13,7 +14,9 @@ import {
     setPersonalPasswordByAdmin,
     setPersonalPermissionOverride,
     updatePersonal,
+    type StaffQuota,
 } from "@/systems/practice-host/controllers/personal.controller";
+import { MAX_TOTAL_PERSONAL } from "@/lib/mvp-security-config";
 import { allowed, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { errorMessage, formatDate } from "@/lib/utils";
@@ -32,6 +35,7 @@ import { passwordPolicyError } from "@/lib/password-policy";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Rolle } from "@/models/types";
 import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
+import { useT, useTParams } from "@/lib/i18n";
 
 function initialsFromName(name: string) {
     return name
@@ -41,14 +45,28 @@ function initialsFromName(name: string) {
         .join("");
 }
 
-const ROLLE_OPTIONS = [
-    { value: "ARZT", label: "Arzt" },
-    { value: "REZEPTION", label: "Rezeption" },
-    // TODO(deferred-roles): { value: "STEUERBERATER", label: "Steuerberater" },
-    // TODO(deferred-roles): { value: "PHARMABERATER", label: "Pharmaberater" },
-] as const satisfies ReadonlyArray<{ value: (typeof ACTIVE_ROLE_WIRES)[number]; label: string }>;
+const ROLLE_VALUE_OPTIONS = [
+    { value: "ARZT" as const, key: "enum.rolle.arzt" },
+    { value: "REZEPTION" as const, key: "enum.rolle.rezeption" },
+] as const satisfies ReadonlyArray<{ value: (typeof ACTIVE_ROLE_WIRES)[number]; key: string }>;
+
+function formatQuotaLine(used: number, max: number, t: (key: string) => string): string {
+    const base = `${used}/${max}`;
+    return used > max ? `${base} ${t("page.personal.quota_limit_exceeded")}` : base;
+}
+
+function quotaOverCapHint(staffQuota: StaffQuota, t: (key: string) => string): string | null {
+    const over =
+        staffQuota.used_arzt > staffQuota.max_arzt ||
+        staffQuota.used_rezeption > staffQuota.max_rezeption ||
+        staffQuota.used_total > staffQuota.max_total;
+    if (!over) return null;
+    return t("page.personal.quota_over_cap");
+}
 
 export function PersonalPage() {
+    const t = useT();
+    const tp = useTParams();
     const [personal, setPersonal] = useState<Personal[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -80,6 +98,7 @@ export function PersonalPage() {
     const [newPermEffect, setNewPermEffect] = useState<"ALLOW" | "DENY">("DENY");
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteBusy, setDeleteBusy] = useState(false);
+    const [staffQuota, setStaffQuota] = useState<StaffQuota | null>(null);
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -93,8 +112,9 @@ export function PersonalPage() {
                 setLoadError(null);
             }
             try {
-                const p = await listPersonal();
+                const [p, quota] = await Promise.all([listPersonal(), getStaffQuota()]);
                 setPersonal(p);
+                setStaffQuota(quota);
                 setSelected((cur) => {
                     if (!cur) return null;
                     return p.find((x) => x.id === cur.id) ?? null;
@@ -102,12 +122,12 @@ export function PersonalPage() {
             } catch (e) {
                 const msg = errorMessage(e);
                 if (isInitial) setLoadError(msg);
-                else toast(`Aktualisieren fehlgeschlagen: ${msg}`);
+                else toast(tp("common.refresh_failed", { message: msg }));
             } finally {
                 if (isInitial) setLoading(false);
             }
         },
-        [toast],
+        [toast, tp],
     );
 
     useEffect(() => {
@@ -132,7 +152,7 @@ export function PersonalPage() {
                 );
             })
             .catch((e) => {
-                if (!cancelled) toast(`Berechtigungen laden: ${errorMessage(e)}`, "error");
+                if (!cancelled) toast(tp("page.personal.toast_perm_load_failed", { message: errorMessage(e) }), "error");
             })
             .finally(() => {
                 if (!cancelled) setPermBusy(false);
@@ -140,7 +160,7 @@ export function PersonalPage() {
         return () => {
             cancelled = true;
         };
-    }, [selected?.id, detailEdit, canWrite, toast]);
+    }, [selected?.id, detailEdit, canWrite, toast, tp]);
 
     const neuFromQuery = searchParams.get("neu");
     useEffect(() => {
@@ -170,6 +190,10 @@ export function PersonalPage() {
     });
 
     const openCreate = () => {
+        if (staffQuota && staffQuota.used_total >= staffQuota.max_total) {
+            toast(tp("page.personal.toast_max_users", { max: MAX_TOTAL_PERSONAL }), "error");
+            return;
+        }
         setCreating(true);
         setDetailEdit(false);
         setSelected(null);
@@ -209,7 +233,7 @@ export function PersonalPage() {
         if (!selected || !canWrite) return;
         setResetPwError(undefined);
         if (!resetPw) {
-            setResetPwError("Bitte neues Passwort eingeben.");
+            setResetPwError(t("page.personal.toast_pw_required"));
             return;
         }
         const policyErr = passwordPolicyError(resetPw);
@@ -218,17 +242,17 @@ export function PersonalPage() {
             return;
         }
         if (resetPw !== resetPw2) {
-            setResetPwError("Passwörter stimmen nicht überein.");
+            setResetPwError(t("page.personal.toast_pw_mismatch"));
             return;
         }
         setResetBusy(true);
         try {
             await setPersonalPasswordByAdmin(selected.id, resetPw);
-            toast("Passwort wurde neu gesetzt.", "success");
+            toast(t("page.personal.toast_pw_set"), "success");
             setResetPw("");
             setResetPw2("");
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         } finally {
             setResetBusy(false);
         }
@@ -237,7 +261,7 @@ export function PersonalPage() {
     const handleUpdate = async () => {
         if (!selected || !canWrite) return;
         if (!editForm.name.trim() || !editForm.email.trim()) {
-            toast("Name und E-Mail sind Pflichtfelder.", "error");
+            toast(t("page.personal.toast_name_email_required"), "error");
             return;
         }
         setEditBusy(true);
@@ -251,12 +275,12 @@ export function PersonalPage() {
                 telefon: editForm.telefon.trim() || null,
                 verfuegbar: editForm.verfuegbar,
             });
-            toast("Mitarbeiter gespeichert", "success");
+            toast(t("page.personal.toast_saved"), "success");
             setDetailEdit(false);
             setSelected(updated);
             void load();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         } finally {
             setEditBusy(false);
         }
@@ -264,14 +288,14 @@ export function PersonalPage() {
 
     const validateCreate = (): boolean => {
         const next: typeof createErrors = {};
-        if (!createForm.name.trim()) next.name = "Bitte Namen eingeben";
+        if (!createForm.name.trim()) next.name = t("page.personal.err_name_required");
         if (!createForm.email.trim()) {
-            next.email = "Bitte E-Mail eingeben";
+            next.email = t("page.personal.err_email_required");
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(createForm.email.trim())) {
-            next.email = "Ungültige E-Mail-Adresse";
+            next.email = t("page.personal.err_email_invalid");
         }
         if (!createForm.passwort) {
-            next.passwort = "Bitte Passwort eingeben";
+            next.passwort = t("page.personal.err_password_required");
         } else {
             const policyErr = passwordPolicyError(createForm.passwort);
             if (policyErr) next.passwort = policyErr;
@@ -290,13 +314,13 @@ export function PersonalPage() {
                 passwort: createForm.passwort,
                 rolle: createForm.rolle,
             });
-            toast("Mitarbeiter erstellt", "success");
+            toast(t("page.personal.toast_created"), "success");
             setCreating(false);
             setCreateForm({ name: "", email: "", passwort: "", rolle: "REZEPTION" });
             setSelected(created);
             void load();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         } finally {
             setCreateBusy(false);
         }
@@ -307,13 +331,13 @@ export function PersonalPage() {
         setDeleteBusy(true);
         try {
             await deletePersonal(deleteId);
-            toast("Eintrag entfernt", "success");
+            toast(t("page.personal.toast_removed"), "success");
             setDetailEdit(false);
             setSelected((s) => (s?.id === deleteId ? null : s));
             setDeleteId(null);
             void load();
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         } finally {
             setDeleteBusy(false);
         }
@@ -323,6 +347,39 @@ export function PersonalPage() {
         () => [...personal].sort((a, b) => a.name.localeCompare(b.name, "de")),
         [personal],
     );
+
+    const rolleOptions = useMemo(
+        () => ROLLE_VALUE_OPTIONS.map((o) => ({ value: o.value, label: t(o.key) })),
+        [t],
+    );
+
+    const availableRolleOptions = useMemo(() => {
+        if (!staffQuota) return rolleOptions;
+        return rolleOptions.filter((o) => {
+            if (o.value === "ARZT") {
+                if (detailEdit && selected?.rolle === "ARZT") return true;
+                return staffQuota.used_arzt < staffQuota.max_arzt;
+            }
+            if (o.value === "REZEPTION") {
+                if (detailEdit && selected?.rolle === "REZEPTION") return true;
+                return staffQuota.used_rezeption < staffQuota.max_rezeption;
+            }
+            return true;
+        });
+    }, [staffQuota, selected?.rolle, detailEdit, rolleOptions]);
+
+    const atStaffCap = staffQuota != null && staffQuota.used_total >= staffQuota.max_total;
+
+    const overCapHint = staffQuota ? quotaOverCapHint(staffQuota, t) : null;
+
+    const quotaSubtitle = staffQuota
+        ? tp("page.personal.subtitle_quota", {
+              arzt: formatQuotaLine(staffQuota.used_arzt, staffQuota.max_arzt, t),
+              rezeption: formatQuotaLine(staffQuota.used_rezeption, staffQuota.max_rezeption, t),
+              max: MAX_TOTAL_PERSONAL,
+              overCap: overCapHint ? ` — ${overCapHint}` : "",
+          })
+        : t("page.personal.subtitle_default");
 
     const readField = (label: string, value: string | null | boolean | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -338,18 +395,18 @@ export function PersonalPage() {
             return (
                 <Card className="personal-detail-card">
                     <CardHeader
-                        title="Neuer Mitarbeiter"
-                        subtitle="Stammdaten und Zugang — erscheint hier rechts, nicht auf separater Seite."
+                        title={t("page.personal.create_title")}
+                        subtitle={t("page.personal.create_subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelCreate}>
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         }
                     />
                     <div className="personal-detail-card__body">
                         <Input
                             id="pers-new-name"
-                            label="Name *"
+                            label={t("page.personal.label_name_req")}
                             value={createForm.name}
                             error={createErrors.name}
                             onChange={(e) => {
@@ -360,7 +417,7 @@ export function PersonalPage() {
                         <Input
                             id="pers-new-email"
                             type="email"
-                            label="E-Mail *"
+                            label={t("page.personal.label_email_req")}
                             value={createForm.email}
                             error={createErrors.email}
                             onChange={(e) => {
@@ -371,7 +428,7 @@ export function PersonalPage() {
                         <Input
                             id="pers-new-pw"
                             type="password"
-                            label="Passwort *"
+                            label={t("page.personal.label_password_req")}
                             value={createForm.passwort}
                             error={createErrors.passwort}
                             onChange={(e) => {
@@ -382,17 +439,17 @@ export function PersonalPage() {
                         <PasswordPolicyHints password={createForm.passwort} idPrefix="pers-new" />
                         <Select
                             id="pers-new-rolle"
-                            label="Rolle"
+                            label={t("common.role")}
                             value={createForm.rolle}
                             onChange={(e) => setCreateForm((f) => ({ ...f, rolle: e.target.value }))}
-                            options={ROLLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                            options={availableRolleOptions.map((o) => ({ value: o.value, label: o.label }))}
                         />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleCreate()} loading={createBusy} disabled={createBusy}>
-                                Erstellen
+                                {t("common.create")}
                             </Button>
                         </div>
                     </div>
@@ -403,25 +460,25 @@ export function PersonalPage() {
             return (
                 <Card className="personal-detail-card">
                     <CardHeader
-                        title="Mitarbeiter bearbeiten"
-                        subtitle="Stammdaten, Einsatzstatus und ggf. neues Passwort setzen (ohne altes Passwort)."
+                        title={t("page.personal.edit_title")}
+                        subtitle={t("page.personal.edit_subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelEdit} disabled={editBusy || resetBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         }
                     />
                     <div className="personal-detail-card__body">
                         <Input
                             id="pers-ed-name"
-                            label="Name *"
+                            label={t("page.personal.label_name_req")}
                             value={editForm.name}
                             onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                         />
                         <Input
                             id="pers-ed-email"
                             type="email"
-                            label="E-Mail *"
+                            label={t("page.personal.label_email_req")}
                             value={editForm.email}
                             onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                         />
@@ -433,7 +490,7 @@ export function PersonalPage() {
                                     size="sm"
                                     onClick={() => {
                                         if (!editForm.email.trim()) {
-                                            toast("E-Mail eingeben.", "error");
+                                            toast(t("page.personal.toast_email_required"), "error");
                                             return;
                                         }
                                         void (async () => {
@@ -441,8 +498,8 @@ export function PersonalPage() {
                                                 const n = await adminUnlockBruteForce(editForm.email);
                                                 toast(
                                                     n > 0
-                                                        ? `Login-Sperre aufgehoben (${n} Einträge).`
-                                                        : "Keine aktive Sperre für diese E-Mail.",
+                                                        ? tp("page.personal.toast_unlock_ok", { n })
+                                                        : t("page.personal.toast_unlock_none"),
                                                     n > 0 ? "success" : "info",
                                                 );
                                             } catch (e) {
@@ -451,55 +508,54 @@ export function PersonalPage() {
                                         })();
                                     }}
                                 >
-                                    Login-Sperre aufheben
+                                    {t("page.personal.unlock_btn")}
                                 </Button>
                                 <span className="card-sub" style={{ margin: 0 }}>
-                                    Brute-Force-Lockout für alle IPs dieses Kontos löschen.
+                                    {t("page.personal.unlock_hint")}
                                 </span>
                             </div>
                         ) : null}
                         <Select
                             id="pers-ed-rolle"
-                            label="Rolle"
+                            label={t("common.role")}
                             value={editForm.rolle}
                             onChange={(e) => setEditForm((f) => ({ ...f, rolle: e.target.value as Rolle }))}
-                            options={ROLLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                            options={availableRolleOptions.map((o) => ({ value: o.value, label: o.label }))}
                         />
                         <Input
                             id="pers-ed-taet"
-                            label="Tätigkeitsbereich"
+                            label={t("page.personal.label_taetigkeitsbereich")}
                             value={editForm.taetigkeitsbereich}
                             onChange={(e) => setEditForm((f) => ({ ...f, taetigkeitsbereich: e.target.value }))}
                         />
                         <Input
                             id="pers-ed-fach"
-                            label="Fachrichtung"
+                            label={t("page.personal.label_fachrichtung")}
                             value={editForm.fachrichtung}
                             onChange={(e) => setEditForm((f) => ({ ...f, fachrichtung: e.target.value }))}
                         />
                         <Input
                             id="pers-ed-tel"
-                            label="Telefon"
+                            label={t("common.phone")}
                             value={editForm.telefon}
                             onChange={(e) => setEditForm((f) => ({ ...f, telefon: e.target.value }))}
                         />
                         <Select
                             id="pers-ed-status"
-                            label="Einsatzstatus (Verfügbarkeit)"
+                            label={t("page.personal.label_status")}
                             value={editForm.verfuegbar ? "1" : "0"}
                             onChange={(e) => setEditForm((f) => ({ ...f, verfuegbar: e.target.value === "1" }))}
                             options={[
-                                { value: "1", label: "Verfügbar" },
-                                { value: "0", label: "Nicht verfügbar" },
+                                { value: "1", label: t("page.personal.avail_yes") },
+                                { value: "0", label: t("page.personal.avail_no") },
                             ]}
                         />
                         <div className="personal-detail-card__section">
                             <p className="text-title" style={{ margin: 0, fontSize: 14 }}>
-                                Abweichende Berechtigungen (FA-PERS-07)
+                                {t("page.personal.perm_section_title")}
                             </p>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                                Pro Aktion ein Override: <strong>ALLOW</strong> ergänzt die Rolle, <strong>DENY</strong> sperrt explizit.
-                                Aktion wie im Backend (z. B. <code>finanzen.read</code>, <code>audit.read</code>).
+                                {t("page.personal.perm_section_desc")}
                             </p>
                             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                 <Button
@@ -519,8 +575,8 @@ export function PersonalPage() {
                                                 }
                                                 toast(
                                                     n > 0
-                                                        ? `${n} Override(s) entfernt — Rollen-Berechtigungen wieder aktiv.`
-                                                        : "Keine Overrides vorhanden.",
+                                                        ? tp("page.personal.toast_perm_reset_ok", { n })
+                                                        : t("page.personal.toast_perm_reset_none"),
                                                     "success",
                                                 );
                                             } catch (e) {
@@ -531,7 +587,7 @@ export function PersonalPage() {
                                         })();
                                     }}
                                 >
-                                    Overrides zurücksetzen
+                                    {t("page.personal.perm_reset")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -552,7 +608,7 @@ export function PersonalPage() {
                                                 if (useAuthStore.getState().session?.user_id === selected.id) {
                                                     await checkSession();
                                                 }
-                                                toast(`Vollzugriff gewährt (${n} Aktionen).`, "success");
+                                                toast(tp("page.personal.toast_perm_grant", { n }), "success");
                                             } catch (e) {
                                                 toast(errorMessage(e), "error");
                                             } finally {
@@ -561,11 +617,11 @@ export function PersonalPage() {
                                         })();
                                     }}
                                 >
-                                    Alle Berechtigungen gewähren
+                                    {t("page.personal.perm_grant_all")}
                                 </Button>
                             </div>
                             {permBusy ? (
-                                <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>Lade Overrides…</p>
+                                <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>{t("page.personal.perm_loading")}</p>
                             ) : (
                                 <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
                                     {permOverrides.map((row) => (
@@ -584,14 +640,14 @@ export function PersonalPage() {
                                                             if (useAuthStore.getState().session?.user_id === selected.id) {
                                                                 await checkSession();
                                                             }
-                                                            toast("Override entfernt.", "success");
+                                                            toast(t("page.personal.toast_perm_removed"), "success");
                                                         } catch (e) {
                                                             toast(errorMessage(e), "error");
                                                         }
                                                     })();
                                                 }}
                                             >
-                                                Entfernen
+                                                {t("common.remove")}
                                             </button>
                                         </li>
                                     ))}
@@ -600,10 +656,10 @@ export function PersonalPage() {
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                                 <Input
                                     id="perm-action"
-                                    label="Aktion"
+                                    label={t("page.personal.perm_action")}
                                     value={newPermAction}
                                     onChange={(e) => setNewPermAction(e.target.value)}
-                                    placeholder="z. B. audit.read"
+                                    placeholder={t("page.personal.perm_action_ph")}
                                     list="perm-action-hints"
                                     style={{ flex: "1 1 200px", minWidth: 160 }}
                                 />
@@ -614,7 +670,7 @@ export function PersonalPage() {
                                 </datalist>
                                 <Select
                                     id="perm-eff"
-                                    label="Effekt"
+                                    label={t("page.personal.perm_effect")}
                                     value={newPermEffect}
                                     onChange={(e) => setNewPermEffect(e.target.value as "ALLOW" | "DENY")}
                                     options={[
@@ -630,7 +686,7 @@ export function PersonalPage() {
                                         if (!selected) return;
                                         const a = newPermAction.trim();
                                         if (!a) {
-                                            toast("Aktion eingeben.", "info");
+                                            toast(t("page.personal.toast_perm_action_required"), "info");
                                             return;
                                         }
                                         void (async () => {
@@ -646,27 +702,27 @@ export function PersonalPage() {
                                                 if (useAuthStore.getState().session?.user_id === selected.id) {
                                                     await checkSession();
                                                 }
-                                                toast("Override gespeichert.", "success");
+                                                toast(t("page.personal.toast_perm_saved"), "success");
                                             } catch (e) {
                                                 toast(errorMessage(e), "error");
                                             }
                                         })();
                                     }}
                                 >
-                                    Hinzufügen / Aktualisieren
+                                    {t("page.personal.perm_add")}
                                 </Button>
                             </div>
                         </div>
                         <div className="personal-detail-card__section">
-                            <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Passwort zurücksetzen</p>
+                            <p className="text-title" style={{ margin: 0, fontSize: 14 }}>{t("page.personal.pw_reset_title")}</p>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                                Neues Passwort für diesen Zugang setzen. Das alte Passwort ist nicht nötig (nur in der Personalverwaltung sichtbar).
+                                {t("page.personal.pw_reset_desc")}
                             </p>
                             <Input
                                 id="pers-ed-pw1"
                                 type="password"
                                 autoComplete="new-password"
-                                label="Neues Passwort"
+                                label={t("page.personal.pw_new")}
                                 value={resetPw}
                                 error={resetPwError}
                                 onChange={(e) => {
@@ -679,7 +735,7 @@ export function PersonalPage() {
                                 id="pers-ed-pw2"
                                 type="password"
                                 autoComplete="new-password"
-                                label="Passwort bestätigen"
+                                label={t("page.personal.pw_confirm")}
                                 value={resetPw2}
                                 onChange={(e) => {
                                     setResetPw2(e.target.value);
@@ -694,16 +750,16 @@ export function PersonalPage() {
                                     disabled={resetBusy}
                                     loading={resetBusy}
                                 >
-                                    Passwort setzen
+                                    {t("page.personal.pw_set")}
                                 </Button>
                             </div>
                         </div>
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit} disabled={editBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleUpdate()} loading={editBusy} disabled={editBusy || resetBusy}>
-                                Stammdaten speichern
+                                {t("page.personal.save_master")}
                             </Button>
                         </div>
                     </div>
@@ -716,15 +772,15 @@ export function PersonalPage() {
                 <Card className="personal-detail-card">
                     <CardHeader
                         title={p.name}
-                        subtitle="Mitarbeiter · In „Bearbeiten“: Einsatzstatus und Passwort zurücksetzen."
+                        subtitle={t("page.personal.detail_subtitle")}
                         action={
                             canWrite ? (
                                 <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
-                                        <EditIcon size={14} /> Bearbeiten
+                                        <EditIcon size={14} /> {t("common.edit")}
                                     </Button>
                                     <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(p.id)}>
-                                        Entfernen
+                                        {t("common.remove")}
                                     </Button>
                                 </div>
                             ) : null
@@ -732,14 +788,14 @@ export function PersonalPage() {
                     />
                     <div className="personal-detail-card__body">
                         <div className="personal-read-grid">
-                            {readField("E-Mail", p.email)}
-                            {readField("Rolle", p.rolle)}
-                            {readField("Tätigkeitsbereich", p.taetigkeitsbereich ?? "—")}
-                            {readField("Fachrichtung", p.fachrichtung ?? "—")}
-                            {readField("Telefon", p.telefon ?? "—")}
-                            {readField("Verfügbar", p.verfuegbar ? "Ja" : "Nein")}
+                            {readField(t("common.email"), p.email)}
+                            {readField(t("common.role"), p.rolle)}
+                            {readField(t("page.personal.label_taetigkeitsbereich"), p.taetigkeitsbereich ?? "—")}
+                            {readField(t("page.personal.label_fachrichtung"), p.fachrichtung ?? "—")}
+                            {readField(t("common.phone"), p.telefon ?? "—")}
+                            {readField(t("page.personal.avail_yes"), p.verfuegbar ? t("common.yes") : t("common.no"))}
                             <div style={{ gridColumn: "1 / -1" }}>
-                                {readField("Angelegt", formatDate(p.created_at))}
+                                {readField(t("page.personal.label_created"), formatDate(p.created_at))}
                             </div>
                         </div>
                     </div>
@@ -750,8 +806,8 @@ export function PersonalPage() {
             <Card className="personal-detail-card personal-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                     {canWrite
-                        ? "Wählen Sie eine Zeile für Details, oder „+ Neuer Mitarbeiter“ — die Erfassung erscheint hier."
-                        : "Wählen Sie eine Zeile, um die Details zu sehen."}
+                        ? t("page.personal.select_hint_write")
+                        : t("page.personal.select_hint_read")}
                 </p>
             </Card>
         );
@@ -760,16 +816,21 @@ export function PersonalPage() {
     return (
         <div className="personal-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
-                title="Personalverwaltung"
-                subtitle="Team, Rollen und Zugang — Liste links, anlegen und Details rechts (wie Produkte)."
+                title={t("page.personal.title")}
+                subtitle={quotaSubtitle}
                 actions={
                     <>
                         <Link to="/personal/arbeitsplan" className="btn btn-subtle">
-                            Arbeitsplan & Einsätze
+                            {t("page.personal.link_arbeitsplan")}
                         </Link>
                         {canWrite ? (
-                            <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                                {creating ? "Abbrechen" : "+ Neuer Mitarbeiter"}
+                            <Button
+                                type="button"
+                                variant={creating ? "secondary" : "primary"}
+                                onClick={creating ? cancelCreate : openCreate}
+                                disabled={!creating && atStaffCap}
+                            >
+                                {creating ? t("common.cancel") : t("page.personal.btn_new")}
                             </Button>
                         ) : null}
                     </>
@@ -777,7 +838,7 @@ export function PersonalPage() {
             />
 
             {loading ? (
-                <PageLoading label="Personal wird geladen…" />
+                <PageLoading label={t("page.personal.loading")} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             ) : (
@@ -787,8 +848,10 @@ export function PersonalPage() {
                             <Card className="card-pad">
                                 <EmptyState
                                     icon="👤"
-                                    title="Kein Personal vorhanden"
-                                    description={canWrite ? "Rechts erscheint die Maske, sobald Sie „+ Neuer Mitarbeiter“ wählen." : "Keine Einträge."}
+                                    title={t("page.personal.empty_title")}
+                                    description={
+                                        canWrite ? t("page.personal.empty_desc_write") : t("page.personal.empty_desc_read")
+                                    }
                                 />
                             </Card>
                         ) : (
@@ -796,11 +859,11 @@ export function PersonalPage() {
                                 <table className="tbl personal-tbl">
                                     <thead>
                                         <tr>
-                                            <th scope="col" aria-label="Avatar" />
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Rolle</th>
-                                            <th scope="col">E-Mail</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>Verfügbarkeit</th>
+                                            <th scope="col" aria-label={t("common.avatar")} />
+                                            <th scope="col">{t("page.personal.col_name")}</th>
+                                            <th scope="col">{t("page.personal.col_role")}</th>
+                                            <th scope="col">{t("page.personal.col_email")}</th>
+                                            <th scope="col" style={{ textAlign: "right" }}>{t("page.personal.col_availability")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -829,7 +892,7 @@ export function PersonalPage() {
                                                     </td>
                                                     <td style={{ textAlign: "right" }}>
                                                         <Badge variant={p.verfuegbar ? "success" : "default"}>
-                                                            {p.verfuegbar ? "Verfügbar" : "Nicht verfügbar"}
+                                                            {p.verfuegbar ? t("page.personal.avail_yes") : t("page.personal.avail_no")}
                                                         </Badge>
                                                     </td>
                                                 </tr>
@@ -848,9 +911,9 @@ export function PersonalPage() {
                 open={!!deleteId}
                 onClose={() => !deleteBusy && setDeleteId(null)}
                 onConfirm={() => void handleDelete()}
-                title="Mitarbeiter entfernen"
-                message="Der Zugang wird deaktiviert. Fortfahren?"
-                confirmLabel="Entfernen"
+                title={t("page.personal.delete_title")}
+                message={t("page.personal.delete_message")}
+                confirmLabel={t("common.remove")}
                 danger
                 loading={deleteBusy}
             />

@@ -1,38 +1,44 @@
+import { useMemo } from "react";
+import { useT } from "@/lib/i18n";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
-const LINKS: VerwaltungTocLink[] = [
-    {
-        title: "Urlaub & Feiertage",
-        desc: "Abwesenheiten, Praxisferien und Feiertage für das Team hinterlegen.",
-        href: "/verwaltung/arbeitstage",
-        requires: "verwaltung/arbeitstage",
-    },
-    {
-        title: "Sonder-Sperrzeiten",
-        desc: "Ganze Tage, halbe Tage oder kurzfristige Schließungen für einzelne Daten hinterlegen.",
-        href: "/verwaltung/sonder-sperrzeiten",
-        requires: "verwaltung/sonder-sperrzeiten",
-    },
-    {
-        title: "Arbeitszeiten",
-        desc: "Sprechzeiten pro Wochentag, Pausenfenster und Standard-Slotdauer definieren.",
-        href: "/verwaltung/arbeitszeiten",
-        requires: "verwaltung/arbeitszeiten",
-    },
-    {
-        title: "Praxis-Präferenzen",
-        desc: "Terminregeln, Pufferzeiten und Standardverhalten für die Terminübersicht festlegen.",
-        href: "/verwaltung/praxis-praeferenzen",
-        requires: "verwaltung/praxis-praeferenzen",
-    },
-];
-
 export function PraxisplanungPage() {
+    const t = useT();
+    const links = useMemo<VerwaltungTocLink[]>(
+        () => [
+            {
+                title: t("page.praxisplanung.link_arbeitstage_title"),
+                desc: t("page.praxisplanung.link_arbeitstage_desc"),
+                href: "/verwaltung/arbeitstage",
+                requires: "verwaltung/arbeitstage",
+            },
+            {
+                title: t("page.praxisplanung.link_sperrzeiten_title"),
+                desc: t("page.praxisplanung.link_sperrzeiten_desc"),
+                href: "/verwaltung/sonder-sperrzeiten",
+                requires: "verwaltung/sonder-sperrzeiten",
+            },
+            {
+                title: t("page.praxisplanung.link_arbeitszeiten_title"),
+                desc: t("page.praxisplanung.link_arbeitszeiten_desc"),
+                href: "/verwaltung/arbeitszeiten",
+                requires: "verwaltung/arbeitszeiten",
+            },
+            {
+                title: t("page.praxisplanung.link_praeferenzen_title"),
+                desc: t("page.praxisplanung.link_praeferenzen_desc"),
+                href: "/verwaltung/praxis-praeferenzen",
+                requires: "verwaltung/praxis-praeferenzen",
+            },
+        ],
+        [t],
+    );
+
     return (
         <VerwaltungTocPage
-            title="Praxisplanung"
-            subtitle="Globale Praxis-Vorgaben — die Terminübersicht nutzt diese Einstellungen statt eines lokalen Pause-Blocks. Zeile wählen zum Öffnen."
-            links={LINKS}
+            title={t("page.praxisplanung.title")}
+            subtitle={t("page.praxisplanung.subtitle")}
+            links={links}
         />
     );
 }

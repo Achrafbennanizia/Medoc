@@ -10,7 +10,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use tauri::State;
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArbeitsplanAdjustmentRecord {
     pub id: String,
@@ -84,8 +84,8 @@ pub async fn list_arbeitsplan_adjustments(
         session.user_id.clone()
     };
     let active_only = query.active_only.unwrap_or(true);
-    let rows = if active_only {
-        sqlx::query_as::<_, ArbeitsplanAdjustmentRecord>(
+    let rows: Vec<(String, String, Option<String>, String, String, i64, String)> = if active_only {
+        sqlx::query_as(
             "SELECT id, source, source_id, personal_id, payload_json, active, created_at
              FROM arbeitsplan_adjustment
              WHERE personal_id = ?1 AND active = 1
@@ -95,7 +95,7 @@ pub async fn list_arbeitsplan_adjustments(
         .fetch_all(pool.inner())
         .await
     } else {
-        sqlx::query_as::<_, ArbeitsplanAdjustmentRecord>(
+        sqlx::query_as(
             "SELECT id, source, source_id, personal_id, payload_json, active, created_at
              FROM arbeitsplan_adjustment
              WHERE personal_id = ?1
@@ -106,7 +106,20 @@ pub async fn list_arbeitsplan_adjustments(
         .await
     }
     .map_err(AppError::Database)?;
-    Ok(rows)
+    Ok(rows
+        .into_iter()
+        .map(|(id, source, source_id, personal_id, payload_json, active, created_at)| {
+            ArbeitsplanAdjustmentRecord {
+                id,
+                source,
+                source_id,
+                personal_id,
+                payload_json,
+                active: active != 0,
+                created_at,
+            }
+        })
+        .collect())
 }
 
 #[macro_export]

@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "@/systems/practice-host/controllers/produkt.controller";
@@ -25,6 +26,8 @@ function isSafeInternalReturnPath(path: string | null): path is string {
 }
 
 export function ProduktePage() {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [produkte, setProdukte] = useState<Produkt[]>([]);
@@ -62,12 +65,12 @@ export function ProduktePage() {
             } catch (e) {
                 const msg = errorMessage(e);
                 if (isInitial) setLoadError(msg);
-                else toast(`Aktualisieren fehlgeschlagen: ${msg}`, "error");
+                else toast(tp("common.refresh_failed", { message: msg }), "error");
             } finally {
                 if (isInitial) setLoading(false);
             }
         },
-        [toast],
+        [toast, tp],
     );
 
     useEffect(() => {
@@ -116,7 +119,7 @@ export function ProduktePage() {
         try {
             const p = parseForm(createForm);
             const created = await createProdukt(p);
-            toast("Produkt erstellt", "success");
+            toast(t("produkte.toast.created"), "success");
             setCreateForm(emptyForm());
             setCreating(false);
             const returnTo = searchParams.get("returnTo");
@@ -151,7 +154,7 @@ export function ProduktePage() {
             setProdukte((list) => list.map((x) => (x.id === updated.id ? updated : x)));
             setSelected(updated);
             setDetailEdit(false);
-            toast("Produkt gespeichert", "success");
+            toast(t("produkte.toast.saved"), "success");
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
@@ -164,7 +167,7 @@ export function ProduktePage() {
         const id = deleteId;
         try {
             await deleteProdukt(id);
-            toast("Produkt gelöscht", "success");
+            toast(t("produkte.toast.deleted"), "success");
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);
@@ -197,7 +200,7 @@ export function ProduktePage() {
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span className="kpi-label-mini">{label}</span>
-            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? "—" : value}</span>
+            <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? t("common.em_dash") : value}</span>
         </div>
     );
 
@@ -206,11 +209,11 @@ export function ProduktePage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Neues Produkt"
-                        subtitle="Erfassung im Lager — erscheint hier rechts, nicht im Dialog."
+                        title={t("produkte.create.title")}
+                        subtitle={t("produkte.create.subtitle")}
                         action={
                             <Button type="button" size="sm" variant="ghost" onClick={cancelCreate}>
-                                Schließen
+                                {t("common.close")}
                             </Button>
                         }
                     />
@@ -218,10 +221,10 @@ export function ProduktePage() {
                         <ProduktFormFields form={createForm} setForm={setCreateForm} idPrefix="prod-new" kategorieVorschlaege={kategorieVorschlaege} />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                             <Button type="button" onClick={() => void handleCreate()} disabled={!formValid(createForm) || createBusy} loading={createBusy}>
-                                Erstellen
+                                {t("common.create")}
                             </Button>
                         </div>
                     </div>
@@ -233,16 +236,16 @@ export function ProduktePage() {
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={selected.name}
-                        subtitle={detailEdit ? "Bearbeiten — Änderungen mit Speichern übernehmen." : "Nur lesen — Bearbeiten öffnet die Eingabefelder."}
+                        subtitle={detailEdit ? t("produkte.detail.edit_sub") : t("produkte.detail.read_sub")}
                         action={canWrite && !detailEdit ? (
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected)); }}>
                                     <EditIcon size={14} />
                                     {" "}
-                                    Bearbeiten
+                                    {t("common.edit")}
                                 </Button>
                                 <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(selected.id)}>
-                                    Löschen
+                                    {t("common.delete")}
                                 </Button>
                             </div>
                         ) : null}
@@ -253,24 +256,24 @@ export function ProduktePage() {
                                 <ProduktFormFields form={editForm} setForm={setEditForm} idPrefix="prod-edit" kategorieVorschlaege={kategorieVorschlaege} />
                                 <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
-                                        Abbrechen
+                                        {t("common.cancel")}
                                     </Button>
                                     <Button type="button" onClick={() => void handleUpdate()} disabled={!formValid(editForm) || saveBusy} loading={saveBusy}>
-                                        Speichern
+                                        {t("common.save")}
                                     </Button>
                                 </div>
                             </div>
                         ) : (
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
-                                {readField("Name", selected.name)}
-                                {readField("Kategorie", selected.kategorie)}
-                                {readField("Preis (€)", formatCurrency(selected.preis))}
-                                {readField("Bestand", selected.bestand)}
-                                {readField("Mindestbestand", selected.mindestbestand)}
-                                {readField("Status", selected.aktiv ? "Aktiv" : "Inaktiv")}
-                                <div style={{ gridColumn: "1 / -1" }}>{readField("Beschreibung", selected.beschreibung ?? "—")}</div>
+                                {readField(t("common.name"), selected.name)}
+                                {readField(t("common.category"), selected.kategorie)}
+                                {readField(t("common.price_eur"), formatCurrency(selected.preis))}
+                                {readField(t("common.stock"), selected.bestand)}
+                                {readField(t("common.min_stock"), selected.mindestbestand)}
+                                {readField(t("common.status"), selected.aktiv ? t("common.active") : t("common.inactive"))}
+                                <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.description"), selected.beschreibung ?? t("common.em_dash"))}</div>
                                 <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--fg-3)" }}>
-                                    Zuletzt geändert: {formatDateTime(selected.updated_at)}
+                                    {tp("common.last_modified", { date: formatDateTime(selected.updated_at) })}
                                 </div>
                             </div>
                         )}
@@ -282,8 +285,8 @@ export function ProduktePage() {
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                     {canWrite
-                        ? "Wählen Sie eine Zeile für Details, oder „+ Neues Produkt“ — die Eingabemaske erscheint hier."
-                        : "Wählen Sie eine Zeile in der Tabelle, um die Details zu sehen."}
+                        ? t("produkte.panel_empty_write")
+                        : t("produkte.panel_empty_read")}
                 </p>
             </Card>
         );
@@ -293,19 +296,19 @@ export function ProduktePage() {
         <div className="produkte-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 showBack={canGoVerwaltung}
-                title="Produkte"
-                subtitle="Lagerartikel — Liste links, anlegen, lesen und bearbeiten im rechten Bereich."
+                title={t("produkte.page.title")}
+                subtitle={t("produkte.page.subtitle")}
                 actions={
                     canWrite ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? "Neues Produkt abbrechen" : "+ Neues Produkt"}
+                            {creating ? t("produkte.cancel_create_btn") : t("produkte.new_btn")}
                         </Button>
                     ) : null
                 }
             />
 
             {loading ? (
-                <PageLoading label="Produkte werden geladen…" />
+                <PageLoading label={t("produkte.loading")} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             ) : (
@@ -315,8 +318,8 @@ export function ProduktePage() {
                             <Card className="card-pad">
                                 <EmptyState
                                     icon="📦"
-                                    title="Keine Produkte vorhanden"
-                                    description={canWrite ? "Rechts erscheint die Maske, sobald Sie „+ Neues Produkt“ wählen." : "Keine Einträge im Lager."}
+                                    title={t("produkte.empty")}
+                                    description={canWrite ? t("produkte.empty_create_hint") : t("produkte.empty_stock")}
                                 />
                             </Card>
                         ) : (
@@ -324,10 +327,10 @@ export function ProduktePage() {
                                 <table className="tbl produkte-tbl">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Kategorie</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>Preis</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>Bestand</th>
+                                            <th scope="col">{t("common.name")}</th>
+                                            <th scope="col">{t("common.category")}</th>
+                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.price")}</th>
+                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.stock")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -349,13 +352,13 @@ export function ProduktePage() {
                                                     onClick={() => pick()}
                                                     onKeyDown={onRowKeyDown}
                                                     style={{ cursor: "pointer" }}
-                                                    aria-label={`Produkt ${p.name} anzeigen`}
+                                                    aria-label={tp("common.row_show_aria", { entity: t("produkte.entity"), name: p.name })}
                                                 >
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{p.name}</span>
                                                         {!p.aktiv ? (
                                                             <span style={{ marginLeft: 8, display: "inline-block" }}>
-                                                                <Badge variant="warning">Inaktiv</Badge>
+                                                                <Badge variant="warning">{t("common.inactive")}</Badge>
                                                             </span>
                                                         ) : null}
                                                     </td>
@@ -364,7 +367,7 @@ export function ProduktePage() {
                                                     <td style={{ textAlign: "right" }}>
                                                         {low ? (
                                                             <Badge variant="error">
-                                                                {p.bestand} / min. {p.mindestbestand}
+                                                                {tp("common.stock_low", { stock: p.bestand, min: p.mindestbestand })}
                                                             </Badge>
                                                         ) : (
                                                             <span className="text-on-surface" style={{ fontVariantNumeric: "tabular-nums" }}>{p.bestand}</span>
@@ -387,9 +390,9 @@ export function ProduktePage() {
                 open={!!deleteId}
                 onClose={() => setDeleteId(null)}
                 onConfirm={() => void handleDelete()}
-                title="Produkt löschen"
-                message="Möchten Sie dieses Produkt wirklich löschen? Verknüpfungen in Belegen können betroffen sein."
-                confirmLabel="Löschen"
+                title={t("produkte.delete_title")}
+                message={t("produkte.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
         </div>

@@ -15,14 +15,14 @@ describe("G21 collaboration contracts", () => {
         expect(POSTEINGANG_POLL_MS).toBe(5_000);
     });
 
-    it("REZEPTION: clinical akte tabs hidden, zahl/stamm allowed", () => {
+    it("REZEPTION: clinical akte tabs hidden, zahl/rezept allowed", () => {
         const canViewClinical = allowed("patient.read_medical", "REZEPTION");
         expect(canViewClinical).toBe(false);
         for (const tab of CLINICAL_PATIENT_DETAIL_TABS) {
             expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(true);
             expect(patientDetailTabVisible(tab, canViewClinical)).toBe(false);
         }
-        const open: PatientDetailAkteTab[] = ["stamm", "zahl", "rezept", "anlage"];
+        const open: PatientDetailAkteTab[] = ["zahl", "rezept", "anlage"];
         for (const tab of open) {
             expect(patientDetailTabBlocked(tab, canViewClinical)).toBe(false);
             expect(patientDetailTabVisible(tab, canViewClinical)).toBe(true);
@@ -96,7 +96,7 @@ describe("G21 collaboration contracts", () => {
     });
 
     it("Praxis sidebar omits tagesabschluss (Verwaltung hub only)", () => {
-        const praxis = NAV_SECTIONS.find((s) => s.label === "Praxis");
+        const praxis = NAV_SECTIONS.find((s) => s.labelKey === "nav.section.practice");
         expect(praxis?.items).not.toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 

@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
     acknowledgeAuditChainBreak,
@@ -14,6 +15,8 @@ import { DismissibleNotice } from "./ui/dismissible-notice";
  * Blocks `ops.*` backend commands until an admin acknowledges the incident.
  */
 export function AuditChainBanner({ canAcknowledge }: { canAcknowledge: boolean }) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [status, setStatus] = useState<AuditChainStatus | null>(null);
     const [busy, setBusy] = useState(false);
@@ -40,7 +43,7 @@ export function AuditChainBanner({ canAcknowledge }: { canAcknowledge: boolean }
         setBusy(true);
         try {
             await acknowledgeAuditChainBreak();
-            toast("Betriebs-Sperre aufgehoben (Freigabe protokolliert)", "success");
+            toast(t("audit.chain.ack_toast"), "success");
             await load();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -57,15 +60,17 @@ export function AuditChainBanner({ canAcknowledge }: { canAcknowledge: boolean }
             className="audit-chain-banner"
             title={
                 <>
-                    Audit-Kette manipuliert
-                    {status.broken_at ? ` (Eintrag ${status.broken_at.slice(0, 8)}…)` : ""}
+                    {t("audit.chain.banner_title")}
+                    {status.broken_at
+                        ? ` (${tp("audit.chain.entry_prefix", { id: status.broken_at.slice(0, 8) })})`
+                        : ""}
                 </>
             }
-            subtitle="System- und Backup-Funktionen sind gesperrt, bis ein Administrator die Störung quittiert."
+            subtitle={t("audit.chain.banner_subtitle")}
             actions={
                 canAcknowledge ? (
                     <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void onAck()}>
-                        {busy ? "…" : "Störung quittieren"}
+                        {busy ? "…" : t("audit.chain.quittieren")}
                     </Button>
                 ) : undefined
             }

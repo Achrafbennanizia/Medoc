@@ -15,6 +15,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { LieferantPharmaVorlage, LieferantStamm, PharmaberaterStamm, Produkt } from "@/models/types";
 import { countProdukteWithName, errorMessage, produktSelectLabel } from "@/lib/utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
@@ -31,6 +32,8 @@ import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt
  * und gespeicherte Kombinationen für „Neue Bestellung“.
  */
 export function BestellstammVerwaltungPage() {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -123,13 +126,13 @@ export function BestellstammVerwaltungPage() {
 
     const addLieferant = async () => {
         if (!canWrite || !newLief.trim()) {
-            toast("Name eingeben.", "error");
+            toast(t("page.bestellstamm.toast.name_required"), "error");
             return;
         }
         setBusy(true);
         try {
             await createLieferantStamm({ name: newLief.trim() });
-            toast("Lieferant gespeichert");
+            toast(t("page.bestellstamm.toast.supplier_saved"));
             setNewLief("");
             await reload();
         } catch (e) {
@@ -141,13 +144,13 @@ export function BestellstammVerwaltungPage() {
 
     const addKontakt = async () => {
         if (!canWrite || !newKontakt.trim()) {
-            toast("Name eingeben.", "error");
+            toast(t("page.bestellstamm.toast.name_required"), "error");
             return;
         }
         setBusy(true);
         try {
             await createPharmaberaterStamm({ name: newKontakt.trim() });
-            toast("Kontakt gespeichert");
+            toast(t("page.bestellstamm.toast.contact_saved"));
             setNewKontakt("");
             await reload();
         } catch (e) {
@@ -168,7 +171,7 @@ export function BestellstammVerwaltungPage() {
         try {
             const payload = parseForm(produktCreateForm);
             const created = await createProdukt(payload);
-            toast("Produkt erstellt", "success");
+            toast(t("page.bestellstamm.toast.product_created"), "success");
             setProduktCreateForm(emptyForm());
             setCreatingProdukt(false);
             await reload({ selectProduktId: created.id });
@@ -181,7 +184,7 @@ export function BestellstammVerwaltungPage() {
 
     const addVorlage = async () => {
         if (!canWrite || !comboLiefId || !comboKontaktId || !comboProduktId) {
-            toast("Lieferant, Kontakt und Produkt wählen.", "error");
+            toast(t("page.bestellstamm.toast.combo_required"), "error");
             return;
         }
         setBusy(true);
@@ -191,7 +194,7 @@ export function BestellstammVerwaltungPage() {
                 pharmaberater_id: comboKontaktId,
                 produkt_id: comboProduktId,
             });
-            toast("Kombination gespeichert");
+            toast(t("page.bestellstamm.toast.combo_saved"));
             await reload();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -207,7 +210,7 @@ export function BestellstammVerwaltungPage() {
             if (deleteKind === "lief") await deleteLieferantStamm(deleteId);
             else if (deleteKind === "kontakt") await deletePharmaberaterStamm(deleteId);
             else await deleteLieferantPharmaVorlage(deleteId);
-            toast("Eintrag entfernt");
+            toast(t("page.bestellstamm.toast.removed"));
             setDeleteId(null);
             setDeleteKind(null);
             await reload();
@@ -218,11 +221,13 @@ export function BestellstammVerwaltungPage() {
         }
     };
 
-    if (status === "loading") return <PageLoading label="Stammdaten werden geladen…" />;
+    const selectPlaceholder = t("page.bestellstamm.select_placeholder");
+
+    if (status === "loading") return <PageLoading label={t("page.bestellstamm.loading")} />;
     if (status === "error" && loadError) {
         return (
             <div className="praxis-workspace-page animate-fade-in--sticky-safe">
-                <VerwaltungPageHeader title="Bestell-Stammdaten" />
+                <VerwaltungPageHeader title={t("page.bestellstamm.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
         );
@@ -232,41 +237,37 @@ export function BestellstammVerwaltungPage() {
         <div className="praxis-workspace-page animate-fade-in--sticky-safe">
             <VerwaltungPageHeader
                 titleLevel="h1"
-                title="Bestell-Stammdaten"
-                subtitle={
-                    <>
-                        Lieferanten und Pharmaberater/Kontakte vordefinieren; Kombinationen erscheinen als Schnellwahl in <b>Neue Bestellung</b>. Freie Eingabe bleibt möglich.
-                    </>
-                }
+                title={t("page.bestellstamm.title")}
+                subtitle={t("page.bestellstamm.subtitle")}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="card card-pad">
-                    <h2 className="text-title" style={{ margin: "0 0 12px" }}>Lieferanten</h2>
+                    <h2 className="text-title" style={{ margin: "0 0 12px" }}>{t("page.bestellstamm.suppliers")}</h2>
                     <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                         <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                             <Input
                                 id="bs-lief-new"
-                                label="Neuer Lieferant"
+                                label={t("page.bestellstamm.new_supplier")}
                                 value={newLief}
                                 onChange={(e) => setNewLief(e.target.value)}
                                 disabled={!canWrite}
-                                placeholder="z. B. Dental-Depot"
+                                placeholder={t("page.bestellstamm.supplier_ph")}
                             />
                         </div>
                         <Button type="button" style={{ alignSelf: "flex-end" }} onClick={() => void addLieferant()} disabled={!canWrite || busy}>
-                            Hinzufügen
+                            {t("common.add")}
                         </Button>
                     </div>
                     {lieferanten.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)", fontSize: 13 }}>Noch keine Einträge.</p>
+                        <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.bestellstamm.empty_entries")}</p>
                     ) : (
                         <ul style={{ margin: 0, paddingLeft: 18, color: "var(--fg-2)" }}>
                             {lieferanten.map((r) => (
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("lief"); setDeleteId(r.id); }} aria-label="Entfernen">
+                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("lief"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
                                             <TrashIcon size={14} />
                                         </Button>
                                     ) : null}
@@ -277,31 +278,31 @@ export function BestellstammVerwaltungPage() {
                 </div>
 
                 <div className="card card-pad">
-                    <h2 className="text-title" style={{ margin: "0 0 12px" }}>Pharmaberater / Kontakt</h2>
+                    <h2 className="text-title" style={{ margin: "0 0 12px" }}>{t("page.bestellstamm.contacts")}</h2>
                     <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                         <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                             <Input
                                 id="bs-kontakt-new"
-                                label="Neuer Kontakt"
+                                label={t("page.bestellstamm.new_contact")}
                                 value={newKontakt}
                                 onChange={(e) => setNewKontakt(e.target.value)}
                                 disabled={!canWrite}
-                                placeholder="Name der Ansprechperson"
+                                placeholder={t("page.bestellstamm.contact_ph")}
                             />
                         </div>
                         <Button type="button" style={{ alignSelf: "flex-end" }} onClick={() => void addKontakt()} disabled={!canWrite || busy}>
-                            Hinzufügen
+                            {t("common.add")}
                         </Button>
                     </div>
                     {kontakte.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)", fontSize: 13 }}>Noch keine Einträge.</p>
+                        <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.bestellstamm.empty_entries")}</p>
                     ) : (
                         <ul style={{ margin: 0, paddingLeft: 18, color: "var(--fg-2)" }}>
                             {kontakte.map((r) => (
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("kontakt"); setDeleteId(r.id); }} aria-label="Entfernen">
+                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("kontakt"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
                                             <TrashIcon size={14} />
                                         </Button>
                                     ) : null}
@@ -315,8 +316,8 @@ export function BestellstammVerwaltungPage() {
             {canProduktWrite ? (
                 <Card>
                     <CardHeader
-                        title="Neues Produkt (Lager)"
-                        subtitle="Wie unter Produkte — erscheint direkt in der Auswahl „Produkt (Lager)“ für Kombinationen."
+                        title={t("page.bestellstamm.product_new_title")}
+                        subtitle={t("page.bestellstamm.product_new_subtitle")}
                         action={
                             <Button
                                 type="button"
@@ -331,7 +332,7 @@ export function BestellstammVerwaltungPage() {
                                           }
                                 }
                             >
-                                {creatingProdukt ? "Abbrechen" : "+ Neues Produkt"}
+                                {creatingProdukt ? t("page.bestellstamm.product_cancel") : t("page.bestellstamm.product_new_btn")}
                             </Button>
                         }
                     />
@@ -345,7 +346,7 @@ export function BestellstammVerwaltungPage() {
                             />
                             <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                                 <Button type="button" variant="ghost" onClick={cancelCreateProdukt} disabled={produktCreateBusy}>
-                                    Abbrechen
+                                    {t("page.bestellstamm.product_cancel")}
                                 </Button>
                                 <Button
                                     type="button"
@@ -353,7 +354,7 @@ export function BestellstammVerwaltungPage() {
                                     disabled={!formValid(produktCreateForm) || produktCreateBusy}
                                     loading={produktCreateBusy}
                                 >
-                                    Erstellen
+                                    {t("common.create")}
                                 </Button>
                             </div>
                         </div>
@@ -363,33 +364,33 @@ export function BestellstammVerwaltungPage() {
 
             <div className="card card-pad">
                 <p style={{ color: "var(--fg-3)", fontSize: 13, marginTop: 0 }}>
-                    Verknüpft einen Lieferanten mit einem Kontakt — in <b>Neue Bestellung</b> als Dropdown „Vorlage“ wählbar.
+                    {t("page.bestellstamm.combo_hint")}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ alignItems: "flex-end" }}>
                     <Select
                         id="bs-combo-l"
-                        label="Lieferant"
+                        label={t("common.supplier")}
                         value={comboLiefId}
                         onChange={(e) => setComboLiefId(e.target.value)}
-                        options={[{ value: "", label: "— wählen —" }, ...liefOptions]}
+                        options={[{ value: "", label: selectPlaceholder }, ...liefOptions]}
                         disabled={!canWrite || liefOptions.length === 0}
                     />
                     <Select
                         id="bs-combo-p"
-                        label="Pharmaberater / Kontakt"
+                        label={t("page.bestellstamm.contact_label")}
                         value={comboKontaktId}
                         onChange={(e) => setComboKontaktId(e.target.value)}
-                        options={[{ value: "", label: "— wählen —" }, ...kontaktOptions]}
+                        options={[{ value: "", label: selectPlaceholder }, ...kontaktOptions]}
                         disabled={!canWrite || kontaktOptions.length === 0}
                     />
                 </div>
                 <div style={{ marginTop: 12, maxWidth: 560 }}>
                     <Select
                         id="bs-combo-prod"
-                        label="Produkt (Lager)"
+                        label={t("page.bestellstamm.product_label")}
                         value={comboProduktId}
                         onChange={(e) => setComboProduktId(e.target.value)}
-                        options={[{ value: "", label: "— wählen —" }, ...produktOptions]}
+                        options={[{ value: "", label: selectPlaceholder }, ...produktOptions]}
                         disabled={!canWrite || produktOptions.length === 0}
                     />
                 </div>
@@ -399,7 +400,7 @@ export function BestellstammVerwaltungPage() {
                         onClick={() => void addVorlage()}
                         disabled={!canWrite || busy || !comboLiefId || !comboKontaktId || !comboProduktId}
                     >
-                        Kombination speichern
+                        {t("page.bestellstamm.save_combo")}
                     </Button>
                 </div>
 
@@ -408,10 +409,10 @@ export function BestellstammVerwaltungPage() {
                         <table className="tbl tbl-fluid">
                             <thead>
                                 <tr>
-                                    <th>Lieferant</th>
-                                    <th>Kontakt</th>
-                                    <th>Produkt</th>
-                                    <th style={{ width: 100 }}>Aktion</th>
+                                    <th>{t("common.supplier")}</th>
+                                    <th>{t("page.bestellstamm.col.contact")}</th>
+                                    <th>{t("page.bestellstamm.col.product")}</th>
+                                    <th style={{ width: 100 }}>{t("page.bestellstamm.col.action")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -421,8 +422,8 @@ export function BestellstammVerwaltungPage() {
                                         <td>{v.pharmaberater_name}</td>
                                         <td>
                                             {v.produkt_aktiv === 0 ? (
-                                                <span style={{ color: "var(--fg-3)" }} title="Produkt im Lager inaktiv">
-                                                    {v.produkt_name} (Lager: inaktiv)
+                                                <span style={{ color: "var(--fg-3)" }} title={t("page.bestellstamm.product_inactive_title")}>
+                                                    {tp("page.bestellstamm.product_inactive", { name: v.produkt_name })}
                                                 </span>
                                             ) : (
                                                 <span>
@@ -438,7 +439,7 @@ export function BestellstammVerwaltungPage() {
                                                     size="sm"
                                                     onClick={() => { setDeleteKind("vorlage"); setDeleteId(v.id); }}
                                                 >
-                                                    <TrashIcon size={14} /> Entfernen
+                                                    <TrashIcon size={14} /> {t("common.remove")}
                                                 </Button>
                                             ) : (
                                                 "—"
@@ -450,12 +451,12 @@ export function BestellstammVerwaltungPage() {
                         </table>
                     </div>
                 ) : (
-                    <p style={{ color: "var(--fg-3)", fontSize: 13, marginBottom: 0 }}>Noch keine Kombinationen.</p>
+                    <p style={{ color: "var(--fg-3)", fontSize: 13, marginBottom: 0 }}>{t("page.bestellstamm.no_combos")}</p>
                 )}
             </div>
 
             {!canWrite ? (
-                <p style={{ fontSize: 13, color: "var(--fg-3)" }}>Bearbeiten mit Rolle inkl. Bestellberechtigung (z. B. Arzt, Rezeption, Pharmaberater).</p>
+                <p style={{ fontSize: 13, color: "var(--fg-3)" }}>{t("page.bestellstamm.read_only_hint")}</p>
             ) : null}
 
             <ConfirmDialog
@@ -466,9 +467,9 @@ export function BestellstammVerwaltungPage() {
                     setDeleteKind(null);
                 }}
                 onConfirm={() => void confirmDelete()}
-                title="Eintrag entfernen"
-                message="Der Eintrag wird für Formulare ausgeblendet (deaktiviert)."
-                confirmLabel="Entfernen"
+                title={t("page.bestellstamm.delete.title")}
+                message={t("page.bestellstamm.delete.message")}
+                confirmLabel={t("page.bestellstamm.delete.confirm")}
                 danger
                 loading={busy}
             />

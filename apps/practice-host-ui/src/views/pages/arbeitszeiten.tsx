@@ -364,7 +364,7 @@ export function ArbeitszeitenPage() {
                                         <>
                                             <Select
                                                 id={`${d.key}-aktiv`}
-                                                label="Status"
+                                                label={tr("common.status")}
                                                 value={row.aktiv ? "1" : "0"}
                                                 options={[
                                                     { value: "1", label: tr("page.arbeitszeiten.status_active") },

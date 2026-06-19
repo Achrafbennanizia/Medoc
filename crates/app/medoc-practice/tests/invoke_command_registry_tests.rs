@@ -22,6 +22,7 @@ const CRITICAL_COMMANDS: &[&str] = &[
     "pairing_list_pending",
     "verbund_status_cmd",
     "lizenz_activate",
+    "import_activation_manifest",
 ];
 
 fn extract_handler_names(source: &str) -> Vec<String> {

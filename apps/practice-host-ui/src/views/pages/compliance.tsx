@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { buildComplianceReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
@@ -37,6 +37,7 @@ function Bullets({ items }: { items: string[] }) {
 }
 
 function ActivitySection({ a, index }: { a: ProcessingActivity; index: number }) {
+    const t = useT();
     return (
         <section
             style={{
@@ -48,35 +49,35 @@ function ActivitySection({ a, index }: { a: ProcessingActivity; index: number })
             <h3 style={{ margin: "0 0 10px", fontSize: 17 }}>{a.name}</h3>
             <dl style={{ margin: 0, display: "grid", gap: 10 }}>
                 <div>
-                    <dt className="dl-term">Zweck</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.purpose")}</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.purpose}</dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Rechtsgrundlage</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.legal_basis")}</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.legal_basis}</dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Kategorien personenbezogener Daten</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.data_categories")}</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.data_categories} /></dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Betroffene Personen</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.subjects")}</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.data_subjects} /></dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Empfänger</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.recipients")}</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.recipients} /></dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Aufbewahrung</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.retention")}</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.retention}</dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Technische Maßnahmen</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.tech_measures")}</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.technical_measures} /></dd>
                 </div>
                 <div>
-                    <dt className="dl-term">Organisatorische Maßnahmen</dt>
+                    <dt className="dl-term">{t("page.compliance.activity.org_measures")}</dt>
                     <dd style={{ margin: "4px 0 0" }}><Bullets items={a.organisational_measures} /></dd>
                 </div>
             </dl>
@@ -85,14 +86,18 @@ function ActivitySection({ a, index }: { a: ProcessingActivity; index: number })
 }
 
 function VvtStructured({ data }: { data: VVT }) {
+    const t = useT();
+    const tp = useTParams();
     return (
         <div className="compliance-report-print">
-            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Verzeichnis der Verarbeitungstätigkeiten</h2>
-            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>Nach Art. 30 DSGVO · Erstellt {formatDateTime(data.generated_at)}</p>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.vvt.title")}</h2>
+            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>
+                {tp("page.compliance.vvt.subtitle", { date: formatDateTime(data.generated_at) })}
+            </p>
             <dl style={{ margin: 0, display: "grid", gap: 8, fontSize: 14 }}>
-                <div><strong>Verantwortlicher:</strong> {data.controller}</div>
-                <div><strong>System:</strong> {data.system}</div>
-                <div><strong>Version:</strong> {data.system_version}</div>
+                <div><strong>{t("page.compliance.vvt.controller")}</strong> {data.controller}</div>
+                <div><strong>{t("page.compliance.vvt.system")}</strong> {data.system}</div>
+                <div><strong>{t("page.compliance.vvt.version")}</strong> {data.system_version}</div>
             </dl>
             {data.activities.map((a, i) => (
                 <ActivitySection key={`${a.name}-${i}`} a={a} index={i} />
@@ -102,15 +107,19 @@ function VvtStructured({ data }: { data: VVT }) {
 }
 
 function ScenarioBlock({ s, index }: { s: RiskScenario; index: number }) {
+    const t = useT();
+    const tp = useTParams();
     return (
         <section style={{ marginTop: index === 0 ? 12 : 18, paddingTop: 14, borderTop: index === 0 ? undefined : "1px solid var(--line)" }}>
-            <h4 style={{ margin: "0 0 8px", fontSize: 15 }}>Szenario {index + 1}: {s.threat}</h4>
+            <h4 style={{ margin: "0 0 8px", fontSize: 15 }}>
+                {tp("page.compliance.scenario.title", { index: index + 1, threat: s.threat })}
+            </h4>
             <dl style={{ margin: 0, display: "grid", gap: 8, fontSize: 14 }}>
-                <div><strong>Eintrittswahrscheinlichkeit:</strong> {String(s.likelihood)}</div>
-                <div><strong>Auswirkung:</strong> {String(s.impact)}</div>
-                <div><strong>Restrisiko:</strong> {String(s.residual_risk)}</div>
+                <div><strong>{t("page.compliance.scenario.likelihood")}</strong> {String(s.likelihood)}</div>
+                <div><strong>{t("page.compliance.scenario.impact")}</strong> {String(s.impact)}</div>
+                <div><strong>{t("page.compliance.scenario.residual")}</strong> {String(s.residual_risk)}</div>
                 <div>
-                    <strong>Maßnahmen</strong>
+                    <strong>{t("page.compliance.scenario.measures")}</strong>
                     <Bullets items={s.mitigations} />
                 </div>
             </dl>
@@ -119,24 +128,28 @@ function ScenarioBlock({ s, index }: { s: RiskScenario; index: number }) {
 }
 
 function DsfaStructured({ data }: { data: DSFA }) {
+    const t = useT();
+    const tp = useTParams();
     return (
         <div className="compliance-report-print">
-            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Datenschutz-Folgenabschätzung</h2>
-            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>Nach Art. 35 DSGVO · Erstellt {formatDateTime(data.generated_at)}</p>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.dsfa.title")}</h2>
+            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>
+                {tp("page.compliance.dsfa.subtitle", { date: formatDateTime(data.generated_at) })}
+            </p>
             <dl style={{ margin: "0 0 16px", display: "grid", gap: 6, fontSize: 14 }}>
-                <div><strong>System:</strong> {data.system}</div>
-                <div><strong>Version:</strong> {data.system_version}</div>
+                <div><strong>{t("page.compliance.vvt.system")}</strong> {data.system}</div>
+                <div><strong>{t("page.compliance.vvt.version")}</strong> {data.system_version}</div>
             </dl>
             <section style={{ marginBottom: 16 }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Beschreibung der Verarbeitung</h3>
+                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dsfa.processing")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.processing_overview}</p>
             </section>
             <section style={{ marginBottom: 16 }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Notwendigkeit und Verhältnismäßigkeit</h3>
+                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dsfa.necessity")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.necessity_proportionality}</p>
             </section>
             <section>
-                <h3 style={{ margin: "0 0 4px", fontSize: 16 }}>Risikoszenarien</h3>
+                <h3 style={{ margin: "0 0 4px", fontSize: 16 }}>{t("page.compliance.dsfa.risk_scenarios")}</h3>
                 {data.scenarios.map((s, i) => (
                     <ScenarioBlock key={`${s.threat}-${i}`} s={s} index={i} />
                 ))}
@@ -146,18 +159,19 @@ function DsfaStructured({ data }: { data: DSFA }) {
 }
 
 function RetentionStructured({ data }: { data: LogRetentionReport }) {
+    const t = useT();
     return (
         <div className="compliance-report-print">
-            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Log-Retention</h2>
-            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>Ausführungsbericht</p>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.retention.title")}</h2>
+            <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>{t("page.compliance.retention.report")}</p>
             <dl style={{ margin: "0 0 16px", display: "grid", gap: 8, fontSize: 14 }}>
-                <div><strong>Geprüfte Einträge:</strong> {data.scanned}</div>
-                <div><strong>Beibehalten:</strong> {data.kept}</div>
-                <div><strong>Gelöscht:</strong> {data.deleted.length}</div>
+                <div><strong>{t("page.compliance.retention.scanned")}</strong> {data.scanned}</div>
+                <div><strong>{t("page.compliance.retention.kept")}</strong> {data.kept}</div>
+                <div><strong>{t("page.compliance.retention.deleted")}</strong> {data.deleted.length}</div>
             </dl>
             {data.deleted.length > 0 ? (
                 <section style={{ marginBottom: 14 }}>
-                    <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Gelöschte Protokoll-IDs / Referenzen</h3>
+                    <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{t("page.compliance.retention.deleted_ids")}</h3>
                     <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>
                         {data.deleted.map((id, i) => (
                             <li key={i}>{id}</li>
@@ -167,7 +181,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
             ) : null}
             {data.errors.length > 0 ? (
                 <section>
-                    <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "var(--red)" }}>Fehler</h3>
+                    <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "var(--red)" }}>{t("page.compliance.retention.errors")}</h3>
                     <ul style={{ margin: 0, paddingLeft: 20, color: "var(--red)", fontSize: 13 }}>
                         {data.errors.map((err, i) => (
                             <li key={i}>{err}</li>
@@ -175,7 +189,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
                     </ul>
                 </section>
             ) : (
-                <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14 }}>Keine Fehler gemeldet.</p>
+                <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14 }}>{t("page.compliance.retention.no_errors")}</p>
             )}
         </div>
     );
@@ -183,6 +197,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
 
 export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
     const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const [report, setReport] = useState<{ kind: ReportKind; data: unknown } | null>(null);
@@ -217,9 +232,9 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
         if (!report) return;
         try {
             await navigator.clipboard.writeText(JSON.stringify(report.data, null, 2));
-            toast("JSON in Zwischenablage kopiert.", "success");
+            toast(t("common.copy_json_ok"), "success");
         } catch (e) {
-            toast(`Kopieren fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.copy_failed", { message: errorMessage(e) }), "error");
         }
     }
 
@@ -240,7 +255,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 className="compliance-no-print"
                 titleLevel="h1"
                 title={t("nav.compliance") || "Compliance"}
-                subtitle="DSGVO Art. 30 (VVT), Art. 35 (DSFA), Log-Retention"
+                subtitle={t("page.compliance.subtitle")}
                 actions={
                     <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                         {!embedded ? (
@@ -254,27 +269,27 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                             </>
                         ) : null}
                         <Button type="button" onClick={() => run("vvt")} disabled={loading}>
-                            VVT generieren
+                            {t("page.compliance.btn.vvt")}
                         </Button>
                         <Button type="button" onClick={() => run("dsfa")} disabled={loading}>
-                            DSFA generieren
+                            {t("page.compliance.btn.dsfa")}
                         </Button>
                         <Button type="button" variant="secondary" onClick={() => run("retention")} disabled={loading}>
-                            Log-Retention durchsetzen
+                            {t("page.compliance.btn.retention")}
                         </Button>
                         {report ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
-                                    JSON kopieren
+                                    {t("page.compliance.copy_json")}
                                 </Button>
                                 <ReportExportToolbar
-                                    dialogTitle="Export — Compliance"
+                                    dialogTitle={t("page.compliance.export_title")}
                                     buildBundle={buildExportBundle}
                                     defaultFormat="pdf"
                                     showImport
                                 />
                                 <Button type="button" variant="secondary" onClick={printReport}>
-                                    Bericht drucken
+                                    {t("page.compliance.btn.print")}
                                 </Button>
                             </>
                         ) : null}
@@ -283,7 +298,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
             />
 
             {error ? (
-                <DismissibleNotice variant="error" role="alert" className="compliance-no-print" title="Fehler">
+                <DismissibleNotice variant="error" role="alert" className="compliance-no-print" title={t("common.error")}>
                     {error}
                 </DismissibleNotice>
             ) : null}

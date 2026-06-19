@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useDismissibleLayer } from "./ui/use-dismissible-layer";
+import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "@/models/types";
 
 const MAX_SHOWN_WHEN_NO_QUERY = 200;
@@ -27,8 +28,11 @@ export function PatientComboField({
     onPatientIdChange,
     onQueryChange,
     disabled = false,
-    placeholder = "Namen tippen oder aus Liste wählen …",
+    placeholder,
 }: PatientComboFieldProps) {
+    const t = useT();
+    const tp = useTParams();
+    const resolvedPlaceholder = placeholder ?? t("patient.combo.placeholder");
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
@@ -87,7 +91,7 @@ export function PatientComboField({
                     type="text"
                     className="input-edit"
                     value={query}
-                    placeholder={placeholder}
+                    placeholder={resolvedPlaceholder}
                     disabled={disabled}
                     autoComplete="off"
                     role="combobox"
@@ -107,7 +111,7 @@ export function PatientComboField({
                     >
                         {noMatch ? (
                             <div className="select-option" style={{ cursor: "default", opacity: 0.75 }}>
-                                Kein Patient passt zur Eingabe.
+                                {t("patient.combo.no_match")}
                             </div>
                         ) : (
                             filtered.map((p) => {
@@ -132,7 +136,7 @@ export function PatientComboField({
             </div>
             {manyTotal ? (
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "6px 0 0" }}>
-                    Erste {MAX_SHOWN_WHEN_NO_QUERY} von {patienten.length} — tippen Sie den Namen, um einzugrenzen.
+                    {tp("patient.combo.truncated", { max: MAX_SHOWN_WHEN_NO_QUERY, total: patienten.length })}
                 </p>
             ) : null}
         </div>

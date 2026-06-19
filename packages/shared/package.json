@@ -6,11 +6,14 @@
     "description": "MeDoc shared TypeScript — schemas, domain helpers, stores (no Tauri, no system UI).",
     "exports": {
         "./lib/*": "./src/lib/*",
-        "./models/*": "./src/models/*"
+        "./models/*": "./src/models/*",
+        "./locales/*": "./locales/*"
     },
     "dependencies": {
         "clsx": "^2.1.1",
         "date-fns": "^4.1.0",
+        "i18next": "^26.3.1",
+        "react-i18next": "^17.0.8",
         "tailwind-merge": "^3.3.0",
         "zod": "^3.25.67",
         "zustand": "^5.0.5"

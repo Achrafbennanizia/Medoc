@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -33,6 +34,8 @@ export type OpsPageProps = {
 };
 
 export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}) {
+    const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     const [backups, setBackups] = useState<BackupInfo[]>([]);
     const [busy, setBusy] = useState(false);
@@ -53,7 +56,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             .then((s) => setOpsBlocked(s.blocks_ops))
             .catch((e: unknown) => {
                 setOpsBlocked(false);
-                setMessage(`Audit-Status konnte nicht geladen werden: ${errorMessage(e)}`);
+                setMessage(tp("ops.audit_load_failed", { message: errorMessage(e) }));
             });
     }, []);
 
@@ -64,7 +67,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 const list = await listBackups();
                 if (!cancelled) setBackups(list);
             } catch (e: unknown) {
-                if (!cancelled) setMessage(`Backups konnten nicht geladen werden: ${errorMessage(e)}`);
+                if (!cancelled) setMessage(tp("ops.backups_load_failed", { message: errorMessage(e) }));
             }
         })();
         getPerfThresholdMs()
@@ -83,7 +86,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
         try {
             setBackups(await listBackups());
         } catch (e: unknown) {
-            setMessage(`Backups konnten nicht geladen werden: ${errorMessage(e)}`);
+            setMessage(tp("ops.backups_load_failed", { message: errorMessage(e) }));
         }
     }
 
@@ -91,10 +94,10 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
         setBusy(true); setMessage(null);
         try {
             const info = await createBackup();
-            setMessage(`Backup erstellt: ${info.path} (${(info.size_bytes / 1024).toFixed(1)} KB)`);
+            setMessage(tp("ops.backup.created", { path: info.path, size: (info.size_bytes / 1024).toFixed(1) }));
             await refresh();
         } catch (e: unknown) {
-            setMessage(`Fehler: ${errorMessage(e)}`);
+            setMessage(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally { setBusy(false); }
     }
 
@@ -105,7 +108,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             const path = picked ?? "";
             if (path) setCsvPath(path);
         } catch (e: unknown) {
-            setMessage(`Dateiauswahl fehlgeschlagen: ${errorMessage(e)}`);
+            setMessage(tp("ops.file_pick_failed", { message: errorMessage(e) }));
         }
     }
 
@@ -115,7 +118,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             const picked = await pickBackupFile();
             setBackupValidatePath(picked ?? "");
         } catch (e: unknown) {
-            setMessage(`Dateiauswahl fehlgeschlagen: ${errorMessage(e)}`);
+            setMessage(tp("ops.file_pick_failed", { message: errorMessage(e) }));
         }
     }
 
@@ -125,9 +128,9 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
         setBackupValidateMsg(null);
         try {
             const ok = await validateBackup(backupValidatePath.trim());
-            setBackupValidateMsg(ok ? "Datei konnte gelesen werden (Basisprüfung OK)." : "Validierung meldet: Datei nicht verwendbar oder beschädigt.");
+            setBackupValidateMsg(ok ? t("ops.backup.validate_ok") : t("ops.backup.validate_invalid"));
         } catch (e: unknown) {
-            setBackupValidateMsg(`Fehler: ${errorMessage(e)}`);
+            setBackupValidateMsg(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally {
             setBusy(false);
         }
@@ -142,21 +145,21 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
         try {
             const ok = await validateBackup(path);
             if (!ok) {
-                setBackupValidateMsg("Wiederherstellung abgebrochen: Datei ist keine gültige SQLite-Sicherung.");
+                setBackupValidateMsg(t("ops.backup.restore_aborted"));
                 return;
             }
             const report = await restoreBackup(path);
             const hint = report.pre_restore_backup_created
-                ? " Vor der Wiederherstellung wurde eine zusätzliche Sicherung erstellt."
+                ? t("ops.backup.restore_pre_hint")
                 : "";
             setMessage(
-                `Datenbank wiederhergestellt aus ${report.restored_from}.${hint} Bitte die Anwendung jetzt neu starten (Seite neu laden).`,
+                tp("ops.backup.restore_success", { path: report.restored_from, hint }),
             );
             if (report.requires_app_restart) {
                 window.setTimeout(() => window.location.reload(), 2500);
             }
         } catch (e: unknown) {
-            setMessage(`Wiederherstellung fehlgeschlagen: ${errorMessage(e)}`);
+            setMessage(tp("ops.backup.restore_failed", { message: errorMessage(e) }));
         } finally {
             setBusy(false);
             setRestoreConfirmOpen(false);
@@ -170,29 +173,28 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             const r = await importPatientsCsv(csvPath, dryRun);
             setReport(r);
         } catch (e: unknown) {
-            setMessage(`Fehler: ${errorMessage(e)}`);
+            setMessage(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally { setBusy(false); }
     }
 
     return (
         <div className="praxis-workspace-page animate-fade-in">
-            <WorkspacePageHeader title="Betrieb & Datenmanagement" />
+            <WorkspacePageHeader title={t("ops.page.title")} />
 
             {opsBlocked ? (
                 <DismissibleNotice
                     variant="error"
                     role="alert"
                     closable={false}
-                    title="Audit-Kette manipuliert"
-                    subtitle="Backup, Migration und System-Tools sind gesperrt, bis die Störung im roten Banner quittiert wurde."
+                    title={t("ops.audit_tampered_title")}
+                    subtitle={t("ops.page.subtitle_locked")}
                 />
             ) : null}
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Datenmigration</h3>
+                <h3 className="text-title">{t("ops.migration.title")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Geführter Assistent mit Checklisten für Umstieg oder Mandantenwechsel. Es werden keine Daten automatisch
-                    importiert — nutzen Sie weiterhin Backup und CSV-Import nach Prüfung.
+                    {t("ops.migration.hint")}
                 </p>
                 <Button
                     type="button"
@@ -202,14 +204,14 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                         else navigate("/migration");
                     }}
                 >
-                    Migrations-Assistent öffnen
+                    {t("ops.migration.open_btn")}
                 </Button>
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">System-Selbsttest</h3>
+                <h3 className="text-title">{t("ops.health.title")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Prüft Datenbank, Audit-Kette und Protokollverzeichnis (ISO 13485 §7.5.1).
+                    {t("ops.health.hint")}
                 </p>
                 <Button
                     type="button"
@@ -220,27 +222,27 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     }}
                     disabled={busy || opsBlocked}
                 >
-                    Selbsttest ausführen
+                    {t("ops.health.run_btn")}
                 </Button>
                 {health && (
                     <ul className="text-body" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }} aria-live="polite">
-                        <li>Version: <span className="font-mono">{health.version}</span></li>
-                        <li>Datenbank: {health.db_ok ? "✓ OK" : "✗ FEHLER"} ({health.db_latency_ms} ms)</li>
-                        <li>Audit-Kette: {health.audit_chain_ok ? "✓ Integrität OK" : `✗ Manipuliert bei ${health.audit_broken_at}`}</li>
-                        <li>Log-Verzeichnis: {health.log_dir_writable ? "✓ beschreibbar" : "✗ nicht beschreibbar"}</li>
+                        <li>{tp("ops.health.version", { version: health.version })}</li>
+                        <li>{tp("ops.health.db", { status: health.db_ok ? t("ops.health.db_ok") : t("ops.health.db_error"), ms: health.db_latency_ms })}</li>
+                        <li>{t("ops.page.audit_chain_label")} {health.audit_chain_ok ? t("ops.page.audit_chain_ok") : tp("ops.page.audit_chain_broken", { at: health.audit_broken_at ?? "" })}</li>
+                        <li>{tp("ops.health.log_dir", { status: health.log_dir_writable ? t("ops.health.log_writable") : t("ops.health.log_not_writable") })}</li>
                     </ul>
                 )}
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Performance (NFA-LOG-06)</h3>
+                <h3 className="text-title">{t("ops.perf.title")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Schwellwert in Millisekunden: Aufrufe länger als dieser Wert erscheinen in{" "}
-                    <code className="px-1">perf.log</code>. Standard: 500 ms.
+                    {t("ops.perf.hint")}{" "}
+                    <code className="px-1">perf.log</code>. {t("ops.perf.default_note")}
                 </p>
                 <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
                     <label className="flex flex-col gap-1 text-body" style={{ minWidth: 160 }}>
-                        <span className="text-caption text-on-surface-variant">Schwellwert (ms)</span>
+                        <span className="text-caption text-on-surface-variant">{t("ops.perf.threshold_label")}</span>
                         <input
                             type="number"
                             min={1}
@@ -256,36 +258,36 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                         onClick={async () => {
                             const n = Number.parseInt(perfMs, 10);
                             if (!Number.isFinite(n) || n < 1) {
-                                setMessage("Ungültiger Wert (min. 1 ms)");
+                                setMessage(t("ops.perf.invalid"));
                                 return;
                             }
                             setBusy(true);
                             setPerfSaved(null);
                             try {
                                 await setPerfThresholdMs(n);
-                                setPerfSaved(`Gespeichert: ${n} ms`);
+                                setPerfSaved(tp("ops.perf.saved", { ms: n }));
                             } catch (e: unknown) {
-                                setMessage(`Fehler: ${errorMessage(e)}`);
+                                setMessage(`${t("common.error_prefix")} ${errorMessage(e)}`);
                             } finally {
                                 setBusy(false);
                             }
                         }}
                         disabled={busy || opsBlocked}
                     >
-                        Speichern
+                        {t("common.save")}
                     </Button>
                 </div>
                 {perfSaved && <p className="text-body text-accent-green">{perfSaved}</p>}
             </div>
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Backup</h3>
+                <h3 className="text-title">{t("ops.backup.title")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Erzeugt einen konsistenten Snapshot der Datenbank in
+                    {t("ops.backup.hint")}
                     <code className="px-1">~/medoc-data/backups/</code>.
                 </p>
                 <Button type="button" onClick={() => void handleBackup()} disabled={busy || opsBlocked}>
-                    Backup jetzt erstellen
+                    {t("ops.backup.create_btn")}
                 </Button>
                 {backups.length > 0 && (
                     <ul className="text-body font-mono" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -293,27 +295,27 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                             <li key={b.path}>
                                 {b.path} — {(b.size_bytes / 1024).toFixed(1)} KB
                                 {b.signature_ok === true
-                                    ? " · Signatur OK"
+                                    ? t("ops.backup.list_ok_sig")
                                     : b.signature_ok === false
-                                      ? " · Signatur ungültig"
-                                      : " · keine Signatur"}
+                                      ? t("ops.backup.list_invalid_sig")
+                                      : t("ops.backup.list_no_sig")}
                             </li>
                         ))}
                     </ul>
                 )}
                 <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
                     <p className="text-body text-on-surface-variant" style={{ margin: 0 }}>
-                        Vor einer Wiederherstellung: ausgewählte Sicherungsdatei prüfen (Pfad per Systemdialog — korrekte Trenner unter Windows/macOS/Linux).
+                        {t("ops.backup.restore_hint")}
                     </p>
                     <div className="row" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                         <Button type="button" variant="secondary" onClick={() => void chooseBackupForValidate()} disabled={busy || opsBlocked}>
-                            Backup-Datei wählen…
+                            {t("ops.backup.choose_file")}
                         </Button>
                         <span className="text-body text-on-surface-variant" style={{ flex: "1 1 200px", overflow: "hidden", textOverflow: "ellipsis" }} title={backupValidatePath || undefined}>
-                            {backupValidatePath || "Keine Datei gewählt"}
+                            {backupValidatePath || t("common.no_file_selected")}
                         </span>
                         <Button type="button" variant="ghost" onClick={() => void runValidateBackup()} disabled={busy || opsBlocked || !backupValidatePath.trim()}>
-                            Prüfen
+                            {t("ops.backup.validate_btn")}
                         </Button>
                         <Button
                             type="button"
@@ -321,7 +323,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                             onClick={() => setRestoreConfirmOpen(true)}
                             disabled={busy || opsBlocked || !backupValidatePath.trim()}
                         >
-                            Wiederherstellen…
+                            {t("ops.backup.restore_btn")}
                         </Button>
                     </div>
                     {backupValidateMsg ? <p className="text-body" role="status" style={{ margin: 0 }}>{backupValidateMsg}</p> : null}
@@ -331,48 +333,50 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
             <ConfirmDialog
                 open={restoreConfirmOpen}
                 onClose={() => setRestoreConfirmOpen(false)}
-                title="Datenbank wiederherstellen?"
-                message="Die aktuelle Datenbank wird durch die gewählte Sicherungsdatei ersetzt. Offene Arbeit geht verloren, sofern sie nicht gesichert ist. Die App wird danach neu geladen."
-                confirmLabel="Wiederherstellen"
-                cancelLabel="Abbrechen"
+                title={t("ops.backup.restore_confirm_title")}
+                message={t("ops.backup.restore_confirm_message")}
+                confirmLabel={t("ops.backup.restore_confirm")}
+                cancelLabel={t("common.cancel")}
                 danger
                 loading={busy}
                 onConfirm={() => void runRestoreBackup()}
             />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 className="text-title">Patientenimport (CSV)</h3>
+                <h3 className="text-title">{t("ops.csv.title")}</h3>
                 <p className="text-body text-on-surface-variant">
-                    Header: <code>name;geburtsdatum;geschlecht;versicherungsnummer;telefon;email;adresse</code>
+                    {t("ops.csv.header_hint")}
                 </p>
                 <div className="row" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <Button type="button" variant="secondary" onClick={() => void chooseCsvFile()} disabled={busy || opsBlocked}>
-                        CSV-Datei wählen…
+                        {t("ops.csv.choose_file")}
                     </Button>
                     <span className="text-body text-on-surface-variant" style={{ flex: "1 1 200px", overflow: "hidden", textOverflow: "ellipsis" }} title={csvPath || undefined}>
-                        {csvPath || "Keine Datei gewählt"}
+                        {csvPath || t("common.no_file_selected")}
                     </span>
                 </div>
                 <label className="flex items-center gap-2 text-body">
                     <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-                    Trockenlauf (keine Daten schreiben)
+                    {t("ops.csv.dry_run")}
                 </label>
                 <Button type="button" onClick={() => void handleImport()} disabled={busy || opsBlocked || !csvPath.trim()}>
-                    Import starten
+                    {t("ops.csv.import_btn")}
                 </Button>
                 {report && (
                     <div className="text-body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div>Gesamt: {report.total_rows}</div>
-                        <div>Importiert: {report.imported}</div>
-                        <div>Übersprungen: {report.skipped}</div>
-                        <div>Fehlerhaft: {report.failed}</div>
+                        <div>{tp("ops.csv.total", { count: report.total_rows })}</div>
+                        <div>{tp("ops.csv.imported", { count: report.imported })}</div>
+                        <div>{tp("ops.page.import_skipped", { count: report.skipped })}</div>
+                        <div>{tp("ops.csv.failed", { count: report.failed })}</div>
                         {report.errors.length > 0 && (
                             <details>
                                 <summary>
-                                    Fehlerdetails ({report.errors.length}
-                                    {report.errors.length > CSV_ERROR_PREVIEW_LIMIT
-                                        ? `, erste ${CSV_ERROR_PREVIEW_LIMIT} angezeigt`
-                                        : ""})
+                                    {tp("ops.csv.error_details", {
+                                        count: report.errors.length,
+                                        suffix: report.errors.length > CSV_ERROR_PREVIEW_LIMIT
+                                            ? tp("ops.csv.error_preview_suffix", { limit: CSV_ERROR_PREVIEW_LIMIT })
+                                            : "",
+                                    })}
                                 </summary>
                                 <ul className="font-mono text-label mt-2" style={{ margin: 0, paddingLeft: 18 }}>
                                     {report.errors.slice(0, CSV_ERROR_PREVIEW_LIMIT).map((errLine, i) => (
@@ -381,7 +385,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                                 </ul>
                                 {report.errors.length > CSV_ERROR_PREVIEW_LIMIT ? (
                                     <p className="text-caption text-on-surface-variant mt-2" role="status">
-                                        Es gibt weitere {report.errors.length - CSV_ERROR_PREVIEW_LIMIT} Meldungen — vollständige Liste ggf. über Logexport oder erneuten Lauf mit kleinerer Datei prüfen.
+                                        {tp("ops.csv.error_more", { count: report.errors.length - CSV_ERROR_PREVIEW_LIMIT })}
                                     </p>
                                 ) : null}
                             </details>

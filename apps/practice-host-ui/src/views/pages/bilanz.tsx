@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { allowed, parseRole } from "@/lib/rbac";
@@ -21,6 +22,8 @@ import { useToastStore } from "../components/ui/toast-store";
  * Frontend ergänzt monatliche Aufschlüsselung aus Zahlungsliste.
  */
 export function BilanzPage() {
+    const t = useT();
+    const tp = useTParams();
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canBackVerwaltung = role != null && allowed("verwaltung.read", role);
     const [bilanz, setBilanz] = useState<Bilanz | null>(null);
@@ -59,9 +62,9 @@ export function BilanzPage() {
         try {
             await deleteBilanzSnapshot(snapshotDeleteId);
             setSnapshots((list) => list.filter((s) => s.id !== snapshotDeleteId));
-            toast("Snapshot gelöscht", "success");
+            toast(t("bilanz.toast.snapshot_deleted"), "success");
         } catch (e) {
-            toast(`Löschen fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("bilanz.toast.delete_failed", { message: errorMessage(e) }), "error");
         } finally {
             setSnapshotDeleteId(null);
         }
@@ -93,23 +96,23 @@ export function BilanzPage() {
         return <PageLoadError message={loadError} onRetry={reload} />;
     }
     if (status !== "ready" || !bilanz) {
-        return <PageLoading label="Bilanz wird geladen…" />;
+        return <PageLoading label={t("bilanz.loading")} />;
     }
 
     return (
         <div className="praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
                 showBack={canBackVerwaltung}
-                title="Bilanz"
+                title={t("bilanz.title")}
                 actions={
                     <>
                         <ReportExportToolbar
-                            dialogTitle="Export — Bilanz"
+                            dialogTitle={t("bilanz.export_title")}
                             buildBundle={buildExportBundle}
                             defaultFormat="pdf"
                             showImport
                         />
-                        <Link to="/bilanz/neu" className="btn btn-subtle">Neuer Bilanz</Link>
+                        <Link to="/bilanz/neu" className="btn btn-subtle">{t("bilanz.new_btn")}</Link>
                     </>
                 }
             />
@@ -122,25 +125,25 @@ export function BilanzPage() {
                 }}
             >
                 <Card className="kpi">
-                    <CardHeader title="Einnahmen (bezahlt)" />
+                    <CardHeader title={t("bilanz.kpi.income_paid")} />
                     <p className="kpi-val" style={{ color: "var(--accent-green)" }}>{formatCurrency(bilanz.einnahmen)}</p>
                 </Card>
                 <Card className="kpi">
-                    <CardHeader title="Ausstehend" />
+                    <CardHeader title={t("bilanz.kpi.pending")} />
                     <p className="kpi-val" style={{ color: "var(--accent-yellow)" }}>{formatCurrency(bilanz.ausstehend)}</p>
                 </Card>
                 <Card className="kpi">
-                    <CardHeader title="Storniert" />
+                    <CardHeader title={t("bilanz.kpi.cancelled")} />
                     <p className="kpi-val" style={{ color: "var(--fg-3)" }}>{formatCurrency(bilanz.storniert)}</p>
                 </Card>
             </div>
 
             <Card className="card-pad">
-                <CardHeader title="Monatlicher Verlauf (letzte 12 Monate)" />
+                <CardHeader title={t("bilanz.monthly_title")} />
                 {byMonth.length === 0 ? (
-                    <p className="text-body text-on-surface-variant">Noch keine Zahlungen erfasst.</p>
+                    <p className="text-body text-on-surface-variant">{t("bilanz.no_payments_yet")}</p>
                 ) : (
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label="Monatsbilanz">
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label={t("bilanz.monthly_aria")}>
                         {byMonth.map(([month, v]) => (
                             <li key={month}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
@@ -161,22 +164,22 @@ export function BilanzPage() {
             </Card>
 
             <Card className="card-pad">
-                <CardHeader title="Gespeicherte Bilanz-Snapshots" />
+                <CardHeader title={t("bilanz.snapshots_title")} />
                 {snapshots.length === 0 ? (
                     <p className="text-body text-on-surface-variant">
-                        Noch keine Snapshots erfasst. Mit „Neuer Bilanz“ einen Abschluss erstellen.
+                        {t("bilanz.snapshots_empty")}
                     </p>
                 ) : (
                     <div className="tbl-scroll">
                     <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
-                                <th>Erstellt</th>
-                                <th>Label</th>
-                                <th>Einnahmen</th>
-                                <th>Ausgaben</th>
-                                <th>Saldo</th>
-                                <th aria-label="Aktionen" />
+                                <th>{t("common.created_at")}</th>
+                                <th>{t("bilanz.col.label")}</th>
+                                <th>{t("bilanz.col.income")}</th>
+                                <th>{t("bilanz.col.expenses")}</th>
+                                <th>{t("bilanz.col.balance")}</th>
+                                <th aria-label={t("common.actions")} />
                             </tr>
                         </thead>
                         <tbody>
@@ -191,7 +194,7 @@ export function BilanzPage() {
                                     </td>
                                     <td>
                                         <Button size="sm" variant="ghost" onClick={() => setSnapshotDeleteId(s.id)}>
-                                            Löschen
+                                            {t("common.delete")}
                                         </Button>
                                     </td>
                                 </tr>
@@ -206,22 +209,22 @@ export function BilanzPage() {
                 open={!!snapshotDeleteId}
                 onClose={() => setSnapshotDeleteId(null)}
                 onConfirm={handleDeleteSnapshot}
-                title="Snapshot löschen"
-                message="Diesen Bilanz-Snapshot wirklich löschen? Die zugrundeliegenden Zahlungen bleiben erhalten."
-                confirmLabel="Löschen"
+                title={t("bilanz.delete_title")}
+                message={t("bilanz.delete_message")}
+                confirmLabel={t("common.delete")}
                 danger
             />
 
             <Card className="card-pad">
-                <CardHeader title="Letzte Zahlungen" />
+                <CardHeader title={t("bilanz.recent_payments")} />
                 {zahlungen.length === 0 ? (
-                    <p className="text-body text-on-surface-variant">Keine Zahlungen.</p>
+                    <p className="text-body text-on-surface-variant">{t("bilanz.no_payments")}</p>
                 ) : (
                     <div className="tbl-scroll">
                     <table className="tbl tbl-fluid">
                         <thead>
                             <tr>
-                                <th>Datum</th><th>Status</th><th>Betrag</th>
+                                <th>{t("common.date")}</th><th>{t("common.status")}</th><th>{t("common.amount")}</th>
                             </tr>
                         </thead>
                         <tbody>

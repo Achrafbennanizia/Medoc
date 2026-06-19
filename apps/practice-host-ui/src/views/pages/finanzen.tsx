@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { listBestellungen, updateBestellungStatus } from "@/systems/practice-host/controllers/bestellung.controller";
@@ -7,6 +8,13 @@ import type { BestellStatus, Bestellung } from "@/systems/practice-host/controll
 import { parseRole, allowed, canReadFinanzen } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import {
+    bestellStatusDisplay,
+    vorgangText,
+    zahlStatusDisplay,
+    zahlungsartLabel,
+} from "@/lib/finance-order-labels";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { buildFinanzenReportBundle, type FinanzTxRow } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
 import type { Zahlung, Patient, ZahlungsArt } from "../../models/types";
@@ -28,51 +36,9 @@ import type { HtmlExportDocumentKind } from "@/views/components/export-picker-di
 import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
 import { PraxisReadinessDialog } from "@/views/components/praxis-readiness-dialog";
 
-const ZAHLUNG_ART_ROWS = [
-    { value: "BAR", label: "Bar" },
-    { value: "KARTE", label: "Karte" },
-    { value: "UEBERWEISUNG", label: "Überweisung" },
-    { value: "RECHNUNG", label: "Rechnung" },
-] as const;
-
-function zahlungsartLabel(art: string): string {
-    const row = ZAHLUNG_ART_ROWS.find((o) => o.value === art);
-    return row?.label ?? art;
-}
-
-function zahlStatusDisplay(status: string): { variant: "success" | "warning" | "default"; label: string } {
-    const s = status.trim();
-    if (s === "BEZAHLT") return { variant: "success", label: "Bezahlt" };
-    if (s === "TEILBEZAHLT") return { variant: "warning", label: "Teilbezahlt" };
-    if (s === "AUSSTEHEND") return { variant: "warning", label: "Ausstehend" };
-    if (s === "STORNIERT") return { variant: "default", label: "Storniert" };
-    return { variant: "default", label: s || "—" };
-}
-
-function bezugKurz(z: Zahlung): string {
-    if (z.behandlung_id) return "Behandlung";
-    if (z.untersuchung_id) return "Untersuchung";
-    return "Direktzahlung";
-}
+const ZAHLUNG_ART_VALUES = ["BAR", "KARTE", "UEBERWEISUNG", "RECHNUNG"] as const;
 
 type FinanzTxTab = "alle" | "einn" | "aus";
-
-const FIN_TX_TAB_OPTIONS: readonly { value: FinanzTxTab; label: string }[] = [
-    { value: "alle", label: "Alle" },
-    { value: "einn", label: "Einnahmen" },
-    { value: "aus", label: "Ausgaben" },
-];
-
-const FIN_TX_ART_OPTIONS: readonly { value: "ALLE" | ZahlungsArt; label: string }[] = [
-    { value: "ALLE", label: "Alle Arten" },
-    ...ZAHLUNG_ART_ROWS,
-];
-
-function finanzFilterLabel(tab: FinanzTxTab, art: "ALLE" | ZahlungsArt): string {
-    const tabLabel = tab === "alle" ? "Alle Transaktionen" : tab === "einn" ? "Einnahmen" : "Ausgaben/Storni";
-    const artLabel = art === "ALLE" ? "alle Zahlungsarten" : zahlungsartLabel(art);
-    return `${tabLabel} · ${artLabel}`;
-}
 
 type FinanzTxRowLocal = FinanzTxRow;
 
@@ -85,14 +51,6 @@ function toFinanzRows(z: Zahlung[], b: Bestellung[]): FinanzTxRowLocal[] {
 
 function rowSortTs(r: FinanzTxRowLocal): number {
     return new Date(r.kind === "zahlung" ? r.z.created_at : r.b.created_at).getTime();
-}
-
-function bestellStatusDe(s: string): { variant: "success" | "warning" | "default"; label: string } {
-    if (s === "GELIEFERT") return { variant: "success", label: "Geliefert" };
-    if (s === "UNTERWEGS") return { variant: "warning", label: "Unterwegs" };
-    if (s === "OFFEN") return { variant: "warning", label: "Offen" };
-    if (s === "STORNIERT") return { variant: "default", label: "Storniert" };
-    return { variant: "default", label: s };
 }
 
 function isInCalendarMonth(iso: string, year: number, month0: number): boolean {
@@ -114,8 +72,8 @@ function sumStornoMtd(list: Zahlung[], year: number, month0: number): number {
         .reduce((s, z) => s + z.betrag, 0);
 }
 
-function formatPctDe(pct: number): string {
-    const s = (pct >= 0 ? "+" : "") + Math.abs(pct).toFixed(1).replace(".", ",");
+function formatPctLocalized(pct: number, locale: string): string {
+    const s = (pct >= 0 ? "+" : "") + Math.abs(pct).toFixed(1).replace(".", locale.startsWith("de") ? "," : ".");
     return s + "%";
 }
 
@@ -126,13 +84,6 @@ function monthOverMonthEinn(list: Zahlung[], year: number, month0: number): { cu
     const prev = sumEinnahmenMtd(list, py, pm);
     const deltaPct = prev > 0 ? ((current - prev) / prev) * 100 : current > 0 && prev === 0 ? 100 : null;
     return { current, prev, deltaPct };
-}
-
-function vorgangText(z: Zahlung): string {
-    const b = bezugKurz(z);
-    const note = (z.beschreibung ?? "").trim();
-    if (note) return b === "Direktzahlung" ? note : `${b} — ${note}`;
-    return b;
 }
 
 type FinanzKpiTone = "mint" | "red" | "blue" | "amber";
@@ -187,6 +138,9 @@ const FinanzKpiCard: FC<FinanzKpiCardProps> = ({ label, value, sub, subTone, ico
 };
 
 export function FinanzenPage() {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canWriteZahlung = role != null && allowed("finanzen.write", role);
@@ -210,6 +164,40 @@ export function FinanzenPage() {
     } | null>(null);
     const toast = useToastStore((s) => s.add);
 
+    const finTxTabOptions = useMemo(
+        () => [
+            { value: "alle" as const, label: t("common.all") },
+            { value: "einn" as const, label: t("page.finanzen.income") },
+            { value: "aus" as const, label: t("page.finanzen.expenses") },
+        ],
+        [t],
+    );
+
+    const finTxArtOptions = useMemo(
+        () => [
+            { value: "ALLE" as const, label: t("page.finanzen.all_payment_types") },
+            ...ZAHLUNG_ART_VALUES.map((value) => ({
+                value,
+                label: zahlungsartLabel(value, t),
+            })),
+        ],
+        [t],
+    );
+
+    const finanzFilterLabel = useCallback(
+        (tab: FinanzTxTab, art: "ALLE" | ZahlungsArt) => {
+            const tabLabel =
+                tab === "alle"
+                    ? t("page.finanzen.all_transactions")
+                    : tab === "einn"
+                      ? t("page.finanzen.income")
+                      : t("page.finanzen.expenses_storno");
+            const artLabel = art === "ALLE" ? t("page.finanzen.all_payment_types").toLowerCase() : zahlungsartLabel(art, t);
+            return `${tabLabel} · ${artLabel}`;
+        },
+        [t],
+    );
+
     const load = useCallback(async (opts?: { initial?: boolean }) => {
         const isInitial = opts?.initial === true;
         if (isInitial) {
@@ -226,12 +214,12 @@ export function FinanzenPage() {
             if (isInitial) {
                 setLoadError(msg);
             } else {
-                toast(`Aktualisieren fehlgeschlagen: ${msg}`);
+                toast(tp("common.refresh_failed", { message: msg }));
             }
         } finally {
             if (isInitial) setListLoading(false);
         }
-    }, [toast, setZahlungen, setBestellungen, setListLoading, setLoadError]);
+    }, [toast, tp]);
 
     useEffect(() => {
         void load({ initial: true });
@@ -302,20 +290,25 @@ export function FinanzenPage() {
             kpiMtd,
             finanzFilterLabel(txTab, artFilter),
         );
-    }, [sortedRows, patientMap, kpiMtd, txTab, artFilter]);
+    }, [sortedRows, patientMap, kpiMtd, txTab, artFilter, finanzFilterLabel]);
+
+    const monthSubtitle = useMemo(
+        () => format(new Date(), "LLLL yyyy", { locale: dateFnsLocale }),
+        [dateFnsLocale],
+    );
 
     if (listLoading) {
         return (
             <div className="praxis-workspace-page animate-fade-in--sticky-safe">
-                <WorkspacePageHeader title="Finanzen" />
-                <PageLoading label="Zahlungsdaten werden geladen…" />
+                <WorkspacePageHeader title={t("page.finanzen.title")} />
+                <PageLoading label={t("page.finanzen.loading")} />
             </div>
         );
     }
     if (loadError) {
         return (
             <div className="praxis-workspace-page animate-fade-in--sticky-safe">
-                <WorkspacePageHeader title="Finanzen" />
+                <WorkspacePageHeader title={t("page.finanzen.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />
             </div>
         );
@@ -331,7 +324,7 @@ export function FinanzenPage() {
         try {
             setHtmlDocExport(await buildQuittungExportForZahlung(z));
         } catch (e) {
-            toast(`Quittung: ${errorMessage(e)}`, "error");
+            toast(tp("page.finanzen.toast_quittung_failed", { message: errorMessage(e) }), "error");
         } finally {
             setQuittungBusyId(null);
         }
@@ -343,9 +336,9 @@ export function FinanzenPage() {
         try {
             const updated = await updateBestellungStatus(b.id, status);
             setBestellungen((list) => list.map((row) => (row.id === updated.id ? updated : row)));
-            toast("Bestellstatus aktualisiert");
+            toast(t("page.finanzen.toast_bestell_status"));
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`);
+            toast(`${t("common.error_prefix")} ${e instanceof Error ? e.message : String(e)}`);
         } finally {
             setStatusUpdatingBestellId(null);
         }
@@ -355,25 +348,32 @@ export function FinanzenPage() {
     const py = dNow.getMonth() === 0 ? dNow.getFullYear() - 1 : dNow.getFullYear();
     const pm = dNow.getMonth() === 0 ? 11 : dNow.getMonth() - 1;
     const stPrevM = sumStornoMtd(zahlungen, py, pm);
+    const localeTag = dateFnsLocale.code ?? "de";
     const einnSub =
         kpiMtd.einnDeltaPct == null
-            ? { s: "Kein Vormonats-Vergleich", t: "muted" as KpiSubTone }
+            ? { s: t("page.finanzen.kpi_no_compare"), t: "muted" as KpiSubTone }
             : {
-                  s: `${kpiMtd.einnDeltaPct >= 0 ? "↑" : "↓"} ${formatPctDe(kpiMtd.einnDeltaPct)} ggü. Vormonat`,
+                  s: tp("page.finanzen.kpi_vs_prev", {
+                      arrow: kpiMtd.einnDeltaPct >= 0 ? "↑" : "↓",
+                      pct: formatPctLocalized(kpiMtd.einnDeltaPct, localeTag),
+                  }),
                   t: (kpiMtd.einnDeltaPct >= 0 ? "up" : "down") as KpiSubTone,
               };
     const stDeltaNum = kpiMtd.stDeltaPct;
     const stSub =
         kpiMtd.st === 0 && stPrevM === 0
-            ? { s: "Keine Storni im laufenden Monat", t: "muted" as KpiSubTone }
+            ? { s: t("page.finanzen.kpi_no_storno_month"), t: "muted" as KpiSubTone }
             : stDeltaNum == null
               ? { s: "—", t: "muted" as KpiSubTone }
               : {
-                    s: `${(stDeltaNum as number) >= 0 ? "↑" : "↓"} ${formatPctDe(stDeltaNum as number)} ggü. Vormonat`,
+                    s: tp("page.finanzen.kpi_vs_prev", {
+                        arrow: (stDeltaNum as number) >= 0 ? "↑" : "↓",
+                        pct: formatPctLocalized(stDeltaNum as number, localeTag),
+                    }),
                     t: ((stDeltaNum as number) > 0 ? "down" : "up") as KpiSubTone,
                 };
     const gewSub: { s: string; t: KpiSubTone } = {
-        s: "Einnahmen MTD − Storni MTD",
+        s: t("page.finanzen.kpi_net_sub"),
         t: "muted",
     };
 
@@ -381,13 +381,17 @@ export function FinanzenPage() {
         <div className="finanzen-page animate-fade-in--sticky-safe" style={{ gap: 0 }}>
             <div className="finanzen-page__sticky">
                 <WorkspacePageHeader
-                    title="Finanzen"
-                    subtitle={`${new Date().toLocaleDateString("de-DE", { month: "long", year: "numeric" })} · ${zahlungen.length} Zahlungen · ${bestellungen.length} Bestellungen`}
+                    title={t("page.finanzen.title")}
+                    subtitle={tp("page.finanzen.subtitle", {
+                        month: monthSubtitle,
+                        zahlungen: zahlungen.length,
+                        bestellungen: bestellungen.length,
+                    })}
                     actions={
                         <>
                             {canReadFinanzenFlag ? (
                                 <ReportExportToolbar
-                                    dialogTitle="Export — Finanzen"
+                                    dialogTitle={t("page.finanzen.export_title")}
                                     buildBundle={buildExportBundle}
                                     defaultFormat="pdf"
                                     showImport
@@ -396,22 +400,22 @@ export function FinanzenPage() {
                             ) : null}
                             {canReadFinanzenFlag ? (
                                 <Button type="button" variant="secondary" onClick={() => navigate("/bestellungen/neu")}>
-                                    + Neue Bestellung
+                                    {t("page.finanzen.cta_new_bestellung")}
                                 </Button>
                             ) : null}
                             {canWriteZahlung ? (
                                 <Button type="button" onClick={() => navigate("/finanzen/neu")}>
-                                    + Neue Zahlung
+                                    {t("page.finanzen.cta_new_zahlung")}
                                 </Button>
                             ) : null}
                         </>
                     }
                 />
 
-                <div className="finanzen-kpi-row" aria-label="Kennzahlen Monat">
+                <div className="finanzen-kpi-row" aria-label={t("page.finanzen.aria_kpi_month")}>
                     <FinanzKpiCard
                         tone="mint"
-                        label="Einnahmen MTD"
+                        label={t("page.finanzen.kpi_income_mtd")}
                         value={formatCurrency(kpiMtd.einnM)}
                         iconKey="/finanzen"
                         iconBg="rgba(20, 139, 76, 0.12)"
@@ -421,7 +425,7 @@ export function FinanzenPage() {
                     />
                     <FinanzKpiCard
                         tone="red"
-                        label="Storni & Abgänge (MTD)"
+                        label={t("page.finanzen.kpi_storno_mtd")}
                         value={formatCurrency(kpiMtd.st)}
                         iconKey="/bilanz"
                         iconBg="rgba(255, 59, 48, 0.12)"
@@ -431,7 +435,7 @@ export function FinanzenPage() {
                     />
                     <FinanzKpiCard
                         tone="blue"
-                        label="Gewinn (MTD, netto)"
+                        label={t("page.finanzen.kpi_net_mtd")}
                         value={formatCurrency(kpiMtd.gew)}
                         iconKey="/statistik"
                         iconBg="var(--blue-soft)"
@@ -441,12 +445,12 @@ export function FinanzenPage() {
                     />
                     <FinanzKpiCard
                         tone="amber"
-                        label="Offene Posten"
+                        label={t("page.finanzen.kpi_open_items")}
                         value={formatCurrency(kpiMtd.offeneSum)}
                         iconKey="Calendar"
                         iconBg="var(--yellow-soft)"
                         iconColor="#B45309"
-                        sub={`${kpiMtd.offeneN} Posten`}
+                        sub={tp("page.finanzen.kpi_open_sub", { count: kpiMtd.offeneN })}
                         subTone="muted"
                     />
                 </div>
@@ -455,9 +459,11 @@ export function FinanzenPage() {
             <div className="finanzen-workspace finanzen-workspace--single">
             <div className="finanzen-workspace__list">
                 <div className="finanzen-tx-section-head">
-                    <h2 className="finanzen-tx-section-title">Transaktionen</h2>
+                    <h2 className="finanzen-tx-section-title">{t("page.finanzen.transactions")}</h2>
                     <div className="finanzen-tx-section-head__meta">
-                        <span className="finanzen-tx-count">{filteredRows.length} Einträge</span>
+                        <span className="finanzen-tx-count">
+                            {tp("page.finanzen.entries_count", { count: filteredRows.length })}
+                        </span>
                         {txTab !== "alle" || artFilter !== "ALLE" ? (
                             <Button
                                 variant="ghost"
@@ -467,29 +473,29 @@ export function FinanzenPage() {
                                     setArtFilter("ALLE");
                                 }}
                             >
-                                Zurücksetzen
+                                {t("common.reset")}
                             </Button>
                         ) : null}
                     </div>
                 </div>
                 <div className="finanzen-tx-filter-strip">
                     <div className="finanzen-tx-filter-row">
-                        <span className="finanzen-tx-filter-row__label">Typ</span>
+                        <span className="finanzen-tx-filter-row__label">{t("page.finanzen.filter_label_type")}</span>
                         <FilterOptionBar
-                            ariaLabel="Transaktionstyp filtern"
+                            ariaLabel={t("page.finanzen.aria_filter_type")}
                             value={txTab}
-                            options={FIN_TX_TAB_OPTIONS}
+                            options={finTxTabOptions}
                             onChange={setTxTab}
                             fill
                             className="finanzen-tx-filter-row__bar"
                         />
                     </div>
                     <div className="finanzen-tx-filter-row">
-                        <span className="finanzen-tx-filter-row__label">Zahlungsart</span>
+                        <span className="finanzen-tx-filter-row__label">{t("page.finanzen.filter_label_art")}</span>
                         <FilterOptionBar
-                            ariaLabel="Zahlungsart filtern"
+                            ariaLabel={t("page.finanzen.aria_filter_art")}
                             value={artFilter}
-                            options={FIN_TX_ART_OPTIONS}
+                            options={finTxArtOptions}
                             onChange={setArtFilter}
                             fill
                             className="finanzen-tx-filter-row__bar"
@@ -499,8 +505,8 @@ export function FinanzenPage() {
                 {sortedRows.length === 0 ? (
                     <EmptyState
                         icon="💰"
-                        title="Keine Einträge im Filter"
-                        description="Filter (Transaktionstyp oder Zahlungsart) anpassen. Ausgaben umfassen Storni und Bestellungen."
+                        title={t("page.finanzen.empty_filter_title")}
+                        description={t("page.finanzen.empty_filter_desc")}
                     />
                 ) : (
                     <div className="card finanzen-tx-table-card tbl-data-card card--overflow-visible">
@@ -515,11 +521,11 @@ export function FinanzenPage() {
                                 </colgroup>
                                 <thead>
                                     <tr>
-                                        <th scope="col">Datum</th>
-                                        <th scope="col">Vorgang</th>
-                                        <th scope="col">Gegenpartei</th>
-                                        <th scope="col" className="tbl-th-num">Betrag</th>
-                                        <th scope="col">Status</th>
+                                        <th scope="col">{t("common.date")}</th>
+                                        <th scope="col">{t("common.procedure")}</th>
+                                        <th scope="col">{t("common.counterparty")}</th>
+                                        <th scope="col" className="tbl-th-num">{t("common.amount")}</th>
+                                        <th scope="col">{t("common.status")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -534,7 +540,7 @@ export function FinanzenPage() {
                                         };
                                         if (row.kind === "bestellung") {
                                             const b = row.b;
-                                            const bst = bestellStatusDe(b.status);
+                                            const bst = bestellStatusDisplay(b.status, t);
                                             const bBetragEur = b.gesamtbetrag;
                                             const hasBetrag = bBetragEur != null && Number.isFinite(bBetragEur);
                                             return (
@@ -555,7 +561,7 @@ export function FinanzenPage() {
                                                 >
                                                     <td className="fin-tx-td-datum">{formatDate(b.created_at)}</td>
                                                     <td className="fin-tx-td-vorgang">
-                                                        <div className="finanzen-tx-v1">Neue Bestellung</div>
+                                                        <div className="finanzen-tx-v1">{t("page.finanzen.new_order_label")}</div>
                                                         <div className="finanzen-tx-v2">
                                                             {b.artikel}
                                                             {b.bestellnummer ? ` · ${b.bestellnummer}` : ""}
@@ -577,11 +583,13 @@ export function FinanzenPage() {
                                                             className="finanzen-amt finanzen-amt--out"
                                                             title={
                                                                 hasBetrag
-                                                                    ? "Voraussichtliche Ausgabe: Lager-Preis × Menge bei Erfassung (keine Rechnung ersetzen)"
-                                                                    : "Kein Betrag hinterlegt (ältere Bestellung oder manuell ohne Lager-Preis)"
+                                                                    ? t("page.finanzen.tx_amount_hint_open")
+                                                                    : t("page.finanzen.tx_amount_hint_missing")
                                                             }
                                                         >
-                                                            {hasBetrag ? `−${formatCurrency(bBetragEur)}` : "− offen"}
+                                                            {hasBetrag
+                                                                ? `−${formatCurrency(bBetragEur)}`
+                                                                : t("drawer.finanzen_tx.amount_open")}
                                                         </span>
                                                     </td>
                                                     <td className="fin-tx-td-status">
@@ -591,9 +599,9 @@ export function FinanzenPage() {
                                             );
                                         }
                                         const z = row.z;
-                                        const st = zahlStatusDisplay(z.status);
+                                        const st = zahlStatusDisplay(z.status, t);
                                         const patientName = patientMap.get(z.patient_id) ?? "—";
-                                        const artLabel = zahlungsartLabel(z.zahlungsart);
+                                        const artLabel = zahlungsartLabel(z.zahlungsart, t);
                                         const cur = formatCurrency(Math.abs(z.betrag));
                                         const zahlungAmt =
                                             z.status === "STORNIERT"
@@ -619,7 +627,7 @@ export function FinanzenPage() {
                                             >
                                                 <td className="fin-tx-td-datum">{formatDate(z.created_at)}</td>
                                                 <td className="fin-tx-td-vorgang">
-                                                    <div className="finanzen-tx-v1">{vorgangText(z)}</div>
+                                                    <div className="finanzen-tx-v1">{vorgangText(z, t)}</div>
                                                     <div className="finanzen-tx-v2">{artLabel}</div>
                                                 </td>
                                                 <td className="fin-tx-td-gegenpartei">
@@ -686,4 +694,3 @@ export function FinanzenPage() {
         </div>
     );
 }
-

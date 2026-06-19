@@ -6,6 +6,7 @@ import { useAuthStore } from "@/models/store/auth-store";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 
 const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
 
@@ -21,17 +22,6 @@ function passwordChangedDaysAgo(): number | null {
     }
 }
 
-function rolePresentation(rolle: string | undefined): { line: string; badge: string } {
-    const r = parseRole(rolle);
-    const map: Record<Role, { line: string; badge: string }> = {
-        ARZT: { line: "Behandelnde:r · Vollzugriff", badge: "Admin" },
-        REZEPTION: { line: "Empfang · Termine & Verwaltung", badge: "Team" },
-        // TODO(deferred-roles): STEUERBERATER / PHARMABERATER presentation
-    };
-    if (r && map[r]) return map[r];
-    return { line: rolle ?? "—", badge: "—" };
-}
-
 export type EinstellungenKontoSectionProps = {
     onOpenPasswordDialog: () => void;
     /** Incremented by parent after a successful password change to refresh the „Zuletzt geändert“ hint. */
@@ -42,6 +32,8 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
     const session = useAuthStore((s) => s.session);
     const setSession = useAuthStore((s) => s.setSession);
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
 
     const [ownProfile, setOwnProfile] = useState<OwnProfileDto | null>(null);
     const [ownProfileLoadError, setOwnProfileLoadError] = useState<string | null>(null);
@@ -97,38 +89,38 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
     }
 
     async function saveKontoName() {
-        const t = draftKontoName.trim();
-        if (!t) {
-            toast("Name ist erforderlich", "error");
+        const name = draftKontoName.trim();
+        if (!name) {
+            toast(t("settings.konto.name_required"), "error");
             return;
         }
         setKontoSaveNameBusy(true);
         try {
-            const p = await updateOwnProfile({ name: t });
+            const p = await updateOwnProfile({ name });
             applyOwnProfileToStores(p);
-            toast("Name gespeichert (Praxis-Datenbank)", "success");
+            toast(t("settings.konto.name_saved"), "success");
             setEditKontoName(false);
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("settings.praef.save_failed", { message: errorMessage(e) }), "error");
         } finally {
             setKontoSaveNameBusy(false);
         }
     }
 
     async function saveKontoEmail() {
-        const t = draftKontoEmail.trim();
-        if (!t) {
-            toast("E-Mail ist erforderlich", "error");
+        const email = draftKontoEmail.trim();
+        if (!email) {
+            toast(t("settings.konto.email_required"), "error");
             return;
         }
         setKontoSaveEmailBusy(true);
         try {
-            const p = await updateOwnProfile({ email: t });
+            const p = await updateOwnProfile({ email });
             applyOwnProfileToStores(p);
-            toast("E-Mail gespeichert (Praxis-Datenbank)", "success");
+            toast(t("settings.konto.email_saved"), "success");
             setEditKontoEmail(false);
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("settings.praef.save_failed", { message: errorMessage(e) }), "error");
         } finally {
             setKontoSaveEmailBusy(false);
         }
@@ -139,38 +131,54 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
         try {
             const p = await updateOwnProfile({ telefon: draftKontoTelefon.trim() });
             applyOwnProfileToStores(p);
-            toast("Telefon gespeichert (Praxis-Datenbank)", "success");
+            toast(t("settings.konto.phone_saved"), "success");
             setEditKontoTelefon(false);
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("settings.praef.save_failed", { message: errorMessage(e) }), "error");
         } finally {
             setKontoSaveTelefonBusy(false);
         }
     }
 
-    const rolePresent = useMemo(() => rolePresentation(session?.rolle), [session?.rolle]);
+    const rolePresent = useMemo(() => {
+        const r = parseRole(session?.rolle);
+        const map: Record<Role, { line: string; badge: string }> = {
+            ARZT: { line: t("settings.konto.role_arzt_line"), badge: t("settings.konto.role_arzt_badge") },
+            REZEPTION: { line: t("settings.konto.role_rezeption_line"), badge: t("settings.konto.role_rezeption_badge") },
+        };
+        if (r && map[r]) return map[r];
+        return { line: session?.rolle ?? "—", badge: "—" };
+    }, [session?.rolle, t]);
+
     const pwDays = useMemo(() => {
         void passwordChangedTick;
         return passwordChangedDaysAgo();
     }, [passwordChangedTick]);
 
+    const profileSub = kontoProfileLoading
+        ? t("settings.konto.profile_loading")
+        : ownProfileLoadError
+          ? tp("settings.konto.profile_load_failed", { message: ownProfileLoadError })
+          : `${ownProfile?.name ?? session?.name ?? "—"}${ownProfile?.email || session?.email ? ` · ${ownProfile?.email ?? session?.email}` : ""}`;
+
+    const passwordHint =
+        pwDays != null
+            ? pwDays === 1
+                ? tp("settings.konto.password_days_one", { days: pwDays })
+                : tp("settings.konto.password_days_many", { days: pwDays })
+            : t("settings.konto.password_unknown");
+
     return (
         <section className="settings-subcard">
             <div className="card-head">
                 <div>
-                    <div className="card-title">Mein Konto</div>
-                    <div className="card-sub">
-                        {kontoProfileLoading
-                            ? "Profil wird geladen …"
-                            : ownProfileLoadError
-                              ? `Profil konnte nicht geladen werden: ${ownProfileLoadError}`
-                              : `${ownProfile?.name ?? session?.name ?? "—"}${ownProfile?.email || session?.email ? ` · ${ownProfile?.email ?? session?.email}` : ""}`}
-                    </div>
+                    <div className="card-title">{t("settings.konto.title")}</div>
+                    <div className="card-sub">{profileSub}</div>
                 </div>
             </div>
             <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                    <b>Name</b>
+                    <b>{t("common.name")}</b>
                     <div className="settings-row-muted">{ownProfile?.name ?? session?.name ?? "—"}</div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
@@ -179,7 +187,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                             <Input
                                 value={draftKontoName}
                                 onChange={(e) => setDraftKontoName(e.target.value)}
-                                aria-label="Name"
+                                aria-label={t("common.name")}
                                 autoComplete="name"
                                 disabled={kontoProfileLoading}
                                 style={{ minWidth: 160, maxWidth: 280 }}
@@ -190,7 +198,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 disabled={kontoSaveNameBusy || kontoProfileLoading}
                                 onClick={() => void saveKontoName()}
                             >
-                                Speichern
+                                {t("common.save")}
                             </Button>
                             <Button
                                 type="button"
@@ -201,7 +209,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                     setEditKontoName(false);
                                 }}
                             >
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         </>
                     ) : (
@@ -214,14 +222,14 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 setEditKontoName(true);
                             }}
                         >
-                            Bearbeiten
+                            {t("common.edit")}
                         </Button>
                     )}
                 </div>
             </div>
             <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                    <b>E-Mail</b>
+                    <b>{t("common.email")}</b>
                     <div className="settings-row-muted">{ownProfile?.email ?? session?.email ?? "—"}</div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
@@ -231,7 +239,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 type="email"
                                 value={draftKontoEmail}
                                 onChange={(e) => setDraftKontoEmail(e.target.value)}
-                                aria-label="E-Mail"
+                                aria-label={t("common.email")}
                                 autoComplete="email"
                                 disabled={kontoProfileLoading}
                                 style={{ minWidth: 160, maxWidth: 280 }}
@@ -242,7 +250,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 disabled={kontoSaveEmailBusy || kontoProfileLoading}
                                 onClick={() => void saveKontoEmail()}
                             >
-                                Speichern
+                                {t("common.save")}
                             </Button>
                             <Button
                                 type="button"
@@ -253,7 +261,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                     setEditKontoEmail(false);
                                 }}
                             >
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         </>
                     ) : (
@@ -266,14 +274,14 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 setEditKontoEmail(true);
                             }}
                         >
-                            Bearbeiten
+                            {t("common.edit")}
                         </Button>
                     )}
                 </div>
             </div>
             <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                    <b>Telefon</b>
+                    <b>{t("common.phone")}</b>
                     <div className="settings-row-muted">{(ownProfile?.telefon ?? "").trim() || "—"}</div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
@@ -283,7 +291,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 type="tel"
                                 value={draftKontoTelefon}
                                 onChange={(e) => setDraftKontoTelefon(e.target.value)}
-                                aria-label="Telefon"
+                                aria-label={t("common.phone")}
                                 autoComplete="tel"
                                 disabled={kontoProfileLoading}
                                 style={{ minWidth: 160, maxWidth: 280 }}
@@ -294,7 +302,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 disabled={kontoSaveTelefonBusy || kontoProfileLoading}
                                 onClick={() => void saveKontoTelefon()}
                             >
-                                Speichern
+                                {t("common.save")}
                             </Button>
                             <Button
                                 type="button"
@@ -305,7 +313,7 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                     setEditKontoTelefon(false);
                                 }}
                             >
-                                Abbrechen
+                                {t("common.cancel")}
                             </Button>
                         </>
                     ) : (
@@ -318,38 +326,34 @@ export function EinstellungenKontoSection({ onOpenPasswordDialog, passwordChange
                                 setEditKontoTelefon(true);
                             }}
                         >
-                            Bearbeiten
+                            {t("common.edit")}
                         </Button>
                     )}
                 </div>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Rolle</b>
+                    <b>{t("common.role")}</b>
                     <div className="settings-row-muted">{rolePresent.line}</div>
                 </div>
                 <span className="settings-pill-blue">{rolePresent.badge}</span>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Passwort</b>
-                    <div className="settings-row-muted">
-                        {pwDays != null
-                            ? `Zuletzt geändert vor ${pwDays} Tag${pwDays === 1 ? "" : "en"}`
-                            : "Zuletzt geändert — über „Ändern“ aktualisieren"}
-                    </div>
+                    <b>{t("common.password")}</b>
+                    <div className="settings-row-muted">{passwordHint}</div>
                 </div>
                 <Button variant="secondary" type="button" onClick={onOpenPasswordDialog}>
-                    Ändern
+                    {t("common.change")}
                 </Button>
             </div>
             <div className="settings-row">
                 <div>
-                    <b>Abmelden</b>
-                    <div className="settings-row-muted">Sitzung beenden</div>
+                    <b>{t("settings.konto.logout_title")}</b>
+                    <div className="settings-row-muted">{t("settings.konto.logout_hint")}</div>
                 </div>
                 <Button type="button" variant="secondary" onClick={() => window.dispatchEvent(new Event("medoc-request-logout"))}>
-                    Abmelden…
+                    {t("settings.konto.logout_button")}
                 </Button>
             </div>
         </section>

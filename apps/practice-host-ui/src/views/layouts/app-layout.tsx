@@ -11,7 +11,8 @@ import { countAktenZuValidieren } from "@/systems/practice-host/controllers/akte
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { NAV_SECTIONS } from "@/lib/nav-sections";
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, allowed, parseRole, type NavItemDefinition } from "@/lib/rbac";
-import { useT, useLocale, translateLocale } from "@/lib/i18n";
+import { useT, useTParams, useLocale, translateLocale } from "@/lib/i18n";
+import { breadcrumbKeysForPath } from "@/lib/breadcrumb-keys";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
 import { shouldShowPraxisSetupWizard } from "@/lib/praxis-completeness";
@@ -45,110 +46,11 @@ import {
 } from "@/lib/invoice-leistung";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.controller";
+import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
+import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
-
-function breadcrumbsForPath(pathname: string): string[] {
-    if (pathname === "/termine/neu") return ["MeDoc", "Terminübersicht", "Neuer Termin"];
-    if (pathname === "/finanzen/kasse") return ["MeDoc", "Kasseneingänge"];
-    if (pathname === "/finanzen/kasse/neu") return ["MeDoc", "Kasseneingänge", "Neue Zahlung"];
-    if (pathname === "/finanzen/neu") return ["MeDoc", "Finanzen", "Neue Zahlung"];
-    if (pathname === "/bestellungen/neu") return ["MeDoc", "Bestellungen", "Neue Bestellung"];
-    if (pathname === "/patienten/neu") return ["MeDoc", "Patienten", "Neuer Patient"];
-    if (pathname === "/bilanz/neu") return ["MeDoc", "Bilanz", "Neuer Bilanz"];
-    if (pathname === "/akten/zu-validieren") return ["MeDoc", "Patienten", "Akten zu validieren"];
-    if (pathname === "/posteingang") return ["MeDoc", "Posteingang"];
-    if (pathname === "/tickets") return ["MeDoc", "Praxis-Aufgaben"];
-    if (pathname === "/tickets/neu") return ["MeDoc", "Praxis-Aufgaben", "Neue Aufgabe"];
-    if (/^\/tickets\/[^/]+\/bearbeiten$/.test(pathname)) return ["MeDoc", "Praxis-Aufgaben", "Bearbeiten"];
-    if (pathname === "/verwaltung") return ["MeDoc", "Verwaltung"];
-    if (pathname === "/verwaltung/arbeitstage") return ["MeDoc", "Verwaltung", "Arbeitstage"];
-    if (pathname === "/verwaltung/praxisplanung") return ["MeDoc", "Verwaltung", "Praxisplanung"];
-    if (pathname === "/verwaltung/arbeitszeiten") return ["MeDoc", "Verwaltung", "Arbeitszeiten"];
-    if (pathname === "/verwaltung/sonder-sperrzeiten") return ["MeDoc", "Verwaltung", "Sonder-Sperrzeiten"];
-    if (pathname === "/verwaltung/praxis-praeferenzen") return ["MeDoc", "Verwaltung", "Praxis-Präferenzen"];
-    if (pathname === "/verwaltung/vorlagen") return ["MeDoc", "Verwaltung", "Vorlagen"];
-    if (pathname === "/verwaltung/behandlungs-katalog") return ["MeDoc", "Verwaltung", "Behandlungskatalog"];
-    if (pathname === "/verwaltung/bestellstamm") return ["MeDoc", "Verwaltung", "Bestell-Stammdaten"];
-    if (pathname === "/verwaltung/finanzen-berichte") return ["MeDoc", "Verwaltung", "Finanzen & Berichte"];
-    if (pathname === "/verwaltung/team") return ["MeDoc", "Verwaltung", "Team"];
-    if (pathname === "/verwaltung/finanzen-berichte/tagesabschluss") {
-        return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"];
-    }
-    if (pathname === "/verwaltung/finanzen-berichte/rechnung") {
-        return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Rechnung (PDF)"];
-    }
-    if (pathname === "/verwaltung/lager-und-bestellwesen") return ["MeDoc", "Verwaltung", "Lager, Produkte & Bestellwesen"];
-    if (pathname === "/verwaltung/vertraege") return ["MeDoc", "Verwaltung", "Lager, Produkte & Bestellwesen", "Verträge"];
-    if (pathname === "/verwaltung/leistungen-kataloge-vorlagen") {
-        return ["MeDoc", "Verwaltung", "Leistungen, Kataloge & Vorlagen"];
-    }
-    if (pathname === "/verwaltung/finanzen-werkzeuge") return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Rechnung (PDF)"];
-    if (pathname === "/verwaltung/tagesabschluss") return ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"];
-    if (pathname.startsWith("/verwaltung/vorlagen/editor")) return ["MeDoc", "Verwaltung", "Vorlagen", "Editor"];
-    if (pathname === "/personal/neu") return ["MeDoc", "Verwaltung", "Neues Personal"];
-    if (pathname === "/personal/arbeitsplan") return ["MeDoc", "Verwaltung", "Personal", "Arbeitsplan & Einsätze"];
-    if (pathname.startsWith("/patienten/") && pathname !== "/patienten/neu") {
-        if (/\/rezept\/neu$/.test(pathname)) {
-            return ["MeDoc", "Patienten", "Akte", "Neues Rezept"];
-        }
-        if (/\/rezept\//.test(pathname) && !/\/rezept\/neu$/.test(pathname)) {
-            return ["MeDoc", "Patienten", "Akte", "Rezept bearbeiten"];
-        }
-        return ["MeDoc", "Patienten", "Akte"];
-    }
-    return CRUMBS[pathname] ?? ["MeDoc", "Dashboard"];
-}
-
-const CRUMBS: Record<string, string[]> = {
-    "/": ["MeDoc", "Benachrichtigungen"],
-    "/termine": ["MeDoc", "Terminübersicht"],
-    "/termine/neu": ["MeDoc", "Terminübersicht", "Neuer Termin"],
-    "/patienten": ["MeDoc", "Patienten"],
-    "/akten/zu-validieren": ["MeDoc", "Patienten", "Akten zu validieren"],
-    "/posteingang": ["MeDoc", "Posteingang"],
-    "/tickets": ["MeDoc", "Praxis-Aufgaben"],
-    "/finanzen": ["MeDoc", "Finanzen"],
-    "/finanzen/neu": ["MeDoc", "Finanzen", "Neue Zahlung"],
-    "/bestellungen": ["MeDoc", "Bestellungen"],
-    "/bilanz": ["MeDoc", "Bilanz"],
-    "/bilanz/neu": ["MeDoc", "Bilanz", "Neuer Bilanz"],
-    "/verwaltung": ["MeDoc", "Verwaltung"],
-    "/verwaltung/arbeitstage": ["MeDoc", "Verwaltung", "Arbeitstage"],
-    "/verwaltung/praxisplanung": ["MeDoc", "Verwaltung", "Praxisplanung"],
-    "/verwaltung/arbeitszeiten": ["MeDoc", "Verwaltung", "Arbeitszeiten"],
-    "/verwaltung/sonder-sperrzeiten": ["MeDoc", "Verwaltung", "Sonder-Sperrzeiten"],
-    "/verwaltung/praxis-praeferenzen": ["MeDoc", "Verwaltung", "Praxis-Präferenzen"],
-    "/verwaltung/vorlagen": ["MeDoc", "Verwaltung", "Vorlagen"],
-    "/verwaltung/behandlungs-katalog": ["MeDoc", "Verwaltung", "Behandlungskatalog"],
-    "/verwaltung/bestellstamm": ["MeDoc", "Verwaltung", "Bestell-Stammdaten"],
-    "/verwaltung/finanzen-berichte": ["MeDoc", "Verwaltung", "Finanzen & Berichte"],
-    "/verwaltung/lager-und-bestellwesen": ["MeDoc", "Verwaltung", "Lager, Produkte & Bestellwesen"],
-    "/verwaltung/vertraege": ["MeDoc", "Verwaltung", "Lager, Produkte & Bestellwesen", "Verträge"],
-    "/verwaltung/leistungen-kataloge-vorlagen": ["MeDoc", "Verwaltung", "Leistungen, Kataloge & Vorlagen"],
-    "/verwaltung/finanzen-werkzeuge": ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Rechnung (PDF)"],
-    "/verwaltung/finanzen-berichte/tagesabschluss": ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"],
-    "/verwaltung/finanzen-berichte/rechnung": ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Rechnung (PDF)"],
-    "/verwaltung/tagesabschluss": ["MeDoc", "Verwaltung", "Finanzen & Berichte", "Tagesabschluss"],
-    "/rezepte": ["MeDoc", "Rezepte & Atteste"],
-    "/atteste": ["MeDoc", "Atteste"],
-    "/leistungen": ["MeDoc", "Leistungen"],
-    "/produkte": ["MeDoc", "Produkte"],
-    "/personal": ["MeDoc", "Verwaltung", "Team", "Personal"],
-    "/verwaltung/team": ["MeDoc", "Verwaltung", "Team"],
-    "/personal/arbeitsplan": ["MeDoc", "Verwaltung", "Team", "Arbeitsplan & Einsätze"],
-    "/statistik": ["MeDoc", "Statistiken"],
-    "/audit": ["MeDoc", "Audit-Log"],
-    "/datenschutz": ["MeDoc", "Datenschutz"],
-    "/einstellungen": ["MeDoc", "Einstellungen"],
-    "/logs": ["MeDoc", "Logs"],
-    "/ops": ["MeDoc", "Betrieb"],
-    "/compliance": ["MeDoc", "Compliance"],
-    "/hilfe": ["MeDoc", "Hilfe"],
-    "/feedback": ["MeDoc", "Feedback"],
-    "/migration": ["MeDoc", "Datenmigration"],
-};
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -209,6 +111,7 @@ export function AppLayout() {
     const location = useLocation();
     const lastTouch = useRef<number>(0);
     const t = useT();
+    const tp = useTParams();
     const locale = useLocale((s) => s.locale);
     const toast = useToastStore((s) => s.add);
     const [breakOpen, setBreakOpen] = useState(false);
@@ -248,15 +151,31 @@ export function AppLayout() {
     const topbarMenuRef = useRef<HTMLDivElement>(null);
     const notifWrapRef = useRef<HTMLDivElement>(null);
     const desktopChrome = useDesktopChromeMode();
+    useEffect(() => {
+        if (!session?.user_id) return;
+        void workTimeGetPreference()
+            .then(async (p) => {
+                if (p.focusMode) {
+                    await workTimeSetPreference({ focusMode: false });
+                    dispatchWorkTimeFocusMode(false);
+                }
+            })
+            .catch(() => {});
+        return subscribeWorkTimeFocusMode(() => {});
+    }, [session?.user_id]);
     const paletteCommands = useMemo(
         () => filterCommandsForRole(session?.rolle, session?.permission_overrides),
         [session?.rolle, session?.permission_overrides],
     );
-    const breadcrumbs = useMemo(() => breadcrumbsForPath(location.pathname), [location.pathname]);
+    const breadcrumbKeys = useMemo(() => breadcrumbKeysForPath(location.pathname), [location.pathname]);
+    const breadcrumbs = useMemo(() => breadcrumbKeys.map((k) => t(k)), [breadcrumbKeys, t]);
     const isDashboardRoute = location.pathname === "/";
     const isTermineCalendarRoute = location.pathname === "/termine";
     const visibleNavItems = useMemo(
-        () => NAV_ITEM_DEFINITIONS.filter((item) => navItemVisible(session?.rolle, item, session?.permission_overrides)),
+        () =>
+            NAV_ITEM_DEFINITIONS.filter((item) =>
+                navItemVisible(session?.rolle, item, session?.permission_overrides),
+            ),
         [session?.rolle, session?.permission_overrides],
     );
     const visibleByTo = useMemo(
@@ -354,7 +273,9 @@ export function AppLayout() {
     // every minute so the UI auto-redirects on expiry.
     useEffect(() => {
         document.documentElement.lang = locale;
-        document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+        const rtl = locale === "ar";
+        document.documentElement.dir = rtl ? "rtl" : "ltr";
+        document.documentElement.dataset.arabicFont = rtl ? "1" : "";
     }, [locale]);
 
     useEffect(() => {
@@ -551,7 +472,7 @@ export function AppLayout() {
                 await migrateInvoicePraxisLocalStorageToAppKv();
                 await hydrateInvoicePraxisFromAppKv();
             } catch (e) {
-                toast(`Praxis-Stammdaten konnten nicht synchronisiert werden: ${errorMessage(e)}`, "warning");
+                toast(tp("app.layout.praxis_sync_error", { message: errorMessage(e) }), "warning");
             }
         })();
     }, [sessionUserId, toast]);
@@ -587,7 +508,7 @@ export function AppLayout() {
             .then(setBgPatients)
             .catch((e) => {
                 setBgPatients([]);
-                toast(`Patientenliste (Break-Glass) konnte nicht geladen werden: ${errorMessage(e)}`, "error");
+                toast(tp("app.layout.break_glass.toast_patients_error", { message: errorMessage(e) }), "error");
             });
     }, [breakOpen, toast]);
 
@@ -635,8 +556,8 @@ export function AppLayout() {
             const el = userMenuRef.current;
             if (!el) return;
             const r = el.getBoundingClientRect();
-            const labels = ["Einstellungen"];
-            if (BREAK_GLASS_ENABLED && session?.rolle === "ARZT") labels.push("Notfallzugriff");
+            const labels = [t("nav.einstellungen")];
+            if (BREAK_GLASS_ENABLED && session?.rolle === "ARZT") labels.push(t("app.layout.break_glass.emergency_access"));
             labels.push(t("auth.logout"));
             const widthPx = measureSidebarAccountMenuWidthPx(labels);
             let left = r.left;
@@ -672,7 +593,7 @@ export function AppLayout() {
                     navigate("/einstellungen");
                 }}
             >
-                Einstellungen
+                {t("nav.einstellungen")}
             </button>
             {BREAK_GLASS_ENABLED && session?.rolle === "ARZT" ? (
                 <button
@@ -684,7 +605,7 @@ export function AppLayout() {
                         setBreakOpen(true);
                     }}
                 >
-                    Notfallzugriff
+                    {t("app.layout.break_glass.emergency_access")}
                 </button>
             ) : null}
             <button
@@ -714,19 +635,19 @@ export function AppLayout() {
 
     const submitBreakGlass = async () => {
         if (bgReason.trim().length < 10) {
-            toast("Begründung: mindestens 10 Zeichen.");
+            toast(t("app.layout.break_glass.toast_reason_min"));
             return;
         }
         setBgBusy(true);
         try {
             await breakGlassActivate(bgReason.trim(), bgPatientId || undefined);
-            toast("Notfallzugriff protokolliert. Zeitfenster aktiv.");
+            toast(t("app.layout.break_glass.toast_activated"));
             window.dispatchEvent(new Event("medoc-break-glass-refresh"));
             setBreakOpen(false);
             setBgReason("");
             setBgPatientId("");
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`);
+            toast(`${t("common.error_prefix")} ${e instanceof Error ? e.message : String(e)}`);
         } finally {
             setBgBusy(false);
         }
@@ -801,7 +722,9 @@ export function AppLayout() {
                                             window.print();
                                         } catch {
                                             useToastStore.getState().add(
-                                                `Drucken fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`,
+                                                tp("app.layout.print_failed", {
+                                                    message: e instanceof Error ? e.message : String(e),
+                                                }),
                                                 "error",
                                             );
                                         }
@@ -841,13 +764,13 @@ export function AppLayout() {
                 className="app-sidebar-brand-hit app-sidebar-brand-hit--rail"
                 title={
                     sidebarRailPref === "icons"
-                        ? `Navigationsleiste erweitern · ⌥/⌘-Klick: ${t("nav.search_short")}`
-                        : `Navigationsleiste auf Symbole reduzieren · ⌥/⌘-Klick: ${t("nav.search_short")}`
+                        ? tp("app.layout.sidebar_rail.expand_title", { search: t("nav.search_short") })
+                        : tp("app.layout.sidebar_rail.collapse_title", { search: t("nav.search_short") })
                 }
                 aria-label={
                     sidebarRailPref === "icons"
-                        ? "Navigationsleiste mit Beschriftungen erweitern"
-                        : "Navigationsleiste auf Symbole reduzieren"
+                        ? t("app.layout.sidebar_rail.expand_aria")
+                        : t("app.layout.sidebar_rail.collapse_aria")
                 }
                 onClick={(e) => {
                     setMobileNavOpen(false);
@@ -871,7 +794,7 @@ export function AppLayout() {
 
     const topbarToolbar = (
         <>
-            <button type="button" className="icon-btn mobile-nav-trigger" aria-label="Menü öffnen" onClick={() => setMobileNavOpen(true)}>
+            <button type="button" className="icon-btn mobile-nav-trigger" aria-label={t("app.layout.mobile_nav_open_aria")} onClick={() => setMobileNavOpen(true)}>
                 <MenuIcon size={18} />
             </button>
             <div className="crumb">
@@ -911,7 +834,7 @@ export function AppLayout() {
                 <SyncStatusBadge />
                 <span className={`tb-chip ${isOnline ? "live" : ""}`}>
                     <WifiIcon size={12} />
-                    {isOnline ? "Online" : "Offline"}
+                    {isOnline ? t("app.layout.online") : t("app.layout.offline")}
                 </span>
                 <button
                     type="button"
@@ -979,7 +902,7 @@ export function AppLayout() {
                         <UserAccountMenuDropdown
                             placement="below"
                             initials={initials}
-                            name={session?.name ?? "Benutzer"}
+                            name={session?.name ?? t("app.layout.user_fallback")}
                             emailFallback={session?.email ?? "praxis@medoc.de"}
                             logoutLabel={t("auth.logout")}
                             onRoleSwitch={() => {
@@ -1057,8 +980,8 @@ export function AppLayout() {
                             .filter((item): item is NonNullable<typeof item> => Boolean(item));
                         if (sectionItems.length === 0) return null;
                         return (
-                            <Fragment key={section.label}>
-                                <div className="sb-group-label">{section.label}</div>
+                            <Fragment key={section.labelKey}>
+                                <div className="sb-group-label">{t(section.labelKey)}</div>
                                 {sectionItems.map((item) => {
                                     const label = t(item.labelKey);
                                     return (
@@ -1078,14 +1001,14 @@ export function AppLayout() {
                                                 {label}
                                             </span>
                                             {item.to === "/akten/zu-validieren" && aktenZuValidierenCount > 0 ? (
-                                                <span className="count" aria-label={`${aktenZuValidierenCount} ausstehend`}>
+                                                <span className="count" aria-label={tp("app.layout.nav_badge_akten_pending", { count: aktenZuValidierenCount })}>
                                                     {aktenZuValidierenCount > 99 ? "99+" : aktenZuValidierenCount}
                                                 </span>
                                             ) : null}
                                             {item.to === "/tickets" && openPraxisAufgabenCount > 0 ? (
                                                 <span
                                                     className="count"
-                                                    aria-label={`${openPraxisAufgabenCount} offen`}
+                                                    aria-label={tp("app.layout.nav_badge_tickets_open", { count: openPraxisAufgabenCount })}
                                                 >
                                                     {openPraxisAufgabenCount > 99
                                                         ? "99+"
@@ -1104,7 +1027,7 @@ export function AppLayout() {
                         <div
                             className="app-sidebar-user-card app-sidebar-user-card--collapsed-only"
                             role="group"
-                            aria-label={`Angemeldet als ${session?.name ?? "Benutzer"}`}
+                            aria-label={tp("app.layout.account_signed_in_as", { name: session?.name ?? t("app.layout.user_fallback") })}
                             title={session?.name ?? undefined}
                         >
                             <div className="av av--accent" style={{ width: 40, height: 40, fontSize: 16 }}>
@@ -1112,7 +1035,7 @@ export function AppLayout() {
                             </div>
                             <div className="app-sidebar-user-lines app-sidebar-user-lines--narrow-strip" style={{ flex: 1, minWidth: 0 }}>
                                 <div className="app-sidebar-user-card__name">
-                                    {session?.name ?? "Benutzer"}
+                                    {session?.name ?? t("app.layout.user_fallback")}
                                 </div>
                             </div>
                         </div>
@@ -1122,7 +1045,7 @@ export function AppLayout() {
                             className="app-sidebar-user-card"
                             aria-haspopup="menu"
                             aria-expanded={userMenuOpen && userMenuAnchor === "sidebar"}
-                            aria-label="Konto: Einstellungen und Abmelden"
+                            aria-label={t("app.layout.account_menu_aria")}
                             onClick={() => {
                                 const switchingFromOther = userMenuAnchorRef.current !== "sidebar";
                                 setUserMenuAnchor("sidebar");
@@ -1137,7 +1060,7 @@ export function AppLayout() {
                                 {initials}
                             </div>
                             <div className="app-sidebar-user-lines" style={{ flex: 1, minWidth: 0 }}>
-                                <div className="app-sidebar-user-card__name">{session?.name ?? "Benutzer"}</div>
+                                <div className="app-sidebar-user-card__name">{session?.name ?? t("app.layout.user_fallback")}</div>
                                 <div className="app-sidebar-user-card__meta">{profileRoleLine}</div>
                             </div>
                             <span
@@ -1161,7 +1084,7 @@ export function AppLayout() {
                           ref={sidebarAccountPopoverRef}
                           className="app-sidebar-account-popover app-sidebar-account-popover--portal"
                           role="menu"
-                          aria-label="Konto"
+                          aria-label={t("app.layout.account_popover_aria")}
                           style={{
                               position: "fixed",
                               left: sidebarAccountPopoverFixed.left,
@@ -1189,7 +1112,7 @@ export function AppLayout() {
                     className={`app-main${isDashboardRoute || isTermineCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
                     aria-label={t("app.title")}
                 >
-                    <Suspense fallback={<PageLoading label="Seite wird geladen…" />}>
+                    <Suspense fallback={<PageLoading label={t("common.loading")} />}>
                         <RouteOutletGuard>
                             <Outlet />
                         </RouteOutletGuard>
@@ -1206,38 +1129,21 @@ export function AppLayout() {
             <Dialog
                 open={nativeHelpTopic === "calendar"}
                 onClose={() => setNativeHelpTopic(null)}
-                title="Kalender: Bedienung"
-                footer={<Button onClick={() => setNativeHelpTopic(null)}>Schließen</Button>}
+                title={t("app.layout.help.calendar.title")}
+                footer={<Button onClick={() => setNativeHelpTopic(null)}>{t("common.close")}</Button>}
             >
                 <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.55 }}>
-                    Doppelklick: Slot · Rechtsklick: Aktionen · Ziehen: Zeit (Leiste) / Tag (Spalte); Tagesansicht:
-                    Rand wechselt den Tag · Wochenansicht: links/rechts außerhalb des Rasters wechselt die Woche (max.
-                    alle 0,5&nbsp;s) · Überschneidungen gleichen Behandlers: nachrücken.
+                    {t("app.layout.help.calendar.body")}
                 </p>
             </Dialog>
             <Dialog
                 open={nativeHelpTopic === "shortcuts"}
                 onClose={() => setNativeHelpTopic(null)}
-                title="Hilfe & Kurzbefehle"
-                footer={<Button onClick={() => setNativeHelpTopic(null)}>Schließen</Button>}
+                title={t("app.layout.help.shortcuts.title")}
+                footer={<Button onClick={() => setNativeHelpTopic(null)}>{t("common.close")}</Button>}
             >
                 <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.55 }}>
-                    Viele Aktionen erreichen Sie über die <strong>Menüleiste des Fensters</strong> (Datei mit Einträgen je nach
-                    Rolle, Bearbeiten,
-                    Gehe zu, Ansicht, Fenster, Hilfe) sowie die <strong>Befehlspalette</strong> (⌘K / Strg+K oder ⌘⇧P /
-                    Strg+⇧P). Global (ohne Fokus in Eingabefeldern): ⌘N / Strg+N öffnet „Neuer Termin“, wo die Rolle es
-                    erlaubt (nicht auf der Terminübersicht — dort siehe unten); ⌘R neu laden; ⌘+/⌘−/⌘0 Zoom. In der
-                    Terminübersicht
-                    gelten zusätzlich Tastenkürzel (auch mit ⌘ oder Strg gedrückt):{" "}
-                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>D</kbd> Tag,{" "}
-                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>W</kbd>{" "}
-                    Woche,{" "}
-                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>M</kbd>{" "}
-                    Monat,{" "}
-                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>N</kbd>{" "}
-                    Neuer Termin,{" "}
-                    <kbd style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)" }}>T</kbd>{" "}
-                    Heute, Pfeiltasten für den Zeitraum.
+                    {t("app.layout.help.shortcuts.body")}
                 </p>
             </Dialog>
 
@@ -1251,27 +1157,27 @@ export function AppLayout() {
             <Dialog
                 open={breakOpen}
                 onClose={() => setBreakOpen(false)}
-                title="Notfallzugriff (Break-Glass)"
+                title={t("app.layout.break_glass.title")}
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setBreakOpen(false)}>Abbrechen</Button>
-                        <Button onClick={() => void submitBreakGlass()} disabled={bgBusy} loading={bgBusy}>Bestätigen</Button>
+                        <Button variant="ghost" onClick={() => setBreakOpen(false)}>{t("common.cancel")}</Button>
+                        <Button onClick={() => void submitBreakGlass()} disabled={bgBusy} loading={bgBusy}>{t("common.confirm")}</Button>
                     </>
                 }
             >
                 <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 12 }}>
-                    Aktivierung wird im Audit- und Security-Log protokolliert. Optional einen Patienten zuordnen.
+                    {t("app.layout.break_glass.body")}
                 </p>
                 <Select
                     id="bg-patient"
-                    label="Patient (optional)"
+                    label={t("app.layout.break_glass.patient_label")}
                     value={bgPatientId}
                     onChange={(e) => setBgPatientId(e.target.value)}
-                    options={[{ value: "", label: "— kein Bezug auf einen Patienten —" }, ...bgPatients.map((p) => ({ value: p.id, label: p.name }))]}
+                    options={[{ value: "", label: t("app.layout.break_glass.patient_none") }, ...bgPatients.map((p) => ({ value: p.id, label: p.name }))]}
                 />
                 <Textarea
                     id="bg-reason"
-                    label="Begründung (mind. 10 Zeichen)"
+                    label={t("app.layout.break_glass.reason_label")}
                     value={bgReason}
                     onChange={(e) => setBgReason(e.target.value)}
                     style={{ minHeight: 88 }}
@@ -1285,9 +1191,9 @@ export function AppLayout() {
                     setLogoutConfirmOpen(false);
                     await handleLogout();
                 }}
-                title="Abmelden?"
-                message="Nicht gespeicherte Änderungen gehen verloren. Sie können sich jederzeit wieder anmelden."
-                confirmLabel="Abmelden"
+                title={t("app.layout.logout.title")}
+                message={t("app.layout.logout.message")}
+                confirmLabel={t("app.layout.logout.confirm")}
                 danger
             />
 

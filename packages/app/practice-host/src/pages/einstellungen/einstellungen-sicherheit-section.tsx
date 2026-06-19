@@ -6,8 +6,10 @@ import {
     type ClientSettingsV1,
 } from "@/lib/client-settings";
 import { DATENSCHUTZ_UI_ENABLED } from "@/lib/datenschutz-config";
+import { TOTP_2FA_ENABLED } from "@/lib/mvp-security-config";
 import { errorMessage } from "@/lib/utils";
 import { useRbac } from "@/lib/use-rbac";
+import { useT, useTParams } from "@/lib/i18n";
 import {
     deactivateTotp,
     getTotpStatus,
@@ -26,40 +28,37 @@ export type EinstellungenSicherheitSectionProps = {
     onPersistClient: (updater: (c: ClientSettingsV1) => ClientSettingsV1) => void;
 };
 
-/*
- * Deferred security/compliance items: docs/coordination/geplant.md (not shown in UI).
- * Legacy stub UI (Portal-Flags, Kartenleser-Pille, Konform-Badge) at file end.
- */
-
-function totpStatusLine(status: TotpStatus | null, busy: boolean): { label: string; pill: string; pillClass: string } {
-    if (busy) return { label: "Status wird geladen …", pill: "…", pillClass: "settings-pill-gray" };
-    if (!status) return { label: "Authenticator — Status nicht verfügbar", pill: "—", pillClass: "settings-pill-gray" };
+function totpStatusLine(
+    status: TotpStatus | null,
+    busy: boolean,
+    t: (key: string) => string,
+): { label: string; pill: string; pillClass: string } {
+    if (busy) return { label: t("settings.security.totp.loading"), pill: "…", pillClass: "settings-pill-gray" };
+    if (!status) return { label: t("settings.security.totp.unavailable"), pill: "—", pillClass: "settings-pill-gray" };
     if (status.enrolled) {
         return {
-            label: status.required
-                ? "Authenticator-App ist eingerichtet (Pflicht für Ihre Rolle)"
-                : "Authenticator-App ist eingerichtet",
-            pill: "Aktiv",
+            label: status.required ? t("settings.security.totp.enrolled_required") : t("settings.security.totp.enrolled"),
+            pill: t("settings.security.pill_active"),
             pillClass: "settings-pill-green",
         };
     }
     if (status.pending) {
         return {
-            label: "Einrichtung begonnen — beim nächsten Anmelden abschließen",
-            pill: "Ausstehend",
+            label: t("settings.security.totp.pending"),
+            pill: t("settings.security.pill_pending"),
             pillClass: "settings-pill-orange",
         };
     }
     if (status.required) {
         return {
-            label: "Pflicht für Ihre Rolle — beim nächsten Anmelden einrichten",
-            pill: "Erforderlich",
+            label: t("settings.security.totp.required"),
+            pill: t("settings.security.pill_required"),
             pillClass: "settings-pill-orange",
         };
     }
     return {
-        label: "Optional — Einrichtung erfolgt bei der Anmeldung",
-        pill: "Aus",
+        label: t("settings.security.totp.optional"),
+        pill: t("settings.security.pill_off"),
         pillClass: "settings-pill-gray",
     };
 }
@@ -70,6 +69,8 @@ export function EinstellungenSicherheitSection({
 }: EinstellungenSicherheitSectionProps) {
     const { canReadAudit, canRoute, canOpsSystem } = useRbac();
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const [totpStatus, setTotpStatus] = useState<TotpStatus | null>(null);
     const [totpBusy, setTotpBusy] = useState(true);
     const [deactivateOpen, setDeactivateOpen] = useState(false);
@@ -89,10 +90,11 @@ export function EinstellungenSicherheitSection({
     }, []);
 
     useEffect(() => {
-        void refreshTotpStatus();
+        if (TOTP_2FA_ENABLED) void refreshTotpStatus();
+        else setTotpBusy(false);
     }, [refreshTotpStatus]);
 
-    const totp = totpStatusLine(totpStatus, totpBusy);
+    const totp = totpStatusLine(totpStatus, totpBusy, t);
     const showDeactivate = totpStatus?.enrolled === true;
     const showCancelPending = totpStatus?.pending === true;
 
@@ -102,7 +104,7 @@ export function EinstellungenSicherheitSection({
             await deactivateTotp(deactivateCode.trim());
             setDeactivateOpen(false);
             setDeactivateCode("");
-            toast("Zwei-Faktor-Authentifizierung deaktiviert");
+            toast(t("settings.security.totp.deactivated"));
             await refreshTotpStatus();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -115,7 +117,7 @@ export function EinstellungenSicherheitSection({
         setCancelPendingBusy(true);
         try {
             await deactivateTotp();
-            toast("Zwei-Faktor-Einrichtung abgebrochen");
+            toast(t("settings.security.totp.cancelled"));
             await refreshTotpStatus();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -129,33 +131,35 @@ export function EinstellungenSicherheitSection({
     const showDatenschutzLink = DATENSCHUTZ_UI_ENABLED && canRoute("datenschutz");
     const showComplianceLinks = canReadAudit || showDatenschutzLink;
 
+    const idleHint = idleOn
+        ? idleMins === 1
+            ? tp("settings.security.idle_on_one", { minutes: idleMins })
+            : tp("settings.security.idle_on_many", { minutes: idleMins })
+        : t("settings.security.idle_off");
+
     return (
         <div className="settings-security-stack">
             <section className="settings-subcard settings-security-card">
                 <div className="card-head">
                     <div>
-                        <div className="card-title">Sicherheit</div>
+                        <div className="card-title">{t("settings.security.title")}</div>
                         <div className="card-sub">
-                            Sitzungsschutz, Zwei-Faktor-Status und Compliance-Verknüpfungen
+                            {TOTP_2FA_ENABLED ? t("settings.security.subtitle") : t("settings.security.subtitle_no_totp")}
                         </div>
                     </div>
                 </div>
 
                 <div className="settings-security-group">
-                    <div className="settings-security-group__title">Sitzung &amp; Zugriff</div>
+                    <div className="settings-security-group__title">{t("settings.security.session_group")}</div>
 
                     {canOpsSystem ? (
                         <div className="settings-row settings-security-row">
                             <div className="settings-security-row__body">
-                                <b>Auto-Sperre nach Inaktivität</b>
-                                <div className="card-sub">
-                                    {idleOn
-                                        ? `Nach ${idleMins} Minute${idleMins === 1 ? "" : "n"} ohne Aktivität wird abgemeldet`
-                                        : "Aus — Arbeitsplatz bleibt nach Inaktivität angemeldet"}
-                                </div>
+                                <b>{t("settings.security.idle_lock")}</b>
+                                <div className="card-sub">{idleHint}</div>
                             </div>
                             <SettingsSwitch
-                                ariaLabel="Auto-Sperre"
+                                ariaLabel={t("settings.security.idle_lock.aria")}
                                 checked={idleOn}
                                 onChange={() =>
                                     onPersistClient((c) => {
@@ -170,9 +174,10 @@ export function EinstellungenSicherheitSection({
                         </div>
                     ) : null}
 
+                    {TOTP_2FA_ENABLED ? (
                     <div className="settings-row settings-security-row">
                         <div className="settings-security-row__body">
-                            <b>Zwei-Faktor-Authentifizierung (2FA)</b>
+                            <b>{t("settings.security.totp_title")}</b>
                             <div className="card-sub">{totp.label}</div>
                         </div>
                         <div className="row" style={{ gap: 8, alignItems: "center", flexShrink: 0 }}>
@@ -184,7 +189,7 @@ export function EinstellungenSicherheitSection({
                                     onClick={() => setDeactivateOpen(true)}
                                     disabled={totpBusy}
                                 >
-                                    Deaktivieren
+                                    {t("common.deactivate")}
                                 </button>
                             ) : null}
                             {showCancelPending ? (
@@ -194,25 +199,26 @@ export function EinstellungenSicherheitSection({
                                     onClick={() => void cancelPendingEnrollment()}
                                     disabled={totpBusy || cancelPendingBusy}
                                 >
-                                    {cancelPendingBusy ? "…" : "Abbrechen"}
+                                    {cancelPendingBusy ? "…" : t("common.cancel")}
                                 </button>
                             ) : null}
                         </div>
                     </div>
+                    ) : null}
                 </div>
 
                 {showComplianceLinks ? (
                     <div className="settings-security-group">
-                        <div className="settings-security-group__title">Nachweis &amp; Compliance</div>
+                        <div className="settings-security-group__title">{t("settings.security.compliance_group")}</div>
 
                         {canReadAudit ? (
                             <div className="settings-row settings-security-row">
                                 <div className="settings-security-row__body">
-                                    <b>Audit-Protokoll</b>
-                                    <div className="card-sub">Ereignisse der letzten 90 Tage einsehen</div>
+                                    <b>{t("settings.security.audit_title")}</b>
+                                    <div className="card-sub">{t("settings.security.audit.hint")}</div>
                                 </div>
                                 <Link to="/audit" className="btn btn-subtle settings-security-link-btn">
-                                    Anzeigen
+                                    {t("common.show")}
                                 </Link>
                             </div>
                         ) : null}
@@ -220,11 +226,11 @@ export function EinstellungenSicherheitSection({
                         {showDatenschutzLink ? (
                             <div className="settings-row settings-security-row">
                                 <div className="settings-security-row__body">
-                                    <b>Datenexport (DSGVO)</b>
-                                    <div className="card-sub">Patientendaten auf Anfrage exportieren</div>
+                                    <b>{t("settings.security.dsgvo_title")}</b>
+                                    <div className="card-sub">{t("settings.security.gdpr.hint")}</div>
                                 </div>
                                 <Link to="/datenschutz" className="btn btn-subtle settings-security-link-btn">
-                                    Anfordern
+                                    {t("common.request")}
                                 </Link>
                             </div>
                         ) : null}
@@ -235,18 +241,18 @@ export function EinstellungenSicherheitSection({
             <EinstellungenDeviceSessionsSection />
 
             <Dialog
-                open={deactivateOpen}
+                open={TOTP_2FA_ENABLED && deactivateOpen}
                 onClose={() => {
                     if (deactivateBusy) return;
                     setDeactivateOpen(false);
                     setDeactivateCode("");
                 }}
-                title="Zwei-Faktor deaktivieren"
+                title={t("settings.security.totp.deactivate_title")}
                 presentation="centered"
                 footer={
                     <IosConfirmActions
-                        cancelLabel="Abbrechen"
-                        confirmLabel="Deaktivieren"
+                        cancelLabel={t("common.cancel")}
+                        confirmLabel={t("common.deactivate")}
                         destructive
                         loading={deactivateBusy}
                         disabled={deactivateCode.trim().length !== 6}
@@ -259,14 +265,12 @@ export function EinstellungenSicherheitSection({
                 }
             >
                 <p className="text-body text-on-surface-variant" style={{ margin: "0 0 12px" }}>
-                    Geben Sie den aktuellen 6-stelligen Code aus Ihrer Authenticator-App ein.
-                    {totpStatus?.required
-                        ? " Bei Ihrer Rolle müssen Sie beim nächsten Anmelden erneut einen Authenticator einrichten."
-                        : null}
+                    {t("settings.security.totp.deactivate_body")}
+                    {totpStatus?.required ? t("settings.security.totp.deactivate_required_hint") : null}
                 </p>
                 <Input
                     id="settings-totp-deactivate-code"
-                    label="Authenticator-Code"
+                    label={t("settings.security.totp.code_label")}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={6}
@@ -279,28 +283,3 @@ export function EinstellungenSicherheitSection({
         </div>
     );
 }
-
-/*
- * --- Deferred / non-functional UI (preserved for later wiring) ---
- *
- * import { companyPortalFetchFeatureFlags, companyPortalFetchIntegrations } from settings-page.controller;
- * import { portalIntegrationPill } from settings-format;
- *
- * // Org-wide 2FA toggle — only wrote client JSON, never enforced login:
- * <SettingsSwitch
- *   checked={security.twoFactorEnabled !== false}
- *   onChange={() => onPersistClient(... twoFactorEnabled ...)}
- * />
- *
- * // HBA card reader — portal stub with example terminal ID:
- * <div className="settings-row">
- *   <b>HBA / eGK Kartenleser</b>
- *   <span className={cardReaderPill.className}>{cardReaderPill.label}</span>
- * </div>
- *
- * // Misleading compliance badge:
- * <span className="settings-pill-green">Konform</span>
- *
- * // Audit subtitle with healthLast.audit_chain_ok — parent never loaded health:
- * healthLast ? `... ${healthLast.audit_chain_ok ? "Kette intakt" : "..."}` : "..."
- */

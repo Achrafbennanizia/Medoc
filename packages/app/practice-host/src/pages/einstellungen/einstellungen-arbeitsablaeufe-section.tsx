@@ -30,23 +30,24 @@ import { Button } from "@/views/components/ui/button";
 import { Input, Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useRbac } from "@/lib/use-rbac";
+import { useT, useTParams } from "@/lib/i18n";
 
 type WorkflowPrefs = NonNullable<ClientSettingsV1["workflows"]>;
 type SearchPrefs = NonNullable<ClientSettingsV1["search"]>;
 
-const AREA_OVERRIDE_OPTIONS: readonly { value: AreaOverride; label: string }[] = [
-    { value: "inherit", label: "Standard" },
-    { value: "modal", label: "Modal" },
-    { value: "inline", label: "Inline" },
+const AREA_OVERRIDE_OPTIONS = (t: (key: string) => string): readonly { value: AreaOverride; label: string }[] => [
+    { value: "inherit", label: t("settings.workflows.override_inherit") },
+    { value: "modal", label: t("settings.workflows.override_modal") },
+    { value: "inline", label: t("settings.workflows.override_inline") },
 ];
 
-function modeDisplayLabel(prefs: ConfirmationPrefs, key: ConfirmationAreaKey): string {
+function modeDisplayLabel(prefs: ConfirmationPrefs, key: ConfirmationAreaKey, t: (key: string) => string): string {
     const o = prefs.areas[key];
     const resolved = resolveConfirmationPresentation(prefs, key);
     if (o == null || o === "inherit") {
-        return resolved === "modal" ? "Standard → Modal" : "Standard → Inline";
+        return resolved === "modal" ? t("settings.workflows.confirm_standard_modal") : t("settings.workflows.confirm_standard_inline");
     }
-    return o === "modal" ? "Modal" : "Inline";
+    return o === "modal" ? t("settings.workflows.confirm_modal") : t("settings.workflows.confirm_inline");
 }
 
 export type EinstellungenArbeitsablaeufeSectionProps = {
@@ -73,6 +74,8 @@ export function EinstellungenArbeitsablaeufeSection({
     rolle: rolleRaw,
 }: EinstellungenArbeitsablaeufeSectionProps) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const { canOpsSystem } = useRbac();
     const rolle = parseRole(rolleRaw);
     const [onboardingPct, setOnboardingPct] = useState<number | null>(null);
@@ -87,7 +90,7 @@ export function EinstellungenArbeitsablaeufeSection({
             setOnboardingPct(Math.round(coverageRatio(rolle, p.completedRoutes) * 100));
         } catch (e) {
             setOnboardingPct(null);
-            toast(`Einführungs-Fortschritt konnte nicht geladen werden: ${errorMessage(e)}`, "warning");
+            toast(tp("onboarding.toast.load_failed", { error: errorMessage(e) }), "warning");
         }
     }, [rolle, toast]);
 
@@ -109,7 +112,7 @@ export function EinstellungenArbeitsablaeufeSection({
             await action();
             toast(okMessage, "success");
         } catch (e) {
-            toast(`Einstellung nicht gespeichert: ${errorMessage(e)}`, "error");
+            toast(tp("settings.workflows.persist_failed", { error: errorMessage(e) }), "error");
         }
     };
 
@@ -117,24 +120,22 @@ export function EinstellungenArbeitsablaeufeSection({
         <section className="settings-subcard settings-subcard--segment-safe">
             <div className="card-head">
                 <div>
-                    <div className="card-title">Arbeitsabläufe</div>
+                    <div className="card-title">{t("settings.workflows.title")}</div>
                     <div className="card-sub">
-                        {canOpsSystem
-                            ? "Termine, Suche, Sicherheitsabfragen"
-                            : "Termine, Tagesabschluss-Erinnerung, Patientensuche"}
+                        {canOpsSystem ? t("settings.workflows.subtitle_ops") : t("settings.workflows.subtitle_user")}
                     </div>
                 </div>
             </div>
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {canOpsSystem ? (
                 <>
-                <h3 className="text-title" style={{ margin: 0, fontSize: 15 }}>Terminregeln (Praxis-Präferenzen)</h3>
+                <h3 className="text-title" style={{ margin: 0, fontSize: 15 }}>{t("settings.workflows.terminregeln_title")}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input
                         id="set-puffer"
                         type="number"
                         min={0}
-                        label="Puffer zwischen Terminen (Min)"
+                        label={t("settings.workflows.puffer")}
                         value={praef.pufferMin}
                         onChange={(e) => {
                             onPraefChange((p) => ({ ...p, pufferMin: e.target.value }));
@@ -145,7 +146,7 @@ export function EinstellungenArbeitsablaeufeSection({
                         id="set-notfall"
                         type="number"
                         min={0}
-                        label="Notfall-Restzeit (Min)"
+                        label={t("settings.workflows.notfall_puffer")}
                         value={praef.notfallPuffer}
                         onChange={(e) => {
                             onPraefChange((p) => ({ ...p, notfallPuffer: e.target.value }));
@@ -153,13 +154,13 @@ export function EinstellungenArbeitsablaeufeSection({
                         }}
                     />
                     <Select
-                        label="Reminder vor Termin"
+                        label={t("settings.workflows.reminder_label")}
                         value={praef.reminder}
                         options={[
-                            { value: "0", label: "Kein Reminder" },
-                            { value: "2", label: "2 Stunden vorher" },
-                            { value: "24", label: "24 Stunden vorher" },
-                            { value: "48", label: "48 Stunden vorher" },
+                            { value: "0", label: t("settings.workflows.reminder_0") },
+                            { value: "2", label: t("settings.workflows.reminder_2h") },
+                            { value: "24", label: t("settings.workflows.reminder_24h") },
+                            { value: "48", label: t("settings.workflows.reminder_48h") },
                         ]}
                         onChange={(e) => {
                             onPraefChange((p) => ({ ...p, reminder: e.target.value }));
@@ -167,12 +168,12 @@ export function EinstellungenArbeitsablaeufeSection({
                         }}
                     />
                     <Select
-                        label="No-Show Behandlung"
+                        label={t("settings.workflows.noshow_label")}
                         value={praef.noShow}
                         options={[
-                            { value: "warn", label: "Nur markieren" },
-                            { value: "fee", label: "Ausfallhinweis in Finanzen" },
-                            { value: "block", label: "Patient intern kennzeichnen" },
+                            { value: "warn", label: t("settings.workflows.noshow_warn") },
+                            { value: "fee", label: t("settings.workflows.noshow_fee") },
+                            { value: "block", label: t("settings.workflows.noshow_block") },
                         ]}
                         onChange={(e) => {
                             onPraefChange((p) => ({ ...p, noShow: e.target.value }));
@@ -192,16 +193,16 @@ export function EinstellungenArbeitsablaeufeSection({
                     />
                     <span>
                         <span className="text-title" style={{ display: "block", fontSize: 14 }}>
-                            Kalender: Drag &amp; Drop (Termine)
+                            {t("settings.workflows.calendar_drag")}
                         </span>
                         <span className="card-sub" style={{ display: "block", marginTop: 4 }}>
-                            Tages- und Wochenansicht: Termine per Maus verschieben. Aus = nur öffnen und bearbeiten.
+                            {t("settings.workflows.calendar_drag_hint")}
                         </span>
                     </span>
                 </label>
                 <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                     <Button type="button" onClick={() => void onSavePraef()} disabled={!praefDirty}>
-                        Speichern
+                        {t("common.save")}
                     </Button>
                 </div>
 
@@ -210,7 +211,7 @@ export function EinstellungenArbeitsablaeufeSection({
 
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <Select
-                        label="Standard-Kalenderansicht für „Termine“"
+                        label={t("settings.workflows.default_calendar_view")}
                         value={wf.termineDefaultView ?? "monat"}
                         onChange={(e) =>
                             onPersistClient((c) => {
@@ -221,20 +222,19 @@ export function EinstellungenArbeitsablaeufeSection({
                             })
                         }
                         options={[
-                            { value: "tag", label: "Tagesansicht" },
-                            { value: "woche", label: "Wochenansicht" },
-                            { value: "monat", label: "Monatsansicht" },
+                            { value: "tag", label: t("settings.workflows.view_day") },
+                            { value: "woche", label: t("settings.workflows.view_week") },
+                            { value: "monat", label: t("settings.workflows.view_month") },
                         ]}
                     />
                     <p className="card-sub" style={{ margin: "8px 0 0" }}>
-                        Wird beim ersten Öffnen von /termine verwendet; die Ansicht in der Terminübersicht aktualisiert diesen
-                        Standard.
+                        {t("settings.workflows.termine_default_hint")}
                     </p>
                 </div>
 
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <Select
-                        label="Standard-Termindauer (Min)"
+                        label={t("settings.workflows.default_duration")}
                         value={String(wf.defaultTerminDauerMin ?? 30)}
                         onChange={(e) =>
                             onPersistClient((c) => {
@@ -254,14 +254,14 @@ export function EinstellungenArbeitsablaeufeSection({
                         ]}
                     />
                     <p className="card-sub" style={{ margin: "8px 0 0" }}>
-                        Vorauswahl bei „Neuer Termin“ (lokaler Entwurf kann abweichen).
+                        {t("settings.workflows.default_duration_hint")}
                     </p>
                 </div>
 
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <Input
                         id="ta-reminder"
-                        label="Tagesabschluss: Erinnerung (HH:MM, lokal)"
+                        label={t("settings.workflows.tagesabschluss_time")}
                         value={wf.tagesabschlussReminderTime ?? "18:00"}
                         onChange={(e) =>
                             onPersistClient((c) => {
@@ -274,14 +274,14 @@ export function EinstellungenArbeitsablaeufeSection({
                         placeholder="18:00"
                     />
                     <p className="card-sub" style={{ margin: "8px 0 0" }}>
-                        Hinweis-Toast auf dem Dashboard (einmal pro Tag).
+                        {t("settings.workflows.tagesabschluss_hint")}
                     </p>
                 </div>
 
                 <div className="settings-row" style={{ marginTop: 8 }}>
                     <div>
-                        <b>Patientensuche: Versicherungsnummer</b>
-                        <div className="card-sub">Suchbegriff auch gegen Versicherungsnummer prüfen</div>
+                        <b>{t("settings.workflows.search_insurance_title")}</b>
+                        <div className="card-sub">{t("settings.workflows.search_insurance_hint")}</div>
                     </div>
                     <input
                         type="checkbox"
@@ -295,14 +295,14 @@ export function EinstellungenArbeitsablaeufeSection({
                                 });
                             })
                         }
-                        aria-label="Suche VN"
+                        aria-label={t("settings.workflows.search_insurance_aria")}
                     />
                 </div>
 
                 {canOpsSystem ? (
                 <div className="settings-row" style={{ marginTop: 10 }}>
                     <div>
-                        <b>Autocomplete-Vorschläge</b>
+                        <b>{t("settings.workflows.autocomplete_title")}</b>
                         <div className="card-sub">
                             „Meinten Sie …“ bei leerer Patientensuche und im Schnellzugriff (⌘K); nur lokale Schreibhilfe, keine
                             Backend-Suche. Zustand wird in der Praxisdatenbank gespeichert und bei anderen Arbeitsplätzen nach Login
@@ -319,7 +319,7 @@ export function EinstellungenArbeitsablaeufeSection({
                                 const next = !cur;
                                 void persistAutocompleteSuggestionsToPraxisKv(next).catch((e) => {
                                     toast(
-                                        `Praxisdatenbank: Autocomplete-Einstellung nicht gespeichert (${errorMessage(e)}). Lokal weiter aktiv.`,
+                                        tp("settings.workflows.autocomplete_save_failed", { error: errorMessage(e) }),
                                         "warning",
                                     );
                                 });
@@ -328,7 +328,7 @@ export function EinstellungenArbeitsablaeufeSection({
                                 });
                             })
                         }
-                        aria-label="Autocomplete-Vorschläge"
+                        aria-label={t("settings.workflows.autocomplete_aria")}
                     />
                 </div>
                 ) : null}
@@ -336,7 +336,7 @@ export function EinstellungenArbeitsablaeufeSection({
                 {rolle && ONBOARDING_COACHMARK_ENABLED ? (
                     <div className="settings-row" style={{ marginTop: 10 }}>
                         <div>
-                            <b>Einführung (NFA-USE-09)</b>
+                            <b>{t("settings.workflows.onboarding_title")}</b>
                             <div className="card-sub">
                                 Coachmarks pro Route; Fortschritt in der Praxisdatenbank ({stepsForRole(rolle).length}{" "}
                                 Schritte für {rolle}).
@@ -344,7 +344,7 @@ export function EinstellungenArbeitsablaeufeSection({
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 600 }}>
-                                {onboardingPct == null ? "—" : `${onboardingPct} % abgeschlossen`}
+                                {onboardingPct == null ? t("common.dash") : tp("settings.workflows.onboarding_pct", { pct: onboardingPct })}
                             </span>
                             <Button
                                 type="button"
@@ -353,16 +353,16 @@ export function EinstellungenArbeitsablaeufeSection({
                                 onClick={() =>
                                     void resetOnboardingProgress(rolle)
                                         .then(() => refreshOnboardingPct())
-                                        .then(() => toast("Einführung zurückgesetzt.", "success"))
+                                        .then(() => toast(t("settings.workflows.onboarding_reset_done"), "success"))
                                         .catch((e) =>
                                             toast(
-                                                `Zurücksetzen fehlgeschlagen: ${errorMessage(e)}`,
+                                                tp("settings.workflows.onboarding_reset_failed", { error: errorMessage(e) }),
                                                 "error",
                                             ),
                                         )
                                 }
                             >
-                                Einführung zurücksetzen
+                                {t("settings.workflows.onboarding_reset")}
                             </Button>
                         </div>
                     </div>
@@ -371,7 +371,7 @@ export function EinstellungenArbeitsablaeufeSection({
                 {CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED ? (
                 <div className="settings-row" style={{ marginTop: 10 }}>
                     <div>
-                        <b>Termin: Pause / Notfall-Werkzeuge</b>
+                        <b>{t("settings.workflows.emergency_toolbar_title")}</b>
                         <div className="card-sub">
                             CAL2 — Wenn deaktiviert, bleiben die Toolbar-Schaltflächen ausgeblendet; der Notfall-Filter und ein Hinweis auf
                             der Termin-Seite bleiben verfügbar.
@@ -389,7 +389,7 @@ export function EinstellungenArbeitsablaeufeSection({
                                 });
                             })
                         }
-                        aria-label="Pause und Notfall-Werkzeuge in Terminkalender"
+                        aria-label={t("settings.workflows.emergency_toolbar_aria")}
                     />
                 </div>
                 ) : null}
@@ -397,7 +397,7 @@ export function EinstellungenArbeitsablaeufeSection({
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <div className="card-head" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0, borderBottom: "none" }}>
                         <div>
-                            <div className="card-title">Bestätigung bei kritischen Aktionen (Akte)</div>
+                            <div className="card-title">{t("settings.workflows.confirm_akten_title")}</div>
                             <div className="card-sub">
                                 Steuert, ob Löschen und Bearbeiten in der Patientenakte als Dialog (Modal) oder als Panel in der Akte
                                 (Inline) erscheinen. Gilt praxisweit in der Datenbank.
@@ -405,26 +405,26 @@ export function EinstellungenArbeitsablaeufeSection({
                         </div>
                     </div>
                     {!hydratedUi ? (
-                        <p className="card-sub" style={{ margin: "0 0 12px" }}>Lade Einstellungen …</p>
+                        <p className="card-sub" style={{ margin: "0 0 12px" }}>{t("settings.workflows.confirm_loading")}</p>
                     ) : (
                         <>
                             <div className="settings-row" style={{ marginBottom: 10, borderTop: "none", paddingTop: 0 }}>
                                 <div>
-                                    <b>Globaler Standard</b>
-                                    <div className="card-sub">wenn ein Bereich auf „Standard“ steht</div>
+                                    <b>{t("settings.workflows.confirm_global")}</b>
+                                    <div className="card-sub">{t("settings.workflows.confirm_global_hint")}</div>
                                 </div>
-                                <div className="seg" role="group" aria-label="Globaler Bestätigungsmodus">
+                                <div className="seg" role="group" aria-label={t("settings.workflows.confirm_global_aria")}>
                                     <button
                                         type="button"
                                         aria-pressed={confirmations.defaultMode === "modal"}
                                         onClick={() =>
                                             void persistConfirmationChange(
                                                 () => setDefaultConfirmationMode("modal"),
-                                                "Standard: Modal",
+                                                t("settings.workflows.confirm_standard_modal"),
                                             )
                                         }
                                     >
-                                        Modal
+                                        {t("settings.workflows.confirm_modal")}
                                     </button>
                                     <button
                                         type="button"
@@ -432,11 +432,11 @@ export function EinstellungenArbeitsablaeufeSection({
                                         onClick={() =>
                                             void persistConfirmationChange(
                                                 () => setDefaultConfirmationMode("inline"),
-                                                "Standard: Inline",
+                                                t("settings.workflows.confirm_standard_inline"),
                                             )
                                         }
                                     >
-                                        Inline
+                                        {t("settings.workflows.confirm_inline")}
                                     </button>
                                 </div>
                             </div>
@@ -444,10 +444,10 @@ export function EinstellungenArbeitsablaeufeSection({
                                 <table className="tbl tbl-settings-confirm" style={{ fontSize: 13 }}>
                                     <thead>
                                         <tr>
-                                            <th scope="col">Bereich</th>
-                                            <th scope="col">Aktuell</th>
+                                            <th scope="col">{t("settings.workflows.area")}</th>
+                                            <th scope="col">{t("settings.workflows.confirm_current")}</th>
                                             <th scope="col" style={{ width: 180 }}>
-                                                Modus
+                                                {t("settings.workflows.confirm_mode")}
                                             </th>
                                         </tr>
                                     </thead>
@@ -457,12 +457,12 @@ export function EinstellungenArbeitsablaeufeSection({
                                             return (
                                                 <tr key={key}>
                                                     <td>{CONFIRMATION_AREA_LABELS[key]}</td>
-                                                    <td>{modeDisplayLabel(confirmations, key)}</td>
+                                                    <td>{modeDisplayLabel(confirmations, key, t)}</td>
                                                     <td className="settings-confirm-select-cell">
                                                         <Select
                                                             id={`confirm-mode-${key}`}
                                                             className="settings-confirm-select min-w-0"
-                                                            aria-label={`Modus: ${CONFIRMATION_AREA_LABELS[key]}`}
+                                                            aria-label={tp("settings.workflows.confirm_area_aria", { area: CONFIRMATION_AREA_LABELS[key] })}
                                                             value={override}
                                                             onChange={(e) =>
                                                                 void persistConfirmationChange(
@@ -473,18 +473,23 @@ export function EinstellungenArbeitsablaeufeSection({
                                                                         ),
                                                                     `${CONFIRMATION_AREA_LABELS[key]}: ${
                                                                         e.target.value === "inherit"
-                                                                            ? "Standard"
+                                                                            ? t("settings.workflows.override_inherit")
                                                                             : e.target.value === "modal"
-                                                                              ? "Modal"
-                                                                              : "Inline"
+                                                                              ? t("settings.workflows.confirm_modal")
+                                                                              : t("settings.workflows.confirm_inline")
                                                                     }`,
                                                                 )
                                                             }
-                                                            options={AREA_OVERRIDE_OPTIONS.map((o) => ({
+                                                            options={[...AREA_OVERRIDE_OPTIONS(t)].map((o) => ({
                                                                 value: o.value,
                                                                 label:
                                                                     o.value === "inherit"
-                                                                        ? `Standard (${confirmations.defaultMode === "modal" ? "Modal" : "Inline"})`
+                                                                        ? tp("settings.workflows.override_standard", {
+                                                                              mode:
+                                                                                  confirmations.defaultMode === "modal"
+                                                                                      ? t("settings.workflows.confirm_modal")
+                                                                                      : t("settings.workflows.confirm_inline"),
+                                                                          })
                                                                         : o.label,
                                                             }))}
                                                         />

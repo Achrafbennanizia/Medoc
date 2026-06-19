@@ -37,3 +37,7 @@ export async function krankenbescheinigungSave(
 export async function listKrankenbescheinigungen(): Promise<KrankenbescheinigungRecord[]> {
     return practiceSystem.invoke<KrankenbescheinigungRecord[]>("list_krankenbescheinigungen");
 }
+
+export async function endKrankenbescheinigung(id: string): Promise<KrankenbescheinigungRecord> {
+    return practiceSystem.invoke<KrankenbescheinigungRecord>("end_krankenbescheinigung", { id });
+}

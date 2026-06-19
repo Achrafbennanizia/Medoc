@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { useT } from "@/lib/i18n";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
@@ -41,6 +42,12 @@ const PersonalPage = lazy(async () => ({ default: (await import("./views/pages/p
 const PersonalArbeitsplanPage = lazy(async () => ({
     default: (await import("./views/pages/personal-arbeitsplan")).PersonalArbeitsplanPage,
 }));
+const ArbeitszeitTrackingPage = lazy(async () => ({
+    default: (await import("./views/pages/arbeitszeit-tracking")).ArbeitszeitTrackingPage,
+}));
+const ArbeitszeitTeamPage = lazy(async () => ({
+    default: (await import("./views/pages/arbeitszeit-team")).ArbeitszeitTeamPage,
+}));
 const StatistikPage = lazy(async () => ({ default: (await import("./views/pages/statistik")).StatistikPage }));
 const AuditPage = lazy(async () => ({ default: (await import("./views/pages/audit")).AuditPage }));
 const LoggingPage = lazy(async () => ({ default: (await import("./views/pages/logging")).LoggingPage }));
@@ -75,6 +82,9 @@ const VerwaltungVertraegePage = lazy(async () => ({
     default: (await import("./views/pages/verwaltung-vertraege")).VerwaltungVertraegePage,
 }));
 const BehandlungsKatalogPage = lazy(async () => ({ default: (await import("./views/pages/behandlungs-katalog")).BehandlungsKatalogPage }));
+const KrankenbescheinigungFormPage = lazy(async () => ({
+    default: (await import("./views/pages/krankenbescheinigung-verwaltung")).KrankenbescheinigungFormPage,
+}));
 const BestellstammVerwaltungPage = lazy(async () => ({ default: (await import("./views/pages/bestellstamm-verwaltung")).BestellstammVerwaltungPage }));
 const ArbeitstagePage = lazy(async () => ({ default: (await import("./views/pages/arbeitstage")).ArbeitstagePage }));
 const PraxisplanungPage = lazy(async () => ({ default: (await import("./views/pages/praxisplanung")).PraxisplanungPage }));
@@ -98,6 +108,9 @@ const VerbundOnboardingPage = lazy(async () => ({
 const LizenzAktivierenOnboardingPage = lazy(async () => ({
     default: (await import("@/systems/practice-host/pages/onboarding/lizenz-aktivieren")).LizenzAktivierenOnboardingPage,
 }));
+const AktivierungImportOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/aktivierung-import")).AktivierungImportOnboardingPage,
+}));
 const VerbundBeitretenPage = lazy(async () => ({
     default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
 }));
@@ -109,9 +122,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function RouteFallback() {
+    const t = useT();
     return (
         <div className="route-fallback">
-            <PageLoading label="Seite wird geladen…" />
+            <PageLoading label={t("app.page_loading")} />
         </div>
     );
 }
@@ -129,6 +143,14 @@ export default function App() {
                     element={(
                         <Suspense fallback={<RouteFallback />}>
                             <VerbundOnboardingPage />
+                        </Suspense>
+                    )}
+                />
+                <Route
+                    path="/onboarding/aktivierung"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <AktivierungImportOnboardingPage />
                         </Suspense>
                     )}
                 />
@@ -202,6 +224,14 @@ export default function App() {
                         element={(
                             <RoleRoute routePath="verwaltung/team">
                                 <VerwaltungTeamPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route
+                        path="verwaltung/team/arbeitszeit"
+                        element={(
+                            <RoleRoute routePath="verwaltung/team/arbeitszeit">
+                                <ArbeitszeitTeamPage />
                             </RoleRoute>
                         )}
                     />
@@ -287,6 +317,22 @@ export default function App() {
                         element={(
                             <RoleRoute routePath="personal/arbeitsplan">
                                 <PersonalArbeitsplanPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route
+                        path="personal/arbeitszeit"
+                        element={(
+                            <RoleRoute routePath="personal/arbeitszeit">
+                                <ArbeitszeitTrackingPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route
+                        path="verwaltung/krankenbescheinigung"
+                        element={(
+                            <RoleRoute routePath="verwaltung/krankenbescheinigung">
+                                <KrankenbescheinigungFormPage />
                             </RoleRoute>
                         )}
                     />

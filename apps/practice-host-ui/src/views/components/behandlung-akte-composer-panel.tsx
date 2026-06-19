@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import type { Dispatch, SetStateAction } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import type { Patientenakte, Zahnbefund, BehandlungsKatalogItem } from "@/models/types";
@@ -65,36 +66,44 @@ export function BehandlungAkteComposerPanel({
     planNext,
     runSaveBehandlung,
 }: BehandlungAkteComposerPanelProps) {
+    const t = useT();
+    const statusLabel =
+        behandForm.behandlung_status === "GEPLANT"
+            ? t("behandlung.composer.status_planned")
+            : behandForm.behandlung_status === "IN_BEARBEITUNG"
+              ? t("behandlung.composer.status_in_progress")
+              : t("behandlung.composer.status_done");
+
     return (
-        <div id="ak-behand-composer-panel" className="akte-inline-panel" role="region" aria-label="Behandlung erfassen">
+        <div id="ak-behand-composer-panel" className="akte-inline-panel" role="region" aria-label={t("behandlung.composer.aria")}>
             <div className="akte-inline-panel-head">
                 <div>
                     <div className="akte-inline-panel-title">
                         {behandEditId
-                            ? "Behandlung bearbeiten"
+                            ? t("behandlung.composer.title_edit")
                             : behandComposerMode === "continue"
-                                ? "Behandlung fortsetzen"
-                                : "Neue Behandlung"}
+                              ? t("behandlung.composer.title_continue")
+                              : t("behandlung.composer.title_new")}
                     </div>
                     <div className="akte-inline-panel-sub">
-                        Automatisch vergeben:
+                        {t("behandlung.composer.auto_assigned")}
                         {" "}
-                        <strong>{behandForm.behandlungsnummer || "—"}</strong>
+                        <strong>{behandForm.behandlungsnummer || t("common.dash")}</strong>
                         {" · "}
-                        Sitzung <strong>{behandForm.sitzung || "—"}</strong>
+                        {t("behandlung.composer.session")} <strong>{behandForm.sitzung || t("common.dash")}</strong>
                         {" · "}
-                        Status <strong>{behandForm.behandlung_status === "GEPLANT" ? "Geplant" : behandForm.behandlung_status === "IN_BEARBEITUNG" ? "In Bearbeitung" : "Durchgeführt"}</strong>
-                        {behandFieldsLocked ? " — Ansicht: „Bearbeiten“ zum Entsperren." : null}
+                        {t("behandlung.composer.status_field")} <strong>{statusLabel}</strong>
+                        {behandFieldsLocked ? t("behandlung.composer.locked_hint") : null}
                     </div>
                 </div>
                 <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {behandFieldsLocked ? (
                         <Button type="button" variant="secondary" size="sm" onClick={onUnlockFields}>
-                            Bearbeiten
+                            {t("common.edit")}
                         </Button>
                     ) : null}
                     <Button type="button" variant="ghost" size="sm" onClick={onCancelComposer}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                 </div>
             </div>
@@ -102,7 +111,7 @@ export function BehandlungAkteComposerPanel({
                 {behandComposerMode === "continue" && continueBehandlungOptions.length > 0 ? (
                     <div style={{ marginBottom: 14 }}>
                         <Select
-                            label="Ausgang: welche Sitzung fortsetzen?"
+                            label={t("behandlung.composer.continue_from")}
                             value={continueFromBehandlungId || continueBehandlungOptions[0]?.value || ""}
                             options={continueBehandlungOptions}
                             disabled={behandFieldsLocked}
@@ -112,7 +121,7 @@ export function BehandlungAkteComposerPanel({
                             }}
                         />
                         <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 6 }}>
-                            Jede Zeile zeigt B-Nummer, Sitzung, Leistung und Datum. Leistung aus Katalog wird passend zur gewählten Zeile gesetzt.
+                            {t("behandlung.composer.continue_hint")}
                         </p>
                     </div>
                 ) : null}
@@ -129,21 +138,21 @@ export function BehandlungAkteComposerPanel({
                     <Input
                         id="bh-datum"
                         type="date"
-                        label="Datum *"
+                        label={t("behandlung.composer.date")}
                         value={behandForm.datum}
                         disabled={behandFieldsLocked}
                         onChange={(e) => setBehandForm({ ...behandForm, datum: e.target.value })}
                     />
                     <Input
                         id="bh-zahn"
-                        label="Zahnnummer (FDI)"
+                        label={t("behandlung.composer.tooth")}
                         value={selectedBehandTooth ?? ""}
                         disabled={behandFieldsLocked}
                         onChange={(e) => onSelectTooth(e.target.value.trim() || null)}
-                        placeholder="aus Chart oder manuell"
+                        placeholder={t("behandlung.composer.tooth_ph")}
                     />
                     <Select
-                        label="Kategorie *"
+                        label={t("behandlung.composer.category")}
                         value={behandForm.kategorie}
                         options={kategorieOptions}
                         disabled={behandFieldsLocked}
@@ -160,7 +169,7 @@ export function BehandlungAkteComposerPanel({
                     />
                     <div className="col" style={{ gap: 8 }}>
                         <Select
-                            label="Leistung aus Katalog"
+                            label={t("behandlung.composer.service_catalog")}
                             value={behandForm.leistungKatalogId || ""}
                             options={leistungOptions}
                             disabled={behandFieldsLocked}
@@ -181,7 +190,7 @@ export function BehandlungAkteComposerPanel({
                         />
                         <Input
                             id="bh-leist-text"
-                            label="Leistungsname (Text) *"
+                            label={t("behandlung.composer.service_name")}
                             value={behandForm.leistungsname}
                             disabled={behandFieldsLocked}
                             onChange={(e) =>
@@ -191,12 +200,12 @@ export function BehandlungAkteComposerPanel({
                                     leistungKatalogId: "",
                                 })
                             }
-                            placeholder="Aus Katalog wählen oder frei eintragen"
+                            placeholder={t("behandlung.composer.catalog_ph")}
                         />
                     </div>
                     <Input
                         id="bh-kosten"
-                        label="Gesamtkosten (€)"
+                        label={t("behandlung.composer.cost")}
                         value={behandForm.gesamtkosten}
                         disabled={behandFieldsLocked}
                         onChange={(e) => setBehandForm({ ...behandForm, gesamtkosten: e.target.value })}
@@ -218,29 +227,29 @@ export function BehandlungAkteComposerPanel({
                     }
                 >
                     <summary style={{ cursor: behandFieldsLocked ? "default" : "pointer", fontWeight: 600, fontSize: 13.5 }}>
-                        Nächsten Termin planen (optional)
+                        {t("behandlung.composer.plan_next")}
                     </summary>
                     <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "8px 0 12px" }}>
-                        Nur wenn ein Folgetermin geplant ist: erscheint automatisch als kompakter Hinweis für die Rezeption (Dashboard + Neuer Termin), zusätzlich zur Akte „Plan nächsten Termin“.
+                        {t("behandlung.composer.plan_next_hint")}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select
-                            label="Status"
+                            label={t("behandlung.composer.status_field")}
                             value={behandForm.behandlung_status}
                             options={[
-                                { value: "GEPLANT", label: "Geplant" },
-                                { value: "IN_BEARBEITUNG", label: "In Bearbeitung" },
-                                { value: "DURCHGEFUEHRT", label: "Durchgeführt" },
+                                { value: "GEPLANT", label: t("behandlung.composer.status_planned") },
+                                { value: "IN_BEARBEITUNG", label: t("behandlung.composer.status_in_progress") },
+                                { value: "DURCHGEFUEHRT", label: t("behandlung.composer.status_done") },
                             ]}
                             disabled={behandFieldsLocked}
                             onChange={(e) => setBehandForm({ ...behandForm, behandlung_status: e.target.value })}
                         />
                         <Select
-                            label="Termin erforderlich?"
+                            label={t("behandlung.composer.termin_required")}
                             value={behandForm.termin_erforderlich}
                             options={[
-                                { value: "0", label: "Nein" },
-                                { value: "1", label: "Ja — Folgetermin nötig" },
+                                { value: "0", label: t("common.no") },
+                                { value: "1", label: t("behandlung.composer.followup_yes") },
                             ]}
                             disabled={behandFieldsLocked}
                             onChange={(e) => setBehandForm({ ...behandForm, termin_erforderlich: e.target.value })}
@@ -248,11 +257,11 @@ export function BehandlungAkteComposerPanel({
                     </div>
                     <Textarea
                         id="bh-notes"
-                        label="Notizen (Behandlung)"
+                        label={t("behandlung.composer.notes")}
                         value={behandForm.notizen}
                         disabled={behandFieldsLocked}
                         onChange={(e) => setBehandForm({ ...behandForm, notizen: e.target.value })}
-                        placeholder="Interne Notiz zu dieser Sitzung"
+                        placeholder={t("behandlung.composer.notes_ph")}
                         className="min-h-[72px] mt-2"
                     />
                 </details>
@@ -260,10 +269,10 @@ export function BehandlungAkteComposerPanel({
 
             <div className="akte-inline-panel-actions">
                 <Button type="button" variant="secondary" onClick={() => navigate("/verwaltung/behandlungs-katalog")}>
-                    Katalog verwalten
+                    {t("behandlung.composer.manage_catalog")}
                 </Button>
                 <Button type="button" onClick={() => void runSaveBehandlung()} disabled={!akte || behandFieldsLocked}>
-                    {behandEditId ? "Änderungen speichern" : "Behandlung speichern"}
+                    {behandEditId ? t("behandlung.composer.save_changes") : t("behandlung.composer.save")}
                 </Button>
             </div>
         </div>

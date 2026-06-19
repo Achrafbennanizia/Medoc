@@ -47,6 +47,7 @@ import type { DokumentVorlage, Patient } from "@/models/types";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
+import { useT, useTParams } from "@/lib/i18n";
 
 export type PatientDetailRezeptTabProps = {
     patientId: string;
@@ -80,6 +81,8 @@ export function usePatientDetailRezeptTab({
     ensurePraxisForDocument,
 }: PatientDetailRezeptTabProps) {
     const toast = useToastStore((s) => s.add) as PatientDetailRezeptToast;
+    const t = useT();
+    const tp = useTParams();
     const actionsCtx: PatientDetailRezeptActionsCtx = useMemo(
         () => ({ patientId, userId, onReload, toast }),
         [patientId, userId, onReload, toast],
@@ -207,11 +210,11 @@ export function usePatientDetailRezeptTab({
         if (!rezeptDeleteId) return;
         try {
             await deleteRezept(rezeptDeleteId);
-            toast("Rezept gelöscht");
+            toast(t("patient.detail.toast.rezept_deleted"));
             setRezeptDeleteId(null);
             await onReload();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -219,11 +222,11 @@ export function usePatientDetailRezeptTab({
         if (!attestDeleteId) return;
         try {
             await deleteAttest(attestDeleteId);
-            toast("Attest gelöscht");
+            toast(t("patient.detail.toast.attest_deleted"));
             setAttestDeleteId(null);
             await onReload();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -244,7 +247,7 @@ export function usePatientDetailRezeptTab({
             out.push({ ...rezeptDraft });
         }
         if (out.length === 0) {
-            setRezeptDraftErr("Mindestens eine vollständige Medikamentenzeile erforderlich.");
+            setRezeptDraftErr(t("patient.detail.toast.rezept_line_required"));
             return null;
         }
         setRezeptDraftErr(null);
@@ -290,7 +293,7 @@ export function usePatientDetailRezeptTab({
     const onRezeptNameVorlageSave = () => {
         const titel = rezeptNewVorlageTitel.trim();
         if (!titel) {
-            toast("Bitte einen Namen für die Vorlage eingeben.", "error");
+            toast(t("patient.detail.toast.vorlage_name_required"), "error");
             return;
         }
         const p = rezeptPendingQueue;
@@ -336,7 +339,7 @@ export function usePatientDetailRezeptTab({
     const onAttestNameVorlageSave = () => {
         const titel = attestNewVorlageTitel.trim();
         if (!titel) {
-            toast("Bitte einen Namen für die Vorlage eingeben.", "error");
+            toast(t("patient.detail.toast.vorlage_name_required"), "error");
             return;
         }
         const p = attestPendingQueue;
@@ -347,7 +350,7 @@ export function usePatientDetailRezeptTab({
     const runSaveRezeptEdit = async () => {
         if (!rezeptEdit) return;
         if (!rezeptEditUnlocked) {
-            toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
+            toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
         const rid = rezeptEdit.id;
@@ -367,7 +370,7 @@ export function usePatientDetailRezeptTab({
                 dauer: rezeptEditForm.dauer.trim(),
                 hinweise: rezeptEditForm.hinweise.trim() || null,
             });
-            toast("Rezept gespeichert", "success", {
+            toast(t("patient.detail.toast.rezept_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
@@ -381,14 +384,14 @@ export function usePatientDetailRezeptTab({
                         });
                         await onReload();
                     } catch (e) {
-                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
                     }
                 },
             });
             setRezeptEdit(null);
             await onReload();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -406,12 +409,12 @@ export function usePatientDetailRezeptTab({
             || "";
         const v = rezeptVorlagen.find((x) => x.id === sel);
         if (!v) {
-            toast("Bitte eine Vorlage aus der Liste wählen oder den Namen exakt eingeben.", "error");
+            toast(t("patient.detail.toast.vorlage_pick_required"), "error");
             return;
         }
         const lines = vorlageItemsToLines(parseRezeptVorlagePayload(v.payload));
         if (lines.length === 0) {
-            toast("Diese Vorlage enthält keine Medikamente.", "error");
+            toast(t("patient.detail.toast.vorlage_no_meds"), "error");
             return;
         }
         setRezeptLines(lines.map((ln) => ({ ...ln })));
@@ -444,14 +447,14 @@ export function usePatientDetailRezeptTab({
             || "";
         const v = attestVorlagen.find((x) => x.id === sel);
         if (!v) {
-            toast("Bitte eine Vorlage aus der Liste wählen oder den Namen exakt eingeben.", "error");
+            toast(t("patient.detail.toast.vorlage_pick_required"), "error");
             return;
         }
         const parsed = parseAttestVorlagePayload(v.payload);
         const rawTage = parsed.tageAnzahl.trim() || "1";
         const n = Number.parseInt(rawTage, 10);
         if (!Number.isFinite(n) || n < 1 || n > 366) {
-            toast("Diese Vorlage enthält keine gültige Tagesanzahl (1–366).", "error");
+            toast(t("patient.detail.toast.vorlage_invalid_days"), "error");
             return;
         }
         const today = new Date().toISOString().slice(0, 10);
@@ -487,7 +490,7 @@ export function usePatientDetailRezeptTab({
             kind: "attest",
             bundle: bundleAttestExport(a, patient),
             suggestedBasename: suggestAttestExportBasename(a),
-            exportPreviewTitle: `Attest — ${patient.name}`,
+            exportPreviewTitle: tp("patient.detail.export.attest_title", { name: patient.name }),
         });
     };
 
@@ -497,7 +500,7 @@ export function usePatientDetailRezeptTab({
             kind: "rezept",
             bundle: bundleRezeptExport(r, patient),
             suggestedBasename: suggestRezeptExportBasename(r),
-            exportPreviewTitle: `Rezept — ${patient.name}`,
+            exportPreviewTitle: tp("patient.detail.export.rezept_title", { name: patient.name }),
         });
     };
 

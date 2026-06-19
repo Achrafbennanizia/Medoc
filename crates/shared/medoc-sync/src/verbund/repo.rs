@@ -15,6 +15,20 @@ async fn ensure(pool: &SqlitePool) -> Result<(), AppError> {
     ensure_verbund_tables(pool).await
 }
 
+fn parse_sync_timestamp(raw: &str, field: &str) -> Result<DateTime<Utc>, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(Utc::now());
+    }
+    if let Ok(dt) = trimmed.parse::<DateTime<Utc>>() {
+        return Ok(dt);
+    }
+    chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S")
+        .or_else(|_| chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S%.f"))
+        .map(|ndt| ndt.and_utc())
+        .map_err(|e| AppError::Internal(format!("{field}: {e}")))
+}
+
 pub async fn load_lizenz(pool: &SqlitePool) -> Result<Option<Lizenz>, AppError> {
     ensure(pool).await?;
     let row: Option<(
@@ -152,10 +166,12 @@ fn parse_geraet_row(
         seat_role,
         status,
         seat_cert,
-        last_seen: last_seen.and_then(|s| s.parse::<DateTime<Utc>>().ok()),
-        created_at: created_at.parse().map_err(|e: chrono::ParseError| {
-            AppError::Internal(format!("geraet.created_at: {e}"))
-        })?,
+        last_seen: last_seen
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| parse_sync_timestamp(s, "geraet.last_seen_at"))
+            .transpose()?,
+        created_at: parse_sync_timestamp(&created_at, "geraet.created_at")?,
     })
 }
 
@@ -191,6 +207,40 @@ pub async fn find_by_fingerprint(
         .transpose()
 }
 
+pub async fn find_by_device_id(
+    pool: &SqlitePool,
+    device_id: &str,
+    cluster_id: &str,
+) -> Result<Option<Geraet>, AppError> {
+    ensure(pool).await?;
+    let row: Option<(
+        String,
+        String,
+        String,
+        Option<Vec<u8>>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<Vec<u8>>,
+        Option<String>,
+        String,
+    )> = sqlx::query_as(
+        "SELECT fingerprint, cluster_id, device_id, pubkey, hostname, os, last_ip,
+                seat_role, geraet_status, seat_cert, last_seen_at, created_at
+         FROM sync_device WHERE device_id = ?1 AND cluster_id = ?2",
+    )
+    .bind(device_id)
+    .bind(cluster_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+
+    row.map(|r| parse_geraet_row(r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8, r.9, r.10, r.11))
+        .transpose()
+}
+
 pub async fn upsert_geraet(pool: &SqlitePool, geraet: &Geraet) -> Result<(), AppError> {
     ensure(pool).await?;
     let role_legacy = match geraet.seat_role {
@@ -213,7 +263,8 @@ pub async fn upsert_geraet(pool: &SqlitePool, geraet: &Geraet) -> Result<(), App
             seat_cert = excluded.seat_cert,
             cluster_id = excluded.cluster_id,
             last_seen_at = excluded.last_seen_at,
-            role = excluded.role",
+            role = excluded.role,
+            created_at = COALESCE(NULLIF(sync_device.created_at, ''), excluded.created_at)",
     )
     .bind(&geraet.device_id)
     .bind(geraet.hostname.as_deref().unwrap_or(""))

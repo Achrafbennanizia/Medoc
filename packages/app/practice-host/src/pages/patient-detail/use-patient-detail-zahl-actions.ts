@@ -20,6 +20,7 @@ import {
     type ZahlZuordnungSummaryRow,
 } from "@/lib/zahlung-buchung";
 import { formatCurrency } from "@/lib/utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type ZahlNewFormState = {
@@ -64,6 +65,8 @@ export type UsePatientDetailZahlActionsArgs = {
 
 export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArgs) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const {
         patientId,
         patient,
@@ -136,24 +139,24 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
     const runSaveZahlEdit = async () => {
         if (!zahlEdit) return;
         if (!zahlEditUnlocked) {
-            toast("Zum Bearbeiten zuerst „Bearbeiten“ wählen.", "info");
+            toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
         const betrag = Number(String(zahlEditForm.betrag).replace(",", "."));
         if (!Number.isFinite(betrag) || betrag <= 0) {
-            toast("Bitte gültigen Betrag eingeben.", "error");
+            toast(t("patient.detail.toast.valid_amount_required"), "error");
             return;
         }
         if (zahlEdit.behandlung_id && patientId && zahlEditMaxBetragEur != null && betrag > zahlEditMaxBetragEur + ZAHL_EUR_EPS) {
             toast(
-                `Der Betrag darf maximal ${formatCurrency(zahlEditMaxBetragEur)} sein (offener Anteil für diese Behandlung).`,
+                tp("patient.detail.toast.payment_max_amount", { amount: formatCurrency(zahlEditMaxBetragEur) }),
                 "error",
             );
             return;
         }
         const prevRow = zahlungen.find((z) => z.id === zahlEdit.id);
         if (!prevRow) {
-            toast("Zahlung nicht mehr geladen.", "error");
+            toast(t("patient.detail.toast.payment_not_loaded"), "error");
             return;
         }
         try {
@@ -164,7 +167,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
                 leistung_id: zahlEdit.leistung_id,
                 beschreibung: zahlEditForm.beschreibung.trim() || null,
             });
-            toast("Zahlung aktualisiert", "success", {
+            toast(t("patient.detail.toast.payment_updated"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
@@ -177,26 +180,26 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
                         });
                         await load();
                     } catch (e) {
-                        toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
                     }
                 },
             });
             setZahlEdit(null);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
     const submitSaveZahlNew = async () => {
         if (!patientId) return;
         if (!zahlNewForm.linkKind || !zahlNewForm.linkId.trim()) {
-            toast("Bitte eine Behandlung (B) oder Untersuchung (U) zuordnen.", "error");
+            toast(t("patient.detail.toast.payment_link_required"), "error");
             return;
         }
         const betrag = Number(String(zahlNewForm.betrag).replace(",", "."));
         if (!Number.isFinite(betrag) || betrag <= 0) {
-            toast("Bitte gültigen Zahlbetrag eingeben.", "error");
+            toast(t("patient.detail.toast.payment_amount_invalid"), "error");
             return;
         }
         const selBh =
@@ -213,7 +216,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
         }
         if (zahlNewForm.linkKind === "behand" && openBefore != null && betrag > openBefore + ZAHL_EUR_EPS) {
             toast(
-                `Der Zahlbetrag darf den offenen Betrag (${formatCurrency(openBefore)}) nicht übersteigen.`,
+                tp("patient.detail.toast.payment_exceeds_open", { amount: formatCurrency(openBefore) }),
                 "error",
             );
             return;
@@ -228,7 +231,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
                 untersuchung_id: zahlNewForm.linkKind === "unter" ? zahlNewForm.linkId : undefined,
                 betrag_erwartet: openBefore,
             });
-            toast("Zahlung erfasst", "success");
+            toast(t("patient.detail.toast.payment_captured"), "success");
             setShowZahlComposer(false);
             setZahlNewForm({
                 linkKind: "",
@@ -239,7 +242,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
             });
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -247,11 +250,11 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
         if (!zahlDeleteId) return;
         try {
             await deleteZahlung(zahlDeleteId);
-            toast("Zahlung gelöscht");
+            toast(t("patient.detail.toast.payment_deleted"));
             setZahlDeleteId(null);
             await load();
         } catch (e) {
-            toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -260,7 +263,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
         try {
             setHtmlDocExport(await buildQuittungExportForZahlung(z));
         } catch (e) {
-            toast(`Quittung: ${e instanceof Error ? e.message : String(e)}`, "error");
+            toast(tp("patient.detail.toast.quittung_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
@@ -268,7 +271,7 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
         if (!patientId) return;
         const z = latestZahlungForZuordnungRow(row, zahlungen, patientId);
         if (!z) {
-            toast("Keine druckbare Buchung für diese Zuordnung.", "info");
+            toast(t("patient.detail.toast.no_printable_booking"), "info");
             return;
         }
         void handlePrintQuittung(z);

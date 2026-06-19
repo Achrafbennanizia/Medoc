@@ -90,6 +90,9 @@ pub async fn seed_test_master_license(pool: &SqlitePool) {
 
 /// Seed demo Arzt TOTP so LAN login accepts code `123456` (enrollment uses fixed test path).
 pub async fn enroll_seed_arzt_totp(pool: &SqlitePool) {
+    if !medoc_core::mvp_security::TOTP_2FA_ENABLED {
+        return;
+    }
     use medoc_core::infrastructure::database::personal_repo;
     use medoc_core::infrastructure::totp;
     let (secret, _) = totp::generate_enrollment("ahmed@praxis.de").expect("totp enroll");

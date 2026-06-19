@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { Fragment } from "react";
 import type { Behandlung } from "@/models/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
@@ -47,6 +48,9 @@ export function PatientDetailBehandTab({
     onCancelDeleteBehandlung,
     onConfirmDeleteBehandlung,
 }: PatientDetailBehandTabProps) {
+    const t = useT();
+    const tp = useTParams();
+    const emDash = t("common.em_dash");
     const deleteTarget = behandDeleteId
         ? behandlungen.find((x) => x.id === behandDeleteId)
         : undefined;
@@ -60,7 +64,7 @@ export function PatientDetailBehandTab({
                         style={{ justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}
                     >
                         <h3 className="text-title" style={{ margin: 0 }}>
-                            Behandlungen (Verlauf)
+                            {t("patient.detail.tab.behand.title")}
                         </h3>
                         <Button
                             type="button"
@@ -69,7 +73,9 @@ export function PatientDetailBehandTab({
                             onClick={onToggleClinicalPrices}
                             aria-pressed={showClinicalPrices}
                         >
-                            {showClinicalPrices ? "Preise ausblenden" : "Preise anzeigen"}
+                            {showClinicalPrices
+                                ? t("patient.detail.tab.common.hide_prices")
+                                : t("patient.detail.tab.common.show_prices")}
                         </Button>
                     </div>
                     {!showBehandComposer ? (
@@ -77,7 +83,7 @@ export function PatientDetailBehandTab({
                             className="row"
                             style={{ gap: 12, flexWrap: "wrap", marginBottom: behandlungen.length === 0 ? 0 : 16 }}
                             role="group"
-                            aria-label="Behandlung starten"
+                            aria-label={t("patient.detail.tab.behand.start_group_aria")}
                         >
                             <Button
                                 type="button"
@@ -85,7 +91,7 @@ export function PatientDetailBehandTab({
                                 onClick={onStartNewBehandlung}
                                 style={{ minWidth: 200 }}
                             >
-                                + Neue Behandlung
+                                {t("patient.detail.tab.behand.new")}
                             </Button>
                             <Button
                                 type="button"
@@ -94,11 +100,10 @@ export function PatientDetailBehandTab({
                                 onClick={onContinueBehandlung}
                                 style={{ minWidth: 200 }}
                             >
-                                Behandlung fortsetzen
+                                {t("patient.detail.tab.behand.continue")}
                             </Button>
                             <span style={{ alignSelf: "center", fontSize: 12, color: "var(--fg-3)", flexBasis: "100%" }}>
-                                Fortsetzen übernimmt Leistung aus Katalog automatisch von der gewählten Sitzung. Standard:
-                                zuletzt dokumentierte Sitzung.
+                                {t("patient.detail.tab.behand.continue_hint")}
                             </span>
                         </div>
                     ) : null}
@@ -106,21 +111,21 @@ export function PatientDetailBehandTab({
                         <BehandlungAkteComposerPanel {...behandComposerCommon} />
                     ) : null}
                     {behandlungen.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)", marginTop: 4 }}>Noch keine Behandlungen.</p>
+                        <p style={{ color: "var(--fg-3)", marginTop: 4 }}>{t("patient.detail.tab.behand.empty")}</p>
                     ) : (
                         <div style={{ overflowX: "auto" }}>
                             <table className="tbl tbl-behand-groups">
                                 <thead>
                                     <tr>
-                                        <th>Datum</th>
-                                        <th>Zahnnummer</th>
-                                        <th>Kategorie</th>
-                                        <th>Leistungsname</th>
-                                        <th>Sitzung</th>
-                                        <th>B.Nummer</th>
-                                        {showClinicalPrices ? <th style={{ textAlign: "right" }}>EUR</th> : null}
-                                        <th>Abrechnung</th>
-                                        <th style={{ width: 220 }}>Aktion</th>
+                                        <th>{t("patient.detail.tab.behand.col.date")}</th>
+                                        <th>{t("patient.detail.tab.behand.col.tooth")}</th>
+                                        <th>{t("patient.detail.tab.behand.col.category")}</th>
+                                        <th>{t("patient.detail.tab.behand.col.service")}</th>
+                                        <th>{t("patient.detail.tab.behand.col.session")}</th>
+                                        <th>{t("patient.detail.tab.behand.col.number")}</th>
+                                        {showClinicalPrices ? <th style={{ textAlign: "right" }}>{t("patient.detail.tab.behand.col.eur")}</th> : null}
+                                        <th>{t("patient.detail.tab.behand.col.billing")}</th>
+                                        <th style={{ width: 220 }}>{t("patient.detail.tab.behand.col.action")}</th>
                                     </tr>
                                 </thead>
                                 {behandlungGroups.map((grp) => (
@@ -147,23 +152,27 @@ export function PatientDetailBehandTab({
                                                             ? formatDate(b.behandlung_datum)
                                                             : formatDateTime(b.created_at)}
                                                     </td>
-                                                    <td>{b.zaehne || "—"}</td>
+                                                    <td>{b.zaehne || emDash}</td>
                                                     <td>{b.kategorie || b.art}</td>
                                                     <td>{b.leistungsname || b.beschreibung || b.art}</td>
-                                                    <td>{b.sitzung != null ? `Nr. ${b.sitzung}` : "—"}</td>
-                                                    <td>{b.behandlungsnummer || "—"}</td>
+                                                    <td>
+                                                        {b.sitzung != null
+                                                            ? tp("patient.detail.tab.behand.session_nr", { number: b.sitzung })
+                                                            : emDash}
+                                                    </td>
+                                                    <td>{b.behandlungsnummer || emDash}</td>
                                                     {showClinicalPrices ? (
                                                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                                                             {b.gesamtkosten != null && Number.isFinite(b.gesamtkosten)
                                                                 ? `${b.gesamtkosten.toFixed(2)} €`
-                                                                : "—"}
+                                                                : emDash}
                                                         </td>
                                                     ) : null}
                                                     <td>
                                                         {b.freigegeben_von_arzt_id && (b.freigegeben_am ?? "").trim() !== "" ? (
-                                                            <Badge variant="primary">Freigegeben</Badge>
+                                                            <Badge variant="primary">{t("patient.detail.tab.behand.billing_released")}</Badge>
                                                         ) : (
-                                                            <Badge variant="warning">Ausstehend</Badge>
+                                                            <Badge variant="warning">{t("patient.detail.tab.behand.billing_pending")}</Badge>
                                                         )}
                                                     </td>
                                                     <td>
@@ -176,7 +185,7 @@ export function PatientDetailBehandTab({
                                                                     type="button"
                                                                     onClick={() => void onReleaseForBilling(b.id)}
                                                                 >
-                                                                    Freigeben
+                                                                    {t("patient.detail.tab.common.release_short")}
                                                                 </Button>
                                                             ) : null}
                                                             <Button
@@ -184,14 +193,14 @@ export function PatientDetailBehandTab({
                                                                 variant="ghost"
                                                                 onClick={() => onOpenEditBehandlung(b)}
                                                             >
-                                                                Bearbeiten
+                                                                {t("common.edit")}
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="danger"
                                                                 onClick={() => onRequestDeleteBehandlung(b.id)}
                                                             >
-                                                                Löschen
+                                                                {t("common.delete")}
                                                             </Button>
                                                         </div>
                                                     </td>
@@ -210,15 +219,25 @@ export function PatientDetailBehandTab({
                         area="patient_akte_behandlung_delete"
                         open={!!behandDeleteId}
                         inlineId="ak-behand-delete-panel"
-                        title="Behandlung löschen"
+                        title={t("behandlung.delete_title")}
                         message={
                             deleteTarget
-                                ? `Die Zeile „${deleteTarget.leistungsname || deleteTarget.beschreibung || deleteTarget.art || "—"}“ (Sitzung ${deleteTarget.sitzung != null ? deleteTarget.sitzung : "—"}) wirklich entfernen?`
-                                : "Diese Behandlungszeile wirklich entfernen?"
+                                ? tp("patient.detail.tab.behand.delete_message", {
+                                      label:
+                                          deleteTarget.leistungsname
+                                          || deleteTarget.beschreibung
+                                          || deleteTarget.art
+                                          || emDash,
+                                      session:
+                                          deleteTarget.sitzung != null
+                                              ? String(deleteTarget.sitzung)
+                                              : emDash,
+                                  })
+                                : t("patient.detail.tab.behand.delete_message_generic")
                         }
                         onCancel={onCancelDeleteBehandlung}
                         onConfirm={() => void onConfirmDeleteBehandlung()}
-                        confirmLabel="Ja, löschen"
+                        confirmLabel={t("common.yes_delete")}
                         danger
                     />
                 ) : null}

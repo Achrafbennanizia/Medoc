@@ -23,6 +23,7 @@ import { useAuthStore } from "@/models/store/auth-store";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 import { PageLoading } from "@/views/components/ui/page-status";
 import { EMPTY_ANAMNESE_V1_JSON, parseAnamneseV1 } from "@/lib/anamnese";
 import { computeAkteCompleteness, type AkteCompletenessGap } from "@/lib/akte-completeness";
@@ -35,7 +36,6 @@ import { usePatientDetailValidation } from "./use-patient-detail-validation";
 import { usePatientDetailZahlActions } from "./use-patient-detail-zahl-actions";
 import { PatientDetailOverlays } from "./patient-detail-overlays";
 import type { PatientAkteWorkflowMode } from "@/views/components/patient-akte-workflow-dialogs";
-import { PatientDetailStammTab } from "./patient-detail-stamm-tab";
 import { PatientDetailAnamTab } from "./patient-detail-anam-tab";
 import { PatientDetailAnlageTab } from "./patient-detail-anlage-tab";
 import { PatientDetailBehandTab } from "./patient-detail-behand-tab";
@@ -69,8 +69,9 @@ import { openSystemScanUtility } from "@/systems/practice-host/controllers/syste
 import { buildOpenZahlLinkSelectOptions } from "@/lib/zahlung-buchung";
 import {
     isPatientenakteMissingError,
+    patientDetailDefaultTab,
     patientDetailTabBlocked,
-    patientDetailTabFromHash,
+    resolvePatientDetailTabFromHash,
     resolveKatalogIdForBehandlung,
     type AkteSavePending,
     type PatientDetailAkteTab,
@@ -163,7 +164,7 @@ export function PatientDetailPage() {
     /** Aufgeklappter Untersuchungs-Eintrag (zeigt strukturierte Detailansicht). */
     const [unterDetailId, setUnterDetailId] = useState<string | null>(null);
     const rezeptTabRef = useRef<PatientDetailRezeptTabHandle>(null);
-    const [activeTab, setActiveTab] = useState<AkteTab>("stamm");
+    const [activeTab, setActiveTab] = useState<AkteTab>(() => patientDetailDefaultTab(canViewClinical));
     const [rezepte, setRezepte] = useState<Rezept[]>([]);
     /** Unteransicht auf dem Tab „Rezepte & Atteste“. */
     const [atteste, setAtteste] = useState<Attest[]>([]);
@@ -222,6 +223,8 @@ export function PatientDetailPage() {
 
 
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const canFinanzenWrite = (() => {
         const r = parseRole(session?.rolle);
         return r ? allowed("finanzen.write", r) : false;
@@ -247,11 +250,13 @@ export function PatientDetailPage() {
             .catch((e: unknown) => {
                 setPlanNext(emptyPlanNextTermin());
                 toast(
-                    `Termin-Vorschlag konnte nicht geladen werden: ${e instanceof Error ? e.message : String(e)}`,
+                    tp("patient.detail.toast.plan_load_failed", {
+                        message: e instanceof Error ? e.message : String(e),
+                    }),
                     "error",
                 );
             });
-    }, [id, toast]);
+    }, [id, toast, tp]);
 
     useEffect(() => {
         anlagenRef.current = anlagen;
@@ -264,21 +269,29 @@ export function PatientDetailPage() {
                     canViewClinical ? next : { ...next, internalNote: prev.internalNote };
                 if (id) {
                     void persistPlanNextTerminToBackend(id, merged).catch((e) => {
-                        toast(`Termin-Hinweis speichern: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toast(tp("patient.detail.toast.plan_save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
                     });
                 }
                 return merged;
             });
         },
-        [id, toast, canViewClinical],
+        [id, toast, tp, canViewClinical],
     );
 
     useEffect(() => {
-        const fromUrl = patientDetailTabFromHash(location.hash);
+        const rawHash = location.hash.replace(/^#/, "");
+        if (rawHash === "stamm") {
+            const tab = patientDetailDefaultTab(canViewClinical);
+            setActiveTab(tab);
+            navigate({ pathname: location.pathname, search: location.search, hash: tab }, { replace: true });
+            return;
+        }
+        const fromUrl = resolvePatientDetailTabFromHash(location.hash, canViewClinical);
         if (!fromUrl) return;
         if (patientDetailTabBlocked(fromUrl, canViewClinical)) {
-            setActiveTab("stamm");
-            navigate({ pathname: location.pathname, search: location.search, hash: "stamm" }, { replace: true });
+            const fallback = patientDetailDefaultTab(canViewClinical);
+            setActiveTab(fallback);
+            navigate({ pathname: location.pathname, search: location.search, hash: fallback }, { replace: true });
             return;
         }
         setActiveTab(fromUrl);
@@ -334,7 +347,7 @@ export function PatientDetailPage() {
                 listZahlungenForPatient(id),
                 canListPatientDocuments ? listAtteste(id) : Promise.resolve([] as Attest[]),
                 listBehandlungsKatalog().catch((e) => {
-                    toast(`Behandlungskatalog konnte nicht geladen werden: ${errorMessage(e)}`, "warning");
+                    toast(tp("patient.detail.toast.katalog_load_failed", { message: errorMessage(e) }), "warning");
                     return [] as BehandlungsKatalogItem[];
                 }),
             ]);
@@ -426,8 +439,6 @@ export function PatientDetailPage() {
         setBehandDeleteId,
         untersuchungForm,
         setUntersuchungForm,
-        unterBillingForm,
-        setUnterBillingForm,
         setShowUnterComposer,
         unterEdit,
         setUnterEdit,
@@ -585,10 +596,10 @@ export function PatientDetailPage() {
         return (
             <div className="animate-fade-in">
                 <WorkspacePageHeader
-                    title="Patientenakte"
-                    back={{ to: "/patienten", label: "Patienten" }}
+                    title={t("patient.detail.title")}
+                    back={{ to: "/patienten", label: t("patient.detail.back") }}
                 />
-                <p className="text-body text-on-surface-variant mt-4">Kein Patient ausgewählt.</p>
+                <p className="text-body text-on-surface-variant mt-4">{t("patient.detail.no_selection")}</p>
             </div>
         );
     }
@@ -597,22 +608,21 @@ export function PatientDetailPage() {
         return (
             <div className="praxis-workspace-page animate-fade-in">
                 <WorkspacePageHeader
-                    title="Patientenakte"
-                    back={{ to: "/patienten", label: "Patienten" }}
+                    title={t("patient.detail.title")}
+                    back={{ to: "/patienten", label: t("patient.detail.back") }}
                 />
                 <div className="rounded-lg bg-error-container text-error px-4 py-3 text-body max-w-xl">
                     {patientLoadError}
                 </div>
-                <Button onClick={() => load()}>Erneut versuchen</Button>
+                <Button onClick={() => load()}>{t("common.retry")}</Button>
             </div>
         );
     }
 
-    if (!patient) return <PageLoading label="Patient wird geladen…" />;
+    if (!patient) return <PageLoading label={t("patient.detail.loading")} />;
 
-    /** Welche Sektionen enthalten Daten? (Nur noch Stammdaten + Anamnese auf Sektionsebene.) */
+    /** Welche Sektionen enthalten Daten? */
     const hasSectionData = {
-        stamm: true, // Stammdaten existieren immer, sobald Akte angelegt ist
         anam: anamneseJson.trim().length > 0,
         anlage: anlagen.length > 0,
         zahl: zahlungen.length > 0,
@@ -630,6 +640,8 @@ export function PatientDetailPage() {
                 patient={patient}
                 validationPendingTotal={validationPendingTotal}
                 completenessGaps={akteCompleteness.gaps}
+                validationStamm={validation.stamm}
+                canWriteMedical={canWriteMedical}
                 showPlanTip={showPlanTip}
                 planNext={planNext}
                 canViewClinical={canViewClinical}
@@ -639,6 +651,25 @@ export function PatientDetailPage() {
                 befunde={befunde}
                 behandlungen={behandlungen}
                 zahlungen={zahlungen}
+                patientDeleteOpen={patientDeleteOpen}
+                patientDeleteBusy={patientDeleteBusy}
+                showEditPatient={showEditPatient}
+                editForm={editForm}
+                onEditFormChange={(patch) => setEditForm((f) => ({ ...f, ...patch }))}
+                onOpenEdit={() => {
+                    setPatientDeleteOpen(false);
+                    setShowEditPatient(true);
+                }}
+                onOpenDelete={() => {
+                    setShowEditPatient(false);
+                    setPatientDeleteOpen(true);
+                }}
+                onCloseDelete={() => setPatientDeleteOpen(false)}
+                onConfirmDelete={handleDeletePatient}
+                onCloseEdit={() => setShowEditPatient(false)}
+                onSavePatient={runSavePatient}
+                onValidateStamm={() => validateSection("stamm")}
+                onRevokeStammValidation={() => revokeSectionValidation("stamm")}
                 onNavigateBack={() => navigate("/patienten")}
                 onTogglePlanTip={() => setShowPlanTip((v) => !v)}
                 onPersistPlanNext={persistPlanNext}
@@ -663,38 +694,10 @@ export function PatientDetailPage() {
                 />
                 <div className="col" style={{ gap: 16, minWidth: 0 }}>
                     {akteLoadError ? (
-                        <DismissibleNotice variant="error" role="alert" title="Akte konnte nicht geladen werden">
+                        <DismissibleNotice variant="error" role="alert" title={t("patient.detail.akte_load_error")}>
                             {akteLoadError}
                         </DismissibleNotice>
                     ) : null}
-
-            {activeTab === "stamm" && patient ? (
-                <PatientDetailStammTab
-                    patient={patient}
-                    validationStamm={validation.stamm}
-                    canViewClinical={canViewClinical}
-                    canWriteMedical={canWriteMedical}
-                    patientDeleteOpen={patientDeleteOpen}
-                    patientDeleteBusy={patientDeleteBusy}
-                    showEditPatient={showEditPatient}
-                    editForm={editForm}
-                    onEditFormChange={(patch) => setEditForm((f) => ({ ...f, ...patch }))}
-                    onOpenEdit={() => {
-                        setPatientDeleteOpen(false);
-                        setShowEditPatient(true);
-                    }}
-                    onOpenDelete={() => {
-                        setShowEditPatient(false);
-                        setPatientDeleteOpen(true);
-                    }}
-                    onCloseDelete={() => setPatientDeleteOpen(false)}
-                    onConfirmDelete={handleDeletePatient}
-                    onCloseEdit={() => setShowEditPatient(false)}
-                    onSavePatient={runSavePatient}
-                    onValidateStamm={() => validateSection("stamm")}
-                    onRevokeStammValidation={() => revokeSectionValidation("stamm")}
-                />
-            ) : null}
 
             {activeTab === "anam" && canViewClinical ? (
                 <PatientDetailAnamTab
@@ -735,7 +738,7 @@ export function PatientDetailPage() {
                         try {
                             const upd = await releaseUntersuchungForBilling(untersuchungId);
                             setUntersuchungen((prev) => prev.map((x) => (x.id === untersuchungId ? upd : x)));
-                            toast("Untersuchung zur Abrechnung freigegeben.", "success");
+                            toast(t("patient.detail.toast.untersuchung_released"), "success");
                         } catch (e) {
                             toast(e instanceof Error ? e.message : String(e), "error");
                         }
@@ -809,12 +812,12 @@ export function PatientDetailPage() {
                         setSelectedBehandTooth(null);
                         setBehandComposerMode("new");
                         setShowBehandComposer(true);
-                        toast(`Neue Behandlung ${nextNr} (Sitzung 1) gestartet`, "success");
+                        toast(tp("patient.detail.toast.behand_new_started", { number: nextNr }), "success");
                     }}
                     onContinueBehandlung={() => {
                         const firstId = behandlungen[0]?.id;
                         if (!firstId) {
-                            toast("Keine Behandlung zum Fortsetzen.", "info");
+                            toast(t("patient.detail.toast.no_behandlung_continue"), "info");
                             return;
                         }
                         setBehandDeleteId(null);
@@ -823,13 +826,13 @@ export function PatientDetailPage() {
                         setBehandComposerMode("continue");
                         setShowBehandComposer(true);
                         behandComposerCommon.applyContinueFromBehandlung(firstId);
-                        toast("Behandlung fortsetzen — Ausgangs-Sitzung bei Bedarf im Dropdown wählen.", "success");
+                        toast(t("patient.detail.toast.behandlung_continue"), "success");
                     }}
                     onReleaseForBilling={async (behandlungId: string) => {
                         try {
                             const upd = await releaseBehandlungForBilling(behandlungId);
                             setBehandlungen((prev) => prev.map((x) => (x.id === behandlungId ? upd : x)));
-                            toast("Zur Abrechnung freigegeben.", "success");
+                            toast(t("patient.detail.toast.released_billing"), "success");
                         } catch (e) {
                             toast(e instanceof Error ? e.message : String(e), "error");
                         }
@@ -908,7 +911,7 @@ export function PatientDetailPage() {
                             try {
                                 await renameAkteAnlage(row.id, name);
                             } catch (e) {
-                                toast(`Umbenennen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                toast(tp("patient.detail.toast.anlage_rename_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
                                 if (akte) await refreshAnlagen(akte.id);
                             }
                         })();
@@ -928,7 +931,7 @@ export function PatientDetailPage() {
                                 );
                                 await openAkteAnlageExternally(row.id, withApp);
                             } catch (e) {
-                                toast(`Öffnen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                toast(tp("patient.detail.toast.anlage_open_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
                             }
                         })();
                     }}
@@ -940,11 +943,13 @@ export function PatientDetailPage() {
                                   void (async () => {
                                       try {
                                           await duplicateAkteAnlage(row.id);
-                                          toast("Kopie der Anlage angelegt", "success");
+                                          toast(t("patient.detail.toast.anlage_copy"), "success");
                                           await refreshAnlagen(akte.id);
                                       } catch (e) {
                                           toast(
-                                              `Duplizieren fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`,
+                                              tp("patient.detail.toast.anlage_duplicate_failed", {
+                                                  message: e instanceof Error ? e.message : String(e),
+                                              }),
                                               "error",
                                           );
                                       }
@@ -962,11 +967,11 @@ export function PatientDetailPage() {
                             try {
                                 await openSystemScanUtility();
                                 toast(
-                                    "System-Scanner geöffnet. Nach dem Speichern die Datei hier über „Datei wählen“ an die Akte anhängen.",
+                                    t("patient.detail.toast.scanner_open"),
                                     "success",
                                 );
                             } catch (e) {
-                                toast(`Scanner: ${e instanceof Error ? e.message : String(e)}`, "error");
+                                toast(tp("patient.detail.toast.scanner_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
                             }
                         })();
                     }}

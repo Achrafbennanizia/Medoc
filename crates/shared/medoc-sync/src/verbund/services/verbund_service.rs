@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::master_keys;
 use crate::verbund::crypto::{
-    derive_sas_from_transcript, hash_sas, mint_seat_certificate, validate_sas_match, DeviceIdentity,
+    derive_sas_from_transcript, hash_sas, mint_seat_certificate, normalise_sas_input,
+    validate_sas_match, DeviceIdentity,
 };
 use crate::verbund::entities::{Geraet, KopplungSession};
 use crate::verbund::enums::{GeraetStatus, KopplungStatus, SeatRolle};
@@ -16,7 +17,15 @@ use crate::verbund::ports::{
 };
 
 use super::audit;
+use super::lizenz_service::require_owner_admin;
 use super::provisioning_service::{apply_provisioning, ProvisionResult};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinRequestResult {
+    pub handle: KopplungHandle,
+    pub handshake_transcript_b64: String,
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,13 +79,17 @@ pub async fn create_join_request(
     fingerprint: &str,
     requested_role: SeatRolle,
     handshake_transcript: &[u8],
+    session_id: Option<&str>,
+    hostname: Option<&str>,
 ) -> Result<KopplungHandle, AppError> {
     let repos = SqliteVerbundRepos { pool };
     if repos.is_blocklisted(fingerprint).await? {
         return Err(AppError::Forbidden);
     }
 
-    let session_id = Uuid::new_v4().to_string();
+    let session_id = session_id
+        .map(str::to_string)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let now = Utc::now();
     let session = KopplungSession {
         id: session_id.clone(),
@@ -84,7 +97,9 @@ pub async fn create_join_request(
         state: KopplungStatus::JoinRequested,
         sas_hash: None,
         requested_role,
-        hostname: local_hostname(),
+        hostname: hostname
+            .map(str::to_string)
+            .or_else(local_hostname),
         created_at: now,
         expires_at: now + Duration::seconds(KOPPLUNG_TTL_SECS),
     };
@@ -106,12 +121,39 @@ pub async fn create_join_request(
     })
 }
 
+/// Mirror an admin-issued kopplung session on the joiner device.
+pub async fn mirror_join_session(
+    pool: &SqlitePool,
+    session_id: &str,
+    fingerprint: &str,
+    requested_role: SeatRolle,
+    handshake_transcript: &[u8],
+) -> Result<KopplungHandle, AppError> {
+    let repos = SqliteVerbundRepos { pool };
+    if repos.load_session(session_id).await?.is_some() {
+        return Ok(KopplungHandle {
+            session_id: session_id.to_string(),
+            fingerprint: fingerprint.to_string(),
+        });
+    }
+    create_join_request(
+        pool,
+        fingerprint,
+        requested_role,
+        handshake_transcript,
+        Some(session_id),
+        local_hostname().as_deref(),
+    )
+    .await
+}
+
 /// Revoke an occupied seat (e.g. after reinstall with new identity).
 pub async fn reclaim_stale_seat(
     pool: &SqlitePool,
     user_id: &str,
     old_fingerprint: &str,
 ) -> Result<(), AppError> {
+    require_owner_admin(pool).await?;
     revoke_device(pool, user_id, old_fingerprint).await?;
     audit::log_verbund(
         pool,
@@ -130,6 +172,7 @@ pub async fn accept_join_request(
     handshake_transcript: &[u8],
     replace_fingerprint: Option<&str>,
 ) -> Result<SasCode, AppError> {
+    require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     let Some(lizenz) = repos.load().await? else {
         return Err(AppError::Validation("Kein Verbund aktiviert".into()));
@@ -182,11 +225,60 @@ pub async fn submit_sas(
     handshake_transcript: &[u8],
 ) -> Result<ProvisionResult, AppError> {
     let repos = SqliteVerbundRepos { pool };
-    let Some(lizenz) = repos.load().await? else {
-        return Err(AppError::Validation("Kein Verbund".into()));
-    };
     let Some(session) = repos.load_session(&handle.session_id).await? else {
         return Err(AppError::NotFound("Kopplungssitzung nicht gefunden".into()));
+    };
+
+    let identity = DeviceIdentity::load_or_create()?;
+    let transcript_join =
+        handshake_transcript.len() > 32 && handshake_transcript != identity.fingerprint.as_bytes();
+
+    if transcript_join {
+        let Some(sas) = normalise_sas_input(digits) else {
+            return Err(AppError::Validation("SAS muss 4 Ziffern sein".into()));
+        };
+        let expected = derive_sas_from_transcript(handshake_transcript);
+        if sas != expected {
+            return Err(AppError::Validation("SAS stimmt nicht überein".into()));
+        }
+
+        repos
+            .update_state(&handle.session_id, KopplungStatus::SasConfirmed, None)
+            .await?;
+
+        let seat_token = format!("join-provision:{}", handle.session_id);
+        let settings_json = "{}".to_string();
+        let wrapped_secrets = vec![];
+
+        let result = apply_provisioning(
+            pool,
+            &handle.fingerprint,
+            seat_token.clone(),
+            settings_json.clone(),
+            wrapped_secrets.clone(),
+        )
+        .await?;
+
+        if result.success {
+            repos
+                .update_state(&handle.session_id, KopplungStatus::Provisioned, None)
+                .await?;
+            audit::log_kopplung(pool, user_id, "PROVISION", Some(&handle.session_id), None).await?;
+        } else {
+            audit::log_kopplung(
+                pool,
+                user_id,
+                "PROVISION_REJECTED",
+                Some(&handle.session_id),
+                None,
+            )
+            .await?;
+        }
+        return Ok(result);
+    }
+
+    let Some(lizenz) = repos.load().await? else {
+        return Err(AppError::Validation("Kein Verbund".into()));
     };
 
     if session.state != KopplungStatus::AwaitingSas {
@@ -203,14 +295,12 @@ pub async fn submit_sas(
         expected_hash,
         &lizenz.signing_key_enc,
     )?;
-    let _ = handshake_transcript;
 
     repos
         .update_state(&handle.session_id, KopplungStatus::SasConfirmed, None)
         .await?;
 
     let signing_key = master_keys::load_or_create()?;
-    let identity = DeviceIdentity::load_or_create()?;
     let (_cert, seat_token) = mint_seat_certificate(
         &signing_key,
         &lizenz.cluster_id,
@@ -362,6 +452,7 @@ pub async fn revoke_device(
     user_id: &str,
     fingerprint: &str,
 ) -> Result<(), AppError> {
+    require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     repos.set_status(fingerprint, GeraetStatus::Revoked).await?;
     audit::log_verbund(pool, user_id, "REVOKE", Some(fingerprint), None).await
@@ -373,6 +464,7 @@ pub async fn block_device(
     fingerprint: &str,
     reason: &str,
 ) -> Result<(), AppError> {
+    require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     repos.block(fingerprint, reason).await?;
     audit::log_verbund(pool, user_id, "BLOCK", Some(fingerprint), Some(reason)).await
@@ -383,6 +475,7 @@ pub async fn unblock_device(
     user_id: &str,
     fingerprint: &str,
 ) -> Result<(), AppError> {
+    require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     repos.unblock(fingerprint).await?;
     audit::log_verbund(pool, user_id, "UNBLOCK", Some(fingerprint), None).await
@@ -393,6 +486,7 @@ pub async fn reject_join_request(
     user_id: &str,
     session_id: &str,
 ) -> Result<(), AppError> {
+    require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     repos
         .update_state(session_id, KopplungStatus::Rejected, None)

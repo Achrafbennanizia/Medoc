@@ -7,6 +7,7 @@ import { loadAufgabeTeamDirectory } from "../components/praxis-aufgaben/load-auf
 import { createPraxisAufgabeAdmin } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import type { Patient, Personal } from "@/models/types";
 import { errorMessage } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -19,6 +20,7 @@ import { PraxisAufgabeFormFields } from "../components/praxis-aufgaben/praxis-au
 const BACK_HREF = "/tickets?tab=verwalten";
 
 export function PraxisAufgabeCreatePage() {
+    const t = useT();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
@@ -52,7 +54,7 @@ export function PraxisAufgabeCreatePage() {
 
     const save = async () => {
         if (!form.titel.trim()) {
-            toast("Titel ist Pflicht.", "error");
+            toast(t("common.title_required"), "error");
             return;
         }
         setBusy(true);
@@ -65,7 +67,7 @@ export function PraxisAufgabeCreatePage() {
                 assigneeRole: form.assigneeMode === "rezeption" ? "REZEPTION" : null,
                 assigneeUserId: form.assigneeMode === "user" ? form.assigneeUserId || null : null,
             });
-            toast("Aufgabe angelegt.", "success");
+            toast(t("praxis.aufgaben.toast.created"), "success");
             navigate(BACK_HREF);
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -74,20 +76,20 @@ export function PraxisAufgabeCreatePage() {
         }
     };
 
-    if (loading) return <PageLoading label="Formular wird geladen…" />;
+    if (loading) return <PageLoading label={t("common.loading_form")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
         <div className="praxis-aufgabe-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 titleLevel="h1"
-                title="Neue Aufgabe"
-                subtitle="Aufgabe anlegen und zuweisen — erscheint im Posteingang der Zielrolle."
-                back={{ to: BACK_HREF, label: "Praxis-Aufgaben" }}
+                title={t("praxis.aufgaben.create.title")}
+                subtitle={t("praxis.aufgaben.create.subtitle")}
+                back={{ to: BACK_HREF, label: t("praxis.aufgaben.title") }}
             />
 
             <Card className="card-elevated praxis-aufgabe-create-page__card">
-                <CardHeader title="Aufgabendetails" />
+                <CardHeader title={t("praxis.aufgaben.create.card_title")} />
                 <div className="card-pad">
                     <PraxisAufgabeFormFields
                         mode="create"
@@ -98,11 +100,11 @@ export function PraxisAufgabeCreatePage() {
                     />
                     <div className="row" style={{ gap: 8, marginTop: 16 }}>
                         <Button type="button" variant="primary" disabled={busy} onClick={() => void save()}>
-                            Anlegen
+                            {t("praxis.aufgaben.create.btn")}
                         </Button>
                         <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate(BACK_HREF)}>
                             <ChevronLeftIcon size={16} />
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                     </div>
                 </div>

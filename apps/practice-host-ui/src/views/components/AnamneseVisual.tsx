@@ -1,11 +1,13 @@
+import { useT } from "@/lib/i18n";
 import { useState } from "react";
 import { Card, CardHeader } from "./ui/card";
 import { type AnamneseV1, anamneseLabelFor } from "@/lib/anamnese";
 
 function EntryList({ entries }: { entries: [string, string][] }) {
+    const t = useT();
     const rows = entries.filter(([, v]) => v && String(v).trim());
     if (rows.length === 0) {
-        return <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)", fontStyle: "italic" }}>Keine Einträge.</p>;
+        return <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)", fontStyle: "italic" }}>{t("anamnese.visual.empty")}</p>;
     }
     return (
         <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
@@ -22,6 +24,7 @@ function EntryList({ entries }: { entries: [string, string][] }) {
 type AccSection = { id: string; title: string; entries: [string, string][] };
 
 export function AnamneseVisual({ data }: { data: AnamneseV1 }) {
+    const t = useT();
     const vor = data.vorerkrankungen && typeof data.vorerkrankungen === "object" ? Object.entries(data.vorerkrankungen) : [];
     const med = data.medikation && typeof data.medikation === "object" ? Object.entries(data.medikation) : [];
     const all = data.allergien && typeof data.allergien === "object" ? Object.entries(data.allergien) : [];
@@ -32,10 +35,10 @@ export function AnamneseVisual({ data }: { data: AnamneseV1 }) {
     ];
 
     const sections: AccSection[] = [
-        { id: "stamm", title: "Versicherung & Zuordnung", entries: stamm },
-        { id: "vor", title: "Vorerkrankungen & Anamnese", entries: vor },
-        { id: "med", title: "Medikation", entries: med },
-        { id: "all", title: "Allergien & Unverträglichkeiten", entries: all },
+        { id: "stamm", title: t("anamnese.visual.insurance_title"), entries: stamm },
+        { id: "vor", title: t("anamnese.visual.history_title"), entries: vor },
+        { id: "med", title: t("anamnese.visual.medication_title"), entries: med },
+        { id: "all", title: t("anamnese.visual.allergies_title"), entries: all },
     ];
 
     const [openId, setOpenId] = useState<string | null>("stamm");
@@ -71,6 +74,7 @@ export function AnamneseVisual({ data }: { data: AnamneseV1 }) {
 
 /** Read-only cards (legacy layout) — retained if needed elsewhere. */
 export function AnamneseVisualFlat({ data }: { data: AnamneseV1 }) {
+    const t = useT();
     const vor = data.vorerkrankungen && typeof data.vorerkrankungen === "object" ? Object.entries(data.vorerkrankungen) : [];
     const med = data.medikation && typeof data.medikation === "object" ? Object.entries(data.medikation) : [];
     const all = data.allergien && typeof data.allergien === "object" ? Object.entries(data.allergien) : [];
@@ -81,19 +85,19 @@ export function AnamneseVisualFlat({ data }: { data: AnamneseV1 }) {
     return (
         <div className="col" style={{ gap: 16 }}>
             <Card className="card-pad">
-                <CardHeader title="Versicherung & Zuordnung" />
+                <CardHeader title={t("anamnese.visual.insurance_title")} />
                 <EntryList entries={stamm} />
             </Card>
             <Card className="card-pad">
-                <CardHeader title="Vorerkrankungen & Anamnese" />
+                <CardHeader title={t("anamnese.visual.history_title")} />
                 <EntryList entries={vor} />
             </Card>
             <Card className="card-pad">
-                <CardHeader title="Medikation" />
+                <CardHeader title={t("anamnese.visual.medication_title")} />
                 <EntryList entries={med} />
             </Card>
             <Card className="card-pad">
-                <CardHeader title="Allergien & Unverträglichkeiten" />
+                <CardHeader title={t("anamnese.visual.allergies_title")} />
                 <EntryList entries={all} />
             </Card>
         </div>

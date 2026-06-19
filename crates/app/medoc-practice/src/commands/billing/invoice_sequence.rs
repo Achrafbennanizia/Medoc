@@ -48,7 +48,8 @@ fn compact_day(day_yyyy_mm_dd: &str) -> String {
 }
 
 /// Vergibt die nächste RE- bzw. BR-Nummer für den Kalendertag `ymd` (yyyy-MM-dd).
-/// Persistiert in `app_kv` unter `finanzen.document_counters.v1` mit `BEGIN IMMEDIATE`.
+/// Persistiert in `app_kv` unter `finanzen.document_counters.v1`.
+/// Uses a dedicated `acquire()` + single `BEGIN IMMEDIATE` (not `pool.begin()` + nested BEGIN).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn allocate_invoice_document_number(

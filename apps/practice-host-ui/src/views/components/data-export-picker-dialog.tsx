@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import type { ExportFormat } from "@/models/store/export-preview-store";
 import { Dialog } from "./ui/dialog";
@@ -46,6 +47,8 @@ export function DataExportPickerDialog({
     defaultFormat,
     resolvePayload,
 }: DataExportPickerDialogProps) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [format, setFormat] = useState<DataExportFormat>(defaultFormat);
     const [fileName, setFileName] = useState("");
@@ -90,7 +93,7 @@ export function DataExportPickerDialog({
                 if (p) setFileName(p.suggestedFilename);
             } catch (e) {
                 if (!cancelled) {
-                    toast(`Daten laden fehlgeschlagen: ${errorMessage(e)}`, "error");
+                    toast(tp("export.picker.load_failed", { message: errorMessage(e) }), "error");
                     setPayload(null);
                 }
             } finally {
@@ -109,7 +112,7 @@ export function DataExportPickerDialog({
 
     const runExport = async () => {
         if (!payload) {
-            toast("Keine Exportdaten.", "error");
+            toast(t("common.no_export_data"), "error");
             return;
         }
         const finalName = filenameWithExt(fileName, format);
@@ -128,7 +131,7 @@ export function DataExportPickerDialog({
             });
             onClose();
         } catch (e) {
-            toast(`Export fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.export_failed", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -143,10 +146,10 @@ export function DataExportPickerDialog({
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button type="button" onClick={() => void runExport()} loading={busy} disabled={busy || loading || !payload}>
-                        Exportieren
+                        {t("common.export_action")}
                     </Button>
                 </>
             )}
@@ -159,14 +162,14 @@ export function DataExportPickerDialog({
                     {formats.length > 1 ? (
                         <Select
                             id="data-export-picker-format"
-                            label="Dateiformat"
+                            label={t("export.picker.format")}
                             value={format}
                             onChange={(e) => setFormat(e.target.value as DataExportFormat)}
                             options={formats}
                         />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Zielpfad</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -180,12 +183,12 @@ export function DataExportPickerDialog({
                                     if (p) setFolderOnce(p);
                                 }}
                             >
-                                Anderen Speicherort wählen …
+                                {t("export.picker.another_folder")}
                             </Button>
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>Dateiname</div>
+                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
                         <Input
                             id="data-export-picker-filename"
                             value={fileName}
@@ -201,7 +204,7 @@ export function DataExportPickerDialog({
                         {loading ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>Daten werden geladen …</p>
                         ) : !payload ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Keine Exportdaten.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_export_data")}</p>
                         ) : format === "csv" && csvPreviewRows.length > 0 ? (
                             <div className="export-preview-scroll" style={{ maxHeight: 420, overflow: "auto" }}>
                                 <table className="tbl export-preview-tbl" style={{ fontSize: 12 }}>
@@ -228,7 +231,7 @@ export function DataExportPickerDialog({
                                 ZIP-Archiv ({payload.suggestedFilename}) — Inhalt wird beim Speichern bereitgestellt.
                             </p>
                         ) : (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Keine Vorschau.</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_preview")}</p>
                         )}
                     </div>
                 </div>

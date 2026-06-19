@@ -42,6 +42,7 @@ async fn mem_pool() -> sqlx::SqlitePool {
 }
 
 #[tokio::test]
+#[ignore = "Break-Glass disabled for MVP"]
 async fn audit_create_flags_active_break_glass() {
     init_audit_for_tests();
     let pool = mem_pool().await;

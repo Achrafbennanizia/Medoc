@@ -1,6 +1,104 @@
 # Phase handoff
 
-**Last phase label:** Refactor & harden pass (2026-06-10)  
+**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+
+### Verified (2026-06-18 — Work-Time program)
+
+- **Schema:** `work_time_pause_segment`, `work_time_preference`, `arbeitsplan_adjustment`; extended `krankenbescheinigung` + `pause_minutes` on sessions (`rust_only.rs`).
+- **RBAC:** `work_time.self`, `work_time.team.read`, `work_time.admin`, `statistik.read` in `config/rbac.yaml`; routes in `rbac.ts`.
+- **IPC:** 14 work-time commands + krank list/end + `list_arbeitsplan_adjustments`; logout auto-end when `auto_record_on_logout`; **294** invoke handlers.
+- **UI:** `/personal/arbeitszeit` (live timer, week bars, focus mode); `/verwaltung/team/arbeitszeit`; Krankenbescheinigung Verwaltung; `sec-arbeitszeit` in Statistik; per-user auto-record in Arbeitsplan.
+- **Tests:** `cargo test -p medoc-practice --lib work_time` **PASS** (2); invoke registry **PASS** (294); `npm test` **PASS** (242); `npm run build` **PASS**.
+
+### Remains unverified
+
+- Live Tauri manual QA of focus-mode nav + file upload Krankenbescheinigung on disk.
+- Full `cargo test --workspace --tests` green (pre-existing medoc-core FK failures).
+
+### Next
+
+1. Manual smoke: REZEPTION login → Arbeitszeit; ARZT team overview; KB create/end.
+2. v1 Wave 5 calendar/PDF export (separate track).
+
+---
+
+**Previous phase label:** MVP Security Hardening (2026-06-18)
+
+### Verified (2026-06-18 — MVP security hardening)
+
+- **TOCTOU fix:** `create_with_quota` / `update_with_quota` use `BEGIN IMMEDIATE` + `enforce_staff_quota_on_conn` before insert/update (`mvp_security.rs`, `personal.rs` repo).
+- **Centralized limits:** `staff_quota_limits()` feeds `staff_quota()` and enforcement.
+- **IPC guards:** `require_break_glass_enabled()` / `require_totp_enabled()` in break-glass, auth, personal TOTP commands.
+- **Tests:** `staff_quota_tests` (10), `mvp_security_gates_tests` (4), `auth_session_audit_tests` (1) — all **PASS**.
+- **UI:** `formatQuotaLine` + grandfathered over-cap hint on Personal page.
+- **npm:** `npm test` 242 pass; `npm run build` pass.
+
+### Remains unverified
+
+- Full `cargo test --workspace --tests` green (6 pre-existing `medoc-core` lib unit FK failures unrelated to quota work).
+- Live HTTP two-device pairing; `release.yml` tag build.
+
+### Next
+
+1. Fix or quarantine pre-existing `medoc-core` license/sync_outbox lib test FK failures.
+2. v1 program Wave 5 calendar/PDF export (separate track).
+
+---
+
+**Previous phase label:** MeDoc v1 Completion Program (2026-06-18)  
+**Last closed:** Waves 0–4, 6 (partial 5, 7).
+
+### Verified (2026-06-18 — v1 program)
+
+- **Wave 1:** `v1-ui-flags.ts` blinds broken surfaces; `NOT_IMPLEMENTED` connector paths not reachable from UI (grep: telematik/payment/dicom stubs only).
+- **Wave 2:** `require_owner_activation_device` on `import_owner_activation` + `activate_cluster_license`; HTTP pairing cancel on replica scan; runbook [`docs/runbooks/http-two-device-pairing.md`](../runbooks/http-two-device-pairing.md); merge ordering **C8** in contradictions.
+- **Wave 3:** Locale `de|en|fr|ar`; RTL `dir` on `<html>`; `i18n-locales.test.ts` key parity.
+- **Wave 4 (MVP):** `work_time_session` table + 7 IPC commands; `/personal/arbeitszeit`; `/verwaltung/krankenbescheinigung`; auto-record on login hook.
+- **Wave 5 (partial):** Bestellungen price column; table CSS `table-layout:fixed`; NEU→AKTIV on first `create_termin`. Calendar compression / PDF export **NOT DONE**.
+- **Wave 6:** Login demonstrator copy trimmed (Wave 1); Tauri `plugins.updater` stub in `tauri.conf.json`; `installer/README.md` token notes.
+- **Tests:** `npm test` 242 pass; `npm run build` pass; invoke registry 284 commands.
+
+### Remains unverified
+
+- Live HTTP two-device pairing acceptance.
+- First tag-driven `release.yml` on all platforms.
+- Full `cargo test --workspace --tests` / `cargo clippy -D warnings`.
+- R-009 / R-012 resolution.
+- Wave 5 calendar month/week fixes; full FR/AR page externalization.
+
+### Next
+
+1. Product decision on merge ordering (C8) before merge E2E tests.
+2. Tag release for `release.yml` smoke.
+3. Wave 5 calendar + PDF export fixes.
+
+---
+
+**Previous phase label:** Activation security remediation (2026-06-16)
+
+### Verified (2026-06-16 — security fixes)
+
+- **Pre-login gate:** owners require `licensed`; members pass on `provisioned` (`verbund-onboarding-gate.tsx`, `verbund-store.ts`).
+- **Import:** `import_owner_activation` no longer calls `mark_provisioned`; manifest removed after success; `ImportActivationResult` IPC.
+- **License step:** `activate_cluster_license` calls `mark_owner_provisioned_if_ready` after vendor verify.
+- **Backend:** `verbund_network_ready` / `require_owner_vendor_license` on listener start and `accept_join_request`.
+- **Interop:** C++ UUIDv4 `cluster_id`; dalek sign/verify of `medoc-activation-check`; tests **PASS** (see [`validation.md`](validation.md)).
+
+### Remains unverified
+
+- Full `cargo test --workspace --tests` (spot checks green).
+- `installer/build-app-installers.sh` / release workflow on CI runners.
+- Windows keygen build (vcpkg path in release.yml).
+
+### Next
+
+1. Tag release to exercise `release.yml`.
+2. Ops: distribute `medoc-keygen` separately from app installers.
+
+---
+
+**Previous phase label:** Admin installer + offline keygen (2026-06-16)  
 **Last closed:** Phases A–F; register at [`refactor-register.md`](refactor-register.md); workflow map at [`workflow-map.md`](workflow-map.md).
 
 ### Verified (2026-06-10 — Refactor & harden)

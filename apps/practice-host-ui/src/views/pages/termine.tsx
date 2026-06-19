@@ -20,8 +20,8 @@ import {
     parseISO,
     startOfWeek,
 } from "date-fns";
-import { de } from "date-fns/locale";
 import { listTermine, deleteTermin, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.controller";
@@ -47,7 +47,7 @@ import {
     type PraxisArbeitszeitenConfig,
 } from "@/lib/praxis-planning";
 import { validateTerminSchedulingUpdates } from "@/lib/termin-availability";
-import type { Termin, Patient, Abwesenheit } from "../../models/types";
+import type { Termin as TCalEvent, Patient, Abwesenheit } from "../../models/types";
 import { ConfirmDialog } from "../components/ui/dialog";
 // import { Dialog, IosConfirmActions } from "../components/ui/dialog"; — Pause/Notfall-Dialoge deaktiviert
 import { EmptyState } from "../components/ui/empty-state";
@@ -75,20 +75,17 @@ import {
     computePackedUpdatesAfterMove,
     minutesToUhrzeit,
     terminArtLabelFromTermin,
+    terminArtFilterOptions,
     terminCountsAsPlanned,
     terminUhrzeitToMinutes,
-    TERMIN_ART_FILTER_OPTIONS,
     TERMIN_DAY_END_MIN,
     TERMIN_DAY_START_MIN,
     TERMIN_DEFAULT_DUR_MIN,
-    // TERMIN_NOTFALL_CONFIRM_MESSAGE,
-    // TERMIN_NOTFALL_CONFIRM_TITLE,
     TERMIN_PX_PER_MIN,
     TERMIN_STATUS_BADGE,
 } from "@/lib/termin-calendar-ui";
 
 const statusBadge = TERMIN_STATUS_BADGE;
-const terminArten = TERMIN_ART_FILTER_OPTIONS;
 const PX_PER_MIN = TERMIN_PX_PER_MIN;
 const DAY_START_MIN = TERMIN_DAY_START_MIN;
 const DAY_END_MIN = TERMIN_DAY_END_MIN;
@@ -107,24 +104,16 @@ const APPT_CLICK_SUPPRESS_AFTER_DROP_MS = 500;
 /** Summe der Zeigerbewegung (|dx|+|dy|) ab der Drag-Zeit – ab diesem Wert als Zieh-Geste werten. */
 const APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX = 6;
 
-const ART_FILTER_OPTIONS = [{ value: "", label: "Alle Arten" }, ...terminArten];
-
-const STATUS_FILTER_OPTIONS = [
-    { value: "", label: "Alle Stati" },
-    ...Object.keys(statusBadge).map((k) => ({ value: k, label: k.replace(/_/g, " ") })),
-];
-
-// Kalender-Toolbar: Pause / Notfall (Dialoge) — vorübergehend deaktiviert
-// const NOTFALL_CONFIRM_TITLE = TERMIN_NOTFALL_CONFIRM_TITLE;
-// const NOTFALL_CONFIRM_MESSAGE = TERMIN_NOTFALL_CONFIRM_MESSAGE;
-
 const uhrzeitToMinutes = terminUhrzeitToMinutes;
 
 export function TerminePage() {
+    const t = useT();
+    const tp = useTParams();
+    const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [termine, setTermine] = useState<Termin[]>([]);
+    const [termine, setTermine] = useState<TCalEvent[]>([]);
     const [patienten, setPatienten] = useState<Patient[]>([]);
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
     const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
@@ -162,8 +151,8 @@ export function TerminePage() {
     );
     // const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
     // const pauseTitleId = useId();
-    const [drawerTermin, setDrawerTermin] = useState<Termin | null>(null);
-    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; termin: Termin } | null>(null);
+    const [drawerTermin, setDrawerTermin] = useState<TCalEvent | null>(null);
+    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; termin: TCalEvent } | null>(null);
     const [dragState, setDragState] = useState<null | {
         id: string;
         datum: string;
@@ -209,6 +198,22 @@ export function TerminePage() {
         navigate(q ? `/termine/neu?${q}` : "/termine/neu");
     }, [navigate, praxisPlanCfg.defaultArztId]);
     const toast = useToastStore((s) => s.add);
+
+    const artFilterOptions = useMemo(
+        () => [{ value: "", label: t("termine.filter.all_types") }, ...terminArtFilterOptions()],
+        [t],
+    );
+
+    const statusFilterOptions = useMemo(
+        () => [
+            { value: "", label: t("termine.filter.all_status") },
+            ...Object.keys(statusBadge).map((k) => ({
+                value: k,
+                label: t(`dashboard.status.${k}`) !== `dashboard.status.${k}` ? t(`dashboard.status.${k}`) : k.replace(/_/g, " "),
+            })),
+        ],
+        [t],
+    );
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -257,7 +262,7 @@ export function TerminePage() {
         const refreshPraxisPlan = () => {
             void loadPraxisArbeitszeitenConfig()
                 .then(setPraxisPlanCfg)
-                .catch((e) => toast(`Arbeitszeiten konnten nicht geladen werden: ${errorMessage(e)}`, "warning"));
+                .catch((e) => toast(tp("termine.page.toast_work_hours", { message: errorMessage(e) }), "warning"));
             void listAbwesenheiten()
                 .then(setAbwesenheiten)
                 .catch(() => setAbwesenheiten([]));
@@ -285,7 +290,7 @@ export function TerminePage() {
         if (!deleteId) return;
         const id = deleteId;
         await deleteTermin(id);
-        toast("Termin gelöscht");
+        toast(t("termine.page.toast_deleted"));
         setDeleteId(null);
         setDrawerTermin((d) => (d?.id === id ? null : d));
         void load();
@@ -294,7 +299,7 @@ export function TerminePage() {
     const handleStornieren = async (id: string) => {
         try {
             await updateTermin(id, { status: "ABGESAGT" });
-            toast("Termin storniert");
+            toast(t("termine.page.toast_storno"));
             setDrawerTermin((d) => (d?.id === id ? null : d));
             setCtxMenu(null);
             await load();
@@ -383,7 +388,7 @@ export function TerminePage() {
                 setWeekOffset(0);
                 setMonthOffset(0);
                 setView("tag");
-                toast("Heute (Tagesansicht).");
+                toast(t("termine.page.toast_today"));
             } else if (k === "n") {
                 e.preventDefault();
                 goNeuerTermin({ datum: selectedDayIso });
@@ -517,15 +522,15 @@ export function TerminePage() {
         [quickSearch, filterArt, filterStatus, filterArztIds],
     );
     const tagViewEmptyDescription = useMemo(() => {
-        const dateStr = format(selectedDayDate, "EEEE, d. MMMM yyyy", { locale: de });
+        const dateStr = format(selectedDayDate, "EEEE, d. MMMM yyyy", { locale: dateFnsLocale });
         if (termine.length === 0) {
-            return "Es sind noch keine Termine im System. Legen Sie den ersten Termin an oder wechseln Sie mit den Pfeilen den Tag.";
+            return t("termine.page.empty_none");
         }
         if (tagViewHasActiveFilters) {
-            return `Am ${dateStr} können Termine vorhanden sein, die durch die aktiven Schnellfilter ausgeblendet werden. Filter anpassen oder zurücksetzen.`;
+            return tp("termine.page.empty_day_filtered", { date: dateStr });
         }
-        return `Am ${dateStr} ist kein Termin eingetragen. Legen Sie einen Termin an oder wechseln Sie mit den Pfeilen in der Tagesansicht den Tag.`;
-    }, [selectedDayDate, tagViewHasActiveFilters, termine.length]);
+        return tp("termine.page.empty_day_none", { date: dateStr });
+    }, [selectedDayDate, tagViewHasActiveFilters, termine.length, dateFnsLocale, t, tp]);
 
     const resetFilters = () => {
         setFilterArt("");
@@ -540,7 +545,7 @@ export function TerminePage() {
         return selectedDayDate;
     }, [view, monthOffset, weekOffset, selectedDayDate]);
 
-    const headlineMonthYear = format(headlineAnchorDate, "MMMM yyyy", { locale: de });
+    const headlineMonthYear = format(headlineAnchorDate, "MMMM yyyy", { locale: dateFnsLocale });
     const geplantCount = useMemo(
         () => baseFilteredTermine.filter(terminCountsAsPlanned).length,
         [baseFilteredTermine],
@@ -558,21 +563,25 @@ export function TerminePage() {
             const name = aerzte.find((a) => a.id === id)?.name ?? id;
             chips.push({ key: `arzt:${id}`, label: name });
         }
-        if (filterArt) chips.push({ key: "art", label: terminArten.find((a) => a.value === filterArt)?.label ?? filterArt });
+        if (filterArt) chips.push({ key: "art", label: artFilterOptions.find((a) => a.value === filterArt)?.label ?? filterArt });
         if (filterStatus) chips.push({ key: "st", label: filterStatus.replace(/_/g, " ") });
         return chips;
-    }, [filterArztIds, aerzte, filterArt, filterStatus]);
+    }, [filterArztIds, aerzte, filterArt, filterStatus, artFilterOptions]);
 
     const toolbarNavLabel = useMemo(() => {
-        if (view === "tag") return format(selectedDayDate, "EEEE, d. MMMM", { locale: de });
+        if (view === "tag") return format(selectedDayDate, "EEEE, d. MMMM", { locale: dateFnsLocale });
         if (view === "woche") {
             const start = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
             const end = addDays(start, 6);
             const wn = getISOWeek(start);
-            return `Woche ${wn} · ${format(start, "d.", { locale: de })}–${format(end, "d. MMMM", { locale: de })}`;
+            return tp("termine.page.week_label", {
+                week: wn,
+                start: format(start, "d.", { locale: dateFnsLocale }),
+                end: format(end, "d. MMMM", { locale: dateFnsLocale }),
+            });
         }
-        return format(addMonths(new Date(), monthOffset), "MMMM yyyy", { locale: de });
-    }, [view, weekOffset, monthOffset, selectedDayDate]);
+        return format(addMonths(new Date(), monthOffset), "MMMM yyyy", { locale: dateFnsLocale });
+    }, [view, weekOffset, monthOffset, selectedDayDate, dateFnsLocale, tp]);
 
     const jumpToIsoDate = useCallback((iso: string) => {
         const d = parseISO(iso);
@@ -620,17 +629,17 @@ export function TerminePage() {
                 for (const u of updates) {
                     await updateTermin(u.id, u.data);
                 }
-                toast(updates.length > 1 ? `${updates.length} Termine angepasst (ohne Überschneidung)` : "Termin verschoben");
+                toast(updates.length > 1 ? tp("termine.page.toast_moved_many", { count: updates.length }) : t("termine.page.toast_moved"));
                 await load();
                 if (snap) setTerminDaySnapLabel(snap);
             } catch (e) {
                 toast(errorMessage(e));
             }
         },
-        [load, toast, termine, praxisPlanCfg, abwesenheiten, terminPufferMin],
+        [load, toast, termine, praxisPlanCfg, abwesenheiten, terminPufferMin, t, tp],
     );
 
-    const handleApptContextMenu = useCallback((termin: Termin, e: ReactMouseEvent) => {
+    const handleApptContextMenu = useCallback((termin: TCalEvent, e: ReactMouseEvent) => {
         e.preventDefault();
         if (Date.now() < suppressApptContextMenuUntilRef.current) {
             return;
@@ -809,7 +818,7 @@ export function TerminePage() {
     }, [dragState?.id, view, commitDrag]);
 
     const openDrawerFor = useCallback(
-        (termin: Termin) => {
+        (termin: TCalEvent) => {
             setDrawerTermin(termin);
             setCtxMenu(null);
         },
@@ -818,24 +827,24 @@ export function TerminePage() {
 
     const patchTerminLocal = useCallback(
         (id: string, patch: Record<string, unknown>) => {
-            setTermine((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as Termin : x)));
-            setDrawerTermin((dt) => (dt?.id === id ? { ...dt, ...patch } as Termin : dt));
+            setTermine((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as TCalEvent : x)));
+            setDrawerTermin((dt) => (dt?.id === id ? { ...dt, ...patch } as TCalEvent : dt));
         },
         [],
     );
 
     const onDrawerStatus = useCallback(
-        async (id: string, status: Termin["status"]) => {
+        async (id: string, status: TCalEvent["status"]) => {
             try {
                 await updateTermin(id, { status });
                 patchTerminLocal(id, { status });
-                toast(`Status: ${status.replace(/_/g, " ")}`);
+                toast(tp("termine.page.toast_status", { status: status.replace(/_/g, " ") }));
                 await load();
             } catch (e) {
                 toast(errorMessage(e));
             }
         },
-        [load, toast, patchTerminLocal],
+        [load, toast, patchTerminLocal, t, tp],
     );
 
     useEffect(() => {
@@ -893,22 +902,22 @@ export function TerminePage() {
                 className="fade-up"
                 headerClassName="schedule-header termin-page-head"
                 titleLevel="h1"
-                title="Terminübersicht"
+                title={t("termine.page.title")}
                 subtitle={
                     <div className="page-sub termin-page-sub">
                         <span>
-                            {headlineMonthYear} · {geplantCount} Termine geplant
+                            {headlineMonthYear} · {tp("termine.page.planned_count", { count: geplantCount })}
                             {" · "}
                         </span>
-                        <span className="termin-heute-accent">Heute {heuteGeplantCount}</span>
+                        <span className="termin-heute-accent">{tp("termine.page.heute", { count: heuteGeplantCount })}</span>
                     </div>
                 }
                 actions={
                     <div className="schedule-toolbar">
                         <div className="seg schedule-view-seg">
-                            <button type="button" aria-pressed={view === "tag"} onClick={() => setView("tag")}>Tag</button>
-                            <button type="button" aria-pressed={view === "woche"} onClick={() => setView("woche")}>Woche</button>
-                            <button type="button" aria-pressed={view === "monat"} onClick={() => setView("monat")}>Monat</button>
+                            <button type="button" aria-pressed={view === "tag"} onClick={() => setView("tag")}>{t("termine.page.view.day")}</button>
+                            <button type="button" aria-pressed={view === "woche"} onClick={() => setView("woche")}>{t("termine.page.view.week")}</button>
+                            <button type="button" aria-pressed={view === "monat"} onClick={() => setView("monat")}>{t("termine.page.view.month")}</button>
                         </div>
                         <div className="schedule-quick-actions">
                             {CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED
@@ -917,8 +926,8 @@ export function TerminePage() {
                                     className="app-notice--toolbar termin-cal-banner"
                                     variant="info"
                                     dismissKey="termin-cal-emergency-toolbar-hint"
-                                    title="Pause/Notfall-Werkzeuge deaktiviert"
-                                    subtitle="Einstellungen → Arbeitsabläufe. Der Notfall-Filter bleibt aktiv."
+                                    title={t("termine.page.banner_title")}
+                                    subtitle={t("termine.page.banner_sub")}
                                 />
                             ) : null}
                             <div className="termin-filter-anchor" ref={filterPopoverWrapRef}>
@@ -930,7 +939,7 @@ export function TerminePage() {
                                     onClick={() => setFilterPopoverOpen((o) => !o)}
                                 >
                                     <FilterIcon size={14} />
-                                    Filter
+                                    {t("common.filter")}
                                     {activeFilterChips.length > 0 ? (
                                         <span className="termin-filter-badge">{activeFilterChips.length}</span>
                                     ) : null}
@@ -948,7 +957,7 @@ export function TerminePage() {
                             */}
                             <button type="button" className="btn btn-accent schedule-primary-action" onClick={() => goNeuerTermin({ datum: selectedDayIso })}>
                                 <PlusIcon />
-                                Neuer Termin
+                                {t("termine.page.new")}
                             </button>
                         </div>
                     </div>
@@ -962,7 +971,7 @@ export function TerminePage() {
                               ref={filterPopoverPanelRef}
                               className="termin-filter-popover termin-filter-popover--portal"
                               role="dialog"
-                              aria-label="Terminfilter"
+                              aria-label={t("termine.filter.aria")}
                               style={{
                                   top: filterPopoverFixed.top,
                                   left: filterPopoverFixed.left,
@@ -970,9 +979,9 @@ export function TerminePage() {
                               }}
                           >
                               <div className="termin-filter-popover-section">
-                                  <div className="termin-filter-popover-label">Behandler</div>
+                                  <div className="termin-filter-popover-label">{t("termine.filter.doctor")}</div>
                                   {aerzte.length === 0 ? (
-                                      <div className="termin-filter-empty">Keine Ärzte geladen</div>
+                                      <div className="termin-filter-empty">{t("termine.filter.no_doctors")}</div>
                                   ) : (
                                       aerzte.map((a) => (
                                           <label key={a.id} className="menu-item termin-filter-check-row">
@@ -993,7 +1002,7 @@ export function TerminePage() {
                               <div className="termin-filter-popover-fields">
                                   <div className="termin-filter-popover-field">
                                       <label htmlFor={terminFilterArtSelectId} className="termin-filter-popover-label">
-                                          Behandlungsart
+                                          {t("termine.filter.treatment_type")}
                                       </label>
                                       <select
                                           id={terminFilterArtSelectId}
@@ -1001,7 +1010,7 @@ export function TerminePage() {
                                           value={filterArt}
                                           onChange={(e) => setFilterArt(e.target.value)}
                                       >
-                                          {ART_FILTER_OPTIONS.map((o) => (
+                                          {artFilterOptions.map((o) => (
                                               <option key={o.value || "all-art"} value={o.value}>
                                                   {o.label}
                                               </option>
@@ -1010,7 +1019,7 @@ export function TerminePage() {
                                   </div>
                                   <div className="termin-filter-popover-field">
                                       <label htmlFor={terminFilterStatusSelectId} className="termin-filter-popover-label">
-                                          Status
+                                          {t("termine.filter.status")}
                                       </label>
                                       <select
                                           id={terminFilterStatusSelectId}
@@ -1018,7 +1027,7 @@ export function TerminePage() {
                                           value={filterStatus}
                                           onChange={(e) => setFilterStatus(e.target.value)}
                                       >
-                                          {STATUS_FILTER_OPTIONS.map((o) => (
+                                          {statusFilterOptions.map((o) => (
                                               <option key={o.value || "all-st"} value={o.value}>
                                                   {o.label}
                                               </option>
@@ -1029,10 +1038,10 @@ export function TerminePage() {
                               <div className="menu-sep" />
                               <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
                                   <button type="button" className="btn btn-ghost" onClick={() => resetFilters()}>
-                                      Zurücksetzen
+                                      {t("common.reset")}
                                   </button>
                                   <button type="button" className="btn btn-accent" onClick={() => setFilterPopoverOpen(false)}>
-                                      Schließen
+                                      {t("termine.filter.close")}
                                   </button>
                               </div>
                           </div>
@@ -1061,7 +1070,7 @@ export function TerminePage() {
                         </button>
                     ))}
                     <button type="button" className="btn btn-ghost termin-filter-clear-all" onClick={resetFilters}>
-                        Alle entfernen
+                        {t("termine.filter.clear_all")}
                     </button>
                 </div>
             ) : null}
@@ -1070,8 +1079,8 @@ export function TerminePage() {
                 <button
                     type="button"
                     className="icon-btn"
-                    title="Zurück (←)"
-                    aria-label="Zurück"
+                    title={t("termine.page.nav_back_title")}
+                    aria-label={t("termine.page.nav_back")}
                     onClick={() => {
                         if (view === "monat") setMonthOffset((o) => o - 1);
                         else if (view === "woche") setWeekOffset((w) => w - 1);
@@ -1084,8 +1093,8 @@ export function TerminePage() {
                 <button
                     type="button"
                     className="icon-btn"
-                    title="Vor (→)"
-                    aria-label="Vor"
+                    title={t("termine.page.nav_forward_title")}
+                    aria-label={t("termine.page.nav_forward")}
                     onClick={() => {
                         if (view === "monat") setMonthOffset((o) => o + 1);
                         else if (view === "woche") setWeekOffset((w) => w + 1);
@@ -1103,19 +1112,19 @@ export function TerminePage() {
                         setMonthOffset(0);
                     }}
                 >
-                    Heute
+                    {t("common.today")}
                 </button>
                 <div className="termin-toolbar-search input">
                     <SearchIcon size={16} aria-hidden />
                     <input
                         type="search"
-                        placeholder="In Terminen suchen…"
+                        placeholder={t("termine.page.search")}
                         value={quickSearch}
                         onChange={(e) => setQuickSearch(e.target.value)}
-                        aria-label="In Terminen suchen"
+                        aria-label={t("termine.page.search_aria")}
                     />
                     {quickSearch.trim() ? (
-                        <button type="button" className="icon-btn termin-search-clear" aria-label="Suche leeren" onClick={() => setQuickSearch("")}>
+                        <button type="button" className="icon-btn termin-search-clear" aria-label={t("termine.page.search_clear")} onClick={() => setQuickSearch("")}>
                             <XIcon size={14} />
                         </button>
                     ) : null}
@@ -1127,7 +1136,7 @@ export function TerminePage() {
             <div className="termin-content-fill">
             <div className="schedule-main termin-main-full">
                     {loading ? (
-                        <PageLoading label="Termine werden geladen…" />
+                        <PageLoading label={t("termine.page.loading")} />
                     ) : loadError ? (
                         <PageLoadError message={loadError} onRetry={() => void load()} />
                     ) : view === "tag" ? (
@@ -1157,12 +1166,12 @@ export function TerminePage() {
                             }}
                         />
                     ) : termine.length === 0 ? (
-                        <EmptyState icon="📅" title="Keine Termine vorhanden" description="Erstellen Sie einen neuen Termin." />
+                        <EmptyState icon="📅" title={t("termine.page.empty_title")} description={t("termine.page.empty_create")} />
                     ) : displayTermine.length === 0 ? (
                         <div className="card">
-                            <EmptyState icon="🔍" title="Keine Treffer für diese Filter" description="Filter anpassen oder zurücksetzen." />
+                            <EmptyState icon="🔍" title={t("termine.page.empty_no_match")} description={t("termine.page.empty_no_match_desc")} />
                             <div style={{ textAlign: "center", paddingBottom: 24 }}>
-                                <button type="button" className="btn btn-accent" onClick={resetFilters}>Filter zurücksetzen</button>
+                                <button type="button" className="btn btn-accent" onClick={resetFilters}>{t("common.reset_filters")}</button>
                             </div>
                         </div>
                     ) : view === "monat" ? (
@@ -1219,9 +1228,9 @@ export function TerminePage() {
                             <AmbulanceIcon />
                         </div>
                         <h2 id={notfallTitleId} className="ios-confirm-title">
-                            {NOTFALL_CONFIRM_TITLE}
+                            {t("termin.calendar.notfall_confirm_title")}
                         </h2>
-                        <p className="ios-confirm-message">{NOTFALL_CONFIRM_MESSAGE}</p>
+                        <p className="ios-confirm-message">{t("termin.calendar.notfall_confirm_message")}</p>
                     </div>
                     <IosConfirmActions
                         cancelLabel="Abbrechen"
@@ -1236,7 +1245,7 @@ export function TerminePage() {
                             setView("tag");
                             goNeuerTermin({ datum: todayIso, art: "NOTFALL", uhrzeit: "11:45" });
                             setNotfallConfirmOpen(false);
-                            toast("Notfall-Termin um 11:45 vorbereitet");
+                            toast(t("termine.page.demo_emergency"));
                         }}
                     />
                 </div>
@@ -1256,7 +1265,7 @@ export function TerminePage() {
                         <h2 id={pauseTitleId} className="ios-confirm-title">
                             Pause einfügen?
                         </h2>
-                        <p className="ios-confirm-message">Möchten Sie einen Pause-Block 12:30–13:15 in den Kalender eintragen?</p>
+                        <p className="ios-confirm-message">{t("termine.page.pause_confirm")}</p>
                     </div>
                     <IosConfirmActions
                         cancelLabel="Abbrechen"
@@ -1264,7 +1273,7 @@ export function TerminePage() {
                         onCancel={() => setPauseConfirmOpen(false)}
                         onConfirm={() => {
                             setPauseConfirmOpen(false);
-                            toast("Pause-Block 12:30–13:15 eingetragen (Demonstration).");
+                            toast(t("termine.page.demo_pause"));
                         }}
                     />
                 </div>
@@ -1274,20 +1283,20 @@ export function TerminePage() {
             {drawerTermin ? (
                 <TerminDetailDrawer
                     termin={drawerTermin}
-                    patientName={patientNameById.get(drawerTermin.patient_id) ?? "Patient"}
+                    patientName={patientNameById.get(drawerTermin.patient_id) ?? t("termin.calendar.patient_fallback")}
                     patientPhone={patientById.get(drawerTermin.patient_id)?.telefon ?? null}
                     doctorLabel={aerzte.find((a) => a.id === drawerTermin.arzt_id)?.name ?? "—"}
                     onClose={() => setDrawerTermin(null)}
                     onBearbeiten={() => goNeuerTermin({ id: drawerTermin.id })}
                     onStornieren={() => void handleStornieren(drawerTermin.id)}
                     onReminder={() => {
-                        const name = patientNameById.get(drawerTermin.patient_id) ?? "Patient";
-                        toast(`Erinnerung an ${name} vorbereitet (Versand folgt mit TI-Konnektor).`);
+                        const name = patientNameById.get(drawerTermin.patient_id) ?? t("termin.calendar.patient_fallback");
+                        toast(tp("termine.page.reminder_prepared", { name }));
                     }}
                     onStatusChange={onDrawerStatus}
                     onPhone={() => {
                         const tel = patientById.get(drawerTermin.patient_id)?.telefon?.trim();
-                        toast(tel ? `Anruf: ${tel}` : "Keine Telefonnummer hinterlegt.");
+                        toast(tel ? tp("termine.page.toast_phone", { phone: tel }) : t("termine.page.toast_no_phone"));
                     }}
                 />
             ) : null}
@@ -1297,14 +1306,14 @@ export function TerminePage() {
                     termin={ctxMenu.termin}
                     x={ctxMenu.x}
                     y={ctxMenu.y}
-                    patientName={patientNameById.get(ctxMenu.termin.patient_id) ?? "Patient"}
+                    patientName={patientNameById.get(ctxMenu.termin.patient_id) ?? t("termin.calendar.patient_fallback")}
                     onClose={() => setCtxMenu(null)}
                     onOpenDetails={() => openDrawerFor(ctxMenu.termin)}
                     onBearbeiten={() => goNeuerTermin({ id: ctxMenu.termin.id })}
                     onStornieren={() => void handleStornieren(ctxMenu.termin.id)}
                     onReminder={() => {
-                        const name = patientNameById.get(ctxMenu.termin.patient_id) ?? "Patient";
-                        toast(`Erinnerung an ${name} vorbereitet (Versand folgt mit TI-Konnektor).`);
+                        const name = patientNameById.get(ctxMenu.termin.patient_id) ?? t("termin.calendar.patient_fallback");
+                        toast(tp("termine.page.reminder_prepared", { name }));
                     }}
                 />
             ) : null}
@@ -1313,9 +1322,9 @@ export function TerminePage() {
                 open={!!deleteId}
                 onClose={() => setDeleteId(null)}
                 onConfirm={handleDelete}
-                title="Termin löschen"
-                message="Möchten Sie diesen Termin wirklich löschen?"
-                confirmLabel="Löschen"
+                title={t("termine.page.delete_title")}
+                message={t("termine.page.delete_confirm")}
+                confirmLabel={t("common.delete")}
                 danger
             />
         </div>

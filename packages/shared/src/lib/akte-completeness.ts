@@ -7,12 +7,13 @@ import type { PatientStatus } from "@/models/types";
 import { EMPTY_ANAMNESE_V1_JSON, parseAnamneseV1 } from "@/lib/anamnese";
 
 /** Tabs mit Sprungmarken in `patient-detail.tsx` / `#hash`. */
-export type AkteCompletenessTab = "stamm" | "anam" | "unter" | "behand";
+export type AkteCompletenessTab = "anam" | "unter" | "behand";
 
 export type AkteCompletenessGap = {
     id: string;
     label: string;
-    tab: AkteCompletenessTab;
+    /** Fehlt bei Feldern, die nur im Hero sichtbar sind (z. B. Versicherungsnummer). */
+    tab?: AkteCompletenessTab;
 };
 
 export type AkteCompletenessResult = {
@@ -61,7 +62,7 @@ export function computeAkteCompleteness(args: ComputeAkteCompletenessArgs): Akte
     const gaps: AkteCompletenessGap[] = [];
 
     if (!args.patientVersicherungsnummer.trim()) {
-        gaps.push({ id: "kvnr", label: "Versicherungsnummer", tab: "stamm" });
+        gaps.push({ id: "kvnr", label: "Versicherungsnummer" });
     }
 
     if (args.includeClinicalGaps) {

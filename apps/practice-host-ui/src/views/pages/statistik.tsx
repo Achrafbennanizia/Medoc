@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import type { Locale as DateFnsLocale } from "date-fns";
 import {
     Bar,
     BarChart,
@@ -29,28 +31,46 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { NAV_ICONS } from "@/lib/icons";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { workTimeGetStatistics, type WorkTimeStatistics } from "@/systems/practice-host/controllers/work-time.controller";
+import { formatWorkMinutes } from "@/lib/work-time-ui";
+import { useT, useTParams, useDateFnsLocale } from "@/lib/i18n";
 
 type Period = "6m" | "12m";
 
-interface Section {
-    id: string;
-    title: string;
-    description: string;
+const PANEL_IDS = [
+    "sec-ueberblick",
+    "sec-patienten",
+    "sec-krankheitsbilder",
+    "sec-behandlungen",
+    "sec-termine",
+    "sec-finanzen",
+    "sec-arbeitszeit",
+] as const;
+
+function panelMeta(id: string): { titleKey: string; descKey: string; introKey?: string } {
+    switch (id) {
+        case "sec-ueberblick":
+            return { titleKey: "page.statistik.section.ueberblick.title", descKey: "page.statistik.section.ueberblick.desc" };
+        case "sec-patienten":
+            return { titleKey: "page.statistik.section.patienten.title", descKey: "page.statistik.section.patienten.desc" };
+        case "sec-krankheitsbilder":
+            return {
+                titleKey: "page.statistik.section.krankheitsbilder.title",
+                descKey: "page.statistik.section.krankheitsbilder.desc",
+                introKey: "page.statistik.section.krankheitsbilder.intro",
+            };
+        case "sec-behandlungen":
+            return { titleKey: "page.statistik.section.behandlungen.title", descKey: "page.statistik.section.behandlungen.desc" };
+        case "sec-termine":
+            return { titleKey: "page.statistik.section.termine.title", descKey: "page.statistik.section.termine.desc" };
+        case "sec-finanzen":
+            return { titleKey: "page.statistik.section.finance.title", descKey: "page.statistik.section.finance.desc" };
+        case "sec-arbeitszeit":
+            return { titleKey: "page.statistik.arbeitszeit.title", descKey: "page.statistik.arbeitszeit.description" };
+        default:
+            return { titleKey: "page.statistik.title", descKey: "page.statistik.subtitle" };
+    }
 }
-
-const SECTIONS: Section[] = [
-    { id: "sec-patienten", title: "Patientenstatistiken", description: "Demographie, Wachstum, Status." },
-    { id: "sec-krankheitsbilder", title: "Krankheitsbilder & Verlauf", description: "WAAD 9.5 — Kategorien und Monatsverlauf (Proxy aus Behandlungsdaten)." },
-    { id: "sec-behandlungen", title: "Behandlungsstatistiken", description: "Leistungen und Verordnungen." },
-    { id: "sec-termine", title: "Termin- & Organisationsstatistiken", description: "Auslastung, Status, Termin-Art." },
-    { id: "sec-finanzen", title: "Finanz- & Bestellstatistiken", description: "Einnahmen, Zahlungsarten, Lager." },
-];
-
-/** Sidebar: Überblick + Detail-Sektionen — steuert genau ein Hauptpanel. */
-const PANELS: Section[] = [
-    { id: "sec-ueberblick", title: "Überblick", description: "Kennzahlen, Umsatzverlauf, Behandlungsmix, Perioden-Summen." },
-    ...SECTIONS,
-];
 
 // Apple-system-inspired palette; erste Farbe folgt dem gewählten Theme-Akzent (`--accent`).
 const PALETTE = [
@@ -64,31 +84,22 @@ const PALETTE = [
     "#5AC8FA", // light blue
 ];
 
-function formatMonth(month: string): string {
-    // month = "YYYY-MM"
+function formatMonth(month: string, locale: DateFnsLocale): string {
     const parts = month.split("-");
     if (parts.length !== 2) return month;
-    const y = parts[0]!;
-    const m = parts[1]!;
-    const monthNames = [
-        "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
-        "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
-    ];
-    const idx = Number(m) - 1;
-    if (idx < 0 || idx > 11) return month;
-    const yy = y.slice(2);
-    return `${monthNames[idx]} ${yy}`;
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return month;
+    return format(new Date(y, m - 1, 1), "MMM yy", { locale });
 }
 
-/** Kurzlabel nur Monat (für Umsatz-Balken). */
-function formatMonthShortOnly(month: string): string {
+function formatMonthShortOnly(month: string, locale: DateFnsLocale): string {
     const parts = month.split("-");
     if (parts.length !== 2) return month;
-    const m = parts[1]!;
-    const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-    const idx = Number(m) - 1;
-    if (idx < 0 || idx > 11) return month;
-    return monthNames[idx] ?? month;
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return month;
+    return format(new Date(y, m - 1, 1), "MMM", { locale });
 }
 
 function trim(months: MonthBucket[], period: Period): MonthBucket[] {
@@ -106,6 +117,7 @@ interface ChartCardProps {
 }
 
 function ChartCard({ title, subtitle, height = 240, hasData, children, emptyHint }: ChartCardProps) {
+    const t = useT();
     return (
         <Card>
             <CardHeader title={title} subtitle={subtitle} />
@@ -125,7 +137,7 @@ function ChartCard({ title, subtitle, height = 240, hasData, children, emptyHint
                 ) : (
                     <div style={{ flex: 1, display: "grid", placeItems: "center", padding: "12px 0 8px" }}>
                         <div style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12.5 }}>
-                            {emptyHint ?? "Keine Daten im Zeitraum"}
+                            {emptyHint ?? t("page.statistik.chart.empty")}
                         </div>
                     </div>
                 )}
@@ -142,7 +154,9 @@ interface MonthBarProps {
 }
 
 function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
-    const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month) }));
+    const t = useT();
+    const dateLocale = useDateFnsLocale();
+    const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={formatted} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
@@ -152,7 +166,7 @@ function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
                 <Tooltip
                     cursor={{ fill: "rgba(0,0,0,0.04)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), "Wert"]}
+                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
                 />
                 <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={42} />
             </BarChart>
@@ -161,7 +175,9 @@ function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
 }
 
 function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: string }) {
-    const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month) }));
+    const t = useT();
+    const dateLocale = useDateFnsLocale();
+    const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={formatted} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
@@ -170,7 +186,7 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
                 <YAxis tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={false} allowDecimals={false} width={36} />
                 <Tooltip
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [v.toLocaleString("de-DE"), "Wert"]}
+                    formatter={(v: number) => [v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
                 />
                 <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.4} dot={{ r: 3, fill: color }} activeDot={{ r: 5 }} />
             </LineChart>
@@ -179,6 +195,7 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
 }
 
 function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: LabelValue[]; color?: string; valueFormatter?: (v: number) => string }) {
+    const t = useT();
     return (
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
@@ -188,7 +205,7 @@ function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: Label
                 <Tooltip
                     cursor={{ fill: "rgba(0,0,0,0.04)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), "Wert"]}
+                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
                 />
                 <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={48} />
             </BarChart>
@@ -197,6 +214,7 @@ function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: Label
 }
 
 function PiePanel({ data }: { data: LabelValue[] }) {
+    const t = useT();
     const filtered = data.filter((d) => d.value > 0);
     return (
         <ResponsiveContainer width="100%" height="100%">
@@ -206,7 +224,7 @@ function PiePanel({ data }: { data: LabelValue[] }) {
                     formatter={(v: number, _n: string, item) => {
                         const total = filtered.reduce((s, d) => s + d.value, 0);
                         const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-                        return [`${v.toLocaleString("de-DE")} (${pct}%)`, item?.payload?.label ?? "Wert"];
+                        return [`${v.toLocaleString("de-DE")} (${pct}%)`, item?.payload?.label ?? t("page.statistik.chart.value")];
                     }}
                 />
                 <Legend
@@ -295,9 +313,11 @@ function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }
 }
 
 function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
+    const t = useT();
+    const dateLocale = useDateFnsLocale();
     const formatted = data.map((d) => ({
         ...d,
-        short: formatMonthShortOnly(d.month),
+        short: formatMonthShortOnly(d.month, dateLocale),
     }));
     const n = formatted.length;
     return (
@@ -320,10 +340,10 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
                 <Tooltip
                     cursor={{ fill: "color-mix(in oklab, var(--accent) 9%, transparent)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [formatCurrency(v), "Einnahmen"]}
+                    formatter={(v: number) => [formatCurrency(v), t("page.statistik.chart.revenue")]}
                     labelFormatter={(label, payload) => {
                         const m = payload?.[0]?.payload?.month as string | undefined;
-                        if (m) return formatMonth(m);
+                        if (m) return formatMonth(m, dateLocale);
                         return typeof label === "string" ? label : "";
                     }}
                 />
@@ -344,12 +364,13 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
 }
 
 function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
+    const t = useT();
     const sorted = [...data].filter((d) => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 6);
     const total = sorted.reduce((s, d) => s + d.value, 0);
     if (sorted.length === 0) {
         return (
             <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--fg-3)", fontSize: 13 }}>
-                Noch keine Behandlungen nach Kategorie.
+                {t("page.statistik.treatment_mix.empty")}
             </div>
         );
     }
@@ -409,11 +430,16 @@ function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
 }
 
 export function StatistikPage() {
+    const t = useT();
+    const tp = useTParams();
+    const dateLocale = useDateFnsLocale();
     const [period, setPeriod] = useState<Period>("6m");
     const [stats, setStats] = useState<StatistikOverview | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
-    const [activePanel, setActivePanel] = useState<string>(PANELS[0]!.id);
+    const [activePanel, setActivePanel] = useState<string>(PANEL_IDS[0]!);
+    const [workStats, setWorkStats] = useState<WorkTimeStatistics | null>(null);
+    const [workStatsError, setWorkStatsError] = useState<string | null>(null);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 
     useEffect(() => {
@@ -431,6 +457,22 @@ export function StatistikPage() {
             cancelled = true;
         };
     }, [reloadToken]);
+
+    useEffect(() => {
+        if (activePanel !== "sec-arbeitszeit") return;
+        let cancelled = false;
+        setWorkStatsError(null);
+        void workTimeGetStatistics()
+            .then((s) => {
+                if (!cancelled) setWorkStats(s);
+            })
+            .catch((e) => {
+                if (!cancelled) setWorkStatsError(errorMessage(e));
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activePanel, reloadToken]);
 
     const trimmedPatNeu = useMemo(() => trim(stats?.patienten_neu_pro_monat ?? [], period), [period, stats]);
     const trimmedPatKum = useMemo(() => trim(stats?.patienten_kumuliert_pro_monat ?? [], period), [period, stats]);
@@ -503,34 +545,43 @@ export function StatistikPage() {
     if (loadError) return <PageLoadError message={loadError} onRetry={reload} />;
     if (!stats) return <PageLoading />;
 
-    const periodLabel = period === "6m" ? "Letzte 6 Monate" : "Letzte 12 Monate";
+    const periodLabel = period === "6m" ? t("page.statistik.period.6m_long") : t("page.statistik.period.12m_long");
     const dash = dashboardMetrics!;
 
-    const lastEinnMonth = dash.einn6.length > 0 ? dash.einn6[dash.einn6.length - 1]! : null;
-    const einnBadge =
-        dash.einnMom != null && Number.isFinite(dash.einnMom)
-            ? `${dash.einnMom >= 0 ? "+" : ""}${dash.einnMom.toFixed(1).replace(".", ",")}% ggü. Vormonat`
+    const fmtMom = (pct: number | null) =>
+        pct != null && Number.isFinite(pct)
+            ? tp("page.statistik.kpi.mom_prev", { pct: `${pct >= 0 ? "+" : ""}${pct.toFixed(1).replace(".", ",")}%` })
             : null;
+
+    const panelTitle = (id: string) => t(panelMeta(id).titleKey);
+    const panelDescription = (id: string) => t(panelMeta(id).descKey);
+    const panelIntro = (id: string) => {
+        const introKey = panelMeta(id).introKey;
+        return introKey ? t(introKey) : t(panelMeta(id).descKey);
+    };
+
+    const lastEinnMonth = dash.einn6.length > 0 ? dash.einn6[dash.einn6.length - 1]! : null;
+    const einnBadge = fmtMom(dash.einnMom);
     const patientDeltaPct =
         dash.patientMomPct != null && Number.isFinite(dash.patientMomPct)
-            ? `${dash.patientMomPct >= 0 ? "+" : ""}${dash.patientMomPct.toFixed(1).replace(".", ",")}% ggü. Vormonat (Bestand)`
-            : "Kein Vorperioden-Vergleich";
+            ? tp("page.statistik.kpi.mom_prev_stock", { pct: `${dash.patientMomPct >= 0 ? "+" : ""}${dash.patientMomPct.toFixed(1).replace(".", ",")}%` })
+            : t("page.statistik.kpi.no_prev_period");
     const neuDeltaStr =
         trim(stats.patienten_neu_pro_monat, period).length > 1
-            ? `${dash.neuDelta >= 0 ? "+" : ""}${Math.round(dash.neuDelta)} ggü. Vormonat`
+            ? tp("page.statistik.kpi.neu_delta", { delta: `${dash.neuDelta >= 0 ? "+" : ""}${Math.round(dash.neuDelta)}` })
             : undefined;
     const auslastDeltaStr =
         dash.termMom != null && Number.isFinite(dash.termMom)
-            ? `${dash.termMom >= 0 ? "+" : ""}${dash.termMom.toFixed(1).replace(".", ",")}% Termine ggü. Vormonat`
+            ? tp("page.statistik.kpi.term_delta", { pct: `${dash.termMom >= 0 ? "+" : ""}${dash.termMom.toFixed(1).replace(".", ",")}%` })
             : undefined;
 
     return (
         <div className="animate-fade-in--sticky-safe" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <WorkspacePageHeader
-                title="Statistiken"
+                title={t("page.statistik.title")}
                 subtitle={
                     <>
-                        Überblick und Detailauswertungen aus der Praxis-Datenbank. Zeitraum: <b>{periodLabel}</b>.
+                        {t("page.statistik.subtitle")} <b>{periodLabel}</b>.
                     </>
                 }
             />
@@ -540,15 +591,15 @@ export function StatistikPage() {
                     className="page-toolbar__filters row"
                     style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end", alignItems: "center" }}
                 >
-                    <div className="seg" role="group" aria-label="Zeitraum">
-                        <button type="button" aria-pressed={period === "6m"} onClick={() => setPeriod("6m")}>6 Monate</button>
-                        <button type="button" aria-pressed={period === "12m"} onClick={() => setPeriod("12m")}>12 Monate</button>
+                    <div className="seg" role="group" aria-label={t("page.statistik.period_aria")}>
+                        <button type="button" aria-pressed={period === "6m"} onClick={() => setPeriod("6m")}>{t("page.statistik.period.6m")}</button>
+                        <button type="button" aria-pressed={period === "12m"} onClick={() => setPeriod("12m")}>{t("page.statistik.period.12m")}</button>
                     </div>
-                    <Button type="button" variant="ghost" onClick={reload} title="Daten neu laden">
-                        Aktualisieren
+                    <Button type="button" variant="ghost" onClick={reload} title={t("page.statistik.refresh_title")}>
+                        {t("page.statistik.refresh")}
                     </Button>
                     <ReportExportToolbar
-                        dialogTitle="Export — Statistik"
+                        dialogTitle={t("page.statistik.export_title")}
                         buildBundle={buildExportBundle}
                         defaultFormat="pdf"
                         showImport
@@ -560,24 +611,24 @@ export function StatistikPage() {
                 <nav
                     className="statistik-workspace__nav"
                     role="tablist"
-                    aria-label="Statistik: Überblick und Detailauswertungen"
+                    aria-label={t("page.statistik.nav_aria")}
                 >
-                    {PANELS.map((p) => {
-                        const isActive = activePanel === p.id;
+                    {PANEL_IDS.map((id) => {
+                        const isActive = activePanel === id;
                         return (
                             <button
-                                key={p.id}
+                                key={id}
                                 type="button"
                                 role="tab"
-                                id={`statistik-tab-${p.id}`}
+                                id={`statistik-tab-${id}`}
                                 aria-selected={isActive}
                                 className={["statistik-nav__item", isActive ? "statistik-nav__item--active" : ""]
                                     .filter(Boolean)
                                     .join(" ")}
-                                onClick={() => setActivePanel(p.id)}
+                                onClick={() => setActivePanel(id)}
                             >
-                                <span className="statistik-nav__title">{p.title}</span>
-                                <span className="statistik-nav__desc">{p.description}</span>
+                                <span className="statistik-nav__title">{panelTitle(id)}</span>
+                                <span className="statistik-nav__desc">{panelDescription(id)}</span>
                             </button>
                         );
                     })}
@@ -591,16 +642,16 @@ export function StatistikPage() {
                 >
                     {activePanel === "sec-ueberblick" ? (
                         <>
-                            <h2 className="statistik-workspace__panel-title">Überblick</h2>
+                            <h2 className="statistik-workspace__panel-title">{t("page.statistik.overview.title")}</h2>
                             <p className="statistik-workspace__panel-intro">
-                                Kennzahlen, Umsatzverlauf und Perioden-Summen für <b>{periodLabel}</b>.
+                                {tp("page.statistik.overview.intro", { period: periodLabel })}
                             </p>
                 <div
                     className="dashboard-kpis"
                     style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}
                 >
                     <StatOverviewCard
-                        label="Patienten gesamt"
+                        label={t("page.statistik.kpi.patients_total")}
                         value={stats.patienten_gesamt.toLocaleString("de-DE")}
                         icon="Users"
                         accent="var(--accent)"
@@ -614,7 +665,7 @@ export function StatistikPage() {
                         }
                     />
                     <StatOverviewCard
-                        label="Neupatienten (letzter Monat im Chart)"
+                        label={t("page.statistik.kpi.new_patients")}
                         value={Math.round(dash.neuCur).toLocaleString("de-DE")}
                         icon="Sparkle"
                         accent="#FF9500"
@@ -624,17 +675,13 @@ export function StatistikPage() {
                     <StatOverviewCard
                         label={
                             lastEinnMonth
-                                ? `Umsatz ${formatMonth(lastEinnMonth.month)}`
-                                : "Umsatz (bezahlt)"
+                                ? tp("page.statistik.kpi.revenue_month", { month: formatMonth(lastEinnMonth.month, dateLocale) })
+                                : t("page.statistik.kpi.revenue_paid")
                         }
                         value={lastEinnMonth ? formatCurrency(lastEinnMonth.value) : "—"}
                         icon="Wallet"
                         accent="#0A84FF"
-                        sub={
-                            einnBadge
-                                ? einnBadge
-                                : "Vergleich nur bei mindestens zwei Monaten mit Umsatz"
-                        }
+                        sub={einnBadge ?? t("page.statistik.kpi.revenue_compare_min")}
                         trend={
                             dash.einnMom != null && dash.einnMom > 0
                                 ? "positive"
@@ -644,11 +691,11 @@ export function StatistikPage() {
                         }
                     />
                     <StatOverviewCard
-                        label="Auslastung (Durchgeführt / aktiv)"
+                        label={t("page.statistik.kpi.utilization")}
                         value={dash.auslastQuote != null ? `${Math.round(dash.auslastQuote)} %` : "—"}
                         icon="Calendar"
                         accent="#AF52DE"
-                        sub={auslastDeltaStr ?? "Termintreue siehe unten"}
+                        sub={auslastDeltaStr ?? t("page.statistik.kpi.utilization_sub")}
                         trend={
                             dash.termMom != null && dash.termMom > 0
                                 ? "positive"
@@ -660,18 +707,18 @@ export function StatistikPage() {
                 </div>
 
                 <p className="page-sub" style={{ margin: 0, fontSize: 12.5 }}>
-                    Kalendermonat bis heute (bezahlt): <b>{formatCurrency(stats.einnahmen_aktueller_monat)}</b>
+                    {t("page.statistik.kpi.calendar_month")} <b>{formatCurrency(stats.einnahmen_aktueller_monat)}</b>
                     {" "}
                     <span style={{ color: "var(--fg-4)" }}>
-                        Hinweis: kann vom letzten Monatsbalken abweichen, solange der Monat noch läuft.
+                        {t("page.statistik.kpi.calendar_month_hint")}
                     </span>
                 </p>
 
                 <div className="statistik-overview-charts">
                     <Card>
                         <CardHeader
-                            title="Umsatzentwicklung"
-                            subtitle={`Bezahlte Zahlungen: jeweils die letzten 6 Monate innerhalb von ${periodLabel.toLowerCase()}.`}
+                            title={t("page.statistik.overview.chart_revenue_title")}
+                            subtitle={tp("page.statistik.overview.chart_revenue_sub", { period: periodLabel.toLowerCase() })}
                             action={einnBadge ? <span className="pill blue">{einnBadge}</span> : undefined}
                         />
                         {dash.einn6.some((m) => m.value > 0) ? (
@@ -690,12 +737,12 @@ export function StatistikPage() {
                                     fontSize: 13,
                                 }}
                             >
-                                Noch keine Einnahmen im gewählten Zeitraum.
+                                {t("page.statistik.overview.no_revenue")}
                             </div>
                         )}
                     </Card>
                     <Card>
-                        <CardHeader title="Behandlungsmix" subtitle="Anteil nach Kategorie (Top 6)" />
+                        <CardHeader title={t("page.statistik.overview.chart_mix_title")} subtitle={t("page.statistik.overview.chart_mix_sub")} />
                         <TreatmentMixPanel data={stats.behandlungen_nach_kategorie} />
                     </Card>
                 </div>
@@ -705,15 +752,11 @@ export function StatistikPage() {
                     style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
                 >
                     <StatOverviewCard
-                        label="Termine (letzter Monat)"
+                        label={t("page.statistik.kpi.appointments_last_month")}
                         value={Math.round(dash.tCur).toLocaleString("de-DE")}
                         icon="Calendar"
                         accent="#0A84FF"
-                        sub={
-                            dash.termMom != null && Number.isFinite(dash.termMom)
-                                ? `${dash.termMom >= 0 ? "+" : ""}${dash.termMom.toFixed(1).replace(".", ",")}% ggü. Vormonat`
-                                : undefined
-                        }
+                        sub={fmtMom(dash.termMom) ?? undefined}
                         trend={
                             dash.termMom != null && dash.termMom > 0
                                 ? "positive"
@@ -723,27 +766,23 @@ export function StatistikPage() {
                         }
                     />
                     <StatOverviewCard
-                        label="Termintreue"
+                        label={t("page.statistik.kpi.punctuality")}
                         value={dash.treuePct != null ? `${dash.treuePct.toFixed(0)} %` : "—"}
                         icon="Sparkle"
                         accent="var(--accent)"
                         sub={
                             dash.treuePct != null
-                                ? "Durchgeführt vs. nicht erschienen"
-                                : "Noch keine abgeschlossenen Termine mit Status"
+                                ? t("page.statistik.kpi.punctuality_sub")
+                                : t("page.statistik.kpi.punctuality_empty")
                         }
                         trend="neutral"
                     />
                     <StatOverviewCard
-                        label="Behandlungen (letzter Monat)"
+                        label={t("page.statistik.kpi.treatments_last_month")}
                         value={Math.round(dash.behCur).toLocaleString("de-DE")}
                         icon="/leistungen"
                         accent="var(--accent)"
-                        sub={
-                            dash.behMom != null && Number.isFinite(dash.behMom)
-                                ? `${dash.behMom >= 0 ? "+" : ""}${dash.behMom.toFixed(1).replace(".", ",")}% ggü. Vormonat`
-                                : undefined
-                        }
+                        sub={fmtMom(dash.behMom) ?? undefined}
                         trend={
                             dash.behMom != null && dash.behMom > 0
                                 ? "positive"
@@ -759,35 +798,35 @@ export function StatistikPage() {
                     style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
                 >
                     <StatOverviewCard
-                        label={`Einnahmen (${periodLabel})`}
+                        label={tp("page.statistik.kpi.revenue_sum", { period: periodLabel })}
                         value={formatCurrency(trimmedEinn.reduce((s, m) => s + m.value, 0))}
                         icon="/finanzen"
                         accent="var(--accent)"
-                        sub="Summe bezahlter Zahlungen im gewählten Zeitraum"
+                        sub={t("page.statistik.kpi.revenue_sum_sub")}
                         trend="neutral"
                     />
                     <StatOverviewCard
-                        label={`Termine (${periodLabel})`}
+                        label={tp("page.statistik.kpi.appointments_sum", { period: periodLabel })}
                         value={trimmedTermine.reduce((s, m) => s + m.value, 0).toLocaleString("de-DE")}
                         icon="/termine"
                         accent="#0A84FF"
-                        sub="Alle Termine nach Kalendermonat"
+                        sub={t("page.statistik.kpi.appointments_sum_sub")}
                         trend="neutral"
                     />
                     <StatOverviewCard
-                        label="Niedrige Lagerstände"
+                        label={t("page.statistik.kpi.low_stock")}
                         value={stats.produkte_niedrig.toLocaleString("de-DE")}
                         icon="Package"
                         accent={stats.produkte_niedrig > 0 ? "#FF3B30" : "#FF9500"}
-                        sub={stats.produkte_niedrig > 0 ? "Unter Mindestbestand — Nachbestellen prüfen" : "Keine kritischen Artikel"}
+                        sub={stats.produkte_niedrig > 0 ? t("page.statistik.kpi.low_stock_alert") : t("page.statistik.kpi.low_stock_ok")}
                         trend={stats.produkte_niedrig > 0 ? "negative" : "neutral"}
                     />
                     <StatOverviewCard
-                        label={`Behandlungen (${periodLabel})`}
+                        label={tp("page.statistik.kpi.treatments_sum", { period: periodLabel })}
                         value={trimmedBeh.reduce((s, m) => s + m.value, 0).toLocaleString("de-DE")}
                         icon="/leistungen"
                         accent="#AF52DE"
-                        sub="Nach Behandlungsdatum bzw. Erfassung"
+                        sub={t("page.statistik.kpi.treatments_sum_sub")}
                         trend="neutral"
                     />
                 </div>
@@ -796,22 +835,22 @@ export function StatistikPage() {
 
                     {activePanel === "sec-patienten" ? (
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h2 className="statistik-workspace__panel-title">Patientenstatistiken</h2>
-                        <p className="statistik-workspace__panel-intro">Demographie, Wachstum, Status.</p>
+                        <h2 className="statistik-workspace__panel-title">{panelTitle("sec-patienten")}</h2>
+                        <p className="statistik-workspace__panel-intro">{panelDescription("sec-patienten")}</p>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <ChartCard title="Anzahl Patienten pro Monat" subtitle="Kumulierter Stand am Monatsende" hasData={trimmedPatKum.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.patienten_kumuliert")} subtitle={t("page.statistik.chart.patienten_kumuliert_sub")} hasData={trimmedPatKum.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedPatKum} color={PALETTE[2]} />
                             </ChartCard>
-                            <ChartCard title="Neue Patienten pro Monat" subtitle="Patientenanlage im Zeitraum" hasData={trimmedPatNeu.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.neue_patienten")} subtitle={t("page.statistik.chart.neue_patienten_sub")} hasData={trimmedPatNeu.some((m) => m.value > 0)}>
                                 <MonthLine data={trimmedPatNeu} color={PALETTE[1]} />
                             </ChartCard>
-                            <ChartCard title="Verteilung nach Altersgruppe" hasData={stats.altersgruppen.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.altersgruppen")} hasData={stats.altersgruppen.length > 0}>
                                 <PiePanel data={stats.altersgruppen} />
                             </ChartCard>
-                            <ChartCard title="Geschlechterverteilung" hasData={stats.geschlechter.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.geschlecht")} hasData={stats.geschlechter.length > 0}>
                                 <PiePanel data={stats.geschlechter} />
                             </ChartCard>
-                            <ChartCard title="Patienten-Status" subtitle="Aktiv, validiert, neu, archiviert" hasData={stats.patient_status.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.patienten_status")} subtitle={t("page.statistik.chart.patienten_status_sub")} hasData={stats.patient_status.length > 0}>
                                 <CategoryBar data={stats.patient_status} color={PALETTE[3]} />
                             </ChartCard>
                         </div>
@@ -820,20 +859,18 @@ export function StatistikPage() {
 
                     {activePanel === "sec-krankheitsbilder" ? (
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h2 className="statistik-workspace__panel-title">Krankheitsbilder &amp; Verlauf</h2>
-                        <p className="statistik-workspace__panel-intro">
-                            Auswertung nach Behandlungskategorie/Art (Proxy für Krankheitsbilder bis strukturierte ICD-Diagnosen vorliegen).
-                        </p>
+                        <h2 className="statistik-workspace__panel-title">{panelTitle("sec-krankheitsbilder")}</h2>
+                        <p className="statistik-workspace__panel-intro">{panelIntro("sec-krankheitsbilder")}</p>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <ChartCard
-                                title="Top Krankheitsbilder (Kategorien)"
+                                title={t("page.statistik.chart.krankheitsbilder_top")}
                                 hasData={(stats.krankheitsbilder_top ?? []).length > 0}
-                                emptyHint="Noch keine Behandlungsfälle — Kategorien erscheinen nach dokumentierten Leistungen."
+                                emptyHint={t("page.statistik.chart.krankheitsbilder_empty")}
                             >
                                 <CategoryBar data={stats.krankheitsbilder_top ?? []} color={PALETTE[4]} />
                             </ChartCard>
                             <ChartCard
-                                title="Verlauf Behandlungsfälle pro Monat"
+                                title={t("page.statistik.chart.krankheitsbilder_verlauf")}
                                 hasData={trimmedKrankheitsVerlauf.some((m) => m.value > 0)}
                             >
                                 <MonthLine data={trimmedKrankheitsVerlauf} color={PALETTE[0]} />
@@ -844,19 +881,19 @@ export function StatistikPage() {
 
                     {activePanel === "sec-behandlungen" ? (
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h2 className="statistik-workspace__panel-title">Behandlungsstatistiken</h2>
-                        <p className="statistik-workspace__panel-intro">Leistungen und Verordnungen.</p>
+                        <h2 className="statistik-workspace__panel-title">{panelTitle("sec-behandlungen")}</h2>
+                        <p className="statistik-workspace__panel-intro">{panelDescription("sec-behandlungen")}</p>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <ChartCard title="Behandlungen pro Monat" hasData={trimmedBeh.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.behandlungen_monat")} hasData={trimmedBeh.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedBeh} color={PALETTE[0]} />
                             </ChartCard>
-                            <ChartCard title="Behandlungen nach Kategorie" hasData={stats.behandlungen_nach_kategorie.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.behandlungen_kategorie")} hasData={stats.behandlungen_nach_kategorie.length > 0}>
                                 <CategoryBar data={stats.behandlungen_nach_kategorie} color={PALETTE[2]} />
                             </ChartCard>
-                            <ChartCard title="Top Wirkstoffe (Rezepte)" subtitle="Häufigste verordnete Wirkstoffe" hasData={stats.medikamente_top.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.wirkstoff_top")} subtitle={t("page.statistik.chart.wirkstoff_top_sub")} hasData={stats.medikamente_top.length > 0}>
                                 <CategoryBar data={stats.medikamente_top} color={PALETTE[3]} />
                             </ChartCard>
-                            <ChartCard title="Wirkstoff-Verteilung" hasData={stats.medikamente_top.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.wirkstoff_vert")} hasData={stats.medikamente_top.length > 0}>
                                 <PiePanel data={stats.medikamente_top} />
                             </ChartCard>
                         </div>
@@ -865,25 +902,24 @@ export function StatistikPage() {
 
                     {activePanel === "sec-termine" ? (
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h2 className="statistik-workspace__panel-title">Termin- &amp; Organisationsstatistiken</h2>
-                        <p className="statistik-workspace__panel-intro">Auslastung, Status, Termin-Art.</p>
+                        <h2 className="statistik-workspace__panel-title">{panelTitle("sec-termine")}</h2>
+                        <p className="statistik-workspace__panel-intro">{panelDescription("sec-termine")}</p>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <ChartCard title="Terminauslastung pro Monat" hasData={trimmedTermine.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.termin_auslastung")} hasData={trimmedTermine.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedTermine} color={PALETTE[1]} />
                             </ChartCard>
-                            <ChartCard title="Termin-Status" hasData={stats.termin_status.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.termin_status")} hasData={stats.termin_status.length > 0}>
                                 <PiePanel data={stats.termin_status} />
                             </ChartCard>
-                            <ChartCard title="Termin-Art" hasData={stats.termin_art.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.termin_art")} hasData={stats.termin_art.length > 0}>
                                 <CategoryBar data={stats.termin_art} color={PALETTE[5]} />
                             </ChartCard>
                             <DismissibleNotice
                                 variant="info"
                                 dismissKey="statistik-auslastung-hinweis"
-                                title="Auslastungs-Hinweis"
+                                title={t("page.statistik.notice.utilization_title")}
                             >
-                                Wartezeiten und Sprechstundenauslastung folgen, sobald die geplanten vs. tatsächlichen Slots in der
-                                Datenbank dokumentiert werden (siehe <code>arbeitstag</code>-Erweiterung).
+                                {t("page.statistik.notice.utilization_body")}
                             </DismissibleNotice>
                         </div>
                     </section>
@@ -891,22 +927,76 @@ export function StatistikPage() {
 
                     {activePanel === "sec-finanzen" ? (
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h2 className="statistik-workspace__panel-title">Finanz- &amp; Bestellstatistiken</h2>
-                        <p className="statistik-workspace__panel-intro">Einnahmen, Zahlungsarten, Lager.</p>
+                        <h2 className="statistik-workspace__panel-title">{panelTitle("sec-finanzen")}</h2>
+                        <p className="statistik-workspace__panel-intro">{panelDescription("sec-finanzen")}</p>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <ChartCard title="Einnahmen pro Monat" subtitle="Bezahlte Zahlungen (€)" hasData={trimmedEinn.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.einnahmen_monat")} subtitle={t("page.statistik.chart.einnahmen_monat_sub")} hasData={trimmedEinn.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedEinn} color={PALETTE[4]} valueFormatter={(v) => formatCurrency(v)} />
                             </ChartCard>
-                            <ChartCard title="Umsatz nach Zahlungsart" hasData={stats.umsatz_nach_zahlungsart.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.umsatz_zahlungsart")} hasData={stats.umsatz_nach_zahlungsart.length > 0}>
                                 <PiePanel data={stats.umsatz_nach_zahlungsart} />
                             </ChartCard>
-                            <ChartCard title="Bestellungen pro Monat" hasData={trimmedBest.some((m) => m.value > 0)}>
+                            <ChartCard title={t("page.statistik.chart.bestellungen_monat")} hasData={trimmedBest.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedBest} color={PALETTE[2]} />
                             </ChartCard>
-                            <ChartCard title="Bestellungen nach Status" hasData={stats.bestellungen_nach_status.length > 0}>
+                            <ChartCard title={t("page.statistik.chart.bestellungen_status")} hasData={stats.bestellungen_nach_status.length > 0}>
                                 <PiePanel data={stats.bestellungen_nach_status} />
                             </ChartCard>
                         </div>
+                    </section>
+                    ) : null}
+
+                    {activePanel === "sec-arbeitszeit" ? (
+                    <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        <h2 className="statistik-workspace__panel-title">{t("page.statistik.arbeitszeit.title")}</h2>
+                        <p className="statistik-workspace__panel-intro">{t("page.statistik.arbeitszeit.intro")}</p>
+                        {workStatsError ? (
+                            <DismissibleNotice variant="warning" dismissKey="statistik-arbeitszeit-err" title={t("page.statistik.arbeitszeit.load_failed")}>
+                                {workStatsError}
+                            </DismissibleNotice>
+                        ) : null}
+                        {workStats ? (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <Card>
+                                        <CardHeader title={t("page.statistik.arbeitszeit.week_actual")} />
+                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
+                                            {formatWorkMinutes(workStats.weekMinutes)}
+                                        </div>
+                                    </Card>
+                                    <Card>
+                                        <CardHeader title={t("page.statistik.arbeitszeit.month_actual")} />
+                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
+                                            {formatWorkMinutes(workStats.monthMinutes)}
+                                        </div>
+                                    </Card>
+                                    <Card>
+                                        <CardHeader title={t("page.statistik.arbeitszeit.pause_week")} />
+                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
+                                            {formatWorkMinutes(workStats.pauseMinutesWeek)}
+                                        </div>
+                                    </Card>
+                                </div>
+                                {workStats.byPerson.length > 0 ? (
+                                    <ChartCard title={t("page.statistik.arbeitszeit.chart_by_person")} hasData>
+                                        <ResponsiveContainer width="100%" height={260}>
+                                            <BarChart data={workStats.byPerson.map((p) => ({
+                                                name: p.name,
+                                                minutes: p.weekMinutes,
+                                            }))}>
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                <YAxis tick={{ fontSize: 11 }} />
+                                                <Tooltip formatter={(v: number) => formatWorkMinutes(v)} />
+                                                <Bar dataKey="minutes" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </ChartCard>
+                                ) : null}
+                            </>
+                        ) : (
+                            <PageLoading />
+                        )}
                     </section>
                     ) : null}
                 </div>

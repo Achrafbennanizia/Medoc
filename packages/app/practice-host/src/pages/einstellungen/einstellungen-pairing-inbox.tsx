@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useT, useTParams } from "@/lib/i18n";
 
 import {
     DEFAULT_ALLOWED_ACTIONS,
@@ -15,25 +16,27 @@ import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-const ACTION_LABELS: Record<string, string> = {
-    "sync.push": "Daten zum Master pushen",
-    "sync.pull": "Daten vom Master abholen",
-    "sync.status": "Sync-Status lesen",
-    "pairing.peers": "Peers (Mesh) lesen",
-    "patient.read": "Patientenliste lesen (LAN)",
-    "termin.read": "Termine lesen (LAN)",
+const PAIRING_ACTION_KEYS: Record<string, string> = {
+    "sync.push": "settings.pairing.action.sync_push",
+    "sync.pull": "settings.pairing.action.sync_pull",
+    "sync.status": "settings.pairing.action.sync_status",
+    "pairing.peers": "settings.pairing.action.pairing_peers",
+    "patient.read": "settings.pairing.action.patient_read",
+    "termin.read": "settings.pairing.action.termin_read",
 };
 
-const STATUS_LABEL: Record<PairingRequest["status"], string> = {
-    PENDING: "Wartet",
-    ACCEPTED: "Akzeptiert",
-    REJECTED: "Abgelehnt",
-    REVOKED: "Widerrufen",
+const STATUS_LABEL_KEY: Record<PairingRequest["status"], string> = {
+    PENDING: "settings.pairing.status_pending",
+    ACCEPTED: "settings.pairing.status_accepted",
+    REJECTED: "settings.pairing.status_rejected",
+    REVOKED: "settings.pairing.status_revoked",
 };
 
 const PAIRING_ENABLED_KEY = "pairing.enabled.v1";
 
 export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boolean } = {}) {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [items, setItems] = useState<PairingRequest[]>([]);
     const [master, setMaster] = useState<PairingMasterInfo | null>(null);
@@ -44,6 +47,8 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
     const [busyId, setBusyId] = useState<string | null>(null);
     /** PIN shown once on master after accept — replica must enter it. */
     const [confirmPinByRow, setConfirmPinByRow] = useState<Record<string, string>>({});
+
+    const rowLabel = (row: PairingRequest) => row.slaveLabel || row.deviceId;
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -72,11 +77,11 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                 return next;
             });
         } catch (e) {
-            toast(`Pairing-Inbox: ${errorMessage(e)}`, "error");
+            toast(tp("settings.pairing.inbox_error", { message: errorMessage(e) }), "error");
         } finally {
             setLoading(false);
         }
-    }, [toast]);
+    }, [toast, tp]);
 
     useEffect(() => {
         void reload();
@@ -101,17 +106,18 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
         try {
             const actions = Array.from(actionByRow[row.id] ?? DEFAULT_ALLOWED_ACTIONS);
             const result = await pairingDecide(row.id, accept, actions);
+            const label = rowLabel(row);
             if (accept && result.confirmPin) {
                 setConfirmPinByRow((prev) => ({ ...prev, [row.id]: result.confirmPin! }));
                 toast(
-                    `Bestätigungscode für „${row.slaveLabel || row.deviceId}“: ${result.confirmPin} — auf dem Replica-Gerät eingeben.`,
+                    tp("settings.pairing.confirm_pin_toast", { label, pin: result.confirmPin! }),
                     "success",
                 );
             } else {
                 toast(
                     accept
-                        ? `Replica „${row.slaveLabel || row.deviceId}“ akzeptiert — warte auf PIN.`
-                        : `Replica „${row.slaveLabel || row.deviceId}“ abgelehnt.`,
+                        ? tp("settings.pairing.decide_accepted", { label })
+                        : tp("settings.pairing.decide_rejected", { label }),
                     "success",
                 );
             }
@@ -124,11 +130,12 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
     };
 
     const revoke = async (row: PairingRequest) => {
-        if (!confirm(`Pairing für „${row.slaveLabel || row.deviceId}“ widerrufen?`)) return;
+        const label = rowLabel(row);
+        if (!confirm(tp("settings.pairing.revoke_confirm", { label }))) return;
         setBusyId(row.id);
         try {
             await pairingRevoke(row.deviceId);
-            toast(`Pairing widerrufen.`, "success");
+            toast(t("settings.pairing.revoked_toast"), "success");
             await reload();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -144,9 +151,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
             await practiceSystem.invoke("set_app_kv", { key: PAIRING_ENABLED_KEY, value: next });
             setPairingEnabled(!pairingEnabled);
             toast(
-                pairingEnabled
-                    ? "Neue Pairing-Anfragen sind deaktiviert."
-                    : "Pairing-Anfragen sind wieder aktiv.",
+                pairingEnabled ? t("settings.pairing.toggle_disabled") : t("settings.pairing.toggle_enabled"),
                 "success",
             );
         } catch (e) {
@@ -159,7 +164,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
     const heading = (
         <>
             <div className="card-title" id={embedded ? undefined : "pairing-inbox-heading"}>
-                Pairing-Inbox (Master)
+                {t("settings.pairing.inbox_title")}
             </div>
             <p className="card-sub">
                 <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -169,24 +174,20 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                         disabled={pairingToggleBusy}
                         onChange={() => void togglePairingEnabled()}
                     />
-                    Neue Replica-Anfragen zulassen (pairing.enabled)
+                    {t("settings.pairing.allow_checkbox")}
                 </label>
             </p>
-            <p className="card-sub">
-                Replicas im LAN scannen den Master und stellen Anfragen. Akzeptiere
-                Geräte, die zur Praxis gehören, lehne unbekannte ab. Master-Fingerabdruck
-                zum Vergleich auf dem Replica-Bildschirm:
-            </p>
+            <p className="card-sub">{t("settings.pairing.intro")}</p>
             {master ? (
                 <p className="card-sub" style={{ marginTop: 4 }}>
-                    <strong>Master-DeviceID:</strong> <code>{master.masterDeviceId}</code>
+                    <strong>{t("settings.pairing.master_device_id")}</strong> <code>{master.masterDeviceId}</code>
                     <br />
-                    <strong>Master-Pubkey (Ed25519):</strong>{" "}
+                    <strong>{t("settings.pairing.master_pubkey")}</strong>{" "}
                     <code style={{ wordBreak: "break-all" }}>{master.masterPubkey}</code>
                 </p>
             ) : (
                 <p className="card-sub" style={{ marginTop: 4 }}>
-                    Master-Schlüssel lädt …
+                    {t("settings.pairing.master_keys_loading")}
                 </p>
             )}
         </>
@@ -196,7 +197,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
         <>
             {items.length === 0 ? (
                 <p className="card-sub" style={{ marginTop: 12 }}>
-                    Keine Pairing-Anfragen vorhanden.
+                    {t("settings.pairing.empty")}
                 </p>
             ) : (
                 <ul style={{ marginTop: 12, paddingLeft: 0, listStyle: "none" }}>
@@ -218,14 +219,14 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                             >
                                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                                     <div>
-                                        <strong>{row.slaveLabel || "(unbenannt)"}</strong>
+                                        <strong>{row.slaveLabel || t("settings.pairing.unnamed")}</strong>
                                         <div className="card-sub">
-                                            DeviceID: <code>{row.deviceId}</code>
+                                            {t("settings.pairing.device_id")} <code>{row.deviceId}</code>
                                         </div>
                                         <div className="card-sub">
-                                            IP: <code>{row.requesterIp || "—"}</code> · Status:{" "}
+                                            {t("settings.pairing.ip")} <code>{row.requesterIp || "—"}</code> · {t("settings.pairing.status")}{" "}
                                             <strong>
-                                                {isAwaitingPin ? "PIN ausstehend" : STATUS_LABEL[row.status]}
+                                                {isAwaitingPin ? t("settings.pairing.pin_pending") : t(STATUS_LABEL_KEY[row.status])}
                                             </strong>
                                         </div>
                                         {displayedPin ? (
@@ -242,21 +243,21 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                                                 }}
                                                 aria-live="polite"
                                             >
-                                                Bestätigungscode: {displayedPin}
+                                                {tp("settings.pairing.confirm_code", { pin: displayedPin })}
                                             </div>
                                         ) : null}
                                         <div className="card-sub" style={{ wordBreak: "break-all" }}>
-                                            Pubkey: <code>{row.slavePubkey.slice(0, 64)}…</code>
+                                            {t("settings.pairing.pubkey")} <code>{row.slavePubkey.slice(0, 64)}…</code>
                                         </div>
                                     </div>
                                 </div>
                                 {isPending && !isAwaitingPin ? (
                                     <fieldset
                                         style={{ marginTop: 8, border: "none", padding: 0 }}
-                                        aria-label="Erlaubte Aktionen"
+                                        aria-label={t("settings.pairing.allowed_actions_aria")}
                                     >
                                         <legend className="card-sub" style={{ padding: 0 }}>
-                                            Erlaubte Aktionen
+                                            {t("settings.pairing.allowed_actions")}
                                         </legend>
                                         <div
                                             style={{
@@ -276,16 +277,14 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                                                         checked={selectedActions.has(action)}
                                                         onChange={() => toggleAction(row.id, action)}
                                                     />
-                                                    {ACTION_LABELS[action] ?? action}
+                                                    {PAIRING_ACTION_KEYS[action] ? t(PAIRING_ACTION_KEYS[action]) : action}
                                                 </label>
                                             ))}
                                         </div>
                                     </fieldset>
                                 ) : isAwaitingPin ? (
                                     <p className="card-sub" style={{ marginTop: 8 }}>
-                                        Der 4-stellige Code wurde angezeigt. Der Replica-Betreiber
-                                        muss ihn auf seinem Gerät eingeben, um die Kopplung
-                                        abzuschließen.
+                                        {t("settings.pairing.pin_wait_hint")}
                                     </p>
                                 ) : null}
                                 <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -297,7 +296,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                                                 disabled={busyId === row.id || selectedActions.size === 0}
                                                 onClick={() => void decide(row, true)}
                                             >
-                                                Akzeptieren
+                                                {t("settings.pairing.accept")}
                                             </Button>
                                             <Button
                                                 type="button"
@@ -306,7 +305,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                                                 disabled={busyId === row.id}
                                                 onClick={() => void decide(row, false)}
                                             >
-                                                Ablehnen
+                                                {t("settings.pairing.reject")}
                                             </Button>
                                         </>
                                     ) : null}
@@ -318,7 +317,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                                             disabled={busyId === row.id}
                                             onClick={() => void revoke(row)}
                                         >
-                                            Pairing widerrufen
+                                            {t("settings.pairing.revoke")}
                                         </Button>
                                     ) : null}
                                 </div>
@@ -336,7 +335,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
                 <div className="settings-system-block__head settings-system-block__head--row">
                     <div style={{ flex: 1, minWidth: 0 }}>{heading}</div>
                     <Button type="button" onClick={() => void reload()} disabled={loading}>
-                        Aktualisieren
+                        {t("common.refresh")}
                     </Button>
                 </div>
                 <div className="settings-system-block__body">{body}</div>
@@ -349,7 +348,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
             <div className="card-head">
                 <div>{heading}</div>
                 <Button type="button" onClick={() => void reload()} disabled={loading}>
-                    Aktualisieren
+                    {t("common.refresh")}
                 </Button>
             </div>
             {body}

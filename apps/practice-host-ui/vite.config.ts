@@ -29,6 +29,7 @@ const medocAliases = [
     },
     { find: "@/systems/company-portal", replacement: path.resolve(root, "../../packages/server/company/src") },
     { find: "@medoc/shared", replacement: path.resolve(root, "../../packages/shared/src") },
+    { find: "#shared-locales", replacement: path.resolve(root, "../../packages/shared/locales") },
     { find: "@medoc/ui", replacement: path.resolve(root, "../../packages/ui/src") },
     { find: "@medoc/system-practice", replacement: path.resolve(root, "../../packages/app/practice-host/src") },
     { find: "@medoc/system-lan", replacement: path.resolve(root, "../../packages/server/lan/src") },

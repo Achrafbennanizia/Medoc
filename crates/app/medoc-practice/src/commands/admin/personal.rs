@@ -1,4 +1,5 @@
 use crate::application::auth_service::PermissionOverride;
+use crate::application::mvp_security::{self, StaffQuota};
 use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
 use crate::commands::auth_commands::{BruteForceState, SessionState};
@@ -74,7 +75,7 @@ pub async fn create_personal(
     crypto::validate_password_policy(&data.passwort)?;
     let hash =
         crypto::hash_password(&data.passwort).map_err(|e| AppError::Internal(e.to_string()))?;
-    let p = personal_repo::create(&pool, &data, &hash).await?;
+    let p = personal_repo::create_with_quota(&pool, &data, &hash).await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -138,7 +139,22 @@ pub async fn update_personal(
     data: UpdatePersonal,
 ) -> Result<Personal, AppError> {
     let session = rbac::require(&session_state, "personal.write")?;
-    let p = personal_repo::update(&pool, &id, &data).await?;
+    let existing = personal_repo::find_by_id(&pool, &id)
+        .await?
+        .ok_or(AppError::NotFound("Personal".into()))?;
+    let p = if let Some(ref new_rolle) = data.rolle {
+        let rolle_str = serde_json::to_string(new_rolle)
+            .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+            .trim_matches('"')
+            .to_string();
+        if !rolle_str.eq_ignore_ascii_case(&existing.rolle) {
+            personal_repo::update_with_quota(&pool, &id, &data, &rolle_str).await?
+        } else {
+            personal_repo::update(&pool, &id, &data).await?
+        }
+    } else {
+        personal_repo::update(&pool, &id, &data).await?
+    };
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -361,6 +377,15 @@ pub async fn grant_personal_all_permissions(
 pub fn evaluate_password_policy(password: String) -> crypto::PasswordPolicyStatus {
     crypto::evaluate_password_policy(&password)
 }
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn get_staff_quota(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<StaffQuota, AppError> {
+    rbac::require(&session_state, "personal.read")?;
+    mvp_security::staff_quota(&pool).await
+}
 
 #[derive(Debug, serde::Serialize)]
 pub struct TotpStatusDto {
@@ -375,6 +400,7 @@ pub async fn get_totp_status(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<TotpStatusDto, AppError> {
+    mvp_security::require_totp_enabled()?;
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
@@ -394,6 +420,7 @@ pub async fn start_totp_enrollment(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<TotpEnrollmentDto, AppError> {
+    mvp_security::require_totp_enabled()?;
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
@@ -413,6 +440,7 @@ pub async fn confirm_totp_enrollment(
     session_state: State<'_, SessionState>,
     code: String,
 ) -> Result<(), AppError> {
+    mvp_security::require_totp_enabled()?;
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
@@ -448,6 +476,7 @@ pub async fn deactivate_totp(
     session_state: State<'_, SessionState>,
     code: Option<String>,
 ) -> Result<(), AppError> {
+    mvp_security::require_totp_enabled()?;
     let session = rbac::require_authenticated(&session_state)?;
     let outcome =
         crate::application::totp_service::deactivate_totp(&pool, &session.user_id, code.as_deref())
@@ -518,6 +547,7 @@ macro_rules! register_personal_commands {
         $crate::commands::personal_commands::grant_personal_all_permissions,
         $crate::commands::personal_commands::admin_unlock_brute_force,
         $crate::commands::personal_commands::evaluate_password_policy,
+        $crate::commands::personal_commands::get_staff_quota,
         $crate::commands::personal_commands::get_totp_status,
         $crate::commands::personal_commands::start_totp_enrollment,
         $crate::commands::personal_commands::confirm_totp_enrollment,

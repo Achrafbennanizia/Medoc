@@ -26,6 +26,10 @@ pub enum AppError {
     #[error("Validierungsfehler: {0}")]
     Validation(String),
 
+    /// Stable i18n key returned to the UI (e.g. `error.work_time.no_open_session`).
+    #[error("{0}")]
+    ValidationCode(String),
+
     #[error("Datenbankfehler: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -41,11 +45,21 @@ pub enum AppError {
     TotpEnrollmentRequired,
 }
 
+impl AppError {
+    /// Return a validation error identified by a stable `error.*` i18n key for the UI.
+    pub fn validation_code(code: impl Into<String>) -> Self {
+        AppError::ValidationCode(code.into())
+    }
+}
+
 impl serde::Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        match self {
+            AppError::ValidationCode(code) => serializer.serialize_str(code),
+            _ => serializer.serialize_str(&self.to_string()),
+        }
     }
 }

@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/medikamente";
 
 export function RezeptEditPage() {
+    const t = useT();
     const { id: patientId, rezeptId } = useParams<{ id: string; rezeptId: string }>();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
@@ -83,7 +85,7 @@ export function RezeptEditPage() {
     const handleSave = async () => {
         if (!rezept || !session) return;
         if (!medikament.trim() || !dosierung.trim() || !dauer.trim()) {
-            toast("Medikament, Dosierung und Dauer sind Pflichtfelder.", "error");
+            toast(t("rezept.edit.validation"), "error");
             return;
         }
         const mengeN = Number.parseInt(menge.trim(), 10);
@@ -105,10 +107,10 @@ export function RezeptEditPage() {
                 icd10_code: icd10Code.trim() || null,
                 verordnender_arzt_id: rezept.verordnender_arzt_id ?? session.user_id,
             });
-            toast("Rezept gespeichert", "success");
+            toast(t("rezept.edit.saved"), "success");
             navigate(`/patienten/${patientId}#rezept`);
         } catch (e) {
-            toast(`Fehler: ${errorMessage(e)}`, "error");
+            toast(`${t("common.error")}: ${errorMessage(e)}`, "error");
         } finally {
             setSaving(false);
         }
@@ -117,74 +119,76 @@ export function RezeptEditPage() {
     if (!patientId || !rezeptId) {
         return (
             <div className="animate-fade-in p-4">
-                <p className="text-body text-on-surface-variant">Ungültiger Aufruf.</p>
+                <p className="text-body text-on-surface-variant">{t("common.invalid_request")}</p>
             </div>
         );
     }
 
-    if (loading) return <PageLoading label="Wird geladen…" />;
+    if (loading) return <PageLoading label={t("common.loading")} />;
     if (loadError || !patient) {
-        return <PageLoadError message={loadError ?? "Daten nicht gefunden."} onRetry={() => void load()} />;
+        return <PageLoadError message={loadError ?? t("common.data_not_found")} onRetry={() => void load()} />;
     }
 
     if (!rezept) {
         return (
             <div className="praxis-workspace-page animate-fade-in" style={{ maxWidth: 560 }}>
                 <WorkspacePageHeader
-                    title="Rezept bearbeiten"
-                    back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+                    title={t("rezept.edit.title")}
+                    back={{ to: `/patienten/${patientId}#rezept`, label: t("patient.detail.title") }}
                 />
-                <PageLoadError message="Dieses Rezept existiert nicht oder wurde entfernt." onRetry={() => void load()} />
+                <PageLoadError message={t("rezept.edit.not_found")} onRetry={() => void load()} />
             </div>
         );
     }
+
+    const emDash = t("common.em_dash");
 
     return (
         <div className="praxis-workspace-page animate-fade-in" style={{ maxWidth: 720 }}>
             <WorkspacePageHeader
                 titleLevel="h1"
-                title="Rezept bearbeiten"
+                title={t("rezept.edit.title")}
                 eyebrow={patient.name}
-                back={{ to: `/patienten/${patientId}#rezept`, label: "Patientenakte" }}
+                back={{ to: `/patienten/${patientId}#rezept`, label: t("patient.detail.title") }}
             />
 
             <Card>
                 <CardHeader
-                    title="Medikation"
-                    subtitle="AMVV-Felder (PZN, Darreichungsform, Rezepttyp) für den PDF-Export."
+                    title={t("page.rezepte.section.medication")}
+                    subtitle={t("rezept.edit.subtitle")}
                 />
                 <div style={{ padding: "0 16px 16px" }}>
                     <Input
                         id="re-edit-med"
-                        label="Medikament *"
+                        label={t("page.rezepte.field.medication")}
                         value={medikament}
                         onChange={(e) => setMedikament(e.target.value)}
                     />
                     <Input
                         id="re-edit-wirk"
-                        label="Wirkstoff"
+                        label={t("page.rezepte.field.active_ingredient")}
                         value={wirkstoff}
                         onChange={(e) => setWirkstoff(e.target.value)}
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input
                             id="re-edit-dos"
-                            label="Dosierung *"
+                            label={t("page.rezepte.field.dosage")}
                             value={dosierung}
                             onChange={(e) => setDosierung(e.target.value)}
-                            placeholder="z. B. 1-0-1"
+                            placeholder={t("page.rezepte.field.dosage_ph")}
                         />
                         <Input
                             id="re-edit-dauer"
-                            label="Dauer *"
+                            label={t("page.rezepte.field.duration")}
                             value={dauer}
                             onChange={(e) => setDauer(e.target.value)}
-                            placeholder="z. B. 7 Tage"
+                            placeholder={t("page.rezepte.field.duration_ph")}
                         />
                     </div>
                     <Textarea
                         id="re-edit-hin"
-                        label="Hinweise"
+                        label={t("common.notes")}
                         rows={3}
                         value={hinweise}
                         onChange={(e) => setHinweise(e.target.value)}
@@ -192,33 +196,33 @@ export function RezeptEditPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
                         <Input
                             id="re-edit-pzn"
-                            label="PZN"
+                            label={t("page.rezepte.col.pzn")}
                             value={pzn}
                             onChange={(e) => setPzn(e.target.value)}
                         />
                         <Select
                             id="re-edit-dar"
-                            label="Darreichungsform"
+                            label={t("page.rezepte.field.darreichungsform")}
                             value={darreichungsform}
                             options={[
-                                { value: "", label: "—" },
+                                { value: "", label: emDash },
                                 ...DARREICHUNGSFORM_OPTIONS.map((d) => ({ value: d, label: d })),
                             ]}
                             onChange={(e) => setDarreichungsform(e.target.value)}
                         />
                         <Select
                             id="re-edit-pack"
-                            label="Packungsgröße"
+                            label={t("page.rezepte.field.packungsgroesse")}
                             value={packungsgroesse}
                             options={[
-                                { value: "", label: "—" },
+                                { value: "", label: emDash },
                                 ...PACKUNGSGROESSE_OPTIONS.map((p) => ({ value: p, label: p })),
                             ]}
                             onChange={(e) => setPackungsgroesse(e.target.value)}
                         />
                         <Input
                             id="re-edit-menge"
-                            label="Menge"
+                            label={t("page.rezepte.field.menge")}
                             type="number"
                             min={1}
                             value={menge}
@@ -226,14 +230,14 @@ export function RezeptEditPage() {
                         />
                         <Select
                             id="re-edit-typ"
-                            label="Rezepttyp"
+                            label={t("page.rezepte.field.rezepttyp")}
                             value={rezeptTyp}
                             options={REZEPT_TYP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                             onChange={(e) => setRezeptTyp(e.target.value as RezeptLine["rezept_typ"])}
                         />
                         <Input
                             id="re-edit-icd"
-                            label="ICD-10"
+                            label={t("page.rezepte.field.icd10")}
                             list="re-edit-icd-suggestions"
                             value={icd10Code}
                             onChange={(e) => setIcd10Code(e.target.value)}
@@ -250,14 +254,14 @@ export function RezeptEditPage() {
                             checked={autIdem}
                             onChange={(e) => setAutIdem(e.target.checked)}
                         />
-                        Aut-idem (kein Austausch)
+                        {t("page.rezepte.field.aut_idem_no_subst")}
                     </label>
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
                         <Button variant="ghost" onClick={() => navigate(`/patienten/${patientId}#rezept`)} disabled={saving}>
-                            Abbrechen
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={() => void handleSave()} loading={saving} disabled={saving}>
-                            Speichern
+                            {t("common.save")}
                         </Button>
                     </div>
                 </div>

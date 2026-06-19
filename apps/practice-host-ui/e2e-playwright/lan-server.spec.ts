@@ -40,7 +40,6 @@ test.describe("LAN server public surface", () => {
             data: {
                 email: "ahmed@praxis.de",
                 passwort: "passwort123",
-                totp_code: "123456",
             },
             ignoreHTTPSErrors: true,
         });

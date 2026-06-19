@@ -108,6 +108,22 @@ pub async fn open_encrypted_pool(
     Ok(pool)
 }
 
+/// Re-encrypt `medoc.db` from `old_key` to `new_key` (standalone connection; pool must be closed).
+pub async fn rekey_database_file(
+    db_path: &Path,
+    old_key: &[u8],
+    new_key: &[u8],
+) -> Result<(), AppError> {
+    let pool = open_encrypted_pool(db_path, Zeroizing::new(old_key.to_vec()), false).await?;
+    let new_pragma = db_key::pragma_key_value(new_key);
+    sqlx::query(&format!("PRAGMA rekey = {new_pragma}"))
+        .execute(&pool)
+        .await
+        .map_err(AppError::Database)?;
+    pool.close().await;
+    Ok(())
+}
+
 pub async fn open_memory_pool(key: &[u8]) -> Result<SqlitePool, AppError> {
     let key_pragma = db_key::pragma_key_value(key);
     let options = SqliteConnectOptions::from_str("sqlite::memory:")

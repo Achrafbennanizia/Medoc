@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { Card, CardHeader } from "../components/ui/card";
@@ -13,6 +14,8 @@ import { useRbac } from "@/lib/use-rbac";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
 export function SonderSperrzeitenPage() {
+    const t = useT();
+    const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const { canWritePraxisplanung } = useRbac();
     const [closures, setClosures] = useState<PraxisClosureRule[]>([]);
@@ -49,7 +52,7 @@ export function SonderSperrzeitenPage() {
             await savePraxisArbeitszeitenConfig({ ...cfg, closures: next });
         } catch (e) {
             setClosures(previous);
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -85,11 +88,11 @@ export function SonderSperrzeitenPage() {
     const saveSperrEdit = () => {
         if (!selected) return;
         if (!closureDate) {
-            toast("Bitte ein Datum wählen.", "error");
+            toast(t("common.please_pick_date"), "error");
             return;
         }
         if (closureMode === "CUSTOM" && closurePeriods.some((p) => !p.from || !p.to || p.from >= p.to)) {
-            toast("Für benutzerdefinierte Sperre bitte alle Zeitblöcke korrekt ausfüllen.", "error");
+            toast(t("page.sonder_sperrzeiten.custom_periods_error"), "error");
             return;
         }
         const updated: PraxisClosureRule = {
@@ -105,7 +108,7 @@ export function SonderSperrzeitenPage() {
         void saveClosures(next);
         setSperrEdit(false);
         setSelected(updated);
-        toast("Sperrregel gespeichert");
+        toast(t("page.sonder_sperrzeiten.toast.saved"));
     };
 
     const selectRow = (r: PraxisClosureRule) => {
@@ -116,11 +119,11 @@ export function SonderSperrzeitenPage() {
 
     const addClosure = () => {
         if (!closureDate) {
-            toast("Bitte ein Datum wählen.", "error");
+            toast(t("common.please_pick_date"), "error");
             return;
         }
         if (closureMode === "CUSTOM" && closurePeriods.some((p) => !p.from || !p.to || p.from >= p.to)) {
-            toast("Für benutzerdefinierte Sperre bitte alle Zeitblöcke korrekt ausfüllen.", "error");
+            toast(t("page.sonder_sperrzeiten.custom_periods_error"), "error");
             return;
         }
         const row: PraxisClosureRule = {
@@ -136,7 +139,7 @@ export function SonderSperrzeitenPage() {
         setClosurePeriods([{ from: "08:00", to: "12:00" }]);
         setSelected(row);
         setCreating(false);
-        toast("Sperrzeit hinzugefügt");
+        toast(t("page.sonder_sperrzeiten.toast.added"));
     };
 
     const addNextDayEmergencyClose = () => {
@@ -148,13 +151,13 @@ export function SonderSperrzeitenPage() {
             date: iso,
             mode: "FULL_DAY",
             periods: [],
-            reason: "Kurzfristige Praxisschließung",
+            reason: t("page.sonder_sperrzeiten.emergency_reason"),
         };
         const next = [row, ...closures].sort((a, b) => a.date.localeCompare(b.date));
         void saveClosures(next);
         setSelected(row);
         setCreating(false);
-        toast("Nächster Tag als geschlossen markiert.");
+        toast(t("page.sonder_sperrzeiten.toast.next_day"));
     };
 
     const removeClosure = (id: string) => {
@@ -176,6 +179,11 @@ export function SonderSperrzeitenPage() {
     const timeLabel = (r: PraxisClosureRule) =>
         r.mode === "CUSTOM" ? (r.periods ?? []).map((p) => `${p.from}–${p.to}`).join(", ") : "—";
 
+    const modeLabel = (mode: PraxisClosureMode, short = false) =>
+        mode === "FULL_DAY"
+            ? t(short ? "page.sonder_sperrzeiten.mode.full_day_short" : "page.sonder_sperrzeiten.mode.full_day")
+            : t(short ? "page.sonder_sperrzeiten.mode.custom_short" : "page.sonder_sperrzeiten.mode.custom");
+
     const readField = (label: string, value: string) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span className="kpi-label-mini">{label}</span>
@@ -183,77 +191,81 @@ export function SonderSperrzeitenPage() {
         </div>
     );
 
+    const closureFormFields = (idPrefix: string) => (
+        <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input id={`${idPrefix}-date`} type="date" label={t("common.date")} value={closureDate} onChange={(e) => setClosureDate(e.target.value)} />
+                <Select
+                    id={`${idPrefix}-mode`}
+                    label={t("common.type")}
+                    value={closureMode}
+                    onChange={(e) => setClosureMode(e.target.value as PraxisClosureMode)}
+                    options={[
+                        { value: "FULL_DAY", label: t("page.sonder_sperrzeiten.mode.full_day") },
+                        { value: "CUSTOM", label: t("page.sonder_sperrzeiten.mode.custom") },
+                    ]}
+                />
+                <Input id={`${idPrefix}-reason`} label={t("common.reason_optional")} value={closureReason} onChange={(e) => setClosureReason(e.target.value)} />
+                {closureMode === "CUSTOM" ? (
+                    <div className="col" style={{ gap: 8, gridColumn: "1 / -1" }}>
+                        {closurePeriods.map((p, idx) => (
+                            <div key={`period-${idPrefix}-${idx}`} className="row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                                <Input
+                                    id={`${idPrefix}-from-${idx}`}
+                                    type="time"
+                                    label={tp("page.sonder_sperrzeiten.from_period", { n: idx + 1 })}
+                                    value={p.from}
+                                    onChange={(e) => updatePeriod(idx, "from", e.target.value)}
+                                />
+                                <Input
+                                    id={`${idPrefix}-to-${idx}`}
+                                    type="time"
+                                    label={tp("page.sonder_sperrzeiten.to_period", { n: idx + 1 })}
+                                    value={p.to}
+                                    onChange={(e) => updatePeriod(idx, "to", e.target.value)}
+                                />
+                                {closurePeriods.length > 1 ? (
+                                    <Button type="button" size="sm" variant="ghost" onClick={() => removePeriod(idx)}>
+                                        {t("common.remove")}
+                                    </Button>
+                                ) : null}
+                            </div>
+                        ))}
+                        <div>
+                            <Button type="button" size="sm" variant="secondary" onClick={addPeriod}>
+                                {t("page.sonder_sperrzeiten.add_period")}
+                            </Button>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </>
+    );
+
     const sidePanel = (() => {
         if (creating) {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Neue Sperrregel"
-                        subtitle="Diese Regeln sperren Slots in „Neuer Termin“."
+                        title={t("page.sonder_sperrzeiten.new_rule.title")}
+                        subtitle={t("page.sonder_sperrzeiten.new_rule.subtitle")}
                         action={
                             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                 <Button type="button" size="sm" variant="danger" onClick={addNextDayEmergencyClose}>
-                                    Praxis morgen schließen
+                                    {t("page.sonder_sperrzeiten.close_practice_tomorrow")}
                                 </Button>
                                 <Button type="button" size="sm" variant="ghost" onClick={closeForm}>
-                                    Schließen
+                                    {t("common.close")}
                                 </Button>
                             </div>
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>
-                            Voller Tag, halber Tag oder benutzerdefinierte Zeiträume — wie bisher, jetzt in diesem Bereich.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Input id="closure-date" type="date" label="Datum" value={closureDate} onChange={(e) => setClosureDate(e.target.value)} />
-                            <Select
-                                id="closure-mode"
-                                label="Typ"
-                                value={closureMode}
-                                onChange={(e) => setClosureMode(e.target.value as PraxisClosureMode)}
-                                options={[
-                                    { value: "FULL_DAY", label: "Ganzer Tag gesperrt" },
-                                    { value: "CUSTOM", label: "Benutzerdefinierte Zeit" },
-                                ]}
-                            />
-                            <Input id="closure-reason" label="Grund (optional)" value={closureReason} onChange={(e) => setClosureReason(e.target.value)} />
-                            {closureMode === "CUSTOM" ? (
-                                <div className="col" style={{ gap: 8, gridColumn: "1 / -1" }}>
-                                    {closurePeriods.map((p, idx) => (
-                                        <div key={`period-${idx}`} className="row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
-                                            <Input
-                                                id={`closure-from-${idx}`}
-                                                type="time"
-                                                label={`Von (${idx + 1})`}
-                                                value={p.from}
-                                                onChange={(e) => updatePeriod(idx, "from", e.target.value)}
-                                            />
-                                            <Input
-                                                id={`closure-to-${idx}`}
-                                                type="time"
-                                                label={`Bis (${idx + 1})`}
-                                                value={p.to}
-                                                onChange={(e) => updatePeriod(idx, "to", e.target.value)}
-                                            />
-                                            {closurePeriods.length > 1 ? (
-                                                <Button type="button" size="sm" variant="ghost" onClick={() => removePeriod(idx)}>
-                                                    Entfernen
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    ))}
-                                    <div>
-                                        <Button type="button" size="sm" variant="secondary" onClick={addPeriod}>
-                                            + Zeitraum
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
+                        <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>{t("page.sonder_sperrzeiten.form.hint")}</p>
+                        {closureFormFields("closure")}
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                             <Button type="button" variant="secondary" onClick={() => void addClosure()}>
-                                Sperrzeit hinzufügen
+                                {t("page.sonder_sperrzeiten.add_closure")}
                             </Button>
                         </div>
                     </div>
@@ -264,66 +276,21 @@ export function SonderSperrzeitenPage() {
             return (
                 <Card className="produkte-detail-card">
                     <CardHeader
-                        title="Sperrregel bearbeiten"
-                        subtitle="Änderungen unten speichern — gleiche Felder wie bei neuer Regel."
+                        title={t("page.sonder_sperrzeiten.edit.title")}
+                        subtitle={t("page.sonder_sperrzeiten.edit.subtitle")}
                         action={
                             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                 <Button type="button" size="sm" variant="ghost" onClick={cancelSperrEdit}>
-                                    Abbrechen
+                                    {t("common.cancel")}
                                 </Button>
                             </div>
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Input id="closure-date-ed" type="date" label="Datum" value={closureDate} onChange={(e) => setClosureDate(e.target.value)} />
-                            <Select
-                                id="closure-mode-ed"
-                                label="Typ"
-                                value={closureMode}
-                                onChange={(e) => setClosureMode(e.target.value as PraxisClosureMode)}
-                                options={[
-                                    { value: "FULL_DAY", label: "Ganzer Tag gesperrt" },
-                                    { value: "CUSTOM", label: "Benutzerdefinierte Zeit" },
-                                ]}
-                            />
-                            <Input id="closure-reason-ed" label="Grund (optional)" value={closureReason} onChange={(e) => setClosureReason(e.target.value)} />
-                            {closureMode === "CUSTOM" ? (
-                                <div className="col" style={{ gap: 8, gridColumn: "1 / -1" }}>
-                                    {closurePeriods.map((p, idx) => (
-                                        <div key={`period-ed-${idx}`} className="row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
-                                            <Input
-                                                id={`closure-from-ed-${idx}`}
-                                                type="time"
-                                                label={`Von (${idx + 1})`}
-                                                value={p.from}
-                                                onChange={(e) => updatePeriod(idx, "from", e.target.value)}
-                                            />
-                                            <Input
-                                                id={`closure-to-ed-${idx}`}
-                                                type="time"
-                                                label={`Bis (${idx + 1})`}
-                                                value={p.to}
-                                                onChange={(e) => updatePeriod(idx, "to", e.target.value)}
-                                            />
-                                            {closurePeriods.length > 1 ? (
-                                                <Button type="button" size="sm" variant="ghost" onClick={() => removePeriod(idx)}>
-                                                    Entfernen
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    ))}
-                                    <div>
-                                        <Button type="button" size="sm" variant="secondary" onClick={addPeriod}>
-                                            + Zeitraum
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
+                        {closureFormFields("closure-ed")}
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                             <Button type="button" variant="secondary" onClick={() => void saveSperrEdit()}>
-                                Speichern
+                                {t("common.save")}
                             </Button>
                         </div>
                     </div>
@@ -336,15 +303,15 @@ export function SonderSperrzeitenPage() {
                 <Card className="produkte-detail-card">
                     <CardHeader
                         title={r.date}
-                        subtitle={r.mode === "FULL_DAY" ? "Ganzer Tag gesperrt" : "Benutzerdefinierte Zeit"}
+                        subtitle={modeLabel(r.mode)}
                         action={
                             canWritePraxisplanung ? (
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={startEditSelected}>
-                                    <EditIcon size={14} /> Bearbeiten
+                                    <EditIcon size={14} /> {t("common.edit")}
                                 </Button>
                                 <Button type="button" size="sm" variant="danger" onClick={() => removeClosure(r.id)}>
-                                    <TrashIcon size={14} /> Entfernen
+                                    <TrashIcon size={14} /> {t("common.remove")}
                                 </Button>
                             </div>
                             ) : undefined
@@ -352,10 +319,10 @@ export function SonderSperrzeitenPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
-                            {readField("Datum", r.date)}
-                            {readField("Typ", r.mode === "FULL_DAY" ? "Ganzer Tag" : "Benutzerdefiniert")}
-                            <div style={{ gridColumn: "1 / -1" }}>{readField("Zeit", timeLabel(r))}</div>
-                            <div style={{ gridColumn: "1 / -1" }}>{readField("Grund", r.reason ?? "—")}</div>
+                            {readField(t("common.date"), r.date)}
+                            {readField(t("common.type"), modeLabel(r.mode, true))}
+                            <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.time"), timeLabel(r))}</div>
+                            <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.reason"), r.reason ?? "—")}</div>
                         </div>
                     </div>
                 </Card>
@@ -364,23 +331,23 @@ export function SonderSperrzeitenPage() {
         return (
             <Card className="card-pad produkte-detail-card produkte-detail-card--empty">
                 <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    Wählen Sie eine Sperrzeit in der Tabelle, oder „+ Neue Sperrregel“ für die Eingabe hier.
+                    {t("page.sonder_sperrzeiten.empty.hint")}
                 </p>
             </Card>
         );
     })();
 
-    if (loading) return <PageLoading label="Sperrzeiten werden geladen…" />;
+    if (loading) return <PageLoading label={t("page.sonder_sperrzeiten.loading")} />;
 
     return (
         <div className="produkte-page praxis-workspace-page animate-fade-in">
             <VerwaltungPageHeader
-                title="Sonder-Sperrzeiten"
-                subtitle="Sperrungen für die Terminplanung — Liste links, neue Regel oder Details rechts (wie Produkte)."
+                title={t("page.sonder_sperrzeiten.title")}
+                subtitle={t("page.sonder_sperrzeiten.subtitle")}
                 actions={
                     canWritePraxisplanung ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? closeForm : openForm}>
-                            {creating ? "Formular schließen" : "+ Neue Sperrregel"}
+                            {creating ? t("page.sonder_sperrzeiten.close_form") : t("page.sonder_sperrzeiten.new_rule")}
                         </Button>
                     ) : null
                 }
@@ -390,17 +357,17 @@ export function SonderSperrzeitenPage() {
                 <div className="produkte-workspace__list">
                     {sorted.length === 0 ? (
                         <Card className="card-pad">
-                            <EmptyState icon="🚫" title="Keine Sonder-Sperrzeiten" description="Rechts eine neue Regel anlegen." />
+                            <EmptyState icon="🚫" title={t("page.sonder_sperrzeiten.empty.title")} description={t("page.sonder_sperrzeiten.empty.desc")} />
                         </Card>
                     ) : (
                         <div className="card produkte-table-card tbl-data-card tbl-scroll">
                             <table className="tbl tbl-fluid">
                                 <thead>
                                     <tr>
-                                        <th scope="col">Datum</th>
-                                        <th scope="col">Typ</th>
-                                        <th scope="col">Zeit</th>
-                                        <th scope="col">Grund</th>
+                                        <th scope="col">{t("common.date")}</th>
+                                        <th scope="col">{t("common.type")}</th>
+                                        <th scope="col">{t("common.time")}</th>
+                                        <th scope="col">{t("common.reason")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -414,7 +381,7 @@ export function SonderSperrzeitenPage() {
                                                 style={{ cursor: "pointer" }}
                                             >
                                                 <td style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.date}</td>
-                                                <td>{r.mode === "FULL_DAY" ? "Ganzer Tag" : "Benutzerdefiniert"}</td>
+                                                <td>{modeLabel(r.mode, true)}</td>
                                                 <td className="page-sub" style={{ fontSize: 13 }}>{timeLabel(r)}</td>
                                                 <td className="page-sub" style={{ fontSize: 13, color: "var(--fg-3)" }}>{r.reason ?? "—"}</td>
                                             </tr>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Behandlung, Zahnbefund } from "@/models/types";
+import { useT } from "@/lib/i18n";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
     DENTAL_LOWER_L,
@@ -38,6 +39,7 @@ type DentalMiniBarProps = {
  * Hover shows diagnoses (Zahnbefunde) and treatments (Behandlungen) for that tooth.
  */
 export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalMiniBarProps) {
+    const t = useT();
     const [pop, setPop] = useState<PopState | null>(null);
     const [vw, setVw] = useState(() => (typeof window === "undefined" ? 1024 : window.innerWidth));
     const [vh, setVh] = useState(() => (typeof window === "undefined" ? 768 : window.innerHeight));
@@ -155,7 +157,7 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">Befunde / Diagnosen</div>
                 {popBefunde.length === 0 ? (
-                    <div className="tooth-popover-empty">Keine erfassten Befunde.</div>
+                    <div className="tooth-popover-empty">{t("dental.mini.no_findings")}</div>
                 ) : (
                     <ul className="tooth-popover-list">
                         {popBefunde.map((b) => (
@@ -172,7 +174,7 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">Behandlungen</div>
                 {popBehand.length === 0 ? (
-                    <div className="tooth-popover-empty">Keine Behandlungen zu diesem Zahn.</div>
+                    <div className="tooth-popover-empty">{t("dental.mini.no_treatments")}</div>
                 ) : (
                     <ul className="tooth-popover-list">
                         {popBehand.map((b) => (

@@ -1,3 +1,5 @@
+import { useT } from "@/lib/i18n";
+
 type TimeSlotPickerProps = {
     value: string;
     onChange: (hhmm: string) => void;
@@ -30,9 +32,10 @@ export function TimeSlotPicker({
     endHour = 18,
     stepMinutes = 30,
 }: TimeSlotPickerProps) {
+    const t = useT();
     const list = slots(startHour, endHour, stepMinutes);
     return (
-        <div role="group" aria-label="Uhrzeit wählen" className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8 }}>
+        <div role="group" aria-label={t("a11y.pick_time")} className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8 }}>
             {list.map((t) => {
                 const busy = busyKeys?.has(`${selectedDate}|${t}`) ?? false;
                 const active = value === t;

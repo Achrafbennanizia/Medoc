@@ -11,6 +11,7 @@ import {
     sumEinnahmenTag,
 } from "@/lib/tagesabschluss";
 import type { Zahlung } from "@/models/types";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import { Input, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
@@ -49,6 +50,10 @@ export function TagesabschlussForm({
     showCancelButton,
     saveBusy = false,
 }: TagesabschlussFormProps) {
+    const t = useT();
+    const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
+    const timeLocale = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
     const toast = useToastStore((s) => s.add);
     const [stichtag, setStichtag] = useState(fixedStichtag ?? stichtagDefault);
     const [gezaehltRaw, setGezaehltRaw] = useState("");
@@ -113,9 +118,15 @@ export function TagesabschlussForm({
         try {
             await setZahlungenKasseGeprueft(idsZumSchnellMarkieren, true);
             await load();
-            toast(`${idsZumSchnellMarkieren.length} Zahlung${idsZumSchnellMarkieren.length === 1 ? "" : "en"} als kassengeprüft markiert.`, "success");
+            const count = idsZumSchnellMarkieren.length;
+            toast(
+                count === 1
+                    ? tp("page.tagesabschluss.toast.marked_one", { count })
+                    : tp("page.tagesabschluss.toast.marked_many", { count }),
+                "success",
+            );
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
         } finally {
             setMarkBusy(false);
         }
@@ -140,14 +151,14 @@ export function TagesabschlussForm({
                 tagesberichtPdf,
             });
         } catch (e) {
-            toast(`Speichern fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
         }
     };
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {loadStatus === "loading" ? (
-                <p className="page-sub" style={{ margin: 0 }}>Zahlungen werden geladen…</p>
+                <p className="page-sub" style={{ margin: 0 }}>{t("page.tagesabschluss.form.loading_payments")}</p>
             ) : null}
             {loadStatus === "error" && loadError ? (
                 <p style={{ color: "var(--danger, #c00)", margin: "0 0 12px" }} role="alert">
@@ -158,7 +169,7 @@ export function TagesabschlussForm({
             <Input
                 id="ts-stichtag"
                 type="date"
-                label="Stichtag (Kalendertag)"
+                label={t("page.tagesabschluss.form.stichtag_label")}
                 value={stichtag}
                 disabled={Boolean(fixedStichtag)}
                 onChange={(e) => {
@@ -167,21 +178,21 @@ export function TagesabschlussForm({
             />
 
             <div className="card card-pad" style={{ background: "var(--surface-1)", borderColor: "var(--border-2)" }}>
-                <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>Bargeld laut Erfassung (System)</p>
+                <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>{t("page.tagesabschluss.form.cash_system_title")}</p>
                 <p style={{ margin: 0, fontSize: 15, color: "var(--fg-2)" }}>
-                    Summe der Barzahlungen (nicht storniert) für den Stichtag:{" "}
+                    {t("page.tagesabschluss.form.cash_system_desc")}{" "}
                     <strong style={{ color: "var(--fg-1)" }}>{formatCurrency(barLautSystem)}</strong>
                 </p>
                 <p className="page-sub" style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45 }}>
-                    Referenz — alle Einnahmen des Tages (bar, Karte, …, verbucht, nicht storniert):{" "}
+                    {t("page.tagesabschluss.form.cash_system_income_ref")}{" "}
                     {formatCurrency(einnahmenLautSystem)}
                 </p>
             </div>
 
             <Input
                 id="ts-gezaehlt"
-                label="Gezählter Bargeldbetrag (Kasse) — EUR"
-                placeholder="z. B. 245,50"
+                label={t("page.tagesabschluss.form.counted_label")}
+                placeholder={t("page.tagesabschluss.form.counted_ph")}
                 value={gezaehltRaw}
                 onChange={(e) => setGezaehltRaw(e.target.value)}
             />
@@ -196,28 +207,28 @@ export function TagesabschlussForm({
                 >
                     {barMatch ? (
                         <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--fg-1)" }}>
-                            Die gezählte Kasse stimmt mit dem erfassten Bargeld überein.
+                            {t("page.tagesabschluss.form.match_ok")}
                         </p>
                     ) : (
                         <p style={{ margin: 0, fontSize: 15, color: "var(--fg-1)" }}>
-                            <strong>Abweichung:</strong>{" "}
+                            <strong>{t("page.tagesabschluss.form.deviation_label")}</strong>{" "}
                             {barDelta > 0
-                                ? `${formatCurrency(barDelta)} mehr in der Kasse als im System.`
-                                : `${formatCurrency(-barDelta)} weniger in der Kasse als im System.`}
+                                ? tp("page.tagesabschluss.form.deviation_more", { amount: formatCurrency(barDelta) })
+                                : tp("page.tagesabschluss.form.deviation_less", { amount: formatCurrency(-barDelta) })}
                         </p>
                     )}
                 </div>
             ) : (
                 <p className="page-sub" style={{ margin: 0, fontSize: 13 }}>
-                    Gezählten Bargeldbetrag eingeben, um den Abgleich mit der erfassten Bar-Summe anzuzeigen.
+                    {t("page.tagesabschluss.form.enter_count_hint")}
                 </p>
             )}
 
             {schnellOptionSichtbar ? (
                 <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Kassenprüfung der Tageszahlungen</p>
+                    <p className="text-title" style={{ margin: 0, fontSize: 14 }}>{t("page.tagesabschluss.form.cash_check_title")}</p>
                     <p className="page-sub" style={{ margin: 0, fontSize: 13, lineHeight: 1.45 }}>
-                        Wenn alles stimmig ist, können Sie alle Zahlungen dieses Tages in einem Schritt als kassengeprüft markieren.
+                        {t("page.tagesabschluss.form.cash_check_desc")}
                     </p>
                     <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                         <Button
@@ -228,8 +239,8 @@ export function TagesabschlussForm({
                             loading={markBusy}
                         >
                             {alleBereitsGeprueft
-                                ? "Alle Tageszahlungen bereits geprüft"
-                                : `Alle ${idsZumSchnellMarkieren.length} Tageszahlungen kassengeprüft markieren`}
+                                ? t("page.tagesabschluss.form.mark_all_done")
+                                : tp("page.tagesabschluss.form.mark_all", { count: idsZumSchnellMarkieren.length })}
                         </Button>
                     </div>
                 </div>
@@ -237,20 +248,16 @@ export function TagesabschlussForm({
 
             <Textarea
                 id="ts-notiz"
-                label="Bemerkung (optional, wird im Protokoll gespeichert)"
+                label={t("page.tagesabschluss.form.remark_label")}
                 value={notiz}
                 onChange={(e) => setNotiz(e.target.value)}
                 rows={2}
             />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--surface-1)", borderColor: "var(--border-2)" }}>
-                <p className="text-title" style={{ margin: 0, fontSize: 14 }}>Option: Tagesbericht (PDF)</p>
+                <p className="text-title" style={{ margin: 0, fontSize: 14 }}>{t("page.tagesabschluss.form.pdf_option_title")}</p>
                 <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                    Berichts-PDF: <strong>Sammelbeleg</strong> zum Stichtag — Leistungen und Beträge gruppiert{" "}
-                    <strong>pro Patient</strong> (im PDF mit „Patient: …“ je Block). Das Dokument ist{" "}
-                    <strong>nicht</strong> als persönliche Rechnung an eine Einzelperson adressiert, sondern als
-                    Tagesübersicht für Buchhaltung/Abgleich. Gleiche Druck-Pipeline wie{" "}
-                    <strong>Rechnung (PDF) / FA-FIN-INVOICE</strong>.
+                    {t("page.tagesabschluss.form.pdf_option_desc")}
                 </p>
                 <label className="row" style={{ gap: 10, alignItems: "center", fontSize: 14, color: "var(--fg-2)" }}>
                     <input
@@ -260,32 +267,32 @@ export function TagesabschlussForm({
                             setTagesberichtPdf(e.target.checked);
                         }}
                     />
-                    Nach Protokoll Tagesbericht (PDF) erzeugen
+                    {t("page.tagesabschluss.form.pdf_checkbox")}
                 </label>
             </div>
 
             <div>
-                <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>Zahlungen am Stichtag</p>
+                <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>{t("page.tagesabschluss.payments_title")}</p>
                 {onDay.length === 0 ? (
-                    <p className="page-sub" style={{ margin: 0 }}>Keine Zahlungen an diesem Tag.</p>
+                    <p className="page-sub" style={{ margin: 0 }}>{t("page.tagesabschluss.no_payments")}</p>
                 ) : (
                     <div className="card" style={{ overflow: "auto", maxHeight: 220 }}>
                         <table className="tbl" style={{ minWidth: 400, fontSize: 13, margin: 0 }}>
                             <thead>
                                 <tr>
-                                    <th style={{ textAlign: "left" }}>Zeit</th>
-                                    <th style={{ textAlign: "left" }}>Patient</th>
-                                    <th>Art</th>
-                                    <th>Status</th>
+                                    <th style={{ textAlign: "left" }}>{t("common.time")}</th>
+                                    <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
+                                    <th>{t("page.tagesabschluss.col.art")}</th>
+                                    <th>{t("common.status")}</th>
                                     <th style={{ textAlign: "right" }}>€</th>
-                                    <th>Kasse geprüft</th>
+                                    <th>{t("page.tagesabschluss.col.cash_checked")}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {onDay.map((z) => (
                                     <tr key={z.id}>
                                         <td>
-                                            {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString("de-DE", {
+                                            {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString(timeLocale, {
                                                 hour: "2-digit",
                                                 minute: "2-digit",
                                             })}
@@ -306,17 +313,13 @@ export function TagesabschlussForm({
             </div>
 
             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                Tagesabschluss speichert den Abgleich (Stichtag, Beträge, Kennzahlen) und optional Ihre Bemerkung. Toleranz
-                Abgleich: ±
-                {AMOUNT_TOL}
-                {" "}
-                €.
+                {tp("page.tagesabschluss.form.footer_hint", { tolerance: AMOUNT_TOL })}
             </p>
 
             <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                 {showCancelButton && onCancel ? (
                     <Button type="button" variant="ghost" onClick={onCancel} disabled={saveBusy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                 ) : null}
                 <Button
@@ -325,7 +328,7 @@ export function TagesabschlussForm({
                     disabled={!canWrite || saveBusy}
                     loading={saveBusy}
                 >
-                    Tagesabschluss protokollieren
+                    {t("page.tagesabschluss.form.submit")}
                 </Button>
             </div>
         </div>

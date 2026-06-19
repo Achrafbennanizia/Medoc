@@ -9,7 +9,19 @@ import {
 } from "@/lib/attest-composer";
 import type { RezeptLine } from "@/lib/medikamente";
 import { rezeptLinesToVorlageItems } from "@/lib/medikamente";
+import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { PATIENT_DETAIL_TOAST_UNDO_MS, type AkteSavePending } from "@/lib/patient-detail-utils";
+
+function tp(key: string, params: Record<string, string | number>): string {
+    return translateLocaleParams(useLocale.getState().locale, key, params);
+}
+
+function toastError(ctx: PatientDetailRezeptActionsCtx, e: unknown): void {
+    ctx.toast(
+        tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+        "error",
+    );
+}
 
 export type PatientDetailRezeptToast = (
     message: string,
@@ -54,23 +66,29 @@ export async function persistPatientRezepte(
             });
             createdIds.push(r.id);
         }
-        ctx.toast(`${queue.length} Rezept${queue.length === 1 ? "" : "e"} gespeichert`, "success", {
-            durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
-            onUndo: async () => {
-                try {
-                    for (const rid of createdIds) {
-                        await deleteRezept(rid);
+        ctx.toast(
+            queue.length === 1
+                ? t("patient.detail.toast.rezept_saved_one")
+                : tp("patient.detail.toast.rezepte_saved_count", { count: queue.length }),
+            "success",
+            {
+                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        for (const rid of createdIds) {
+                            await deleteRezept(rid);
+                        }
+                        await ctx.onReload();
+                    } catch (e) {
+                        toastError(ctx, e);
                     }
-                    await ctx.onReload();
-                } catch (e) {
-                    ctx.toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
-                }
+                },
             },
-        });
+        );
         onAfterSave?.();
         await ctx.onReload();
     } catch (e) {
-        ctx.toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        toastError(ctx, e);
     }
 }
 
@@ -102,14 +120,14 @@ export async function persistPatientAttest(
             ausstellender_arzt_id: ctx.userId,
         });
         if (!options?.silent) {
-            ctx.toast("Attest gespeichert", "success", {
+            ctx.toast(t("patient.detail.toast.attest_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
                         await deleteAttest(created.id);
                         await ctx.onReload();
                     } catch (e) {
-                        ctx.toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toastError(ctx, e);
                     }
                 },
             });
@@ -118,7 +136,7 @@ export async function persistPatientAttest(
         await ctx.onReload();
         return created.id;
     } catch (e) {
-        ctx.toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+        toastError(ctx, e);
         return null;
     }
 }
@@ -139,7 +157,7 @@ export async function flushRezeptFinalizeVorlage(
             titel: p.titel,
             payload: { items: rezeptLinesToVorlageItems(p.lines) },
         });
-        ctx.toast("Vorlage für die Praxis gespeichert", "success");
+        ctx.toast(t("patient.detail.toast.vorlage_saved_praxis"), "success");
         await hooks.refreshRezeptVorlagen();
         hooks.clearPending();
         await persistPatientRezepte(ctx, p.lines, p.shared);
@@ -173,14 +191,14 @@ export async function flushAttestFinalizeVorlage(
         hooks.clearPending();
         const attestId = await persistPatientAttest(ctx, p.fields, { silent: true });
         if (attestId) {
-            ctx.toast("Vorlage angelegt und Attest gespeichert", "success", {
+            ctx.toast(t("patient.detail.toast.vorlage_attest_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
                         await deleteAttest(attestId);
                         await ctx.onReload();
                     } catch (e) {
-                        ctx.toast(`Fehler: ${e instanceof Error ? e.message : String(e)}`, "error");
+                        toastError(ctx, e);
                     }
                 },
             });

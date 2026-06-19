@@ -176,7 +176,7 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
     Ok(mins)
 }
 
-async fn get_or_create_preference(
+pub async fn get_or_create_preference(
     pool: &SqlitePool,
     personal_id: &str,
 ) -> Result<WorkTimePreference, AppError> {
@@ -297,7 +297,7 @@ async fn reconcile_stale_sessions(pool: &SqlitePool, personal_id: &str) -> Resul
 fn week_start_from(query: Option<&str>) -> Result<NaiveDate, AppError> {
     if let Some(ws) = query {
         NaiveDate::parse_from_str(ws, "%Y-%m-%d")
-            .map_err(|_| AppError::Validation("week_start: YYYY-MM-DD".into()))
+            .map_err(|_| AppError::validation_code("error.work_time.week_start_format"))
     } else {
         let today = Utc::now().date_naive();
         Ok(today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64))
@@ -362,9 +362,7 @@ pub async fn work_time_start(
     let session = rbac::require(&session_state, "work_time.self")?;
     reconcile_stale_sessions(&pool, &session.user_id).await?;
     if open_session(&pool, &session.user_id).await?.is_some() {
-        return Err(AppError::Validation(
-            "Es läuft bereits eine Arbeitszeit-Sitzung.".into(),
-        ));
+        return Err(AppError::validation_code("error.work_time.session_already_running"));
     }
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -393,9 +391,9 @@ pub async fn work_time_pause(
     let session = rbac::require(&session_state, "work_time.self")?;
     let row = open_session(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::Validation("Keine laufende Sitzung.".into()))?;
+        .ok_or(AppError::validation_code("error.work_time.no_running_session"))?;
     if row.status != "RUNNING" {
-        return Err(AppError::Validation("Sitzung ist nicht aktiv.".into()));
+        return Err(AppError::validation_code("error.work_time.session_not_running"));
     }
     let now = Utc::now().to_rfc3339();
     let seg_id = Uuid::new_v4().to_string();
@@ -429,9 +427,9 @@ pub async fn work_time_resume(
     let session = rbac::require(&session_state, "work_time.self")?;
     let row = open_session(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::Validation("Keine pausierte Sitzung.".into()))?;
+        .ok_or(AppError::validation_code("error.work_time.no_paused_session"))?;
     if row.status != "PAUSED" {
-        return Err(AppError::Validation("Sitzung ist nicht pausiert.".into()));
+        return Err(AppError::validation_code("error.work_time.session_not_paused"));
     }
     close_open_pause_segment(&pool, &row.id).await?;
     sqlx::query(
@@ -454,7 +452,7 @@ pub async fn work_time_end(
     let session = rbac::require(&session_state, "work_time.self")?;
     let row = open_session(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::Validation("Keine offene Sitzung.".into()))?;
+        .ok_or(AppError::validation_code("error.work_time.no_open_session"))?;
     close_open_pause_segment(&pool, &row.id).await?;
     let now = Utc::now().to_rfc3339();
     sqlx::query(

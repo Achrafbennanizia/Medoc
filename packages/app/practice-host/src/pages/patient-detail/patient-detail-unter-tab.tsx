@@ -1,3 +1,4 @@
+import { useT, useTParams } from "@/lib/i18n";
 import type { BehandlungsKatalogItem, Patientenakte, Untersuchung, Zahnbefund } from "@/models/types";
 import {
     UntersuchungBillingFields,
@@ -73,6 +74,9 @@ export function PatientDetailUnterTab({
     onSaveEdit,
     onCreateUntersuchung,
 }: PatientDetailUnterTabProps) {
+    const t = useT();
+    const tp = useTParams();
+    const emDash = t("common.em_dash");
     const deleteTarget = unterDeleteId
         ? untersuchungen.find((x) => x.id === unterDeleteId)
         : undefined;
@@ -82,7 +86,7 @@ export function PatientDetailUnterTab({
             <div className="col" style={{ gap: 16 }}>
                 <Card className="card-pad">
                     <CardHeader
-                        title="Untersuchungen"
+                        title={t("patient.detail.tab.unter.title")}
                         action={(
                             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                 <Button
@@ -92,27 +96,29 @@ export function PatientDetailUnterTab({
                                     onClick={onToggleClinicalPrices}
                                     aria-pressed={showClinicalPrices}
                                 >
-                                    {showClinicalPrices ? "Preise ausblenden" : "Preise anzeigen"}
+                                    {showClinicalPrices
+                                        ? t("patient.detail.tab.common.hide_prices")
+                                        : t("patient.detail.tab.common.show_prices")}
                                 </Button>
                                 <Button size="sm" disabled={showUnterComposer} onClick={onStartNewUntersuchung}>
-                                    {showUnterComposer ? "Erfassung aktiv…" : "Neue Untersuchung"}
+                                    {showUnterComposer
+                                        ? t("patient.detail.tab.unter.new_active")
+                                        : t("patient.detail.tab.unter.new")}
                                 </Button>
                             </div>
                         )}
                     />
                     {akte && showUnterComposer ? (
-                        <div className="akte-inline-panel" role="region" aria-label="Neue Untersuchung" style={{ marginBottom: 16 }}>
+                        <div className="akte-inline-panel" role="region" aria-label={t("patient.detail.tab.unter.new_aria")} style={{ marginBottom: 16 }}>
                             <div className="akte-inline-panel-head">
                                 <div>
-                                    <div className="akte-inline-panel-title">Neue Untersuchung</div>
+                                    <div className="akte-inline-panel-title">{t("patient.detail.tab.unter.new")}</div>
                                     <div className="akte-inline-panel-sub">
-                                        Vorgesehene Nummer: <strong>{nextUnterPreview}</strong>
-                                        {" — "}
-                                        strukturierte Erfassung, erscheint im Verlauf dieser Akte.
+                                        {tp("patient.detail.tab.unter.new_subtitle", { number: nextUnterPreview })}
                                     </div>
                                 </div>
                                 <Button type="button" variant="ghost" size="sm" onClick={onCloseComposer}>
-                                    Schließen
+                                    {t("common.close")}
                                 </Button>
                             </div>
                             <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
@@ -131,7 +137,7 @@ export function PatientDetailUnterTab({
                         </div>
                     ) : null}
                     {untersuchungen.length === 0 && !showUnterComposer ? (
-                        <p style={{ color: "var(--fg-3)" }}>Keine Untersuchungen.</p>
+                        <p style={{ color: "var(--fg-3)" }}>{t("patient.detail.unter.empty")}</p>
                     ) : (
                         <div className="col unter-stack" style={{ gap: 8 }}>
                             {untersuchungen.flatMap((u) => {
@@ -146,29 +152,33 @@ export function PatientDetailUnterTab({
                                             <div className="col" style={{ gap: 2, minWidth: 0 }}>
                                                 <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
                                                     {(u.untersuchungsnummer ?? "").trim()
-                                                        ? `U ${(u.untersuchungsnummer ?? "").trim()}`
-                                                        : "U —"}
+                                                        ? tp("patient.detail.tab.unter.number_prefix", {
+                                                              number: (u.untersuchungsnummer ?? "").trim(),
+                                                          })
+                                                        : t("patient.detail.tab.unter.number_unknown")}
                                                     {" · "}
                                                     {formatDateTime(u.created_at)}
                                                 </div>
-                                                <div style={{ fontWeight: 600 }}>{u.diagnose || detail?.diagnosis || "Diagnose offen"}</div>
+                                                <div style={{ fontWeight: 600 }}>
+                                                    {u.diagnose || detail?.diagnosis || t("patient.detail.tab.common.diagnosis_open")}
+                                                </div>
                                                 {(u.leistungsname ?? "").trim() || showClinicalPrices ? (
                                                     <div style={{ fontSize: 13, color: "var(--fg-2)" }}>
                                                         {(u.kategorie ?? "").trim() ? `${u.kategorie} · ` : ""}
-                                                        {(u.leistungsname ?? "").trim() || "—"}
+                                                        {(u.leistungsname ?? "").trim() || emDash}
                                                         {showClinicalPrices && u.gesamtkosten != null && Number.isFinite(u.gesamtkosten)
                                                             ? ` · ${u.gesamtkosten.toFixed(2)} €`
                                                             : ""}
                                                     </div>
                                                 ) : null}
                                                 <div style={{ color: "var(--fg-3)", fontSize: 13 }}>
-                                                    {u.beschwerden || detail?.chiefComplaint || "—"}
+                                                    {u.beschwerden || detail?.chiefComplaint || emDash}
                                                 </div>
                                                 <div className="row" style={{ gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
                                                     {u.freigegeben_von_arzt_id && (u.freigegeben_am ?? "").trim() !== "" ? (
-                                                        <Badge variant="primary">Abrechnung freigegeben</Badge>
+                                                        <Badge variant="primary">{t("patient.detail.tab.common.billing_released")}</Badge>
                                                     ) : (
-                                                        <Badge variant="warning">Abrechnung ausstehend</Badge>
+                                                        <Badge variant="warning">{t("patient.detail.tab.common.billing_pending")}</Badge>
                                                     )}
                                                 </div>
                                             </div>
@@ -181,7 +191,7 @@ export function PatientDetailUnterTab({
                                                         size="sm"
                                                         onClick={() => void onReleaseForBilling(u.id)}
                                                     >
-                                                        Zur Abrechnung freigeben
+                                                        {t("patient.detail.tab.common.release_billing")}
                                                     </Button>
                                                 ) : null}
                                                 <Button
@@ -190,13 +200,15 @@ export function PatientDetailUnterTab({
                                                     size="sm"
                                                     onClick={() => onToggleDetail(u.id, open)}
                                                 >
-                                                    {open ? "Detail schließen" : "Detail anzeigen"}
+                                                    {open
+                                                        ? t("patient.detail.tab.common.hide_detail")
+                                                        : t("patient.detail.tab.common.show_detail")}
                                                 </Button>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => onStartEdit(u)}>
-                                                    Bearbeiten
+                                                    {t("common.edit")}
                                                 </Button>
                                                 <Button type="button" variant="danger" size="sm" onClick={() => onRequestDelete(u.id)}>
-                                                    Löschen
+                                                    {t("common.delete")}
                                                 </Button>
                                             </div>
                                         </div>
@@ -227,14 +239,14 @@ export function PatientDetailUnterTab({
                                                                 textTransform: "uppercase",
                                                             }}
                                                         >
-                                                            Klinische Zusammenfassung
+                                                            {t("patient.detail.tab.unter.summary_title")}
                                                         </div>
                                                         <div style={{ fontWeight: 700, fontSize: 15, marginTop: 6 }}>
-                                                            {detail.diagnosis || u.diagnose || "—"}
+                                                            {detail.diagnosis || u.diagnose || emDash}
                                                         </div>
                                                         {detail.plan ? (
                                                             <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                                                                <strong>Plan:</strong> {detail.plan}
+                                                                <strong>{t("patient.detail.tab.unter.plan_prefix")}</strong> {detail.plan}
                                                             </p>
                                                         ) : null}
                                                     </div>
@@ -247,22 +259,25 @@ export function PatientDetailUnterTab({
                                                             }}
                                                         >
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Hauptbeschwerde
+                                                                {t("patient.detail.tab.unter.chief_complaint")}
                                                             </div>
-                                                            <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || "—"}</p>
+                                                            <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || emDash}</p>
                                                             {detail.painVas ? (
                                                                 <div style={{ marginTop: 8, color: "var(--fg-3)" }}>
-                                                                    VAS {detail.painVas}/10 · {detail.painLocation || "—"}
+                                                                    {tp("patient.detail.tab.unter.vas_line", {
+                                                                        vas: detail.painVas,
+                                                                        location: detail.painLocation || emDash,
+                                                                    })}
                                                                 </div>
                                                             ) : null}
                                                         </div>
                                                         <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Extraoral
+                                                                {t("patient.detail.tab.unter.extraoral")}
                                                             </div>
-                                                            <p style={{ margin: "4px 0" }}>TMG: {detail.extraoral.tmj || "—"}</p>
-                                                            <p style={{ margin: "4px 0" }}>Lymphknoten: {detail.extraoral.lymphNodes || "—"}</p>
-                                                            <p style={{ margin: "4px 0" }}>Asymmetrie: {detail.extraoral.asymmetry || "—"}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.tmj")} {detail.extraoral.tmj || emDash}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.lymph")} {detail.extraoral.lymphNodes || emDash}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.asymmetry")} {detail.extraoral.asymmetry || emDash}</p>
                                                         </div>
                                                         <div
                                                             style={{
@@ -272,38 +287,42 @@ export function PatientDetailUnterTab({
                                                             }}
                                                         >
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Intraoral
+                                                                {t("patient.detail.tab.unter.intraoral")}
                                                             </div>
-                                                            <p style={{ margin: "4px 0" }}>Schleimhaut: {detail.intraoral.mucosa || "—"}</p>
-                                                            <p style={{ margin: "4px 0" }}>Zunge: {detail.intraoral.tongue || "—"}</p>
-                                                            <p style={{ margin: "4px 0" }}>Gingiva: {detail.intraoral.gingiva || "—"}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.mucosa")} {detail.intraoral.mucosa || emDash}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.tongue")} {detail.intraoral.tongue || emDash}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}</p>
                                                         </div>
                                                         <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Parodontal
+                                                                {t("patient.detail.tab.unter.periodontal")}
                                                             </div>
                                                             <p style={{ margin: "4px 0" }}>
-                                                                PSI: {Object.values(detail.psi).filter(Boolean).join(" / ") || "—"}
+                                                                {t("patient.detail.tab.unter.periodontal.psi")}{" "}
+                                                                {Object.values(detail.psi).filter(Boolean).join(" / ") || emDash}
                                                             </p>
                                                             <p style={{ margin: "4px 0" }}>
-                                                                BOP {detail.bopPercent || "—"} % · PI {detail.plaqueIndex || "—"} · MH{" "}
-                                                                {detail.hygieneScore || "—"}
+                                                                {tp("patient.detail.tab.unter.periodontal.metrics", {
+                                                                    bop: detail.bopPercent || emDash,
+                                                                    pi: detail.plaqueIndex || emDash,
+                                                                    mh: detail.hygieneScore || emDash,
+                                                                })}
                                                             </p>
                                                         </div>
                                                         <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Funktion
+                                                                {t("patient.detail.tab.unter.function")}
                                                             </div>
-                                                            <p style={{ margin: "4px 0" }}>CMD: {detail.function.cmd || "—"}</p>
-                                                            <p style={{ margin: "4px 0" }}>Bruxismus: {detail.function.bruxism || "—"}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.function.cmd")} {detail.function.cmd || emDash}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.function.bruxism")} {detail.function.bruxism || emDash}</p>
                                                             <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.function.notes || ""}</p>
                                                         </div>
                                                         <div style={{ padding: 14 }}>
                                                             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                Bildgebung
+                                                                {t("patient.detail.tab.unter.imaging")}
                                                             </div>
-                                                            <p style={{ margin: "4px 0" }}>Angeordnet: {detail.imaging.ordered || "—"}</p>
-                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.imaging.findings || "—"}</p>
+                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.imaging.ordered")} {detail.imaging.ordered || emDash}</p>
+                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.imaging.findings || emDash}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -318,33 +337,32 @@ export function PatientDetailUnterTab({
                                                         borderRadius: 8,
                                                     }}
                                                 >
-                                                    {u.ergebnisse || "Keine strukturierten Daten."}
+                                                    {u.ergebnisse || t("patient.detail.tab.unter.no_structured_data")}
                                                 </pre>
                                             )
                                         ) : null}
                                     </div>
                                 );
                                 if (unterEdit?.id === u.id && akte) {
+                                    const num = (unterEdit.untersuchungsnummer ?? "").trim();
                                     return [
                                         <div key={`${u.id}-edit`} className="unter-stack-edit-slot">
                                             <AkteInlineEditPanelShell
                                                 id={`ak-unter-edit-${u.id}`}
-                                                ariaLabel="Untersuchung bearbeiten"
-                                                title="Untersuchung bearbeiten"
-                                                subtitle={(
-                                                    <>
-                                                        {(unterEdit.untersuchungsnummer ?? "").trim()
-                                                            ? `U ${(unterEdit.untersuchungsnummer ?? "").trim()} · `
-                                                            : null}
-                                                        Gleiche strukturierte Erfassung wie bei „Neue Untersuchung“ — Abschnitte per Chips
-                                                        wechseln.
-                                                        {!unterEditUnlocked ? " Zum Ändern „Bearbeiten“ wählen." : null}
-                                                    </>
-                                                )}
+                                                ariaLabel={t("patient.detail.tab.unter.edit_aria")}
+                                                title={t("patient.detail.tab.unter.edit_title")}
+                                                subtitle={tp("patient.detail.tab.unter.edit_subtitle", {
+                                                    prefix: num
+                                                        ? tp("patient.detail.tab.unter.edit_subtitle_prefix", { number: num })
+                                                        : "",
+                                                    unlockHint: !unterEditUnlocked
+                                                        ? t("patient.detail.tab.unter.edit_unlock_hint")
+                                                        : "",
+                                                })}
                                                 headerExtra={
                                                     !unterEditUnlocked ? (
                                                         <Button type="button" variant="secondary" size="sm" onClick={onUnlockEdit}>
-                                                            Bearbeiten
+                                                            {t("common.edit")}
                                                         </Button>
                                                     ) : null
                                                 }
@@ -385,15 +403,18 @@ export function PatientDetailUnterTab({
                             area="patient_akte_untersuchung_delete"
                             open={!!unterDeleteId}
                             inlineId="ak-unter-delete-panel"
-                            title="Untersuchung löschen"
+                            title={t("patient.detail.unter.delete_title")}
                             message={
                                 deleteTarget
-                                    ? `Eintrag vom ${formatDateTime(deleteTarget.created_at)} mit Diagnose „${deleteTarget.diagnose || "—"}“ wirklich entfernen?`
-                                    : "Diesen Untersuchungseintrag wirklich entfernen?"
+                                    ? tp("patient.detail.tab.unter.delete_message", {
+                                          datetime: formatDateTime(deleteTarget.created_at),
+                                          diagnosis: deleteTarget.diagnose || emDash,
+                                      })
+                                    : t("patient.detail.tab.unter.delete_message_generic")
                             }
                             onCancel={onCancelDelete}
                             onConfirm={() => void onConfirmDelete()}
-                            confirmLabel="Ja, löschen"
+                            confirmLabel={t("common.yes_delete")}
                             danger
                         />
                     ) : null}

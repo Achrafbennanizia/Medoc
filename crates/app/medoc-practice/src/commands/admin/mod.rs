@@ -10,4 +10,3 @@ pub mod personal;
 pub mod work_time;
 pub mod krankenbescheinigung;
 pub mod arbeitsplan_adjustment;
-pub mod arbeitsplan_adjustment;

@@ -80,9 +80,6 @@ pub mod krankenbescheinigung_commands {
 pub mod arbeitsplan_adjustment_commands {
     pub use super::admin::arbeitsplan_adjustment::*;
 }
-pub mod arbeitsplan_adjustment_commands {
-    pub use super::admin::arbeitsplan_adjustment::*;
-}
 pub mod audit_commands {
     pub use super::admin::audit::*;
 }

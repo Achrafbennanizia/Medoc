@@ -9,6 +9,7 @@ import {
 import { importReportAndPreview } from "@/lib/report-import";
 import { useToastStore } from "./ui/toast-store";
 import { errorMessage } from "@/lib/utils";
+import { useT, useTParams } from "@/lib/i18n";
 import { ReportExportPickerDialog } from "./report-export-picker-dialog";
 
 export type ReportExportToolbarProps = {
@@ -46,6 +47,8 @@ export function ReportExportToolbar({
     legacyCsv,
 }: ReportExportToolbarProps) {
     const toast = useToastStore((s) => s.add);
+    const t = useT();
+    const tp = useTParams();
     const [pickerOpen, setPickerOpen] = useState(false);
     const [importBusy, setImportBusy] = useState(false);
     const importRef = useRef<HTMLInputElement>(null);
@@ -55,9 +58,9 @@ export function ReportExportToolbar({
         setImportBusy(true);
         try {
             await importReportAndPreview(file, "json");
-            toast("Bericht importiert.", "success");
+            toast(t("export.report.import_ok"), "success");
         } catch (e) {
-            toast(`Import fehlgeschlagen: ${errorMessage(e)}`, "error");
+            toast(tp("export.report.import_failed", { message: errorMessage(e) }), "error");
         } finally {
             setImportBusy(false);
             if (importRef.current) importRef.current.value = "";
@@ -77,7 +80,7 @@ export function ReportExportToolbar({
                     loading={importBusy}
                     disabled={disabled || importBusy}
                 >
-                    <ExportIcon size={14} /> Exportieren
+                    <ExportIcon size={14} /> {t("export.report.export_btn")}
                 </Button>
                 {showImport ? (
                     <>
@@ -95,7 +98,7 @@ export function ReportExportToolbar({
                             disabled={disabled || importBusy}
                             onClick={() => importRef.current?.click()}
                         >
-                            Importieren…
+                            {t("export.report.import_btn")}
                         </Button>
                     </>
                 ) : null}

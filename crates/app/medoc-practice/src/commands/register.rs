@@ -154,6 +154,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::network::verbund::verbund_status_cmd,
             $crate::commands::network::verbund::lizenz_activate,
             $crate::commands::network::verbund::import_activation_manifest,
+            $crate::commands::network::verbund::pick_activation_manifest_file,
             $crate::commands::network::verbund::verbund_discover_admins,
             $crate::commands::network::verbund::verbund_send_join_request,
             $crate::commands::network::verbund::verbund_submit_sas,
@@ -225,9 +226,6 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::work_time_commands::work_time_set_auto_record_on_login,
             $crate::commands::work_time_commands::work_time_get_auto_record_on_login,
             $crate::commands::krankenbescheinigung_commands::krankenbescheinigung_save,
-            $crate::commands::krankenbescheinigung_commands::list_krankenbescheinigungen,
-            $crate::commands::krankenbescheinigung_commands::end_krankenbescheinigung,
-            $crate::commands::arbeitsplan_adjustment_commands::list_arbeitsplan_adjustments,
             $crate::commands::krankenbescheinigung_commands::list_krankenbescheinigungen,
             $crate::commands::krankenbescheinigung_commands::end_krankenbescheinigung,
             $crate::commands::arbeitsplan_adjustment_commands::list_arbeitsplan_adjustments,
@@ -306,7 +304,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 293;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 295;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

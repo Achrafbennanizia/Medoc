@@ -2,24 +2,24 @@ import { Fragment } from "react";
 import { itemValidationKey, type ValidationRecord, type ValidationState } from "@/lib/akte-validation";
 import type { AkteAnlage } from "@/lib/akte-anlagen";
 import { patientDetailTabVisible, type PatientDetailAkteTab } from "@/lib/patient-detail-utils";
+import { useT } from "@/lib/i18n";
 import type { Zahlung } from "@/models/types";
 
-type AkteTabDef = { id: PatientDetailAkteTab; label: string; needsClinical?: boolean };
+type AkteTabDef = { id: PatientDetailAkteTab; labelKey: string; needsClinical?: boolean };
 
 const AKTE_TABS: AkteTabDef[] = [
-    { id: "stamm", label: "Stammdaten" },
-    { id: "anam", label: "Anamnese", needsClinical: true },
-    { id: "unter", label: "Untersuchungen", needsClinical: true },
-    { id: "behand", label: "Behandlungen", needsClinical: true },
-    { id: "rezept", label: "Rezepte & Atteste" },
-    { id: "anlage", label: "Extra Anlagen" },
-    { id: "zahl", label: "Kundenleistungen" },
+    { id: "anam", labelKey: "patient.detail.subnav.tab.anam", needsClinical: true },
+    { id: "unter", labelKey: "patient.detail.subnav.tab.unter", needsClinical: true },
+    { id: "behand", labelKey: "patient.detail.subnav.tab.behand", needsClinical: true },
+    { id: "rezept", labelKey: "patient.detail.subnav.tab.rezept" },
+    { id: "anlage", labelKey: "patient.detail.subnav.tab.anlage" },
+    { id: "zahl", labelKey: "patient.detail.subnav.tab.zahl" },
 ];
 
-const AKTE_TAB_SECTIONS: { heading: string; tabIds: PatientDetailAkteTab[] }[] = [
-    { heading: "Verwaltung", tabIds: ["stamm", "anam"] },
-    { heading: "Klinik", tabIds: ["unter", "behand", "rezept"] },
-    { heading: "Dokumente & Finanzen", tabIds: ["anlage", "zahl"] },
+const AKTE_TAB_SECTIONS: { headingKey: string; tabIds: PatientDetailAkteTab[] }[] = [
+    { headingKey: "patient.detail.subnav.section.administration", tabIds: ["anam"] },
+    { headingKey: "patient.detail.subnav.section.clinical", tabIds: ["unter", "behand", "rezept"] },
+    { headingKey: "patient.detail.subnav.section.docs_finance", tabIds: ["anlage", "zahl"] },
 ];
 
 export type PatientDetailAkteSubnavProps = {
@@ -41,6 +41,7 @@ export function PatientDetailAkteSubnav({
     itemValidation,
     onSelectTab,
 }: PatientDetailAkteSubnavProps) {
+    const t = useT();
     const anlPending = anlagen.filter((a) => !itemValidation[itemValidationKey("anl", a.id)]).length;
     const zahlPending = zahlungen.filter((z) => !itemValidation[itemValidationKey("zahl", z.id)]).length;
 
@@ -53,9 +54,9 @@ export function PatientDetailAkteSubnav({
     })).filter((section) => section.tabIds.length > 0);
 
     return (
-        <nav className="akte-subnav" role="tablist" aria-label="Patientenakte">
+        <nav className="akte-subnav" role="tablist" aria-label={t("patient.detail.subnav.aria")}>
             {visibleSections.map((section, si) => (
-                <Fragment key={section.heading}>
+                <Fragment key={section.headingKey}>
                     <div
                         className="akte-subnav-group-heading"
                         style={{
@@ -68,14 +69,14 @@ export function PatientDetailAkteSubnav({
                             color: "var(--fg-4)",
                         }}
                     >
-                        {section.heading}
+                        {t(section.headingKey)}
                     </div>
                     {section.tabIds.map((tabId) => {
                         const tab = AKTE_TABS.find((t) => t.id === tabId);
                         if (!tab) return null;
                         let badge: { tone: "warn" | "ok"; text: string } | null = null;
                         if (canViewClinical) {
-                            if (tab.id === "stamm" || tab.id === "anam") {
+                            if (tab.id === "anam") {
                                 if (!validation.stamm) badge = { tone: "warn", text: "!" };
                                 else badge = { tone: "ok", text: "✓" };
                             } else if (tab.id === "anlage") {
@@ -97,14 +98,10 @@ export function PatientDetailAkteSubnav({
                                 aria-selected={activeTab === tab.id}
                                 aria-controls={`panel-${tab.id}`}
                                 className={`${activeTab === tab.id ? "active" : ""}`}
-                                title={
-                                    tab.id === "anam"
-                                        ? "Gilt gemeinsam mit Stammdaten (ein gemeinsamer Validierungsschritt)"
-                                        : undefined
-                                }
+                                title={tab.id === "anam" ? t("patient.detail.subnav.anam_title") : undefined}
                                 onClick={() => onSelectTab(tab.id)}
                             >
-                                <span>{tab.label}</span>
+                                <span>{t(tab.labelKey)}</span>
                                 {badge ? (
                                     <span className={`tab-badge ${badge.tone}`} aria-hidden>
                                         {badge.text}
