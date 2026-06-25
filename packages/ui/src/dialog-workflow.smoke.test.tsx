@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { subscribeWorkflowSteps, type WorkflowStepEvent } from "@/lib/workflow-log-events";
 import { Dialog } from "@/views/components/ui/dialog";
+
+afterEach(() => cleanup());
 
 describe("Dialog workflow logging", () => {
     it("emits a cancel workflow event on Escape", () => {
