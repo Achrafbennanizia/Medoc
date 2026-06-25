@@ -174,6 +174,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::logging_commands::get_log_level,
             $crate::commands::logging_commands::set_log_level,
             $crate::commands::logging_commands::export_logs,
+            $crate::commands::logging_commands::log_workflow_event,
             $crate::commands::logging_commands::verify_audit_chain,
             $crate::commands::logging_commands::log_dir,
             $crate::commands::menu_commands::sync_native_menu,
@@ -304,11 +305,23 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 295;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 296;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
 /// Concrete `Wry` runtime required so commands taking `AppHandle` type-check (see `akte_anlage_commands`).
 pub fn register_invoke_handler(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.invoke_handler(crate::medoc_invoke_handler!())
+    let generated_handler = crate::medoc_invoke_handler!();
+    builder.invoke_handler(move |invoke| {
+        let command = crate::infrastructure::logging::sanitizer::sanitize(invoke.message.command());
+        crate::log_workflow!(info, event = "IPC_COMMAND_INVOKE", command = %command);
+        let handled = generated_handler(invoke);
+        crate::log_workflow!(
+            info,
+            event = "IPC_COMMAND_DISPATCHED",
+            command = %command,
+            handled
+        );
+        handled
+    })
 }
