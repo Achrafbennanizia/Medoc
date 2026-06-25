@@ -1,0 +1,239 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux system dependencies for Tauri crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt (check only)
+        run: cargo fmt --all -- --check
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test (workspace)
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - id: js
+        name: Detect JavaScript package manager and commands
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -f pnpm-lock.yaml ]]; then
+            pm="pnpm"
+            install_cmd="pnpm install --frozen-lockfile"
+            lint_cmd="pnpm --filter medoc run lint"
+            typecheck_cmd="pnpm --filter medoc run typecheck && pnpm --filter medoc-lan-web-client run typecheck"
+            test_cmd="pnpm --filter medoc run test"
+            build_cmd="pnpm --filter medoc run build && pnpm --filter medoc-lan-web-client run build"
+          elif [[ -f yarn.lock ]]; then
+            pm="yarn"
+            install_cmd="yarn install --frozen-lockfile"
+            lint_cmd="yarn workspace medoc lint"
+            typecheck_cmd="yarn workspace medoc typecheck && yarn workspace medoc-lan-web-client typecheck"
+            test_cmd="yarn workspace medoc test"
+            build_cmd="yarn workspace medoc build && yarn workspace medoc-lan-web-client build"
+          else
+            pm="npm"
+            install_cmd="npm ci"
+            lint_cmd="npm run lint -w medoc"
+            typecheck_cmd="npm run typecheck -w medoc && npm run typecheck -w medoc-lan-web-client"
+            test_cmd="npm run test -w medoc"
+            build_cmd="npm run build -w medoc && npm run build -w medoc-lan-web-client"
+          fi
+
+          {
+            echo "pm=$pm"
+            echo "install_cmd<<EOF"
+            echo "$install_cmd"
+            echo "EOF"
+            echo "lint_cmd<<EOF"
+            echo "$lint_cmd"
+            echo "EOF"
+            echo "typecheck_cmd<<EOF"
+            echo "$typecheck_cmd"
+            echo "EOF"
+            echo "test_cmd<<EOF"
+            echo "$test_cmd"
+            echo "EOF"
+            echo "build_cmd<<EOF"
+            echo "$build_cmd"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.js.outputs.pm }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install JS dependencies
+        run: ${{ steps.js.outputs.install_cmd }}
+      - name: Lint (no autofix in verify)
+        run: ${{ steps.js.outputs.lint_cmd }}
+      - name: Typecheck
+        run: ${{ steps.js.outputs.typecheck_cmd }}
+      - name: Test
+        run: ${{ steps.js.outputs.test_cmd }}
+      - name: Build
+        run: ${{ steps.js.outputs.build_cmd }}
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [web]
+    steps:
+      - uses: actions/checkout@v4
+      - id: js
+        name: Detect JavaScript package manager and a11y commands
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -f pnpm-lock.yaml ]]; then
+            pm="pnpm"
+            install_cmd="pnpm install --frozen-lockfile"
+            build_cmd="pnpm --filter medoc run build"
+            preview_cmd="pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 --strictPort"
+          elif [[ -f yarn.lock ]]; then
+            pm="yarn"
+            install_cmd="yarn install --frozen-lockfile"
+            build_cmd="yarn workspace medoc build"
+            preview_cmd="yarn workspace medoc preview --host 127.0.0.1 --port 4173 --strictPort"
+          else
+            pm="npm"
+            install_cmd="npm ci"
+            build_cmd="npm run build -w medoc"
+            preview_cmd="npm run preview -w medoc -- --host 127.0.0.1 --port 4173 --strictPort"
+          fi
+
+          {
+            echo "pm=$pm"
+            echo "install_cmd<<EOF"
+            echo "$install_cmd"
+            echo "EOF"
+            echo "build_cmd<<EOF"
+            echo "$build_cmd"
+            echo "EOF"
+            echo "preview_cmd<<EOF"
+            echo "$preview_cmd"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.js.outputs.pm }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install JS dependencies
+        run: ${{ steps.js.outputs.install_cmd }}
+      - name: Build UI for accessibility checks
+        run: ${{ steps.js.outputs.build_cmd }}
+      - name: Run axe-core scan (fail on critical WCAG 2.1 A/AA)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eval "${{ steps.js.outputs.preview_cmd }}" &
+          PREVIEW_PID=$!
+
+          cleanup() {
+            if kill -0 "$PREVIEW_PID" 2>/dev/null; then
+              kill "$PREVIEW_PID" || true
+              wait "$PREVIEW_PID" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          for i in {1..60}; do
+            if curl --silent --fail "http://127.0.0.1:4173" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl --silent --fail "http://127.0.0.1:4173" >/dev/null; then
+            echo "UI preview server did not become ready."
+            exit 1
+          fi
+
+          driver_env="$(npx --yes browser-driver-manager install chrome)"
+          CHROME_PATH="$(printf '%s\n' "$driver_env" | sed -n 's/^CHROME_TEST_PATH=\"\(.*\)\"$/\1/p')"
+          CHROMEDRIVER_PATH="$(printf '%s\n' "$driver_env" | sed -n 's/^CHROMEDRIVER_TEST_PATH=\"\(.*\)\"$/\1/p')"
+
+          if [[ -z "$CHROME_PATH" || -z "$CHROMEDRIVER_PATH" ]]; then
+            echo "Could not resolve browser-driver-manager Chrome paths."
+            exit 1
+          fi
+
+          npx --yes @axe-core/cli \
+            "http://127.0.0.1:4173" \
+            --tags wcag2a,wcag2aa \
+            --save axe-results.json \
+            --chrome-path "$CHROME_PATH" \
+            --chromedriver-path "$CHROMEDRIVER_PATH"
+
+          node <<'NODE'
+          const fs = require("fs");
+
+          const data = JSON.parse(fs.readFileSync("axe-results.json", "utf8"));
+          const reports = Array.isArray(data) ? data : [data];
+          const critical = reports.flatMap((report) =>
+            (report.violations || [])
+              .filter((violation) => violation.impact === "critical")
+              .map((violation) => ({
+                url: report.url,
+                id: violation.id,
+                help: violation.help,
+                nodes: Array.isArray(violation.nodes) ? violation.nodes.length : 0
+              }))
+          );
+
+          if (critical.length > 0) {
+            console.error("Critical WCAG 2.1 A/AA violations detected:");
+            for (const violation of critical) {
+              console.error(
+                `- [${violation.url}] ${violation.id}: ${violation.help} (nodes: ${violation.nodes})`
+              );
+            }
+            process.exit(1);
+          }
+
+          console.log("No critical WCAG 2.1 A/AA violations detected.");
+          NODE
