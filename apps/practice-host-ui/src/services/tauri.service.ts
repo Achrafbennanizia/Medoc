@@ -50,12 +50,140 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_BRIDGE_COMMAND = "log_workflow_event";
+let workflowBridgeInFlight = false;
+
+export type WorkflowBridgeEvent = {
+    workflow: string;
+    step: string;
+    route?: string;
+    action?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
+};
+
+function currentRoutePath(): string | undefined {
+    if (typeof window === "undefined") return undefined;
+    return window.location?.pathname ?? undefined;
+}
+
+function normalizeWorkflowEvent(event: WorkflowBridgeEvent): WorkflowBridgeEvent {
+    return {
+        workflow: event.workflow.trim(),
+        step: event.step.trim(),
+        route: event.route?.trim(),
+        action: event.action?.trim(),
+        status: event.status?.trim(),
+        metadata: event.metadata ?? {},
+    };
+}
+
+async function invokeWorkflowBridge(event: WorkflowBridgeEvent): Promise<void> {
+    if (workflowBridgeInFlight) return;
+    const payload = normalizeWorkflowEvent(event);
+    if (!payload.workflow || !payload.step) return;
+    workflowBridgeInFlight = true;
+    try {
+        await invoke<void>(WORKFLOW_BRIDGE_COMMAND, { event: payload });
+    } catch {
+        // Best-effort observability bridge: logging must never block user actions.
+    } finally {
+        workflowBridgeInFlight = false;
+    }
+}
+
+export function logRouteEnter(route: string): void {
+    void invokeWorkflowBridge({
+        workflow: "route-navigation",
+        step: "route_enter",
+        route,
+        status: "success",
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    const startedAt = Date.now();
     if (args == null) {
-        return invoke<T>(cmd, {});
+        if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+            void invokeWorkflowBridge({
+                workflow: "frontend-ipc",
+                step: "primary_action",
+                route: currentRoutePath(),
+                action: cmd,
+                status: "start",
+                metadata: { argKeys: [] },
+            });
+        }
+        try {
+            const result = await invoke<T>(cmd, {});
+            if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+                void invokeWorkflowBridge({
+                    workflow: "frontend-ipc",
+                    step: "success",
+                    route: currentRoutePath(),
+                    action: cmd,
+                    status: "success",
+                    metadata: { durationMs: Date.now() - startedAt },
+                });
+            }
+            return result;
+        } catch (error) {
+            if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+                void invokeWorkflowBridge({
+                    workflow: "frontend-ipc",
+                    step: "error",
+                    route: currentRoutePath(),
+                    action: cmd,
+                    status: "error",
+                    metadata: {
+                        durationMs: Date.now() - startedAt,
+                        error: error instanceof Error ? error.message : String(error),
+                    },
+                });
+            }
+            throw error;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+        void invokeWorkflowBridge({
+            workflow: "frontend-ipc",
+            step: "primary_action",
+            route: currentRoutePath(),
+            action: cmd,
+            status: "start",
+            metadata: { argKeys: Object.keys(expanded) },
+        });
+    }
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+            void invokeWorkflowBridge({
+                workflow: "frontend-ipc",
+                step: "success",
+                route: currentRoutePath(),
+                action: cmd,
+                status: "success",
+                metadata: { durationMs: Date.now() - startedAt },
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_BRIDGE_COMMAND) {
+            void invokeWorkflowBridge({
+                workflow: "frontend-ipc",
+                step: "error",
+                route: currentRoutePath(),
+                action: cmd,
+                status: "error",
+                metadata: {
+                    durationMs: Date.now() - startedAt,
+                    error: error instanceof Error ? error.message : String(error),
+                },
+            });
+        }
+        throw error;
+    }
 }
