@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** Workflow Logging Instrumentation Pass (2026-06-25)  
+**Last closed:** Dedicated workflow log channel + sanitized frontend bridge + invoke-level breadcrumbs + focused tests.
+
+### Verified (2026-06-25 — workflow logging instrumentation)
+
+- **Logging subsystem:** added dedicated `workflow.log` rolling channel and `log_workflow!` macro (`crates/shared/medoc-core/src/infrastructure/logging/{mod,config}.rs`).
+- **Backend bridge:** added sanitized IPC `log_workflow_event` with route/id redaction + truncation (`crates/app/medoc-practice/src/commands/system/logging.rs`); registered in centralized invoke list.
+- **Invoke breadcrumbs:** wrapped `register_invoke_handler` to emit `IPC_COMMAND_INVOKE` / `IPC_COMMAND_DISPATCHED` for every Tauri command (`crates/app/medoc-practice/src/commands/register.rs`).
+- **Frontend workflow telemetry:** route-enter logger in router + transport-level action/success/error/cancel events via `tauri.service.ts` and `workflow-logger.ts`.
+- **Focused tests:** `src/services/{tauri.service,workflow-logger}.test.ts` **PASS** (7 tests); focused eslint on changed frontend files **PASS**.
+
+### Remains unverified
+
+- Full Rust validation (`cargo test`, `cargo clippy -D warnings`) blocked in this environment: Cargo 1.83 cannot parse transitive crates requiring `edition2024` (`indexmap 2.14.0`, `wiremock 0.6.5`).
+- Workspace `cargo fmt --all -- --check` remains red due large pre-existing formatting drift outside this change set.
+- `npm run build` remains red due pre-existing TS errors in `praxis-aufgabe-detail-drawer.tsx` (unrelated to this pass).
+- Step 2+ audit program items (full workflow state-machine map, geometry/playwright sweep, WCAG/toast compliance fixes) are still pending.
+
+### Next
+
+1. Restore green baseline gates (Rust toolchain/dependency compatibility + existing FE TS build errors).
+2. Run state-machine workflow mapping and non-terminable-flow detection using new `workflow.log` telemetry.
+3. Continue with geometry/a11y compliance sweep once baseline build is green.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 

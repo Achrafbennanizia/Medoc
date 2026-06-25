@@ -1,7 +1,15 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-06-25  
 **Scope:** Canonical statements supported by repository evidence.
+
+## Workflow logging instrumentation (2026-06-25) — stable truth
+
+- Shared logging now includes dedicated `workflow.log` (`medoc::workflow` target) with daily rotation in the existing tracing subsystem (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`).
+- A sanitized frontend→backend workflow bridge exists as Tauri command `log_workflow_event` (`crates/app/medoc-practice/src/commands/system/logging.rs`), including id-like route segment redaction.
+- Central invoke registration now logs command breadcrumbs for every IPC dispatch (`crates/app/medoc-practice/src/commands/register.rs`).
+- Frontend telemetry emits route-enter and action lifecycle events via `apps/practice-host-ui/src/services/{tauri.service.ts,workflow-logger.ts}` + `App.tsx`.
+- Validation status for this pass: focused frontend tests/lint are green; workspace Rust + FE build gates remain blocked by pre-existing/toolchain issues (see `validation.md` and `contradictions.md`).
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 

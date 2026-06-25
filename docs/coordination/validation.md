@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (Workflow logging instrumentation pass)
+
+## Workflow logging instrumentation — verification (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format gate (workspace) | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — many unrelated formatting diffs in `crates/app/medoc-practice/*`, `crates/shared/medoc-*` |
+| Rust clippy gate (workspace) | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL (environment/toolchain blocker)** — Cargo 1.83 cannot parse crates requiring `edition2024` (e.g. `indexmap v2.14.0`) |
+| Rust tests gate (workspace) | `cargo test --workspace --tests` | **FAIL (same blocker)** — dependency manifest parse fails before test execution |
+| Frontend tests (workspace) | `npm run test` | **PASS** — 55 files passed, 1 skipped; 253 tests passed, 3 skipped |
+| Frontend build (workspace) | `npm run build` | **FAIL (pre-existing)** — `src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx` TS2724/TS2554 |
+| Frontend lint (workspace) | `npm run lint` | **FAIL (pre-existing)** — existing hook-order and preserve-manual-memoization errors across unrelated files |
+| Focused frontend tests (new bridge) | `npm run test -w medoc -- src/services/tauri.service.test.ts src/services/workflow-logger.test.ts` | **PASS** — 2 files, 7 tests |
+| Focused lint (changed FE files only) | `npx eslint src/services/tauri.service.ts src/services/workflow-logger.ts src/services/tauri.service.test.ts src/services/workflow-logger.test.ts src/App.tsx` (from `apps/practice-host-ui`) | **PASS** |
+
+**Implemented in this pass:** dedicated `workflow.log` channel, sanitized `log_workflow_event` IPC bridge, centralized invoke-dispatch workflow breadcrumbs, frontend route-entry + action/success/error/cancel emission, and unit tests for new frontend and backend sanitization logic.
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
