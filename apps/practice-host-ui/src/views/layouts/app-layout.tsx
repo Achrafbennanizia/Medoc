@@ -51,11 +51,18 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import {
+    isWorkflowStep,
+    logWorkflowEvent,
+    type WorkflowLogEvent,
+} from "@/systems/practice-host/controllers/logging.controller";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
+const WORKFLOW_EVENT_NAME = "medoc-workflow-step";
 
 type SidebarRailPref = "full" | "icons";
+type WorkflowBridgeDetail = Partial<WorkflowLogEvent>;
 
 function readSidebarRailPref(): SidebarRailPref {
     try {
@@ -328,6 +335,37 @@ export function AppLayout() {
     useEffect(() => {
         setMobileNavOpen(false);
     }, [location.pathname]);
+
+    useEffect(() => {
+        const handler = (event: Event) => {
+            const detail = (event as CustomEvent<unknown>).detail;
+            if (!detail || typeof detail !== "object") {
+                return;
+            }
+            const payload = detail as WorkflowBridgeDetail;
+            if (typeof payload.step !== "string" || !isWorkflowStep(payload.step)) {
+                return;
+            }
+            const toOpt = (value: unknown): string | undefined => {
+                if (typeof value !== "string") {
+                    return undefined;
+                }
+                const trimmed = value.trim();
+                return trimmed.length > 0 ? trimmed : undefined;
+            };
+            void logWorkflowEvent({
+                workflow: toOpt(payload.workflow),
+                step: payload.step,
+                route: toOpt(payload.route),
+                action: toOpt(payload.action),
+                status: toOpt(payload.status),
+                message: toOpt(payload.message),
+                error: toOpt(payload.error),
+            }).catch(() => {});
+        };
+        window.addEventListener(WORKFLOW_EVENT_NAME, handler);
+        return () => window.removeEventListener(WORKFLOW_EVENT_NAME, handler);
+    }, []);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {

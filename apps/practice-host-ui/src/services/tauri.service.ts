@@ -1,5 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
+type WorkflowStep = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+type WorkflowLogEvent = {
+    workflow?: string;
+    step: WorkflowStep;
+    route?: string;
+    action?: string;
+    status?: string;
+    message?: string;
+    error?: string;
+};
+
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
  * `tauri_macros` defaults to **camelCase** keys derived from Rust identifiers (`patient_id` → `patientId`).
@@ -50,12 +63,88 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function currentRoutePath(): string {
+    if (typeof window === "undefined") {
+        return "";
+    }
+    return `${window.location.pathname}${window.location.search}`;
+}
+
+function normalizeError(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === "string") {
+        return error;
+    }
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return String(error);
+    }
+}
+
+async function emitWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { event });
+    } catch {
+        // Telemetry must never block user workflows.
+    }
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        const cleaned = omitUndefinedValues(args ?? {});
+        const expanded = expandDualCaseInvokeArgs(cleaned);
+        return invoke<T>(cmd, expanded);
+    }
+    void emitWorkflowEvent({
+        workflow: "tauri_invoke",
+        step: "primary_action",
+        route: currentRoutePath(),
+        action: cmd,
+    });
     if (args == null) {
-        return invoke<T>(cmd, {});
+        try {
+            const result = await invoke<T>(cmd, {});
+            void emitWorkflowEvent({
+                workflow: "tauri_invoke",
+                step: "success",
+                route: currentRoutePath(),
+                action: cmd,
+            });
+            return result;
+        } catch (error) {
+            void emitWorkflowEvent({
+                workflow: "tauri_invoke",
+                step: "error",
+                route: currentRoutePath(),
+                action: cmd,
+                error: normalizeError(error),
+            });
+            throw error;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        void emitWorkflowEvent({
+            workflow: "tauri_invoke",
+            step: "success",
+            route: currentRoutePath(),
+            action: cmd,
+        });
+        return result;
+    } catch (error) {
+        void emitWorkflowEvent({
+            workflow: "tauri_invoke",
+            step: "error",
+            route: currentRoutePath(),
+            action: cmd,
+            error: normalizeError(error),
+        });
+        throw error;
+    }
 }

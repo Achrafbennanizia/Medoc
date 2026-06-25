@@ -24,6 +24,7 @@
         "i18n:apply-patches": "node scripts/i18n-apply-translation-patches.mjs",
         "i18n:merge-pass4": "node scripts/i18n-merge-pass4-chunks.mjs && node scripts/i18n-apply-translation-patches.mjs",
         "i18n:extract": "node scripts/extract-i18n-catalog.mjs",
+        "lint:tailwind-spacing": "node scripts/lint-tailwind-arbitrary-spacing.mjs",
         "tauri": "npm run tauri -w medoc",
         "dev:lan-web": "npm run dev -w medoc-lan-web-client",
         "build:lan-web": "npm run build -w medoc-lan-web-client"

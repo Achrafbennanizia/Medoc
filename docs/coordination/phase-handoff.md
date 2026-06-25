@@ -1,7 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** Application quality run (2026-06-25)  
+**Last closed:** Logger/workflow instrumentation continuation + UI quality sweep (events, geometry, accessibility, toast/dialog behavior).
+
+### Verified (2026-06-25 — quality run)
+
+- Workflow logging bridge is active across route enter + IPC lifecycle + dialog cancel paths with dedicated workflow channel routing.
+- New validation artefacts added and passing: Tailwind spacing lint, login/dialog/toast behavior tests, geometry Playwright suite (375/768/1259), and browser axe-core critical scan on `/login`.
+- Findings-driven fixes landed for non-terminable smoke behavior, spacing token policy, toast policy drift, and Enter-confirm dialog behavior.
+
+### Remains unverified
+
+- Full Rust gate completion (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`) is blocked on missing OpenSSL headers for SQLCipher (`openssl/crypto.h`).
+- End-to-end evidence that every domain state transition/service call emits structured sanitized logs remains **UNVERIFIED** until Rust gates and broader trace sampling are re-run.
+
+### Understanding delta
+
+- Static spacing lint is catching real design-token bypasses and should stay in the default validation path.
+- Targeted behavior tests uncovered policy drift that broad route smokes did not detect.
+- In-browser axe-core checks can be run in Playwright without additional dependency coupling via script injection.
+
+### Next
+
+1. Provision runner packages (`libssl-dev`, `pkg-config`) and rerun Rust gates.
+2. Extend axe + workflow terminability checks to additional high-traffic routes/dialogs.
+3. Close WF register items in `contradictions.md` with rerun evidence.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 

@@ -31,6 +31,10 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
     const setStatus = useVerbundStore((s) => s.setStatus);
     const loadError = useVerbundStore((s) => s.loadError);
     const setLoadError = useVerbundStore((s) => s.setLoadError);
+    const bypassForE2e = import.meta.env.VITE_E2E_BYPASS_ONBOARDING === "1";
+    if (bypassForE2e) {
+        return <>{children}</>;
+    }
     const needsOnboarding = status === null ? true : needsVerbundOnboarding(status);
 
     const refresh = useCallback(() => {

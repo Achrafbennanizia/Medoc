@@ -31,6 +31,14 @@ export const AUFGABE_WORKFLOW_STEPS = [
     { label: "Validiert", status: "VALIDIERT" as const },
 ] as const;
 
+type Translator = (key: string) => string;
+
+function translatedOrFallback(t: Translator | undefined, key: string, fallback: string): string {
+    if (!t) return fallback;
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+}
+
 export function aufgabeWorkflowActiveStep(status: PraxisAufgabeStatus): number {
     switch (status) {
         case "OFFEN":
@@ -47,8 +55,17 @@ export function aufgabeWorkflowActiveStep(status: PraxisAufgabeStatus): number {
     }
 }
 
-export function aufgabeStatusLabel(status: PraxisAufgabeStatus): string {
-    return PRAXIS_AUFGABE_STATUSES.find((s) => s.value === status)?.label ?? status;
+export function aufgabeStatusLabel(status: PraxisAufgabeStatus): string;
+export function aufgabeStatusLabel(t: Translator, status: PraxisAufgabeStatus): string;
+export function aufgabeStatusLabel(
+    arg1: PraxisAufgabeStatus | Translator,
+    arg2?: PraxisAufgabeStatus,
+): string {
+    const t = typeof arg1 === "function" ? arg1 : undefined;
+    const status = typeof arg1 === "function" ? arg2 : arg1;
+    if (!status) return "";
+    const fallback = PRAXIS_AUFGABE_STATUSES.find((s) => s.value === status)?.label ?? status;
+    return translatedOrFallback(t, `page.praxis_tickets.status_${status.toLowerCase()}`, fallback);
 }
 
 export function aufgabeStatusPillClass(status: PraxisAufgabeStatus): string {
@@ -67,6 +84,23 @@ export function aufgabeStatusPillClass(status: PraxisAufgabeStatus): string {
     }
 }
 
-export function aufgabeTypLabel(typ: string): string {
-    return PRAXIS_AUFGABE_TYPS.find((t) => t.value === typ)?.label ?? typ;
+export function aufgabeTypLabel(typ: string): string;
+export function aufgabeTypLabel(t: Translator, typ: string): string;
+export function aufgabeTypLabel(arg1: string | Translator, arg2?: string): string {
+    const t = typeof arg1 === "function" ? arg1 : undefined;
+    const typ = typeof arg1 === "function" ? arg2 : arg1;
+    if (!typ) return "";
+    const fallback = PRAXIS_AUFGABE_TYPS.find((entry) => entry.value === typ)?.label ?? typ;
+    return translatedOrFallback(t, `page.praxis_tickets.typ_${typ.toLowerCase()}`, fallback);
+}
+
+export function aufgabeWorkflowStepLabel(
+    t: Translator,
+    step: { status: PraxisAufgabeStatus; label: string },
+): string {
+    return translatedOrFallback(
+        t,
+        `page.praxis_tickets.status_${step.status.toLowerCase()}`,
+        step.label,
+    );
 }

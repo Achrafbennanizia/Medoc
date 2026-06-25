@@ -26,6 +26,7 @@ function ToastRow({
         clearTimeout(timeoutRef.current);
         if (pausedRef.current || stackPointerInside) return;
         const delay = remainingRef.current;
+        if (delay <= 0) return;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);

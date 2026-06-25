@@ -49,11 +49,13 @@ fn user_id(session: &SessionState) -> Result<String, AppError> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_status_cmd(pool: State<'_, SqlitePool>) -> Result<VerbundStatus, AppError> {
     verbund_status(&pool).await
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn lizenz_activate(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -65,6 +67,7 @@ pub async fn lizenz_activate(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn import_activation_manifest(
     app: AppHandle,
     pool: State<'_, SqlitePool>,
@@ -101,6 +104,7 @@ pub async fn import_activation_manifest(
 
 /// Native file picker for owner activation manifest (pre-login onboarding).
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn pick_activation_manifest_file() -> Result<Option<String>, AppError> {
     let path = rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
@@ -110,6 +114,7 @@ pub async fn pick_activation_manifest_file() -> Result<Option<String>, AppError>
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_discover_admins() -> Result<Vec<AdminEndpoint>, AppError> {
     scan_admins(Duration::from_secs(2))
 }
@@ -125,6 +130,7 @@ pub struct JoinRequestPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_send_join_request(
     pool: State<'_, SqlitePool>,
     payload: JoinRequestPayload,
@@ -174,6 +180,7 @@ pub struct SasSubmitPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_submit_sas(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -269,6 +276,7 @@ async fn start_verbund_listener_task(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_start_listener(
     pool: State<'_, SqlitePool>,
     listener: State<'_, VerbundListenerControl>,
@@ -283,6 +291,7 @@ pub async fn verbund_start_listener(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_list_pending(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -304,6 +313,7 @@ pub struct AcceptRequestPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_accept_request(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -324,6 +334,7 @@ pub async fn verbund_accept_request(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_reclaim_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -345,6 +356,7 @@ fn pick_private_bind_addr() -> Result<IpAddr, AppError> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_reject_request(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -357,6 +369,7 @@ pub async fn verbund_reject_request(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_list_devices(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -367,6 +380,7 @@ pub async fn verbund_list_devices(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_revoke_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -379,6 +393,7 @@ pub async fn verbund_revoke_device(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_block_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -392,6 +407,7 @@ pub async fn verbund_block_device(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn verbund_unblock_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

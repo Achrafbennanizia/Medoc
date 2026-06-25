@@ -34,6 +34,7 @@ pub async fn init_db_from_app(app: &AppHandle) -> Result<SqlitePool, AppError> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn get_db_setup_status(app: AppHandle) -> Result<DbSetupStatusDto, AppError> {
     let app_dir = app
         .path()
@@ -51,6 +52,7 @@ pub async fn get_db_setup_status(app: AppHandle) -> Result<DbSetupStatusDto, App
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn provision_db_passphrase(
     app: AppHandle,
     passphrase: String,
@@ -69,6 +71,7 @@ pub async fn provision_db_passphrase(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn unlock_db_passphrase(app: AppHandle, passphrase: String) -> Result<(), AppError> {
     let app_dir = app
         .path()

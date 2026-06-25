@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-06-25  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -42,6 +42,11 @@
 - **Outbox hooks (Wave V1):** Repo write paths in `medoc-core::infrastructure::database::{patient,akte,termin,zahlung,praxis_aufgabe,app_kv}_repo` call `sync_outbox::record_or_noop` which appends one row to `sync_outbox` when `mode = serverless_peer` and the table is in `SYNCED_TABLES`. Internal `sync.*`, `license.*`, `pairing.*` `app_kv` keys are excluded. 7 integration tests + 3 unit tests cover this path.
 - **Conflict resolution (Wave V1):** `ConflictPolicy::LastWriteWins` uses `updated_at`; ties break by lexicographic `device_id`. Tested in `medoc_sync::engine::tests` and `merge_apply_tests.rs`.
 - **Removed:** Root `src/` Next.js reference app and CI job `next-web` (audit remediation TASK 0.1, 2026-05-19). V-Model docs mark historical Next prototype as archive only.
+- **Quality-run additions (2026-06-25):**
+  - Workflow telemetry tests are present in `apps/practice-host-ui/src/services/tauri.service.test.ts`, `login.events.smoke.test.tsx`, and `dialog.workflow.smoke.test.tsx`.
+  - Geometry + spacing audit exists at `apps/practice-host-ui/e2e-playwright/ui-geometry-spacing.spec.ts` with baseline snapshots in `ui-geometry-spacing.spec.ts-snapshots/`.
+  - Browser a11y critical scan exists at `apps/practice-host-ui/e2e-playwright/ui-axe-compliance.spec.ts` (injects axe-core in Playwright runtime).
+  - Tailwind arbitrary spacing lint exists at `scripts/lint-tailwind-arbitrary-spacing.mjs` and is wired to root script `lint:tailwind-spacing`.
 
 ## Working model (needs confirmation)
 - **SQLCipher linkage:** sqlx may still open a transient plaintext file before post-migration re-encrypt; accept criteria met via `migrate_plaintext_to_sqlcipher` after migrations (`connection.rs::open_pool_with_migrations`).

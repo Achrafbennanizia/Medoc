@@ -11,6 +11,9 @@ export default {
   ],
   theme: {
     extend: {
+      spacing: {
+        18: "4.5rem",
+      },
       colors: {
         surface: { DEFAULT: "var(--bg)", dim: "var(--surface-dim)" },
         "surface-container": "var(--surface-container)",
