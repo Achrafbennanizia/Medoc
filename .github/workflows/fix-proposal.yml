@@ -1,0 +1,237 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      fix_command:
+        description: Optional shell command for a targeted fix attempt.
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - name: Resolve source ref
+        id: source
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "trigger_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+            echo "trigger_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "base_branch=main" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: System deps for Tauri workspace crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: Detect package manager and command map
+        id: pm
+        shell: bash
+        run: |
+          if [[ -f pnpm-lock.yaml ]]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_command=pnpm run typecheck" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_command=pnpm run lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_command=pnpm run format" >> "$GITHUB_OUTPUT"
+          elif [[ -f yarn.lock ]]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_command=yarn typecheck" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_command=yarn lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_command=yarn format" >> "$GITHUB_OUTPUT"
+          elif [[ -f package-lock.json ]]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+            echo "typecheck_command=npm run typecheck" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_command=npm run lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_command=npm run format" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_command }}
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Baseline failing evidence (Rust tests)
+        id: before_rust
+        continue-on-error: true
+        run: cargo test --workspace --tests
+      - name: Baseline failing evidence (cargo audit)
+        id: before_audit
+        continue-on-error: true
+        run: cargo audit
+      - name: Baseline failing evidence (JS typecheck)
+        id: before_typecheck
+        continue-on-error: true
+        run: ${{ steps.pm.outputs.typecheck_command }}
+      - name: Deterministic tidy before targeted fix attempt
+        run: |
+          cargo fmt --all
+          ${{ steps.pm.outputs.lint_fix_command }} || true
+          ${{ steps.pm.outputs.format_command }} || true
+      - name: Attempt targeted fix command
+        if: (github.event_name == 'workflow_dispatch' && inputs.fix_command != '') || hashFiles('scripts/ci/fix-proposal-attempt.sh') != ''
+        env:
+          FIX_COMMAND: ${{ inputs.fix_command }}
+        shell: bash
+        run: |
+          if [[ -n "${FIX_COMMAND:-}" ]]; then
+            echo "Running workflow_dispatch fix command."
+            bash -lc "${FIX_COMMAND}"
+          elif [[ -f scripts/ci/fix-proposal-attempt.sh ]]; then
+            echo "Running scripts/ci/fix-proposal-attempt.sh."
+            bash scripts/ci/fix-proposal-attempt.sh
+          else
+            echo "No targeted fix command available."
+          fi
+      - name: Post-fix evidence (Rust tests)
+        id: after_rust
+        continue-on-error: true
+        run: cargo test --workspace --tests
+      - name: Post-fix evidence (cargo audit)
+        id: after_audit
+        continue-on-error: true
+        run: cargo audit
+      - name: Post-fix evidence (JS typecheck)
+        id: after_typecheck
+        continue-on-error: true
+        run: ${{ steps.pm.outputs.typecheck_command }}
+      - name: Write fix proposal report
+        id: report
+        env:
+          BEFORE_RUST: ${{ steps.before_rust.outcome }}
+          BEFORE_AUDIT: ${{ steps.before_audit.outcome }}
+          BEFORE_TYPECHECK: ${{ steps.before_typecheck.outcome }}
+          AFTER_RUST: ${{ steps.after_rust.outcome }}
+          AFTER_AUDIT: ${{ steps.after_audit.outcome }}
+          AFTER_TYPECHECK: ${{ steps.after_typecheck.outcome }}
+          TRIGGER_URL: ${{ steps.source.outputs.trigger_url }}
+        shell: bash
+        run: |
+          report_dir="docs/coordination/fix-proposals"
+          report_name="fix-proposal-${GITHUB_RUN_ID}.md"
+          report_path="${report_dir}/${report_name}"
+          body_path="${RUNNER_TEMP}/fix-proposal-body.md"
+
+          mkdir -p "${report_dir}"
+
+          {
+            printf '# CI fix proposal %s\n\n' "${GITHUB_RUN_ID}"
+            printf '## Trigger\n\n'
+            printf -- '- Event: %s\n' "${GITHUB_EVENT_NAME}"
+            printf -- '- Source ref: %s\n' "${GITHUB_REF}"
+            printf -- '- Upstream run: %s\n\n' "${TRIGGER_URL}"
+            printf '## Failing-before evidence\n\n'
+            printf '| Check | Outcome |\n'
+            printf '| ----- | ------- |\n'
+            printf '| cargo test --workspace --tests | %s |\n' "${BEFORE_RUST}"
+            printf '| cargo audit | %s |\n' "${BEFORE_AUDIT}"
+            printf '| JS typecheck | %s |\n\n' "${BEFORE_TYPECHECK}"
+            printf '## Passing-after evidence\n\n'
+            printf '| Check | Outcome |\n'
+            printf '| ----- | ------- |\n'
+            printf '| cargo test --workspace --tests | %s |\n' "${AFTER_RUST}"
+            printf '| cargo audit | %s |\n' "${AFTER_AUDIT}"
+            printf '| JS typecheck | %s |\n\n' "${AFTER_TYPECHECK}"
+            printf '## Rationale\n\n'
+            printf 'This draft PR is an agent-generated fix proposal branch. It is never auto-merged.\n'
+            printf 'Reviewers must validate the evidence and approve the diff before merge.\n'
+          } > "${report_path}"
+
+          {
+            printf '## Summary\n\n'
+            printf 'Automated fix-proposal run for CI failures.\n\n'
+            printf '## Failing-before / Passing-after evidence\n\n'
+            printf '| Check | Before | After |\n'
+            printf '| ----- | ------ | ----- |\n'
+            printf '| cargo test --workspace --tests | %s | %s |\n' "${BEFORE_RUST}" "${AFTER_RUST}"
+            printf '| cargo audit | %s | %s |\n' "${BEFORE_AUDIT}" "${AFTER_AUDIT}"
+            printf '| JS typecheck | %s | %s |\n\n' "${BEFORE_TYPECHECK}" "${AFTER_TYPECHECK}"
+            printf '## Rationale\n\n'
+            printf -- '- Trigger run: %s\n' "${TRIGGER_URL}"
+            printf -- '- Source commit: %s\n' "${GITHUB_SHA}"
+            printf -- '- This proposal is draft-only and requires human review before merge.\n'
+          } > "${body_path}"
+
+          echo "report_path=${report_path}" >> "$GITHUB_OUTPUT"
+          echo "body_path=${body_path}" >> "$GITHUB_OUTPUT"
+      - name: Detect restricted domain changes
+        id: restricted
+        shell: bash
+        run: |
+          if git diff --name-only | rg -i "(^|/)(security|audit|crypto|rbac)(/|\\.|_|-)" >/dev/null; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build label list
+        id: labels
+        shell: bash
+        run: |
+          if [[ "${{ steps.restricted.outputs.restricted }}" == "true" ]]; then
+            echo "labels=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create draft pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: ${{ steps.source.outputs.base_branch }}
+          title: "ci: fix proposal for verify failure (${{ github.run_id }})"
+          commit-message: "ci: generate automated fix proposal report"
+          body-path: ${{ steps.report.outputs.body_path }}
+          labels: ${{ steps.labels.outputs.labels }}
+          draft: true
+      - name: Stop pipeline when restricted domains are touched
+        if: steps.restricted.outputs.restricted == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: |
+          echo "Restricted files changed. Draft PR labeled needs-human-review; stopping for manual approval."
+          exit 1
