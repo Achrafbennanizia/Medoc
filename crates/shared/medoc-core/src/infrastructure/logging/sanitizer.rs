@@ -25,17 +25,55 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn patient_field_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(r#"(?i)("?(?:patient(?:en)?[_-]?id|patientId)"?\s*[:=]\s*)("[^"]*"|\S+)"#).ok()
+    })
+    .as_ref()
+}
+
+fn email_field_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r#"(?i)("?(?:email|e-mail)"?\s*[:=]\s*)("[^"]*"|\S+)"#).ok())
+        .as_ref()
+}
+
+fn free_email_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b").ok())
+        .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
 pub fn sanitize(input: &str) -> String {
-    let masked = match token_re() {
+    let masked_tokens = match token_re() {
         Some(re) => re.replace_all(input, "$1=***").into_owned(),
         None => input.to_string(),
     };
-    match jwt_re() {
-        Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
-        None => masked,
+    let masked_jwt = match jwt_re() {
+        Some(re) => re.replace_all(&masked_tokens, "eyJ***").into_owned(),
+        None => masked_tokens,
+    };
+    let masked_patient = match patient_field_re() {
+        Some(re) => re
+            .replace_all(&masked_jwt, "$1\"[REDACTED-patient]\"")
+            .into_owned(),
+        None => masked_jwt,
+    };
+    let masked_email_field = match email_field_re() {
+        Some(re) => re
+            .replace_all(&masked_patient, "$1\"[REDACTED-email]\"")
+            .into_owned(),
+        None => masked_patient,
+    };
+    match free_email_re() {
+        Some(re) => re
+            .replace_all(&masked_email_field, "[REDACTED-email]")
+            .into_owned(),
+        None => masked_email_field,
     }
 }
 
@@ -142,5 +180,21 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn masks_patient_ids() {
+        let s = sanitize(r#"event=READ patient_id=p-123 patientId="p-456""#);
+        assert!(!s.contains("p-123"));
+        assert!(!s.contains("p-456"));
+        assert!(s.contains("[REDACTED-patient]"));
+    }
+
+    #[test]
+    fn masks_emails() {
+        let s = sanitize(r#"email="alice@example.com" actor=bob@example.org"#);
+        assert!(!s.contains("alice@example.com"));
+        assert!(!s.contains("bob@example.org"));
+        assert!(s.contains("[REDACTED-email]"));
     }
 }

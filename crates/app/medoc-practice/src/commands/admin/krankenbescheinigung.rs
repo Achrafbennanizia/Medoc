@@ -60,6 +60,7 @@ fn cut_range_payload(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn krankenbescheinigung_save(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -143,6 +144,7 @@ async fn fetch_krank(pool: &SqlitePool, id: &str) -> Result<Krankenbescheinigung
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_krankenbescheinigungen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -161,6 +163,7 @@ pub async fn list_krankenbescheinigungen(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn end_krankenbescheinigung(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

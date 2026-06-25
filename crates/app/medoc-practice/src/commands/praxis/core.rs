@@ -242,6 +242,7 @@ pub async fn delete_behandlungs_katalog_item(
 // --- Bestellstamm (Lieferant / Pharmaberater / Kombi) ---
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_lieferant_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -251,6 +252,7 @@ pub async fn list_lieferant_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn create_lieferant_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -272,6 +274,7 @@ pub async fn create_lieferant_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn delete_lieferant_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -293,6 +296,7 @@ pub async fn delete_lieferant_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_pharmaberater_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -302,6 +306,7 @@ pub async fn list_pharmaberater_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn create_pharmaberater_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -323,6 +328,7 @@ pub async fn create_pharmaberater_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn delete_pharmaberater_stamm(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -344,6 +350,7 @@ pub async fn delete_pharmaberater_stamm(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_lieferant_pharma_vorlagen(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -353,6 +360,7 @@ pub async fn list_lieferant_pharma_vorlagen(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn create_lieferant_pharma_vorlage(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -374,6 +382,7 @@ pub async fn create_lieferant_pharma_vorlage(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn delete_lieferant_pharma_vorlage(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

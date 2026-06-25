@@ -374,6 +374,7 @@ pub async fn grant_personal_all_permissions(
 
 /// Live password-policy evaluation for UI hints (no persistence).
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub fn evaluate_password_policy(password: String) -> crypto::PasswordPolicyStatus {
     crypto::evaluate_password_policy(&password)
 }

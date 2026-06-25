@@ -35,6 +35,7 @@ pub async fn set_company_portal_config(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_fetch_summary(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -45,6 +46,7 @@ pub async fn company_portal_fetch_summary(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_fetch_integrations(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -55,6 +57,7 @@ pub async fn company_portal_fetch_integrations(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_fetch_feature_flags(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -65,6 +68,7 @@ pub async fn company_portal_fetch_feature_flags(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_billing_portal_url(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -75,6 +79,7 @@ pub async fn company_portal_billing_portal_url(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_attach_payment(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -89,6 +94,7 @@ pub async fn company_portal_attach_payment(
 
 /// Für `check_for_updates` — liefert JSON wie `UpdateInfo` oder Fehler.
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_fetch_update_manifest(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -103,6 +109,7 @@ pub async fn company_portal_fetch_update_manifest(
 
 /// Verbindungsprobe (ohne sensible Daten im Fehlerfall außer HTTP-Status).
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn company_portal_ping(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

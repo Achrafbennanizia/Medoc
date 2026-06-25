@@ -71,6 +71,7 @@ pub async fn deactivate_adjustments_for_source(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_arbeitsplan_adjustments(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

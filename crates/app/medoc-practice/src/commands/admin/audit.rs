@@ -8,6 +8,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn list_audit_logs(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -45,6 +46,7 @@ pub async fn list_audit_logs_paged(
 /// Export all audit log entries as a CSV byte stream. CSV fields are RFC-4180
 /// quoted so that arbitrary user/entity strings round-trip safely.
 #[tauri::command]
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn export_audit_csv(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
