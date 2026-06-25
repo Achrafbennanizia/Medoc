@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { tauriInvoke } from "@/systems/shared/transport/tauri-transport";
 
 export type DbSetupStatus = {
     needsPassphraseSetup: boolean;
@@ -6,13 +6,13 @@ export type DbSetupStatus = {
 };
 
 export async function getDbSetupStatus(): Promise<DbSetupStatus> {
-    return invoke<DbSetupStatus>("get_db_setup_status");
+    return tauriInvoke<DbSetupStatus>("get_db_setup_status");
 }
 
 export async function provisionDbPassphrase(passphrase: string, confirm: string): Promise<void> {
-    await invoke("provision_db_passphrase", { passphrase, confirm });
+    await tauriInvoke("provision_db_passphrase", { passphrase, confirm });
 }
 
 export async function unlockDbPassphrase(passphrase: string): Promise<void> {
-    await invoke("unlock_db_passphrase", { passphrase });
+    await tauriInvoke("unlock_db_passphrase", { passphrase });
 }
