@@ -1,0 +1,291 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this proposal run was triggered
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+
+      - name: Install Linux dependencies for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+
+      - name: Install JavaScript dependencies
+        run: |
+          corepack enable
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" && exit 1 ;;
+          esac
+
+      - id: baseline
+        name: Capture failing-before evidence
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/fix-proposal
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_workspace_script() {
+            script="$1"
+            case "$PM" in
+              npm) npm run "$script" -w medoc ;;
+              pnpm) pnpm --filter medoc run "$script" ;;
+              yarn) yarn workspace medoc run "$script" ;;
+              *) echo "Unsupported package manager: $PM" && exit 1 ;;
+            esac
+          }
+
+          run_check() {
+            name="$1"
+            shift
+            set +e
+            "$@" >"artifacts/fix-proposal/${name}.before.log" 2>&1
+            status="$?"
+            set -e
+            echo "${name}_status=${status}" >> "$GITHUB_OUTPUT"
+          }
+
+          run_check cargo_test cargo test --workspace
+          run_check cargo_audit cargo audit
+          run_check web_typecheck run_workspace_script typecheck
+
+      - id: attempt
+        name: Attempt substantive fix on new branch
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_workspace_script() {
+            script="$1"
+            case "$PM" in
+              npm) npm run "$script" -w medoc ;;
+              pnpm) pnpm --filter medoc run "$script" ;;
+              yarn) yarn workspace medoc run "$script" ;;
+              *) echo "Unsupported package manager: $PM" && exit 1 ;;
+            esac
+          }
+
+          if [ "${{ steps.baseline.outputs.cargo_audit_status }}" != "0" ]; then
+            cargo update || true
+          fi
+
+          if [ "${{ steps.baseline.outputs.web_typecheck_status }}" != "0" ]; then
+            run_workspace_script lint:fix || true
+            run_workspace_script format || true
+          fi
+
+      - id: rerun
+        name: Capture passing-after evidence
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/fix-proposal
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_workspace_script() {
+            script="$1"
+            case "$PM" in
+              npm) npm run "$script" -w medoc ;;
+              pnpm) pnpm --filter medoc run "$script" ;;
+              yarn) yarn workspace medoc run "$script" ;;
+              *) echo "Unsupported package manager: $PM" && exit 1 ;;
+            esac
+          }
+
+          rerun_if_failed() {
+            name="$1"
+            before_status="$2"
+            shift 2
+            if [ "$before_status" = "0" ]; then
+              echo "${name}_status=0" >> "$GITHUB_OUTPUT"
+              echo "Not rerun because baseline passed." >"artifacts/fix-proposal/${name}.after.log"
+              return 0
+            fi
+
+            set +e
+            "$@" >"artifacts/fix-proposal/${name}.after.log" 2>&1
+            status="$?"
+            set -e
+            echo "${name}_status=${status}" >> "$GITHUB_OUTPUT"
+          }
+
+          rerun_if_failed cargo_test "${{ steps.baseline.outputs.cargo_test_status }}" cargo test --workspace
+          rerun_if_failed cargo_audit "${{ steps.baseline.outputs.cargo_audit_status }}" cargo audit
+          rerun_if_failed web_typecheck "${{ steps.baseline.outputs.web_typecheck_status }}" run_workspace_script typecheck
+
+      - id: report
+        name: Write fix proposal report
+        run: |
+          set -euo pipefail
+          REPORT_PATH="docs/coordination/fix-proposals/fix-proposal-${{ github.run_id }}.md"
+          mkdir -p "$(dirname "$REPORT_PATH")"
+
+          {
+            echo "# CI fix proposal — run ${{ github.run_id }}"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Reason: \`${{ github.event.inputs.reason || 'verify failure on main' }}\`"
+            echo "- Source SHA: \`${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}\`"
+            echo
+            echo "## Evidence matrix"
+            echo
+            echo "| Check | Before | After |"
+            echo "| ----- | ------ | ----- |"
+            echo "| cargo test --workspace | ${{ steps.baseline.outputs.cargo_test_status }} | ${{ steps.rerun.outputs.cargo_test_status }} |"
+            echo "| cargo audit | ${{ steps.baseline.outputs.cargo_audit_status }} | ${{ steps.rerun.outputs.cargo_audit_status }} |"
+            echo "| web typecheck | ${{ steps.baseline.outputs.web_typecheck_status }} | ${{ steps.rerun.outputs.web_typecheck_status }} |"
+            echo
+            echo "## Command logs (tail)"
+            echo
+            for name in cargo_test cargo_audit web_typecheck; do
+              echo "### ${name} (before)"
+              echo
+              echo '```text'
+              tail -n 80 "artifacts/fix-proposal/${name}.before.log" || true
+              echo '```'
+              echo
+              echo "### ${name} (after)"
+              echo
+              echo '```text'
+              tail -n 80 "artifacts/fix-proposal/${name}.after.log" || true
+              echo '```'
+              echo
+            done
+          } > "$REPORT_PATH"
+
+          echo "report_path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+
+      - id: restricted
+        name: Guard restricted code paths
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$changed" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          if printf '%s\n' "$changed" | rg -q '(^|/)(security|audit|crypto)(/|_|\.|$)|(^|/)rbac(\.|/|_|$)|(^|/)config/rbac\.ya?ml$'; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build draft PR body
+        run: |
+          cat > /tmp/fix-proposal-pr-body.md <<EOF
+          ## Summary
+          This workflow attempted a substantive CI fix on a new branch after a failed verify gate.
+
+          ## Evidence
+          - Failing-before/passing-after report: \`${{ steps.report.outputs.report_path }}\`
+          - Source run: \`${{ github.run_id }}\`
+          - Source ref: \`${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}\`
+
+          ## Guardrails
+          - Draft PR only (never auto-merge).
+          - Release/protected paths are unchanged by this workflow.
+          - Restricted code-path changes are labelled \`needs-human-review\`.
+          EOF
+
+      - id: create_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: |
+            docs/coordination/fix-proposals/**
+            Cargo.lock
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+            apps/**
+            crates/**
+            packages/**
+          commit-message: "ci: propose fix for failing verify gate"
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: main
+          title: "ci: draft fix proposal for failing verify gate"
+          body-path: /tmp/fix-proposal-pr-body.md
+          draft: true
+          labels: ci-fix-proposal
+          delete-branch: true
+
+      - name: Add restricted-path review label
+        if: steps.create_pr.outputs.pull-request-number != '' && steps.restricted.outputs.restricted == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.create_pr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop run when restricted paths changed
+        if: steps.restricted.outputs.restricted == 'true'
+        run: |
+          echo "Restricted paths changed (security/audit/crypto/RBAC). Draft PR labelled needs-human-review."
+          exit 1

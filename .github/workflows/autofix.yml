@@ -1,0 +1,128 @@
+name: autofix
+
+on: pull_request
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - id: loop_guard
+        name: Guard against bot-authored fix loops
+        run: |
+          author="$(git log -1 --pretty='%an')"
+          email="$(git log -1 --pretty='%ae')"
+          if [ "$author" = "github-actions[bot]" ] || [ "$email" = "github-actions[bot]@users.noreply.github.com" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping autofix: last commit authored by github-actions[bot]."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip run after bot commit
+        if: steps.loop_guard.outputs.skip == 'true'
+        run: echo "Autofix halted by loop guard."
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.loop_guard.outputs.skip != 'true'
+        with:
+          components: rustfmt
+
+      - id: pm
+        if: steps.loop_guard.outputs.skip != 'true'
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.loop_guard.outputs.skip != 'true'
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+
+      - name: Install JavaScript dependencies
+        if: steps.loop_guard.outputs.skip != 'true'
+        run: |
+          corepack enable
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" && exit 1 ;;
+          esac
+
+      - name: Apply deterministic autofixes only
+        if: steps.loop_guard.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_workspace_script() {
+            script="$1"
+            case "$PM" in
+              npm) npm run "$script" -w medoc ;;
+              pnpm) pnpm --filter medoc run "$script" ;;
+              yarn) yarn workspace medoc run "$script" ;;
+              *) echo "Unsupported package manager: $PM" && exit 1 ;;
+            esac
+          }
+
+          script_exists() {
+            SCRIPT_NAME="$1" node - <<'NODE'
+const fs = require("fs");
+const scriptName = process.env.SCRIPT_NAME;
+const pkg = JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json", "utf8"));
+process.exit(pkg.scripts && pkg.scripts[scriptName] ? 0 : 1);
+NODE
+          }
+
+          cargo fmt --all
+
+          if script_exists "lint:fix"; then
+            run_workspace_script lint:fix
+          else
+            echo "lint:fix script not present; skipping."
+          fi
+
+          if script_exists "format"; then
+            run_workspace_script format
+          else
+            echo "format script not present; skipping."
+          fi
+
+      - name: Commit and push deterministic fixes
+        if: steps.loop_guard.outputs.skip != 'true'
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No deterministic autofix changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply automated formatting and lint fixes"
+          git push origin "HEAD:${{ github.head_ref }}"
