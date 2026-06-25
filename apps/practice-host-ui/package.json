@@ -7,10 +7,13 @@
         "dev": "vite",
         "build": "tsc && vite build",
         "lint": "eslint src --max-warnings 0 --no-cache",
+        "lint:tailwind-tokens": "node ../../scripts/lint-tailwind-arbitrary-values.mjs",
         "check": "npm run lint && npm run build && npm test",
         "test": "vitest run",
         "test:mvp-coverage": "vitest run --project mvp-unit --coverage",
         "test:playwright": "playwright test",
+        "test:playwright:geometry": "MEDOC_UI_GEOMETRY=1 playwright test e2e-playwright/ui-geometry.spec.ts",
+        "test:playwright:a11y": "MEDOC_UI_A11Y=1 playwright test e2e-playwright/ui-a11y.spec.ts",
         "test:coverage": "vitest run --coverage",
         "preview": "vite preview",
         "tauri": "tauri"
@@ -20,8 +23,10 @@
         "@tauri-apps/plugin-shell": "^2.2.0",
         "clsx": "^2.1.1",
         "date-fns": "^4.1.0",
+        "i18next": "^26.3.2",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
+        "react-i18next": "^17.0.8",
         "react-router-dom": "^7.6.1",
         "recharts": "^2.15.3",
         "tailwind-merge": "^3.3.0",
@@ -29,6 +34,7 @@
         "zustand": "^5.0.5"
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.12.1",
         "@eslint/js": "^9.39.2",
         "@playwright/test": "^1.60.0",
         "@tauri-apps/cli": "^2.5.0",

@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Logger-first instrumentation + workflow/a11y audit (2026-06-25)  
+**Last closed:** Workflow log channel + frontend bridge + smoke/playwright coverage + findings register update.
+
+### Verified (2026-06-25 — logger-first quality run)
+
+- **Logging pipeline:** new `medoc::workflow` channel/routes in `crates/shared/medoc-core/src/infrastructure/logging/{mod.rs,config.rs}` with dedicated `workflow.log` rolling appender.
+- **PII sanitization:** recursive JSON redaction landed in `crates/shared/medoc-core/src/infrastructure/logging/sanitizer.rs` (`sanitize_json_value`) with unit test `sanitize_json_value_redacts_sensitive_keys` **PASS**.
+- **Tauri bridge command:** `log_workflow_event` added and registered (`crates/app/medoc-practice/src/commands/system/logging.rs`, `commands/register.rs`), invoke count updated to **296** and registry tests **PASS**.
+- **Frontend workflow bridge:** route-enter + IPC lifecycle (`start/success/error`) emitted through `apps/practice-host-ui/src/services/tauri.service.ts` and `App.tsx` observer.
+- **Frontend validations:** `npm run test -w medoc` **PASS** (257/3 skipped), `npm run build -w medoc` **PASS**, `npm run test:playwright:geometry -w medoc` **PASS**, `npm run test:playwright:a11y -w medoc` **PASS**, `npm run lint:tailwind-tokens -w medoc` **PASS**.
+
+### Remains unverified
+
+- Full route/action workflow state-machine coverage across every page/action is still **partial**; validated subset is smoke-critical flows + login geometry/a11y.
+- Full workspace green gates remain blocked by pre-existing failures: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, and `npm run lint -w medoc`.
+- Live manual Tauri workflow walkthroughs (G21b rows + non-login dialogs) remain **NOT OBSERVED**.
+
+### Understanding delta
+
+- The audit run surfaced and fixed test harness gaps introduced by workflow logging (`logRouteEnter` mock export and UI-event jsdom isolation).
+- Clean dependency reproducibility required explicit `i18next`, `react-i18next`, and `@axe-core/playwright` in `apps/practice-host-ui/package.json`; `npm ci -w medoc` restored deterministic installs for validation.
+- No new P0 workflow-terminability defects were reproduced in the validated subset.
+
+### Required next steps (ordered)
+
+1. Fix/quarantine pre-existing Rust and frontend lint blockers so required global gates can be green.
+2. Expand workflow-map execution coverage from current subset to all routes/options/actions and register outcomes.
+3. Run manual Tauri verification for remaining NOT OBSERVED workflow rows.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 

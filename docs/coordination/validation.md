@@ -1,6 +1,40 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (Logger-first + workflow/a11y audit)
+
+## Logger-first + workflow/a11y audit — verified (2026-06-25)
+
+### Findings register (id, location, finding, evidence, severity, action)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| QA-LOG-001 | `apps/practice-host-ui/src/critical-flows.smoke.test.tsx` | Smoke suite crashed after adding route workflow observer because `tauri.service` mock did not export `logRouteEnter`. | `npm run test -w medoc -- --project smoke` failed with `No "logRouteEnter" export is defined on the "@/services/tauri.service" mock.` | P1 | Added `logRouteEnter: vi.fn()` to the mock. |
+| QA-TEST-002 | `packages/ui/src/ui-event-contracts.smoke.test.tsx` | New UI event contract tests failed in full suite due wrong environment (`document` undefined) and missing cleanup isolation. | `npm run test -w medoc` failed on `ui-event-contracts.smoke.test.tsx` with jsdom/document errors and duplicate element queries. | P1 | Added `/** @vitest-environment jsdom */` and `afterEach(cleanup)`. |
+| QA-BUILD-003 | `apps/practice-host-ui/package.json` | Clean install/build/a11y run failed because required runtime/test deps were not explicit in package manifest. | `npm run build -w medoc` failed with TS2307 for `i18next`/`react-i18next`; `npm run test:playwright:a11y -w medoc` initially failed to resolve `@axe-core/playwright`. | P1 | Added `i18next`, `react-i18next`, `@axe-core/playwright`; stabilized install with `npm ci -w medoc`. |
+| QA-RUST-004 | `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs`, `crates/shared/medoc-core/tests/mvp_security_gates_tests.rs` | Strict clippy gate is red from pre-existing findings. | `cargo clippy --workspace --all-targets -- -D warnings` failed (`nonminimal_bool`, `assertions_on_constants`). | P2 | **NOT FIXED** in this run (outside logger-first scope); keep as tracked pre-existing blocker. |
+| QA-RUST-005 | `apps/practice-host/tests/auth_session_audit_tests.rs` | Full Rust workspace tests still fail pre-existing with Arzt seat-cap setup error. | `cargo test --workspace --tests` failed with `Maximal 1 Arzt-Konto erlaubt (Admin-Platz belegt)`. | P2 | **NOT FIXED** in this run; preserve as known blocker. |
+| QA-FE-006 | Multiple FE files (hooks/memoization) | Full frontend lint gate still red from pre-existing hook/memoization violations. | `npm run lint -w medoc` reports 13 errors / 25 warnings in unrelated files. | P2 | **NOT FIXED** in this run; recorded as baseline risk. |
+
+### Validation commands
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow bridge unit test | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (3) |
+| Smoke workflows | `npm run test -w medoc -- --project smoke` | **PASS** (21 passed, 3 skipped) |
+| Full frontend tests | `npm run test -w medoc` | **PASS** (257 passed, 3 skipped) |
+| Frontend build | `npm run build -w medoc` | **PASS** |
+| Tailwind token lint | `npm run lint:tailwind-tokens -w medoc` | **PASS** |
+| Geometry audit | `npm run test:playwright:geometry -w medoc` | **PASS** (375/768/1259 login snapshots) |
+| A11y audit | `npm run test:playwright:a11y -w medoc` | **PASS** (0 critical axe violations on `/login`) |
+| Rust sanitizer unit | `cargo test -p medoc-core sanitize_json_value_redacts_sensitive_keys` | **PASS** |
+| Invoke registry (desktop) | `cargo test -p medoc --test invoke_registration_tests` | **PASS** (296) |
+| Invoke registry (practice crate) | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** (pre-existing formatting drift in many unrelated files) |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** (pre-existing `assertions_on_constants`, `nonminimal_bool`) |
+| Rust workspace tests | `cargo test --workspace --tests` | **FAIL** (pre-existing `auth_session_audit_tests` seat-cap error) |
+| Frontend lint gate | `npm run lint -w medoc` | **FAIL** (pre-existing 13 errors / 25 warnings) |
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
