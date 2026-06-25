@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { publishWorkflowStep } from "@/lib/workflow-log-events";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +51,89 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "workflow_log_step";
+
+function summarizeArgKeys(args: Record<string, unknown>): string {
+    const keys = Object.keys(args).sort();
+    return keys.length ? keys.join(",") : "none";
+}
+
+function errorDetail(err: unknown): string {
+    const text = err instanceof Error ? err.message : String(err);
+    return text.length > 240 ? `${text.slice(0, 240)}…` : text;
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
     if (args == null) {
-        return invoke<T>(cmd, {});
+        const payload = {};
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            publishWorkflowStep({
+                workflow: "ipc",
+                step: cmd,
+                action: cmd,
+                status: "primary_action",
+                detail: "args=none",
+            });
+        }
+        try {
+            const result = await invoke<T>(cmd, payload);
+            if (cmd !== WORKFLOW_LOG_COMMAND) {
+                publishWorkflowStep({
+                    workflow: "ipc",
+                    step: cmd,
+                    action: cmd,
+                    status: "success",
+                    detail: "args=none",
+                });
+            }
+            return result;
+        } catch (err) {
+            if (cmd !== WORKFLOW_LOG_COMMAND) {
+                publishWorkflowStep({
+                    workflow: "ipc",
+                    step: cmd,
+                    action: cmd,
+                    status: "error",
+                    detail: errorDetail(err),
+                });
+            }
+            throw err;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    if (cmd !== WORKFLOW_LOG_COMMAND) {
+        publishWorkflowStep({
+            workflow: "ipc",
+            step: cmd,
+            action: cmd,
+            status: "primary_action",
+            detail: `args=${summarizeArgKeys(expanded)}`,
+        });
+    }
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            publishWorkflowStep({
+                workflow: "ipc",
+                step: cmd,
+                action: cmd,
+                status: "success",
+                detail: `args=${summarizeArgKeys(expanded)}`,
+            });
+        }
+        return result;
+    } catch (err) {
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            publishWorkflowStep({
+                workflow: "ipc",
+                step: cmd,
+                action: cmd,
+                status: "error",
+                detail: errorDetail(err),
+            });
+        }
+        throw err;
+    }
 }

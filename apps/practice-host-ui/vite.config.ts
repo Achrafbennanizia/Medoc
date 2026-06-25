@@ -73,6 +73,8 @@ export default defineConfig(async () => ({
                     exclude: [
                         "**/*.smoke.test.ts",
                         "**/*.smoke.test.tsx",
+                        "../../packages/**/*.smoke.test.ts",
+                        "../../packages/**/*.smoke.test.tsx",
                         "src/lib/**/*.test.ts",
                         "src/lib/**/*.test.tsx",
                     ],

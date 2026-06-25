@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { publishWorkflowStep } from "@/lib/workflow-log-events";
 
 interface DialogProps {
     open: boolean;
@@ -32,6 +33,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const t = useT();
+    const emitCancel = (step: string) => {
+        publishWorkflowStep({
+            workflow: "dialog",
+            step,
+            status: "cancel",
+            detail: title.trim() || "dialog",
+        });
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -47,6 +56,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
+                emitCancel("escape");
                 onCloseRef.current();
                 return;
             }
@@ -123,7 +133,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div
+            className="modal-backdrop"
+            onClick={() => {
+                emitCancel("backdrop");
+                onClose();
+            }}
+            role="presentation"
+        >
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +154,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => {
+                            emitCancel("close_button");
+                            onClose();
+                        }}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +177,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    emitCancel("close_button");
+                                    onClose();
+                                }}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
@@ -257,6 +280,14 @@ export function ConfirmDialog({
     loading = false,
 }: ConfirmDialogProps) {
     const confirmTitleId = useId();
+    const emitCancel = () => {
+        publishWorkflowStep({
+            workflow: "dialog",
+            step: "cancel_button",
+            status: "cancel",
+            detail: title,
+        });
+    };
     const handleClose = () => {
         if (!loading) onClose();
     };
@@ -278,7 +309,10 @@ export function ConfirmDialog({
                 <IosConfirmActions
                     cancelLabel={cancelLabel}
                     confirmLabel={confirmLabel}
-                    onCancel={handleClose}
+                    onCancel={() => {
+                        emitCancel();
+                        handleClose();
+                    }}
                     onConfirm={onConfirm}
                     loading={loading}
                     destructive={danger}

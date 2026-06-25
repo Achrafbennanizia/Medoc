@@ -49,6 +49,8 @@ import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.
 import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
 import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
+import { publishWorkflowStep, subscribeWorkflowSteps } from "@/lib/workflow-log-events";
+import { logWorkflowStep } from "@/systems/practice-host/controllers/workflow-log.controller";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
@@ -327,6 +329,23 @@ export function AppLayout() {
 
     useEffect(() => {
         setMobileNavOpen(false);
+    }, [location.pathname]);
+
+    useEffect(
+        () =>
+            subscribeWorkflowSteps((event) => {
+                void logWorkflowStep(event);
+            }),
+        [],
+    );
+
+    useEffect(() => {
+        publishWorkflowStep({
+            workflow: "route",
+            step: location.pathname,
+            route: location.pathname,
+            status: "route_enter",
+        });
     }, [location.pathname]);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */

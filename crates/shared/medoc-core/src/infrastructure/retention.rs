@@ -24,6 +24,9 @@ fn retention_for(filename: &str) -> Option<Duration> {
         || filename.starts_with("system")
     {
         Some(Duration::from_secs(180 * 24 * 3600))
+    } else if filename.starts_with("workflow") {
+        // UI workflow traces are high-volume; keep a short rolling window.
+        Some(Duration::from_secs(30 * 24 * 3600))
     } else {
         // app.log + everything else
         Some(Duration::from_secs(30 * 24 * 3600))

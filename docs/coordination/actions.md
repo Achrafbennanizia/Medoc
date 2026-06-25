@@ -1,15 +1,29 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (Quality run follow-up)
 
 ## Now
 
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
+- **Rust gate unblocker:** install/provide OpenSSL headers for SQLCipher (`openssl/crypto.h`) on this runner, then rerun `cargo +stable clippy/test` — **PENDING**
+- **Rust formatting gate:** run `cargo fmt --all` and commit formatting-only drift — **PENDING**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-06-25 — quality run follow-up)
+
+- Fixed dialog workflow smoke reliability:
+  - jsdom annotation + locale-safe label matcher + explicit test cleanup.
+  - node project excludes updated to avoid package smoke leakage.
+  - Commits: `321df98`, `7c9b9a5`.
+- Fixed frontend build break in praxis-aufgabe drawer caused by workflow UI API drift.
+  - Commit: `40d90af`.
+- Validation captured in `validation.md` with current gate status:
+  - `npm test` **PASS**, `npm run build` **PASS**.
+  - Rust gates remain blocked on missing OpenSSL headers + formatting drift.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
