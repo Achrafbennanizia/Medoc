@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — validation (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load('.github/workflows/*.yml')` | **PASS** |
+| A11y runner syntax | `node --check apps/practice-host-ui/scripts/run-a11y-check.mjs` | **PASS** |
+| Rust formatter gate (baseline) | `cargo fmt --all --check` | **FAIL** — pre-existing formatting drift across multiple Rust crates; command produced diffs only (no file mutation) |
+| Web typecheck gate | `npm run typecheck -w medoc` | **FAIL** — missing `i18next` / `react-i18next` resolution in `src/lib/i18n.ts` and pre-existing `praxis-aufgabe-detail-drawer.tsx` type errors |
+| Web build gate | `npm run build -w medoc` | **FAIL** — same TypeScript failures as typecheck |
+| A11y gate execution | `npm run test:a11y -w medoc` | **FAIL** — expected stop: built UI directory `apps/practice-host-ui/dist` missing because build failed |
+| Deterministic lint-fix script | `npm run lint:fix -w medoc` | **FAIL** — pre-existing ESLint hook/memoization violations (13 errors, 25 warnings) |
+
+**Pipeline migration delivered:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml`, retired legacy `ci.yml`, added `docs/coordination/ci-cd-plan.md`, added axe-core runner script and workspace scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`).
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program)
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
