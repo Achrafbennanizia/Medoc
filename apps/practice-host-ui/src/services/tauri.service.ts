@@ -50,12 +50,108 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_EVENT_COMMAND = "log_workflow_event";
+
+export type WorkflowLogEvent = {
+    workflow: string;
+    step: string;
+    status?: string;
+    route?: string;
+    action?: string;
+    source?: string;
+    message?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+};
+
+function normalizeMetadata(
+    metadata?: Record<string, unknown>,
+): Record<string, unknown> {
+    if (!metadata) return {};
+    return omitUndefinedValues(metadata);
+}
+
+function errorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return String(error);
+}
+
+function isCancellationMessage(message: string): boolean {
+    return /\b(cancel|cancelled|aborted|abort)\b/i.test(message);
+}
+
+function hasTauriInvokeBridge(): boolean {
+    const runtime = globalThis as { __TAURI_INTERNALS__?: { invoke?: unknown } };
+    return typeof runtime.__TAURI_INTERNALS__?.invoke === "function";
+}
+
+async function emitWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    if (!hasTauriInvokeBridge()) return;
+    const payload = {
+        workflow: event.workflow,
+        step: event.step,
+        status: event.status,
+        route: event.route,
+        action: event.action,
+        source: event.source ?? "frontend-ui",
+        message: event.message,
+        error: event.error,
+        metadata: normalizeMetadata(event.metadata),
+    };
+    try {
+        await invoke<void>(WORKFLOW_EVENT_COMMAND, { event: payload });
+    } catch (err) {
+        if (import.meta.env.DEV) {
+            console.warn("workflow logging bridge failed", err);
+        }
+    }
+}
+
+export async function reportWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    await emitWorkflowEvent(event);
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = args == null ? {} : omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    if (cmd !== WORKFLOW_EVENT_COMMAND) {
+        void emitWorkflowEvent({
+            workflow: "tauri-command",
+            step: "primary_action",
+            status: "start",
+            action: cmd,
+            source: "frontend-ipc",
+            metadata: { argKeys: Object.keys(expanded).sort() },
+        });
+    }
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_EVENT_COMMAND) {
+            void emitWorkflowEvent({
+                workflow: "tauri-command",
+                step: "success",
+                status: "success",
+                action: cmd,
+                source: "frontend-ipc",
+            });
+        }
+        return result;
+    } catch (err) {
+        if (cmd !== WORKFLOW_EVENT_COMMAND) {
+            const message = errorMessage(err);
+            const cancelled = isCancellationMessage(message);
+            void emitWorkflowEvent({
+                workflow: "tauri-command",
+                step: cancelled ? "cancel" : "error",
+                status: cancelled ? "cancelled" : "error",
+                action: cmd,
+                source: "frontend-ipc",
+                error: message,
+            });
+        }
+        throw err;
+    }
 }

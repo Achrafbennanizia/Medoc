@@ -5,6 +5,7 @@
 
 use regex::Regex;
 use serde::Serialize;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -36,6 +37,22 @@ pub fn sanitize(input: &str) -> String {
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
+    }
+}
+
+/// Recursively sanitize every string leaf in a JSON payload.
+pub fn sanitize_json_value(value: &Value) -> Value {
+    match value {
+        Value::String(s) => Value::String(sanitize(s)),
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_json_value).collect()),
+        Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (k, v) in map {
+                out.insert(k.clone(), sanitize_json_value(v));
+            }
+            Value::Object(out)
+        }
+        _ => value.clone(),
     }
 }
 
@@ -142,5 +159,21 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn sanitizes_nested_json_payloads() {
+        let payload = serde_json::json!({
+            "message": "token=abc123",
+            "nested": {
+                "jwt": "eyJhbGciOiJIUzI1NiJ9.payload.sig"
+            },
+            "list": ["passwort=secret", "ok"]
+        });
+        let sanitized = sanitize_json_value(&payload);
+        assert_eq!(sanitized["message"], "token=***");
+        assert_eq!(sanitized["nested"]["jwt"], "eyJ***");
+        assert_eq!(sanitized["list"][0], "passwort=***");
+        assert_eq!(sanitized["list"][1], "ok");
     }
 }
