@@ -2,6 +2,19 @@
 
 **Last updated:** 2026-06-18 (Full UI i18n program)
 
+## CI/CD tiered pipeline migration — validated (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c "import yaml,glob; [yaml.safe_load(open(f,'r',encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]; print('workflow YAML parse OK')"` | **PASS** |
+| Workspace typecheck | `npm run typecheck` | **FAIL** — pre-existing TypeScript errors in `praxis-aufgabe-detail-drawer.tsx` (missing export + wrong arity) |
+| Workspace lint | `npm run lint` | **FAIL** — pre-existing React hooks/compiler lint errors (e.g., `break-glass-banner.tsx`, `praxis-aufgabe-*`, `finanzen.tsx`) |
+
+Notes:
+
+- Failures above were observed while validating CI command wiring; this change set does **not** modify those application files.
+- Tier-1 `verify.yml` intentionally surfaces these failures as blocking quality gates.
+
 ## Full UI i18n program — verified (2026-06-18, continued)
 
 | Check | Command | Result |
