@@ -1,12 +1,13 @@
 // Logging & Observability infrastructure (NFA-LOG-01..10)
 //
-// 7 log channels:
+// 8 log channels:
 //   - app.log        : structured application log (JSON)
 //   - security.log   : auth events, brute-force lockouts
 //   - system.log     : start/stop, config, migrations, updates
 //   - device.log     : DICOM/GDT/TWAIN/USB events
 //   - migration.log  : import operations
 //   - perf.log       : slow requests / queries
+//   - workflow.log   : frontend workflow and IPC step events
 //   - audit_log (DB) : user actions (handled separately by audit_repo)
 
 pub mod brute_force;
@@ -16,8 +17,13 @@ pub mod sanitizer;
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::{
+    io::{self, Write},
+    marker::PhantomData,
+};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
@@ -34,6 +40,7 @@ pub struct LogGuards {
     _device: WorkerGuard,
     _migration: WorkerGuard,
     _perf: WorkerGuard,
+    _workflow: WorkerGuard,
 }
 
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -59,6 +66,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let device_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "device.log");
     let migration_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "migration.log");
     let perf_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "perf.log");
+    let workflow_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "workflow.log");
 
     let (app_w, app_g) = tracing_appender::non_blocking(app_appender);
     let (sec_w, sec_g) = tracing_appender::non_blocking(security_appender);
@@ -66,13 +74,15 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let (dev_w, dev_g) = tracing_appender::non_blocking(device_appender);
     let (mig_w, mig_g) = tracing_appender::non_blocking(migration_appender);
     let (perf_w, perf_g) = tracing_appender::non_blocking(perf_appender);
+    let (workflow_w, workflow_g) = tracing_appender::non_blocking(workflow_appender);
 
     let json = |writer| {
         tracing_subscriber::fmt::layer()
             .json()
             .with_current_span(true)
             .with_span_events(FmtSpan::NONE)
-            .with_writer(writer)
+            // Every log file write passes through the shared sanitizer.
+            .with_writer(sanitizing_make_writer(writer))
     };
 
     // Filter by `target` so each channel only catches its own messages.
@@ -105,6 +115,9 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         json(perf_w)
             .with_filter(EnvFilter::new("medoc::perf=info"))
             .boxed(),
+        json(workflow_w)
+            .with_filter(EnvFilter::new("medoc::workflow=info"))
+            .boxed(),
     ];
 
     Registry::default().with(layers).init();
@@ -116,7 +129,101 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         _device: dev_g,
         _migration: mig_g,
         _perf: perf_g,
+        _workflow: workflow_g,
     })
+}
+
+struct SanitizingMakeWriter<M> {
+    inner: M,
+}
+
+fn sanitizing_make_writer<M>(inner: M) -> SanitizingMakeWriter<M> {
+    SanitizingMakeWriter { inner }
+}
+
+impl<'a, M> MakeWriter<'a> for SanitizingMakeWriter<M>
+where
+    M: MakeWriter<'a>,
+{
+    type Writer = SanitizingWriter<M::Writer>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SanitizingWriter::new(self.inner.make_writer())
+    }
+
+    fn make_writer_for(&'a self, meta: &tracing::Metadata<'_>) -> Self::Writer {
+        SanitizingWriter::new(self.inner.make_writer_for(meta))
+    }
+}
+
+struct SanitizingWriter<W> {
+    inner: W,
+    line_buffer: Vec<u8>,
+    _marker: PhantomData<W>,
+}
+
+impl<W> SanitizingWriter<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            line_buffer: Vec::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    fn flush_complete_lines(&mut self) -> io::Result<()> {
+        while let Some(pos) = self.line_buffer.iter().position(|b| *b == b'\n') {
+            let line = self.line_buffer.drain(..=pos).collect::<Vec<u8>>();
+            self.write_sanitized_line(&line)?;
+        }
+        Ok(())
+    }
+
+    fn flush_partial_line(&mut self) -> io::Result<()> {
+        if self.line_buffer.is_empty() {
+            return Ok(());
+        }
+        let line = std::mem::take(&mut self.line_buffer);
+        self.write_sanitized_line(&line)
+    }
+
+    fn write_sanitized_line(&mut self, raw: &[u8]) -> io::Result<()> {
+        let had_newline = raw.ends_with(b"\n");
+        let body = if had_newline { &raw[..raw.len() - 1] } else { raw };
+        let body_text = String::from_utf8_lossy(body);
+        let sanitized = sanitizer::sanitize(&body_text);
+        self.inner.write_all(sanitized.as_bytes())?;
+        if had_newline {
+            self.inner.write_all(b"\n")?;
+        }
+        Ok(())
+    }
+}
+
+impl<W> Write for SanitizingWriter<W>
+where
+    W: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.line_buffer.extend_from_slice(buf);
+        self.flush_complete_lines()?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.flush_partial_line()?;
+        self.inner.flush()
+    }
+}
+
+impl<W> Drop for SanitizingWriter<W>
+where
+    W: Write,
+{
+    fn drop(&mut self) {
+        let _ = self.flush_partial_line();
+        let _ = self.inner.flush();
+    }
 }
 
 // --- Convenience macros ------------------------------------------------------
@@ -154,5 +261,12 @@ macro_rules! log_migration {
 macro_rules! log_perf {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::perf", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }
