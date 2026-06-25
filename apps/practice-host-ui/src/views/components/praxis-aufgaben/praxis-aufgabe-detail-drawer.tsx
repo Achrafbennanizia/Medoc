@@ -40,7 +40,6 @@ import {
     aufgabeStatusPillClass,
     aufgabeTypLabel,
     aufgabeWorkflowActiveStep,
-    aufgabeWorkflowStepLabel,
 } from "./aufgabe-workflow-ui";
 import { PraxisAufgabeKommentare } from "./praxis-aufgabe-kommentare";
 
@@ -210,7 +209,7 @@ export function PraxisAufgabeDetailDrawer({
                 <div className="termin-drawer-body-scroll">
                     <div className="termin-drawer-head">
                         <span className={`pill ${aufgabeStatusPillClass(aufgabe.status)}`}>
-                            {aufgabeStatusLabel(t, aufgabe.status)}
+                            {aufgabeStatusLabel(aufgabe.status)}
                         </span>
                         <button type="button" className="icon-btn" aria-label={t("common.close")} onClick={onClose}>
                             <XIcon size={18} />
@@ -223,7 +222,7 @@ export function PraxisAufgabeDetailDrawer({
                             {aufgabe.titel}
                         </h2>
                         <div className="termin-drawer-sub">
-                            {patientName} · {aufgabeTypLabel(t, aufgabe.typ)}
+                            {patientName} · {aufgabeTypLabel(aufgabe.typ)}
                         </div>
                     </div>
 
@@ -267,7 +266,7 @@ export function PraxisAufgabeDetailDrawer({
                                         ]
                                             .filter(Boolean)
                                             .join(" ")}
-                                        title={aufgabeWorkflowStepLabel(t, step)}
+                                        title={step.label}
                                         disabled={busy || !canClickWorkflowStep(i)}
                                         onClick={() => onWorkflowStep(i)}
                                     >
@@ -279,7 +278,7 @@ export function PraxisAufgabeDetailDrawer({
                         <div className="termin-workflow-captions">
                             {AUFGABE_WORKFLOW_STEPS.map((step) => (
                                 <span key={step.status} className="termin-workflow-label">
-                                    {aufgabeWorkflowStepLabel(t, step)}
+                                    {step.label}
                                 </span>
                             ))}
                         </div>
