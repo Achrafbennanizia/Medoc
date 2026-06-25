@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD pipeline tier migration (2026-06-25)  
+**Last closed:** Four-tier workflow split (`verify`, `autofix`, `fix-proposal`, `release`), retired legacy `ci.yml`, added CI/CD coordination plan and validation evidence.
+
+### Verified (2026-06-25 — CI/CD pipeline tier migration)
+
+- **Workflow migration:** `.github/workflows/ci.yml` removed; new tiered workflows added at `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- **Workspace-aware gates:** lockfile-based package manager detection wired in verify/autofix/release/fix-proposal jobs; Rust + JS commands now target the live `apps/crates/packages` workspace.
+- **A11y gate wiring:** `apps/practice-host-ui/scripts/run-a11y-check.mjs` added; `medoc` scripts now include `typecheck`, `lint:fix`, `format`, `test:a11y`; `axe-core` added to `apps/practice-host-ui` dev dependencies.
+- **Coordination docs:** new plan at `docs/coordination/ci-cd-plan.md`; validation results appended in `docs/coordination/validation.md`.
+
+### Remains unverified
+
+- First GitHub Actions execution of the new workflows on hosted runners (**NOT OBSERVED** in this session).
+- Release environment approvals/secrets path (`release` env, `TAURI_SIGNING_PRIVATE_KEY`) on an actual tag build (**NOT RUN**).
+- Tier-3 draft PR flow from an actual red-`main` verify failure (**NOT RUN**).
+
+### Understanding delta
+
+- The repository now has explicit verify-vs-mutate separation in workflow structure; release path reuses verify and remains non-mutating.
+- Local validation surfaced pre-existing gate failures (Rust fmt drift and frontend type/lint issues), meaning tier-1 is expected to fail until those baseline defects are remediated.
+
+### Next
+
+1. Run the new workflows on GitHub (`verify` on PR, `autofix` on PR branch, `release` via tag/dispatch) and capture run IDs/outcomes.
+2. Triage and fix baseline failures reported in `validation.md` (Rust formatting drift, TS compile errors, ESLint errors) so tier-1 can pass.
+3. Trigger `fix-proposal.yml` once from `workflow_dispatch` to verify draft-PR generation and restricted-path label behavior.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 

@@ -92,11 +92,11 @@ jobs:
 
           script_exists() {
             SCRIPT_NAME="$1" node - <<'NODE'
-const fs = require("fs");
-const scriptName = process.env.SCRIPT_NAME;
-const pkg = JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json", "utf8"));
-process.exit(pkg.scripts && pkg.scripts[scriptName] ? 0 : 1);
-NODE
+            const fs = require("fs");
+            const scriptName = process.env.SCRIPT_NAME;
+            const pkg = JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json", "utf8"));
+            process.exit(pkg.scripts && pkg.scripts[scriptName] ? 0 : 1);
+            NODE
           }
 
           cargo fmt --all
