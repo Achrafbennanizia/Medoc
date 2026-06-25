@@ -1,25 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** Workflow logging instrumentation pass (2026-06-25)  
+**Last closed:** Extended shared logger + frontend bridge + domain transition traces; targeted tests added.
 
-### Verified (2026-06-18 — Work-Time program)
+### Verified (2026-06-25 — workflow logging instrumentation)
 
-- **Schema:** `work_time_pause_segment`, `work_time_preference`, `arbeitsplan_adjustment`; extended `krankenbescheinigung` + `pause_minutes` on sessions (`rust_only.rs`).
-- **RBAC:** `work_time.self`, `work_time.team.read`, `work_time.admin`, `statistik.read` in `config/rbac.yaml`; routes in `rbac.ts`.
-- **IPC:** 14 work-time commands + krank list/end + `list_arbeitsplan_adjustments`; logout auto-end when `auto_record_on_logout`; **294** invoke handlers.
-- **UI:** `/personal/arbeitszeit` (live timer, week bars, focus mode); `/verwaltung/team/arbeitszeit`; Krankenbescheinigung Verwaltung; `sec-arbeitszeit` in Statistik; per-user auto-record in Arbeitsplan.
-- **Tests:** `cargo test -p medoc-practice --lib work_time` **PASS** (2); invoke registry **PASS** (294); `npm test` **PASS** (242); `npm run build` **PASS**.
+- **Logging channels:** added `workflow.log` and `medoc::workflow` routing in shared tracing infra.
+- **Bridge command:** added `log_workflow_event` (sanitized) and invoke registration count increased to **296**.
+- **Frontend instrumentation:** `tauriInvoke` now emits `primary_action/success/cancel/error`; router emits `route_enter`.
+- **Domain transitions:** `workflow_transitions.rs` now emits structured transition outcomes.
+- **Tests:** new Rust sanitizer tests + new frontend `tauri.service.test.ts`; `npm test` **PASS** (250 passed / 3 skipped).
+- **Evidence blockers recorded:** full Rust/Clippy/Build gates still red in pre-existing areas (see `validation.md` QA-2026-06-25-001..003).
 
 ### Remains unverified
 
-- Live Tauri manual QA of focus-mode nav + file upload Krankenbescheinigung on disk.
-- Full `cargo test --workspace --tests` green (pre-existing medoc-core FK failures).
+- Full Step 2 workflow/state-machine enumeration and non-terminable-path detection sweep.
+- Geometry/spacing Playwright audit (Step 4) and UI-rule compliance sweep (Step 5).
+- Full all-green matrix: `cargo test --workspace --tests`, `cargo clippy -D warnings`, `cargo fmt --all -- --check`, `npm run build`.
 
 ### Next
 
-1. Manual smoke: REZEPTION login → Arbeitszeit; ARZT team overview; KB create/end.
-2. v1 Wave 5 calendar/PDF export (separate track).
+1. Fix QA blockers 001–003 (auth session audit fixture, TS drawer build errors, clippy lint drift).
+2. Continue requested bounded workflow audit phases (Step 2 onward) using the new workflow log evidence.
+3. Add Playwright geometry/token checks and a11y-rule violations as register entries.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ---
 

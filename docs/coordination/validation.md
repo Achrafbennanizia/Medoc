@@ -1,6 +1,41 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (Workflow logging instrumentation pass)
+
+## Workflow logging instrumentation pass — verified (2026-06-25)
+
+### Scope delivered
+
+- Added dedicated `workflow.log` tracing channel in shared logging infrastructure.
+- Added sanitized IPC bridge command `log_workflow_event` and registered it in the global invoke handler.
+- Instrumented frontend transport (`tauriInvoke`) for `primary_action` / `success` / `cancel|error`.
+- Added route-enter workflow emission via `WorkflowRouteLogger` in `App.tsx`.
+- Added domain transition tracing events in `workflow_transitions.rs`.
+
+### Checks run
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Edited Rust file formatting | `rustfmt --check --edition 2021 <edited-files>` | **PASS** |
+| New sanitizer JSON test | `cargo test -p medoc-core sanitizes_nested_json_payloads` | **PASS** |
+| New workflow command sanitizer test | `cargo test -p medoc-practice workflow_event_sanitizes_sensitive_fields` | **PASS** |
+| Invoke registry integrity | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (296 handlers expected) |
+| App invoke registry guard | `cargo test -p medoc --test invoke_registration_tests` | **PASS** |
+| Frontend tests | `npm test` | **PASS** (250 passed / 3 skipped) |
+| Frontend build | `npm run build` | **FAIL (pre-existing)** — `praxis-aufgabe-detail-drawer.tsx` missing `aufgabeWorkflowStepLabel` export and mismatched call arity |
+| Full Rust tests | `cargo test --workspace --tests` | **FAIL (pre-existing)** — `auth_session_audit_tests` fails with DB error `Maximal 1 Arzt-Konto erlaubt (Admin-Platz belegt)` |
+| Workspace clippy | `cargo clippy -p medoc-core -p medoc-practice -p medoc --all-targets -- -D warnings` | **FAIL (pre-existing)** — `clippy::assertions_on_constants` in `mvp_security_gates_tests.rs` and `clippy::nonminimal_bool` in `lizenz_service.rs` |
+| Workspace fmt gate | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — existing formatting drift in `crates/shared/medoc-sync/tests/*` |
+
+### Findings register entries (seeded into coordination ledgers)
+
+| id | location | finding | evidence | severity | action |
+|----|----------|---------|----------|----------|--------|
+| QA-2026-06-25-001 | `apps/practice-host/tests/auth_session_audit_tests.rs:31` | Full Rust workspace test gate is red because the test cannot create an ARZT account under current DB state. | `cargo test --workspace --tests` output (`SqliteError 1811`) | P1 | Stabilize fixture/setup for auth session audit tests. |
+| QA-2026-06-25-002 | `apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx` | Frontend build gate is red due unresolved export and call-signature mismatch. | `npm run build` TypeScript errors TS2724/TS2554 | P1 | Repair drawer imports/call-sites before next release gate run. |
+| QA-2026-06-25-003 | `crates/shared/medoc-core/tests/mvp_security_gates_tests.rs`, `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs` | Clippy gate red on newer toolchain due strict warnings (`assertions_on_constants`, `nonminimal_bool`). | `cargo clippy ... -D warnings` output | P2 | Resolve or explicitly lint-gate known patterns for current toolchain. |
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

@@ -1,6 +1,21 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (Workflow logging instrumentation pass)
+
+## Done (2026-06-25 — workflow logging instrumentation)
+
+- Extended shared logging with dedicated `workflow.log` channel (`medoc::workflow`).
+- Added `log_workflow_event` IPC bridge and wired invoke registry count to **296**.
+- Instrumented frontend transport and router route-enter events to emit `primary_action/success/cancel/error`.
+- Added sanitizer coverage for nested JSON payloads and workflow event sanitization tests.
+- Updated invoke registration guards for new command count.
+
+## Now (2026-06-25 follow-up)
+
+1. Fix **QA-2026-06-25-001**: `auth_session_audit_tests` fixture/setup failure (`Maximal 1 Arzt-Konto erlaubt`).
+2. Fix **QA-2026-06-25-002**: `praxis-aufgabe-detail-drawer.tsx` TypeScript build errors.
+3. Fix **QA-2026-06-25-003**: clippy lint drift on newer toolchain (`assertions_on_constants`, `nonminimal_bool`).
+4. Continue requested workflow/state-machine detection sweep (Step 2) and geometry/a11y audit (Steps 4–6) in bounded follow-up runs.
 
 ## Now
 

@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-25
 
 ## Open contradictions
 
@@ -10,6 +10,7 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Quality-gate expectation vs current workspace state (2026-06-25 run) | Ground rules require green `cargo test`, `clippy -D warnings`, `cargo fmt --check`, `npm run build` | Current run still red on pre-existing failures (`auth_session_audit_tests`, clippy lint drift on newer toolchain, TS errors in praxis-aufgabe drawer, existing rustfmt drift in medoc-sync tests) | Blocks full sign-off in this run | Track via validation entries QA-2026-06-25-001..003 and fix in dedicated follow-up PRs. |
 
 ## Resolved (recent)
 
