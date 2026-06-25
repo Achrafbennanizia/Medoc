@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (Application quality run)
 
 ## Now
 
@@ -22,6 +22,28 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-06-25 — application quality run)
+
+- Logging/workflow instrumentation pass continued: dedicated `workflow` bridge and command-path instrumentation remained in place; frontend workflow events covered by service + route + dialog paths.
+- New checks added and validated:
+  - `apps/practice-host-ui/e2e-playwright/ui-geometry-spacing.spec.ts` (375/768/1259 breakpoints + snapshots)
+  - `apps/practice-host-ui/e2e-playwright/ui-axe-compliance.spec.ts` (axe-core in browser, `/login`, 0 critical)
+  - `packages/ui/src/toast-store.test.ts`
+  - `apps/practice-host-ui/src/views/pages/login.events.smoke.test.tsx`
+  - `apps/practice-host-ui/src/views/components/dialog.workflow.smoke.test.tsx` (+ Enter confirm case)
+  - `scripts/lint-tailwind-arbitrary-spacing.mjs`
+- Defects fixed from register:
+  - Login smoke non-terminable selector/cleanup issue
+  - Arbitrary spacing token `min-h-[72px]` replaced with tokenized `min-h-18`
+  - Toast policy alignment: bottom-right stack, 5s errors, persistent action-required toasts
+  - Confirm dialog Enter behavior wired to primary confirm action
+
+## Next (2026-06-25)
+
+1. Install runner deps (`libssl-dev`, `pkg-config`) so Rust gates (`fmt/clippy/test`) can execute to completion.
+2. Re-run full Rust quality matrix and close WF-001 in `contradictions.md`.
+3. Extend axe + workflow terminability checks beyond `/login` to high-traffic routes (`/dashboard`, `/patienten`, `/termine`, `/einstellungen`).
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (Application quality run)
+
+## Application quality run — logger/workflow/tests/a11y (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo fmt --all -- --check` | **FAIL** — formatting drift across existing Rust files (see rustfmt diff output). |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `libsqlite3-sys` cannot compile SQLCipher: `openssl/crypto.h` missing. |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test --workspace --tests` | **FAIL** — same OpenSSL header blocker as clippy. |
+| Tailwind spacing lint | `npm run lint:tailwind-spacing` | **PASS** after replacing `min-h-[72px]` with tokenized class `min-h-18`. |
+| Frontend tests | `npm run test` | **PASS** — 58 files passed, 261 tests passed, 3 skipped. |
+| Frontend build | `npm run build` | **PASS** — Vite build succeeded (chunk-size warnings only). |
+| Geometry/spacing audit | `MEDOC_UI_GEOMETRY_E2E=1 npm run test:playwright -w medoc -- e2e-playwright/ui-geometry-spacing.spec.ts` | **PASS** — 3/3 breakpoints (375/768/1259). |
+| axe-core critical check | `MEDOC_UI_GEOMETRY_E2E=1 npm run test:playwright -w medoc -- e2e-playwright/ui-axe-compliance.spec.ts` | **PASS** — 0 critical WCAG 2.1 AA violations on `/login`. |
+| Targeted dialog/toast regressions | `npm run test -w medoc -- src/views/components/ui/toast-store.test.ts src/views/components/dialog.workflow.smoke.test.tsx` | **PASS** — 7 tests green. |
+
+**Notes**
+
+- Rust validation remains blocked by system packages on this runner (`libssl-dev` / `pkg-config` for SQLCipher build).
+- `npm run test` still logs a pre-existing warning in `http-practice.adapter.test.ts` about an un-awaited `rejects` assertion (non-fatal in current Vitest, should be cleaned up before future Vitest major updates).
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
