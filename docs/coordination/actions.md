@@ -1,6 +1,21 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (Logger-first + workflow/a11y audit)
+
+## Done (2026-06-25 — logger-first instrumentation + quality gates)
+
+- Added dedicated `medoc::workflow` log channel with `workflow.log` rolling appender (`medoc-core` logging pipeline).
+- Added backend `log_workflow_event` Tauri command with JSON payload sanitization (`sanitize_json_value`) and workflow-target emission.
+- Added frontend workflow bridge (`tauri.service.ts`) for route-enter + IPC start/success/error events.
+- Added/updated tests and QA tooling: `tauri.service.test.ts`, UI event contracts smoke, Playwright geometry + axe specs, Tailwind arbitrary-value linter.
+- Fixed current smoke regression by exporting `logRouteEnter` from `tauri.service` mocks in smoke suites.
+- Fixed build-breaking `praxis-aufgabe-detail-drawer.tsx` label invocation mismatch.
+
+## Now (2026-06-25)
+
+1. Resolve pre-existing red gates tracked in validation: Rust clippy (`assertions_on_constants`, `nonminimal_bool`), Rust workspace test (`auth_session_audit_tests`), frontend lint baseline.
+2. Expand workflow state-machine audit beyond validated critical/login flows to all routes/actions (currently partial coverage).
+3. Execute manual Tauri G21b/live workflow rows still marked **NOT OBSERVED**.
 
 ## Now
 

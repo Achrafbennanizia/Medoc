@@ -5,6 +5,7 @@
 
 use regex::Regex;
 use serde::Serialize;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -37,6 +38,69 @@ pub fn sanitize(input: &str) -> String {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
     }
+}
+
+fn redact_json_key(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    [
+        "patient",
+        "passwort",
+        "password",
+        "token",
+        "secret",
+        "api_key",
+        "apikey",
+        "license",
+        "lizenz",
+        "email",
+        "name",
+        "telefon",
+        "phone",
+        "address",
+        "adresse",
+        "iban",
+        "birth",
+        "geburt",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+fn sanitize_json_inner(value: &Value, parent_key: Option<&str>) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (k, v) in map {
+                if redact_json_key(k) {
+                    out.insert(k.clone(), Value::String("[REDACTED]".into()));
+                } else {
+                    out.insert(k.clone(), sanitize_json_inner(v, Some(k)));
+                }
+            }
+            Value::Object(out)
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| sanitize_json_inner(item, parent_key))
+                .collect(),
+        ),
+        Value::String(s) => {
+            if parent_key.is_some_and(redact_json_key) {
+                Value::String("[REDACTED]".into())
+            } else {
+                Value::String(sanitize(s))
+            }
+        }
+        _ => value.clone(),
+    }
+}
+
+/// Recursively sanitize JSON payloads before they are written to any log sink.
+/// - Redacts known sensitive keys (`patient*`, `password`, `token`, …)
+/// - Scrubs token/JWT-like values from all string leaves
+pub fn sanitize_json_value(value: &Value) -> Value {
+    sanitize_json_inner(value, None)
 }
 
 #[derive(Debug, Serialize)]
@@ -142,5 +206,23 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn sanitize_json_value_redacts_sensitive_keys() {
+        let payload = serde_json::json!({
+            "patientId": "pat-123",
+            "actorEmail": "doc@example.com",
+            "route": "/patienten/123",
+            "nested": {
+                "token": "eyJabc.def.ghi",
+                "note": "password=hunter2"
+            }
+        });
+        let redacted = sanitize_json_value(&payload);
+        assert_eq!(redacted["patientId"], "[REDACTED]");
+        assert_eq!(redacted["actorEmail"], "[REDACTED]");
+        assert_eq!(redacted["nested"]["token"], "[REDACTED]");
+        assert_eq!(redacted["nested"]["note"], "password=***");
     }
 }
