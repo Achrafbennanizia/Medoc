@@ -27,6 +27,19 @@
 | Workspace clippy | `cargo clippy -p medoc-core -p medoc-practice -p medoc --all-targets -- -D warnings` | **FAIL (pre-existing)** — `clippy::assertions_on_constants` in `mvp_security_gates_tests.rs` and `clippy::nonminimal_bool` in `lizenz_service.rs` |
 | Workspace fmt gate | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — existing formatting drift in `crates/shared/medoc-sync/tests/*` |
 
+### Post-commit revalidation (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Targeted Step-1 Rust checks | `cargo test -p medoc-core sanitizes_nested_json_payloads && cargo test -p medoc-practice workflow_event_sanitizes_sensitive_fields && cargo test -p medoc-practice --test invoke_command_registry_tests && cargo test -p medoc --test invoke_registration_tests` | **PASS** |
+| Frontend tests (first run) | `npm run test` | **FAIL (transient)** — timeout in `packages/shared/src/lib/i18n-locales.test.ts` (`fr and ar expose every de key`) |
+| Locale parity retry | `npx vitest run ../../packages/shared/src/lib/i18n-locales.test.ts` (from `apps/practice-host-ui`) | **PASS** (5/5) |
+| Frontend tests (retry) | `npm run test` | **PASS** (250 passed / 3 skipped) |
+| Workspace fmt gate | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — formatting drift in files outside this change set (admin/work_time, verbund, medoc-sync tests) |
+| Workspace clippy | `cargo clippy -p medoc-core -p medoc-practice -p medoc --all-targets -- -D warnings` | **FAIL (pre-existing)** — same QA-2026-06-25-003 findings |
+| Full Rust tests | `cargo test --workspace --tests` | **FAIL (pre-existing)** — same QA-2026-06-25-001 finding |
+| Frontend build | `npm run build` | **FAIL (pre-existing)** — same QA-2026-06-25-002 finding |
+
 ### Findings register entries (seeded into coordination ledgers)
 
 | id | location | finding | evidence | severity | action |
