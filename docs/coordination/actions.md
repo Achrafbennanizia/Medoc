@@ -23,6 +23,15 @@ Active cost-priority delivery plan and test allow-list:
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
 
+## Done (2026-06-25 — CI/CD tiered pipeline migration)
+
+- Added `.github/workflows/verify.yml` (blocking verify, no mutation).
+- Added `.github/workflows/autofix.yml` (PR-only deterministic autofixes + loop guard).
+- Added `.github/workflows/fix-proposal.yml` (manual/failed-main draft PR proposals with evidence + sensitive-path label).
+- Reworked `.github/workflows/release.yml` to verify-gated, approval-gated, signed, no-source-mutation release build.
+- Removed legacy `.github/workflows/ci.yml`.
+- Added `docs/coordination/ci-cd-plan.md`; validation evidence recorded in `validation.md`.
+
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
 - Schema + RBAC + extended work_time/krank/adjustment IPC (294 handlers).

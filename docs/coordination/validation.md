@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration — verified (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow syntax parse | `python3 - <<'PY' ... yaml.safe_load('.github/workflows/*.yml')` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parsed successfully |
+| actionlint binary | `actionlint` | **NOT RUN** — binary not installed (`command not found`) |
+| actionlint via npx | `npx --yes actionlint` | **FAIL** — npm could not determine executable to run |
+| Branch push | `git push -u origin cursor/medoc-ci-cd-pipeline-2a59` | **PASS** — branch created and tracking configured |
+
+**Delivered workflow changes:** Tier-1 `verify.yml`; Tier-2 `autofix.yml`; Tier-3 `fix-proposal.yml`; Tier-4 `release.yml`; removed legacy `.github/workflows/ci.yml`; added coordination spec `docs/coordination/ci-cd-plan.md`.
+
+**NOT OBSERVED:** live execution of new workflows on GitHub Actions runners (no post-merge run in this session).
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program)
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

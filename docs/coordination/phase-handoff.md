@@ -1,7 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD Tiered Pipeline Migration (2026-06-25)  
+**Last closed:** Verify/autofix/fix-proposal/release workflow split with workspace-path migration and coordination plan.
+
+### Verified (2026-06-25 — CI/CD migration)
+
+- Added **Tier 1** `.github/workflows/verify.yml` with push/PR + reusable `workflow_call`, Rust/web/a11y verify gates, package-manager lockfile detection, timeouts, and concurrency cancellation.
+- Added **Tier 2** `.github/workflows/autofix.yml` for PR-head deterministic fixes only (`cargo fmt`, lint/format autofix), bot-loop guard, and commit-back to PR head branch.
+- Added **Tier 3** `.github/workflows/fix-proposal.yml` for manual dispatch or failed `verify` on `main`, with new-branch draft PR proposal flow, before/fix/after evidence capture, and `needs-human-review` labeling for security/audit/crypto/RBAC touches.
+- Replaced **Tier 4** `.github/workflows/release.yml` to gate on reusable `verify`, require protected `release` environment approval, run verify-only build steps, produce signed bundles, and emit provenance attestations.
+- Removed stale `.github/workflows/ci.yml` and added coordination spec `docs/coordination/ci-cd-plan.md`.
+- Validation evidence recorded in `docs/coordination/validation.md` (YAML parse pass; `actionlint` unavailable on this runner).
+
+### Remains unverified
+
+- First live GitHub Actions run of new `verify.yml` / `autofix.yml` / `fix-proposal.yml` / `release.yml`.
+- Runtime behavior of Tier-3 auto mode when `CI_FIX_PROPOSAL_COMMAND` is configured.
+- Tag-triggered release build under protected `release` environment with real signing secrets.
+
+### Next
+
+1. Run or observe first PR + main runs and confirm branch protections point to `verify`.
+2. Set/validate release secrets (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and execute tag dry run.
+3. Configure `CI_FIX_PROPOSAL_COMMAND` (if desired) before relying on automatic Tier-3 trigger from failed main verifies.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)
 
 ### Verified (2026-06-18 — Work-Time program)
 
