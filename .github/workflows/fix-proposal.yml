@@ -1,0 +1,250 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failing_command:
+        description: "Command that currently fails (before fix)."
+        required: false
+        default: "cargo test --workspace"
+      fix_command:
+        description: "Command that attempts a real fix on a new branch."
+        required: false
+        default: ""
+      verify_after_command:
+        description: "Command to prove passing-after state."
+        required: false
+        default: "cargo test --workspace"
+      rationale:
+        description: "Why this proposal should fix the failure."
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: meta
+        name: Prepare fix-proposal branch metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            base_sha="${{ github.event.workflow_run.head_sha }}"
+            base_branch="${{ github.event.workflow_run.head_branch }}"
+            source_run_url="${{ github.event.workflow_run.html_url }}"
+            failing_command="cargo test --workspace"
+            fix_command=""
+            verify_after_command="cargo test --workspace"
+            rationale="Auto-triggered from failed verify run on main."
+          else
+            base_sha="${GITHUB_SHA}"
+            base_branch="main"
+            source_run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            failing_command="${{ inputs.failing_command }}"
+            fix_command="${{ inputs.fix_command }}"
+            verify_after_command="${{ inputs.verify_after_command }}"
+            rationale="${{ inputs.rationale }}"
+          fi
+
+          short_sha="$(printf '%s' "$base_sha" | cut -c1-7)"
+          proposal_branch="ci/fix-proposal-${short_sha}-${GITHUB_RUN_ID}"
+          report_file="docs/coordination/fix-proposals/${proposal_branch//\//-}.md"
+
+          git checkout "$base_sha"
+          git checkout -b "$proposal_branch"
+          mkdir -p "$(dirname "$report_file")"
+
+          {
+            echo "base_sha=$base_sha"
+            echo "base_branch=$base_branch"
+            echo "proposal_branch=$proposal_branch"
+            echo "source_run_url=$source_run_url"
+            echo "report_file=$report_file"
+            echo "failing_command<<EOF"
+            echo "$failing_command"
+            echo "EOF"
+            echo "fix_command<<EOF"
+            echo "$fix_command"
+            echo "EOF"
+            echo "verify_after_command<<EOF"
+            echo "$verify_after_command"
+            echo "EOF"
+            echo "rationale<<EOF"
+            echo "$rationale"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      - id: attempt
+        name: Run failing-before, fix attempt, and passing-after evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before_status=0
+          fix_status=0
+          after_status=0
+
+          if [[ -n "${{ steps.meta.outputs.failing_command }}" ]]; then
+            set +e
+            bash -lc "${{ steps.meta.outputs.failing_command }}" > /tmp/fix-proposal-before.log 2>&1
+            before_status=$?
+            set -e
+          else
+            printf 'No failing-before command provided.\n' > /tmp/fix-proposal-before.log
+          fi
+
+          if [[ -n "${{ steps.meta.outputs.fix_command }}" ]]; then
+            set +e
+            bash -lc "${{ steps.meta.outputs.fix_command }}" > /tmp/fix-proposal-fix.log 2>&1
+            fix_status=$?
+            set -e
+          else
+            printf 'No fix command provided by trigger. Proposal is evidence-only.\n' > /tmp/fix-proposal-fix.log
+          fi
+
+          if [[ -n "${{ steps.meta.outputs.verify_after_command }}" ]]; then
+            set +e
+            bash -lc "${{ steps.meta.outputs.verify_after_command }}" > /tmp/fix-proposal-after.log 2>&1
+            after_status=$?
+            set -e
+          else
+            printf 'No passing-after command provided.\n' > /tmp/fix-proposal-after.log
+          fi
+
+          {
+            echo "before_status=$before_status"
+            echo "fix_status=$fix_status"
+            echo "after_status=$after_status"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Write proposal evidence report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > "${{ steps.meta.outputs.report_file }}" <<EOF
+          # CI Fix Proposal
+
+          - **Source run:** ${{ steps.meta.outputs.source_run_url }}
+          - **Base branch:** \`${{ steps.meta.outputs.base_branch }}\`
+          - **Base SHA:** \`${{ steps.meta.outputs.base_sha }}\`
+          - **Proposal branch:** \`${{ steps.meta.outputs.proposal_branch }}\`
+          - **Failing-before exit code:** \`${{ steps.attempt.outputs.before_status }}\`
+          - **Fix-command exit code:** \`${{ steps.attempt.outputs.fix_status }}\`
+          - **Passing-after exit code:** \`${{ steps.attempt.outputs.after_status }}\`
+
+          ## Rationale
+
+          ${{ steps.meta.outputs.rationale }}
+
+          ## Failing-before command
+
+          \`\`\`bash
+          ${{ steps.meta.outputs.failing_command }}
+          \`\`\`
+
+          ## Fix command
+
+          \`\`\`bash
+          ${{ steps.meta.outputs.fix_command }}
+          \`\`\`
+
+          ## Passing-after command
+
+          \`\`\`bash
+          ${{ steps.meta.outputs.verify_after_command }}
+          \`\`\`
+
+          ## Failing-before output (first 120 lines)
+
+          \`\`\`text
+          $(sed -n '1,120p' /tmp/fix-proposal-before.log)
+          \`\`\`
+
+          ## Fix attempt output (first 120 lines)
+
+          \`\`\`text
+          $(sed -n '1,120p' /tmp/fix-proposal-fix.log)
+          \`\`\`
+
+          ## Passing-after output (first 120 lines)
+
+          \`\`\`text
+          $(sed -n '1,120p' /tmp/fix-proposal-after.log)
+          \`\`\`
+          EOF
+
+      - id: sensitivity
+        name: Guardrail for security/audit/crypto/RBAC paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          changed_files="$( (git diff --name-only; git ls-files --others --exclude-standard) | sort -u )"
+          needs_human_review=false
+          labels="ci-fix-proposal"
+
+          if [[ -n "$changed_files" ]] && printf '%s\n' "$changed_files" | rg -i '(security|audit|crypto|rbac)' >/dev/null; then
+            needs_human_review=true
+            labels="ci-fix-proposal,needs-human-review"
+          fi
+
+          {
+            echo "needs_human_review=$needs_human_review"
+            echo "labels=$labels"
+          } >>"$GITHUB_OUTPUT"
+
+      - id: create_pr
+        name: Create draft pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.meta.outputs.proposal_branch }}
+          base: ${{ steps.meta.outputs.base_branch }}
+          title: "ci: draft fix proposal for failed verify (${{ steps.meta.outputs.base_sha }})"
+          commit-message: "ci: draft fix proposal evidence and attempted remediation"
+          draft: true
+          labels: ${{ steps.sensitivity.outputs.labels }}
+          body: |
+            ## Summary
+            Automated fix proposal generated from a failing verification signal.
+
+            - Source run: ${{ steps.meta.outputs.source_run_url }}
+            - Failing-before exit code: `${{ steps.attempt.outputs.before_status }}`
+            - Fix-command exit code: `${{ steps.attempt.outputs.fix_status }}`
+            - Passing-after exit code: `${{ steps.attempt.outputs.after_status }}`
+
+            ## Guardrails
+            - New branch only (`${{ steps.meta.outputs.proposal_branch }}`)
+            - Draft PR only (never auto-merge)
+            - `needs-human-review` is added automatically for security, audit, crypto, or RBAC touches
+
+            ## Evidence
+            See `${{ steps.meta.outputs.report_file }}` for before/after command outputs and rationale.
+
+      - if: steps.sensitivity.outputs.needs_human_review == 'true'
+        name: Stop after needs-human-review labeling
+        run: echo "Sensitive path changes detected. Draft PR labeled needs-human-review and automation stops here."

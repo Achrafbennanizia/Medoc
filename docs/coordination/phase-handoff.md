@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD pipeline tiers migration (2026-06-25)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows, stale CI removal, and coordination ledger updates.
+
+### Verified (2026-06-25 — CI/CD pipeline tiers migration)
+
+- **Workflows:** Added `.github/workflows/{verify,autofix,fix-proposal,release}.yml`; removed `.github/workflows/ci.yml`.
+- **Plan doc:** Added [`docs/coordination/ci-cd-plan.md`](ci-cd-plan.md) with tier triggers, mutation boundaries, guardrails, and release controls.
+- **Validation evidence:** YAML parsing for new workflows **PASS**; `npm ci` **PASS**; verify-tier typecheck command currently **FAILS** due pre-existing TS errors in `praxis-aufgabe-detail-drawer.tsx` (see [`validation.md`](validation.md)).
+
+### Remains unverified
+
+- First live GitHub Actions execution of all four new tiers on remote runners.
+- Release environment approvals/secrets (`TAURI_SIGNING_PRIVATE_KEY`) and cross-platform signed bundle path confirmation.
+- Resolution of pre-existing TypeScript errors that currently fail the verify tier typecheck command.
+
+### Understanding delta
+
+- CI is now explicitly split into verify vs autofix vs fix-proposal vs release, instead of a single monolithic workflow.
+- Accessibility gate now runs axe-core against the built UI preview and fails only on **critical** WCAG 2.1 A/AA violations.
+- Tier 3 is draft-PR-only automation and applies `needs-human-review` labeling when changes touch security/audit/crypto/RBAC paths.
+
+### Next
+
+1. Resolve the three pre-existing TypeScript errors in `apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx` so tier-1 typecheck is green.
+2. Run a PR smoke cycle to verify: Tier 2 loop guard behavior, Tier 1 re-run on autofix commits, and non-mutation on verify.
+3. Configure and test protected `release` environment approvals and signing secrets.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 

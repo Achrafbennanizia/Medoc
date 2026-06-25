@@ -6,7 +6,10 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
+        "typecheck": "tsc --noEmit",
         "lint": "eslint src --max-warnings 0 --no-cache",
+        "lint:fix": "eslint src --fix --no-cache",
+        "format": "npm run lint:fix",
         "check": "npm run lint && npm run build && npm test",
         "test": "vitest run",
         "test:mvp-coverage": "vitest run --project mvp-unit --coverage",

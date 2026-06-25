@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (CI/CD pipeline tiers migration)
 
 ## Now
 
@@ -22,6 +22,18 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-06-25 — CI/CD pipeline tiers)
+
+- Replaced monolithic CI workflow with tiered workflows:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Removed stale `.github/workflows/ci.yml`.
+- Added pipeline design doc: [`ci-cd-plan.md`](ci-cd-plan.md).
+- Updated `apps/practice-host-ui/package.json` scripts for tier commands (`typecheck`, `lint:fix`, `format`).
+- Recorded command evidence in [`validation.md`](validation.md) (including pre-existing TS typecheck failures).
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

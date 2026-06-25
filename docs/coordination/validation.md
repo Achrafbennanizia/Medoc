@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (CI/CD pipeline tiers migration)
+
+## CI/CD pipeline tiers migration — verified (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` for `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` | **PASS** |
+| Node install (workspace) | `npm ci` | **PASS** (448 packages installed) |
+| Typecheck command surface for verify tier | `npm run typecheck -w medoc && npm run typecheck -w medoc-lan-web-client` | **FAIL** (pre-existing TS errors in `apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx`: missing `aufgabeWorkflowStepLabel` export + 2 signature mismatches) |
+
+**Work delivered:** tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), stale `ci.yml` removed, plan documented in [`ci-cd-plan.md`](ci-cd-plan.md), and script surface added for `typecheck` / `lint:fix` / `format` in `apps/practice-host-ui/package.json`.
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
