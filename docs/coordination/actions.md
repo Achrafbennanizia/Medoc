@@ -1,9 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-25 (Workflow logging instrumentation pass)
 
 ## Now
 
+- **Workflow pass follow-up:** resolve Rust toolchain/dependency blocker (`edition2024` manifests on Cargo 1.83) so `cargo test` / `cargo clippy -D warnings` can run again.
+- **Frontend baseline blocker:** fix pre-existing TS compile errors in `praxis-aufgabe-detail-drawer.tsx` so `npm run build` is green for subsequent quality sweeps.
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
@@ -28,6 +30,14 @@ Active cost-priority delivery plan and test allow-list:
 - Schema + RBAC + extended work_time/krank/adjustment IPC (294 handlers).
 - Employee `/personal/arbeitszeit`, admin `/verwaltung/team/arbeitszeit`, Krankenbescheinigung Verwaltung, Statistik `sec-arbeitszeit`.
 - Per-user auto-record prefs; REZEPTION post-login → Arbeitszeit; focus-mode nav filter.
+
+## Done (2026-06-25 — workflow logging instrumentation)
+
+- Added dedicated `workflow.log` channel in shared tracing subsystem (`medoc::workflow` target).
+- Added sanitized frontend→backend bridge command `log_workflow_event` and route/id redaction safeguards.
+- Wrapped centralized invoke handler to emit command dispatch breadcrumbs for every Tauri IPC command.
+- Wired frontend workflow telemetry for `route_enter`, `primary_action`, `success`, `cancel`, `error` via `tauri.service.ts` and router hook.
+- Added focused tests: `src/services/{tauri.service,workflow-logger}.test.ts` (7 tests passing).
 
 ## Done (2026-06-16 — Admin installer + offline keygen)
 

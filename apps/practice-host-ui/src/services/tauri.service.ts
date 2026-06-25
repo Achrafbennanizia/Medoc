@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { classifyWorkflowError, recordWorkflowEvent, workflowErrorDetail } from "./workflow-logger";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -52,10 +53,30 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const payload = args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+
+    if (cmd === "log_workflow_event") {
+        return invoke<T>(cmd, payload);
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    await recordWorkflowEvent({
+        step: "primary_action",
+        action: cmd,
+    });
+
+    try {
+        const result = await invoke<T>(cmd, payload);
+        await recordWorkflowEvent({
+            step: "success",
+            action: cmd,
+        });
+        return result;
+    } catch (err) {
+        await recordWorkflowEvent({
+            step: classifyWorkflowError(err),
+            action: cmd,
+            detail: workflowErrorDetail(err),
+        });
+        throw err;
+    }
 }
