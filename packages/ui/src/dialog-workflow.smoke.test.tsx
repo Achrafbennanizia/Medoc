@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { subscribeWorkflowSteps, type WorkflowStepEvent } from "@/lib/workflow-log-events";
@@ -30,7 +31,7 @@ describe("Dialog workflow logging", () => {
                 <button type="button">Primary</button>
             </Dialog>,
         );
-        const closeButton = screen.getByLabelText(/close/i);
+        const closeButton = screen.getByLabelText(/close|schlie(?:ß|ss)en/i);
         expect(closeButton).toBeInTheDocument();
         fireEvent.keyDown(document, { key: "Escape" });
         expect(onClose).toHaveBeenCalledTimes(1);
