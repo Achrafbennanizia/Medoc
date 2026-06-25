@@ -1,0 +1,216 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Commit SHA or ref to base the proposal from (defaults to current ref)."
+        required: false
+        type: string
+      failing_command:
+        description: "Command expected to fail before the fix."
+        required: true
+        default: "cargo test --workspace --tests"
+        type: string
+      fix_command:
+        description: "Agent or script command that attempts a non-deterministic fix."
+        required: true
+        type: string
+      passing_command:
+        description: "Command expected to pass after the fix."
+        required: true
+        default: "cargo test --workspace --tests"
+        type: string
+      rationale:
+        description: "Short rationale included in the draft PR body."
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+      AUTO_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+    steps:
+      - id: resolve
+        name: Resolve target, commands, and base branch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            target_ref="${{ inputs.target_ref }}"
+            if [ -z "$target_ref" ]; then
+              target_ref="${{ github.sha }}"
+            fi
+            before_cmd="${{ inputs.failing_command }}"
+            fix_cmd="${{ inputs.fix_command }}"
+            after_cmd="${{ inputs.passing_command }}"
+            rationale="${{ inputs.rationale }}"
+            base_ref="${{ github.ref_name }}"
+            if [ -z "$rationale" ]; then
+              rationale="Manual tier-3 fix proposal run."
+            fi
+          else
+            target_ref="${{ github.event.workflow_run.head_sha }}"
+            before_cmd="cargo test --workspace --tests"
+            fix_cmd="${AUTO_FIX_COMMAND}"
+            after_cmd="cargo test --workspace --tests"
+            rationale="Automatic tier-3 fix proposal after failed verify on main. Source run: ${{ github.event.workflow_run.html_url }}"
+            base_ref="main"
+          fi
+
+          if [ -z "$fix_cmd" ]; then
+            echo "::error::No fix command provided. For workflow_run, set repository variable CI_FIX_PROPOSAL_COMMAND."
+            exit 1
+          fi
+
+          {
+            echo "target_ref=$target_ref"
+            echo "base_ref=$base_ref"
+            echo "before_cmd<<EOF"
+            echo "$before_cmd"
+            echo "EOF"
+            echo "fix_cmd<<EOF"
+            echo "$fix_cmd"
+            echo "EOF"
+            echo "after_cmd<<EOF"
+            echo "$after_cmd"
+            echo "EOF"
+            echo "rationale<<EOF"
+            echo "$rationale"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.target_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install JavaScript dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+          bash -lc "${{ steps.resolve.outputs.before_cmd }}" > before.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - id: fix
+        name: Attempt non-deterministic fix command
+        run: |
+          set +e
+          bash -lc "${{ steps.resolve.outputs.fix_cmd }}" > fix.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - id: after
+        name: Capture passing-after evidence
+        run: |
+          set +e
+          bash -lc "${{ steps.resolve.outputs.after_cmd }}" > after.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - id: inspect
+        name: Inspect diff and compliance-sensitive paths
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only > changed-files.txt
+          labels="ci-fix-proposal"
+          if rg -n "(^|/)(security|audit|crypto|rbac)(/|_|\\.|$)|mvp_security" changed-files.txt >/dev/null; then
+            labels="${labels},needs-human-review"
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+      - name: Build draft PR body
+        if: steps.inspect.outputs.has_changes == 'true'
+        run: |
+          {
+            echo "## Tier 3 fix proposal"
+            echo
+            echo "${{ steps.resolve.outputs.rationale }}"
+            echo
+            echo "### Scope and guardrails"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Base branch: \`${{ steps.resolve.outputs.base_ref }}\`"
+            echo "- Source commit: \`${{ steps.resolve.outputs.target_ref }}\`"
+            echo "- Auto-merge: **disabled** (draft PR only)"
+            echo
+            echo "### Evidence"
+            echo "**Failing-before command:** \`${{ steps.resolve.outputs.before_cmd }}\`"
+            echo "**Exit code:** \`${{ steps.before.outputs.status }}\`"
+            echo
+            echo '```text'
+            tail -n 120 before.log || true
+            echo '```'
+            echo
+            echo "**Fix command:** \`${{ steps.resolve.outputs.fix_cmd }}\`"
+            echo "**Exit code:** \`${{ steps.fix.outputs.status }}\`"
+            echo
+            echo '```text'
+            tail -n 120 fix.log || true
+            echo '```'
+            echo
+            echo "**Passing-after command:** \`${{ steps.resolve.outputs.after_cmd }}\`"
+            echo "**Exit code:** \`${{ steps.after.outputs.status }}\`"
+            echo
+            echo '```text'
+            tail -n 120 after.log || true
+            echo '```'
+          } > pr-body.md
+      - name: Open draft fix proposal PR
+        if: steps.inspect.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: ${{ steps.resolve.outputs.base_ref }}
+          branch: ci/fix-proposal/${{ github.run_id }}
+          title: "ci: tier-3 fix proposal for ${{ steps.resolve.outputs.target_ref }}"
+          body-path: pr-body.md
+          labels: ${{ steps.inspect.outputs.labels }}
+          draft: true
+          commit-message: "ci: tier-3 fix proposal"
+      - name: Fail when no patch was produced
+        if: steps.inspect.outputs.has_changes != 'true'
+        run: |
+          echo "::error::Fix proposal command produced no repository changes; no draft PR was created."
+          exit 1
