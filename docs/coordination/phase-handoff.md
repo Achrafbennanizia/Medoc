@@ -1,5 +1,38 @@
 # Phase handoff
 
+**Last phase label:** Quality run — workflow logging follow-up (2026-06-25)  
+**Last closed:** Dialog workflow smoke stability + praxis-aufgabe drawer build break.
+
+### Verified (2026-06-25 — quality follow-up)
+
+- **Test reliability fix:** `dialog-workflow.smoke.test.tsx` now runs deterministically in jsdom with locale-safe close-button assertion and explicit cleanup.
+- **Build fix:** `praxis-aufgabe-detail-drawer.tsx` aligned to `aufgabe-workflow-ui.ts` current API (removed stale `aufgabeWorkflowStepLabel` usage/signature mismatch).
+- **Frontend validation:** `npm test` **PASS** (250 passed / 3 skipped); `npm run build` **PASS**.
+- **Rust gate evidence captured:** `cargo fmt --check` **FAIL** (formatting drift), `cargo +stable clippy/test` **FAIL** due missing `openssl/crypto.h` in SQLCipher build.
+
+### Remains unverified
+
+- Full STEP 2 workflow-map/state-machine audit coverage for every UI route/action.
+- Full STEP 3 event-behavior tests for every `ui/` component and every page.
+- STEP 4 Playwright geometry/spacing + visual regression at 375/768/1259.
+- STEP 5 axe-core + keyboard/focus/toast/error-object rule compliance sweep.
+- Rust validation gates once OpenSSL header dependency is available on runner.
+
+### Understanding delta
+
+- Dialog workflow smoke failure was two-layered: project routing (node vs smoke) and locale-sensitive assertion; both are now fixed.
+- `npm run build` regression was not logging-related; it was a stale consumer of `aufgabe-workflow-ui` API.
+- Rust failures in this environment are currently infrastructure/tooling blockers (OpenSSL headers), not code regressions from these commits.
+
+### Next (ordered)
+
+1. Provision OpenSSL development headers (or equivalent include path) and rerun Rust gates (`clippy`, `test`).
+2. Run formatting-only Rust pass (`cargo fmt --all`) and commit separately.
+3. Continue STEP 2–5 audit execution (workflow map, component events, geometry/a11y), logging findings in `contradictions.md` + `validation.md`.
+4. Re-run full validation matrix and close remaining open findings.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 

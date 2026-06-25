@@ -1,6 +1,28 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-25 (Quality run — workflow logging + UI build fix)
+
+## Quality run — workflow logging follow-up (2026-06-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Dialog workflow smoke (targeted) | `npm test -- dialog-workflow.smoke.test.tsx` | **PASS** (2 tests) |
+| Frontend tests | `npm test` | **PASS** (250 passed, 3 skipped) |
+| Frontend build | `npm run build` | **PASS** after fix commit `40d90af` |
+| Rust fmt | `cargo fmt --all -- --check` | **FAIL** — formatting drift across multiple Rust files |
+| Rust clippy | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL** — `libsqlite3-sys` missing `openssl/crypto.h` |
+| Rust tests | `cargo +stable test --workspace --tests` | **FAIL** — same `openssl/crypto.h` blocker |
+
+### Notes
+
+- Branch commits in this run:
+  - `321df98` — test(logging): stabilize dialog workflow smoke execution
+  - `7c9b9a5` — test(logging): isolate dialog workflow smoke cases
+  - `40d90af` — fix(ui): align aufgabe drawer with workflow label api
+- Toolchain evidence:
+  - Default toolchain: `cargo 1.83.0` / `rustc 1.83.0`
+  - Stable toolchain used for Rust validation: `cargo 1.96.0` / `rustc 1.96.0`
+- Remaining warning (non-blocking, tracked): `packages/shared/src/lib/http-practice.adapter.test.ts` has an un-awaited `expect(...).rejects`.
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

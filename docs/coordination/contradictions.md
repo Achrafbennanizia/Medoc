@@ -1,6 +1,16 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-25
+
+## Quality findings register (2026-06-25)
+
+| ID | Location | Finding | Evidence | Severity | Action | Status |
+| -- | -------- | ------- | -------- | -------- | ------ | ------ |
+| QL-2026-06-25-001 | `packages/ui/src/dialog-workflow.smoke.test.tsx`, `apps/practice-host-ui/vite.config.ts` | Dialog smoke test executed under node project and used locale-fragile label assertion. | `npm test -- dialog-workflow.smoke.test.tsx` showed `document is not defined` under `\|node\|` and `/close/i` mismatch against `aria-label=\"Dialog schließen\"`. | P1 | Added explicit jsdom annotation for test file, tightened node-project smoke excludes, and updated assertion to locale-safe matcher + cleanup isolation. | **Fixed** (`321df98`, `7c9b9a5`) |
+| QL-2026-06-25-002 | `apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx` | Frontend build failed due API drift against `aufgabe-workflow-ui.ts` exports/signatures. | `npm run build` failed with `TS2724` (`aufgabeWorkflowStepLabel` missing) and `TS2554` (too many args). | P1 | Aligned drawer imports/calls with current API (`aufgabeStatusLabel(status)`, `aufgabeTypLabel(typ)`, direct `step.label`). | **Fixed** (`40d90af`) |
+| QL-2026-06-25-003 | Rust workspace toolchain environment (`libsqlite3-sys`) | Rust validation blocked because SQLCipher build cannot find OpenSSL headers. | `cargo +stable clippy` and `cargo +stable test` fail at `sqlcipher/sqlite3.c:110594:10: fatal error: 'openssl/crypto.h' file not found`. | P1 | Provision OpenSSL development headers (`libssl-dev`) or equivalent include path in CI/runner image; rerun Rust validation gates. | **Open** |
+| QL-2026-06-25-004 | Rust workspace formatting state | `cargo fmt --check` fails due widespread formatting drift in Rust files. | `cargo fmt --all -- --check` reports diffs across multiple crates/files. | P2 | Run `cargo fmt --all`, review non-functional formatting-only diff, commit separately. | **Open** |
+| QL-2026-06-25-005 | `packages/shared/src/lib/http-practice.adapter.test.ts` | Vitest warning: un-awaited rejection assertion may fail on future Vitest versions. | `npm test` logs: `Promise returned by expect(...).rejects.toThrow(...) was not awaited`. | P3 | Update test to `await expect(...).rejects.toThrow(...)` to future-proof suite. | **Open** |
 
 ## Open contradictions
 
