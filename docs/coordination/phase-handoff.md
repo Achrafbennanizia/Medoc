@@ -1,7 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD Tiered Pipeline Migration (2026-06-25)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows with guardrails; stale CI path assumptions removed.
+
+### Verified (2026-06-25 — CI/CD migration)
+
+- **Tier 1:** `.github/workflows/verify.yml` (push+PR+workflow_call) runs Rust fmt/clippy/tests/audit, JS lint/typecheck/test/build, and axe-core critical WCAG gate against built UI.
+- **Tier 2:** `.github/workflows/autofix.yml` is `pull_request`-only, deterministic (`cargo fmt`, `lint:fix`, `format`), and loop-guarded against bot self-triggering.
+- **Tier 3:** `.github/workflows/fix-proposal.yml` opens **draft** PR proposals with failing-before/passing-after evidence and labels sensitive `security|audit|crypto|rbac` touches as `needs-human-review`.
+- **Tier 4:** `.github/workflows/release.yml` gates on reusable `verify.yml`, then builds signed artifacts under protected `release` environment approval.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `project-truth.md` and `actions.md` updated for continuity.
+
+### Remains unverified
+
+- First live GitHub Actions execution of the new tier workflows (this session only updated files; no hosted run observed yet).
+- Real repository-variable wiring for unattended tier-3 auto mode (`CI_FIX_PROPOSAL_*`) is not configured in code and depends on repo settings.
+
+### Next
+
+1. Validate the first PR against `verify.yml` + `autofix.yml` behavior.
+2. Configure repository variables for unattended `fix-proposal.yml` auto mode if desired.
+3. Run a tag or manual release dry run to verify protected-environment approval and signing flow.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 
