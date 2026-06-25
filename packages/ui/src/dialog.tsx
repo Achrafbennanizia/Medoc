@@ -17,12 +17,29 @@ interface DialogProps {
     labelledBy?: string;
 }
 
+const WORKFLOW_EVENT_NAME = "medoc-workflow-step";
+
 function collectFocusable(root: HTMLElement): HTMLElement[] {
     const sel =
         'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
     return [...root.querySelectorAll<HTMLElement>(sel)].filter(
         (el) => !el.closest('[aria-hidden="true"]'),
     );
+}
+
+function emitWorkflowCancel(action: string, title?: string): void {
+    if (typeof window === "undefined") {
+        return;
+    }
+    const trimmedTitle = title?.trim();
+    const detail = {
+        workflow: "dialog",
+        step: "cancel" as const,
+        action,
+        route: `${window.location.pathname}${window.location.search}`,
+        message: trimmedTitle && trimmedTitle.length > 0 ? trimmedTitle : undefined,
+    };
+    window.dispatchEvent(new CustomEvent(WORKFLOW_EVENT_NAME, { detail }));
 }
 
 export function Dialog({ open, onClose, title, children, footer, headerExtra, className, presentation = "default", labelledBy }: DialogProps) {
@@ -47,6 +64,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
+                emitWorkflowCancel("escape_key", title);
                 onCloseRef.current();
                 return;
             }
@@ -102,7 +120,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             document.body.style.overflow = prevOverflow;
             prevActive?.focus?.({ preventScroll: true });
         };
-    }, [open]);
+    }, [open, title]);
 
     if (!open) return null;
 
@@ -123,7 +141,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div
+            className="modal-backdrop"
+            onClick={() => {
+                emitWorkflowCancel("backdrop_click", title);
+                onClose();
+            }}
+            role="presentation"
+        >
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +162,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => {
+                            emitWorkflowCancel("close_button", title);
+                            onClose();
+                        }}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +185,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    emitWorkflowCancel("close_button", title);
+                                    onClose();
+                                }}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
@@ -257,13 +288,29 @@ export function ConfirmDialog({
     loading = false,
 }: ConfirmDialogProps) {
     const confirmTitleId = useId();
-    const handleClose = () => {
+    const handleClose = (origin: "dialog" | "cancel_button" = "cancel_button") => {
         if (!loading) onClose();
+        if (!loading && origin === "cancel_button") {
+            emitWorkflowCancel("cancel_button", title);
+        }
     };
+
+    useEffect(() => {
+        if (!open || loading) return;
+        const onKeyDownCapture = (event: KeyboardEvent) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            event.stopPropagation();
+            onConfirm();
+        };
+        document.addEventListener("keydown", onKeyDownCapture, true);
+        return () => document.removeEventListener("keydown", onKeyDownCapture, true);
+    }, [open, loading, onConfirm]);
+
     return (
         <Dialog
             open={open}
-            onClose={handleClose}
+            onClose={() => handleClose("dialog")}
             title=""
             labelledBy={confirmTitleId}
             className="modal--ios-confirm"
@@ -278,7 +325,7 @@ export function ConfirmDialog({
                 <IosConfirmActions
                     cancelLabel={cancelLabel}
                     confirmLabel={confirmLabel}
-                    onCancel={handleClose}
+                    onCancel={() => handleClose("cancel_button")}
                     onConfirm={onConfirm}
                     loading={loading}
                     destructive={danger}
