@@ -25,6 +25,28 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn patient_json_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(
+            r#"(?i)("(?:patient(?:_id|Id|id|Name|_name)|vorname|nachname|geburtsdatum|geburtstag|telefon|phone|email|adresse|address)"\s*:\s*)"[^"]*""#,
+        )
+        .ok()
+    })
+    .as_ref()
+}
+
+fn patient_plain_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(patient(?:_id|Id|id|Name|_name)|vorname|nachname|geburtsdatum|geburtstag|telefon|phone|email|adresse|address)\s*[:=]\s*\S+",
+        )
+        .ok()
+    })
+    .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
@@ -32,6 +54,14 @@ pub fn sanitize(input: &str) -> String {
     let masked = match token_re() {
         Some(re) => re.replace_all(input, "$1=***").into_owned(),
         None => input.to_string(),
+    };
+    let masked = match patient_json_re() {
+        Some(re) => re.replace_all(&masked, "$1\"[REDACTED]\"").into_owned(),
+        None => masked,
+    };
+    let masked = match patient_plain_re() {
+        Some(re) => re.replace_all(&masked, "$1=[REDACTED]").into_owned(),
+        None => masked,
     };
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
