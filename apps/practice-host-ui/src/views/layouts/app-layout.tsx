@@ -51,6 +51,7 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { logWorkflowCancel } from "@/services/tauri.service";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -1156,11 +1157,22 @@ export function AppLayout() {
             {BREAK_GLASS_ENABLED ? (
             <Dialog
                 open={breakOpen}
-                onClose={() => setBreakOpen(false)}
+                onClose={() => {
+                    void logWorkflowCancel("break_glass_activate", "dialog_close");
+                    setBreakOpen(false);
+                }}
                 title={t("app.layout.break_glass.title")}
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setBreakOpen(false)}>{t("common.cancel")}</Button>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                void logWorkflowCancel("break_glass_activate", "button_cancel");
+                                setBreakOpen(false);
+                            }}
+                        >
+                            {t("common.cancel")}
+                        </Button>
                         <Button onClick={() => void submitBreakGlass()} disabled={bgBusy} loading={bgBusy}>{t("common.confirm")}</Button>
                     </>
                 }
@@ -1186,7 +1198,10 @@ export function AppLayout() {
             ) : null}
             <ConfirmDialog
                 open={logoutConfirmOpen}
-                onClose={() => setLogoutConfirmOpen(false)}
+                onClose={() => {
+                    void logWorkflowCancel("logout", "dialog_close");
+                    setLogoutConfirmOpen(false);
+                }}
                 onConfirm={async () => {
                     setLogoutConfirmOpen(false);
                     await handleLogout();
@@ -1205,7 +1220,10 @@ export function AppLayout() {
             />
             <RoleSwitchDialog
                 open={roleSwitchOpen}
-                onClose={() => setRoleSwitchOpen(false)}
+                onClose={() => {
+                    void logWorkflowCancel("role_switch_logout", "dialog_close");
+                    setRoleSwitchOpen(false);
+                }}
                 onConfirmLogout={() => void confirmRoleSwitchLogout()}
             />
         </div>

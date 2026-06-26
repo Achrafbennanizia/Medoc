@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +10,72 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
+use crate::log_workflow;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowLogEventInput {
+    pub stage: String,
+    pub action: String,
+    pub route: Option<String>,
+    pub status: Option<String>,
+    pub correlation_id: Option<String>,
+    pub message: Option<String>,
+    pub meta: Option<serde_json::Value>,
+}
+
+fn sanitize_field(input: &str, max_len: usize) -> String {
+    let clean = logging::sanitizer::sanitize(input.trim());
+    if clean.len() <= max_len {
+        return clean;
+    }
+    clean.chars().take(max_len).collect()
+}
+
+fn sanitize_optional_field(value: Option<String>, max_len: usize) -> Option<String> {
+    value
+        .map(|v| sanitize_field(&v, max_len))
+        .filter(|v| !v.is_empty())
+}
+
+/// Sanitized workflow bridge from frontend -> backend log channel.
+///
+/// This command intentionally skips RBAC/session checks so login/onboarding
+/// flows can emit route/action lifecycle traces before authentication.
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event))]
+pub fn log_workflow_event(event: WorkflowLogEventInput) -> Result<(), AppError> {
+    let stage = sanitize_field(&event.stage, 64);
+    let action = sanitize_field(&event.action, 128);
+    if stage.is_empty() || action.is_empty() {
+        return Err(AppError::Validation(
+            "workflow stage/action fehlt".to_string(),
+        ));
+    }
+
+    let route = sanitize_optional_field(event.route, 256);
+    let status = sanitize_optional_field(event.status, 64);
+    let correlation_id = sanitize_optional_field(event.correlation_id, 128);
+    let message = sanitize_optional_field(event.message, 256);
+    let meta = event
+        .meta
+        .as_ref()
+        .map(|m| sanitize_field(&m.to_string(), 1024))
+        .unwrap_or_default();
+
+    log_workflow!(
+        info,
+        event = "WORKFLOW_EVENT",
+        workflow_stage = %stage,
+        workflow_action = %action,
+        route = route.as_deref().unwrap_or(""),
+        status = status.as_deref().unwrap_or(""),
+        correlation_id = correlation_id.as_deref().unwrap_or(""),
+        message = message.as_deref().unwrap_or(""),
+        meta = %meta,
+    );
+    Ok(())
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -60,10 +127,57 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
 #[macro_export]
 macro_rules! register_logging_commands {
     () => {
+        $crate::commands::logging_commands::log_workflow_event,
         $crate::commands::logging_commands::get_log_level,
         $crate::commands::logging_commands::set_log_level,
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sanitize_field_masks_secrets_and_truncates() {
+        let masked = sanitize_field("password=hunter2 patientId=pat-123", 64);
+        assert!(masked.contains("password=***"));
+        assert!(masked.contains("patientId=[REDACTED]"));
+        assert!(!masked.contains("hunter2"));
+        assert!(!masked.contains("pat-123"));
+
+        let truncated = sanitize_field("abcdefghijklmnopqrstuvwxyz", 8);
+        assert_eq!(truncated, "abcdefgh");
+    }
+
+    #[test]
+    fn workflow_event_requires_stage_and_action() {
+        let res = log_workflow_event(WorkflowLogEventInput {
+            stage: " ".into(),
+            action: " ".into(),
+            route: None,
+            status: None,
+            correlation_id: None,
+            message: None,
+            meta: None,
+        });
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn workflow_event_accepts_and_sanitizes_payload() {
+        let res = log_workflow_event(WorkflowLogEventInput {
+            stage: "success".into(),
+            action: "create_patient".into(),
+            route: Some("/patienten/123".into()),
+            status: Some("ok".into()),
+            correlation_id: Some("abc-123".into()),
+            message: Some("patientId=pat-999".into()),
+            meta: Some(json!({"token": "secret=abc", "patientName": "Max"})),
+        });
+        assert!(res.is_ok());
+    }
 }

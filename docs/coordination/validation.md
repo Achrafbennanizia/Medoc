@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-26 (workflow logger smoke compatibility run)
+
+## Workflow logger smoke compatibility + bounded matrix (2026-06-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Smoke regression (pre-fix repro) | `npx vitest run src/g21-routing.smoke.test.tsx src/critical-flows.smoke.test.tsx` | **FAIL** — missing mock export: `No "logWorkflowRouteEnter" export is defined on the "@/services/tauri.service" mock` |
+| Smoke regression fix validation | same command after commit `08747cb` | **PASS** — `g21-routing` + `critical-flows` suites green (7 passed, 1 skipped) |
+| Rust toolchain drift observed | `cargo --version && rustc --version && cargo +stable --version && rustc +stable --version` | **OBSERVED** — default toolchain `1.83.0`; `+stable` is `1.96.0` |
+| Rust fmt gate (stable) | `cargo +stable fmt --all -- --check` | **FAIL** — broad existing formatting drift (`crates/app/medoc-practice/src/commands/admin/*`, etc.) |
+| Rust clippy gate (stable) | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL** — `clippy::nonminimal_bool` in `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs:65` |
+| Rust workspace tests (stable) | `cargo +stable test --workspace --tests` | **FAIL** — `apps/practice-host/tests/auth_session_audit_tests.rs::authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` (sqlite code 1811 quota error) |
+| Frontend tests | `npm run test` | **PASS** — 54 passed files, 1 skipped; 250 passed tests, 3 skipped |
+| Frontend build | `npm run build` | **FAIL** — `praxis-aufgabe-detail-drawer.tsx` TS2724 + TS2554 |
+| Playwright geometry/a11y sweep | `npm run test:playwright` | **NOT RUN** — this run focused on logger-smoke regression closure and ledger evidence; no live browser server matrix executed |
+
+**Commit delivered in this run:** `08747cb` (`test(smoke): stub workflow route logging export`) — adds `logWorkflowRouteEnter` stubs to tauri service mocks in smoke suites.
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

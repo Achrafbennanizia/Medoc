@@ -1,16 +1,41 @@
 //! Status transition rules (authoritative; commands must not embed ad-hoc match trees).
 use crate::domain::rbac::Role;
 use crate::error::AppError;
+use tracing::{info, warn};
 
 fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "status_transition",
+            from = %cur,
+            to = %nxt,
+            outcome = "noop",
+        );
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "status_transition",
+            from = %cur,
+            to = %nxt,
+            outcome = "allowed",
+        );
         Ok(())
     } else {
+        warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "status_transition",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected",
+        );
         Err(AppError::Validation(format!(
             "Status-Übergang {cur}→{nxt} ist nicht erlaubt"
         )))
@@ -38,13 +63,37 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "VALIDIERT" || s == "READONLY" {
+        warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "patientenakte_validate",
+            from = %s,
+            to = "VALIDIERT",
+            outcome = "rejected",
+        );
         return Err(AppError::Validation(
             "Akte ist bereits validiert oder archiviert.".into(),
         ));
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
+        info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "patientenakte_validate",
+            from = %s,
+            to = "VALIDIERT",
+            outcome = "allowed",
+        );
         return Ok(());
     }
+    warn!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION",
+        workflow = "patientenakte_validate",
+        from = %s,
+        to = "VALIDIERT",
+        outcome = "rejected",
+    );
     Err(AppError::Validation(format!(
         "Akten-Status {s} kann nicht validiert werden"
     )))
@@ -58,9 +107,17 @@ pub fn praxis_ticket_status_transition(current: &str, next: &str) -> Result<(), 
         "IN_BEARBEITUNG" => &["ERLEDIGT", "OFFEN"],
         "ERLEDIGT" => &[],
         _ => {
+            warn!(
+                target: "medoc::workflow",
+                event = "DOMAIN_STATE_TRANSITION",
+                workflow = "praxis_ticket_status",
+                from = %cur,
+                to = next.trim().to_uppercase(),
+                outcome = "rejected_unknown_status",
+            );
             return Err(AppError::Validation(format!(
                 "Unbekannter Ticket-Status: {cur}"
-            )))
+            )));
         }
     };
     allowed_transition(&cur, next, allowed)
@@ -79,9 +136,25 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "praxis_aufgabe_admin_status",
+            from = %cur,
+            to = %nxt,
+            outcome = "noop",
+        );
         return Ok(());
     }
     if cur == "VALIDIERT" {
+        warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "praxis_aufgabe_admin_status",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected_closed",
+        );
         return Err(AppError::Validation(
             "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
         ));
@@ -90,10 +163,26 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
         .iter()
         .any(|s| s.eq_ignore_ascii_case(&nxt))
     {
+        warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "praxis_aufgabe_admin_status",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected_unknown_status",
+        );
         return Err(AppError::Validation(format!(
             "Unbekannter Aufgaben-Status: {nxt}"
         )));
     }
+    info!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION",
+        workflow = "praxis_aufgabe_admin_status",
+        from = %cur,
+        to = %nxt,
+        outcome = "allowed",
+    );
     Ok(())
 }
 
@@ -102,6 +191,14 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDIERT" {
+        warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            workflow = "praxis_aufgabe_fulfill_status",
+            from = %cur,
+            to = %nxt,
+            outcome = "rejected_closed",
+        );
         return Err(AppError::Validation(
             "Aufgabe ist bereits geschlossen (VALIDIERT).".into(),
         ));
@@ -112,9 +209,17 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
         "ZURUECK" => &["OFFEN", "IN_BEARBEITUNG"],
         "ERLEDIGT_REZEPTION" => &[],
         _ => {
+            warn!(
+                target: "medoc::workflow",
+                event = "DOMAIN_STATE_TRANSITION",
+                workflow = "praxis_aufgabe_fulfill_status",
+                from = %cur,
+                to = %nxt,
+                outcome = "rejected_unknown_status",
+            );
             return Err(AppError::Validation(format!(
                 "Unbekannter Aufgaben-Status: {cur}"
-            )))
+            )));
         }
     };
     allowed_transition(&cur, &nxt, allowed)
@@ -171,6 +276,14 @@ pub fn praxis_aufgabe_status_transition(
 
     if rbac_fulfill {
         if nxt != "IN_BEARBEITUNG" && nxt != "ERLEDIGT_REZEPTION" {
+            warn!(
+                target: "medoc::workflow",
+                event = "DOMAIN_STATE_TRANSITION",
+                workflow = "praxis_aufgabe_status",
+                from = %cur,
+                to = %nxt,
+                outcome = "rejected_rbac_scope",
+            );
             return Err(AppError::Unauthorized);
         }
         return praxis_aufgabe_fulfill_status_transition(current, next);
@@ -185,6 +298,14 @@ pub fn praxis_aufgabe_status_transition(
         };
     }
 
+    warn!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION",
+        workflow = "praxis_aufgabe_status",
+        from = %cur,
+        to = %nxt,
+        outcome = "rejected_unauthorized",
+    );
     Err(AppError::Unauthorized)
 }
 
@@ -196,9 +317,17 @@ pub fn bestellung_status_transition(current: &str, next: &str) -> Result<(), App
         "UNTERWEGS" => &["GELIEFERT", "STORNIERT"],
         "GELIEFERT" | "STORNIERT" => &[],
         _ => {
+            warn!(
+                target: "medoc::workflow",
+                event = "DOMAIN_STATE_TRANSITION",
+                workflow = "bestellung_status",
+                from = %cur,
+                to = next.trim().to_uppercase(),
+                outcome = "rejected_unknown_status",
+            );
             return Err(AppError::Validation(format!(
                 "Unbekannter Bestellstatus: {cur}"
-            )))
+            )));
         }
     };
     allowed_transition(&cur, next, allowed)
