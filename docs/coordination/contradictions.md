@@ -11,6 +11,7 @@
 | WF-2026-06-26-03 | `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs:65` | Rust clippy gate fails on `-D warnings` (`clippy::nonminimal_bool`). | `cargo +stable clippy --workspace --all-targets -- -D warnings` -> nonminimal-bool error | P2 | Open dedicated lint fix PR; touches license gating path, request human review before merge. |
 | WF-2026-06-26-04 | `apps/practice-host/tests/auth_session_audit_tests.rs:31` | Full Rust workspace tests still fail on auth smoke due quota constraint (`Maximal 1 Arzt-Konto erlaubt`). | `cargo +stable test --workspace --tests` -> `authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` failed with sqlite code 1811 | P1 | Existing baseline blocker; fix test fixture or quota setup in separate PR. |
 | WF-2026-06-26-05 | `packages/shared/src/lib/http-practice.adapter.test.ts:29` | Vitest warns about un-awaited rejection assertion; currently auto-awaited but marked as future failure behavior. | `npm run test` stderr warning: Promise returned by `expect(...).rejects` was not awaited | P3 | Test hygiene follow-up: add `await` before `expect(...).rejects`. |
+| WF-2026-06-26-06 | `apps/practice-host-ui/e2e-playwright/*` | STEP 4 geometry/spacing + responsive snapshot audit remains incomplete in this bounded run. | `npm run test:playwright` **NOT RUN**; no new geometry assertions committed in this PR | P2 | Schedule dedicated Playwright audit PR (geometry tokens + breakpoints 375/768/1259 + screenshots). |
 
 ## Open contradictions
 

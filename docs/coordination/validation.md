@@ -14,6 +14,7 @@
 | Rust workspace tests (stable) | `cargo +stable test --workspace --tests` | **FAIL** — `apps/practice-host/tests/auth_session_audit_tests.rs::authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` (sqlite code 1811 quota error) |
 | Frontend tests | `npm run test` | **PASS** — 54 passed files, 1 skipped; 250 passed tests, 3 skipped |
 | Frontend build | `npm run build` | **FAIL** — `praxis-aufgabe-detail-drawer.tsx` TS2724 + TS2554 |
+| Playwright geometry/a11y sweep | `npm run test:playwright` | **NOT RUN** — this run focused on logger-smoke regression closure and ledger evidence; no live browser server matrix executed |
 
 **Commit delivered in this run:** `08747cb` (`test(smoke): stub workflow route logging export`) — adds `logWorkflowRouteEnter` stubs to tauri service mocks in smoke suites.
 
