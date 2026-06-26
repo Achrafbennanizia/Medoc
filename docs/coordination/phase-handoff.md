@@ -1,7 +1,29 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** Workflow logger smoke compatibility run (2026-06-26)  
+**Last closed:** Test-only hotfix for `WorkflowRouteTracker` mock compatibility; bounded validation matrix rerun.
+
+### Verified (2026-06-26 — logger smoke compatibility)
+
+- **Fix shipped:** smoke test mocks now export `logWorkflowRouteEnter` in `g21-routing.smoke.test.tsx` and `critical-flows.smoke.test.tsx` (commit `08747cb`).
+- **Regression reproduction + closure:** pre-fix targeted vitest run failed with `No "logWorkflowRouteEnter" export ...`; post-fix targeted run passed (`g21-routing` + `critical-flows`).
+- **Frontend suite:** `npm run test` **PASS** (250 passed, 3 skipped).
+- **Workflow map source reused:** `docs/coordination/workflow-map.md` already contains route inventory and state-machine snapshots for priority flows (created 2026-06-10).
+
+### Remains unverified / blocked
+
+- **Rust fmt gate:** `cargo +stable fmt --all -- --check` still fails due broad pre-existing formatting drift.
+- **Rust clippy gate:** `cargo +stable clippy --workspace --all-targets -- -D warnings` fails on `clippy::nonminimal_bool` in `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs`.
+- **Rust full tests:** `cargo +stable test --workspace --tests` fails on `authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` (sqlite code 1811 quota constraint).
+- **Frontend build:** `npm run build` fails in `praxis-aufgabe-detail-drawer.tsx` (`aufgabeWorkflowStepLabel` export mismatch + wrong call arity).
+- **STEP 2/3/4/5 exhaustive coverage scope:** full route-by-route workflow execution matrix, component event coverage for every UI library component/page, and Playwright geometry/a11y sweeps remain incomplete in this bounded run.
+
+### Next
+
+1. Open dedicated fix PR for `praxis-aufgabe-detail-drawer.tsx` TypeScript contract break (build blocker P1) with failing-before/passing-after test evidence.
+2. Open dedicated Rust PR for clippy/lint gate (`nonminimal_bool` in `lizenz_service.rs`), with human review because it touches license-gating logic.
+3. Open dedicated Rust test-fixture PR for `auth_session_audit_tests` quota failure so `cargo test --workspace --tests` can go green.
+4. Expand workflow/component audit coverage incrementally using `workflow-map.md` as source of truth, and append each batch to `validation.md` + `contradictions.md`.
 
 ### Verified (2026-06-18 — Work-Time program)
 

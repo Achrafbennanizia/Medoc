@@ -1,6 +1,16 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-26
+
+## Workflow quality findings register (2026-06-26 run)
+
+| ID | Location | Finding | Evidence | Severity (P0-P3) | Action |
+| -- | -------- | ------- | -------- | ---------------- | ------ |
+| WF-2026-06-26-01 | `apps/practice-host-ui/src/g21-routing.smoke.test.tsx`, `apps/practice-host-ui/src/critical-flows.smoke.test.tsx` | Smoke workflows crashed before first render because `WorkflowRouteTracker` called `logWorkflowRouteEnter`, but the mocked `@/services/tauri.service` export was missing. | `npx vitest run src/g21-routing.smoke.test.tsx src/critical-flows.smoke.test.tsx` (pre-fix) -> `No "logWorkflowRouteEnter" export is defined on the "@/services/tauri.service" mock` | P1 | **DONE** in commit `08747cb`: add `logWorkflowRouteEnter` mock in both suites; post-fix targeted run passes (7 passed, 1 skipped). |
+| WF-2026-06-26-02 | `apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-detail-drawer.tsx` | Frontend build is currently non-terminable in CI/release path due TypeScript contract drift (`aufgabeWorkflowStepLabel` export mismatch and bad call arity). | `npm run build` -> TS2724 + TS2554 at lines 43, 213, 226 | P1 | Open dedicated fix PR (code change not in this run). |
+| WF-2026-06-26-03 | `crates/shared/medoc-sync/src/verbund/services/lizenz_service.rs:65` | Rust clippy gate fails on `-D warnings` (`clippy::nonminimal_bool`). | `cargo +stable clippy --workspace --all-targets -- -D warnings` -> nonminimal-bool error | P2 | Open dedicated lint fix PR; touches license gating path, request human review before merge. |
+| WF-2026-06-26-04 | `apps/practice-host/tests/auth_session_audit_tests.rs:31` | Full Rust workspace tests still fail on auth smoke due quota constraint (`Maximal 1 Arzt-Konto erlaubt`). | `cargo +stable test --workspace --tests` -> `authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` failed with sqlite code 1811 | P1 | Existing baseline blocker; fix test fixture or quota setup in separate PR. |
+| WF-2026-06-26-05 | `packages/shared/src/lib/http-practice.adapter.test.ts:29` | Vitest warns about un-awaited rejection assertion; currently auto-awaited but marked as future failure behavior. | `npm run test` stderr warning: Promise returned by `expect(...).rejects` was not awaited | P3 | Test hygiene follow-up: add `await` before `expect(...).rejects`. |
 
 ## Open contradictions
 

@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-26 (workflow logger smoke compatibility run)
 
 ## Now
 
+- **Workflow QA blockers (2026-06-26):** fix `praxis-aufgabe-detail-drawer.tsx` build break (TS2724/TS2554), clippy `nonminimal_bool` in `lizenz_service.rs`, and `auth_session_audit_tests` quota setup failure.
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
@@ -22,6 +23,12 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-06-26 — logger smoke regression hotfix)
+
+- **Test-only fix:** `apps/practice-host-ui/src/g21-routing.smoke.test.tsx` + `src/critical-flows.smoke.test.tsx` now mock `logWorkflowRouteEnter` so `WorkflowRouteTracker` does not crash test bootstrap.
+- **Commit:** `08747cb` (`test(smoke): stub workflow route logging export`), pushed to `cursor/medoc-application-quality-37d2`.
+- **Validation:** targeted smoke suites pass; full `npm run test` passes (250/253).
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
