@@ -1,15 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-06-26 (CI/CD tiered pipeline wiring)
 
 ## Now
 
+- **CI baseline stabilization:** resolve existing frontend lint/typecheck/build errors and rustfmt drift so `verify.yml` can go fully green.
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-06-26 — CI/CD tiered pipeline)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and updated `release.yml`; removed legacy `ci.yml`.
+- Added `apps/practice-host-ui` scripts for CI commands: `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Added `apps/practice-host-ui/scripts/test-a11y-critical.mjs` (axe-core WCAG 2.1 AA critical-check runner).
+- Added coordination plan doc: [`ci-cd-plan.md`](ci-cd-plan.md).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
