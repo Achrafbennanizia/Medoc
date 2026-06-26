@@ -1,0 +1,188 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Ref/branch/SHA to propose a fix from"
+        required: false
+        default: "main"
+      failure_context:
+        description: "Optional context about the failing signal"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_ref || github.event.workflow_run.head_sha }}
+
+      - name: Detect package manager and commands
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=pnpm --filter medoc lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=pnpm --filter medoc format" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=pnpm --filter medoc typecheck" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=yarn workspace medoc run lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=yarn workspace medoc run format" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=yarn workspace medoc run typecheck" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=npm run lint:fix -w medoc" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=npm run format -w medoc" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=npm run typecheck -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - name: Capture failing-before evidence
+        id: before
+        shell: bash
+        run: |
+          mkdir -p .ci-fix-logs
+          set +e
+          cargo test --workspace > .ci-fix-logs/cargo-test.before.log 2>&1
+          echo "cargo_test_exit=$?" >> "$GITHUB_OUTPUT"
+          cargo audit > .ci-fix-logs/cargo-audit.before.log 2>&1
+          echo "cargo_audit_exit=$?" >> "$GITHUB_OUTPUT"
+          ${{ steps.pm.outputs.typecheck_cmd }} > .ci-fix-logs/typecheck.before.log 2>&1
+          echo "typecheck_exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Attempt bounded automated fix
+        shell: bash
+        run: |
+          cargo fmt --all || true
+          cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged -- -D warnings || true
+          ${{ steps.pm.outputs.lint_fix_cmd }} || true
+          ${{ steps.pm.outputs.format_cmd }} || true
+
+      - name: Capture passing-after evidence
+        id: after
+        shell: bash
+        run: |
+          set +e
+          cargo test --workspace > .ci-fix-logs/cargo-test.after.log 2>&1
+          echo "cargo_test_exit=$?" >> "$GITHUB_OUTPUT"
+          cargo audit > .ci-fix-logs/cargo-audit.after.log 2>&1
+          echo "cargo_audit_exit=$?" >> "$GITHUB_OUTPUT"
+          ${{ steps.pm.outputs.typecheck_cmd }} > .ci-fix-logs/typecheck.after.log 2>&1
+          echo "typecheck_exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Write fix proposal report
+        id: report
+        shell: bash
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          report_file="docs/coordination/fix-proposals/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.md"
+          {
+            echo "# CI fix proposal"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Target SHA: \`$(git rev-parse --short HEAD)\`"
+            echo "- Source run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              echo "- Failing verify run: ${{ github.event.workflow_run.html_url }}"
+            fi
+            if [ -n "${{ github.event.inputs.failure_context }}" ]; then
+              echo "- Failure context: ${{ github.event.inputs.failure_context }}"
+            fi
+            echo
+            echo "## Attempted automated changes"
+            echo
+            echo "- \`cargo fmt --all\`"
+            echo "- \`cargo clippy --fix\`"
+            echo "- \`lint:fix\` and \`format\` for JS workspace package \`medoc\`"
+            echo
+            echo "## Failing-before evidence"
+            echo
+            echo "- cargo test exit: \`${{ steps.before.outputs.cargo_test_exit }}\`"
+            echo "- cargo audit exit: \`${{ steps.before.outputs.cargo_audit_exit }}\`"
+            echo "- typecheck exit: \`${{ steps.before.outputs.typecheck_exit }}\`"
+            echo
+            echo "## Passing-after evidence"
+            echo
+            echo "- cargo test exit: \`${{ steps.after.outputs.cargo_test_exit }}\`"
+            echo "- cargo audit exit: \`${{ steps.after.outputs.cargo_audit_exit }}\`"
+            echo "- typecheck exit: \`${{ steps.after.outputs.typecheck_exit }}\`"
+          } > "$report_file"
+          echo "report_file=$report_file" >> "$GITHUB_OUTPUT"
+
+      - name: Flag sensitive changes
+        id: sensitive
+        shell: bash
+        run: |
+          changed_files="$(git status --porcelain | awk '{print $2}')"
+          if echo "$changed_files" | rg -i "(security|audit|crypto|rbac)" >/dev/null; then
+            echo "labels=needs-human-review" >> "$GITHUB_OUTPUT"
+            echo "Sensitive file paths touched; marking PR needs-human-review."
+          else
+            echo "labels=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create draft pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: main
+          draft: true
+          delete-branch: false
+          title: "ci: fix proposal for verify failure (${{ github.run_id }})"
+          commit-message: "ci: add automated fix proposal for verify failure"
+          labels: ${{ steps.sensitive.outputs.labels }}
+          body: |
+            This is an automated **fix proposal** generated by Tier-3 CI.
+
+            - Source report: `${{ steps.report.outputs.report_file }}`
+            - Before exits: test `${{ steps.before.outputs.cargo_test_exit }}`, audit `${{ steps.before.outputs.cargo_audit_exit }}`, typecheck `${{ steps.before.outputs.typecheck_exit }}`
+            - After exits: test `${{ steps.after.outputs.cargo_test_exit }}`, audit `${{ steps.after.outputs.cargo_audit_exit }}`, typecheck `${{ steps.after.outputs.typecheck_exit }}`
+
+            This PR is intentionally created as **draft** and requires human review/merge.

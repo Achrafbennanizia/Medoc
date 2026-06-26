@@ -1,0 +1,78 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Detect package manager and commands
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=pnpm --filter medoc lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=pnpm --filter medoc format" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=yarn workspace medoc run lint:fix" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=yarn workspace medoc run format" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lint_fix_cmd=npm run lint:fix -w medoc" >> "$GITHUB_OUTPUT"
+            echo "format_cmd=npm run format -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install JS dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Apply Rust formatting
+        run: cargo fmt --all
+      - name: Apply lint fixes
+        run: ${{ steps.pm.outputs.lint_fix_cmd }}
+      - name: Apply formatter fixes
+        run: ${{ steps.pm.outputs.format_cmd }}
+
+      - name: Commit and push fixes (if changed)
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic autofix formatting"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No autofix changes to commit."
+          fi
