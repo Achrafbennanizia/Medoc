@@ -173,4 +173,13 @@ mod tests {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
     }
+
+    #[test]
+    fn masks_patient_fields() {
+        let s = sanitize(r#"{"patientId":"pat-123","vorname":"Max","event":"ok"}"#);
+        assert!(s.contains(r#""patientId":"[REDACTED]""#));
+        assert!(s.contains(r#""vorname":"[REDACTED]""#));
+        assert!(!s.contains("pat-123"));
+        assert!(!s.contains("Max"));
+    }
 }

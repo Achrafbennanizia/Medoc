@@ -135,3 +135,49 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_dir,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sanitize_field_masks_secrets_and_truncates() {
+        let masked = sanitize_field("password=hunter2 patientId=pat-123", 64);
+        assert!(masked.contains("password=***"));
+        assert!(masked.contains("patientId=[REDACTED]"));
+        assert!(!masked.contains("hunter2"));
+        assert!(!masked.contains("pat-123"));
+
+        let truncated = sanitize_field("abcdefghijklmnopqrstuvwxyz", 8);
+        assert_eq!(truncated, "abcdefgh");
+    }
+
+    #[test]
+    fn workflow_event_requires_stage_and_action() {
+        let res = log_workflow_event(WorkflowLogEventInput {
+            stage: " ".into(),
+            action: " ".into(),
+            route: None,
+            status: None,
+            correlation_id: None,
+            message: None,
+            meta: None,
+        });
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn workflow_event_accepts_and_sanitizes_payload() {
+        let res = log_workflow_event(WorkflowLogEventInput {
+            stage: "success".into(),
+            action: "create_patient".into(),
+            route: Some("/patienten/123".into()),
+            status: Some("ok".into()),
+            correlation_id: Some("abc-123".into()),
+            message: Some("patientId=pat-999".into()),
+            meta: Some(json!({"token": "secret=abc", "patientName": "Max"})),
+        });
+        assert!(res.is_ok());
+    }
+}
