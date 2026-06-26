@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-06-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified/observed (2026-06-26)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Workflow syntax parse | `python3 -c "import pathlib,yaml; ..."` | **PASS** | 4 workflow files parsed (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`) |
+| Rust fmt gate baseline | `cargo fmt --all --check` | **FAIL (pre-existing)** | Large existing rustfmt drift outside CI/CD edits (`crates/app/medoc-practice`, `crates/shared/*`) |
+| Frontend lint gate baseline | `npm run lint -w medoc` | **FAIL (pre-existing)** | Existing hook/memoization lint errors in practice-host UI |
+| Frontend typecheck gate baseline | `npm run typecheck -w medoc` | **FAIL (pre-existing)** | Existing TS errors in `praxis-aufgabe-detail-drawer.tsx` |
+| Frontend build gate baseline | `npm run build -w medoc` | **FAIL (pre-existing)** | Fails on same existing TS errors |
+| Frontend tests gate | `npm run test -w medoc` | **PASS** | 53 passed files, 1 skipped; 246 passed tests, 3 skipped |
+| A11y script (no build) | `npm run test:a11y -w medoc` | **FAIL (expected)** | Script correctly aborts when `dist/index.html` is absent |
+| A11y script execution | temp `dist/index.html` fixture + `npm run test:a11y -w medoc` | **PASS** | Axe-core critical WCAG 2.1 AA check executed (0 critical findings on fixture) |
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

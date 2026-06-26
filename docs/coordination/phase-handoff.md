@@ -1,25 +1,26 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD tiered pipeline wiring (2026-06-26)  
+**Last closed:** Four-tier workflow split (`verify`, `autofix`, `fix-proposal`, `release`) with coordination docs and baseline validation capture.
 
-### Verified (2026-06-18 — Work-Time program)
+### Verified (2026-06-26 — CI/CD tiered pipeline)
 
-- **Schema:** `work_time_pause_segment`, `work_time_preference`, `arbeitsplan_adjustment`; extended `krankenbescheinigung` + `pause_minutes` on sessions (`rust_only.rs`).
-- **RBAC:** `work_time.self`, `work_time.team.read`, `work_time.admin`, `statistik.read` in `config/rbac.yaml`; routes in `rbac.ts`.
-- **IPC:** 14 work-time commands + krank list/end + `list_arbeitsplan_adjustments`; logout auto-end when `auto_record_on_logout`; **294** invoke handlers.
-- **UI:** `/personal/arbeitszeit` (live timer, week bars, focus mode); `/verwaltung/team/arbeitszeit`; Krankenbescheinigung Verwaltung; `sec-arbeitszeit` in Statistik; per-user auto-record in Arbeitsplan.
-- **Tests:** `cargo test -p medoc-practice --lib work_time` **PASS** (2); invoke registry **PASS** (294); `npm test` **PASS** (242); `npm run build` **PASS**.
+- **Workflow migration:** Added `.github/workflows/{verify,autofix,fix-proposal}.yml`, updated `release.yml`, removed legacy `ci.yml`.
+- **Guardrails encoded:** PR-only autofix + bot loop guard; release gate reuses verify and runs in protected `release` environment; fix-proposal opens draft PRs and labels `needs-human-review` on security/audit/crypto/RBAC path matches.
+- **JS CI scripts:** Added `typecheck`, `lint:fix`, `format`, `test:a11y` in `apps/practice-host-ui/package.json`.
+- **A11y runner:** Added `apps/practice-host-ui/scripts/test-a11y-critical.mjs` (axe-core WCAG 2.1 AA critical gate over built UI HTML).
+- **Validation evidence:** workflow YAML parse **PASS** (`python3` + `yaml.safe_load`), `npm run test -w medoc` **PASS** (246 passed, 3 skipped).
 
 ### Remains unverified
 
-- Live Tauri manual QA of focus-mode nav + file upload Krankenbescheinigung on disk.
-- Full `cargo test --workspace --tests` green (pre-existing medoc-core FK failures).
+- End-to-end green `verify.yml` on current head (**NOT GREEN locally**): existing baseline failures in `cargo fmt --all --check`, `npm run lint -w medoc`, `npm run typecheck -w medoc`, `npm run build -w medoc`.
+- Tag-driven release execution across all OS runners with signing secrets configured (**NOT RUN**).
 
 ### Next
 
-1. Manual smoke: REZEPTION login → Arbeitszeit; ARZT team overview; KB create/end.
-2. v1 Wave 5 calendar/PDF export (separate track).
+1. Resolve pre-existing frontend lint/typecheck/build errors and repo-wide rustfmt drift so Tier 1 can gate cleanly.
+2. Run CI on PR branch and confirm `verify.yml` + `autofix.yml` behavior (including bot loop guard).
+3. Perform a controlled tag/dispatch dry run to validate protected `release` approvals and artifact upload paths.
 
 ---
 
