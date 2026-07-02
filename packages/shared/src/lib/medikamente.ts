@@ -7,8 +7,8 @@
  * datalist suggestions so users can compose a "Kombinationsrezept" quickly
  * without typos.
  *
- * Hinweis für Produktivbetrieb: diese Liste ist als kleiner Demonstrator gedacht,
- * nicht als vollständige Arzneimittel-Datenbank — Dosierungen sind Freitext ohne Prüfung.
+ * Note for production: this list is intended as a small demonstrator,
+ * not a complete drug database — dosages are free text without validation.
  */
 export interface MedikamentSuggestion {
     label: string;
@@ -57,7 +57,7 @@ export const REZEPT_TYP_OPTIONS = [
     { value: "BTM", label: "BtM" },
 ] as const;
 
-/** Häufige zahnmedizinische ICD-10-Codes (Auswahl). */
+/** Common dental ICD-10 codes (selection). */
 export const DENTAL_ICD10_SUGGESTIONS = [
     "K02.1 — Karies Dentin",
     "K04.0 — Pulpitis",
@@ -106,7 +106,7 @@ export const emptyRezeptLine = (): RezeptLine => ({
 export interface VorlageRezeptItem {
     medikament: string;
     dosierung?: string;
-    /** Behandlungsdauer / Einnahmedauer (Vorlagen-Editor kann sie später ergänzen). */
+    /** Treatment duration / intake duration (template editor may add later). */
     dauer?: string;
     beschreibung?: string;
 }

@@ -55,7 +55,7 @@ pub async fn get_personal(
     rbac::require(&session_state, "personal.read")?;
     personal_repo::find_by_id(&pool, &id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))
+        .ok_or(AppError::NotFound("error.entity.personal".into()))
 }
 
 #[tauri::command]
@@ -70,7 +70,7 @@ pub async fn create_personal(
         .await?
         .is_some()
     {
-        return Err(AppError::Conflict("E-Mail bereits vergeben".into()));
+        return Err(AppError::validation_code("error.personal.email_taken"));
     }
     crypto::validate_password_policy(&data.passwort)?;
     let hash =
@@ -141,7 +141,7 @@ pub async fn update_personal(
     let session = rbac::require(&session_state, "personal.write")?;
     let existing = personal_repo::find_by_id(&pool, &id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let p = if let Some(ref new_rolle) = data.rolle {
         let rolle_str = serde_json::to_string(new_rolle)
             .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
@@ -208,7 +208,7 @@ pub async fn change_password(
     crypto::validate_password_policy(&new_password)?;
     let me = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let ok = crypto::verify_password(&old_password, &me.passwort_hash)
         .map_err(|e| AppError::Internal(e.to_string()))?;
     if !ok {
@@ -242,7 +242,7 @@ pub async fn set_personal_password_by_admin(
     let session = rbac::require(&session_state, "personal.write")?;
     crypto::validate_password_policy(&new_password)?;
     if personal_repo::find_by_id(&pool, &id).await?.is_none() {
-        return Err(AppError::NotFound("Personal".into()));
+        return Err(AppError::NotFound("error.entity.personal".into()));
     }
     let hash =
         crypto::hash_password(&new_password).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -353,7 +353,7 @@ pub async fn grant_personal_all_permissions(
     let session = rbac::require(&session_state, "personal.write")?;
     personal_repo::find_by_id(&pool, &personal_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let mut n = 0u64;
     for action in rbac::all_rbac_actions() {
         personal_permission_repo::upsert(&pool, &personal_id, action, "ALLOW").await?;
@@ -404,7 +404,7 @@ pub async fn get_totp_status(
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let enrolled = personal_repo::is_totp_enrolled(&user);
     let pending = user.totp_secret.is_some() && !enrolled;
     Ok(TotpStatusDto {
@@ -424,9 +424,9 @@ pub async fn start_totp_enrollment(
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     if personal_repo::is_totp_enrolled(&user) {
-        return Err(AppError::Conflict("Zwei-Faktor ist bereits aktiv".into()));
+        return Err(AppError::validation_code("error.personal.totp_already_active"));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
     personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
@@ -444,15 +444,13 @@ pub async fn confirm_totp_enrollment(
     let session = rbac::require_authenticated(&session_state)?;
     let user = personal_repo::find_by_id(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let secret = user
         .totp_secret
         .as_deref()
-        .ok_or_else(|| AppError::Validation("Bitte zuerst die Einrichtung starten".into()))?;
+        .ok_or_else(|| AppError::validation_code("error.auth.totp_setup_not_started"))?;
     if !totp::verify_code(secret, &code)? {
-        return Err(AppError::Validation(
-            "Ungültiger Code — bitte erneut versuchen".into(),
-        ));
+        return Err(AppError::validation_code("error.personal.totp_invalid_code"));
     }
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     audit_repo::create(

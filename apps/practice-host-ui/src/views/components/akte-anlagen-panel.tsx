@@ -1,4 +1,4 @@
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
@@ -132,10 +132,10 @@ export type AkteAnlagenPanelProps = {
     anlagen: AkteAnlage[];
     fileInputId: string;
     cameraInputId: string;
-    /** Hochladen, Umbenennen, Löschen, Duplizieren (z. B. `patient.write_medical`) */
+    /** Upload, rename, delete, duplicate (e.g. `patient.write_medical`) */
     canManageAnlagen: boolean;
     onPickFile: (file: File) => void;
-    /** Umbenennung erfolgt über Menü „Bezeichnung ändern …“. */
+    /** Rename via menu "Change label …". */
     onRename: (idx: number, name: string) => void;
     onSetDocumentKind?: (idx: number, kind: string) => void;
     onRequestRemove: (idx: number, name: string) => void;
@@ -170,6 +170,7 @@ export function AkteAnlagenPanel({
     onScannerClick,
 }: AkteAnlagenPanelProps) {
     const t = useT();
+    const tp = useTParams();
     const panelTitle = title ?? t("akte.anlagen.default_title");
     const [dragOver, setDragOver] = useState(false);
     const [renameIdx, setRenameIdx] = useState<number | null>(null);
@@ -301,7 +302,7 @@ export function AkteAnlagenPanel({
                                             {a.name}
                                         </span>
                                         <span className="anlage-card__sub">
-                                            {labelForAkteDocumentKind(a.documentKind)}
+                                            {labelForAkteDocumentKind(t, a.documentKind)}
                                             {" · "}
                                             {formatAddedAt(a.addedAt)} · {formatAnlageBytes(a.sizeBytes)}
                                         </span>
@@ -309,7 +310,9 @@ export function AkteAnlagenPanel({
                                     <AnlageCardMenu
                                         validated={validated}
                                         canValidate={canValidate}
-                                        onValidate={() => onRequestValidate(a.id, `Anlage ${a.name}`)}
+                                        onValidate={() =>
+                                            onRequestValidate(a.id, tp("akte.anlagen.validate_label", { name: a.name }))
+                                        }
                                         onRevokeValidate={() => onRevokeValidation(a.id, a.name)}
                                         onOpenExternal={
                                             onOpenExternal && a.absPath ? () => onOpenExternal(idx) : undefined
@@ -408,7 +411,7 @@ export function AkteAnlagenPanel({
                     >
                         {AKTE_ANLAGE_DOCUMENT_KINDS.map((k) => (
                             <option key={k.id} value={k.id}>
-                                {k.label}
+                                {t(k.labelKey)}
                             </option>
                         ))}
                     </select>

@@ -29,7 +29,7 @@ export type PraxisClosureRule = {
     reason?: string;
 };
 
-/** Nur Wochenplan + Pause + Slot — Sonder-Sperrzeiten bleiben praxisweit. */
+/** Week plan + break + slot only — special closures remain practice-wide. */
 export type ArztArbeitszeitProfil = {
     plan: Record<PraxisDayKey, PraxisDayPlan>;
     pauseVon: string;
@@ -43,9 +43,9 @@ export type PraxisArbeitszeitenConfig = {
     pauseBis: string;
     slotMin: string;
     closures: PraxisClosureRule[];
-    /** Default Behandler for „Neuer Termin“ when the URL does not override it. */
+    /** Default Behandler for "Neuer Termin" when URL does not override. */
     defaultArztId?: string;
-    /** Eigene Sprechzeiten pro Arzt; fehlender Eintrag = Praxis-Standard ({@link plan}, Pause, Slot). */
+    /** Own office hours per physician; missing entry = practice default ({@link plan}, break, slot). */
     arztSchedules?: Record<string, ArztArbeitszeitProfil>;
 };
 
@@ -209,8 +209,8 @@ export async function savePraxisArbeitszeitenConfig(cfg: PraxisArbeitszeitenConf
 }
 
 /**
- * Effektive Konfiguration für einen Behandler: eigenes Profil oder Praxis-Standard.
- * `closures` bleiben immer praxisweit.
+ * Effective configuration for a practitioner: own profile or practice default.
+ * `closures` always remain practice-wide.
  */
 export function resolveEffectiveArbeitszeitenForArzt(
     cfg: PraxisArbeitszeitenConfig,

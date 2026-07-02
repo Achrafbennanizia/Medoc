@@ -13,8 +13,8 @@ function EntryList({ entries }: { entries: [string, string][] }) {
         <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
             {rows.map(([k, v]) => (
                 <div key={k} className="row" style={{ alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
-                    <dt style={{ color: "var(--fg-3)", fontSize: 12, fontWeight: 600, minWidth: 140 }}>{anamneseLabelFor(k)}</dt>
-                    <dd style={{ margin: 0, textAlign: "right", flex: 1, fontSize: 13.5, color: "var(--fg)" }}>{v}</dd>
+                    <dt style={{ color: "var(--fg-3)", fontSize: 12, fontWeight: 600, minWidth: 140 }}>{anamneseLabelFor(k, t)}</dt>
+                    <dd style={{ margin: 0, textAlign: "end", flex: 1, fontSize: 13.5, color: "var(--fg)" }}>{v}</dd>
                 </div>
             ))}
         </dl>

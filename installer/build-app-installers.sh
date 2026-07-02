@@ -8,6 +8,7 @@ export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33
 
 npm ci
 npm run build -w medoc
+node scripts/configure-tauri-updater.mjs
 
 OS="$(uname -s)"
 case "$OS" in

@@ -9,6 +9,8 @@ import {
     loadLanClientConfig,
     saveLanClientConfig,
 } from "@/systems/lan/lib/lan-client-config";
+import { formatLanPracticeError } from "@medoc/system-practice/adapters/http-practice.adapter";
+import { useT, useTParams } from "@/lib/i18n";
 import type { Patient, Session, Termin } from "@/models/types";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
@@ -32,6 +34,8 @@ function clearStoredSession(): void {
 }
 
 export function LanClientApp() {
+    const t = useT();
+    const tp = useTParams();
     const stored = loadLanClientConfig();
     const [baseUrl, setBaseUrl] = useState(stored.baseUrl || "https://127.0.0.1:8787");
     const [email, setEmail] = useState("");
@@ -101,7 +105,7 @@ export function LanClientApp() {
             try {
                 const ok = await establishSession();
                 if (!cancelled && !ok) {
-                    setError("Gespeicherte Sitzung abgelaufen — bitte erneut anmelden.");
+                    setError(t("lan.client.session_expired"));
                 }
             } catch (e) {
                 if (!cancelled) {
@@ -111,7 +115,7 @@ export function LanClientApp() {
                     setProfile(null);
                     setPatients(null);
                     setTermine(null);
-                    setError(e instanceof Error ? e.message : String(e));
+                    setError(formatLanPracticeError(e, t, tp));
                 }
             } finally {
                 if (!cancelled) setBootstrapping(false);
@@ -138,7 +142,7 @@ export function LanClientApp() {
             setLoggedIn(true);
             await reloadPatients();
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            setError(formatLanPracticeError(e, t, tp));
             setPatients(null);
             setTermine(null);
             setLoggedIn(false);
@@ -184,17 +188,17 @@ export function LanClientApp() {
     );
 
     const viewLabel = useMemo(() => {
-        if (activeView === "patienten") return "Patienten";
-        if (activeView === "termine") return "Termine";
-        return "Profil";
-    }, [activeView]);
+        if (activeView === "patienten") return t("lan.client.nav_patients");
+        if (activeView === "termine") return t("lan.client.nav_appointments");
+        return t("lan.client.nav_profile");
+    }, [activeView, t]);
 
     if (bootstrapping) {
         return (
             <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 p-6">
                 <header>
-                    <h1 className="text-xl font-semibold text-on-surface">MeDoc LAN Web Client</h1>
-                    <p className="text-sm text-on-surface-variant">Sitzung wird wiederhergestellt…</p>
+                    <h1 className="text-xl font-semibold text-on-surface">{t("lan.client.title")}</h1>
+                    <p className="text-sm text-on-surface-variant">{t("lan.client.restoring_session")}</p>
                 </header>
             </main>
         );
@@ -203,7 +207,7 @@ export function LanClientApp() {
     return (
         <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 p-6">
             <header>
-                <h1 className="text-xl font-semibold text-on-surface">MeDoc LAN Web Client</h1>
+                <h1 className="text-xl font-semibold text-on-surface">{t("lan.client.title")}</h1>
                 <p className="text-sm text-on-surface-variant">
                     Browser client for a remote practice host over HTTPS — no Tauri runtime.
                 </p>
@@ -212,15 +216,15 @@ export function LanClientApp() {
             {!loggedIn ? (
                 <section className="flex flex-col gap-3 rounded-lg border border-surface-overlay bg-surface-container p-4">
                     <label className="flex flex-col gap-1 text-sm">
-                        LAN server URL
+                        {t("lan.client.lan_server_url")}
                         <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1 text-sm">
-                        E-Mail
+                        {t("lan.client.email")}
                         <Input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
                     </label>
                     <label className="flex flex-col gap-1 text-sm">
-                        Passwort
+                        {t("lan.client.password")}
                         <Input
                             type="password"
                             value={passwort}
@@ -229,7 +233,7 @@ export function LanClientApp() {
                         />
                     </label>
                     <Button type="button" onClick={() => void connect()} disabled={busy}>
-                        {busy ? "Verbinde…" : "Anmelden"}
+                        {busy ? t("lan.client.connecting") : t("lan.client.sign_in")}
                     </Button>
                 </section>
             ) : (
@@ -237,13 +241,13 @@ export function LanClientApp() {
                     <p className="text-sm text-on-surface-variant">
                         {session ? (
                             <>
-                                Angemeldet als <span className="text-on-surface">{session.name}</span> (
+                                {t("lan.client.logged_in_as")} <span className="text-on-surface">{session.name}</span> (
                                 {session.rolle})
                             </>
                         ) : null}
                     </p>
                     <p className="text-sm text-on-surface-variant">
-                        Server <span className="font-mono text-on-surface">{baseUrl}</span>
+                        {t("lan.client.server")} <span className="font-mono text-on-surface">{baseUrl}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
                         <Button
@@ -252,7 +256,7 @@ export function LanClientApp() {
                             disabled={!canBrowse}
                             onClick={() => void reloadPatients()}
                         >
-                            Patienten
+                            {t("lan.client.nav_patients")}
                         </Button>
                         <Button
                             type="button"
@@ -260,7 +264,7 @@ export function LanClientApp() {
                             disabled={!canBrowse}
                             onClick={() => void loadTermine()}
                         >
-                            Termine
+                            {t("lan.client.nav_appointments")}
                         </Button>
                         <Button
                             type="button"
@@ -268,16 +272,16 @@ export function LanClientApp() {
                             disabled={!canBrowse}
                             onClick={() => void loadProfile()}
                         >
-                            Profil
+                            {t("lan.client.nav_profile")}
                         </Button>
                         <Button type="button" variant="ghost" disabled={busy} onClick={() => void disconnect()}>
-                            Abmelden
+                            {t("lan.client.sign_out")}
                         </Button>
                     </div>
                     {activeView === "termine" ? (
                         <>
                             <label className="flex flex-col gap-1 text-sm">
-                                Datum
+                                {t("lan.client.date")}
                                 <Input
                                     type="date"
                                     value={terminDatum}
@@ -285,7 +289,7 @@ export function LanClientApp() {
                                 />
                             </label>
                             <Button type="button" disabled={!canBrowse} onClick={() => void loadTermine()}>
-                                Termine laden
+                                {t("lan.client.load_appointments")}
                             </Button>
                         </>
                     ) : null}
@@ -305,7 +309,7 @@ export function LanClientApp() {
                     </h2>
                     <Input
                         className="mb-3"
-                        placeholder="Suche Name, Versicherungsnr., E-Mail…"
+                        placeholder={t("lan.client.search_ph")}
                         value={patientFilter}
                         onChange={(e) => setPatientFilter(e.target.value)}
                     />
@@ -335,19 +339,19 @@ export function LanClientApp() {
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4 text-sm">
                     <h2 className="mb-3 font-medium">{selectedPatient.name}</h2>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                        <dt className="text-on-surface-variant">Geburtsdatum</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.birth_date")}</dt>
                         <dd>{selectedPatient.geburtsdatum}</dd>
-                        <dt className="text-on-surface-variant">Geschlecht</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.gender")}</dt>
                         <dd>{selectedPatient.geschlecht}</dd>
-                        <dt className="text-on-surface-variant">Versicherungsnr.</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.insurance_no")}</dt>
                         <dd>{selectedPatient.versicherungsnummer}</dd>
-                        <dt className="text-on-surface-variant">Telefon</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
                         <dd>{selectedPatient.telefon ?? "—"}</dd>
-                        <dt className="text-on-surface-variant">E-Mail</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.email")}</dt>
                         <dd>{selectedPatient.email ?? "—"}</dd>
-                        <dt className="text-on-surface-variant">Adresse</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.address")}</dt>
                         <dd>{selectedPatient.adresse ?? "—"}</dd>
-                        <dt className="text-on-surface-variant">Status</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.status")}</dt>
                         <dd>{selectedPatient.status}</dd>
                     </dl>
                 </section>
@@ -356,18 +360,18 @@ export function LanClientApp() {
             {activeView === "termine" && termine ? (
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4">
                     <h2 className="mb-2 text-sm font-medium">
-                        {viewLabel} am {terminDatum} ({termine.length})
+                        {tp("lan.client.appointments_on_date", { view: viewLabel, date: terminDatum })} ({termine.length})
                     </h2>
                     <ul className="max-h-80 space-y-2 overflow-auto text-sm">
                         {termine.length === 0 ? (
-                            <li className="text-on-surface-variant">Keine Termine an diesem Tag.</li>
+                            <li className="text-on-surface-variant">{t("lan.client.no_appointments")}</li>
                         ) : (
-                            termine.map((t) => (
-                                <li key={t.id} className="rounded border border-surface-overlay px-2 py-1">
-                                    <span className="font-medium">{t.uhrzeit}</span> — {t.art}{" "}
-                                    <span className="text-on-surface-variant">({t.status})</span>
-                                    {t.notizen ? (
-                                        <p className="mt-1 text-on-surface-variant">{t.notizen}</p>
+                            termine.map((termin) => (
+                                <li key={termin.id} className="rounded border border-surface-overlay px-2 py-1">
+                                    <span className="font-medium">{termin.uhrzeit}</span> — {termin.art}{" "}
+                                    <span className="text-on-surface-variant">({termin.status})</span>
+                                    {termin.notizen ? (
+                                        <p className="mt-1 text-on-surface-variant">{termin.notizen}</p>
                                     ) : null}
                                 </li>
                             ))
@@ -380,17 +384,17 @@ export function LanClientApp() {
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4 text-sm">
                     <h2 className="mb-3 font-medium">{viewLabel}</h2>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                        <dt className="text-on-surface-variant">Name</dt>
+                        <dt className="text-on-surface-variant">{t("common.name")}</dt>
                         <dd>{profile.name}</dd>
-                        <dt className="text-on-surface-variant">E-Mail</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.email")}</dt>
                         <dd>{profile.email}</dd>
-                        <dt className="text-on-surface-variant">Rolle</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.role")}</dt>
                         <dd>{profile.rolle}</dd>
-                        <dt className="text-on-surface-variant">Tätigkeitsbereich</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.activity_area")}</dt>
                         <dd>{profile.taetigkeitsbereich ?? "—"}</dd>
-                        <dt className="text-on-surface-variant">Fachrichtung</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.specialty")}</dt>
                         <dd>{profile.fachrichtung ?? "—"}</dd>
-                        <dt className="text-on-surface-variant">Telefon</dt>
+                        <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
                         <dd>{profile.telefon ?? "—"}</dd>
                     </dl>
                 </section>

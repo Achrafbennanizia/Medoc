@@ -39,12 +39,12 @@ describe("PatientAkteWorkflowDialogs smoke (G21 row 3 proxy)", () => {
             await Promise.resolve();
         });
 
-        expect(screen.getByText(/Rezeption \(Pool\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Reception \(pool\)/i)).toBeInTheDocument();
 
-        fireEvent.change(screen.getByPlaceholderText(/Termin vereinbaren/i), {
+        fireEvent.change(screen.getByPlaceholderText(/schedule appointment/i), {
             target: { value: "Rückruf Patient" },
         });
-        fireEvent.click(screen.getByRole("button", { name: /Anlegen/i }));
+        fireEvent.click(screen.getByRole("button", { name: /Create/i }));
 
         await act(async () => {
             await Promise.resolve();
@@ -58,7 +58,7 @@ describe("PatientAkteWorkflowDialogs smoke (G21 row 3 proxy)", () => {
             assigneeUserId: null,
             assigneeRole: "REZEPTION",
         });
-        expect(toast).toHaveBeenCalledWith("Aufgabe an Rezeption (Pool) erstellt.", "success");
+        expect(toast).toHaveBeenCalledWith("Task created for reception (pool).", "success");
         expect(onClose).toHaveBeenCalled();
     });
 });

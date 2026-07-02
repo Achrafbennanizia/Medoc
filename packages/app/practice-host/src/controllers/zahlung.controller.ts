@@ -6,12 +6,12 @@ export async function listZahlungen(): Promise<Zahlung[]> {
     return practiceSystem.invoke<Zahlung[]>("list_zahlungen");
 }
 
-/** Nur Buchungen eines Patienten (gleiches Recht wie `list_zahlungen`; weniger Datenübertrag). */
+/** Bookings for one Patient only (same right as `list_zahlungen`; less data transfer). */
 export async function listZahlungenForPatient(patient_id: string): Promise<Zahlung[]> {
     return practiceSystem.invoke<Zahlung[]>("list_zahlungen_for_patient", { patient_id });
 }
 
-/** Für Patientenliste: IDs mit mindestens einer Buchung „ausstehend“ oder „teilbezahlt“. */
+/** For patient list: IDs with at least one booking "ausstehend" or "teilbezahlt". */
 export async function listPatientIdsOpenInvoice(): Promise<string[]> {
     return practiceSystem.invoke<string[]>("list_patient_ids_open_invoice");
 }
@@ -53,7 +53,7 @@ export async function deleteZahlung(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_zahlung", { id });
 }
 
-/** Tagesabschluss: markiert ausgewählte Zahlungen als kassengeprüft (oder zurück). */
+/** Tagesabschluss: marks selected payments as cash-verified (or reverts). */
 export async function setZahlungenKasseGeprueft(ids: string[], kasseGeprueft: boolean): Promise<number> {
     return practiceSystem.invoke<number>("set_zahlungen_kasse_geprueft", { ids, kasse_geprueft: kasseGeprueft });
 }

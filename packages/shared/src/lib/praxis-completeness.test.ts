@@ -24,7 +24,7 @@ describe("checkPraxisDocumentReadiness", () => {
         expect(checkPraxisDocumentReadiness(full, "rezept").ready).toBe(true);
         const r = checkPraxisDocumentReadiness({ ...full, zanr: "" }, "rezept");
         expect(r.ready).toBe(false);
-        expect(r.missingFields.map((m) => m.label)).toContain("ZANR");
+        expect(r.missingFields.map((m) => m.labelKey)).toContain("praxis.setup.zanr");
     });
 
     it("akte only requires name", () => {

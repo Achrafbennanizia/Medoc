@@ -12,16 +12,28 @@ export function isReleasedForBilling(
     return vid.length > 0 && vam.length > 0;
 }
 
+export type TFn = (key: string) => string;
+export type TParamsFn = (key: string, params: Record<string, string | number>) => string;
+
+export function billingReleaseError(t: TParamsFn, entityLabel: string): string {
+    return t("error.billing.not_released", { entity: entityLabel });
+}
+
+/** @deprecated Use billingReleaseError(t, entityLabel) */
 export function billingReleaseErrorDe(entityLabel: string): string {
-    return `${entityLabel} ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05).`;
+    return `${entityLabel} is not yet released for billing (FA-LEIST-05).`;
 }
 
 export function requireReleasedForBilling(
     freigegebenVonArztId: string | null | undefined,
     freigegebenAm: string | null | undefined,
     entityLabel: string,
+    t?: TParamsFn,
 ): void {
     if (!isReleasedForBilling(freigegebenVonArztId, freigegebenAm)) {
-        throw new Error(billingReleaseErrorDe(entityLabel));
+        const msg = t
+            ? billingReleaseError(t, entityLabel)
+            : billingReleaseErrorDe(entityLabel);
+        throw new Error(msg);
     }
 }

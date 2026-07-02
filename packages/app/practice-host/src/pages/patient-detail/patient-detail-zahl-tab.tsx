@@ -5,7 +5,7 @@ import { itemValidationKey, type ValidationRecord } from "@/lib/akte-validation"
 import { ShieldCheckIcon } from "@/lib/icons";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
-    ZAHLUNG_ART_SELECT,
+    zahlungArtSelectOptions,
     ZAHL_EUR_EPS,
     formatZahlungBezugLine,
     roundMoney2,
@@ -184,7 +184,7 @@ export function PatientDetailZahlTab({
                     {hist.length > 0 ? (
                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                             {hist.map((h) => {
-                                const hs = zahlStatusDisplay(h.status);
+                                const hs = zahlStatusDisplay(h.status, t);
                                 return (
                                     <li key={h.id} style={{ opacity: h.id === z.id ? 1 : 0.85 }}>
                                         {formatDate(h.created_at)}
@@ -218,7 +218,7 @@ export function PatientDetailZahlTab({
                     {histU.length > 0 ? (
                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                             {histU.map((h) => {
-                                const hs = zahlStatusDisplay(h.status);
+                                const hs = zahlStatusDisplay(h.status, t);
                                 return (
                                     <li key={h.id}>
                                         {formatDate(h.created_at)}
@@ -302,7 +302,7 @@ export function PatientDetailZahlTab({
                     value={zahlEditForm.zahlungsart}
                     disabled={!zahlEditUnlocked}
                     onChange={(e) => setZahlEditForm({ ...zahlEditForm, zahlungsart: e.target.value as ZahlungsArt })}
-                    options={[...ZAHLUNG_ART_SELECT]}
+                    options={zahlungArtSelectOptions(t)}
                 />
                 <Textarea
                     id="zex-beschr"
@@ -530,7 +530,7 @@ export function PatientDetailZahlTab({
                                                     {hist.length > 0 ? (
                                                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                             {hist.map((h) => {
-                                                                const hs = zahlStatusDisplay(h.status);
+                                                                const hs = zahlStatusDisplay(h.status, t);
                                                                 return (
                                                                     <li key={h.id}>
                                                                         {formatDate(h.created_at)}
@@ -609,7 +609,7 @@ export function PatientDetailZahlTab({
                                                 {histU.length > 0 ? (
                                                     <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                         {histU.map((h) => {
-                                                            const hs = zahlStatusDisplay(h.status);
+                                                            const hs = zahlStatusDisplay(h.status, t);
                                                             return (
                                                                 <li key={h.id}>
                                                                     {formatDate(h.created_at)}
@@ -671,7 +671,7 @@ export function PatientDetailZahlTab({
                                 value={zahlNewForm.zahlungsart}
                                 onChange={(e) =>
                                     setZahlNewForm({ ...zahlNewForm, zahlungsart: e.target.value as ZahlungsArt })}
-                                options={[...ZAHLUNG_ART_SELECT]}
+                                options={zahlungArtSelectOptions(t)}
                             />
                             <Textarea
                                 id="zahl-neu-beschr"
@@ -737,7 +737,7 @@ export function PatientDetailZahlTab({
                             </thead>
                             <tbody>
                                 {zahlZuordnungSummaries.map((row) => {
-                                    const st = zahlStatusDisplay(row.status);
+                                    const st = zahlStatusDisplay(row.status, t);
                                     return (
                                         <tr key={row.key}>
                                             <td>
@@ -796,8 +796,8 @@ export function PatientDetailZahlTab({
                         </thead>
                         <tbody>
                             {zahlungenHistorisch.flatMap((z) => {
-                                const st = zahlStatusDisplay(z.status);
-                                const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
+                                const st = zahlStatusDisplay(z.status, t);
+                                const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen, t, tp);
                                 let bezug = emDash;
                                 if (z.behandlung_id) {
                                     const b = behandlungen.find((x) => x.id === z.behandlung_id);
@@ -825,8 +825,8 @@ export function PatientDetailZahlTab({
                                             </div>
                                         </td>
                                         <td>
-                                            <div className="zahl-td-clip" title={zahlungsartLabel(z.zahlungsart)}>
-                                                {zahlungsartLabel(z.zahlungsart)}
+                                            <div className="zahl-td-clip" title={zahlungsartLabel(z.zahlungsart, t)}>
+                                                {zahlungsartLabel(z.zahlungsart, t)}
                                             </div>
                                         </td>
                                         <td>

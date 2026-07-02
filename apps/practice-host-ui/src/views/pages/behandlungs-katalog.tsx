@@ -405,7 +405,7 @@ export function BehandlungsKatalogPage() {
                                     <tr>
                                         <th scope="col">{t("page.behandlungs_katalog.col.category")}</th>
                                         <th scope="col">{t("page.behandlungs_katalog.col.name")}</th>
-                                        <th scope="col" style={{ textAlign: "right" }}>{t("page.behandlungs_katalog.col.standard")}</th>
+                                        <th scope="col" style={{ textAlign: "end" }}>{t("page.behandlungs_katalog.col.standard")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -422,7 +422,7 @@ export function BehandlungsKatalogPage() {
                                                 <td>
                                                     <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.name}</span>
                                                 </td>
-                                                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                                <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
                                                     {r.default_kosten != null ? formatCurrency(r.default_kosten) : "—"}
                                                 </td>
                                             </tr>

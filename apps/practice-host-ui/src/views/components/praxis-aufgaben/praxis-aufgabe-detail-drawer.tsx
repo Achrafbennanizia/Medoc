@@ -242,7 +242,7 @@ export function PraxisAufgabeDetailDrawer({
                         </div>
                         <div>
                             <div className="termin-drawer-eyebrow">{tx("page.praxis_tickets.drawer_assignee")}</div>
-                            <div className="termin-drawer-meta-val">{assigneeLabel(aufgabe, personal)}</div>
+                            <div className="termin-drawer-meta-val">{assigneeLabel(aufgabe, personal, t)}</div>
                         </div>
                     </div>
 

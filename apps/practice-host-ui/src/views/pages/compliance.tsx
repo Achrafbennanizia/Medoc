@@ -28,7 +28,7 @@ export type CompliancePageProps = {
 function Bullets({ items }: { items: string[] }) {
     if (!items?.length) return <p style={{ color: "var(--fg-3)", margin: 0 }}>—</p>;
     return (
-        <ul style={{ margin: "8px 0 0", paddingLeft: 20, color: "var(--fg-2)", lineHeight: 1.5 }}>
+        <ul style={{ margin: "8px 0 0", paddingInlineStart: 20, color: "var(--fg-2)", lineHeight: 1.5 }}>
             {items.map((x, i) => (
                 <li key={i}>{x}</li>
             ))}
@@ -172,7 +172,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
             {data.deleted.length > 0 ? (
                 <section style={{ marginBottom: 14 }}>
                     <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{t("page.compliance.retention.deleted_ids")}</h3>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>
+                    <ul style={{ margin: 0, paddingInlineStart: 20, fontSize: 13, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>
                         {data.deleted.map((id, i) => (
                             <li key={i}>{id}</li>
                         ))}
@@ -182,7 +182,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
             {data.errors.length > 0 ? (
                 <section>
                     <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "var(--red)" }}>{t("page.compliance.retention.errors")}</h3>
-                    <ul style={{ margin: 0, paddingLeft: 20, color: "var(--red)", fontSize: 13 }}>
+                    <ul style={{ margin: 0, paddingInlineStart: 20, color: "var(--red)", fontSize: 13 }}>
                         {data.errors.map((err, i) => (
                             <li key={i}>{err}</li>
                         ))}

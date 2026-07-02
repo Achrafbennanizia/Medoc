@@ -174,7 +174,7 @@ export function NotificationsPopover({
             <div className="row" style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", alignItems: "center", gap: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{t("app.notifications.title")}</div>
                 {unreadN > 0 ? (
-                    <span className="pill accent" style={{ marginLeft: 4 }}>
+                    <span className="pill accent" style={{ marginInlineStart: 4 }}>
                         {unreadN} {t("common.new")}
                     </span>
                 ) : null}

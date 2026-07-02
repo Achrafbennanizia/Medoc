@@ -11,3 +11,4 @@ pub use medoc_company as company_host;
 pub use medoc_lan as lan_server;
 
 pub mod app_menu;
+pub mod github_updates;

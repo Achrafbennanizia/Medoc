@@ -124,7 +124,7 @@ export function ArbeitszeitTrackingPage() {
                                   : t("page.arbeitszeit.status.active")}
                         </strong>
                         {session?.status === "PAUSED" && session.pauseStartedAt ? (
-                            <span style={{ color: "var(--fg-3)", marginLeft: 8 }}>
+                            <span style={{ color: "var(--fg-3)", marginInlineStart: 8 }}>
                                 {tp("page.arbeitszeit.status.since", {
                                     time: format(parseISO(session.pauseStartedAt), "HH:mm"),
                                 })}

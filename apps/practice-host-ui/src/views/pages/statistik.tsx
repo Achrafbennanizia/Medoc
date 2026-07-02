@@ -72,7 +72,7 @@ function panelMeta(id: string): { titleKey: string; descKey: string; introKey?: 
     }
 }
 
-// Apple-system-inspired palette; erste Farbe folgt dem gewählten Theme-Akzent (`--accent`).
+// Apple-system-inspired palette; first color follows selected theme accent (`--accent`).
 const PALETTE = [
     "var(--accent)",
     "#0A84FF", // blue
@@ -589,7 +589,7 @@ export function StatistikPage() {
             <div className="page-toolbar" style={{ alignItems: "center" }}>
                 <div
                     className="page-toolbar__filters row"
-                    style={{ gap: 8, flexWrap: "wrap", marginLeft: "auto", justifyContent: "flex-end", alignItems: "center" }}
+                    style={{ gap: 8, flexWrap: "wrap", marginInlineStart: "auto", justifyContent: "flex-end", alignItems: "center" }}
                 >
                     <div className="seg" role="group" aria-label={t("page.statistik.period_aria")}>
                         <button type="button" aria-pressed={period === "6m"} onClick={() => setPeriod("6m")}>{t("page.statistik.period.6m")}</button>

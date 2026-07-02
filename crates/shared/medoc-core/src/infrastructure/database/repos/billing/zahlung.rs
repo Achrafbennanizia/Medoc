@@ -105,9 +105,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .to_uppercase();
 
     if data.behandlung_id.is_some() && data.untersuchung_id.is_some() {
-        return Err(AppError::Validation(
-            "Bitte nur eine Verknüpfung: Behandlung oder Untersuchung.".into(),
-        ));
+        return Err(AppError::validation_code("error.zahlung.dual_link"));
     }
 
     let mut betrag_erwartet = data.betrag_erwartet;
@@ -122,14 +120,12 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = row else {
-            return Err(AppError::Validation(
-                "Behandlung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
-            ));
+            return Err(AppError::validation_code("error.zahlung.behandlung_not_found"));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
             vam.as_deref(),
-            "Behandlung",
+            "error.entity.behandlung",
         )?;
     }
     if let Some(ref uid) = data.untersuchung_id {
@@ -143,33 +139,29 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = ok else {
-            return Err(AppError::Validation(
-                "Untersuchung nicht gefunden oder gehört nicht zu diesem Patienten.".into(),
-            ));
+            return Err(AppError::validation_code("error.zahlung.untersuchung_not_found"));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
             vam.as_deref(),
-            "Untersuchung",
+            "error.entity.untersuchung",
         )?;
     }
 
     const EPS: f64 = 1e-6;
     let is_placeholder = data.betrag <= EPS;
     if data.betrag < -EPS {
-        return Err(AppError::Validation("Betrag ungültig.".into()));
+        return Err(AppError::validation_code("error.zahlung.amount_invalid"));
     }
     if is_placeholder && data.leistung_id.is_some() {
-        return Err(AppError::Validation(
-            "Mit Leistungspreisbuchung ist ein positiver Zahlbetrag erforderlich.".into(),
-        ));
+        return Err(AppError::validation_code("error.zahlung.leistung_positive_required"));
     }
 
     // Wenn positiver Betrag: optional Preis aus `leistung` übernehmen.
     let betrag = if is_placeholder {
         0.0
     } else if data.betrag <= EPS {
-        return Err(AppError::Validation("Betrag muss größer als 0 sein".into()));
+        return Err(AppError::validation_code("error.zahlung.amount_must_be_positive"));
     } else if let Some(ref lid) = data.leistung_id {
         let row: Option<(f64,)> = sqlx::query_as("SELECT preis FROM leistung WHERE id = ?1")
             .bind(lid)
@@ -205,10 +197,14 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
                 // Parität zum UI: `Math.max(0, roundMoney2(gesamt - paidSoFar))`
                 let open = round_money2(g - sum_paid).max(0.0);
                 if betrag > open + OPEN_BOOKING_TOLERANCE_EUR {
-                    return Err(AppError::Validation(format!(
-                        "Zahlbetrag übersteigt den offenen Betrag für diese Behandlung (max. {:.2} €, Summe bisher {:.2} €, Soll {:.2} €).",
-                        open, sum_paid, g
-                    )));
+                    return Err(AppError::validation_code_params(
+                        "error.zahlung.overpayment_behandlung",
+                        &[
+                            ("max", &format!("{open:.2}")),
+                            ("paid", &format!("{sum_paid:.2}")),
+                            ("target", &format!("{g:.2}")),
+                        ],
+                    ));
                 }
                 betrag_erwartet = Some(open);
             }
@@ -239,10 +235,14 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
                 .unwrap_or(0.0);
                 let open = round_money2(g - sum_paid).max(0.0);
                 if betrag > open + OPEN_BOOKING_TOLERANCE_EUR {
-                    return Err(AppError::Validation(format!(
-                        "Zahlbetrag übersteigt den offenen Betrag für diese Untersuchung (max. {:.2} €, Summe bisher {:.2} €, Soll {:.2} €).",
-                        open, sum_paid, g
-                    )));
+                    return Err(AppError::validation_code_params(
+                        "error.zahlung.overpayment_untersuchung",
+                        &[
+                            ("max", &format!("{open:.2}")),
+                            ("paid", &format!("{sum_paid:.2}")),
+                            ("target", &format!("{g:.2}")),
+                        ],
+                    ));
                 }
                 betrag_erwartet = Some(open);
             }
@@ -465,16 +465,14 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
         return Err(AppError::NotFound("Zahlung".into()));
     };
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
-        return Err(AppError::Validation(
-            "Nur ausstehende oder teilbezahlte Zahlungen können bearbeitet werden.".into(),
-        ));
+        return Err(AppError::validation_code("error.zahlung.edit_locked_status"));
     }
     let zahlungsart = serde_json::to_string(&data.zahlungsart)
         .map_err(|e| AppError::Internal(format!("Zahlungsart serialisieren: {e}")))?
         .trim_matches('"')
         .to_uppercase();
     if data.betrag <= 0.0 {
-        return Err(AppError::Validation("Betrag muss größer als 0 sein".into()));
+        return Err(AppError::validation_code("error.zahlung.amount_must_be_positive"));
     }
 
     if let Some(ref bid) = behandlung_id {
@@ -502,10 +500,10 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
                 .unwrap_or(0.0);
                 let max_for_row = round_money2(g - sum_others).max(0.0);
                 if data.betrag > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
-                    return Err(AppError::Validation(format!(
-                        "Zahlbetrag übersteigt den zulässigen Rahmen für diese Behandlung (max. {:.2} € inkl. dieser Buchung).",
-                        max_for_row
-                    )));
+                    return Err(AppError::validation_code_params(
+                        "error.zahlung.overpayment_edit_behandlung",
+                        &[("max", &format!("{max_for_row:.2}"))],
+                    ));
                 }
             }
         }
@@ -536,10 +534,10 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
                 .unwrap_or(0.0);
                 let max_for_row = round_money2(g - sum_others).max(0.0);
                 if data.betrag > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
-                    return Err(AppError::Validation(format!(
-                        "Zahlbetrag übersteigt den zulässigen Rahmen für diese Untersuchung (max. {:.2} € inkl. dieser Buchung).",
-                        max_for_row
-                    )));
+                    return Err(AppError::validation_code_params(
+                        "error.zahlung.overpayment_edit_untersuchung",
+                        &[("max", &format!("{max_for_row:.2}"))],
+                    ));
                 }
             }
         }
@@ -579,9 +577,7 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
         .await?;
     let st = row.ok_or(AppError::NotFound("Zahlung".into()))?.0;
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
-        return Err(AppError::Validation(
-            "Nur ausstehende oder teilbezahlte Zahlungen können gelöscht werden.".into(),
-        ));
+        return Err(AppError::validation_code("error.zahlung.delete_locked_status"));
     }
     sqlx::query("DELETE FROM zahlung WHERE id = ?1")
         .bind(id)

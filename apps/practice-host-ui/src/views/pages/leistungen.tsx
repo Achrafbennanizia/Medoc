@@ -9,7 +9,7 @@ import type { Leistung } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
-import { Input, Textarea } from "../components/ui/input";
+import { Input, Select, Textarea } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
@@ -23,6 +23,7 @@ type LeistungForm = {
     preis: string;
     beschreibung: string;
     aktiv: boolean;
+    serviceKind: "standard" | "special_examination";
 };
 
 const emptyForm = (): LeistungForm => ({
@@ -31,15 +32,18 @@ const emptyForm = (): LeistungForm => ({
     preis: "",
     beschreibung: "",
     aktiv: true,
+    serviceKind: "standard",
 });
 
-function toForm(l: Leistung): LeistungForm {
+function toForm(l: Leistung, specialExamCategory: string): LeistungForm {
+    const isSpecialExam = l.kategorie.trim() === specialExamCategory;
     return {
         name: l.name,
         kategorie: l.kategorie,
         preis: String(l.preis),
         beschreibung: l.beschreibung ?? "",
         aktiv: l.aktiv,
+        serviceKind: isSpecialExam ? "special_examination" : "standard",
     };
 }
 
@@ -69,6 +73,7 @@ function formValid(f: LeistungForm): boolean {
 export function LeistungenPage() {
     const t = useT();
     const tp = useTParams();
+    const specialExamCategory = t("leistungen.kind.special_examination_category");
     const [searchParams, setSearchParams] = useSearchParams();
     const [leistungen, setLeistungen] = useState<Leistung[]>([]);
     const [loading, setLoading] = useState(true);
@@ -117,26 +122,44 @@ export function LeistungenPage() {
     }, [load]);
 
     const neuFromQuery = searchParams.get("neu");
+    const kindFromQuery = searchParams.get("kind");
     useEffect(() => {
         if (neuFromQuery !== "1" || !canWrite) return;
         setCreating(true);
         setSelected(null);
-        setCreateForm(emptyForm());
+        setCreateForm(
+            kindFromQuery === "examination"
+                ? {
+                      ...emptyForm(),
+                      serviceKind: "special_examination",
+                      kategorie: specialExamCategory,
+                  }
+                : emptyForm(),
+        );
         setDetailEdit(false);
         setSearchParams(
             (prev) => {
                 const n = new URLSearchParams(prev);
                 n.delete("neu");
+                n.delete("kind");
                 return n;
             },
             { replace: true },
         );
-    }, [neuFromQuery, canWrite, setSearchParams]);
+    }, [neuFromQuery, kindFromQuery, canWrite, setSearchParams, specialExamCategory]);
 
-    const openCreate = () => {
+    const openCreate = (opts?: { examination?: boolean }) => {
         setCreating(true);
         setSelected(null);
-        setCreateForm(emptyForm());
+        setCreateForm(
+            opts?.examination
+                ? {
+                      ...emptyForm(),
+                      serviceKind: "special_examination",
+                      kategorie: specialExamCategory,
+                  }
+                : emptyForm(),
+        );
         setDetailEdit(false);
     };
 
@@ -148,7 +171,7 @@ export function LeistungenPage() {
     const selectRow = (l: Leistung) => {
         setCreating(false);
         setSelected(l);
-        setEditForm(toForm(l));
+        setEditForm(toForm(l, specialExamCategory));
         setDetailEdit(false);
     };
 
@@ -167,7 +190,7 @@ export function LeistungenPage() {
             setCreateForm(emptyForm());
             setCreating(false);
             setSelected(created);
-            setEditForm(toForm(created));
+            setEditForm(toForm(created, specialExamCategory));
             setDetailEdit(false);
             void load();
         } catch (e) {
@@ -215,7 +238,7 @@ export function LeistungenPage() {
     };
 
     const cancelEdit = () => {
-        if (selected) setEditForm(toForm(selected));
+        if (selected) setEditForm(toForm(selected, specialExamCategory));
         setDetailEdit(false);
     };
 
@@ -225,13 +248,13 @@ export function LeistungenPage() {
     );
 
     const kategorieVorschlaege = useMemo(() => {
-        const s = new Set<string>();
+        const s = new Set<string>([specialExamCategory]);
         for (const l of leistungen) {
             const k = l.kategorie?.trim();
             if (k) s.add(k);
         }
         return [...s].sort((a, b) => a.localeCompare(b, "de"));
-    }, [leistungen]);
+    }, [leistungen, specialExamCategory]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -254,7 +277,7 @@ export function LeistungenPage() {
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        <LeistungFormFields form={createForm} setForm={setCreateForm} idPrefix="lst-new" kategorieVorschlaege={kategorieVorschlaege} showAktiv={false} />
+                        <LeistungFormFields form={createForm} setForm={setCreateForm} idPrefix="lst-new" kategorieVorschlaege={kategorieVorschlaege} showAktiv={false} specialExamCategory={specialExamCategory} />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
@@ -275,7 +298,7 @@ export function LeistungenPage() {
                         subtitle={detailEdit ? t("leistungen.detail.edit_sub") : t("leistungen.detail.read_sub")}
                         action={canWrite && !detailEdit ? (
                             <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected)); }}>
+                                <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected, specialExamCategory)); }}>
                                     <EditIcon size={14} />
                                     {" "}
                                     {t("common.edit")}
@@ -289,7 +312,7 @@ export function LeistungenPage() {
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         {detailEdit && canWrite ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                <LeistungFormFields form={editForm} setForm={setEditForm} idPrefix="lst-edit" kategorieVorschlaege={kategorieVorschlaege} showAktiv />
+                                <LeistungFormFields form={editForm} setForm={setEditForm} idPrefix="lst-edit" kategorieVorschlaege={kategorieVorschlaege} showAktiv specialExamCategory={specialExamCategory} />
                                 <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
                                         {t("common.cancel")}
@@ -334,9 +357,18 @@ export function LeistungenPage() {
                 subtitle={t("leistungen.page.subtitle")}
                 actions={
                     canWrite ? (
-                        <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>
-                            {creating ? t("leistungen.cancel_create_btn") : t("leistungen.new_btn")}
-                        </Button>
+                        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => openCreate({ examination: true })}
+                            >
+                                {t("leistungen.new_examination_btn")}
+                            </Button>
+                            <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : () => openCreate()}>
+                                {creating ? t("leistungen.cancel_create_btn") : t("leistungen.new_btn")}
+                            </Button>
+                        </div>
                     ) : null
                 }
             />
@@ -363,7 +395,7 @@ export function LeistungenPage() {
                                         <tr>
                                             <th scope="col">{t("common.name")}</th>
                                             <th scope="col">{t("common.category")}</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.price")}</th>
+                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.price")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -389,13 +421,13 @@ export function LeistungenPage() {
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{l.name}</span>
                                                         {!l.aktiv ? (
-                                                            <span style={{ marginLeft: 8, display: "inline-block" }}>
+                                                            <span style={{ marginInlineStart: 8, display: "inline-block" }}>
                                                                 <Badge variant="warning">{t("common.inactive")}</Badge>
                                                             </span>
                                                         ) : null}
                                                     </td>
                                                     <td>{l.kategorie}</td>
-                                                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(l.preis)}</td>
+                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(l.preis)}</td>
                                                 </tr>
                                             );
                                         })}
@@ -428,17 +460,37 @@ function LeistungFormFields({
     idPrefix,
     kategorieVorschlaege,
     showAktiv,
+    specialExamCategory,
 }: {
     form: LeistungForm;
     setForm: (f: LeistungForm | ((p: LeistungForm) => LeistungForm)) => void;
     idPrefix: string;
     kategorieVorschlaege: string[];
     showAktiv: boolean;
+    specialExamCategory: string;
 }) {
     const t = useT();
     const kategorieDatalistId = useId();
+    const serviceKindOptions = [
+        { value: "standard", label: t("leistungen.kind.standard") },
+        { value: "special_examination", label: t("leistungen.kind.special_examination") },
+    ];
     return (
         <>
+            <Select
+                id={`${idPrefix}-kind`}
+                label={t("leistungen.kind.label")}
+                value={form.serviceKind}
+                options={serviceKindOptions}
+                onChange={(e) => {
+                    const kind = e.target.value as LeistungForm["serviceKind"];
+                    setForm((p) => ({
+                        ...p,
+                        serviceKind: kind,
+                        kategorie: kind === "special_examination" ? specialExamCategory : p.kategorie,
+                    }));
+                }}
+            />
             <Input
                 id={`${idPrefix}-name`}
                 label={t("common.name")}
@@ -452,6 +504,7 @@ function LeistungFormFields({
                     value={form.kategorie}
                     list={kategorieDatalistId}
                     autoComplete="off"
+                    disabled={form.serviceKind === "special_examination"}
                     onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))}
                 />
                 <datalist id={kategorieDatalistId}>

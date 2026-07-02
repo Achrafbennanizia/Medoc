@@ -42,7 +42,7 @@ type LineRow = { id: string; link: string };
 const newRow = (): LineRow => ({ id: `r-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, link: "" });
 
 /**
- * Rechnung (PDF) — FA-FIN-INVOICE: B-/U-Zeilen aus der Patientenakte, Nummer/Praxis/Datum/Brutto automatisch.
+ * Invoice (PDF) — FA-FIN-INVOICE: B/U lines from patient Akte, number/practice/date/gross automatic.
  */
 export function VerwaltungFinanzWerkzeugePage() {
     const t = useT();
@@ -171,7 +171,10 @@ export function VerwaltungFinanzWerkzeugePage() {
         [invoiceHistory, selectedHistoryId],
     );
 
-    const linkOptions = useMemo(() => buildZahlLinkSelectOptions(behandlungen, untersuchungen), [behandlungen, untersuchungen]);
+    const linkOptions = useMemo(
+        () => buildZahlLinkSelectOptions(behandlungen, untersuchungen, t, tp),
+        [behandlungen, untersuchungen, t, tp],
+    );
 
     const linkOptionsPerRow = useCallback(
         (row: LineRow, allRows: LineRow[]) => {
@@ -634,7 +637,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                                         <th scope="col" style={{ textAlign: "left" }}>{t("page.verwaltung_finanz_werkzeuge.col.invoice")}</th>
                                         <th scope="col" style={{ textAlign: "left" }}>{t("common.date")}</th>
                                         <th scope="col" style={{ textAlign: "left" }}>{t("common.recipient")}</th>
-                                        <th scope="col" style={{ textAlign: "right" }}>{t("common.sum_gross")}</th>
+                                        <th scope="col" style={{ textAlign: "end" }}>{t("common.sum_gross")}</th>
                                         <th scope="col" style={{ textAlign: "left" }}>{t("page.verwaltung_finanz_werkzeuge.col.created")}</th>
                                     </tr>
                                 </thead>
@@ -657,7 +660,7 @@ export function VerwaltungFinanzWerkzeugePage() {
                                                         ? `${h.invoice.recipient_name.slice(0, 28)}…`
                                                         : h.invoice.recipient_name}
                                                 </td>
-                                                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                                <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
                                                     {formatCurrency(sumInvoiceEur(h.invoice))}
                                                 </td>
                                                 <td className="page-sub" style={{ fontSize: 12, whiteSpace: "nowrap" }}>

@@ -13,7 +13,7 @@ import {
 import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
 import { bestellStatusDisplay, bestellStatusOptions } from "@/lib/finance-order-labels";
-import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { useDateFnsLocale, useLocale, useT, useTParams } from "@/lib/i18n";
 import { EditIcon, XIcon } from "@/lib/icons";
 import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
@@ -86,6 +86,7 @@ export function BestellungDetailDrawer({
 }: BestellungDetailDrawerProps) {
     const t = useT();
     const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const dateFnsLocale = useDateFnsLocale();
     const titleId = useId();
     const panelRef = useRef<HTMLDivElement>(null);
@@ -139,8 +140,8 @@ export function BestellungDetailDrawer({
     }, []);
 
     const produkteSorted = useMemo(
-        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, "de")),
-        [produkte],
+        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, locale)),
+        [produkte, locale],
     );
 
     const artikelProduktValue = useMemo(() => {
@@ -264,10 +265,11 @@ export function BestellungDetailDrawer({
         }
     }
 
+    const dash = t("common.dash");
     const betragLabel =
         bestellung.gesamtbetrag != null && Number.isFinite(bestellung.gesamtbetrag)
             ? formatCurrency(bestellung.gesamtbetrag)
-            : "—";
+            : dash;
 
     const layer = (
         <>
@@ -281,7 +283,7 @@ export function BestellungDetailDrawer({
             <div className="termin-drawer-section">
                 <div className="termin-drawer-eyebrow">{t("drawer.bestellung.eyebrow")}</div>
                 <h2 id={titleId} className="termin-drawer-title">
-                    {bestellung.bestellnummer ?? "—"}
+                    {bestellung.bestellnummer ?? dash}
                 </h2>
                 <div className="termin-drawer-sub">
                     {bestellung.artikel} · {bestellung.lieferant}
@@ -295,7 +297,7 @@ export function BestellungDetailDrawer({
                         className="termin-drawer-meta-val"
                         style={overdue ? { color: "var(--red)" } : undefined}
                     >
-                        {bestellung.erwartet_am ? formatDate(bestellung.erwartet_am) : "—"}
+                        {bestellung.erwartet_am ? formatDate(bestellung.erwartet_am) : dash}
                     </div>
                 </div>
                 <div>
@@ -418,7 +420,7 @@ export function BestellungDetailDrawer({
                         </div>
                         <div className="ios-row">
                             <div className="termin-drawer-eyebrow">{t("drawer.bestellung.contact")}</div>
-                            <div className="termin-drawer-meta-val">{bestellung.pharmaberater ?? "—"}</div>
+                            <div className="termin-drawer-meta-val">{bestellung.pharmaberater ?? dash}</div>
                         </div>
                         <div className="ios-row">
                             <div className="termin-drawer-eyebrow">{t("common.article")}</div>
@@ -427,7 +429,7 @@ export function BestellungDetailDrawer({
                         <div className="ios-row">
                             <div className="termin-drawer-eyebrow">{t("common.delivered_on")}</div>
                             <div className="termin-drawer-meta-val">
-                                {bestellung.geliefert_am ? formatDate(bestellung.geliefert_am) : "—"}
+                                {bestellung.geliefert_am ? formatDate(bestellung.geliefert_am) : dash}
                             </div>
                         </div>
                         {(bestellung.bemerkung ?? "").trim() ? (

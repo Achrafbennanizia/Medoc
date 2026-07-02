@@ -97,7 +97,7 @@ export async function persistPatientAttest(
     fields: AttestComposerFormFields,
     options?: { silent?: boolean; onAfterSave?: () => void },
 ): Promise<string | null> {
-    const vErr = validateAttestComposer(fields);
+    const vErr = validateAttestComposer(fields, t);
     if (vErr) {
         ctx.toast(vErr, "error");
         return null;

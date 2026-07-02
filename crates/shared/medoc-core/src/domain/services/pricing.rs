@@ -47,14 +47,15 @@ pub fn is_released_for_billing(
 pub fn require_released_for_billing(
     freigegeben_von_arzt_id: Option<&str>,
     freigegeben_am: Option<&str>,
-    entity_label: &str,
+    entity_key: &str,
 ) -> Result<(), AppError> {
     if is_released_for_billing(freigegeben_von_arzt_id, freigegeben_am) {
         Ok(())
     } else {
-        Err(AppError::Validation(format!(
-            "{entity_label} ist noch nicht zur Abrechnung freigegeben (FA-LEIST-05)."
-        )))
+        Err(AppError::validation_code_params(
+            "error.billing.not_released",
+            &[("entity", entity_key)],
+        ))
     }
 }
 

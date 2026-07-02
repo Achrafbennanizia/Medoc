@@ -1,5 +1,5 @@
-import { type CSSProperties, type Dispatch, type SetStateAction } from "react";
-import { addMonths, format } from "date-fns";
+import { type CSSProperties, type Dispatch, type SetStateAction, useMemo } from "react";
+import { addDays, addMonths, format, startOfWeek } from "date-fns";
 import type { Termin } from "@/models/types";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
@@ -8,7 +8,11 @@ import {
     monthCalPatientLoadTier,
     type MonthCalendarPatientLoadPrefs,
 } from "@/lib/praxis-praeferenzen-storage";
-import type { TerminDoctorTone } from "@/lib/termin-calendar-ui";
+import {
+    TERMIN_CALENDAR_MONTH_ROWS,
+    TERMIN_CALENDAR_WORKING_DAYS,
+    type TerminDoctorTone,
+} from "@/lib/termin-calendar-ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import { DoctorLegend } from "@/views/components/termin-doctor-legend";
 
@@ -40,23 +44,28 @@ export function TerminMonthCalendar({
         "termin.calendar.weekday.wed",
         "termin.calendar.weekday.thu",
         "termin.calendar.weekday.fri",
-        "termin.calendar.weekday.sat",
-        "termin.calendar.weekday.sun",
     ] as const;
     const anchor = addMonths(new Date(), monthOffset);
     const y = anchor.getFullYear();
     const m = anchor.getMonth();
     const first = new Date(y, m, 1);
-    const startOffset = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const total = 42;
+    const gridStart = useMemo(() => startOfWeek(first, { weekStartsOn: 1 }), [y, m]);
+    const monthCells = useMemo(() => {
+        const cells: Date[] = [];
+        for (let row = 0; row < TERMIN_CALENDAR_MONTH_ROWS; row++) {
+            for (let col = 0; col < TERMIN_CALENDAR_WORKING_DAYS; col++) {
+                cells.push(addDays(gridStart, row * 7 + col));
+            }
+        }
+        return cells;
+    }, [gridStart]);
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const byDate = termine.reduce<Record<string, Termin[]>>((acc, t) => {
         (acc[t.datum] ||= []).push(t);
         return acc;
     }, {});
     return (
-        <div className="card card-pad termin-month-view">
+        <div className="card card-pad termin-month-view termin-month-view--workweek">
             <div className="month-view-topbar">
                 <div className="row month-view-period" style={{ gap: 8, fontWeight: 600, alignItems: "center" }}>
                     <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_prev")} onClick={() => onMonthChange((o) => o - 1)}><ChevronLeftIcon size={16} /></button>
@@ -68,10 +77,8 @@ export function TerminMonthCalendar({
             </div>
             <div className="cal termine-month-cal">
                 {weekdayKeys.map((key) => <div className="cal-head" key={key}>{t(key)}</div>)}
-                {Array.from({ length: total }).map((_, idx) => {
-                    const day = idx - startOffset + 1;
-                    const inMonth = day > 0 && day <= daysInMonth;
-                    const date = new Date(y, m, day);
+                {monthCells.map((date, idx) => {
+                    const inMonth = date.getMonth() === m;
                     const iso = format(date, "yyyy-MM-dd");
                     const events = [...(byDate[iso] ?? [])].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
                     const isTodayCell = iso === todayIso;
@@ -110,7 +117,10 @@ export function TerminMonthCalendar({
                                         aria-label={`${terminBadgeText}, ${t("termin.calendar.load_label")} ${loadLabel}`}
                                         title={`${terminBadgeText} · ${t("termin.calendar.load_label")} ${loadLabel}`}
                                     >
-                                        {terminBadgeText}
+                                        <span className="cal-cell-termin-pill__full">{terminBadgeText}</span>
+                                        <span className="cal-cell-termin-pill__count" aria-hidden="true">
+                                            {terminCount}
+                                        </span>
                                     </div>
                                 ) : (
                                     <div className="cal-cell-termin-pill cal-cell-termin-pill--empty" aria-label={t("termin.calendar.no_appointments_day")}>

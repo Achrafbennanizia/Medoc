@@ -5,10 +5,12 @@ import type { RezeptLine } from "@/lib/medikamente";
 import type { AttestComposerFormFields } from "@/lib/attest-composer";
 import type { Behandlung, BehandlungsKatalogItem } from "@/models/types";
 
-export function validateRezeptLine(line: RezeptLine): string | null {
-    if (!line.medikament.trim()) return "Bitte Medikament angeben.";
-    if (!line.dosierung.trim()) return "Bitte Dosierung angeben.";
-    if (!line.dauer.trim()) return "Bitte Dauer angeben.";
+type TFn = (key: string) => string;
+
+export function validateRezeptLine(line: RezeptLine, t: TFn): string | null {
+    if (!line.medikament.trim()) return t("page.rezepte.validation.med_required");
+    if (!line.dosierung.trim()) return t("page.rezepte.validation.dosage_required");
+    if (!line.dauer.trim()) return t("page.rezepte.validation.duration_required");
     return null;
 }
 
@@ -41,7 +43,7 @@ export function patientDetailTabVisible(tab: PatientDetailAkteTab, canViewClinic
 export type RezeptWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 export type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
 
-/** Bestätigung nur für sensible Aktionen (Vorlage + Rezepte, Anlagen). */
+/** Confirmation only for sensitive actions (templates + prescriptions, Anlagen). */
 export type AkteSavePending =
     | { kind: "rezept_finalize_vorlage"; titel: string; lines: RezeptLine[]; shared: string }
     | { kind: "attest_finalize_vorlage"; titel: string; fields: AttestComposerFormFields }
@@ -110,10 +112,13 @@ export function resolvePatientDetailTabFromHash(
     return patientDetailTabFromHash(hash);
 }
 
-export function rezeptStatusDisplay(status: string): { variant: "success" | "warning" | "default"; label: string } {
+export function rezeptStatusDisplay(
+    status: string,
+    t: TFn,
+): { variant: "success" | "warning" | "default"; label: string } {
     const s = status.trim();
-    if (s === "AUSGESTELLT") return { variant: "success", label: "Ausgestellt" };
-    if (s === "ENTWURF") return { variant: "warning", label: "Entwurf" };
+    if (s === "AUSGESTELLT") return { variant: "success", label: t("enum.rezept_status.ausgestellt") };
+    if (s === "ENTWURF") return { variant: "warning", label: t("enum.rezept_status.entwurf") };
     return { variant: "default", label: s || "—" };
 }
 

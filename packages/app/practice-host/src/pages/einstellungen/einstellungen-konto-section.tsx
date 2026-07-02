@@ -24,7 +24,7 @@ function passwordChangedDaysAgo(): number | null {
 
 export type EinstellungenKontoSectionProps = {
     onOpenPasswordDialog: () => void;
-    /** Incremented by parent after a successful password change to refresh the „Zuletzt geändert“ hint. */
+    /** Incremented by parent after a successful password change to refresh the last-changed hint. */
     passwordChangedTick?: number;
 };
 

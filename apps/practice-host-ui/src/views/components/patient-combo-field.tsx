@@ -18,7 +18,7 @@ type PatientComboFieldProps = {
 };
 
 /**
- * Ein Feld: tippen zum Filtern, Liste öffnet sich, Klick wählt Patient (ID).
+ * Single field: type to filter, list opens, click selects Patient (ID).
  */
 export function PatientComboField({
     id,

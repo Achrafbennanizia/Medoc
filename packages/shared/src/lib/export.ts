@@ -17,7 +17,7 @@ export type FinishExportWithSettingsInput = {
 };
 
 /**
- * Speichert in konfigurierten benutzerdefinierten Ordner (Tauri), sonst Öffnen der Export-Vorschau
+ * Saves to configured custom folder (Tauri), else opens export preview
  * (Download / Druck wie bisher).
  */
 export async function finishExportWithSettings(opts: FinishExportWithSettingsInput): Promise<void> {
@@ -48,7 +48,7 @@ export async function finishExportWithSettings(opts: FinishExportWithSettingsInp
 }
 
 /**
- * Zentrale Export-Fassade (Phase 4 wird hier weiter verdichtet: Picker, Audit, Kennnummern, …).
+ * Central export facade (phase 4 further consolidated here: picker, audit, reference numbers, …).
  */
 export async function exportFile(
     _kind: string,
@@ -58,5 +58,5 @@ export async function exportFile(
     void _kind;
     void _data;
     void _opts;
-    throw new Error("exportFile: noch nicht angebunden — finishExportWithSettings oder Modul-Export nutzen.");
+    throw new Error("exportFile: not wired yet — use finishExportWithSettings or module export.");
 }

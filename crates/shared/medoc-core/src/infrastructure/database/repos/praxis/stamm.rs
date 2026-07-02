@@ -51,12 +51,10 @@ pub async fn create_abwesenheit(
     data: &CreateAbwesenheit,
 ) -> Result<Abwesenheit, AppError> {
     if data.typ.trim().is_empty() {
-        return Err(AppError::Validation("Typ darf nicht leer sein".into()));
+        return Err(AppError::validation_code("error.stamm.type_required"));
     }
     if data.von_tag.trim().is_empty() || data.bis_tag.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Von- und Bis-Datum erforderlich".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.date_range_required"));
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -95,7 +93,7 @@ pub async fn find_abwesenheit_by_id(pool: &SqlitePool, id: &str) -> Result<Abwes
         .bind(id)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::NotFound("Abwesenheit".into()))
+        .ok_or_else(|| AppError::NotFound("error.entity.abwesenheit".into()))
 }
 
 pub async fn update_abwesenheit(
@@ -111,7 +109,7 @@ pub async fn update_abwesenheit(
         .trim()
         .to_string();
     if typ.is_empty() {
-        return Err(AppError::Validation("Typ darf nicht leer sein".into()));
+        return Err(AppError::validation_code("error.stamm.type_required"));
     }
     let kommentar = match &data.kommentar {
         None => existing.kommentar.clone(),
@@ -137,9 +135,7 @@ pub async fn update_abwesenheit(
         .trim()
         .to_string();
     if von_tag.is_empty() || bis_tag.is_empty() {
-        return Err(AppError::Validation(
-            "Von- und Bis-Datum erforderlich".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.date_range_required"));
     }
     let von_uhrzeit = match &data.von_uhrzeit {
         None => existing.von_uhrzeit.clone(),
@@ -228,12 +224,10 @@ pub async fn create_dokument_vorlage(
 ) -> Result<DokumentVorlage, AppError> {
     let kind = data.kind.trim().to_uppercase();
     if kind != "REZEPT" && kind != "ATTEST" {
-        return Err(AppError::Validation(
-            "kind muss REZEPT oder ATTEST sein".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.template_kind_invalid"));
     }
     if data.titel.trim().is_empty() {
-        return Err(AppError::Validation("Titel erforderlich".into()));
+        return Err(AppError::validation_code("error.stamm.title_required"));
     }
     let payload_str =
         serde_json::to_string(&data.payload).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -272,7 +266,7 @@ pub async fn update_dokument_vorlage(
         .trim()
         .to_string();
     if titel.is_empty() {
-        return Err(AppError::Validation("Titel erforderlich".into()));
+        return Err(AppError::validation_code("error.stamm.title_required"));
     }
     let payload_str = if let Some(p) = &data.payload {
         serde_json::to_string(p).map_err(|e| AppError::Internal(e.to_string()))?
@@ -348,9 +342,7 @@ pub async fn create_behandlungs_katalog_item(
     data: &CreateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Kategorie und Name erforderlich".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.category_name_required"));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -378,9 +370,7 @@ pub async fn update_behandlungs_katalog_item(
     data: &UpdateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Kategorie und Name erforderlich".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.category_name_required"));
     }
     let sort = data.sort_order.unwrap_or(0);
     let r = sqlx::query(
@@ -489,7 +479,7 @@ pub async fn create_lieferant_stamm(
 ) -> Result<LieferantStammRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::Validation("Lieferant: Name erforderlich".into()));
+        return Err(AppError::validation_code("error.stamm.supplier_name_required"));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -538,7 +528,7 @@ pub async fn create_pharmaberater_stamm(
 ) -> Result<PharmaberaterStammRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::Validation("Kontakt: Name erforderlich".into()));
+        return Err(AppError::validation_code("error.stamm.contact_name_required"));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -642,9 +632,7 @@ pub async fn create_lieferant_pharma_vorlage(
     let pid = data.pharmaberater_id.trim();
     let prid = data.produkt_id.trim();
     if lid.is_empty() || pid.is_empty() || prid.is_empty() {
-        return Err(AppError::Validation(
-            "Lieferant, Kontakt und Produkt wählen".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.order_fields_required"));
     }
     let l_ok: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM lieferant_stamm WHERE id = ?1 AND aktiv = 1")
@@ -653,7 +641,7 @@ pub async fn create_lieferant_pharma_vorlage(
             .await
             .map_err(AppError::from)?;
     if l_ok.0 == 0 {
-        return Err(AppError::Validation("Ungültiger Lieferant".into()));
+        return Err(AppError::validation_code("error.stamm.invalid_supplier"));
     }
     let p_ok: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM pharmaberater_stamm WHERE id = ?1 AND aktiv = 1")
@@ -662,7 +650,7 @@ pub async fn create_lieferant_pharma_vorlage(
             .await
             .map_err(AppError::from)?;
     if p_ok.0 == 0 {
-        return Err(AppError::Validation("Ungültiger Kontakt".into()));
+        return Err(AppError::validation_code("error.stamm.invalid_contact"));
     }
     let pr_ok: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM produkt WHERE id = ?1 AND aktiv = 1")
         .bind(prid)
@@ -670,9 +658,7 @@ pub async fn create_lieferant_pharma_vorlage(
         .await
         .map_err(AppError::from)?;
     if pr_ok.0 == 0 {
-        return Err(AppError::Validation(
-            "Ungültiges oder inaktives Produkt".into(),
-        ));
+        return Err(AppError::validation_code("error.stamm.invalid_product"));
     }
     // Existing triple (incl. soft-deleted): reactivate or return
     let existing: Option<(String, i64)> = sqlx::query_as(

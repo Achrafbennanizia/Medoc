@@ -14,15 +14,15 @@ import type { AkteAnlageRowDto } from "@/lib/akte-anlagen";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, Zahlung } from "@/models/types";
 
 /**
- * Normative / de-facto Muster für Exporte (Informationsmodell, keine Zertifizierung):
- * – ISO 13606-1:2019 — EHR-Kommunikation, „EHR_EXTRACT“ als übergeordneter Kommunikationsrahmen
+ * Normative / de-facto patterns for exports (information model, no certification):
+ * – ISO 13606-1:2019 — EHR communication, "EHR_EXTRACT" as overarching communication framework
  *   (@see https://www.iso.org/standard/67868.html )
- * – HL7 FHIR R4 — Bundle (type collection/document) + Composition für dokumentenartige Zusammenstellung
+ * – HL7 FHIR R4 — Bundle (type collection/document) + Composition for document-style assembly
  *   (@see https://www.hl7.org/fhir/R4/documents.html , https://www.hl7.org/fhir/R4/composition.html )
- * – EU-DSGVO Art. 20 — strukturierte, gängige, maschinenlesbare Formate (u. a. JSON, XML, CSV)
+ * – EU GDPR Art. 20 — structured, common, machine-readable formats (incl. JSON, XML, CSV)
  *   (@see https://gdpr-info.eu/art-20-gdpr/ )
- * – ISO 22600:2014 — Privilegien-/Zugriffskontext spiegelt sich in den gefilterten Export-Daten wider
- *   (Praxis: RBAC bei Erstellung)
+ * – ISO 22600:2014 — privilege/access context reflected in filtered export data
+ *   (practice: RBAC on creation)
  */
 export const AKTE_EXPORT_PROFILE_URI = "urn:medoc:export:akte:1.1.0";
 
@@ -66,7 +66,7 @@ export type AkteExportSectionsState = {
     attest: boolean;
     zahlungen: boolean;
     anlagen: boolean;
-    /** Nur mit audit.read */
+    /** Requires audit.read */
     audit: boolean;
 };
 
@@ -118,7 +118,7 @@ export function slugPatientName(name: string): string {
     return s || "Patient";
 }
 
-/** Vorschläge: zuerst ISO-ähnlich eindeutig, dann lesbar. */
+/** Suggestions: ISO-like unique first, then readable. */
 export function suggestAkteExportFilenames(patient: Patient, ext: string): string[] {
     const id8 = patient.id.replace(/-/g, "").slice(0, 8);
     const d = new Date();
@@ -232,7 +232,7 @@ function mapGenderAdministrativeToFhir(g: string): string {
     return "unknown";
 }
 
-/** Teilmenge FHIR R4 Patient — nur für Interoperabilitätshülle (kein vollständiges Validierungsprofil). */
+/** FHIR R4 Patient subset — interoperability wrapper only (no full validation profile). */
 export function toFhirPatientResource(p: Patient): Record<string, unknown> {
     const id = p.id.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 64) || "patient";
     return {
@@ -265,7 +265,7 @@ function narrativeDivFromText(body: string): string {
 
 /**
  * FHIR R4-konformes Umschlag-Muster: Bundle type=collection + Composition + Patient.
- * Entspricht dem in HL7 beschriebenen Dokument-/Sammelmuster informell; nicht als validiertes IHE-Dokument deklariert.
+ * Informally matches HL7 document/collection pattern; not declared as validated IHE document.
  */
 export function buildFhirInteropBundle(
     snap: AkteExportSnapshot,
@@ -387,7 +387,7 @@ export function buildDocumentManifest(
     };
 }
 
-/** Vollständiger JSON-Export mit Interoperabilitätshülle + fachlichem MeDoc-Payload. */
+/** Full JSON export with interoperability wrapper + domain MeDoc payload. */
 export function buildInteroperableAkteJson(
     snap: AkteExportSnapshot,
     sec: AkteExportSectionsState,
@@ -404,7 +404,7 @@ function cdataSafe(s: string): string {
     return s.replace(/\]\]>/g, "]]]]><![CDATA[>");
 }
 
-/** ISO-13606-/openEHR-inspirierte XML-Hülle + eingebettetes FHIR-JSON + klinischer Domain-Baum. */
+/** ISO-13606-/openEHR-inspired XML wrapper + embedded FHIR JSON + clinical domain tree. */
 export function buildAkteExportXmlInterop(interop: Record<string, unknown>): string {
     const lines: string[] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -455,7 +455,7 @@ export function buildAkteExportXmlInterop(interop: Record<string, unknown>): str
     return lines.join("\n");
 }
 
-/** CSV inkl. Metazeilen (Portabilität / Normhinweise) + flacher Domain-Teil. */
+/** CSV incl. meta lines (portability / norm notes) + flat domain section. */
 export function buildAkteExportCsvFromInterop(interop: Record<string, unknown>): string {
     const rows: string[][] = [
         ["Bereich", "Schlüssel", "Wert"],
@@ -484,7 +484,7 @@ export function buildAkteExportCsvFromInterop(interop: Record<string, unknown>):
     return rows.map((r) => r.map(esc).join(";")).join("\n");
 }
 
-/** Minimal CSV-Zeilenparser für zusammengefügte Exporte (Semikolon, Anführungszeichen). */
+/** Minimal CSV line parser for concatenated exports (semicolon, quotes). */
 function parseCsvSemicolonLine(line: string): string[] {
     const out: string[] = [];
     let cur = "";
@@ -527,7 +527,7 @@ function xmlTagKey(k: string): string {
     return t.match(/^[A-Za-z_]/) ? t : `_${t}`;
 }
 
-/** Einfache XML-Hülle für strukturierte Akten-Exports (Maschinenlesbarkeit). */
+/** Simple XML wrapper for structured Akte exports (machine readability). */
 export function buildAkteExportXml(data: Record<string, unknown>): string {
     const lines: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', "<PatientenakteExport>"];
     const walk = (tag: string, val: unknown, indent: number): void => {
@@ -562,7 +562,7 @@ export function buildAkteExportXml(data: Record<string, unknown>): string {
     return lines.join("\n");
 }
 
-/** CSV mit `;` und Kopfzeile — flache Zeilen („Bereich“, „Schlüssel“, „Wert“). */
+/** CSV with `;` and header — flat rows (Bereich / key / Wert columns). */
 export function buildAkteExportCsv(data: Record<string, unknown>): string {
     const rows: string[][] = [["Bereich", "Schlüssel", "Wert"]];
 

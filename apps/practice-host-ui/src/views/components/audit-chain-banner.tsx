@@ -70,7 +70,7 @@ export function AuditChainBanner({ canAcknowledge }: { canAcknowledge: boolean }
             actions={
                 canAcknowledge ? (
                     <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void onAck()}>
-                        {busy ? "…" : t("audit.chain.quittieren")}
+                        {busy ? t("common.loading") : t("audit.chain.quittieren")}
                     </Button>
                 ) : undefined
             }

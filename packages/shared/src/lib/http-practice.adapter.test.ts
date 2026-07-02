@@ -21,12 +21,12 @@ describe("HttpPracticeAdapter", () => {
         vi.unstubAllGlobals();
     });
     it("rejects incomplete LAN config", () => {
-        expect(() => new HttpPracticeAdapter(EMPTY_LAN_CLIENT_CONFIG)).toThrow(/unvollständig/);
+        expect(() => new HttpPracticeAdapter(EMPTY_LAN_CLIENT_CONFIG)).toThrow(/base URL missing/);
     });
 
     it("rejects unmapped IPC commands", () => {
         const adapter = new HttpPracticeAdapter(activeLanConfig);
-        expect(adapter.invoke("get_patient", { id: "x" })).rejects.toThrow(/nicht verfügbar/);
+        expect(adapter.invoke("get_patient", { id: "x" })).rejects.toThrow(/not available on the API server/);
     });
 
     it("login posts credentials and persists access_token (LAN client flow)", async () => {

@@ -5,9 +5,9 @@ import type { Attest } from "@/systems/practice-host/controllers/attest.controll
 import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { listDokumentVorlagen } from "@/systems/practice-host/controllers/praxis.controller";
 import {
-    ATTEST_TYP_OPTIONS,
-    KRANKHEITEN_SUGGESTIONS,
+    ATTEST_TYP_VALUES,
     attestGueltigBisFromVonAndTage,
+    defaultIllnessLabel,
     emptyAttestComposerForm,
     parseAttestVorlagePayload,
     validateAttestComposer,
@@ -96,7 +96,7 @@ export function usePatientDetailRezeptTab({
     const attestWizardPanelRef = useRef<HTMLDivElement>(null);
     const [attestComposerKind, setAttestComposerKind] = useState<"vorlage" | "neu">("neu");
     const [attestForm, setAttestForm] = useState<AttestComposerFormFields>(() =>
-        emptyAttestComposerForm(new Date().toISOString().slice(0, 10)));
+        emptyAttestComposerForm(new Date().toISOString().slice(0, 10), t));
     const [attestBaselineJson, setAttestBaselineJson] = useState<string | null>(null);
     const [attestComposerBusy, setAttestComposerBusy] = useState(false);
     const [attestDraftErr, setAttestDraftErr] = useState<string | null>(null);
@@ -150,9 +150,9 @@ export function usePatientDetailRezeptTab({
     }, []);
 
     const resetAttestWizard = useCallback(() => {
-        const t = new Date().toISOString().slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
         setAttestWizardStep(null);
-        setAttestForm(emptyAttestComposerForm(t));
+        setAttestForm(emptyAttestComposerForm(today, t));
         setAttestBaselineJson(null);
         setAttestDraftErr(null);
         setAttestComposerKind("neu");
@@ -161,7 +161,7 @@ export function usePatientDetailRezeptTab({
         setAttestPickSelectedId("");
         setAttestPendingQueue(null);
         setAttestNewVorlageTitel("");
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         if (!canWriteMedical) return;
@@ -239,7 +239,7 @@ export function usePatientDetailRezeptTab({
             || rezeptDraft.hinweise.trim();
         const out = [...rezeptLines];
         if (hasDraft) {
-            const err = validateRezeptLine(rezeptDraft);
+            const err = validateRezeptLine(rezeptDraft, t);
             if (err) {
                 setRezeptDraftErr(err);
                 return null;
@@ -302,7 +302,7 @@ export function usePatientDetailRezeptTab({
     };
 
     const submitAttestComposer = () => {
-        const err = validateAttestComposer(attestForm);
+        const err = validateAttestComposer(attestForm, t);
         if (err) {
             setAttestDraftErr(err);
             return;
@@ -314,7 +314,7 @@ export function usePatientDetailRezeptTab({
         }
         setAttestPendingQueue({ ...attestForm });
         setAttestWizardStep("ask_vorlage");
-        setAttestForm(emptyAttestComposerForm(new Date().toISOString().slice(0, 10)));
+        setAttestForm(emptyAttestComposerForm(new Date().toISOString().slice(0, 10), t));
     };
 
     const onAttestAskVorlageNo = () => {
@@ -458,9 +458,9 @@ export function usePatientDetailRezeptTab({
             return;
         }
         const today = new Date().toISOString().slice(0, 10);
-        const krank = parsed.krankheiten.trim() || (KRANKHEITEN_SUGGESTIONS[0] ?? "");
+        const krank = parsed.krankheiten.trim() || defaultIllnessLabel(t);
         const nextForm: AttestComposerFormFields = {
-            typ: ATTEST_TYP_OPTIONS[0]!.value,
+            typ: ATTEST_TYP_VALUES[0],
             krankheiten: krank,
             tageAnzahl: String(n),
             einschraenkung: parsed.einschraenkung.trim(),
@@ -519,7 +519,7 @@ export function usePatientDetailRezeptTab({
     };
 
     const addRezeptDraftLine = () => {
-        const err = validateRezeptLine(rezeptDraft);
+        const err = validateRezeptLine(rezeptDraft, t);
         if (err) {
             setRezeptDraftErr(err);
             return;

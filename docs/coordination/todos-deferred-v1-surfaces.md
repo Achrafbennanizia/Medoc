@@ -22,6 +22,11 @@
 
 1. `PDF_LAYOUT_TEMPLATE_PICKER_ENABLED = true`
 2. `ONBOARDING_COACHMARK_ENABLED = true` — restore mount in `app-layout.tsx`
+3. `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED = true` — settings reset row in Arbeitsabläufe
+
+### Workflows (Arbeitsabläufe)
+
+1. `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED = true` — modal vs inline confirm tuning (defaults remain modal when hidden)
 
 ### Multi-device
 
@@ -29,4 +34,4 @@
 
 ## Do NOT blind (has runtime effect)
 
-- **Bestätigung bei kritischen Aktionen (Akte)** — [`akte-confirm-presentation.tsx`](../../apps/practice-host-ui/src/views/components/akte-confirm-presentation.tsx)
+- **Akte confirmations (runtime)** — [`akte-confirm-presentation.tsx`](../../apps/practice-host-ui/src/views/components/akte-confirm-presentation.tsx) still uses stored prefs; only the **settings UI** is hidden.

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-/** Lightweight global „ungespeicherte Änderungen“ flag for beforeunload (NFA-USE-03). */
+/** Lightweight global "unsaved changes" flag for beforeunload (NFA-USE-03). */
 interface FormDirtyState {
     dirty: boolean;
     setDirty: (v: boolean) => void;

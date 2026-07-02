@@ -1,5 +1,5 @@
 /**
- * Gerätesitzungen — IPC micro-service (auth / SQLite `device_session`).
+ * Device sessions — IPC micro-service (auth / SQLite `device_session`).
  */
 import { practiceSystem } from "../adapters/practice-transport";
 

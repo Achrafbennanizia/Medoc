@@ -132,21 +132,21 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         const user = userEvent.setup();
         render(<App />);
 
-        expect(await screen.findByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
-        await user.type(screen.getByLabelText("E-Mail"), REZ_SESSION.email);
+        await user.type(screen.getByLabelText("Email"), REZ_SESSION.email);
         const pw = document.querySelector<HTMLInputElement>("#passwort");
         expect(pw).toBeTruthy();
         await user.type(pw!, "secret123");
-        await user.click(screen.getByRole("button", { name: /Anmelden$/ }));
+        await user.click(screen.getByRole("button", { name: /Sign in$/ }));
 
-        expect(await screen.findByRole("heading", { name: "Arbeitszeit" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Work time" })).toBeInTheDocument();
 
         const aside = screen.getByRole("complementary");
-        await user.click(within(aside).getByRole("link", { name: /Praxis-Aufgaben/i }));
+        await user.click(within(aside).getByRole("link", { name: /Practice tasks/i }));
 
-        expect(await screen.findByRole("heading", { name: /Praxis-Aufgaben/i })).toBeInTheDocument();
-        expect(await screen.findByText(/Keine offenen Aufgaben/i)).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /Practice tasks/i })).toBeInTheDocument();
+        expect(await screen.findByText(/No open tasks/i)).toBeInTheDocument();
 
         await waitFor(() => {
             const cmds = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);

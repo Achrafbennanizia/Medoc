@@ -14,7 +14,7 @@ import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-/** Eigene Gerätesitzungen — Einstellungen → Sicherheit. */
+/** Own device sessions — Einstellungen → Sicherheit. */
 export function EinstellungenDeviceSessionsSection() {
     const t = useT();
     const tp = useTParams();

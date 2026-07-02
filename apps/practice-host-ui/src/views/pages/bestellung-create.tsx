@@ -22,7 +22,7 @@ import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 interface CreateForm {
     lieferant: string;
-    /** Auswahl aus `Produkt.id` (Artikel-Text in der Bestellung = `Produkt.name`) */
+    /** Selection from `Produkt.id` (order item text = `Produkt.name`) */
     artikelProduktId: string;
     menge: string;
     einheit: string;
@@ -47,7 +47,7 @@ function todayISO(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-/** Anzeigetext für Schnellwahl-Vorlage (Lieferant · Kontakt · Produkt). */
+/** Display text for quick-select template (supplier · contact · product). */
 function formatVorlageDatalistLine(
     v: LieferantPharmaVorlage,
     tp: (key: string, params: Record<string, string | number>) => string,
@@ -107,7 +107,7 @@ export function BestellungCreatePage() {
     const [lieferantenStamm, setLieferantenStamm] = useState<LieferantStamm[]>([]);
     const [pharmaberaterStamm, setPharmaberaterStamm] = useState<PharmaberaterStamm[]>([]);
     const [vorlagen, setVorlagen] = useState<LieferantPharmaVorlage[]>([]);
-    /** Eingabetext; exakter Treffer mit `datalist` übernimmt Lieferant/Kontakt/Produkt. */
+    /** Input text; exact match with `datalist` adopts supplier/contact/product. */
     const [vorlageInputText, setVorlageInputText] = useState("");
     const vorlageDatalistDomId = useId();
 

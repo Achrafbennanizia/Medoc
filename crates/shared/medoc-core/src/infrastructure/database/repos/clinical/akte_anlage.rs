@@ -100,7 +100,7 @@ pub async fn create(
     bytes: &[u8],
 ) -> Result<AkteAnlageRow, AppError> {
     if bytes.len() > ANLAGE_MAX_BYTES {
-        return Err(AppError::Validation("Datei zu groß (max. 50 MB).".into()));
+        return Err(AppError::validation_code("error.anlage.file_too_large"));
     }
 
     let (cnt,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patientenakte WHERE id = ?1")
@@ -109,7 +109,7 @@ pub async fn create(
         .await
         .map_err(AppError::Database)?;
     if cnt == 0 {
-        return Err(AppError::NotFound("Patientenakte".into()));
+        return Err(AppError::NotFound("error.entity.patientenakte".into()));
     }
 
     let id = Uuid::new_v4().to_string();
@@ -161,9 +161,7 @@ pub async fn update_display_name(
 ) -> Result<(), AppError> {
     let trimmed = display_name.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Validation(
-            "Bezeichnung darf nicht leer sein.".into(),
-        ));
+        return Err(AppError::validation_code("error.anlage.label_empty"));
     }
     let n = sqlx::query("UPDATE akte_anlage SET display_name = ?1 WHERE id = ?2")
         .bind(trimmed)
@@ -173,7 +171,7 @@ pub async fn update_display_name(
         .map_err(AppError::Database)?
         .rows_affected();
     if n == 0 {
-        return Err(AppError::NotFound("Akte-Anlage".into()));
+        return Err(AppError::NotFound("error.entity.akte_anlage".into()));
     }
     Ok(())
 }
@@ -185,9 +183,7 @@ pub async fn update_document_kind(
 ) -> Result<(), AppError> {
     let trimmed = document_kind.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Validation(
-            "Dokumenttyp darf nicht leer sein.".into(),
-        ));
+        return Err(AppError::validation_code("error.anlage.doc_type_empty"));
     }
     let n = sqlx::query("UPDATE akte_anlage SET document_kind = ?1 WHERE id = ?2")
         .bind(trimmed)
@@ -197,7 +193,7 @@ pub async fn update_document_kind(
         .map_err(AppError::Database)?
         .rows_affected();
     if n == 0 {
-        return Err(AppError::NotFound("Akte-Anlage".into()));
+        return Err(AppError::NotFound("error.entity.akte_anlage".into()));
     }
     Ok(())
 }

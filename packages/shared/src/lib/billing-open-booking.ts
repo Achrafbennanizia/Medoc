@@ -4,7 +4,7 @@
 import type { ZahlungsArt } from "@/models/types";
 import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
 
-/** FA-LEIST-06/07 — gleiche Regel für Behandlung und Untersuchung. */
+/** FA-LEIST-06/07 — same rule for Behandlung and Untersuchung. */
 export function behandlungHasBillableLeistung(
     leistungsname: string | null | undefined,
     gesamtkosten: number | null | undefined,
@@ -32,7 +32,7 @@ export type OpenZahlTabAfterBehandlungArgs = {
     setZahlNewForm: (form: ZahlNewFormState) => void;
 };
 
-/** Patientenakte → Tab Abrechnung, Formular „Neue Buchung“ vorausgefüllt. */
+/** Patient Akte → billing tab, form "Neue Buchung" pre-filled. */
 export function openZahlTabAfterBillableBehandlung(args: OpenZahlTabAfterBehandlungArgs): void {
     const betrag =
         args.gesamtkosten != null && Number.isFinite(args.gesamtkosten) && args.gesamtkosten > 0

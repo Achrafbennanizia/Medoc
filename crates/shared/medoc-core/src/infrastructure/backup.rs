@@ -267,26 +267,19 @@ pub async fn restore_from_backup(
     backup_path: &Path,
 ) -> Result<RestoreReport, AppError> {
     if !backup_path.is_file() {
-        return Err(AppError::Validation("Backup-Datei nicht gefunden.".into()));
+        return Err(AppError::validation_code("error.backup.file_not_found"));
     }
     if backup_path.extension().and_then(|e| e.to_str()) != Some("db") {
-        return Err(AppError::Validation(
-            "Nur .db-Dateien können wiederhergestellt werden.".into(),
-        ));
+        return Err(AppError::validation_code("error.backup.only_db_files"));
     }
     match verify_signature(backup_path) {
         Some(false) => {
-            return Err(AppError::Validation(
-                "Backup-Signatur ungültig — Wiederherstellung abgebrochen.".into(),
-            ));
+            return Err(AppError::validation_code("error.backup.signature_invalid"));
         }
         Some(true) => {}
         None => {
             if !validate(backup_path)? {
-                return Err(AppError::Validation(
-                    "Datei ist keine gültige SQLite-Sicherung (keine Signatur, Header ungültig)."
-                        .into(),
-                ));
+                return Err(AppError::validation_code("error.backup.invalid_sqlite"));
             }
         }
     }
@@ -314,9 +307,7 @@ pub async fn restore_from_backup(
         if sqlcipher::is_plaintext_sqlite_file(&db_path) {
             sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
         } else {
-            return Err(AppError::Validation(
-                "Wiederhergestellte Datei ist keine gültige MeDoc-Datenbank.".into(),
-            ));
+            return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
         }
     }
 

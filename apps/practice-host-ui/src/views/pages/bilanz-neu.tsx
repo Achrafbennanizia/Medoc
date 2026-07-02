@@ -385,7 +385,7 @@ export function BilanzNeuPage() {
                                     {t("page.bilanz_neu.confirm.summary")}
                                 </p>
                                 <FormSection title={t("page.bilanz_neu.section.master_data")}>
-                                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--fg-2)" }}>
+                                    <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 14, color: "var(--fg-2)" }}>
                                         <li>{tp("page.bilanz_neu.summary.period", { period: bilanzzeitraum || "—" })}</li>
                                         <li>{tp("page.bilanz_neu.summary.org", { org })}</li>
                                         <li>{tp("page.bilanz_neu.summary.type", { type: bilanzTypLabel })}</li>
@@ -395,7 +395,7 @@ export function BilanzNeuPage() {
                                     </ul>
                                 </FormSection>
                                 <FormSection title={t("page.bilanz_neu.section.selection")}>
-                                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--fg-2)" }}>
+                                    <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 14, color: "var(--fg-2)" }}>
                                         <li>{tp("page.bilanz_neu.summary.income_count", { count: selectedZahlungRows.length })}</li>
                                         <li>{tp("page.bilanz_neu.summary.contracts_count", { count: selectedVertragRows.length })}</li>
                                         <li>{tp("page.bilanz_neu.summary.expenses_count", { count: selectedAusgabeRows.length })}</li>

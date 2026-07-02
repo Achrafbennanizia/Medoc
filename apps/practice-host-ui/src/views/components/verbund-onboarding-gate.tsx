@@ -75,7 +75,13 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
     const onOnboarding = location.pathname.startsWith("/onboarding");
     const pendingLicense = sessionStorage.getItem(ONBOARDING_LICENSE_PENDING_KEY) === "1";
     const ownerNeedsLicense = !!status.clusterId && !status.licensed;
+    const ownerOnlyOnboarding =
+        location.pathname === "/onboarding/aktivierung" || location.pathname === "/onboarding/lizenz";
+    const memberDevice = (status.provisioned || !!status.clusterId) && !status.isOwner;
 
+    if (memberDevice && ownerOnlyOnboarding) {
+        return <Navigate to="/onboarding" replace />;
+    }
     if ((pendingLicense || ownerNeedsLicense) && location.pathname !== "/onboarding/lizenz") {
         sessionStorage.removeItem(ONBOARDING_LICENSE_PENDING_KEY);
         return <Navigate to="/onboarding/lizenz" replace />;

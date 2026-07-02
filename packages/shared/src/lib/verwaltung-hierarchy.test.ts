@@ -13,7 +13,7 @@ describe("getVerwaltungBackTarget", () => {
     it("resolves editor → vorlagen list", () => {
         const t = getVerwaltungBackTarget("/verwaltung/vorlagen/editor/x");
         expect(t.path).toBe("/verwaltung/vorlagen");
-        expect(t.label).toBe("Vorlagen");
+        expect(t.labelKey).toBe("verwaltung.back.vorlagen");
     });
 
     it("resolves lager/ subpages → lager hub", () => {
@@ -31,6 +31,6 @@ describe("getVerwaltungBackTarget", () => {
     });
 
     it("resolves Verwaltung root → dashboard overview", () => {
-        expect(getVerwaltungBackTarget("/verwaltung")).toEqual({ path: "/", label: "Übersicht" });
+        expect(getVerwaltungBackTarget("/verwaltung")).toEqual({ path: "/", labelKey: "nav.dashboard" });
     });
 });

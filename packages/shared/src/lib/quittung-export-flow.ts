@@ -31,7 +31,7 @@ export function isQuittungExportReady(): boolean {
 /** GAP-11 — shared Quittung PDF bundle from any Zahlung row (Finanzen or Patientenakte). */
 export async function buildQuittungExportForZahlung(z: Zahlung): Promise<QuittungExportPayload> {
     if (!isQuittungExportReady()) {
-        throw new Error("Praxis-Stammdaten für Quittungen unvollständig");
+        throw new Error("Practice master data incomplete for receipts");
     }
     const patient = await getPatient(z.patient_id);
     const akte = await getAkte(z.patient_id);

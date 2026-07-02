@@ -1,5 +1,5 @@
 export type SuggestSimilarTitlesOptions = {
-    /** NFA-USE-10 — keine fuzzy Treffer-Hinweise (Patientensuche, Schnellzugriff). */
+    /** NFA-USE-10 — no fuzzy match hints (patient search, quick access). */
     disabled?: boolean;
 };
 

@@ -1,6 +1,6 @@
 /**
- * Native OS „Gehe zu“ submenu: same capability gates as routes ({@link ROUTE_VISIBILITY}),
- * grouped like the sidebar plus Betrieb- und Hilfe-Einträge.
+ * Native OS "Go to" submenu: same capability gates as routes ({@link ROUTE_VISIBILITY}),
+ * grouped like the sidebar plus operations and help entries.
  */
 
 import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "./rbac";
@@ -78,7 +78,7 @@ export type SyncNativeMenuPayload = {
     viewShowCalendar: boolean;
 };
 
-/** Menü „Datei → Neu …“ — gleiche Logik wie Routen (`termin.write`, `finanzen.write`, …). */
+/** Menu "Datei → Neu …" — same logic as routes (`termin.write`, `finanzen.write`, …). */
 export function buildNativeFileNewGate(rolle: string | undefined): NativeFileNewGate {
     return {
         termin: navVisibilitySatisfied({ kind: "action", action: "termin.write" }, rolle),
@@ -103,7 +103,7 @@ export function buildSyncNativeMenuPayload(rolle: string | undefined, t: (key: s
 }
 
 /**
- * Builds „Gehe zu“ rows for {@link buildSyncNativeMenuPayload}. Labels via `t()` / locale.
+ * Builds "Go to" rows for {@link buildSyncNativeMenuPayload}. Labels via `t()` / locale.
  */
 export function buildNativeGoMenuItems(rolle: string | undefined, t: (key: string) => string): NativeGoMenuPayloadItem[] {
     const out: NativeGoMenuPayloadItem[] = [];

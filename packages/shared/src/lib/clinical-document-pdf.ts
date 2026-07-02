@@ -1,9 +1,9 @@
 /**
- * Klinische Dokument-PDFs (Attest, Rezept, Quittung): strukturierte Vorlage + fachlicher Body.
+ * Clinical document PDFs (Attest, Rezept, receipt): structured template + domain body.
  *
- * Architektur (analog zu üblichem Document-Pattern): View/Export baut ein **Datenpaket** (Body-Zeilen),
- * diese Schicht fügt den **Briefkopf** gemäß Vorlage (`kopf.fieldsToShow`) und **Privatsphäre**
- * (Einstellungen › Praxis) zusammen — Rust rendert nur noch Zeilen, kein Roh-HTML.
+ * Architecture (analogous to common document pattern): view/export builds a **data package** (body lines),
+ * this layer adds the **letterhead** per template (`kopf.fieldsToShow`) and **privacy**
+ * (Einstellungen › Praxis) — Rust renders lines only, no raw HTML.
  */
 
 import type { DocumentTemplatePayloadV1, PraxisFieldKey } from "@/lib/document-template-schema";
@@ -40,7 +40,7 @@ function formatWeb(p: InvoicePraxis): string {
     return (p.web ?? "").trim().replace(/^https?:\/\//i, "");
 }
 
-/** Praxis-Kopfzeilen für Template-PDF — nur gewählte Felder, mit Maskierung wie beim Rechnungs-PDF. */
+/** Practice header lines for template PDF — selected fields only, masked like invoice PDF. */
 export function buildClinicalTemplateKopfLines(
     payload: DocumentTemplatePayloadV1,
     praxis: InvoicePraxis,
@@ -174,7 +174,7 @@ export function buildClinicalTemplateKopfLines(
 }
 
 /**
- * PDF-Zeilen für `preview_document_pdf`: optionale Kopfzeilen (Vorlage + Privatsphäre) + Inhalt.
+ * PDF lines for `preview_document_pdf`: optional header lines (template + privacy) + content.
  */
 export function composeClinicalDocumentPdfBodyLines(payload: DocumentTemplatePayloadV1, contentLines: string[]): string[] {
     const praxis = getInvoicePraxisFromStorage();

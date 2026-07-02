@@ -10,6 +10,7 @@ import {
 import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
 import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
+import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
@@ -196,10 +197,16 @@ export function LoginPage() {
                         <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", maxWidth: 460, lineHeight: 1.55 }}>
                             {t("login.hero_subtitle")}
                         </p>
+                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", maxWidth: 460, lineHeight: 1.5, marginTop: 16 }}>
+                            {t("login.trust_line")}
+                        </p>
                     </div>
                 </div>
                 <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18, flexWrap: "wrap" }}>
-                    <span>{t("login.build")} {import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE}</span>
+                    <span>
+                        {t("login.build")} {import.meta.env.VITE_APP_VERSION ?? "—"}
+                        {import.meta.env.DEV ? ` · ${import.meta.env.MODE}` : ""}
+                    </span>
                 </div>
             </div>
 
@@ -323,11 +330,11 @@ export function LoginPage() {
                         <label htmlFor="passwort" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button
                             type="button"
-                            aria-describedby="login-teaser-hint"
+                            aria-describedby="login-password-help"
                             onClick={() => setHelperMsg(t("login.password_reset_hint"))}
                             style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}
                         >
-                            {t("login.password_forgot")} <span style={{ fontWeight: 400, color: "var(--fg-3)" }}>{t("login.password_forgot_soon")}</span>
+                            {t("login.password_forgot")}
                         </button>
                     </div>
                     <div className="input login-password-input-row" style={{ marginBottom: 8 }}>
@@ -366,6 +373,10 @@ export function LoginPage() {
                     </div>
                     </>
                     ) : null}
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 8 }}>{t("login.language_label")}</div>
+                        <LocaleSwitcher />
+                    </div>
                     <button
                         type="submit"
                         className="login-submit"
@@ -389,7 +400,7 @@ export function LoginPage() {
                               ? t("login.submit_complete_setup")
                               : t("auth.login")}
                     </button>
-                    <p id="login-teaser-hint" className="sr-only">
+                    <p id="login-password-help" className="sr-only">
                         {t("login.cert_hint_sr")}
                     </p>
                     {helperMsg ? (
@@ -403,7 +414,7 @@ export function LoginPage() {
                     ) : null}
                 </form>
                 {import.meta.env.DEV && (
-                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.45 }}>
+                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginInlineStart: "auto", marginInlineEnd: "auto", lineHeight: 1.45 }}>
                         <strong>{t("login.dev_badge")}:</strong> {t("login.dev_db_hint")}
                     </p>
                 )}

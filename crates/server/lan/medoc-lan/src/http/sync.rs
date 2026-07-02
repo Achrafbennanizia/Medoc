@@ -81,6 +81,7 @@ pub async fn sync_push(
 
 pub async fn sync_pull(
     State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<SyncPullBody>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     if master_license::require_master_license(&state.pool)
@@ -92,6 +93,15 @@ pub async fn sync_pull(
     let entries = SyncEngine::collect_pull(&state.pool, &body.device_id, body.since_seq)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
+    if let Some(ref requester_id) = body.requester_id {
+        let _ = repo::touch_replica_seen(
+            &state.pool,
+            requester_id,
+            &addr.ip().to_string(),
+            state.http_port,
+        )
+        .await;
+    }
     Ok(Json(serde_json::json!({ "entries": entries })))
 }
 

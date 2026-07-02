@@ -35,7 +35,7 @@ impl From<&Personal> for OwnProfileDto {
 pub async fn get_own_profile(pool: &SqlitePool, user_id: &str) -> Result<OwnProfileDto, AppError> {
     let p = personal_repo::find_by_id(pool, user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Personal".into()))?;
+        .ok_or_else(|| AppError::NotFound("error.entity.personal".into()))?;
     Ok(OwnProfileDto::from(&p))
 }
 
@@ -51,36 +51,32 @@ pub async fn apply_own_profile_update(
         || data.fachrichtung.is_some()
         || data.telefon.is_some();
     if !has_any {
-        return Err(AppError::Validation(
-            "Keine Felder zum Aktualisieren übermittelt".into(),
-        ));
+        return Err(AppError::validation_code("error.profile.no_fields"));
     }
 
     let existing = personal_repo::find_by_id(pool, user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Personal".into()))?;
+        .ok_or_else(|| AppError::NotFound("error.entity.personal".into()))?;
 
     if let Some(ref raw) = data.name {
         let t = raw.trim();
         if t.is_empty() {
-            return Err(AppError::Validation("Name darf nicht leer sein".into()));
+            return Err(AppError::validation_code("error.profile.name_empty"));
         }
         if t.chars().count() > 120 {
-            return Err(AppError::Validation(
-                "Name zu lang (max. 120 Zeichen)".into(),
-            ));
+            return Err(AppError::validation_code("error.profile.name_too_long"));
         }
     }
 
     if let Some(ref raw) = data.email {
         let t = raw.trim();
         if t.is_empty() {
-            return Err(AppError::Validation("E-Mail darf nicht leer sein".into()));
+            return Err(AppError::validation_code("error.profile.email_empty"));
         }
         if t != existing.email {
             if let Some(other) = personal_repo::find_by_email(pool, t).await? {
                 if other.id != user_id {
-                    return Err(AppError::Conflict("E-Mail bereits vergeben".into()));
+                    return Err(AppError::validation_code("error.personal.email_taken"));
                 }
             }
         }

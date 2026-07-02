@@ -62,12 +62,12 @@ export type ExportPickerAkteProps = {
     canAuditRead: boolean;
 };
 
-/** Unified export dialog (Phase 3): Akte; weitere Dokumentarten können ergänzt werden. */
+/** Unified export dialog (Phase 3): Akte; more document types can be added. */
 export function ExportPickerDialog(props: ExportPickerAkteProps) {
     return <AkteExportPickerInner {...props} />;
 }
 
-/** @deprecated Alias — gleiche Oberfläche wie ExportPickerDialog (Akte). */
+/** @deprecated Alias — same surface as ExportPickerDialog (Akte). */
 export const AkteExportDialog = ExportPickerDialog;
 export type AkteExportDialogProps = ExportPickerAkteProps;
 
@@ -159,9 +159,9 @@ function AkteExportPickerInner({
 
     const resolvedPathLabel = useMemo(() => {
         if (folderOnce?.trim()) return folderOnce.trim();
-        if (pathCfg) return describeResolvedExportPath(pathCfg);
+        if (pathCfg) return describeResolvedExportPath(pathCfg, t);
         return "…";
-    }, [folderOnce, pathCfg]);
+    }, [folderOnce, pathCfg, t]);
 
     const toggle = (key: keyof AkteExportSectionsState) => {
         setSections((p) => ({ ...p, [key]: !p[key] }));
@@ -522,13 +522,13 @@ export type HtmlDocumentExportPickerProps = {
     onClose: () => void;
     templateKind: HtmlExportDocumentKind;
     exportPreviewTitle: string;
-    /** Basis ohne Pflicht-Endung — Extension aus gewähltem Format (wie Export-Einstellungen). */
+    /** Base without required extension — extension from selected format (like export settings). */
     suggestedBasename: string;
     bundle: ClinicalDocumentExportBundle;
     hint?: string;
 };
 
-/** Strukturierte Vorlage, Standardpfad/-format aus App-KV, PDF ohne Roh-HTML. */
+/** Structured template, default path/format from app KV, PDF without raw HTML. */
 export function HtmlDocumentExportPickerDialog(props: HtmlDocumentExportPickerProps) {
     return <HtmlDocumentExportPickerInner {...props} />;
 }
@@ -684,9 +684,9 @@ function HtmlDocumentExportPickerInner({
 
     const resolvedPathLabel = useMemo(() => {
         if (folderOnce?.trim()) return folderOnce.trim();
-        if (pathCfg) return describeResolvedExportPath(pathCfg);
+        if (pathCfg) return describeResolvedExportPath(pathCfg, t);
         return "…";
-    }, [folderOnce, pathCfg]);
+    }, [folderOnce, pathCfg, t]);
 
     const effectiveFormatHint = useMemo(() => {
         if (!formatsCfg) return "";
@@ -744,7 +744,7 @@ function HtmlDocumentExportPickerInner({
                     format: "pdf",
                     title: exportPreviewTitle,
                     hint:
-                        hint ?? `PDF gemäß Vorlage „${displayName}“. ${effectiveFormatHint}`,
+                        hint ?? `${tp("export.picker.pdf_template_hint", { name: displayName })} ${effectiveFormatHint}`,
                     suggestedFilename: finalName,
                     mime: mimeClinical("pdf"),
                     binaryBody: bytes,
@@ -754,7 +754,7 @@ function HtmlDocumentExportPickerInner({
                 await finishExportWithSettings({
                     format: "csv",
                     title: exportPreviewTitle,
-                    hint: hint ?? `CSV (Semikolon). ${effectiveFormatHint}`,
+                    hint: hint ?? tp("export.picker.csv_semicolon_hint", { hint: effectiveFormatHint }),
                     suggestedFilename: finalName,
                     mime: mimeClinical("csv"),
                     textBody: bundle.csvText,

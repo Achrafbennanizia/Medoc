@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
-/** Untermenü „Team“ unter Verwaltung — gleiche Musterseite wie „Finanzen & Berichte“. */
+/** Submenu "Team" under Verwaltung — same pattern page as "Finanzen & Berichte". */
 export function VerwaltungTeamPage() {
     const t = useT();
     const links = useMemo<VerwaltungTocLink[]>(

@@ -2,6 +2,7 @@ import type { PraxisAufgabe } from "@/systems/practice-host/controllers/praxis-a
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { aufgabeStatusVariant } from "./aufgabe-workflow";
+import { useT } from "@/lib/i18n";
 import { aufgabeStatusLabel, aufgabeTypLabel } from "./aufgabe-workflow-ui";
 
 type Props = {
@@ -19,6 +20,7 @@ export function PraxisAufgabeInboxRow({
     canOpen = true,
     onOpen,
 }: Props) {
+    const t = useT();
     return (
         <button
             type="button"
@@ -37,11 +39,11 @@ export function PraxisAufgabeInboxRow({
             <div className="praxis-aufgabe-inbox-row__main">
                 <div className="praxis-aufgabe-inbox-row__title">{aufgabe.titel}</div>
                 <div className="praxis-aufgabe-inbox-row__sub">
-                    {patientName} · {aufgabeTypLabel(aufgabe.typ)} · {formatDateTime(aufgabe.updated_at)}
+                    {patientName} · {aufgabeTypLabel(t, aufgabe.typ)} · {formatDateTime(aufgabe.updated_at)}
                 </div>
                 {aufgabe.body ? <div className="praxis-aufgabe-inbox-row__preview">{aufgabe.body}</div> : null}
             </div>
-            <Badge variant={aufgabeStatusVariant(aufgabe.status)}>{aufgabeStatusLabel(aufgabe.status)}</Badge>
+            <Badge variant={aufgabeStatusVariant(aufgabe.status)}>{aufgabeStatusLabel(t, aufgabe.status)}</Badge>
         </button>
     );
 }

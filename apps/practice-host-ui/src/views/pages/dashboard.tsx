@@ -812,7 +812,7 @@ export function DashboardPage() {
                                                     {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {u.art.replace(/_/g, " ")}
                                                 </div>
                                             </div>
-                                            <div style={{ textAlign: "right", fontSize: 13 }}>
+                                            <div style={{ textAlign: "end", fontSize: 13 }}>
                                                 <div style={{ fontWeight: 600 }}>{u.patient_name}</div>
                                                 <Link to={`/patienten/${u.patient_id}`} className="dashboard-wire-head-link">
                                                     {t("dashboard.reminders.open_patient")}
@@ -832,7 +832,7 @@ export function DashboardPage() {
                                 </div>
                                 <div className="card-sub">{t("dashboard.heute.sub")}</div>
                             </div>
-                            <span className="pill accent" style={{ marginLeft: "auto" }}>
+                            <span className="pill accent" style={{ marginInlineStart: "auto" }}>
                                 <span className="dot" aria-hidden />
                                 {t("common.live")}
                             </span>

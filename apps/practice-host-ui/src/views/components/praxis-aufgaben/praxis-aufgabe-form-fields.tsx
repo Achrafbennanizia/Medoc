@@ -111,10 +111,12 @@ export function PraxisAufgabeFormFields({
                         onChange={(e) => onChange({ assigneeUserId: e.target.value })}
                         options={[
                             { value: "", label: t("praxis.aufgaben.form.pick_person") },
-                            ...personal.map((m) => ({
-                                value: m.id,
-                                label: `${m.name} (${m.rolle})`,
-                            })),
+                            ...personal.map((m) => {
+                                const roleKey = `enum.rolle.${m.rolle.toLowerCase()}`;
+                                const roleLabel = t(roleKey);
+                                const role = roleLabel === roleKey ? m.rolle : roleLabel;
+                                return { value: m.id, label: `${m.name} (${role})` };
+                            }),
                         ]}
                     />
                 ) : null}

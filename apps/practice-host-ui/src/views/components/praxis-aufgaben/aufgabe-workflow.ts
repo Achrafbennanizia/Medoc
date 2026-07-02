@@ -18,13 +18,23 @@ export function aufgabeStatusVariant(status: PraxisAufgabeStatus): "default" | "
     }
 }
 
-export function assigneeLabel(row: PraxisAufgabe, personal: Personal[]): string {
-    if (row.assignee_role === "REZEPTION") return "Rezeption (Pool)";
+export function assigneeLabel(
+    row: PraxisAufgabe,
+    personal: Personal[],
+    t: (key: string) => string,
+): string {
+    if (row.assignee_role === "REZEPTION") return t("praxis.aufgaben.form.assignee_pool");
     if (row.assignee_user_id) {
         const p = personal.find((x) => x.id === row.assignee_user_id);
-        return p ? `${p.name} (${p.rolle})` : row.assignee_user_id;
+        if (p) {
+            const roleKey = `enum.rolle.${p.rolle.toLowerCase()}`;
+            const roleLabel = t(roleKey);
+            const role = roleLabel === roleKey ? p.rolle : roleLabel;
+            return `${p.name} (${role})`;
+        }
+        return row.assignee_user_id;
     }
-    return "—";
+    return t("common.dash");
 }
 
 function isPoolTask(a: PraxisAufgabe): boolean {

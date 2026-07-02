@@ -35,9 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <div className="max-w-md w-full bg-surface-container rounded-xl p-6 border border-error/30">
                     <h1 className="text-title text-error font-semibold">{t("common.unexpected_error")}</h1>
                     <p className="mt-2 text-body text-on-surface-variant">
-                        Ein interner Fehler ist aufgetreten. Bitte laden Sie die Anwendung neu.
-                        Falls das Problem weiterhin besteht, exportieren Sie die Logs unter
-                        Betrieb &rarr; Logs.
+                        {t("error.boundary.body")}
                     </p>
                     <pre className="mt-4 max-h-40 overflow-auto bg-surface text-caption p-2 rounded text-on-surface-variant">
                         {error.message}
@@ -46,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
                         onClick={this.handleReload}
                         className="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg text-body-medium"
                     >
-                        Neu laden
+                        {t("common.reload")}
                     </button>
                 </div>
             </div>

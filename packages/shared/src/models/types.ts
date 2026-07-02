@@ -49,11 +49,11 @@ export interface Session {
     email: string;
     rolle: Rolle;
     permission_overrides?: PermissionOverride[];
-    /** Desktop/Browser-Gerätesitzung (SQLite `device_session`). */
+    /** Desktop/browser device session (SQLite `device_session`). */
     device_session_id?: string | null;
 }
 
-/** Persisted in SQLite `in_app_notification` (Benachrichtigungen für eingeloggtes Personal). */
+/** Persisted in SQLite `in_app_notification` (notifications for logged-in staff). */
 export interface InAppNotification {
     id: string;
     user_id: string;
@@ -175,7 +175,7 @@ export interface Behandlung {
     freigegeben_am?: string | null;
 }
 
-/** Verwaltung: vordefinierte Behandlungsleistungen für Akten-Formulare (`behandlungs_katalog`). */
+/** Verwaltung: predefined treatment services for Akte forms (`behandlungs_katalog`). */
 export interface BehandlungsKatalogItem {
     id: string;
     kategorie: string;
@@ -186,7 +186,7 @@ export interface BehandlungsKatalogItem {
     created_at: string;
 }
 
-/** Verwaltung: Stammdaten für Bestellungen (`lieferant_stamm` / `pharmaberater_stamm`). */
+/** Verwaltung: master data for orders (`lieferant_stamm` / `pharmaberater_stamm`). */
 export interface LieferantStamm {
     id: string;
     name: string;
@@ -203,7 +203,7 @@ export interface PharmaberaterStamm {
     created_at: string;
 }
 
-/** Vordefinierte Kombination Lieferant + Pharmaberater + Produkt (Lager) für „Neue Bestellung“. */
+/** Predefined combination supplier + Pharmaberater + product (inventory) for "Neue Bestellung". */
 export interface LieferantPharmaVorlage {
     id: string;
     lieferant_id: string;
@@ -214,7 +214,7 @@ export interface LieferantPharmaVorlage {
     produkt_name: string;
     produkt_kategorie: string;
     produkt_preis: number;
-    /** 0/1 — Produkt im Lager deaktiviert, Schnellwahl-Hinweis in der UI. */
+    /** 0/1 — product deactivated in inventory, quick-select hint in UI. */
     produkt_aktiv: number;
     sort_order: number;
     aktiv: number;
@@ -232,7 +232,7 @@ export interface Zahlung {
     behandlung_id?: string | null;
     untersuchung_id?: string | null;
     betrag_erwartet?: number | null;
-    /** 0/1 — Tagesabschluss: Zahlung kassenseitig geprüft. */
+    /** 0/1 — Tagesabschluss: payment cash-verified. */
     kasse_geprueft?: number;
     created_at: string;
 }
@@ -313,7 +313,7 @@ export interface StatistikOverview {
     // Behandlungen
     behandlungen_nach_kategorie: LabelValue[];
     behandlungen_pro_monat: MonthBucket[];
-    /** WAAD 9.5 — Krankheitsbilder (Kategorie/Art) und Monatsverlauf. */
+    /** WAAD 9.5 — disease patterns (category/type) and monthly course. */
     krankheitsbilder_top: LabelValue[];
     krankheitsbilder_verlauf_pro_monat: MonthBucket[];
     medikamente_top: LabelValue[];

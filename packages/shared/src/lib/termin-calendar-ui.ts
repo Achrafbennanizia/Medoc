@@ -271,3 +271,17 @@ export function calendarMonthOffsetFromToday(d: Date): number {
     const now = new Date();
     return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
 }
+
+/** Termin calendar surfaces show Mon–Fri only (Sat/Sun hidden to widen working columns). */
+export const TERMIN_CALENDAR_WORKING_DAYS = 5;
+export const TERMIN_CALENDAR_MONTH_ROWS = 6;
+
+export function isTerminCalendarWorkingDay(date: Date): boolean {
+    const dow = date.getDay();
+    return dow >= 1 && dow <= 5;
+}
+
+/** Index 0 = Monday … 4 = Friday within ISO week starting Monday. */
+export function terminCalendarWorkingDayIndex(date: Date): number {
+    return (date.getDay() + 6) % 7;
+}

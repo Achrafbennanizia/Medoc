@@ -1,5 +1,5 @@
 /**
- * Additive Arbeitsplan-Einträge (Hinzufügen + Freistellen) und Auflösung zu Soll-Intervallen pro Tag.
+ * Additive Arbeitsplan entries (add + time off) and resolution to target intervals per day.
  */
 import { eachDayOfInterval, format, getISODay, parseISO } from "date-fns";
 
@@ -10,7 +10,7 @@ export type ArbeitsplanComposeEntry =
         personalId: string;
         dateFrom: string;
         dateTo: string;
-        /** Leer = alle Wochentage im Zeitraum */
+        /** Empty = all weekdays in period */
         weekdays: Array<1 | 2 | 3 | 4 | 5 | 6 | 7>;
         startMin: number;
         endMin: number;
@@ -60,7 +60,7 @@ function mergeIntervals(iv: [number, number][]): [number, number][] {
     return out;
 }
 
-/** Eine Person, ein Kalendertag: zusammengeführte Arbeitsintervalle aus add_*; cut_range leert den ganzen Tag. */
+/** One person, one calendar day: merged work intervals from add_*; cut_range clears whole day. */
 export function resolveComposeWorkIntervals(
     personalId: string,
     ymdStr: string,

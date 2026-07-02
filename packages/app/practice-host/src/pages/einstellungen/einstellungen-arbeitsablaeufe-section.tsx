@@ -23,7 +23,11 @@ import {
 } from "@/lib/confirmation-preferences";
 import { errorMessage } from "@/lib/utils";
 import { persistAutocompleteSuggestionsToPraxisKv } from "@/lib/praxis-search-prefs-sync";
-import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
+import {
+    CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED,
+    WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED,
+    WORKFLOW_ONBOARDING_PREFS_UI_ENABLED,
+} from "@/lib/settings-ui-flags";
 import type { PraxisPraeferenzen } from "@/lib/praxis-praeferenzen-storage";
 import { useUiPreferencesStore } from "@/models/store/ui-preferences-store";
 import { Button } from "@/views/components/ui/button";
@@ -333,7 +337,7 @@ export function EinstellungenArbeitsablaeufeSection({
                 </div>
                 ) : null}
 
-                {rolle && ONBOARDING_COACHMARK_ENABLED ? (
+                {rolle && ONBOARDING_COACHMARK_ENABLED && WORKFLOW_ONBOARDING_PREFS_UI_ENABLED ? (
                     <div className="settings-row" style={{ marginTop: 10 }}>
                         <div>
                             <b>{t("settings.workflows.onboarding_title")}</b>
@@ -394,14 +398,12 @@ export function EinstellungenArbeitsablaeufeSection({
                 </div>
                 ) : null}
 
+                {WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED ? (
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
-                    <div className="card-head" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0, borderBottom: "none" }}>
+                    <div className="card-head" style={{ paddingTop: 0, paddingInlineStart: 0, paddingInlineEnd: 0, borderBottom: "none" }}>
                         <div>
                             <div className="card-title">{t("settings.workflows.confirm_akten_title")}</div>
-                            <div className="card-sub">
-                                Steuert, ob Löschen und Bearbeiten in der Patientenakte als Dialog (Modal) oder als Panel in der Akte
-                                (Inline) erscheinen. Gilt praxisweit in der Datenbank.
-                            </div>
+                            <div className="card-sub">{t("settings.workflows.confirm_akten_sub")}</div>
                         </div>
                     </div>
                     {!hydratedUi ? (
@@ -503,6 +505,7 @@ export function EinstellungenArbeitsablaeufeSection({
                         </>
                     )}
                 </div>
+                ) : null}
             </div>
         </section>
     );

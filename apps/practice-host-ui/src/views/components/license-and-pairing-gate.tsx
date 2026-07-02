@@ -6,9 +6,11 @@ import { useT } from "@/lib/i18n";
  *
  * 1. Replica (mode = serverless_peer, role = REPLICA) without an
  *    `activationToken` → render the pairing-scan page.
- * 2. Master (anything else) without a valid v2/v1 license → render
+ * 2. Geräteverbund member provisioned through the owner main device → any
+ *    logged-in user may use the app (no local vendor license required).
+ * 3. Master (anything else) without a valid v2/v1 license → render
  *    the license-activate page.
- * 3. Otherwise → render children unchanged.
+ * 4. Otherwise → render children unchanged.
  *
  * Runs only inside `ProtectedRoute` so the user is already authenticated.
  */
@@ -18,6 +20,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { errorMessage } from "@/lib/utils";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
+import { verbundGetStatus } from "@/systems/practice-host/controllers/verbund.controller";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
 
@@ -48,6 +51,11 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
                 setDecision("ok");
                 return;
             }
+            const verbund = await verbundGetStatus().catch(() => null);
+            if (verbund?.provisioned && !verbund.isOwner) {
+                setDecision("ok");
+                return;
+            }
             const status = await practiceSystem
                 .invoke<LicenseStatusLite>("current_license_status")
                 .catch(() => null);
@@ -69,7 +77,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
     if (decision === "loading") {
         return (
             <div className="route-fallback" role="status" aria-live="polite">
-                Lizenz wird geprüft …
+                {t("license.activate.checking")}
             </div>
         );
     }
@@ -88,7 +96,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
                 <p>{t("license.activate.check_failed")}</p>
                 {errorDetail ? <p className="text-muted">{errorDetail}</p> : null}
                 <button type="button" onClick={() => void evaluate()}>
-                    Erneut prüfen
+                    {t("license.activate.retry")}
                 </button>
             </div>
         );

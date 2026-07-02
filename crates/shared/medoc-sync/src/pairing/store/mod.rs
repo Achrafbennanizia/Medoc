@@ -29,10 +29,10 @@ pub async fn submit_request(
         return Err(AppError::Forbidden);
     }
     if submit.device_id.trim().is_empty() {
-        return Err(AppError::Validation("device_id leer".into()));
+        return Err(AppError::validation_code("error.pairing.device_id_empty"));
     }
     if submit.slave_pubkey.trim().is_empty() {
-        return Err(AppError::Validation("slave_pubkey leer".into()));
+        return Err(AppError::validation_code("error.pairing.slave_pubkey_empty"));
     }
 
     let existing: Option<(String, String)> =
@@ -250,7 +250,7 @@ pub async fn confirm_pin(
     replica_http_port: u16,
 ) -> Result<PairingRequest, AppError> {
     let pin = normalise_pin_input(pin_raw)
-        .ok_or_else(|| AppError::Validation("PIN muss genau 4 Ziffern sein".into()))?;
+        .ok_or_else(|| AppError::validation_code("error.pairing.pin_format"))?;
 
     let request = load_by_id(pool, request_id)
         .await?
@@ -292,7 +292,7 @@ pub async fn confirm_pin(
                 .execute(pool)
                 .await
                 .map_err(AppError::Database)?;
-                return Err(AppError::Validation("Bestätigungscode abgelaufen".into()));
+                return Err(AppError::validation_code("error.pairing.code_expired"));
             }
         }
     }
@@ -319,7 +319,7 @@ pub async fn confirm_pin(
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-        return Err(AppError::Validation("Bestätigungscode falsch".into()));
+        return Err(AppError::validation_code("error.pairing.code_wrong"));
     }
 
     finalize::finalize_accept(

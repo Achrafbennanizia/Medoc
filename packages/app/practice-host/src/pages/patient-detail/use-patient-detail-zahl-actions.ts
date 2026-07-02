@@ -89,12 +89,12 @@ export function usePatientDetailZahlActions(args: UsePatientDetailZahlActionsArg
 
     const zahlLinkSelectOptionsOpen = useMemo(() => {
         if (!patientId) return [{ value: "", label: "—" }];
-        return buildOpenZahlLinkSelectOptions(zahlungen, patientId, behandlungen, untersuchungen);
-    }, [patientId, zahlungen, behandlungen, untersuchungen]);
+        return buildOpenZahlLinkSelectOptions(zahlungen, patientId, behandlungen, untersuchungen, t, tp);
+    }, [patientId, zahlungen, behandlungen, untersuchungen, t, tp]);
 
     const zahlZuordnungSummaries = useMemo(
-        () => (patientId ? aggregateZahlungenByZuordnung(zahlungen, patientId, behandlungen, untersuchungen) : []),
-        [patientId, zahlungen, behandlungen, untersuchungen],
+        () => (patientId ? aggregateZahlungenByZuordnung(zahlungen, patientId, behandlungen, untersuchungen, t, tp) : []),
+        [patientId, zahlungen, behandlungen, untersuchungen, t, tp],
     );
 
     const zahlungenHistorisch = useMemo(

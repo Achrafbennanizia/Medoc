@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Behandlung, Zahnbefund } from "@/models/types";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
     DENTAL_LOWER_L,
@@ -14,6 +14,7 @@ import {
     befundToStatusKey,
     befundeForTooth,
     behandlungenForTooth,
+    dentalStatusLabel,
     dentalToothType,
 } from "@/lib/dental";
 
@@ -40,6 +41,7 @@ type DentalMiniBarProps = {
  */
 export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalMiniBarProps) {
     const t = useT();
+    const tp = useTParams();
     const [pop, setPop] = useState<PopState | null>(null);
     const [vw, setVw] = useState(() => (typeof window === "undefined" ? 1024 : window.innerWidth));
     const [vh, setVh] = useState(() => (typeof window === "undefined" ? 768 : window.innerHeight));
@@ -126,7 +128,7 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
                 <button
                     type="button"
                     className={`dental-mini-tooth ${hasHistory ? "has-history" : ""} ${pop?.fdi === fdi ? "is-active" : ""}`}
-                    aria-label={`Zahn ${fdi}, ${st.label}`}
+                    aria-label={tp("dental.tooth_status_aria", { tooth: fdi, status: dentalStatusLabel(t, stateKey) })}
                 >
                     <svg width="16" height="26" viewBox="0 0 20 34" aria-hidden>
                         <path d={shape.crown} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
@@ -152,10 +154,10 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
             onMouseLeave={scheduleClose}
             role="tooltip"
         >
-            <div className="tooth-popover-title">Zahn {pop.fdi}</div>
-            <div className="tooth-popover-meta">{DENTAL_STATES[popStatus].label}</div>
+            <div className="tooth-popover-title">{tp("dental.picker.one_tooth", { tooth: pop.fdi })}</div>
+            <div className="tooth-popover-meta">{dentalStatusLabel(t, popStatus)}</div>
             <div className="tooth-popover-section">
-                <div className="tooth-popover-h">Befunde / Diagnosen</div>
+                <div className="tooth-popover-h">{t("dental.mini.findings_heading")}</div>
                 {popBefunde.length === 0 ? (
                     <div className="tooth-popover-empty">{t("dental.mini.no_findings")}</div>
                 ) : (
@@ -172,7 +174,7 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
                 )}
             </div>
             <div className="tooth-popover-section">
-                <div className="tooth-popover-h">Behandlungen</div>
+                <div className="tooth-popover-h">{t("dental.mini.treatments_heading")}</div>
                 {popBehand.length === 0 ? (
                     <div className="tooth-popover-empty">{t("dental.mini.no_treatments")}</div>
                 ) : (
@@ -195,7 +197,7 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
     return (
         <div className="dental-mini-bar" onMouseLeave={scheduleClose}>
             <div className="dental-mini-bar-inner">
-                <span className="dental-mini-title">Zahnstatus</span>
+                <span className="dental-mini-title">{t("dental.mini.title")}</span>
                 <div className="dental-mini-row">{DENTAL_UPPER_R.map(renderMini)}{DENTAL_UPPER_L.map(renderMini)}</div>
                 <div className="dental-mini-divider" />
                 <div className="dental-mini-row">{DENTAL_LOWER_R.map(renderMini)}{DENTAL_LOWER_L.map(renderMini)}</div>

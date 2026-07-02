@@ -14,15 +14,15 @@ export type VertragItem = {
     id: string;
     bezeichnung: string;
     partner: string;
-    /** Betrag je `intervall` (0 = bewusst variabel, siehe z. B. Notiz in Partner) */
+    /** Amount per `intervall` (0 = intentionally variable, see e.g. partner note) */
     betrag: number;
     intervall: VertragIntervall;
-    /** true = kein fester Laufzeitraum; `periodeVon/Bis` werden ignoriert. */
+    /** true = no fixed term; `periodeVon/Bis` ignored. */
     unbefristet: boolean;
     periodeVon: string | null;
     periodeBis: string | null;
     createdAt: string;
-    /** Optional: gescanntes oder archiviertes Vertragsdokument (absoluter Pfad). */
+    /** Optional: scanned or archived contract document (absolute path). */
     dokumentPfad: string | null;
 };
 
@@ -41,7 +41,7 @@ export function intervallKurz(i: VertragIntervall): string {
     }
 }
 
-/** Richtwert: ungefährer Monatsansatz (für Tabelle/Überblick). */
+/** Guideline: approximate monthly rate (for table/overview). */
 export function betragAequivalentProMonat(betrag: number, intervall: VertragIntervall): number {
     if (betrag <= 0) return 0;
     switch (intervall) {
@@ -66,7 +66,7 @@ export function heuteYmd(): string {
     return `${y}-${m}-${day}`;
 }
 
-/** Läuft der Vertrag heute? (Kündigung / Ablaufdatum) */
+/** Is the contract active today? (termination / expiry date) */
 export function vertragAktivHeute(v: VertragItem): boolean {
     if (v.unbefristet) return true;
     const von = v.periodeVon;

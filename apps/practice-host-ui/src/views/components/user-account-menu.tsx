@@ -1,4 +1,5 @@
 import { INTERACTION_STANDARD } from "@/lib/interaction-standards";
+import { useT } from "@/lib/i18n";
 
 export type UserAccountMenuPlacement = "above" | "below";
 
@@ -22,12 +23,13 @@ export function UserAccountMenuDropdown({
     name,
     emailFallback,
     logoutLabel,
-    helpNavLabel = "Hilfe & Kurzbefehle",
+    helpNavLabel,
     onRoleSwitch,
     onSettings,
     onShortcuts,
     onLogoutRequest,
 }: Props) {
+    const t = useT();
     return (
         <div
             className={`menu-surface ${placement === "below" ? "menu-surface--below" : ""}`}
@@ -41,19 +43,19 @@ export function UserAccountMenuDropdown({
                     <p className="menu-subtitle">{emailFallback}</p>
                 </div>
             </div>
-            <div className="menu-label">Konto</div>
+            <div className="menu-label">{t("account.menu_section")}</div>
             <div className="menu-list">
                 <button type="button" className="menu-item" role="menuitem" onClick={onRoleSwitch}>
-                    Mit anderer Rolle anmelden…
+                    {t("account.menu_role_switch")}
                 </button>
             </div>
             <div className="menu-sep" />
             <div className="menu-list">
                 <button type="button" className="menu-item" role="menuitem" onClick={onSettings}>
-                    Einstellungen
+                    {t("nav.einstellungen")}
                 </button>
                 <button type="button" className="menu-item" role="menuitem" onClick={onShortcuts}>
-                    {helpNavLabel}
+                    {helpNavLabel ?? t("account.menu_help")}
                 </button>
                 <button type="button" className="menu-item danger" role="menuitem" onClick={onLogoutRequest}>
                     {logoutLabel}

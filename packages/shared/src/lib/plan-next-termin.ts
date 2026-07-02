@@ -1,5 +1,5 @@
 /**
- * Arzt → Rezeption: strukturierter Hinweis für die nächste Terminplanung.
+ * Physician → Rezeption: structured hint for next Termin planning.
  * Persistenz: SQLite `akte_next_termin_hint` via `plan-next-termin.controller.ts`.
  */
 
@@ -9,15 +9,15 @@ export interface PlanNextTerminV2 {
     /** Freitext (Kernbotschaft). */
     freeText: string;
     urgency: PlanUrgency;
-    /** z. B. "2", "4", "6", "12", "" wenn offen */
+    /** e.g. "2", "4", "6", "12", "" when open-ended */
     intervalWeeks: string;
-    /** TerminArt aus Domain, z. B. KONTROLLE — leer = keine Vorgabe */
+    /** TerminArt from domain, e.g. KONTROLLE — empty = no preset */
     terminArtHint: string;
-    /** Geschätzte Dauer in Minuten, frei */
+    /** Estimated duration in minutes, free-form */
     durationMin: string;
     /** Bevorzugte Wochentage, z. B. "Mo, Do" */
     preferredWeekdays: string;
-    /** Zusatz für interne Abstimmung */
+    /** Note for internal coordination */
     internalNote: string;
 }
 
@@ -55,7 +55,7 @@ export function parsePlanNextFromHintJson(hintJson: string): PlanNextTerminV2 | 
     }
 }
 
-/** Kurz-Zusammenfassung für Badges / kompakte UI. */
+/** Short summary for badges / compact UI. */
 export function planNextHasContent(plan: PlanNextTerminV2): boolean {
     return Boolean(
         plan.freeText.trim()
@@ -101,7 +101,7 @@ export function planNextAutofillNote(plan: PlanNextTerminV2): string {
     return parts.join(" · ").slice(0, 450);
 }
 
-/** Nach Behandlung mit „Folgetermin nötig“: Hinweis in die gespeicherte Arzt-Empfehlung mergen. */
+/** After treatment flagged follow-up Termin needed: merge hint into saved physician recommendation. */
 export function mergeBehandlungFollowupIntoPlan(
     plan: PlanNextTerminV2,
     ctx: { leistungsname: string; notizen: string },

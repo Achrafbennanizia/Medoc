@@ -1,4 +1,4 @@
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
     getDbSetupStatus,
@@ -16,6 +16,7 @@ import { Input } from "./ui/input";
  */
 export function DbSetupGate({ children }: { children: ReactNode }) {
     const t = useT();
+    const tp = useTParams();
     const [status, setStatus] = useState<DbSetupStatus | null>(null);
     const [passphrase, setPassphrase] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -27,9 +28,9 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
             .then(setStatus)
             .catch((e: unknown) => {
                 setStatus({ needsPassphraseSetup: false, needsUnlock: false });
-                setError(`Datenbank-Status konnte nicht geladen werden: ${errorMessage(e)}`);
+                setError(tp("db.setup.status_load_failed", { message: errorMessage(e) }));
             });
-    }, []);
+    }, [tp]);
 
     useEffect(() => {
         refresh();
@@ -61,7 +62,7 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
         return (
             <SetupShell>
                 <p className="text-body text-on-surface-variant animate-fade-in">
-                    Datenbank wird vorbereitet…
+                    {t("db.setup.preparing")}
                 </p>
             </SetupShell>
         );
@@ -72,8 +73,8 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
     }
 
     const title = status.needsUnlock
-        ? "Datenbank entsperren"
-        : "Datenbank-Passphrase einrichten";
+        ? t("db.setup.unlock_title")
+        : t("db.setup.provision_title");
 
     return (
         <SetupShell>
@@ -84,13 +85,13 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
                 <h1 className="text-title-lg text-on-surface">{title}</h1>
                 <p className="text-body text-on-surface-variant">
                     {status.needsUnlock
-                        ? "Der Schlüsselbund ist nicht verfügbar. Geben Sie Ihre Passphrase ein. Anschließend startet die Anwendung neu."
-                        : "Legen Sie eine Passphrase fest (mindestens 12 Zeichen) für die lokale Datenbankverschlüsselung."}
+                        ? t("db.setup.unlock_body")
+                        : t("db.setup.provision_body")}
                 </p>
                 <Input
                     type="password"
                     autoComplete="new-password"
-                    placeholder="Passphrase"
+                    placeholder={t("db.setup.passphrase_ph")}
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
                     required
@@ -113,7 +114,7 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
                     </p>
                 ) : null}
                 <Button type="submit" disabled={busy}>
-                    {status.needsUnlock ? "Entsperren" : "Einrichten"}
+                    {status.needsUnlock ? t("db.setup.unlock_btn") : t("db.setup.provision_btn")}
                 </Button>
             </form>
         </SetupShell>

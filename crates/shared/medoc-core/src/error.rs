@@ -50,6 +50,21 @@ impl AppError {
     pub fn validation_code(code: impl Into<String>) -> Self {
         AppError::ValidationCode(code.into())
     }
+
+    /// Stable i18n key with `|key=value` params (parsed by the UI `formatIpcError`).
+    pub fn validation_code_params(
+        code: impl Into<String>,
+        params: &[(&str, impl std::fmt::Display)],
+    ) -> Self {
+        let mut out = code.into();
+        for (k, v) in params {
+            out.push('|');
+            out.push_str(k);
+            out.push('=');
+            out.push_str(&v.to_string());
+        }
+        AppError::ValidationCode(out)
+    }
 }
 
 impl serde::Serialize for AppError {
@@ -57,9 +72,19 @@ impl serde::Serialize for AppError {
     where
         S: serde::Serializer,
     {
-        match self {
-            AppError::ValidationCode(code) => serializer.serialize_str(code),
-            _ => serializer.serialize_str(&self.to_string()),
-        }
+        let coded = match self {
+            AppError::ValidationCode(code) => code.clone(),
+            AppError::Unauthorized => "error.app.unauthorized".into(),
+            AppError::RateLimited(secs) => format!("error.app.rate_limited|seconds={secs}"),
+            AppError::Forbidden => "error.app.forbidden".into(),
+            AppError::NotFound(resource) => {
+                format!("error.app.not_found|resource={resource}")
+            }
+            AppError::Conflict(detail) => format!("error.app.conflict|detail={detail}"),
+            AppError::TotpRequired => "error.app.totp_required".into(),
+            AppError::TotpEnrollmentRequired => "error.app.totp_enrollment_required".into(),
+            _ => return serializer.serialize_str(&self.to_string()),
+        };
+        serializer.serialize_str(&coded)
     }
 }

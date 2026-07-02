@@ -9,8 +9,10 @@ pub enum ConflictPolicy {
     /// Newer `updated_at` wins. Equal timestamps break by lexicographic
     /// `device_id` (higher wins). No master tie-break.
     ///
-    /// When **either** side lacks a parsable `updated_at`, replicas keep their
-    /// local row if it already exists; masters accept inbound changes.
+    /// When **either** side lacks a parsable `updated_at`:
+    /// - Master ingesting a member push, or replica ingesting an admin pull
+    ///   (`admin_pull` phase): accept inbound.
+    /// - Replica ingesting a mesh peer push: keep local when row exists.
     LastWriteWins,
 }
 
@@ -21,13 +23,42 @@ pub async fn apply_remote_entry(
     policy: ConflictPolicy,
     entry: &OutboxEntry,
 ) -> Result<bool, AppError> {
+    apply_remote_entry_phased(
+        pool,
+        local_device_id,
+        local_is_master,
+        false,
+        policy,
+        entry,
+    )
+    .await
+}
+
+/// `admin_pull`: replica applying master rows after push-then-pull — admin
+/// authoritative when timestamps are missing (product: merge member, then admin).
+pub async fn apply_remote_entry_phased(
+    pool: &SqlitePool,
+    local_device_id: &str,
+    local_is_master: bool,
+    admin_pull: bool,
+    policy: ConflictPolicy,
+    entry: &OutboxEntry,
+) -> Result<bool, AppError> {
     if was_applied(pool, &entry.device_id, entry.seq).await? {
         return Ok(false);
     }
 
     let applied = match entry.op.as_str() {
         "INSERT" | "UPDATE" => {
-            apply_upsert(pool, local_device_id, local_is_master, policy, entry).await?
+            apply_upsert(
+                pool,
+                local_device_id,
+                local_is_master,
+                admin_pull,
+                policy,
+                entry,
+            )
+            .await?
         }
         "DELETE" => apply_delete(pool, entry).await?,
         _ => {
@@ -48,6 +79,7 @@ async fn apply_upsert(
     pool: &SqlitePool,
     local_device_id: &str,
     local_is_master: bool,
+    admin_pull: bool,
     policy: ConflictPolicy,
     entry: &OutboxEntry,
 ) -> Result<bool, AppError> {
@@ -105,7 +137,8 @@ async fn apply_upsert(
                 }
             }
             _ => {
-                if !local_is_master {
+                let accept_inbound = local_is_master || admin_pull;
+                if !accept_inbound {
                     tracing::debug!(
                         target: "medoc::sync",
                         event = "SKIP_REPLICA_COLLISION",

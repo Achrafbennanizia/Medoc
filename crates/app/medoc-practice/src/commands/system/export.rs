@@ -18,7 +18,7 @@ pub fn save_export_file(
     rbac::require_authenticated(&session_state)?;
     let raw = STANDARD
         .decode(contents_base64.trim())
-        .map_err(|_| AppError::Validation("Ungültige Export-Daten (Base64).".into()))?;
+        .map_err(|_| AppError::validation_code("error.export.invalid_base64"))?;
     let path = rfd::FileDialog::new()
         .set_file_name(&default_file_name)
         .save_file();
@@ -52,14 +52,14 @@ pub fn save_export_bytes_to_folder(
     rbac::require_authenticated(&session_state)?;
     let raw = STANDARD
         .decode(contents_base64.trim())
-        .map_err(|_| AppError::Validation("Ungültige Export-Daten (Base64).".into()))?;
+        .map_err(|_| AppError::validation_code("error.export.invalid_base64"))?;
     let base = std::path::PathBuf::from(folder.trim());
     if !base.is_absolute() {
-        return Err(AppError::Validation("Zielordner muss absolut sein.".into()));
+        return Err(AppError::validation_code("error.export.folder_must_be_absolute"));
     }
     let name = file_name.trim();
     if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
-        return Err(AppError::Validation("Ungültiger Dateiname.".into()));
+        return Err(AppError::validation_code("error.export.invalid_filename"));
     }
     let full = base.join(name);
     if let Some(parent) = full.parent() {

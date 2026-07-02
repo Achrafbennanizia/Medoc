@@ -10,6 +10,29 @@ import {
 } from "@/systems/lan/lib/lan-client-config";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
 
+type TFn = (key: string) => string;
+type TParamsFn = (key: string, params: Record<string, string | number>) => string;
+
+/** Map English LAN adapter throws to catalog keys for user-visible error boundaries. */
+export function formatLanPracticeError(e: unknown, t: TFn, tp?: TParamsFn): string {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("base URL missing")) return t("error.lan.config_missing_url");
+    if (msg.includes("base URL or token missing")) return t("error.lan.config_incomplete");
+    const cmdMatch = msg.match(/LAN client: command "([^"]+)"/);
+    if (cmdMatch) {
+        return tp
+            ? tp("error.lan.command_unavailable", { command: cmdMatch[1]! })
+            : msg;
+    }
+    const httpMatch = msg.match(/^LAN HTTP (\d+): ([\s\S]*)$/);
+    if (httpMatch) {
+        return tp
+            ? tp("error.lan.http_error", { status: httpMatch[1]!, detail: httpMatch[2]!.slice(0, 200) })
+            : msg;
+    }
+    return msg;
+}
+
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 /** Command → LAN REST route (Strategy map). */
@@ -53,10 +76,10 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
     ) {
         const hasUrl = cfg.baseUrl.trim().length > 0;
         if (!hasUrl) {
-            throw new Error("LAN-Client-Konfiguration unvollständig (Basis-URL fehlt).");
+            throw new Error("LAN client configuration incomplete (base URL missing).");
         }
         if (!opts?.allowMissingToken && !isLanClientActive(cfg)) {
-            throw new Error("LAN-Client-Konfiguration unvollständig (Basis-URL oder Token fehlt).");
+            throw new Error("LAN client configuration incomplete (base URL or token missing).");
         }
     }
 
@@ -69,7 +92,7 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
         const route = LAN_COMMAND_ROUTES[command];
         if (!route) {
             throw new Error(
-                `LAN-Client: Befehl "${command}" ist am API-Server nicht verfügbar — Praxis-Host-Desktop nutzen.`,
+                `LAN client: command "${command}" is not available on the API server — use the practice host desktop app.`,
             );
         }
         const path =

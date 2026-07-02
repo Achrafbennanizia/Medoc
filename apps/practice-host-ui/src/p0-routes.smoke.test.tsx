@@ -68,7 +68,7 @@ describe("P0 routes smoke (T-U3)", () => {
                 <MigrationWizardPage />
             </MemoryRouter>,
         );
-        expect(screen.getByRole("heading", { name: /Datenmigration/i })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: /Data migration/i })).toBeInTheDocument();
         expect(screen.getByText(/MVP v0\.1.*CSV/i)).toBeInTheDocument();
     });
 
@@ -79,7 +79,7 @@ describe("P0 routes smoke (T-U3)", () => {
             </MemoryRouter>,
         );
         expect(screen.getByText(/MVP v0\.1.*CSV/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Datenmigration/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Go to data migration/i })).toBeInTheDocument();
     });
 
     it("deployment section focuses on serverless connection (W7)", async () => {
@@ -88,8 +88,8 @@ describe("P0 routes smoke (T-U3)", () => {
                 <EinstellungenDeploymentSection />
             </MemoryRouter>,
         );
-        expect(await screen.findByText(/Serverless-Verbindung/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Geräterolle/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Serverless connection/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/Device role/i)).toBeInTheDocument();
         expect(screen.queryByLabelText(/Betriebsmodus/i)).not.toBeInTheDocument();
     });
 });

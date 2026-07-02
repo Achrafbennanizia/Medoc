@@ -107,9 +107,7 @@ pub async fn forward_akte_to_physicians(
         .into_iter()
         .collect();
     if ids.is_empty() {
-        return Err(AppError::Validation(
-            "Mindestens einen Arzt auswählen.".into(),
-        ));
+        return Err(AppError::validation_code("error.akte.select_doctor_required"));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
@@ -125,9 +123,14 @@ pub async fn forward_akte_to_physicians(
     for aid in &ids {
         let p = personal_repo::find_by_id(&pool, aid)
             .await?
-            .ok_or_else(|| AppError::Validation(format!("Unbekannter Arzt: {aid}")))?;
+            .ok_or_else(|| {
+                AppError::validation_code_params("error.akte.unknown_doctor", &[("id", aid)])
+            })?;
         if !p.rolle.eq_ignore_ascii_case("ARZT") {
-            return Err(AppError::Validation(format!("Kein Arzt: {}", p.name)));
+            return Err(AppError::validation_code_params(
+                "error.akte.not_doctor",
+                &[("name", &p.name)],
+            ));
         }
     }
     let note = args.message.as_deref().unwrap_or("").trim();
@@ -186,18 +189,16 @@ pub async fn create_praxis_ticket(
     }
     let body = args.body.trim();
     if body.is_empty() {
-        return Err(AppError::Validation(
-            "Nachricht darf nicht leer sein.".into(),
-        ));
+        return Err(AppError::validation_code("error.akte.message_empty"));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
         .ok_or(AppError::NotFound("Patient".into()))?;
     let to = personal_repo::find_by_id(&pool, &args.to_arzt_id)
         .await?
-        .ok_or(AppError::NotFound("Arzt".into()))?;
+        .ok_or(AppError::NotFound("error.entity.arzt".into()))?;
     if !to.rolle.eq_ignore_ascii_case("ARZT") {
-        return Err(AppError::Validation("Ziel muss ein Arzt sein.".into()));
+        return Err(AppError::validation_code("error.akte.target_must_be_doctor"));
     }
     let t = praxis_ticket_repo::insert(
         &pool,
@@ -270,7 +271,7 @@ pub async fn update_praxis_ticket_status(
     let st = args.status.trim().to_uppercase();
     let current = praxis_ticket_repo::find_by_id(&pool, &args.id)
         .await?
-        .ok_or(AppError::NotFound("Ticket".into()))?;
+        .ok_or(AppError::NotFound("error.entity.ticket".into()))?;
     workflow_transitions::praxis_ticket_status_transition(&current.status, &st)?;
     let out = praxis_ticket_repo::update_status(&pool, &args.id, &session.user_id, &st).await?;
     audit_repo::create(

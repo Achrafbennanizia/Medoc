@@ -12,12 +12,12 @@ export const ACCENT_LABELS: Record<AccentId, string> = {
     rose: "Rose",
 };
 
-/** Reihenfolge im Farbwähler (Darstellung). */
+/** Order in color picker (appearance). */
 export const ACCENT_ORDER: readonly AccentId[] = ["mint", "ocean", "plum", "amber", "rose"];
 
 const ACCENT_ID_SET = new Set<string>(ACCENT_ORDER as readonly string[]);
 
-/** Kurzbeschreibung unter dem Namen — nur UI. */
+/** Short description under name — UI only. */
 export const ACCENT_HINTS: Record<AccentId, string> = {
     mint: "Ruhig, medizinisch",
     ocean: "Klassisches Blau",
@@ -26,7 +26,7 @@ export const ACCENT_HINTS: Record<AccentId, string> = {
     rose: "Freundlich, klar",
 };
 
-/** Legacy-Schlüssel — Migration in {@link loadClientSettings}. */
+/** Legacy keys — migration in {@link loadClientSettings}. */
 export const LEGACY_ACCENT_STORAGE_KEY = "medoc-accent-preset";
 
 const PRESETS: Record<AccentId, { accent: string; soft: string; ink: string }> = {

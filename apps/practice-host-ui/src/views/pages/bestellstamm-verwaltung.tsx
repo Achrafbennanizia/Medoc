@@ -28,8 +28,8 @@ import { ProduktFormFields } from "../components/produkt-form-shared";
 import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt-form-model";
 
 /**
- * Verwaltung: Stammdaten für Bestellungen — Lieferanten, Pharmaberater/Kontakte
- * und gespeicherte Kombinationen für „Neue Bestellung“.
+ * Verwaltung: master data for orders — suppliers, Pharmaberater/contacts
+ * and saved combinations for "Neue Bestellung".
  */
 export function BestellstammVerwaltungPage() {
     const t = useT();
@@ -262,7 +262,7 @@ export function BestellstammVerwaltungPage() {
                     {lieferanten.length === 0 ? (
                         <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.bestellstamm.empty_entries")}</p>
                     ) : (
-                        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--fg-2)" }}>
+                        <ul style={{ margin: 0, paddingInlineStart: 18, color: "var(--fg-2)" }}>
                             {lieferanten.map((r) => (
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
@@ -297,7 +297,7 @@ export function BestellstammVerwaltungPage() {
                     {kontakte.length === 0 ? (
                         <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.bestellstamm.empty_entries")}</p>
                     ) : (
-                        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--fg-2)" }}>
+                        <ul style={{ margin: 0, paddingInlineStart: 18, color: "var(--fg-2)" }}>
                             {kontakte.map((r) => (
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>

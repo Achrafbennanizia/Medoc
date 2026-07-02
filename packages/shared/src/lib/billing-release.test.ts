@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billingReleaseErrorDe, isReleasedForBilling, requireReleasedForBilling } from "./billing-release";
+import { billingReleaseError, isReleasedForBilling, requireReleasedForBilling } from "./billing-release";
 
 describe("FA-LEIST-05 billing release (N3 UI mirror)", () => {
     it("rejects missing release fields", () => {
@@ -14,8 +14,8 @@ describe("FA-LEIST-05 billing release (N3 UI mirror)", () => {
     });
 
     it("requireReleasedForBilling throws validation-style message", () => {
-        expect(() => requireReleasedForBilling(undefined, undefined, "Behandlung")).toThrow(
-            billingReleaseErrorDe("Behandlung"),
+        expect(() => requireReleasedForBilling(undefined, undefined, "Treatment")).toThrow(
+            /not yet released for billing/,
         );
     });
 });

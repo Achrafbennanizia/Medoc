@@ -23,6 +23,7 @@ use tauri::Manager;
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SessionState::new())
         .manage(BruteForceState(BruteForceTracker::new()))
         .manage(commands::break_glass_commands::BreakGlassStateExt(

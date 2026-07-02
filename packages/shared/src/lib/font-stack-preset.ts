@@ -20,7 +20,7 @@ export const FONT_STACK_HINTS: Record<FontStackId, string> = {
     "source-sans": "Ruhig & gut lesbar — etwas weiterer Zeilenabstand",
 };
 
-/** Für Vorschau in den Segment-Buttons (nicht für globales `body`). */
+/** For preview in segment buttons (not for global `body`). */
 export const FONT_STACK_PREVIEW_FAMILY: Record<FontStackId, string> = {
     inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",

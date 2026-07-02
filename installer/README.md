@@ -37,13 +37,36 @@ Member devices: **Verbund beitreten** only (no keygen).
 
 `.github/workflows/release.yml` — keygen artifacts, interop smoke, per-OS Tauri bundles.
 
-## In-app updates (Tauri)
+## In-app updates (Tauri + GitHub Releases)
 
-`apps/practice-host/tauri.conf.json` → `plugins.updater`:
+`apps/practice-host/tauri.conf.json` → `plugins.updater` is configured by `scripts/configure-tauri-updater.mjs` before release builds.
 
-- Set `endpoints` to your private GitHub release `latest.json` URL.
-- Set `pubkey` to the Tauri updater public key (generate with `tauri signer generate`).
-- CI release job uploads signed bundles; `GITHUB_TOKEN` with `contents: read` for private repos.
+### One-time setup
 
-Users: Einstellungen → System → update check (when wired in UI) or OS installer for major jumps.
+1. Generate a Tauri updater key pair:
+   ```bash
+   npm run tauri -w medoc signer generate -w ~/.medoc/tauri-updater.key
+   ```
+2. Add GitHub repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the generated private key |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Passphrase used when generating the key |
+| `TAURI_UPDATER_PUBKEY` | Public key string (safe to commit; also injected at build time) |
+| `MEDOC_UPDATER_GITHUB_PAT` | Fine-grained PAT with **Contents: read** on this repo — baked into release builds so clients can fetch private release assets |
+
+`GITHUB_TOKEN` is used only inside CI to **create** the release; it is never embedded in the app.
+
+Optional per-practice override: store a read-only PAT in app KV key `updates.github_token` (requires `ops.system`).
+
+### CI/CD
+
+Tag a release (`git tag v0.1.1 && git push origin v0.1.1`). Workflow `.github/workflows/release.yml`:
+
+1. Builds signed installers on Linux, macOS, and Windows
+2. Merges updater manifests into `latest.json`
+3. Publishes a GitHub Release with installers + `latest.json`
+
+The desktop app checks `https://github.com/<owner>/<repo>/releases/latest/download/latest.json` (with bearer auth for private repos) and installs via **Settings → About → Install update**.
 

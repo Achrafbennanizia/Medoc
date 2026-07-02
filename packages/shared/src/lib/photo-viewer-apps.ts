@@ -2,7 +2,7 @@ import { listDetectedPhotoViewerApps as fetchPhotoViewerApps, type DetectedPhoto
 
 export type { DetectedPhotoViewerApp };
 
-/** Explizit nur Betriebssystem-Standard (`open` / `xdg-open` ohne App). */
+/** Explicitly OS default only (`open` / `xdg-open` without app). */
 export const OPEN_IMAGE_SYSTEM_ONLY = "__SYSTEM__";
 
 let cached: DetectedPhotoViewerApp[] | null = null;
@@ -14,10 +14,10 @@ export async function loadDetectedPhotoViewerApps(force = false): Promise<Detect
     return apps;
 }
 
-export function photoViewerAppOptionsForSelect(apps: DetectedPhotoViewerApp[]) {
+export function photoViewerAppOptionsForSelect(apps: DetectedPhotoViewerApp[], t: (key: string) => string) {
     const base: { value: string; label: string }[] = [
-        { value: "", label: "Empfohlen: erste gefundene App (Liste)" },
-        { value: OPEN_IMAGE_SYSTEM_ONLY, label: "Nur Systemstandard (wie Doppelklick)" },
+        { value: "", label: t("settings.photo_viewer.recommended_first") },
+        { value: OPEN_IMAGE_SYSTEM_ONLY, label: t("settings.photo_viewer.system_default") },
     ];
     const rest = apps.map((a) => ({
         value: a.path,
@@ -27,7 +27,7 @@ export function photoViewerAppOptionsForSelect(apps: DetectedPhotoViewerApp[]) {
 }
 
 /**
- * Auflösung für `open_akte_anlage_externally`: leer = erste gefundene App;
+ * Resolution for `open_akte_anlage_externally`: empty = first found app;
  * {@link OPEN_IMAGE_SYSTEM_ONLY} = OS-Default; sonst konkreter Pfad.
  */
 export async function resolveOpenImageWithAppPath(

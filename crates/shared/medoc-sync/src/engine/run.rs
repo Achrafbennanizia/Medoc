@@ -5,7 +5,7 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
-use crate::merge::{apply_remote_entry, ConflictPolicy};
+use crate::merge::{apply_remote_entry, apply_remote_entry_phased, ConflictPolicy};
 use crate::repo::{
     ensure_local_device, list_entries_since, list_pending_outbox, list_pending_outbox_for_peer,
     load_deployment, mark_outbox_delivered, mark_peer_delivery, save_deployment, status_snapshot,
@@ -198,10 +198,11 @@ impl SyncEngine {
         let mut applied = 0u32;
         let mut skipped = 0u32;
         for entry in &pulled.entries {
-            if apply_remote_entry(
+            if apply_remote_entry_phased(
                 pool,
                 &local_id,
                 false,
+                true,
                 ConflictPolicy::LastWriteWins,
                 entry,
             )
@@ -274,7 +275,10 @@ impl SyncEngine {
         Ok(report)
     }
 
-    /// Bidirectional sync for serverless replica (push then pull).
+    /// Bidirectional sync for serverless replica.
+    ///
+    /// Product order (C8): **push** member changes (LWW merge on master), then
+    /// **pull** admin authoritative rows onto the replica (`admin_pull` phase).
     pub async fn run_replica_sync(pool: &SqlitePool) -> Result<SyncRunReport, AppError> {
         let mut report = SyncRunReport {
             push: None,

@@ -1,6 +1,6 @@
 import type { Zahlung } from "@/models/types";
 
-/** Ortszeit-Datum (YYYY-MM-DD) aus `created_at` (SQLite-naiv oder ISO). */
+/** Local date (YYYY-MM-DD) from `created_at` (SQLite-naive or ISO). */
 export function zahlungLocalYmd(createdAt: string): string {
     const t = createdAt.trim();
     const iso = t.includes("T") ? t : t.replace(" ", "T");
@@ -22,14 +22,14 @@ export function filterZahlungenForLocalDay(zahlungen: Zahlung[], ymd: string): Z
     return zahlungen.filter((z) => zahlungLocalYmd(z.created_at) === ymd);
 }
 
-/** Bargeld laut Erfassung (Bar, nicht storniert). */
+/** Cash per capture (cash, not cancelled). */
 export function sumBarTag(zahlungen: Zahlung[], ymd: string): number {
     return filterZahlungenForLocalDay(zahlungen, ymd)
         .filter((x) => !isStorniert(x) && x.zahlungsart === "BAR")
         .reduce((s, x) => s + x.betrag, 0);
 }
 
-/** Sämtliche verbuchte Einnahmen des Tages (bezahlt / teilbezahlt, nicht storniert). */
+/** All booked revenue for the day (paid / partially paid, not cancelled). */
 export function sumEinnahmenTag(zahlungen: Zahlung[], ymd: string): number {
     return filterZahlungenForLocalDay(zahlungen, ymd)
         .filter((x) => !isStorniert(x) && (x.status === "BEZAHLT" || x.status === "TEILBEZAHLT"))
@@ -44,7 +44,7 @@ export function isVerbuchteZahlung(z: Zahlung): boolean {
     return !isStorniert(z) && (z.status === "BEZAHLT" || z.status === "TEILBEZAHLT");
 }
 
-/** Zahlungen für Rezeption: heute erfasst, noch nicht im Tagesabschluss bestätigt. */
+/** Payments for Rezeption: recorded today, not yet confirmed in Tagesabschluss. */
 export function filterRezeptionKassenQueue(zahlungen: Zahlung[], ymd: string): Zahlung[] {
     return zahlungen.filter(
         (z) => zahlungLocalYmd(z.created_at) === ymd && isVerbuchteZahlung(z) && isKasseUngeprueft(z),

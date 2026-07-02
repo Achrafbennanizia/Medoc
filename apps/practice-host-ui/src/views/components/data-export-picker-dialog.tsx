@@ -42,12 +42,13 @@ export function DataExportPickerDialog({
     open,
     onClose,
     title,
-    description = "Format und Speicherort vor dem Export.",
+    description,
     formats,
     defaultFormat,
     resolvePayload,
 }: DataExportPickerDialogProps) {
     const t = useT();
+    const resolvedDescription = description ?? t("export.data.picker_description");
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const [format, setFormat] = useState<DataExportFormat>(defaultFormat);
@@ -59,9 +60,9 @@ export function DataExportPickerDialog({
     const [folderOnce, setFolderOnce] = useState<string | null>(null);
     const resolvedPathLabel = useMemo(() => {
         if (folderOnce?.trim()) return folderOnce.trim();
-        if (pathCfg) return describeResolvedExportPath(pathCfg);
+        if (pathCfg) return describeResolvedExportPath(pathCfg, t);
         return "…";
-    }, [folderOnce, pathCfg]);
+    }, [folderOnce, pathCfg, t]);
 
     useEffect(() => {
         if (!open) return;
@@ -157,7 +158,7 @@ export function DataExportPickerDialog({
             <div className="akte-export-dialog-layout">
                 <div className="akte-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        {description}
+                        {resolvedDescription}
                     </p>
                     {formats.length > 1 ? (
                         <Select
@@ -228,7 +229,7 @@ export function DataExportPickerDialog({
                             </pre>
                         ) : format === "zip" ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>
-                                ZIP-Archiv ({payload.suggestedFilename}) — Inhalt wird beim Speichern bereitgestellt.
+                                {tp("export.data.zip_hint", { filename: payload.suggestedFilename })}
                             </p>
                         ) : (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_preview")}</p>

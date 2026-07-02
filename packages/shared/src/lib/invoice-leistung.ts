@@ -22,24 +22,24 @@ const INVOICE_PRAXIS_KV_KEY = "invoice.praxis.v1" as const;
 export type InvoicePraxis = {
     name: string;
     addr: string;
-    /** KV-/Betriebsnummer — für Etiketten & Stammdaten */
+    /** KV / practice number — for labels & master data */
     kv_nummer?: string;
-    /** Freitext Öffnungszeiten */
+    /** Free-text opening hours */
     oeffnungszeiten?: string;
     telefon?: string;
     fax?: string;
     email?: string;
-    /** Praxis-Webseite (wird im PDF ohne https:// dargestellt, wenn gewünscht) */
+    /** Practice website (shown in PDF without https:// if desired) */
     web?: string;
     steuernummer?: string;
     ust_id?: string;
     /** "Dr. Max Mustermann" */
     behandler_name?: string;
-    /** "Zahnarzt" / "Zahnärztin" */
+    /** Dentist title label (male/female German UI strings) */
     berufsbezeichnung?: string;
     /** Zahnarztnummer (9 Ziffern) */
     zanr?: string;
-    /** Betriebsstättennummer (9 Ziffern) */
+    /** Practice site number (9 digits) */
     bsnr?: string;
     /** LANR (falls abweichend) */
     lanr?: string;
@@ -47,7 +47,7 @@ export type InvoicePraxis = {
     bankverbindung_bic?: string;
     bankverbindung_bank?: string;
     bankverbindung_inhaber?: string;
-    /** "Landeszahnärztekammer …" */
+    /** Regional dental chamber label (German UI string) */
     kammer?: string;
     /** "KZV …" */
     kzv?: string;
@@ -138,10 +138,10 @@ function invoicePraxisToBlob(p: InvoicePraxis): Record<string, string | number> 
 }
 
 /**
- * Zeilen für den Praxis-Kopf im PDF (`practice_address`): Anschrift, dann Kontakt und Pflichtangaben.
- * Reihenfolge orientiert sich an typischen Rechnungs-/Briefköpfen.
+ * Lines for practice header in PDF (`practice_address`): address, then contact and mandatory fields.
+ * Order follows typical invoice/letterhead layout.
  *
- * @param show — pro Feld `true` = Klartext, `false` = maskiert (wie in Einstellungen › Praxis).
+ * @param show — per field `true` = plaintext, `false` = masked (as in Einstellungen › Praxis).
  */
 export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHeaderPrivacyV1 = DEFAULT_PRAXIS_HEADER_PRIVACY): string[] {
     const lines: string[] = [];
@@ -171,12 +171,12 @@ export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHea
     return lines;
 }
 
-/** ZANR / BSNR: genau 9 Ziffern (ohne Leerzeichen). */
+/** ZANR / BSNR: exactly 9 digits (no spaces). */
 export function isValidPraxisDigitId(value: string): boolean {
     return value.replace(/\D/g, "").length === 9;
 }
 
-/** IBAN: DE + 20 Ziffern oder allgemeines ISO-Format. */
+/** IBAN: DE + 20 digits or general ISO format. */
 export function isValidPraxisIban(value: string): boolean {
     const s = value.replace(/\s/g, "").toUpperCase();
     if (!s) return false;
@@ -184,7 +184,7 @@ export function isValidPraxisIban(value: string): boolean {
     return /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(s);
 }
 
-/** Pflichtfelder für Rechnungen/Rezepte laut Praxis-Stammdaten. */
+/** Required fields for invoices/prescriptions per practice master data. */
 export function praxisRechnungPflichtMissing(p: InvoicePraxis): boolean {
     return (
         !(p.behandler_name ?? "").trim() ||
@@ -194,13 +194,13 @@ export function praxisRechnungPflichtMissing(p: InvoicePraxis): boolean {
     );
 }
 
-/** Rechnungs-PDF und Speichern: aktuelle Privatsphäre-Einstellung aus dem Gerät. */
+/** Invoice PDF and save: current privacy setting from device. */
 export function buildInvoiceHeaderAddressLinesForExport(p: InvoicePraxis): string[] {
     return buildInvoiceHeaderAddressLines(p, loadPraxisHeaderPrivacy());
 }
 
 export type InvoiceNumberOpts = {
-    /** Nummern, die bereits im lokalen Verlauf / Session liegen — Kollision vermeiden. */
+    /** Numbers already in local history / session — avoid collision. */
     reserved?: ReadonlySet<string>;
 };
 
@@ -224,7 +224,7 @@ function moneyToInvoiceCents(bruto: number): number {
     return cents;
 }
 
-/** Auto-Rechnungsnummer — RE-YYYYMMDD-RANDOM (bei Kurzdatum Fallback ohne Datums-Präfix). */
+/** Auto invoice number — RE-YYYYMMDD-RANDOM (short date fallback without date prefix). */
 export function nextRechnungsnummer(ymd: string, opts?: InvoiceNumberOpts): string {
     const reserved = opts?.reserved;
     const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
@@ -255,18 +255,18 @@ export function getInvoicePraxisFromStorage(): InvoicePraxis {
     }
 }
 
-/** Persistiert Praxis-Stammdaten (Rechnungen, PDFs, Einstellungen). */
+/** Persists practice master data (invoices, PDFs, Einstellungen). */
 export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
     localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(invoicePraxisToBlob(p)));
 }
 
-/** Praxis-Rechnungskopf zusätzlich in SQLite `app_kv` (praxisweit, LAN-synchronisierbar). */
+/** Practice invoice header also in SQLite `app_kv` (practice-wide, LAN-syncable). */
 export async function syncInvoicePraxisToAppKv(p: InvoicePraxis): Promise<void> {
     await setAppKv(INVOICE_PRAXIS_KV_KEY, JSON.stringify(invoicePraxisToBlob(p)));
 }
 
 /**
- * One-shot: wenn `app_kv` leer ist, Praxis-Stammdaten aus legacy `localStorage` nach SQLite übernehmen.
+ * One-shot: when `app_kv` empty, migrate practice master data from legacy `localStorage` to SQLite.
  * `localStorage` bleibt als synchroner Cache (wie Arbeitszeiten).
  */
 export async function migrateInvoicePraxisLocalStorageToAppKv(): Promise<boolean> {
@@ -283,7 +283,7 @@ export async function migrateInvoicePraxisLocalStorageToAppKv(): Promise<boolean
     }
 }
 
-/** Lädt `invoice.praxis.v1` aus der DB und spiegelt nach localStorage (Desktop). */
+/** Loads `invoice.praxis.v1` from DB and mirrors to localStorage (desktop). */
 export async function hydrateInvoicePraxisFromAppKv(): Promise<InvoicePraxis | null> {
     try {
         const raw = await getAppKv(INVOICE_PRAXIS_KV_KEY);
@@ -297,7 +297,7 @@ export async function hydrateInvoicePraxisFromAppKv(): Promise<InvoicePraxis | n
     }
 }
 
-/** Tagesbericht / PDF-Nr. — längerer Zufallsteil als früher (Kollisionen seltener). */
+/** Daily report / PDF no. — longer random part than before (collisions rarer). */
 export function nextBerichtNummer(ymd: string, opts?: InvoiceNumberOpts): string {
     const reserved = opts?.reserved;
     const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
@@ -358,8 +358,8 @@ export function lineFromLeistungWahl(
 }
 
 /**
- * Ein Patient / ein Stichtag: gruppierte Zahlungs-Zeilen für den Tagesbericht-PDF.
- * (Der Gesamt-PDF in `tagesabschluss-invoice-pdf.ts` ruft diese Funktion je Patient auf und fügt die Blöcke zusammen.)
+ * One Patient / one date: grouped payment lines for daily report PDF.
+ * (The full PDF in `tagesabschluss-invoice-pdf.ts` calls this per Patient and merges blocks.)
  */
 export function buildTagesberichtLines(
     stichtag: string,

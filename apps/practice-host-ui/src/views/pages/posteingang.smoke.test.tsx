@@ -78,7 +78,7 @@ describe.skipIf(!POSTEINGANG_UI_ENABLED)("Posteingang smoke (G21)", () => {
             await Promise.resolve();
         });
         expect(listPraxisAufgabenForMe).toHaveBeenCalledTimes(1);
-        expect(screen.getByText(/Keine offenen Aufgaben/i)).toBeInTheDocument();
+        expect(screen.getByText(/No open tasks/i)).toBeInTheDocument();
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(POSTEINGANG_POLL_MS);

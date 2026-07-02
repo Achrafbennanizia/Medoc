@@ -25,7 +25,7 @@ pub async fn investigate_session(
 ) -> Result<DeviceSessionInvestigation, AppError> {
     let session = device_session::find_active_for_user_by_id(pool, user_id, session_id, current_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Gerätesitzung nicht gefunden".into()))?;
+        .ok_or_else(|| AppError::NotFound("error.entity.device_session".into()))?;
 
     let all = device_session::list_active_for_user(pool, user_id, current_id).await?;
     let label = session.device_label.trim();
@@ -68,11 +68,11 @@ pub async fn revoke_session(
 ) -> Result<(), AppError> {
     let session = device_session::find_active_for_user_by_id(pool, user_id, session_id, current_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Gerätesitzung nicht gefunden".into()))?;
+        .ok_or_else(|| AppError::NotFound("error.entity.device_session".into()))?;
 
     if session.is_current {
-        return Err(AppError::Validation(
-            "Die aktuelle Sitzung kann hier nicht beendet werden — bitte abmelden.".into(),
+        return Err(AppError::validation_code(
+            "error.device_session.cannot_revoke_current",
         ));
     }
 
@@ -104,17 +104,17 @@ pub async fn set_session_trusted(
     let existing =
         device_session::find_active_for_user_by_id(pool, user_id, session_id, current_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("Gerätesitzung nicht gefunden".into()))?;
+            .ok_or_else(|| AppError::NotFound("error.entity.device_session".into()))?;
 
     if existing.is_current {
-        return Err(AppError::Validation(
-            "Die aktuelle Sitzung ist bereits vertrauenswürdig.".into(),
+        return Err(AppError::validation_code(
+            "error.device_session.current_already_trusted",
         ));
     }
 
     let updated = device_session::set_trusted(pool, user_id, session_id, trusted).await?;
     if !updated {
-        return Err(AppError::NotFound("Gerätesitzung nicht gefunden".into()));
+        return Err(AppError::NotFound("error.entity.device_session".into()));
     }
 
     audit_repo::create(
@@ -133,7 +133,7 @@ pub async fn set_session_trusted(
 
     device_session::find_active_for_user_by_id(pool, user_id, session_id, current_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Gerätesitzung nicht gefunden".into()))
+        .ok_or_else(|| AppError::NotFound("error.entity.device_session".into()))
 }
 
 fn map_audit_entries(rows: &[AuditLog]) -> Vec<DeviceSessionAuditEntry> {

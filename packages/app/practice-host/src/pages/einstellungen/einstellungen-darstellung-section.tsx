@@ -5,15 +5,15 @@ import {
     type ColorSchemeId,
     type FontStackId,
 } from "@/lib/client-settings";
-import { ACCENT_HINTS, ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
+import { ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
 import {
-    FONT_STACK_HINTS,
     FONT_STACK_LABELS,
     FONT_STACK_ORDER,
     FONT_STACK_PREVIEW_FAMILY,
 } from "@/lib/font-stack-preset";
 import type { Locale } from "@/lib/i18n";
-import { useT, useTParams } from "@/lib/i18n";
+import { accentHintKey, fontStackHintKey, useT, useTParams } from "@/lib/i18n";
+import { LocaleSwitcher } from "@/views/components/locale-switcher";
 import { DARK_SIDEBAR_SETTINGS_ENABLED } from "@/lib/settings-ui-flags";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -135,7 +135,7 @@ export function EinstellungenDarstellungSection({
             <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
                 <div>
                     <b>{t("settings.appearance.font")}</b>
-                    <div className="card-sub">{FONT_STACK_HINTS[fontStack]}</div>
+                    <div className="card-sub">{t(fontStackHintKey(fontStack))}</div>
                 </div>
                 <div className="settings-font-seg" role="group" aria-label={t("settings.appearance.font")} style={{ width: "100%", justifyContent: "stretch" }}>
                     {FONT_STACK_ORDER.map((id) => (
@@ -193,26 +193,15 @@ export function EinstellungenDarstellungSection({
                     <b>{t("settings.appearance.language")}</b>
                     <div className="card-sub">{t("settings.appearance.language.ui")}</div>
                 </div>
-                <div className="settings-lang-seg" role="group" aria-label={t("settings.appearance.language.aria")}>
-                    <button type="button" className={`settings-lang-seg__btn${locale === "de" ? " is-active" : ""}`} onClick={() => onLocaleChange("de")}>
-                        DE
-                    </button>
-                    <button type="button" className={`settings-lang-seg__btn${locale === "en" ? " is-active" : ""}`} onClick={() => onLocaleChange("en")}>
-                        EN
-                    </button>
-                    <button type="button" className={`settings-lang-seg__btn${locale === "fr" ? " is-active" : ""}`} onClick={() => onLocaleChange("fr")}>
-                        FR
-                    </button>
-                    <button type="button" className={`settings-lang-seg__btn${locale === "ar" ? " is-active" : ""}`} onClick={() => onLocaleChange("ar")}>
-                        AR
-                    </button>
-                </div>
+                <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
             </div>
             <div className="settings-row settings-row--wrap settings-row--accent">
                 <div className="settings-row-clickable__label">
                     <b>{t("settings.appearance.accent")}</b>
                     <div className="settings-row-muted">
                         {tp("settings.appearance.accent.hint", { label: ACCENT_LABELS[accentPresetId] })}
+                        {" · "}
+                        {t(accentHintKey(accentPresetId))}
                     </div>
                 </div>
                 <div role="radiogroup" aria-label={t("settings.appearance.accent.aria")} className="settings-accent-inline">
@@ -222,8 +211,8 @@ export function EinstellungenDarstellungSection({
                             type="button"
                             role="radio"
                             aria-checked={accentPresetId === id}
-                            aria-label={`${ACCENT_LABELS[id]}: ${ACCENT_HINTS[id]}`}
-                            title={ACCENT_HINTS[id]}
+                            aria-label={`${ACCENT_LABELS[id]}: ${t(accentHintKey(id))}`}
+                            title={t(accentHintKey(id))}
                             className={`settings-accent-inline__swatch${accentPresetId === id ? " is-selected" : ""}`}
                             style={{ background: accentColorCircle(id) }}
                             onClick={() => {

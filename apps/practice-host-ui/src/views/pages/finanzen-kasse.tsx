@@ -24,7 +24,7 @@ function todayYmd(): string {
 }
 
 /**
- * Rezeption-only Kassenübersicht: heute erfasste Zahlungen, die im Tagesabschluss noch nicht bestätigt sind.
+ * Reception-only cash overview: payments recorded today not yet confirmed in Tagesabschluss.
  */
 export function FinanzenKassePage() {
     const t = useT();

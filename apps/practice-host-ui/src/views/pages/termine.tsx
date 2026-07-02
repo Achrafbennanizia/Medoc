@@ -21,7 +21,7 @@ import {
     startOfWeek,
 } from "date-fns";
 import { listTermine, deleteTermin, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
-import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { useDateFnsLocale, useT, useTParams, useLocale, isRtlLocale } from "@/lib/i18n";
 import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
 import { listAerzte, type AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.controller";
@@ -60,7 +60,7 @@ import { TerminMonthCalendar } from "../components/termin-month-calendar";
 import { TerminDaySplit, TerminWeekGrid } from "../components/termin-week-day-grid";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import {
-    // AmbulanceIcon, — Kalender: Notfall-Toolbar vorübergehend deaktiviert
+    // AmbulanceIcon, — calendar: emergency toolbar temporarily disabled
     ChevronLeftIcon,
     ChevronRightIcon,
     FilterIcon,
@@ -89,19 +89,19 @@ const statusBadge = TERMIN_STATUS_BADGE;
 const PX_PER_MIN = TERMIN_PX_PER_MIN;
 const DAY_START_MIN = TERMIN_DAY_START_MIN;
 const DAY_END_MIN = TERMIN_DAY_END_MIN;
-/** Tag-Ansicht: Ziehen links/rechts neben dem Raster wechselt das Zieldatum (±1 Tag). */
+/** Day view: dragging left/right beside the grid changes target date (±1 day). */
 const DAY_DRAG_EDGE_PX = 40;
-/** Tag-Ansicht: linker/rechter Rand innerhalb der Tagesspalte wechselt den Kalendertag */
+/** Day view: left/right edge within day column changes calendar day */
 const DAY_INNER_EDGE_PX = 36;
-/** Wochenansicht: Ziehen links/rechts außerhalb des Rasters wechselt die Woche. */
+/** Week view: dragging left/right outside the grid changes the week. */
 const WEEK_NAV_EDGE_PX = 48;
-/** Beim Drag: Kalender-Tag oder Woche höchstens einmal alle 500 ms wechseln (vermeidet “Durchwandern”). */
+/** While dragging: calendar day or week changes at most once every 500 ms (avoids walk-through). */
 const DRAG_DATUM_NAV_COOLDOWN_MS = 500;
-/** Nach Drag: Kontextmenü kurz unterdrücken (Trackpad/OS feuert oft „contextmenu“ nach dem Loslassen). */
+/** After drag: briefly suppress context menu (trackpad/OS often fires "contextmenu" on release). */
 const APPT_CTX_SUPPRESS_AFTER_DRAG_MS = 1400;
-/** Wochenansicht: Nach Ziehen ersten „click“ blocken (Browser feuert oft click direkt nach mouseup auf dem Termin-Button). */
+/** Week view: block first click after drag (browser often fires click right after mouseup on Termin button). */
 const APPT_CLICK_SUPPRESS_AFTER_DROP_MS = 500;
-/** Summe der Zeigerbewegung (|dx|+|dy|) ab der Drag-Zeit – ab diesem Wert als Zieh-Geste werten. */
+/** Sum of pointer movement (|dx|+|dy|) from drag start — above this threshold counts as drag gesture. */
 const APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX = 6;
 
 const uhrzeitToMinutes = terminUhrzeitToMinutes;
@@ -109,6 +109,8 @@ const uhrzeitToMinutes = terminUhrzeitToMinutes;
 export function TerminePage() {
     const t = useT();
     const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
+    const rtl = isRtlLocale(locale);
     const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const location = useLocation();
@@ -146,7 +148,7 @@ export function TerminePage() {
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
     const filterPopoverWrapRef = useRef<HTMLDivElement | null>(null);
     const filterPopoverPanelRef = useRef<HTMLDivElement | null>(null);
-    const [filterPopoverFixed, setFilterPopoverFixed] = useState<null | { top: number; left: number; width: number }>(
+    const [filterPopoverFixed, setFilterPopoverFixed] = useState<null | { top: number; inlineStart: number; width: number }>(
         null,
     );
     // const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
@@ -162,16 +164,16 @@ export function TerminePage() {
         currentDatum: string;
         currentStartMin: number;
     }>(null);
-    /** Tagesansicht: zuletzt per Drag gewählte Uhrzeit an der Stundenleiste (bleibt bis neue Interaktion). */
+    /** Day view: last hour chosen via drag on the hour rail (persists until new interaction). */
     const [terminDaySnapLabel, setTerminDaySnapLabel] = useState<null | { iso: string; startMin: number }>(null);
     const dragStateRef = useRef(dragState);
     useLayoutEffect(() => {
         dragStateRef.current = dragState;
     }, [dragState]);
-    /** Letzter Wechsel von `currentDatum` per Drag (Tagsspalte, Rand, Woche ±1). */
+    /** Last change of `currentDatum` via drag (day column, edge, week ±1). */
     const lastDragDatumNavAtRef = useRef(0);
     const suppressApptContextMenuUntilRef = useRef(0);
-    /** Nur Wochenansicht: Klick auf Termin-Kachel nach Drag-Drop erst wieder zulassen (s. `APPT_CLICK_SUPPRESS_AFTER_DROP_MS`). */
+    /** Week view only: re-allow Termin tile click after drag-drop (see `APPT_CLICK_SUPPRESS_AFTER_DROP_MS`). */
     const suppressApptClickUntilRef = useRef(0);
     const dragPointerTravelRef = useRef(0);
     const dragLastClientRef = useRef<{ x: number; y: number } | null>(null);
@@ -435,9 +437,11 @@ export function TerminePage() {
             if (!anchor) return;
             const r = anchor.getBoundingClientRect();
             const width = Math.min(320, window.innerWidth * 0.94);
-            const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+            const inlineStart = rtl
+                ? Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+                : Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
             const top = r.bottom + 8;
-            setFilterPopoverFixed({ top, left, width });
+            setFilterPopoverFixed({ top, inlineStart, width });
         };
         update();
         window.addEventListener("resize", update);
@@ -446,7 +450,7 @@ export function TerminePage() {
             window.removeEventListener("resize", update);
             document.removeEventListener("scroll", update, true);
         };
-    }, [filterPopoverOpen]);
+    }, [filterPopoverOpen, rtl]);
 
     useEffect(() => {
         if (!filterPopoverOpen) return undefined;
@@ -613,6 +617,7 @@ export function TerminePage() {
                 TERMIN_DEFAULT_DUR_MIN,
                 praxisPlanCfg,
                 abwesenheiten,
+                t,
             );
             if (schedErr) {
                 toast(schedErr, "error");
@@ -672,7 +677,7 @@ export function TerminePage() {
                 dragLastClientRef.current = { x: e.clientX, y: e.clientY };
             }
 
-            /** Neues Zieldatum im Drag nur alle `DRAG_DATUM_NAV_COOLDOWN_MS` (gleicher Tag → Uhrzeit ohne Cooldown). */
+            /** New target date during drag only every `DRAG_DATUM_NAV_COOLDOWN_MS` (same day → time without cooldown). */
             const applyDragTimeline = (targetIso: string, clamped: number, jumpIfDayChanges: boolean) => {
                 const prev = dragStateRef.current;
                 if (!prev || prev.id !== dragId) return;
@@ -945,7 +950,7 @@ export function TerminePage() {
                                     ) : null}
                                 </button>
                             </div>
-                            {/* DISABLED: Pause / Notfall — Kalender-Toolbar (Produkt: später reaktivieren)
+                            {/* DISABLED: Pause / emergency — calendar toolbar (product: re-enable later)
                             <button type="button" className="btn btn-subtle" onClick={() => setPauseConfirmOpen(true)}>
                                 <PauseIcon size={16} />
                                 Pause
@@ -974,7 +979,7 @@ export function TerminePage() {
                               aria-label={t("termine.filter.aria")}
                               style={{
                                   top: filterPopoverFixed.top,
-                                  left: filterPopoverFixed.left,
+                                  insetInlineStart: filterPopoverFixed.inlineStart,
                                   width: filterPopoverFixed.width,
                               }}
                           >
@@ -1214,7 +1219,7 @@ export function TerminePage() {
             </div>
             </div>
 
-            {/* DISABLED: Notfall-Bestätigungsdialog (Kalender-Toolbar)
+            {/* DISABLED: Emergency confirmation dialog (calendar toolbar)
             <Dialog
                 open={notfallConfirmOpen}
                 onClose={() => setNotfallConfirmOpen(false)}
@@ -1252,7 +1257,7 @@ export function TerminePage() {
             </Dialog>
             */}
 
-            {/* DISABLED: Pause-Bestätigungsdialog (Kalender-Toolbar)
+            {/* DISABLED: Pause confirmation dialog (calendar toolbar)
             <Dialog
                 open={pauseConfirmOpen}
                 onClose={() => setPauseConfirmOpen(false)}

@@ -58,13 +58,13 @@ export function parseExportFormatsJson(raw: string | null): ExportFormatsConfigV
     }
 }
 
-/** Resolved directory for display (best effort; browser: „Download“). */
-export function describeResolvedExportPath(cfg: ExportPathConfigV1): string {
-    if (!isTauriApp()) return "Browser: Standard-Download des Browsers";
+/** Resolved directory for display (best effort; browser: download folder). */
+export function describeResolvedExportPath(cfg: ExportPathConfigV1, t: (key: string) => string): string {
+    if (!isTauriApp()) return t("export.path.browser_download");
     if (cfg.mode === "documents") {
-        return "Standard: Ordner „Dokumente“ (vom Betriebssystem) — genauer Pfad wird beim Speichern aufgelöst";
+        return t("export.path.documents_folder");
     }
-    return (cfg.customPath?.trim() && cfg.customPath) || "(kein eigener Pfad gewählt)";
+    return (cfg.customPath?.trim() && cfg.customPath) || t("export.path.custom_empty");
 }
 
 export async function loadExportPathConfig(): Promise<ExportPathConfigV1> {

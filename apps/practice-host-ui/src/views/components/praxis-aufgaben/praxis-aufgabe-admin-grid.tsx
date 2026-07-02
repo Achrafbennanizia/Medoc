@@ -9,7 +9,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { aufgabePatientLabel } from "./constants";
 import { assigneeLabel, aufgabeStatusVariant, userCanViewAufgabe } from "./aufgabe-workflow";
-import { aufgabeStatusLabel } from "./aufgabe-workflow-ui";
+import { aufgabeStatusLabel, aufgabeTypLabel } from "./aufgabe-workflow-ui";
 
 type Props = {
     rows: PraxisAufgabe[];
@@ -85,7 +85,7 @@ export function PraxisAufgabeAdminGrid({
                     </thead>
                     <tbody>
                         {rows.map((row) => {
-                            const patLabel = aufgabePatientLabel(row.patient_id, patientMap);
+                            const patLabel = aufgabePatientLabel(row.patient_id, patientMap, t("common.dash"));
                             const patId = row.patient_id?.trim() || null;
                             const canOpen = userCanViewAufgabe(row, userId, { isRezeption, canAdmin });
                             const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
@@ -116,8 +116,8 @@ export function PraxisAufgabeAdminGrid({
                                         {compact ? (
                                             <span className="aufgaben-meta-sub">
                                                 {patLabel}
-                                                {row.typ ? ` · ${row.typ}` : ""}
-                                                {` · ${assigneeLabel(row, personal)}`}
+                                                {row.typ ? ` · ${aufgabeTypLabel(t, row.typ)}` : ""}
+                                                {` · ${assigneeLabel(row, personal, t)}`}
                                             </span>
                                         ) : null}
                                     </td>
@@ -135,13 +135,13 @@ export function PraxisAufgabeAdminGrid({
                                                     patLabel
                                                 )}
                                             </td>
-                                            <td className="aufgaben-td-typ">{row.typ}</td>
-                                            <td className="aufgaben-td-assignee">{assigneeLabel(row, personal)}</td>
+                                            <td className="aufgaben-td-typ">{aufgabeTypLabel(t, row.typ)}</td>
+                                            <td className="aufgaben-td-assignee">{assigneeLabel(row, personal, t)}</td>
                                         </>
                                     ) : null}
                                     <td className="aufgaben-td-status">
                                         <Badge variant={aufgabeStatusVariant(row.status)}>
-                                            {aufgabeStatusLabel(row.status)}
+                                            {aufgabeStatusLabel(t, row.status)}
                                         </Badge>
                                     </td>
                                     <td className="aufgaben-td-action" onClick={(e) => e.stopPropagation()}>

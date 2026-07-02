@@ -4,11 +4,14 @@
 
 import { useEffect, useState } from "react";
 
+import { useT, useTParams } from "@/lib/i18n";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
 
 const POLL_MS = 15_000;
 
 export function SyncStatusBadge() {
+    const t = useT();
+    const tp = useTParams();
     const [pending, setPending] = useState<number | null>(null);
     const [visible, setVisible] = useState(false);
 
@@ -54,8 +57,8 @@ export function SyncStatusBadge() {
         <span
             title={
                 pending > 0
-                    ? `${pending} Änderung(en) warten auf Sync mit dem Master`
-                    : "Replica-Sync aktuell"
+                    ? tp("sync.badge.pending_title", { count: pending })
+                    : t("sync.badge.up_to_date_title")
             }
             style={{
                 fontSize: 12,
@@ -66,7 +69,7 @@ export function SyncStatusBadge() {
                 whiteSpace: "nowrap",
             }}
         >
-            Sync{pending > 0 ? `: ${pending} ausstehend` : ": OK"}
+            {t("sync.badge.label")}{pending > 0 ? tp("sync.badge.pending_short", { count: pending }) : t("sync.badge.ok_short")}
         </span>
     );
 }

@@ -18,11 +18,11 @@ export const LICENSE_SUPPORT_ROW_ENABLED = false;
 /** Export dialogs: Dokumentvorlage (PDF-Layout) template picker. */
 export const PDF_LAYOUT_TEMPLATE_PICKER_ENABLED = false;
 
-/** NFA-USE-09 route coachmarks (Einführung). */
+/** NFA-USE-09 route coachmarks (onboarding). */
 export const ONBOARDING_COACHMARK_ENABLED = false;
 
 /** Migration wizard: GDT / DICOM / TWAIN live adapter steps (step 3+). */
 export const MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED = false;
 
-/** v1 ships HTTP serverless pairing; Geräteverbund panel stays off in settings. */
+/** v1 ships HTTP serverless pairing; device network panel stays off in settings. */
 export const VERBUND_ADMIN_PANEL_V1_ENABLED = false;

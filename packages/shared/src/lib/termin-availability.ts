@@ -6,6 +6,9 @@ import {
     resolveEffectiveArbeitszeitenForArzt,
 } from "./praxis-planning";
 
+type TFn = (key: string) => string;
+type TParamsFn = (key: string, params: Record<string, string | number>) => string;
+
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 export function uhrzeitToMinutes(u: string): number {
     const p = u.slice(0, 5).split(":");
@@ -63,12 +66,13 @@ export function terminSchedulingBlockReason(
     isoDate: string,
     startMin: number,
     endMin: number,
+    t: TFn,
 ): string | undefined {
     if (isAppointmentSpanBlockedByPraxisConfig(praxisCfg, isoDate, startMin, endMin)) {
-        return "Dieser Zeitraum liegt außerhalb der Sprechzeiten, in der Pause oder in einer Sperrzeit.";
+        return t("termine.scheduling.outside_hours");
     }
     if (isAppointmentSpanBlockedByAbwesenheiten(abwesenheiten, isoDate, startMin, endMin)) {
-        return "Dieser Zeitraum fällt in eine Abwesenheit/Urlaub.";
+        return t("termine.scheduling.absence");
     }
     return undefined;
 }
@@ -80,19 +84,20 @@ export function validateTerminSchedulingUpdates(
     slotDurMin: number,
     praxisCfg: PraxisArbeitszeitenConfig,
     abwesenheiten: Abwesenheit[],
+    t: TFn,
 ): string | undefined {
     for (const u of updates) {
-        const t = termine.find((x) => x.id === u.id);
-        if (!t) continue;
-        const datum = (typeof u.data.datum === "string" ? u.data.datum : undefined) ?? t.datum;
-        const uhrzeitRaw = (typeof u.data.uhrzeit === "string" ? u.data.uhrzeit : undefined) ?? t.uhrzeit;
+        const termin = termine.find((x) => x.id === u.id);
+        if (!termin) continue;
+        const datum = (typeof u.data.datum === "string" ? u.data.datum : undefined) ?? termin.datum;
+        const uhrzeitRaw = (typeof u.data.uhrzeit === "string" ? u.data.uhrzeit : undefined) ?? termin.uhrzeit;
         const startMin = uhrzeitToMinutes(uhrzeitRaw);
         const endMin = startMin + slotDurMin;
         const arztId =
             (typeof u.data.arzt_id === "string" && u.data.arzt_id.trim() ? u.data.arzt_id.trim() : undefined)
-            ?? t.arzt_id;
+            ?? termin.arzt_id;
         const eff = resolveEffectiveArbeitszeitenForArzt(praxisCfg, arztId);
-        const reason = terminSchedulingBlockReason(eff, abwesenheiten, datum, startMin, endMin);
+        const reason = terminSchedulingBlockReason(eff, abwesenheiten, datum, startMin, endMin, t);
         if (reason) return reason;
     }
     return undefined;
@@ -143,6 +148,7 @@ export function suggestAlternativeTerminSlots(opts: {
     abwesenheiten: Abwesenheit[];
     excludeTerminId?: string;
     max?: number;
+    t: TFn;
 }): string[] {
     const max = opts.max ?? 5;
     const eff = resolveEffectiveArbeitszeitenForArzt(opts.praxisCfg, opts.arztId);
@@ -161,7 +167,7 @@ export function suggestAlternativeTerminSlots(opts: {
         if (seen.has(hm)) continue;
         seen.add(hm);
         if (isSlotBlockedByPraxisConfig(eff, opts.datum, hm)) continue;
-        const block = terminSchedulingBlockReason(eff, opts.abwesenheiten, opts.datum, startMin, startMin + opts.durMin);
+        const block = terminSchedulingBlockReason(eff, opts.abwesenheiten, opts.datum, startMin, startMin + opts.durMin, opts.t);
         if (block) continue;
         if (hasArztSlotConflict(opts.termine, opts.datum, hm, opts.arztId, opts.excludeTerminId)) continue;
         out.push(hm);
@@ -170,7 +176,14 @@ export function suggestAlternativeTerminSlots(opts: {
     return out;
 }
 
-export function formatAlternativeSlotsDe(slots: string[]): string {
+export function formatAlternativeSlots(slots: string[], tp: TParamsFn): string {
     if (slots.length === 0) return "";
-    return slots.map((s) => `${s} Uhr`).join(", ");
+    return slots.map((s) => tp("termine.scheduling.time_oclock", { time: s })).join(", ");
+}
+
+/** @deprecated Use formatAlternativeSlots(slots, tp) */
+export function formatAlternativeSlotsDe(slots: string[]): string {
+    return formatAlternativeSlots(slots, (key, params) =>
+        key === "termine.scheduling.time_oclock" ? `${params.time} Uhr` : String(params.time),
+    );
 }

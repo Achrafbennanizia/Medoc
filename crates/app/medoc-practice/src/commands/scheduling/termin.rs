@@ -5,7 +5,7 @@ use crate::domain::entities::termin::{CreateTermin, UpdateTermin};
 use crate::domain::entities::Termin;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, termin_repo};
+use crate::infrastructure::database::{audit_repo, patient_repo, termin_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -52,12 +52,6 @@ pub async fn create_termin(
     .await
     .ok();
     termin_hint_fulfillment::after_termin_created_best_effort(&pool, &session.user_id, &t).await;
-    let _ = sqlx::query(
-        "UPDATE patient SET status = 'AKTIV', updated_at = CURRENT_TIMESTAMP WHERE id = ?1 AND status = 'NEU'",
-    )
-    .bind(&t.patient_id)
-    .execute(pool.inner())
-    .await;
     Ok(t)
 }
 
@@ -70,10 +64,10 @@ pub async fn update_termin(
     data: UpdateTermin,
 ) -> Result<Termin, AppError> {
     let session = rbac::require(&session_state, "termin.write")?;
+    let current = termin_repo::find_by_id(&pool, &id)
+        .await?
+        .ok_or(AppError::NotFound("Termin".into()))?;
     if let Some(new_status) = &data.status {
-        let current = termin_repo::find_by_id(&pool, &id)
-            .await?
-            .ok_or(AppError::NotFound("Termin".into()))?;
         let new_str = serde_json::to_string(new_status)
             .map(|s| s.trim_matches('"').to_uppercase())
             .unwrap_or_default();
@@ -83,6 +77,11 @@ pub async fn update_termin(
     audit_repo::create(&pool, &session.user_id, "UPDATE", "Termin", Some(&id), None)
         .await
         .ok();
+    let became_completed = !current.status.eq_ignore_ascii_case("DURCHGEFUEHRT")
+        && t.status.eq_ignore_ascii_case("DURCHGEFUEHRT");
+    if became_completed {
+        let _ = patient_repo::expire_neu_status_after_completed_termin(&pool, &t.patient_id).await;
+    }
     Ok(t)
 }
 

@@ -293,7 +293,13 @@ export function PatientDetailShellHeader({
                         <div className="patient-hero-identity-text">
                             <h2 className="patient-hero-name">{patient.name}</h2>
                             <div className="patient-hero-badges">
-                                <Badge variant="primary">{patientStatusLabel(patient.status, t)}</Badge>
+                                {patient.status === "NEU" ? (
+                                    <span title={t("patient.status.neu.explanation")}>
+                                        <Badge variant="primary">{patientStatusLabel(patient.status, t)}</Badge>
+                                    </span>
+                                ) : (
+                                    <Badge variant="primary">{patientStatusLabel(patient.status, t)}</Badge>
+                                )}
                                 {zahlungen.some(
                                     (z) =>
                                         z.patient_id === patient.id && (z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT"),

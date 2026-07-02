@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useRbac } from "@/lib/use-rbac";
+import { useT } from "@/lib/i18n";
 import { AccessDeniedView } from "./rbac-gate";
 
 /**
@@ -10,15 +11,12 @@ import { AccessDeniedView } from "./rbac-gate";
 export function RouteOutletGuard({ children }: { children: ReactNode }) {
     const { pathname } = useLocation();
     const { canLocation, role } = useRbac();
+    const t = useT();
 
     if (!canLocation(pathname)) {
         return (
             <AccessDeniedView
-                detail={
-                    role != null
-                        ? "Diese Seite ist für Ihre Rolle gesperrt. Wenden Sie sich an die Praxisleitung, wenn Sie Zugriff benötigen."
-                        : "Bitte melden Sie sich an."
-                }
+                detail={role != null ? t("rbac.route_locked") : t("rbac.please_sign_in")}
             />
         );
     }

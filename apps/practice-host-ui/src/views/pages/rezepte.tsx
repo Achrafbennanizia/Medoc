@@ -42,7 +42,7 @@ import {
 
 /**
  * Rezeptverwaltung (FA-REZ-01..05).
- * Export über strukturierte Vorlage (Format, Pfad aus Export-Einstellungen).
+ * Export via structured template (format, path from export settings).
  */
 export function RezeptePage() {
     const t = useT();

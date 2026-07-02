@@ -1,6 +1,6 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 
-/** ──────── DSGVO Art. 30 — Verzeichnis von Verarbeitungstätigkeiten ──────── */
+/** ──────── GDPR Art. 30 — record of processing activities ──────── */
 export interface ProcessingActivity {
     name: string;
     purpose: string;
@@ -20,7 +20,7 @@ export interface VVT {
     activities: ProcessingActivity[];
 }
 
-/** ──────── DSGVO Art. 35 — Datenschutz-Folgenabschätzung ──────── */
+/** ──────── GDPR Art. 35 — data protection impact assessment ──────── */
 export type RiskLevel = "very low" | "low" | "medium" | "high";
 export interface RiskScenario {
     threat: string;

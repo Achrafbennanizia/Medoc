@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
-/** Leistungen, Kataloge, Vorlagen — Tabelle in Karte. */
+/** Services, catalogs, templates — table in card. */
 export function VerwaltungLeistungenKatalogeVorlagenPage() {
     const t = useT();
     const links = useMemo<VerwaltungTocLink[]>(

@@ -1,6 +1,6 @@
 /**
- * Sichtbarkeit sensibler Praxis-Zeilen für Vorschau, Export und Rechnungs-PDF.
- * Gespeichert in localStorage (wie Stammdaten) — wirkt sofort auf neue Drucke/Exporte.
+ * Visibility of sensitive practice lines for preview, export and invoice PDF.
+ * Stored in localStorage (like master data) — applies immediately to new prints/exports.
  */
 
 export type PraxisHeaderPrivacyKey =
@@ -36,7 +36,7 @@ export const DEFAULT_PRAXIS_HEADER_PRIVACY: PraxisHeaderPrivacyV1 = {
 
 const LS_KEY = "medoc-praxis-header-privacy-v1";
 
-/** Ersetzt den Klartext durch Platzhalter gleicher Länge (PDF / Vorschau). */
+/** Replaces plaintext with same-length placeholders (PDF / preview). */
 export function maskPraxisExportToken(raw: string): string {
     const n = Math.min(Math.max(raw.trim().length, 5), 28);
     return "·".repeat(n);

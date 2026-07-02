@@ -1,5 +1,5 @@
 /**
- * Benannte Arbeits-/Pausen-Regeln (PlanPreference): Arbeit / Pause, Gültigkeit, Kaskade — UI: „Arbeits- & Pausenregeln“.
+ * Named work/break rules (PlanPreference): work / break, validity, cascade — UI: "Arbeits- & Pausenregeln".
  */
 import { addDays, endOfMonth, format, getISODay, parseISO, startOfDay, startOfWeek } from "date-fns";
 
@@ -23,22 +23,22 @@ export type PlanScopeType =
     | "month"
     | "period";
 
-/** periodUnit nur bei scope=period: Schritt/Interpretation des Zeitraums (Tag/Woche/Monat im Raster) */
+/** periodUnit only when scope=period: step/interpretation of period (day/week/month in grid) */
 export type PlanPeriodUnit = "day" | "week" | "month";
 
 export type PlanPreference = {
     id: string;
     name: string;
-    /** leer = alle Mitarbeiter; sonst nur diese */
+    /** empty = all staff; else only these */
     personalIds: string[];
     kind: "work" | "break";
-    /** kaskadieren: niedrigeres layer = allgemeiner; höheres = spezifischer und setzt in Überschneidung an */
+    /** cascade: lower layer = more general; higher = more specific and wins in overlap */
     layer: number;
     parentId: string | null;
     startMin: number;
     endMin: number;
     scopeType: PlanScopeType;
-    /** Mo–So: z.B. [1,2,3,4,5] für Werktag; bei allgemein / period relevant */
+    /** Mon–Sun: e.g. [1,2,3,4,5] for weekday; relevant for general / period */
     weekdays: (1 | 2 | 3 | 4 | 5 | 6 | 7)[];
     date?: string; /** YYYY-MM bei scope=day */
     weekAnchor?: string; /** beliebiger Tag in der Woche, Montag abgeleitet */
@@ -62,7 +62,7 @@ function compareYmd(a: string, b: string): number {
     return a < b ? -1 : 1;
 }
 
-/** Liegt ymd in der Gültigkeit der Präferenz? */
+/** Is ymd within the preference validity? */
 export function preferenceAppliesToDate(p: PlanPreference, ymdStr: string): boolean {
     const wd = isoWeekdayFromYmd(ymdStr) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
     if (p.scopeType === "day") {
@@ -106,7 +106,7 @@ function preferenceAppliesToPerson(p: PlanPreference, personalId: string): boole
 function mergeByLayer(
     segments: Array<{ a: number; b: number; kind: "work" | "break"; layer: number; id: string }>,
 ): Array<{ a: number; b: number; kind: "work" | "break"; sourceId: string; layer: number }> {
-    /* ~O(k²) über Grenzpunkte k — bei üblichen Regelanzahlen (<50) vernachlässigbar. */
+    /* ~O(k²) over boundary points k — negligible for typical rule counts (<50). */
     if (segments.length === 0) return [];
     const ev = new Set<number>();
     for (const s of segments) {
@@ -147,7 +147,7 @@ function mergeByLayer(
     return out;
 }
 
-/** Eine feine Aufteilung: höheres layer gewinnt in Überschneidung */
+/** Fine-grained split: higher layer wins in overlap */
 export function resolveSegmentsForPersonDay(
     personalId: string,
     ymdStr: string,
@@ -171,7 +171,7 @@ export function resolveSegmentsForPersonDay(
     }));
 }
 
-/** Pausen von Arbeits-Minuten abziehen (pro Tag) – grobe Näherung: Minuten-Intervalle */
+/** Subtract breaks from work minutes (per day) — rough approximation: minute intervals */
 export function subtractBreakFromWork(
     work: Array<[number, number]>,
     br: Array<[number, number]>,
@@ -252,7 +252,7 @@ export function defaultLayerForScope(scope: PlanScopeType): number {
     }
 }
 
-/** `proposedParentId` ließe einen Zyklus über `parentId`-Ketten zu (oder die Kette ist bereits zyklisch). */
+/** `proposedParentId` would allow a cycle over `parentId` chains (or chain is already cyclic). */
 export function preferenceParentWouldCycle(
     editingId: string | undefined,
     proposedParentId: string | null,
@@ -272,8 +272,8 @@ export function preferenceParentWouldCycle(
 }
 
 /**
- * Automatische Kaskade: wählt eine „Basis“-Regel mit **breiterer** Geltung (niedrigerer `defaultLayerForScope`)
- * und gleicher Art; sonst mit breiterer Geltung beliebiger Art. Kein Vorgänger für reine „Allgemein“-Regeln.
+ * Automatic cascade: picks a "Basis" rule with **broader** scope (lower `defaultLayerForScope`)
+ * and same kind; else any kind with broader scope. No parent for pure "Allgemein" rules.
  */
 export function inferAutoParentId(
     draft: { scopeType: PlanScopeType; kind: "work" | "break" },

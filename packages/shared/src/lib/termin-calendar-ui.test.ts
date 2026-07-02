@@ -27,7 +27,7 @@ function termin(partial: Partial<Termin>): Termin {
 
 describe("termin-calendar-ui", () => {
     it("terminArtLabel maps known art", () => {
-        expect(terminArtLabel("KONTROLLE")).toBe("Kontrolle");
+        expect(terminArtLabel("KONTROLLE")).toBe("Check-up");
     });
 
     it("terminArtLabelFromTermin detects Notfall marker", () => {
@@ -35,11 +35,11 @@ describe("termin-calendar-ui", () => {
             terminArtLabelFromTermin(
                 termin({ art: "BEHANDLUNG", notizen: TERMIN_NOTFALL_NOTIZ_MARKER }),
             ),
-        ).toBe("Notfall");
+        ).toBe("Emergency");
     });
 
     it("appointmentStateDisplay storniert", () => {
-        expect(appointmentStateDisplay(termin({ status: "ABGESAGT" })).label).toBe("Storniert");
+        expect(appointmentStateDisplay(termin({ status: "ABGESAGT" })).label).toBe("Cancelled");
     });
 
     it("terminCountsAsPlanned excludes cancelled", () => {
