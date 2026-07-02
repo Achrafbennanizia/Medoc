@@ -12,10 +12,10 @@
       {
         "label": "main",
         "title": "MeDoc",
-        "width": 1024,
-        "height": 681,
-        "minWidth": 1024,
-        "minHeight": 681,
+        "width": 1250,
+        "height": 800,
+        "minWidth": 1250,
+        "minHeight": 800,
         "resizable": true,
         "fullscreen": false
       }
