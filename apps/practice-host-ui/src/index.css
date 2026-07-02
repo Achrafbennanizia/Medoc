@@ -16,11 +16,9 @@
   --bp-sm: 640px;
   --bp-md: 900px;
   --bp-lg: 1200px;
-  /* Default / minimum viewport (align with `lib/viewport.ts` + `tauri.conf.json`) */
-  --app-viewport-width: 1500px;
-  --app-viewport-height: 900px;
-  --app-viewport-min-width: var(--app-viewport-width);
-  --app-viewport-min-height: var(--app-viewport-height);
+  /* Default + minimum viewport */
+  --app-viewport-min-width: 1250px;
+  --app-viewport-min-height: 800px;
   --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-source-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
@@ -237,14 +235,10 @@ html[data-theme="dark"] {
     width: 100%;
     max-width: 100%;
     min-width: var(--app-viewport-min-width);
+    min-height: var(--app-viewport-min-height);
     overflow-x: clip;
   }
-  html, body {
-    min-height: max(100%, var(--app-viewport-min-height));
-  }
-  #root {
-    min-height: max(100%, 100dvh, var(--app-viewport-min-height));
-  }
+  #root { min-height: max(100%, var(--app-viewport-min-height)); min-height: max(100dvh, var(--app-viewport-min-height)); }
   button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
   input, textarea, select { font: inherit; color: inherit; }
   a { color: inherit; text-decoration: none; }
@@ -284,6 +278,7 @@ html[data-theme="dark"] {
     display: flex;
     flex-direction: column;
     width: 100%;
+    min-width: var(--app-viewport-min-width);
     height: 100dvh;
     max-height: 100dvh;
     min-height: 0;
@@ -4841,12 +4836,12 @@ html[data-theme="dark"] {
       0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
   }
   .settings-density-seg__btn:first-child {
-    border-start-start-radius: calc(var(--radius-pill) - 3px);
-    border-end-start-radius: calc(var(--radius-pill) - 3px);
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-density-seg__btn:last-child {
-    border-start-end-radius: calc(var(--radius-pill) - 3px);
-    border-end-end-radius: calc(var(--radius-pill) - 3px);
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-font-seg {
     display: inline-flex;
@@ -4907,12 +4902,12 @@ html[data-theme="dark"] {
     opacity: 0.92;
   }
   .settings-font-seg__btn:first-child {
-    border-start-start-radius: calc(var(--radius-pill) - 3px);
-    border-end-start-radius: calc(var(--radius-pill) - 3px);
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-font-seg__btn:last-child {
-    border-start-end-radius: calc(var(--radius-pill) - 3px);
-    border-end-end-radius: calc(var(--radius-pill) - 3px);
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-lang-seg {
     display: inline-flex;
@@ -4941,7 +4936,6 @@ html[data-theme="dark"] {
     font-weight: 600;
     color: var(--fg-2);
     cursor: pointer;
-    white-space: nowrap;
     transition:
       background var(--motion-fast) var(--ease-out),
       color var(--motion-fast) var(--ease-out),
@@ -4958,12 +4952,12 @@ html[data-theme="dark"] {
       0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
   }
   .settings-lang-seg__btn:first-child {
-    border-start-start-radius: calc(var(--radius-pill) - 3px);
-    border-end-start-radius: calc(var(--radius-pill) - 3px);
+    border-top-left-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-left-radius: calc(var(--radius-pill) - 3px);
   }
   .settings-lang-seg__btn:last-child {
-    border-start-end-radius: calc(var(--radius-pill) - 3px);
-    border-end-end-radius: calc(var(--radius-pill) - 3px);
+    border-top-right-radius: calc(var(--radius-pill) - 3px);
+    border-bottom-right-radius: calc(var(--radius-pill) - 3px);
   }
   /* Accent color — inline color dots (Einstellungen appearance) */
   .settings-accent-inline {
