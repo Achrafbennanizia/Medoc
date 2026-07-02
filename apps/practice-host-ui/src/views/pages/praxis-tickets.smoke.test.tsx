@@ -76,7 +76,7 @@ describe("PraxisTickets smoke (G21)", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByRole("heading", { name: /Praxis-Aufgaben/i })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /Practice tasks/i })).toBeInTheDocument();
         expect(screen.getByText("Test Aufgabe")).toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: /Praxis-Tickets/i })).toBeNull();
     });

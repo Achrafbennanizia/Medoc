@@ -11,6 +11,7 @@ import {
     DENTAL_UPPER_R,
     type DentalStatusKey,
     befundToStatusKey,
+    dentalStatusLabel,
     dentalToothType,
 } from "@/lib/dental";
 
@@ -67,7 +68,7 @@ export function DentalChart({
                 type="button"
                 className={`col ${pulseTooth === n ? "tooth-btn-pulse" : ""}`}
                 style={{ alignItems: "center", gap: 4, opacity: disabled ? 0.65 : undefined }}
-                aria-label={tp("dental.tooth_status_aria", { tooth: n, status: state.label })}
+                aria-label={tp("dental.tooth_status_aria", { tooth: n, status: dentalStatusLabel(t, stateKey) })}
                 disabled={disabled}
                 onClick={async () => {
                     if (disabled) return;
@@ -106,9 +107,7 @@ export function DentalChart({
         <div className="card card-pad">
             {mode === "clinical" ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                    {DENTAL_STATUS_KEYS.map((k) => {
-                        const v = DENTAL_STATES[k];
-                        return (
+                    {DENTAL_STATUS_KEYS.map((k) => (
                             <button
                                 key={k}
                                 type="button"
@@ -117,10 +116,9 @@ export function DentalChart({
                                 disabled={disabled}
                                 onClick={() => !disabled && setActive(k)}
                             >
-                                {v.label}
+                                {dentalStatusLabel(t, k)}
                             </button>
-                        );
-                    })}
+                    ))}
                 </div>
             ) : (
                 <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>
@@ -138,8 +136,8 @@ export function DentalChart({
                 {mode === "picker"
                     ? (selectedTooth ? tp("dental.chart.selected_tooth", { tooth: selectedTooth }) : t("dental.chart.no_tooth"))
                     : lastTouched
-                        ? tp("dental.chart.brush_footer_tooth", { tooth: lastTouched, brush: DENTAL_STATES[active].label })
-                        : tp("dental.chart.brush_footer", { brush: DENTAL_STATES[active].label })}
+                        ? tp("dental.chart.brush_footer_tooth", { tooth: lastTouched, brush: dentalStatusLabel(t, active) })
+                        : tp("dental.chart.brush_footer", { brush: dentalStatusLabel(t, active) })}
             </div>
         </div>
     );

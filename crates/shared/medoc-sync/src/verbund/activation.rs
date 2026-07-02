@@ -192,7 +192,7 @@ pub async fn import_owner_activation(
 ) -> Result<ActivationSummary, AppError> {
     require_owner_activation_device(pool).await?;
     if passphrase.is_empty() {
-        return Err(AppError::Validation("Passphrase erforderlich.".into()));
+        return Err(AppError::validation_code("error.verbund.passphrase_required"));
     }
     if activation_already_done(pool).await? {
         let status = verbund_status(pool).await?;

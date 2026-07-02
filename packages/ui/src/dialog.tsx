@@ -8,7 +8,7 @@ interface DialogProps {
     title: string;
     children: ReactNode;
     footer?: ReactNode;
-    /** Zusätzliche Steuerung neben dem Schließen-Button (z.B. "Bearbeiten"). */
+    /** Extra control next to the close button (e.g. edit). */
     headerExtra?: ReactNode;
     className?: string;
     /** Card-style dialog: no top title bar; close control in corner (use with `modal-body` + `modal-actions` in children/footer). */
@@ -251,11 +251,14 @@ export function ConfirmDialog({
     onConfirm,
     title,
     message,
-    confirmLabel = "Bestätigen",
-    cancelLabel = "Abbrechen",
+    confirmLabel,
+    cancelLabel,
     danger = false,
     loading = false,
 }: ConfirmDialogProps) {
+    const t = useT();
+    const confirm = confirmLabel ?? t("common.confirm");
+    const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
     const handleClose = () => {
         if (!loading) onClose();
@@ -276,8 +279,8 @@ export function ConfirmDialog({
                     <p className="ios-confirm-message">{message}</p>
                 </div>
                 <IosConfirmActions
-                    cancelLabel={cancelLabel}
-                    confirmLabel={confirmLabel}
+                    cancelLabel={cancel}
+                    confirmLabel={confirm}
                     onCancel={handleClose}
                     onConfirm={onConfirm}
                     loading={loading}

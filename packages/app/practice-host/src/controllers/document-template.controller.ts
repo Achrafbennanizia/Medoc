@@ -51,7 +51,7 @@ export async function listDokumentTemplatesForKind(kind: DocumentKind): Promise<
     return rows.map(normalizeDto);
 }
 
-/** PDF mit strukturierter Vorlage und Produktiv-Zeilinhalt (kein Roh-HTML). */
+/** PDF with structured template and production line content (no raw HTML). */
 export async function previewDocumentPdf(
     kind: DocumentKind,
     templateName: string,

@@ -60,23 +60,23 @@ describe("OpsPage smoke (G21 row 7 proxy)", () => {
             </MemoryRouter>,
         );
 
-        fireEvent.click(await screen.findByRole("button", { name: /Backup-Datei wählen/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /Choose backup file/i }));
         await waitFor(() => {
             expect(screen.getByText("/tmp/medoc-backup.db")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByRole("button", { name: /^Prüfen$/i }));
+        fireEvent.click(screen.getByRole("button", { name: /^Validate$/i }));
         await waitFor(() => {
             expect(validateBackup).toHaveBeenCalledWith("/tmp/medoc-backup.db");
         });
 
-        fireEvent.click(screen.getByRole("button", { name: /Wiederherstellen/i }));
-        const dialog = await screen.findByRole("dialog", { name: /Datenbank wiederherstellen/i });
-        fireEvent.click(within(dialog).getByRole("button", { name: /^Wiederherstellen$/i }));
+        fireEvent.click(screen.getByRole("button", { name: /^Restore/i }));
+        const dialog = await screen.findByRole("dialog", { name: /Restore database/i });
+        fireEvent.click(within(dialog).getByRole("button", { name: /^Restore$/i }));
 
         await waitFor(() => {
             expect(restoreBackup).toHaveBeenCalledWith("/tmp/medoc-backup.db");
         });
-        expect(await screen.findByText(/Bitte die Anwendung jetzt neu starten/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Please restart the application now/i)).toBeInTheDocument();
     });
 });

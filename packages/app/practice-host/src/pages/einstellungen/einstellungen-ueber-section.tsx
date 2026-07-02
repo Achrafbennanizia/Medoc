@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import {
     checkForUpdates,
     currentAppVersion,
+    installAvailableUpdate,
+    type UpdateInfo,
 } from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -13,6 +15,8 @@ export function EinstellungenUeberSection() {
     const toast = useToastStore((s) => s.add);
     const [appVersion, setAppVersion] = useState("…");
     const [updateBusy, setUpdateBusy] = useState(false);
+    const [installBusy, setInstallBusy] = useState(false);
+    const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
     const [aboutExpanded, setAboutExpanded] = useState(false);
 
     useEffect(() => {
@@ -33,6 +37,7 @@ export function EinstellungenUeberSection() {
         setUpdateBusy(true);
         try {
             const info = await checkForUpdates();
+            setUpdateInfo(info);
             toast(
                 info.update_available
                     ? tp("settings.about.update_available", { version: info.latest_version })
@@ -43,6 +48,18 @@ export function EinstellungenUeberSection() {
             toast(tp("settings.about.check_update_failed", { message: (e as Error).message ?? String(e) }), "error");
         } finally {
             setUpdateBusy(false);
+        }
+    }
+
+    async function handleInstallUpdate() {
+        setInstallBusy(true);
+        try {
+            await installAvailableUpdate();
+            toast(t("settings.about.install_update_success"), "success");
+        } catch (e) {
+            toast(tp("settings.about.install_update_failed", { message: (e as Error).message ?? String(e) }), "error");
+        } finally {
+            setInstallBusy(false);
         }
     }
 
@@ -58,17 +75,39 @@ export function EinstellungenUeberSection() {
                 <div>
                     <b>{t("settings.about.app_version")}</b>
                     <div className="card-sub">MeDoc {appVersion}</div>
+                    {updateInfo?.update_available ? (
+                        <div className="card-sub" style={{ marginTop: 6 }}>
+                            {tp("settings.about.update_available", { version: updateInfo.latest_version })}
+                        </div>
+                    ) : null}
                 </div>
-                <Button
-                    variant="ghost"
-                    type="button"
-                    onClick={() => void handleCheckUpdates()}
-                    disabled={updateBusy}
-                    loading={updateBusy}
-                >
-                    {t("settings.about.check_updates")}
-                </Button>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <Button
+                        variant="ghost"
+                        type="button"
+                        onClick={() => void handleCheckUpdates()}
+                        disabled={updateBusy || installBusy}
+                        loading={updateBusy}
+                    >
+                        {t("settings.about.check_updates")}
+                    </Button>
+                    {updateInfo?.update_available ? (
+                        <Button
+                            type="button"
+                            onClick={() => void handleInstallUpdate()}
+                            disabled={installBusy || updateBusy}
+                            loading={installBusy}
+                        >
+                            {t("settings.about.install_update")}
+                        </Button>
+                    ) : null}
+                </div>
             </div>
+            {updateInfo?.update_available && updateInfo.release_notes ? (
+                <p className="card-sub" style={{ margin: "0 0 12px", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                    {updateInfo.release_notes}
+                </p>
+            ) : null}
             <div className="settings-row" style={{ flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
                 <div>
                     <b>{t("settings.about.product_info")}</b>
@@ -98,15 +137,15 @@ export function EinstellungenUeberSection() {
             ) : null}
             <div className="card-pad">
                 <p className="card-sub" style={{ margin: 0, lineHeight: 1.55 }}>
-                    <strong>{t("settings.about.third_party")}</strong> Symbole über{" "}
+                    <strong>{t("settings.about.third_party")}</strong> {t("settings.about.third_party_lucide")}{" "}
                     <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">
                         Lucide
                     </a>{" "}
-                    (ISC License). Weitere OSS-Bestandteile siehe mitgelieferte Dokumentation der Plattform (Tauri, React).
+                    {t("settings.about.third_party_oss")}
                 </p>
                 <p className="card-sub" style={{ margin: "12px 0 0", lineHeight: 1.55 }}>
-                    Lizenz, Abo und Zahlungsmethode finden Sie unter{" "}
-                    <strong>Einstellungen → Lizenz &amp; Abo</strong>.
+                    {t("settings.about.license_pointer")}{" "}
+                    <strong>{t("settings.about.license_nav")}</strong>.
                 </p>
             </div>
         </section>

@@ -17,9 +17,9 @@ import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
 
 /**
- * Bilanz-Übersicht (FA-FIN-03 / FA-FIN-09 / FA-FIN-10).
- * Backend liefert Aggregate (Einnahmen, Ausstehend, Storniert).
- * Frontend ergänzt monatliche Aufschlüsselung aus Zahlungsliste.
+ * Bilanz overview (FA-FIN-03 / FA-FIN-09 / FA-FIN-10).
+ * Backend delivers aggregates (revenue, outstanding, cancelled).
+ * Frontend adds monthly breakdown from payment list.
  */
 export function BilanzPage() {
     const t = useT();

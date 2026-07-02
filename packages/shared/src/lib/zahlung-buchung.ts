@@ -2,27 +2,34 @@
  * Shared logic for payment booking: Kundenleistungen (Patientenakte) and Finanzen → Neue Zahlung.
  */
 import type { Behandlung, Untersuchung, Zahlung } from "@/models/types";
+import { zahlStatusDisplay as zahlStatusDisplayI18n, zahlungsartLabel as zahlungsartLabelI18n } from "@/lib/finance-order-labels";
 
-export const ZAHLUNG_ART_SELECT = [
-    { value: "BAR", label: "Bar" },
-    { value: "KARTE", label: "Karte" },
-    { value: "UEBERWEISUNG", label: "Überweisung" },
-    { value: "RECHNUNG", label: "Rechnung" },
-] as const;
+type TFn = (key: string) => string;
 
-/** Status-Badge-Anzeige für Zahlungszeilen (Patientenakte + Finanzen). */
-export function zahlStatusDisplay(status: string): { variant: "success" | "warning" | "default"; label: string } {
-    const s = status.trim();
-    if (s === "BEZAHLT") return { variant: "success", label: "Bezahlt" };
-    if (s === "TEILBEZAHLT") return { variant: "warning", label: "Teilbezahlt" };
-    if (s === "AUSSTEHEND") return { variant: "warning", label: "Ausstehend" };
-    if (s === "STORNIERT") return { variant: "default", label: "Storniert" };
-    return { variant: "default", label: s || "—" };
+export const ZAHLUNG_ART_VALUES = ["BAR", "KARTE", "UEBERWEISUNG", "RECHNUNG"] as const;
+
+export function zahlungArtSelectOptions(t: TFn) {
+    return ZAHLUNG_ART_VALUES.map((value) => ({
+        value,
+        label: zahlungsartLabelI18n(value, t),
+    }));
 }
 
-export function zahlungsartLabel(art: string): string {
-    const row = ZAHLUNG_ART_SELECT.find((o) => o.value === art);
-    return row?.label ?? art;
+/** @deprecated Use zahlungArtSelectOptions(t) */
+export const ZAHLUNG_ART_SELECT = [
+    { value: "BAR", label: "Cash" },
+    { value: "KARTE", label: "Card" },
+    { value: "UEBERWEISUNG", label: "Bank transfer" },
+    { value: "RECHNUNG", label: "Invoice" },
+] as const;
+
+/** Status badge display for payment rows (patient Akte + Finanzen). */
+export function zahlStatusDisplay(status: string, t: TFn) {
+    return zahlStatusDisplayI18n(status, t);
+}
+
+export function zahlungsartLabel(art: string, t: TFn): string {
+    return zahlungsartLabelI18n(art, t);
 }
 
 export function zahlCountsTowardPaid(status: string): boolean {
@@ -57,7 +64,7 @@ export function sumZahlungenForUntersuchung(zahlungen: Zahlung[], patientId: str
         .reduce((s, z) => s + z.betrag, 0);
 }
 
-/** Max. zulässiger Betrag für eine neue Zahlung auf diese Behandlung (Soll minus bereits gezahlt). */
+/** Max allowed amount for new payment on this treatment (target minus already paid). */
 export function maxNeuZahlungBehandlung(
     zahlungen: Zahlung[],
     patientId: string,
@@ -103,7 +110,7 @@ export function maxEditZahlungUntersuchung(
     return Math.max(0, roundMoney2(gesamtkosten - otherPaid));
 }
 
-/** Max. Betrag bei Bearbeitung: Soll minus alle anderen Zahlungen derselben Zeile. */
+/** Max amount when editing: target minus all other payments on same line. */
 export function maxEditZahlungBehandlung(
     zahlungen: Zahlung[],
     patientId: string,
@@ -149,7 +156,7 @@ export function zahlHistoryForUntersuchung(zahlungen: Zahlung[], patientId: stri
         .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-/** Eine Zuordnung (B- oder U-Zeile) mit zusammengefasstem aktuellen Stand über alle Buchungen. */
+/** One assignment (B or U line) with aggregated current state across all bookings. */
 export type ZahlZuordnungSummaryRow = {
     key: string;
     kind: "behand" | "unter";
@@ -171,7 +178,7 @@ function zuordnungKeyUntersuchung(id: string): string {
     return `unter:${id}`;
 }
 
-/** Für „Neue Zahlung → Zuordnung“: Zeile noch offen (Rest-Soll oder ausstehende/teilbezahlte Buchungen). */
+/** For "Neue Zahlung → Zuordnung": line still open (remaining target or pending/partial bookings). */
 export function zuordnungNochOffenFuerNeueZahlung(
     zahlungen: Zahlung[],
     patientId: string,
@@ -219,14 +226,16 @@ export function zuordnungNochOffenFuerNeueZahlung(
     return false;
 }
 
-/** Zuordnung-Auswahl nur für noch offene B-/U-Zeilen (kein abgeschlossenes Soll; ohne Soll/U nur bei ausstehenden Buchungen). */
+/** Assignment selection only for still-open B/U lines (no closed target; without target/U only for pending bookings). */
 export function buildOpenZahlLinkSelectOptions(
     zahlungen: Zahlung[],
     patientId: string,
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
+    t: (key: string) => string,
+    tp: (key: string, params: Record<string, string | number>) => string,
 ): { value: string; label: string }[] {
-    const all = buildZahlLinkSelectOptions(behandlungen, untersuchungen);
+    const all = buildZahlLinkSelectOptions(behandlungen, untersuchungen, t, tp);
     const filtered = all.filter(
         (o) =>
             !o.value
@@ -235,7 +244,7 @@ export function buildOpenZahlLinkSelectOptions(
     if (filtered.length <= 1) {
         return [{
             value: "",
-            label: "— Keine offene Zuordnung (alle Sollen sind ausgeglichen) —",
+            label: t("zahlung.link.no_open_select"),
         }];
     }
     return filtered;
@@ -253,7 +262,7 @@ function deriveAggregateStatus(gezahlt: number, soll: number | null): Zahlung["s
     return "AUSSTEHEND";
 }
 
-/** Neueste Buchung zu einer Zuordnungs-Zeile (für Quittung aus der Summen-Ansicht). */
+/** Latest booking for an assignment line (for receipt from summary view). */
 export function latestZahlungForZuordnungRow(
     row: Pick<ZahlZuordnungSummaryRow, "kind" | "lineId">,
     zahlungen: Zahlung[],
@@ -269,12 +278,17 @@ export function latestZahlungForZuordnungRow(
     return filtered.reduce((best, z) => (String(z.created_at) > String(best.created_at) ? z : best));
 }
 
-/** Pro B-/U-Zeile genau eine Zeile: aktueller Stand (Summe Buchungen, offen, Status). */
+type ZahlLabelFn = (key: string) => string;
+type ZahlLabelParamsFn = (key: string, params: Record<string, string | number>) => string;
+
+/** Exactly one row per B/U line: current state (booking sum, open, status). */
 export function aggregateZahlungenByZuordnung(
     zahlungen: Zahlung[],
     patientId: string,
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
+    t?: ZahlLabelFn,
+    tp?: ZahlLabelParamsFn,
 ): ZahlZuordnungSummaryRow[] {
     type Acc = {
         kind: "behand" | "unter";
@@ -323,7 +337,7 @@ export function aggregateZahlungenByZuordnung(
                 kind: "behand",
                 lineId: acc.lineId,
                 bezugShort: "—",
-                bezugLine: "Ohne B/U-Zeile",
+                bezugLine: formatZahlungBezugLine(z, behandlungen, untersuchungen, t, tp),
                 soll: null,
                 gezahlt: acc.gezahlt,
                 offen: null,
@@ -340,9 +354,18 @@ export function aggregateZahlungenByZuordnung(
                 soll != null && soll > ZAHL_EUR_EPS ? Math.max(0, roundMoney2(soll - acc.gezahlt)) : null;
             const bn = (b?.behandlungsnummer ?? "").trim();
             const bezugShort = bn ? `B ${bn}` : "B";
-            const nr = bn || "—";
-            const sub = (b ? (b.leistungsname || b.beschreibung || b.art || "") : "").trim();
-            const bezugLine = sub ? `B-Nr. ${nr} — ${sub}` : `B-Nr. ${nr}`;
+            const pseudoZ: Zahlung = {
+                id: acc.lineId,
+                patient_id: patientId,
+                behandlung_id: acc.lineId,
+                betrag: acc.gezahlt,
+                zahlungsart: "BAR",
+                status: "BEZAHLT",
+                leistung_id: null,
+                beschreibung: null,
+                created_at: acc.latestAt,
+            };
+            const bezugLine = formatZahlungBezugLine(pseudoZ, behandlungen, untersuchungen, t, tp);
             rows.push({
                 key,
                 kind: "behand",
@@ -363,9 +386,18 @@ export function aggregateZahlungenByZuordnung(
                 soll != null && soll > ZAHL_EUR_EPS ? Math.max(0, roundMoney2(soll - acc.gezahlt)) : null;
             const un = (u?.untersuchungsnummer ?? "").trim();
             const bezugShort = un ? `U ${un}` : "U";
-            const sub = (u ? (u.leistungsname || u.diagnose || "") : "").trim();
-            const nr = un || "—";
-            const bezugLine = sub ? `U-Nr. ${nr} — ${sub}` : `U-Nr. ${nr}`;
+            const pseudoZ: Zahlung = {
+                id: acc.lineId,
+                patient_id: patientId,
+                untersuchung_id: acc.lineId,
+                betrag: acc.gezahlt,
+                zahlungsart: "BAR",
+                status: "BEZAHLT",
+                leistung_id: null,
+                beschreibung: null,
+                created_at: acc.latestAt,
+            };
+            const bezugLine = formatZahlungBezugLine(pseudoZ, behandlungen, untersuchungen, t, tp);
             rows.push({
                 key,
                 kind: "unter",
@@ -385,47 +417,57 @@ export function aggregateZahlungenByZuordnung(
     return rows;
 }
 
-/** Akten-Referenz für Anzeige: B-Nr. / U-Nr. zuerst (Buchungszeile, nicht Freitext-Kommentar). */
+/** Akte reference for display: B-Nr. / U-Nr. first (booking line, not free-text comment). */
 export function buildZahlLinkSelectOptions(
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
+    t: (key: string) => string,
+    tp: (key: string, params: Record<string, string | number>) => string,
 ): { value: string; label: string }[] {
     const opts: { value: string; label: string }[] = [{
         value: "",
-        label: "— B-Nr. oder U-Nr. wählen (Zuordnung zur Behandlungs-/Untersuchungszeile) —",
+        label: t("zahlung.link.select_placeholder"),
     }];
     for (const b of behandlungen) {
         const bn = (b.behandlungsnummer ?? "").trim();
-        const bnr = bn ? `B-Nr. ${bn}` : "B-Nr. — (fehlt)";
-        const line = (b.leistungsname || b.beschreibung || b.art || "Behandlung").trim();
+        const bnr = bn ? tp("zahlung.link.b_nr", { nr: bn }) : t("zahlung.link.b_nr_missing");
+        const line = (b.leistungsname || b.beschreibung || b.art || t("zahlung.link.behandlung")).trim();
         opts.push({ value: `behand:${b.id}`, label: line ? `${bnr} — ${line}` : bnr });
     }
     for (const u of untersuchungen) {
         const un = (u.untersuchungsnummer ?? "").trim();
-        const unr = un ? `U-Nr. ${un}` : "U-Nr. — (fehlt)";
-        const line = (u.diagnose || "Untersuchung").trim();
+        const unr = un ? tp("zahlung.link.u_nr", { nr: un }) : t("zahlung.link.u_nr_missing");
+        const line = (u.diagnose || t("zahlung.link.untersuchung")).trim();
         opts.push({ value: `unter:${u.id}`, label: line ? `${unr} — ${line}` : unr });
     }
     return opts;
 }
 
-/** Kurzbezeichnung einer Zahlung für Listen (Finanzen / Historie) — über B-Nr. bzw. U-Nr. */
+/** Short label for a payment in lists (Finanzen / history) — via B-no. or U-no. */
 export function formatZahlungBezugLine(
     z: Zahlung,
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
+    t?: ZahlLabelFn,
+    tp?: ZahlLabelParamsFn,
 ): string {
     if (z.behandlung_id) {
         const b = behandlungen.find((x) => x.id === z.behandlung_id);
         const nr = b?.behandlungsnummer?.trim() || "—";
         const sub = b ? (b.leistungsname || b.beschreibung || b.art || "").trim() : "";
-        return sub ? `B-Nr. ${nr} — ${sub}` : `B-Nr. ${nr}`;
+        const prefix = t && tp
+            ? (nr === "—" ? t("zahlung.link.b_nr_missing") : tp("zahlung.link.b_nr", { nr }))
+            : (nr === "—" ? "B-Nr. —" : `B-Nr. ${nr}`);
+        return sub ? `${prefix} — ${sub}` : prefix;
     }
     if (z.untersuchung_id) {
         const u = untersuchungen.find((x) => x.id === z.untersuchung_id);
         const nr = u?.untersuchungsnummer?.trim() || "—";
         const sub = u?.diagnose?.trim() || "";
-        return sub ? `U-Nr. ${nr} — ${sub}` : `U-Nr. ${nr}`;
+        const prefix = t && tp
+            ? (nr === "—" ? t("zahlung.link.u_nr_missing") : tp("zahlung.link.u_nr", { nr }))
+            : (nr === "—" ? "U-Nr. —" : `U-Nr. ${nr}`);
+        return sub ? `${prefix} — ${sub}` : prefix;
     }
-    return "Ohne B/U-Zeile";
+    return t ? t("zahlung.link.no_bu_line") : "Ohne B/U-Zeile";
 }

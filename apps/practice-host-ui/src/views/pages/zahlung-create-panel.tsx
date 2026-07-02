@@ -17,7 +17,7 @@ import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { Badge } from "../components/ui/badge";
 import {
-    ZAHLUNG_ART_SELECT,
+    zahlungArtSelectOptions,
     ZAHL_EUR_EPS,
     buildOpenZahlLinkSelectOptions,
     formatZahlungBezugLine,
@@ -78,7 +78,7 @@ function ZahlFinanzenOrPageWrap({
 }
 
 export type ZahlungCreatePanelProps = {
-    /** `page` = Finanzen-Route; `kasse-page` = Kasseneingänge-Route; `finanzen` / `kasse` = eingebettet. */
+    /** `page` = Finanzen route; `kasse-page` = cash receipts route; `finanzen` / `kasse` = embedded. */
     variant?: "page" | "kasse-page" | "finanzen" | "kasse";
     onFinanzenSaved?: () => void;
     onFinanzenClose?: () => void;
@@ -181,8 +181,8 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
 
     const zahlLinkOptions = useMemo(() => {
         if (!patientId) return [{ value: "", label: t("common.em_dash") }];
-        return buildOpenZahlLinkSelectOptions(zahlungenPatient, patientId, behandlungen, untersuchungen);
-    }, [patientId, zahlungenPatient, behandlungen, untersuchungen, t]);
+        return buildOpenZahlLinkSelectOptions(zahlungenPatient, patientId, behandlungen, untersuchungen, t, tp);
+    }, [patientId, zahlungenPatient, behandlungen, untersuchungen, t, tp]);
 
     useEffect(() => {
         if (!patientId || !linkKind || !linkId) return;
@@ -439,13 +439,13 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                 </thead>
                                                 <tbody>
                                                     {zahlungenPatientSorted.map((z) => {
-                                                        const st = zahlStatusDisplay(z.status);
+                                                        const st = zahlStatusDisplay(z.status, t);
                                                         return (
                                                             <tr key={z.id}>
                                                                 <td>{formatDate(z.created_at)}</td>
-                                                                <td className="zahl-hist-td-bezug">{formatZahlungBezugLine(z, behandlungen, untersuchungen)}</td>
+                                                                <td className="zahl-hist-td-bezug">{formatZahlungBezugLine(z, behandlungen, untersuchungen, t, tp)}</td>
                                                                 <td className="tbl-td-num">{formatCurrency(z.betrag)}</td>
-                                                                <td>{zahlungsartLabel(z.zahlungsart)}</td>
+                                                                <td>{zahlungsartLabel(z.zahlungsart, t)}</td>
                                                                 <td><Badge variant={st.variant}>{st.label}</Badge></td>
                                                             </tr>
                                                         );
@@ -549,9 +549,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                         {t("zahlung.create.behand_history_title")}
                                                     </div>
                                                     {hist.length > 0 ? (
-                                                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+                                                        <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                             {hist.map((h) => {
-                                                                const hs = zahlStatusDisplay(h.status);
+                                                                const hs = zahlStatusDisplay(h.status, t);
                                                                 return (
                                                                     <li key={h.id}>
                                                                         {formatDate(h.created_at)}
@@ -635,9 +635,9 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                                         {t("zahlung.create.untersuch_history_title")}
                                                     </div>
                                                     {histU.length > 0 ? (
-                                                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+                                                        <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                             {histU.map((h) => {
-                                                                const hu = zahlStatusDisplay(h.status);
+                                                                const hu = zahlStatusDisplay(h.status, t);
                                                                 return (
                                                                 <li key={h.id}>
                                                                     {formatDate(h.created_at)}
@@ -694,7 +694,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                                     label={t("zahlung.create.payment_method")}
                                     value={zahlungsart}
                                     onChange={(e) => setZahlungsart(e.target.value as ZahlungsArt)}
-                                    options={[...ZAHLUNG_ART_SELECT]}
+                                    options={zahlungArtSelectOptions(t)}
                                 />
                             </div>
                             <div>
@@ -711,7 +711,7 @@ function ZahlungCreatePanelInner({ variant, onFinanzenSaved, onFinanzenClose }: 
                             </div>
                             <div className="zahlung-create-form__actions">
                                 {linkKind === "behand" && disabledBehandNoOpen ? (
-                                    <span className="bestellung-create-form__note" style={{ flex: "1 1 200px", marginRight: "auto" }}>
+                                    <span className="bestellung-create-form__note" style={{ flex: "1 1 200px", marginInlineEnd: "auto" }}>
                                         {t("zahlung.create.behand_no_open")}
                                     </span>
                                 ) : null}

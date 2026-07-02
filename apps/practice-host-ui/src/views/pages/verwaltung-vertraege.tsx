@@ -76,7 +76,7 @@ function formFromVertrag(v: VertragItem): FormState {
 }
 
 /**
- * Dauer- und Dienstverträge — wie Produkte: Liste links, Erfassung & Bearbeiten rechts (SQLite).
+ * Fixed-term and service contracts — like products: list left, capture & edit right (SQLite).
  */
 export function VerwaltungVertraegePage() {
     const t = useT();
@@ -589,10 +589,10 @@ export function VerwaltungVertraegePage() {
                                     <tr>
                                         <th scope="col" style={{ width: 40 }} aria-hidden> </th>
                                         <th scope="col">{t("page.verwaltung.vertraege.col.designation_partner")}</th>
-                                        <th scope="col" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{t("page.verwaltung.vertraege.col.amount_interval")}</th>
+                                        <th scope="col" style={{ textAlign: "end", whiteSpace: "nowrap" }}>{t("page.verwaltung.vertraege.col.amount_interval")}</th>
                                         <th scope="col">{t("page.verwaltung.vertraege.col.runtime")}</th>
                                         <th scope="col" style={{ whiteSpace: "nowrap" }}>{t("page.verwaltung.vertraege.col.status")}</th>
-                                        <th scope="col" style={{ textAlign: "right", minWidth: 100 }}>{t("page.verwaltung.vertraege.col.reference")}</th>
+                                        <th scope="col" style={{ textAlign: "end", minWidth: 100 }}>{t("page.verwaltung.vertraege.col.reference")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -620,14 +620,14 @@ export function VerwaltungVertraegePage() {
                                                         <div style={{ fontWeight: 700 }}>{v.bezeichnung}</div>
                                                         <div style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 2 }}>{v.partner}</div>
                                                     </td>
-                                                    <td style={{ textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
+                                                    <td style={{ textAlign: "end", fontWeight: 700, whiteSpace: "nowrap" }}>
                                                         {formatVertragbetragzeile(v.betrag, v.intervall)}
                                                     </td>
                                                     <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatVertragLaufzeit(v)}</td>
                                                     <td>
                                                         {aktiv ? <Badge variant="success">{t("page.verwaltung.vertraege.badge.active")}</Badge> : <Badge variant="warning">{t("page.verwaltung.vertraege.badge.outside")}</Badge>}
                                                     </td>
-                                                    <td style={{ textAlign: "right", fontSize: 12, color: "var(--fg-3)" }}>
+                                                    <td style={{ textAlign: "end", fontSize: 12, color: "var(--fg-3)" }}>
                                                         {formatMonatsaequivalenzText(v)}
                                                     </td>
                                                 </tr>

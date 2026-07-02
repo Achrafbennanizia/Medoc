@@ -25,7 +25,7 @@ describe("ExportPreviewDialog (UX-9 / W10)", () => {
                 onClose={() => {}}
             />,
         );
-        expect(screen.getByTitle("HTML-Vorschau")).toBeInTheDocument();
+        expect(screen.getByTitle("HTML preview")).toBeInTheDocument();
         expect(screen.getByText(/Akte-Export/)).toBeInTheDocument();
     });
 });

@@ -28,8 +28,14 @@ function isOverdue(b: Bestellung): boolean {
 }
 
 function statusBadgeReadonly(status: BestellStatus, overdue: boolean, t: (key: string) => string) {
-    if (overdue) return <Badge variant="error">{t("page.bestellungen.status.ueberfaellig")}</Badge>;
     const st = bestellStatusDisplay(status, t);
+    if (overdue && status !== "GELIEFERT" && status !== "STORNIERT") {
+        return (
+            <Badge variant="error" title={t("page.bestellungen.overdue_hint")}>
+                {t("page.bestellungen.status.ueberfaellig")}
+            </Badge>
+        );
+    }
     if (status === "UNTERWEGS") return <span className="pill blue">{st.label}</span>;
     if (status === "GELIEFERT") return <Badge variant="success">{st.label}</Badge>;
     if (status === "STORNIERT") return <Badge variant="error">{st.label}</Badge>;
@@ -283,17 +289,7 @@ export function BestellungenPage() {
                                                 : "—"}
                                         </td>
                                         <td className="bestellungen-td-status">
-                                            <div className="bestellungen-status-cell">
-                                                {statusBadgeReadonly(r.status, overdue, t)}
-                                                {overdue && r.status !== "GELIEFERT" && r.status !== "STORNIERT" ? (
-                                                    <span
-                                                        className="bestellungen-overdue-hint"
-                                                        title={t("page.bestellungen.overdue_hint")}
-                                                    >
-                                                        {t("page.bestellungen.status.ueberfaellig")}
-                                                    </span>
-                                                ) : null}
-                                            </div>
+                                            {statusBadgeReadonly(r.status, overdue, t)}
                                         </td>
                                     </tr>
                                 );

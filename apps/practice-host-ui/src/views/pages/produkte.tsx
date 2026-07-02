@@ -33,7 +33,7 @@ export function ProduktePage() {
     const [produkte, setProdukte] = useState<Produkt[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
-    /** Neues Produkt — nur im Seitenpanel */
+    /** New product — page panel only */
     const [creating, setCreating] = useState(false);
     const [createForm, setCreateForm] = useState<ProduktForm>(emptyForm());
     const [createBusy, setCreateBusy] = useState(false);
@@ -187,7 +187,7 @@ export function ProduktePage() {
         [produkte],
     );
 
-    /** Distinct Kategorien aus dem Lager — als Vorschläge für Eingabe + Auswahl (datalist). */
+    /** Distinct categories from inventory — as suggestions for input + selection (datalist). */
     const kategorieVorschlaege = useMemo(() => {
         const s = new Set<string>();
         for (const p of produkte) {
@@ -329,8 +329,8 @@ export function ProduktePage() {
                                         <tr>
                                             <th scope="col">{t("common.name")}</th>
                                             <th scope="col">{t("common.category")}</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.price")}</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>{t("common.stock")}</th>
+                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.price")}</th>
+                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.stock")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -357,14 +357,14 @@ export function ProduktePage() {
                                                     <td>
                                                         <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{p.name}</span>
                                                         {!p.aktiv ? (
-                                                            <span style={{ marginLeft: 8, display: "inline-block" }}>
+                                                            <span style={{ marginInlineStart: 8, display: "inline-block" }}>
                                                                 <Badge variant="warning">{t("common.inactive")}</Badge>
                                                             </span>
                                                         ) : null}
                                                     </td>
                                                     <td>{p.kategorie}</td>
-                                                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(p.preis)}</td>
-                                                    <td style={{ textAlign: "right" }}>
+                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(p.preis)}</td>
+                                                    <td style={{ textAlign: "end" }}>
                                                         {low ? (
                                                             <Badge variant="error">
                                                                 {tp("common.stock_low", { stock: p.bestand, min: p.mindestbestand })}

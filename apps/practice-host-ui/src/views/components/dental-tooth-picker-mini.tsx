@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useT, useTParams } from "@/lib/i18n";
 import type { Zahnbefund } from "@/models/types";
 import {
     DENTAL_LOWER_L,
@@ -30,8 +31,10 @@ export function DentalToothPickerMini({
     befunde,
     selectedTeeth,
     onToggleTooth,
-    hint = "Mehrere Zähne möglich: zum Markieren antippen (FDI), erneut tippen zum Abwählen.",
+    hint,
 }: DentalToothPickerMiniProps) {
+    const t = useT();
+    const tp = useTParams();
     const map = useMemo(() => {
         const m = new Map<number, string>();
         befunde.forEach((b) => m.set(b.zahn_nummer, b.befund));
@@ -52,7 +55,7 @@ export function DentalToothPickerMini({
                 key={n}
                 type="button"
                 className={`dental-mini-tooth-btn${isSel ? " dental-mini-tooth-btn--selected" : ""}`}
-                aria-label={`Zahn ${n}`}
+                aria-label={tp("dental.tooth_aria", { tooth: n })}
                 aria-pressed={isSel}
                 onClick={() => onToggleTooth(n)}
             >
@@ -77,12 +80,14 @@ export function DentalToothPickerMini({
 
     return (
         <div className="dental-tooth-picker-mini">
-            <p className="dental-tooth-picker-mini__hint">{hint}</p>
+            <p className="dental-tooth-picker-mini__hint">{hint ?? t("dental.picker.hint")}</p>
             {pickedLabel.length ? (
                 <p className="dental-tooth-picker-mini__picked">
-                    Gewählt:{" "}
+                    {t("dental.picker.selected_label")}{" "}
                     <strong>
-                        {pickedLabel.length === 1 ? `Zahn ${pickedLabel[0]}` : `Zähne ${pickedLabel.join(", ")}`}
+                        {pickedLabel.length === 1
+                            ? tp("dental.picker.one_tooth", { tooth: pickedLabel[0] })
+                            : tp("dental.picker.many_teeth", { teeth: pickedLabel.join(", ") })}
                     </strong>
                 </p>
             ) : null}

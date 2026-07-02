@@ -1,24 +1,59 @@
-/** Attest-Erfassung in der Akte — angeglichen an Attest-Vorlagen (`kind: "ATTEST"`). */
+/** Attest capture in Akte — aligned with Attest templates (`kind: "ATTEST"`). */
 
-export const ATTEST_TYP_OPTIONS = [
-    { value: "Arbeitsunfähigkeitsbescheinigung", label: "Arbeitsunfähigkeitsbescheinigung" },
-    { value: "Sportbefreiung", label: "Sportbefreiung" },
-    { value: "Schulbefreiung", label: "Schulbefreiung" },
-    { value: "Behandlungsbestätigung", label: "Behandlungsbestätigung" },
-    { value: "Sonstiges", label: "Sonstiges" },
+type TFn = (key: string) => string;
+
+/** Serialized attest type values (backend / stored documents — do not rename). */
+export const ATTEST_TYP_VALUES = [
+    "Arbeitsunfähigkeitsbescheinigung",
+    "Sportbefreiung",
+    "Schulbefreiung",
+    "Behandlungsbestätigung",
+    "Sonstiges",
 ] as const;
 
-export const KRANKHEITEN_SUGGESTIONS: string[] = [
-    "grippaler Infekt",
-    "Rückenschmerzen",
-    "Migräne",
-    "Zahnbehandlung",
-    "Akute Pulpitis",
-    "Parodontitis",
-    "Wundheilung nach Extraktion",
-    "Kieferorthopädische Behandlung",
-    "Sonstiges",
-];
+const ATTEST_TYP_LABEL_KEYS: Record<(typeof ATTEST_TYP_VALUES)[number], string> = {
+    Arbeitsunfähigkeitsbescheinigung: "enum.attest_typ.arbeitsunfaehigkeitsbescheinigung",
+    Sportbefreiung: "enum.attest_typ.sportbefreiung",
+    Schulbefreiung: "enum.attest_typ.schulbefreiung",
+    Behandlungsbestätigung: "enum.attest_typ.behandlungsbestaetigung",
+    Sonstiges: "enum.attest_typ.sonstiges",
+};
+
+export function attestTypSelectOptions(t: TFn) {
+    return ATTEST_TYP_VALUES.map((value) => ({
+        value,
+        label: t(ATTEST_TYP_LABEL_KEYS[value]),
+    }));
+}
+
+/** @deprecated Use attestTypSelectOptions(t) */
+export const ATTEST_TYP_OPTIONS = ATTEST_TYP_VALUES.map((value) => ({
+    value,
+    label: value,
+}));
+
+export const ILLNESS_SUGGESTION_KEYS = [
+    "vorlage.suggestion.illness.cold",
+    "vorlage.suggestion.illness.back_pain",
+    "vorlage.suggestion.illness.migraine",
+    "vorlage.suggestion.illness.dental_treatment",
+    "vorlage.suggestion.illness.acute_pulpitis",
+    "vorlage.suggestion.illness.periodontitis",
+    "vorlage.suggestion.illness.post_extraction_healing",
+    "vorlage.suggestion.illness.orthodontic_treatment",
+    "vorlage.suggestion.illness.other",
+] as const;
+
+export function illnessSuggestionLabels(t: TFn): string[] {
+    return ILLNESS_SUGGESTION_KEYS.map((k) => t(k));
+}
+
+export function defaultIllnessLabel(t: TFn): string {
+    return illnessSuggestionLabels(t)[0] ?? "";
+}
+
+/** @deprecated Use illnessSuggestionLabels(t) */
+export const KRANKHEITEN_SUGGESTIONS: string[] = [...ILLNESS_SUGGESTION_KEYS];
 
 export type AttestComposerFormFields = {
     typ: string;
@@ -32,10 +67,10 @@ export type AttestComposerFormFields = {
     arbeitgeber: string;
 };
 
-export function emptyAttestComposerForm(today: string): AttestComposerFormFields {
+export function emptyAttestComposerForm(today: string, t: TFn): AttestComposerFormFields {
     return {
-        typ: ATTEST_TYP_OPTIONS[0]!.value,
-        krankheiten: KRANKHEITEN_SUGGESTIONS[0] ?? "",
+        typ: ATTEST_TYP_VALUES[0],
+        krankheiten: defaultIllnessLabel(t),
         tageAnzahl: "1",
         einschraenkung: "",
         gueltig_von: today,
@@ -64,7 +99,7 @@ export function parseAttestVorlagePayload(payloadJson: string): {
     }
 }
 
-/** Inklusive Kalendertage: bei n=1 ist bis gleich von. */
+/** Inclusive calendar days: when n=1, end equals start. */
 export function attestGueltigBisFromVonAndTage(gueltigVonIso: string, tageAnzahl: string): string {
     const von = gueltigVonIso.slice(0, 10);
     const n = Number.parseInt(tageAnzahl.trim(), 10);
@@ -91,13 +126,15 @@ export function buildAttestInhalt(fields: AttestComposerFormFields): string {
     return parts.join("\n\n");
 }
 
-export function validateAttestComposer(fields: AttestComposerFormFields): string | null {
-    if (!fields.typ.trim()) return "Bitte einen Attesttyp wählen.";
+export function validateAttestComposer(fields: AttestComposerFormFields, t: TFn): string | null {
+    if (!fields.typ.trim()) return t("page.patient_detail.attest.validation.typ_required");
     const n = Number.parseInt(fields.tageAnzahl.trim(), 10);
     if (!fields.tageAnzahl.trim() || !Number.isFinite(n) || n < 1 || n > 366) {
-        return "Anzahl der Tage: bitte eine ganze Zahl zwischen 1 und 366 eingeben.";
+        return t("page.patient_detail.attest.validation.days_range");
     }
-    if (!fields.krankheiten.trim()) return "Bitte Diagnose / Befund angeben.";
-    if (!fields.gueltig_von.trim() || !fields.gueltig_bis.trim()) return "Bitte Gültigkeit von/bis angeben.";
+    if (!fields.krankheiten.trim()) return t("page.patient_detail.attest.validation.diagnosis_required");
+    if (!fields.gueltig_von.trim() || !fields.gueltig_bis.trim()) {
+        return t("page.patient_detail.attest.validation.validity_required");
+    }
     return null;
 }

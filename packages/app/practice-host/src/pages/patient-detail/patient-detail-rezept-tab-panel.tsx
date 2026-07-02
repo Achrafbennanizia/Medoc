@@ -1,9 +1,9 @@
 import { Fragment } from "react";
 import type { usePatientDetailRezeptTab } from "./use-patient-detail-rezept-tab";
 import {
-    ATTEST_TYP_OPTIONS,
-    KRANKHEITEN_SUGGESTIONS,
     attestGueltigBisFromVonAndTage,
+    attestTypSelectOptions,
+    illnessSuggestionLabels,
 } from "@/lib/attest-composer";
 import { MEDIKAMENT_SUGGESTIONS } from "@/lib/medikamente";
 import { formatDate } from "@/lib/utils";
@@ -514,7 +514,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                         </thead>
                         <tbody>
                             {rezepte.map((r) => {
-                                const st = rezeptStatusDisplay(r.status);
+                                const st = rezeptStatusDisplay(r.status, t);
                                 const showEditRow =
                                     canWriteMedical && rezeptEdit?.id === r.id && !rezeptWizardStep;
                                 return (
@@ -867,7 +867,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     label={t("page.patient_detail.attest.field.type")}
                                     value={attestForm.typ}
                                     onChange={(e) => setAttestForm({ ...attestForm, typ: e.target.value })}
-                                    options={[...ATTEST_TYP_OPTIONS]}
+                                    options={attestTypSelectOptions(t)}
                                 />
                                 <div className="row" style={{ gap: 16, flexWrap: "wrap", marginTop: 8 }}>
                                     <span style={{ fontSize: 13, fontWeight: 600 }}>{t("page.patient_detail.attest.certification")}</span>
@@ -906,8 +906,8 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     />
                                 ) : null}
                                 <datalist id="ak-attest-krank-dl">
-                                    {KRANKHEITEN_SUGGESTIONS.map((k) => (
-                                        <option key={k} value={k} />
+                                    {illnessSuggestionLabels(t).map((label) => (
+                                        <option key={label} value={label} />
                                     ))}
                                 </datalist>
                                 <Input

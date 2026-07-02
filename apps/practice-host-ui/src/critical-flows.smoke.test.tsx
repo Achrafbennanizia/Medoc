@@ -154,25 +154,25 @@ describe("critical flow (a) login → dashboard → logout", () => {
         const user = userEvent.setup();
         render(<App />);
 
-        expect(await screen.findByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
-        await user.type(screen.getByLabelText("E-Mail"), "smoke@medoc.test");
+        await user.type(screen.getByLabelText("Email"), "smoke@medoc.test");
         const pw = document.querySelector<HTMLInputElement>("#passwort");
         expect(pw).toBeTruthy();
         await user.type(pw!, "secret123");
-        await user.click(screen.getByRole("button", { name: /Anmelden$/ }));
+        await user.click(screen.getByRole("button", { name: /Sign in$/ }));
 
-        expect(await screen.findByRole("heading", { name: /Guten Morgen, Dr\. Smoke/ })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /Good morning, Dr\. Smoke/ })).toBeInTheDocument();
 
         const aside = screen.getByRole("complementary");
-        await user.click(within(aside).getByRole("button", { name: "Konto: Einstellungen und Abmelden" }));
-        await user.click(await screen.findByRole("menuitem", { name: "Abmelden" }));
+        await user.click(within(aside).getByRole("button", { name: "Account: settings and sign out" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
 
-        const logoutDialog = await screen.findByRole("dialog", { name: "Abmelden?" });
-        await user.click(within(logoutDialog).getByRole("button", { name: "Abmelden" }));
+        const logoutDialog = await screen.findByRole("dialog", { name: "Sign out?" });
+        await user.click(within(logoutDialog).getByRole("button", { name: "Sign out" }));
 
         await waitFor(() => {
-            expect(screen.getByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+            expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         });
         const ipcCommands = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
         expect(ipcCommands, `IPC calls: ${ipcCommands.join(", ")}`).toContain("logout");
@@ -325,12 +325,12 @@ describe("critical flow (d) Tagesabschluss mismatch → Notiz → protokollieren
             />,
         );
 
-        expect(await screen.findByText(/Summe der Barzahlungen/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Sum of cash payments/i)).toBeInTheDocument();
 
-        await user.type(screen.getByLabelText(/Gezählter Bargeldbetrag/i), "77,50");
-        await user.type(screen.getByLabelText(/Bemerkung/i), "Kassenabweichung Smoke");
+        await user.type(screen.getByLabelText(/Counted cash amount/i), "77,50");
+        await user.type(screen.getByLabelText(/Remark/i), "Kassenabweichung Smoke");
 
-        await user.click(screen.getByRole("button", { name: /Tagesabschluss protokollieren/i }));
+        await user.click(screen.getByRole("button", { name: /Log daily close/i }));
 
         await waitFor(() => {
             expect(onProtokolliere).toHaveBeenCalledTimes(1);
@@ -376,18 +376,18 @@ describe("critical flow (f) login rejection on wrong password", () => {
         const user = userEvent.setup();
         render(<App />);
 
-        expect(await screen.findByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
-        await user.type(screen.getByLabelText("E-Mail"), "smoke@medoc.test");
+        await user.type(screen.getByLabelText("Email"), "smoke@medoc.test");
         const pw = document.querySelector<HTMLInputElement>("#passwort");
         expect(pw).toBeTruthy();
         await user.type(pw!, "bogus");
-        await user.click(screen.getByRole("button", { name: /Anmelden$/ }));
+        await user.click(screen.getByRole("button", { name: /Sign in$/ }));
 
         const alert = await screen.findByRole("alert");
         expect(alert.textContent ?? "").toMatch(/Falsche E-Mail oder Passwort/);
 
-        expect(screen.getByRole("heading", { name: "Anmelden" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         const ipcCommands = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
         expect(ipcCommands).toContain("login");
         expect(useAuthStore.getState().session).toBeNull();
@@ -452,15 +452,15 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
         const onActivated = vi.fn();
         render(<LicenseActivatePage onActivated={onActivated} />);
 
-        expect(await screen.findByRole("heading", { name: "Lizenz aktivieren" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Activate license" })).toBeInTheDocument();
 
-        const tokenInput = screen.getByLabelText("Lizenz-Token") as HTMLTextAreaElement;
+        const tokenInput = screen.getByLabelText("License token") as HTMLTextAreaElement;
         await user.type(tokenInput, "v2.dummybody.dummysig");
-        await user.click(screen.getByRole("button", { name: /Lizenz aktivieren/ }));
+        await user.click(screen.getByRole("button", { name: /Activate license/ }));
 
         await waitFor(() => {
             expect(
-                screen.getByLabelText("Aktive Lizenz"),
+                screen.getByLabelText("Active license"),
             ).toBeInTheDocument();
         });
         const calls = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);

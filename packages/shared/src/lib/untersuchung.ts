@@ -31,6 +31,10 @@ export interface UntersuchungV1 {
     };
     diagnosis: string;
     plan: string;
+    /** Free-text summary for the whole examination. */
+    generalNote: string;
+    /** Per-FDI-tooth findings documented during this exam (e.g. "11" → note). */
+    toothNotes: Record<string, string>;
 }
 
 export const UNTERSUCHUNG_V1_EMPTY: UntersuchungV1 = {
@@ -48,6 +52,8 @@ export const UNTERSUCHUNG_V1_EMPTY: UntersuchungV1 = {
     imaging: { ordered: "", findings: "" },
     diagnosis: "",
     plan: "",
+    generalNote: "",
+    toothNotes: {},
 };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -77,6 +83,7 @@ export function normalizeUntersuchungV1(parsed: unknown): UntersuchungV1 | null 
     const psiRaw = isRecord(parsed.psi) ? parsed.psi : {};
     const fn = isRecord(parsed.function) ? parsed.function : {};
     const img = isRecord(parsed.imaging) ? parsed.imaging : {};
+    const toothRaw = isRecord(parsed.toothNotes) ? parsed.toothNotes : {};
 
     return {
         version: 1,
@@ -118,6 +125,12 @@ export function normalizeUntersuchungV1(parsed: unknown): UntersuchungV1 | null 
         },
         diagnosis: str(parsed.diagnosis),
         plan: str(parsed.plan),
+        generalNote: str(parsed.generalNote),
+        toothNotes: Object.fromEntries(
+            Object.entries(toothRaw)
+                .filter(([k, v]) => /^\d{1,2}$/.test(k) && typeof v === "string" && v.trim())
+                .map(([k, v]) => [k, (v as string).trim()]),
+        ),
     };
 }
 
@@ -130,7 +143,7 @@ export function parseUntersuchungV1(raw: string | null | undefined): Untersuchun
     }
 }
 
-/** Nächste `U-{Jahr}-{nnn}` je Akte — gleiche Logik wie `akte_repo::next_untersuchungsnummer` (Rust). */
+/** Next `U-{Jahr}-{nnn}` per Akte — same logic as `akte_repo::next_untersuchungsnummer` (Rust). */
 export function previewNextUntersuchungsnummer(existing: Iterable<string | null | undefined>): string {
     const year = new Date().getFullYear();
     const prefix = `U-${year}-`;

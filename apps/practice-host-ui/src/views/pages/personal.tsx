@@ -91,7 +91,7 @@ export function PersonalPage() {
     const [resetPw2, setResetPw2] = useState("");
     const [resetPwError, setResetPwError] = useState<string | undefined>(undefined);
     const [resetBusy, setResetBusy] = useState(false);
-    /** FA-PERS-07 overrides editor (nur im Bearbeiten-Modus). */
+    /** FA-PERS-07 overrides editor (edit mode only). */
     const [permOverrides, setPermOverrides] = useState<{ action: string; effect: "ALLOW" | "DENY" }[]>([]);
     const [permBusy, setPermBusy] = useState(false);
     const [newPermAction, setNewPermAction] = useState("");
@@ -236,7 +236,7 @@ export function PersonalPage() {
             setResetPwError(t("page.personal.toast_pw_required"));
             return;
         }
-        const policyErr = passwordPolicyError(resetPw);
+        const policyErr = passwordPolicyError(t, resetPw);
         if (policyErr) {
             setResetPwError(policyErr);
             return;
@@ -297,7 +297,7 @@ export function PersonalPage() {
         if (!createForm.passwort) {
             next.passwort = t("page.personal.err_password_required");
         } else {
-            const policyErr = passwordPolicyError(createForm.passwort);
+            const policyErr = passwordPolicyError(t, createForm.passwort);
             if (policyErr) next.passwort = policyErr;
         }
         setCreateErrors(next);
@@ -623,14 +623,14 @@ export function PersonalPage() {
                             {permBusy ? (
                                 <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>{t("page.personal.perm_loading")}</p>
                             ) : (
-                                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                                <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13 }}>
                                     {permOverrides.map((row) => (
                                         <li key={row.action} style={{ marginBottom: 6 }}>
                                             <code>{row.action}</code> → <strong>{row.effect}</strong>{" "}
                                             <button
                                                 type="button"
                                                 className="btn btn-ghost btn-sm"
-                                                style={{ marginLeft: 8 }}
+                                                style={{ marginInlineStart: 8 }}
                                                 onClick={() => {
                                                     if (!selected) return;
                                                     void (async () => {
@@ -863,7 +863,7 @@ export function PersonalPage() {
                                             <th scope="col">{t("page.personal.col_name")}</th>
                                             <th scope="col">{t("page.personal.col_role")}</th>
                                             <th scope="col">{t("page.personal.col_email")}</th>
-                                            <th scope="col" style={{ textAlign: "right" }}>{t("page.personal.col_availability")}</th>
+                                            <th scope="col" style={{ textAlign: "end" }}>{t("page.personal.col_availability")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -890,7 +890,7 @@ export function PersonalPage() {
                                                     <td>
                                                         <span className="page-sub" style={{ fontSize: 13, color: "var(--fg-3)" }}>{p.email}</span>
                                                     </td>
-                                                    <td style={{ textAlign: "right" }}>
+                                                    <td style={{ textAlign: "end" }}>
                                                         <Badge variant={p.verfuegbar ? "success" : "default"}>
                                                             {p.verfuegbar ? t("page.personal.avail_yes") : t("page.personal.avail_no")}
                                                         </Badge>

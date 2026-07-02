@@ -13,7 +13,8 @@ describe("N3 FA-LEIST-05 release → Zahlung (IPC contract)", () => {
     });
 
     it("create_zahlung rejects behandlung link without physician release", async () => {
-        const msg = billingReleaseErrorDe("Behandlung");
+        const msg = billingReleaseErrorDe("Treatment");
+        expect(msg).toMatch(/not yet released for billing/);
         vi.mocked(tauriInvoke).mockRejectedValueOnce(new Error(msg));
         await expect(
             createZahlung({

@@ -1,2 +1,2 @@
-/** @deprecated Aufgaben sind in {@link PraxisTicketsPage} integriert — Route leitet auf `/tickets` um. */
+/** @deprecated Tasks integrated in {@link PraxisTicketsPage} — route redirects to `/tickets`. */
 export { PraxisTicketsPage as PosteingangPage } from "./praxis-tickets";

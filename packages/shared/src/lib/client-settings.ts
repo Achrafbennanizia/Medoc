@@ -1,5 +1,5 @@
 /**
- * Client-only Einstellungen (localStorage), hydration für Darstellung & Arbeitsabläufe.
+ * Client-only settings (localStorage), hydration for appearance & workflows.
  */
 
 import {
@@ -17,7 +17,7 @@ export { normalizeFontStack } from "./font-stack-preset";
 
 export type DensityId = "compact" | "cozy" | "spacious";
 
-/** Standard-Ansicht Terminübersicht (`/termine`). */
+/** Default Termin overview view (`/termine`). */
 export type TermineKalenderAnsicht = "tag" | "woche" | "monat";
 
 /** Erscheinungsbild: Hell / Dunkel / System (letzteres folgt `prefers-color-scheme`). */
@@ -26,46 +26,46 @@ export type ColorSchemeId = "light" | "dark" | "system";
 export type ClientSettingsV1 = {
     version: 1;
     appearance?: {
-        /** Hell · Dunkel · System — steuert `html[data-theme]` (aufgelöst inkl. System). */
+        /** Light · Dark · System — controls `html[data-theme]` (resolved incl. system). */
         colorScheme?: ColorSchemeId;
-        /** Bei hellem Erscheinungsbild: nur Seitenleiste dunkel. */
+        /** In light appearance: sidebar dark only. */
         darkSidebar: boolean;
         density: DensityId;
         /** Schriftart — steuert `html[data-font-stack]`. */
         fontStack?: FontStackId;
         /** Marken-Akzent (CSS --accent / --accent-soft / --accent-ink). */
         accentPreset?: AccentId;
-        /** Topbar-Benutzer-Avatar (Kreise mit Initialen). */
+        /** Topbar user avatar (circles with initials). */
         showHeaderAvatar?: boolean;
-        /** Sichtbare Kbd-Hinweise (z. B. ⌘K in der Leiste). */
+        /** Visible keyboard hints (e.g. ⌘K in rail). */
         showKeyboardHints?: boolean;
     };
     /** Kalender, Termine, Tagesabschluss */
     workflows?: {
-        /** Öffnen von `/termine` mit dieser Ansicht */
+        /** Open `/termine` with this view */
         termineDefaultView?: TermineKalenderAnsicht;
-        /** Vorauswahl Dauer in „Neuer Termin“ (Minuten). */
+        /** Preset duration in "Neuer Termin" (minutes). */
         defaultTerminDauerMin?: number;
-        /** Lokale Uhrzeit für einmalige Tages-Erinnerung (HH:mm, z. B. 18:00). */
+        /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
         tagesabschlussReminderTime?: string;
         /** CAL2: Pause/Notfall-Toolbar im Kalender (experimentell). */
         calendarEmergencyToolbarEnabled?: boolean;
     };
     /** Suche */
     search?: {
-        /** Bei false: nur Patientenname (Backend); bei true: Name oder Versicherungsnummer. */
+        /** When false: patient name only (backend); when true: name or insurance number. */
         patientIncludeVersicherungsnummer?: boolean;
-        /** NFA-USE-10: Levenshtein-„Meinten Sie …“-Hinweise (Patientenliste, Schnellzugriff). Bei false aus. */
+        /** NFA-USE-10: Levenshtein "did you mean" hints (patient list, quick access). Off when false. */
         autocompleteSuggestionsEnabled?: boolean;
     };
     /** Clientseitige Sitzung */
     security?: {
-        /** Minuten ohne Eingabe bis Abmeldung. 0 = aus. */
+        /** Minutes without input until logout. 0 = off. */
         idleLogoutMinutes?: number;
         /** UI: Zwei-Faktor — echte Anbindung separat; Vorgabe lokal gespeichert. */
         twoFactorEnabled?: boolean;
     };
-    /** Push/E-Mail — Auslieferung ggf. später angebunden; Schalter wirken als Präferenz. */
+    /** Push/email — delivery may be wired later; toggles act as preference. */
     notifications?: {
         push?: boolean;
         emailSummary?: boolean;
@@ -76,7 +76,7 @@ export type ClientSettingsV1 = {
     integrations?: {
         datev?: boolean;
     };
-    /** Akte → Anlagen extern öffnen: leer = empfohlene erste App; "__SYSTEM__" = nur Betriebssystem-Standard. */
+    /** Akte → open attachments externally: empty = recommended first app; "__SYSTEM__" = OS default only. */
     akte?: {
         openImagesWithApp?: string;
     };
@@ -141,7 +141,7 @@ export function mergeClientSettingsPatch(base: ClientSettingsV1, patch: Partial<
     return mergeClient(base, patch);
 }
 
-/** Migriert alte Speicherstände (notifications, integrations, …) weg — nur noch bekannte Keys. */
+/** Migrates old storage (notifications, integrations, …) away — known keys only. */
 export function normalizeColorScheme(raw: unknown): ColorSchemeId {
     return raw === "dark" || raw === "system" || raw === "light" ? raw : "light";
 }
@@ -155,7 +155,7 @@ function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     return base;
 }
 
-/** Aufgelöstes Theme für Oberfläche inkl. System-Präferenz. */
+/** Resolved theme for UI incl. system preference. */
 export function resolveAppearanceTheme(s: ClientSettingsV1): "light" | "dark" {
     const pref = normalizeColorScheme(s.appearance?.colorScheme);
     if (pref === "dark") return "dark";
@@ -223,7 +223,7 @@ export function hydrateAppearanceFromStorage(): void {
 
 let appearanceMediaListenerInstalled = false;
 
-/** Bei `colorScheme: system` Theme neu anwenden, wenn die OS-Präferenz wechselt. */
+/** When `colorScheme: system` reapply theme when OS preference changes. */
 export function initAppearanceMediaListener(): void {
     if (typeof window === "undefined" || appearanceMediaListenerInstalled) return;
     appearanceMediaListenerInstalled = true;

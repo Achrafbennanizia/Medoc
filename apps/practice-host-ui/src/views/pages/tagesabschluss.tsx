@@ -27,7 +27,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 
 /**
- * Tagesabschluss — Liste protokollierter Abschlüsse + neuer Lauf / Detail (Kassenabgleich).
+ * Tagesabschluss — list of logged closings + new run / detail (cash reconciliation).
  */
 export function TagesabschlussPage() {
     const navigate = useNavigate();
@@ -270,7 +270,7 @@ export function TagesabschlussPage() {
                                                 <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
                                                 <th>{t("page.tagesabschluss.col.art")}</th>
                                                 <th>{t("common.status")}</th>
-                                                <th style={{ textAlign: "right" }}>€</th>
+                                                <th style={{ textAlign: "end" }}>€</th>
                                                 <th>{t("page.tagesabschluss.col.cash_checked")}</th>
                                             </tr>
                                         </thead>
@@ -288,7 +288,7 @@ export function TagesabschlussPage() {
                                                     </td>
                                                     <td>{z.zahlungsart}</td>
                                                     <td>{z.status}</td>
-                                                    <td style={{ textAlign: "right" }}>{formatCurrency(z.betrag)}</td>
+                                                    <td style={{ textAlign: "end" }}>{formatCurrency(z.betrag)}</td>
                                                     <td style={{ textAlign: "center" }}>{(z.kasse_geprueft ?? 0) === 1 ? "✓" : "—"}</td>
                                                 </tr>
                                             ))}
@@ -362,7 +362,7 @@ export function TagesabschlussPage() {
                                     <tr>
                                         <th style={{ textAlign: "left" }}>{t("page.tagesabschluss.col.stichtag")}</th>
                                         <th style={{ textAlign: "left" }}>{t("page.tagesabschluss.col.protokolliert")}</th>
-                                        <th style={{ textAlign: "right" }}>{t("page.tagesabschluss.col.bar_system")}</th>
+                                        <th style={{ textAlign: "end" }}>{t("page.tagesabschluss.col.bar_system")}</th>
                                         <th>{t("page.tagesabschluss.col.bar_match")}</th>
                                         <th>{t("page.tagesabschluss.col.day_payments")}</th>
                                     </tr>
@@ -382,7 +382,7 @@ export function TagesabschlussPage() {
                                             >
                                                 <td>{formatDate(row.stichtag)}</td>
                                                 <td style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.protokolliert_at)}</td>
-                                                <td style={{ textAlign: "right" }}>{formatCurrency(row.bar_laut_system_eur)}</td>
+                                                <td style={{ textAlign: "end" }}>{formatCurrency(row.bar_laut_system_eur)}</td>
                                                 <td>{row.bar_stimmt === 1 ? t("page.tagesabschluss.bar_ok") : t("page.tagesabschluss.bar_check")}</td>
                                                 <td>
                                                     {row.anzahl_zahlungen_tag}

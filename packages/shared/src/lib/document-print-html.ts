@@ -1,4 +1,4 @@
-import { translateLocale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams } from "@/lib/i18n";
 import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
 import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/clinical-pdf-layout";
 
 const docT = (key: string) => translateLocale("de", key);
+const docTp = (key: string, params: Record<string, string | number>) => translateLocaleParams("de", key, params);
 
 function rezeptStatusLabel(status: string): string {
     const s = status.trim();
@@ -85,11 +86,11 @@ function behandlerSignaturBlock(): string[] {
     return lines;
 }
 
-/** Datenpaket für klinischen Dokument-Export (PDF/CSV/JSON/XML). */
+/** Data package for clinical document export (PDF/CSV/JSON/XML). */
 export type ClinicalDocumentExportBundle = {
-    /** Zeilen für PDF-Renderer (`preview_document_pdf`). */
+    /** Lines for PDF renderer (`preview_document_pdf`). */
     pdfBodyLines: string[];
-    /** Strukturiertes Layout (Rust); bevorzugt gegenüber `pdfBodyLines`. */
+    /** Structured layout (Rust); preferred over `pdfBodyLines`. */
     pdfLayout: ClinicalPdfLayout;
     csvText: string;
     jsonText: string;
@@ -394,7 +395,7 @@ function quittungPdfLines(
     untersuchungen: Untersuchung[],
     receiptNumber: string,
 ): string[] {
-    const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
+    const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen, docT, docTp);
     const praxis = getInvoicePraxisFromStorage();
     const ust = (praxis.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
     const bankLines: string[] = [];
@@ -421,8 +422,8 @@ function quittungPdfLines(
         "",
         `Zahlungsdatum: ${zahlDatum}`,
         `Betrag: ${formatCurrency(z.betrag)}`,
-        `Zahlungsart: ${zahlungsartLabel(z.zahlungsart)}`,
-        `Status: ${zahlStatusDisplay(z.status).label}`,
+        `Zahlungsart: ${zahlungsartLabel(z.zahlungsart, docT)}`,
+        `Status: ${zahlStatusDisplay(z.status, docT).label}`,
         "",
         "Leistungszuordnung:",
         bezugLine,
@@ -445,7 +446,7 @@ export function bundleQuittungExport(
 ): ClinicalDocumentExportBundle {
     const pdfLayout = buildQuittungPdfLayout(z, patient, behandlungen, untersuchungen, receiptNumber);
     const pdfBodyLines = quittungPdfLines(z, patient, behandlungen, untersuchungen, receiptNumber);
-    const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen);
+    const bezugLine = formatZahlungBezugLine(z, behandlungen, untersuchungen, docT, docTp);
     const csvText =
         `${csvRow(["Patient", "Geburtsdatum", "Zahlungsdatum", "BetragEUR", "Zahlungsart", "Status", "Zuordnung", "Beschreibung"])}\n`
         + `${csvRow([
@@ -453,8 +454,8 @@ export function bundleQuittungExport(
             formatDate(patient.geburtsdatum),
             formatDate(z.created_at),
             z.betrag.toFixed(2),
-            zahlungsartLabel(z.zahlungsart),
-            zahlStatusDisplay(z.status).label,
+            zahlungsartLabel(z.zahlungsart, docT),
+            zahlStatusDisplay(z.status, docT).label,
             bezugLine,
             (z.beschreibung ?? "").trim(),
         ])}\n`;
@@ -513,7 +514,7 @@ function rezeptSectionBlock(r: Rezept): string {
         </section>`;
 }
 
-/** Ein Rezept — Tabellenlayout (Akte / kompakte Ansicht). */
+/** Single prescription — table layout (Akte / compact view). */
 export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string {
     const med = escapeHtml(r.medikament);
     const wirk = escapeHtml((r.wirkstoff ?? "").trim() || "—");
@@ -552,7 +553,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
             </body></html>`;
 }
 
-/** Mehrere Rezepte auf einem Ausdruck (Rezeptübersicht). */
+/** Multiple prescriptions on one printout (prescription overview). */
 export function buildRezepteComboPrintHtml(items: Rezept[], patient: Patient | null): string {
     if (items.length === 0) {
         return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Rezept</title></head><body><p>${docT("document.print.no_prescription")}</p></body></html>`;
@@ -586,9 +587,9 @@ export function buildQuittungPrintHtml(
     behandlungen: Behandlung[],
     untersuchungen: Untersuchung[],
 ): string {
-    const bezugLine = escapeHtml(formatZahlungBezugLine(z, behandlungen, untersuchungen));
-    const art = escapeHtml(zahlungsartLabel(z.zahlungsart));
-    const stat = escapeHtml(zahlStatusDisplay(z.status).label);
+    const bezugLine = escapeHtml(formatZahlungBezugLine(z, behandlungen, untersuchungen, docT, docTp));
+    const art = escapeHtml(zahlungsartLabel(z.zahlungsart, docT));
+    const stat = escapeHtml(zahlStatusDisplay(z.status, docT).label);
     const bet = escapeHtml(`${z.betrag.toFixed(2)} EUR`);
     const quando = escapeHtml(formatDate(z.created_at));
     const beschr = escapeHtml((z.beschreibung ?? "").trim() || "—");

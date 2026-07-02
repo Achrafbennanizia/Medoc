@@ -43,12 +43,12 @@ export function formatCurrency(amount: number): string {
     }).format(amount);
 }
 
-/** Wie oft der Name vorkommt — für Mehrdeutigkeit (gleicher Name, versch. Kategorie/Preis/ID). */
+/** How often the name appears — for ambiguity (same name, different category/price/ID). */
 export function countProdukteWithName(produkte: Produkt[], name: string): number {
     return produkte.filter((p) => p.name === name).length;
 }
 
-/** Zeile in Produkt-Dropdowns: Name · Kategorie · Preis; bei Namens-Duplikaten Kurz-ID anhängen. */
+/** Row in product dropdowns: name · category · price; append short ID for name duplicates. */
 export function produktSelectLabel(p: Produkt, nameDupCount: number): string {
     const base = `${p.name} · ${p.kategorie} · ${formatCurrency(p.preis)}`;
     if (nameDupCount > 1) {

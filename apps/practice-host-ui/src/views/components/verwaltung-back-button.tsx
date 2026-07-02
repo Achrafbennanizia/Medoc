@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { getVerwaltungBackTarget } from "@/lib/verwaltung-hierarchy";
+import { useT } from "@/lib/i18n";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { ChevronLeftIcon } from "@/lib/icons";
@@ -12,13 +13,14 @@ export function VerwaltungBackButton({ className }: Props) {
     const navigate = useNavigate();
     const rolle = useAuthStore((s) => s.session?.rolle);
     const role = parseRole(rolle);
+    const t = useT();
     const normalizedPath = (pathname.replace(/\/$/, "") || "/");
 
     if (normalizedPath === "/verwaltung") {
         return null;
     }
 
-    const { path, label } = getVerwaltungBackTarget(pathname + (search || ""));
+    const { path, labelKey } = getVerwaltungBackTarget(pathname + (search || ""));
 
     if (path === "/" && (!role || !allowed("dashboard.read", role))) {
         return null;
@@ -32,7 +34,7 @@ export function VerwaltungBackButton({ className }: Props) {
         >
             <ChevronLeftIcon />
             {" "}
-            {label}
+            {t(labelKey)}
         </button>
     );
 }

@@ -13,7 +13,6 @@ import { EinstellungenLanHostSection } from "@/systems/lan/pages/einstellungen-l
 import { EinstellungenDeploymentSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-deployment-section";
 import { EinstellungenPairingInbox } from "@/systems/practice-host/pages/einstellungen/einstellungen-pairing-inbox";
 import { GeraeteverbundPanel } from "@/systems/practice-host/pages/einstellungen/geraeteverbund-panel";
-import { VERBUND_ADMIN_PANEL_V1_ENABLED } from "@/lib/v1-ui-flags";
 
 export type EinstellungenSystemSectionProps = {
     canOpsSystem: boolean;
@@ -32,7 +31,7 @@ export function EinstellungenSystemSection({ canOpsSystem }: EinstellungenSystem
                     </div>
                 </div>
                 <div className="settings-system-stack settings-system-stack--flush">
-                    {VERBUND_ADMIN_PANEL_V1_ENABLED ? <GeraeteverbundPanel embedded /> : null}
+                    <GeraeteverbundPanel embedded />
                     <EinstellungenDeploymentSection embedded showPairingInbox={canOpsSystem} />
                 </div>
             </section>

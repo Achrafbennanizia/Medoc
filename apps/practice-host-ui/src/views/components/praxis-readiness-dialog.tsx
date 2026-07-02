@@ -1,4 +1,4 @@
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DocumentKind } from "@/lib/document-template-schema";
@@ -15,6 +15,7 @@ type Props = {
 
 export const PraxisReadinessDialog: FC<Props> = ({ open, documentKind, result, onClose }) => {
     const t = useT();
+    const tp = useTParams();
     const navigate = useNavigate();
     if (!open || result.ready) return null;
     return (
@@ -25,7 +26,7 @@ export const PraxisReadinessDialog: FC<Props> = ({ open, documentKind, result, o
             footer={
                 <>
                     <Button type="button" variant="secondary" onClick={onClose}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button
                         type="button"
@@ -34,12 +35,12 @@ export const PraxisReadinessDialog: FC<Props> = ({ open, documentKind, result, o
                             navigate("/einstellungen?tab=praxis");
                         }}
                     >
-                        Zu den Einstellungen
+                        {t("praxis.readiness.to_settings")}
                     </Button>
                 </>
             }
         >
-            <p style={{ margin: 0, lineHeight: 1.5 }}>{praxisReadinessDialogBody(documentKind, result.missingFields)}</p>
+            <p style={{ margin: 0, lineHeight: 1.5 }}>{praxisReadinessDialogBody(t, tp, documentKind, result.missingFields)}</p>
         </Dialog>
     );
 };

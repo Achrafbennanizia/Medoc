@@ -118,9 +118,14 @@ pub struct UpdateInfo {
     pub latest_version: String,
     pub update_available: bool,
     pub channel: String,
+    #[serde(default)]
+    pub release_notes: String,
+    /// `github_releases` | `company_portal` | `none`
+    #[serde(default)]
+    pub source: String,
 }
 
-/// Ruft optional das **Hersteller-Portal** (`/v1/updates/manifest`) auf — sonst lokaler Stub.
+/// Ruft optional das **Hersteller-Portal** oder **GitHub Releases** (CI) auf.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn check_for_updates(
@@ -155,13 +160,32 @@ pub async fn check_for_updates(
                 .and_then(|v| v.as_str())
                 .unwrap_or("stable")
                 .to_string();
+            let release_notes = m
+                .get("release_notes")
+                .or_else(|| m.get("notes"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             return Ok(UpdateInfo {
                 current_version: current.clone(),
                 latest_version: latest,
                 update_available,
                 channel,
+                release_notes,
+                source: "company_portal".into(),
             });
         }
+    }
+
+    if let Some(gh) = crate::infrastructure::github_updates::check_github_updates(&pool).await? {
+        return Ok(UpdateInfo {
+            current_version: gh.current_version,
+            latest_version: gh.latest_version,
+            update_available: gh.update_available,
+            channel: "stable".into(),
+            release_notes: gh.release_notes,
+            source: "github_releases".into(),
+        });
     }
 
     Ok(UpdateInfo {
@@ -169,7 +193,47 @@ pub async fn check_for_updates(
         latest_version: current,
         update_available: false,
         channel: "stable".to_string(),
+        release_notes: String::new(),
+        source: "none".into(),
     })
+}
+
+/// Download and install the update published by CI (GitHub Releases + Tauri signer).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(app, pool, session_state))]
+pub async fn install_available_update(
+    app: tauri::AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<(), AppError> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    rbac::require(&session_state, "ops.system")?;
+    let token = crate::infrastructure::github_updates::resolve_github_token(&pool).await;
+    let mut builder = app.updater_builder();
+    if let Some(t) = token {
+        builder = builder
+            .header("Authorization", format!("Bearer {t}"))
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    let checked = builder
+        .build()
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .check()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let Some(update) = checked else {
+        return Err(AppError::Validation("Kein Update verfügbar".into()));
+    };
+    update
+        .download_and_install(
+            |_, _| {},
+            || {},
+        )
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    log_system!(info, event = "UPDATE_INSTALLED", version = %update.version);
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -252,6 +316,7 @@ macro_rules! register_system_commands {
         $crate::commands::system_commands::current_license_status,
         $crate::commands::system_commands::clear_license,
         $crate::commands::system_commands::check_for_updates,
+        $crate::commands::system_commands::install_available_update,
         $crate::commands::system_commands::list_detected_photo_viewer_apps,
         $crate::commands::system_commands::system_health_check,
         $crate::commands::system_commands::get_perf_threshold_ms,

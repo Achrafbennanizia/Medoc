@@ -208,7 +208,7 @@ export function EinstellungenPage() {
     }, [hydrateConfirmations]);
 
     async function handleChangePassword() {
-        const policyErr = passwordPolicyError(newPw);
+        const policyErr = passwordPolicyError(t, newPw);
         if (policyErr) {
             toast(policyErr, "error");
             return;

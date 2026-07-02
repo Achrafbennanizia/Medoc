@@ -24,7 +24,8 @@ Practices need:
 | Idempotency | **`sync_applied (source_device_id, source_seq)`** |
 | Transport | HTTPS to master’s LAN API (self-signed TLS + optional fingerprint pin) |
 | Auth (replica → master) | Ed25519-signed **activation token** (`mt2.<payload>.<sig>`) issued at pairing time. Legacy JWT still accepted for installs paired before Slice 4. |
-| Conflicts | **`ConflictPolicy::LastWriteWins`** — if both rows carry a parsable `updated_at`, the newer wins; equal timestamps break by lexicographic `device_id` (no master tie-break). Missing timestamps on either side: replica keeps local when row exists. |
+| Conflicts | **`ConflictPolicy::LastWriteWins`** — if both rows carry a parsable `updated_at`, the newer wins; equal timestamps break by lexicographic `device_id` (no master tie-break). Missing timestamps: master accepts member push; replica accepts admin pull; mesh peer push on replica keeps local. |
+| Connect order | Replica **`run_replica_sync`**: push (merge member edits on master) → pull (admin rows on replica, `admin_pull` phase). Updates `last_seen_at` on master for push and pull. |
 
 This is an **outbox + master/replica** pattern (not full CRDT). Row-level conflicts resolve by freshness, not by device role.
 
@@ -45,11 +46,12 @@ sequenceDiagram
     R->>DB: Clinical edit
     DB->>DB: sync_outbox += row
     Note over R,M: Master offline — outbox grows
-    R->>M: POST /sync/push (JWT)
-    M->>M: ingest + apply
-    R->>M: POST /sync/pull
+    R->>M: POST /sync/push (JWT) — member merge (LWW)
+    M->>M: ingest + apply; touch replica last_seen
+    R->>M: POST /sync/pull — admin authoritative pull
+    M->>M: touch replica last_seen
     M-->>R: master entries since vector
-    R->>DB: apply + sync_applied
+    R->>DB: apply admin_pull + sync_applied
 ```
 
 ## Schema (practice DB)
@@ -150,7 +152,7 @@ payload (`obj["updated_at"]`). Timestamp ties break by lexicographic
 | present, newer | present, older | Local kept (`SKIP_STALE_REMOTE`). |
 | present, older | present, newer | Remote applied. |
 | present, equal | present, equal | Higher `device_id` wins (lexicographic). |
-| missing on either side | missing on either side | Replica keeps local when row exists. |
+| missing on either side | missing on either side | Member push on master: remote applied. Admin pull on replica (`admin_pull`): remote applied. Mesh peer on replica: local kept. |
 
 Tests live in `medoc_sync::engine::tests` —
 `master_does_not_overwrite_newer_replica_row` and

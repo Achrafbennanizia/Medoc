@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-    formatAlternativeSlotsDe,
+    formatAlternativeSlots,
     hasArztSlotConflict,
     isTerminConflictErrorMessage,
     suggestAlternativeTerminSlots,
@@ -52,9 +52,10 @@ describe("termin-availability (N4)", () => {
             termine: [busy],
             praxisCfg,
             abwesenheiten: [],
+            t: (k) => k,
         });
         expect(alts.length).toBeGreaterThan(0);
         expect(alts).not.toContain("10:00");
-        expect(formatAlternativeSlotsDe(alts)).toMatch(/Uhr/);
+        expect(formatAlternativeSlots(alts, (_k, p) => `${p.time} Uhr`)).toMatch(/Uhr/);
     });
 });

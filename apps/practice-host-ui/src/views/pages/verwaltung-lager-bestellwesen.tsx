@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
-/** Lager, Produkte, Bestellstamm und Verträge — Tabelle in Karte (Produkte-Muster). */
+/** Inventory, products, order master data and contracts — table in card (products pattern). */
 export function VerwaltungLagerBestellwesenPage() {
     const t = useT();
     const links = useMemo<VerwaltungTocLink[]>(

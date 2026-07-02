@@ -46,19 +46,19 @@ describe("EinstellungenPage RBAC nav", () => {
             </MemoryRouter>,
         );
 
-        expect(screen.getByRole("button", { name: /Konto/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Account/i })).toBeInTheDocument();
         if (BENACHRICHTIGUNGEN_SETTINGS_ENABLED) {
-            expect(screen.getByRole("button", { name: /Benachrichtigungen/i })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /Notifications/i })).toBeInTheDocument();
         } else {
-            expect(screen.queryByRole("button", { name: /Benachrichtigungen/i })).not.toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: /Notifications/i })).not.toBeInTheDocument();
         }
-        expect(screen.getByRole("button", { name: /Darstellung/i })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Arbeitsabläufe/i })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Über die Anwendung/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Appearance/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Workflows/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /About/i })).toBeInTheDocument();
 
-        expect(screen.queryByRole("button", { name: /Praxis/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: /Sicherheit/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: /Lizenz/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Practice/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Security/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /License/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Integrationen/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Migration/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /^System$/i })).not.toBeInTheDocument();

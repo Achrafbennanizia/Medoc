@@ -17,7 +17,7 @@ const SCAN_ROOTS = [
 ];
 
 const GERMAN_WORDS =
-    /\b(Speichern|Abbrechen|Mitarbeiter|Löschen|Bearbeiten|Hinzufügen|Fehler|Wird geladen|Keine|Bitte|Praxis|Patienten|Termin|Verwaltung|Arbeitszeit|Krankenbescheinigung)\b/;
+    /\b(Speichern|Abbrechen|Mitarbeiter|Löschen|Bearbeiten|Hinzufügen|Fehler|Wird geladen|Keine|Bitte|Praxis|Patienten|Termin|Verwaltung|Arbeitszeit|Krankenbescheinigung|Einfügen|einplanen|Notfall)\b/;
 const UMLAUT = /[äöüßÄÖÜ]/;
 const TITLE_DE = /titleDe\s*:/;
 const TOAST_DE =

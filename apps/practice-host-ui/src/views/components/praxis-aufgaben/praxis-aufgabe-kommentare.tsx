@@ -28,16 +28,20 @@ type Props = {
     canComment?: boolean;
 };
 
-function authorName(authorId: string, personal: Personal[]): string {
-    return personal.find((p) => p.id === authorId)?.name ?? "Team";
+function authorName(authorId: string, personal: Personal[], t: (key: string) => string): string {
+    return personal.find((p) => p.id === authorId)?.name ?? t("breadcrumb.team");
 }
 
-function buildSystemEntries(aufgabe: PraxisAufgabe, personal: Personal[]): ThreadEntry[] {
+function buildSystemEntries(
+    aufgabe: PraxisAufgabe,
+    personal: Personal[],
+    t: (key: string) => string,
+): ThreadEntry[] {
     const entries: ThreadEntry[] = [];
     if (aufgabe.body?.trim()) {
         entries.push({
             id: `${aufgabe.id}-body`,
-            authorLabel: authorName(aufgabe.created_by, personal),
+            authorLabel: authorName(aufgabe.created_by, personal, t),
             body: aufgabe.body.trim(),
             createdAt: aufgabe.created_at,
             kind: "system",
@@ -46,7 +50,7 @@ function buildSystemEntries(aufgabe: PraxisAufgabe, personal: Personal[]): Threa
     if (aufgabe.erledigt_notiz?.trim()) {
         entries.push({
             id: `${aufgabe.id}-done`,
-            authorLabel: "Erledigt-Notiz",
+            authorLabel: t("praxis.aufgaben.done_note_label"),
             body: aufgabe.erledigt_notiz.trim(),
             createdAt: aufgabe.updated_at,
             kind: "system",
@@ -55,7 +59,7 @@ function buildSystemEntries(aufgabe: PraxisAufgabe, personal: Personal[]): Threa
     if (aufgabe.zurueck_begruendung?.trim()) {
         entries.push({
             id: `${aufgabe.id}-return`,
-            authorLabel: "Zurück-Begründung",
+            authorLabel: t("praxis.aufgaben.return_reason_label"),
             body: aufgabe.zurueck_begruendung.trim(),
             createdAt: aufgabe.updated_at,
             kind: "system",
@@ -100,10 +104,10 @@ export function PraxisAufgabeKommentare({ aufgabe, personal, active, canComment 
     }, [load, active]);
 
     const thread = useMemo(() => {
-        const system = buildSystemEntries(aufgabe, personal);
+        const system = buildSystemEntries(aufgabe, personal, t);
         const chat: ThreadEntry[] = comments.map((c) => ({
             id: c.id,
-            authorLabel: authorName(c.author_id, personal),
+            authorLabel: authorName(c.author_id, personal, t),
             body: c.body,
             createdAt: c.created_at,
             kind: "comment" as const,
@@ -111,7 +115,7 @@ export function PraxisAufgabeKommentare({ aufgabe, personal, active, canComment 
         return [...system, ...chat].sort(
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         );
-    }, [aufgabe, comments, personal]);
+    }, [aufgabe, comments, personal, t]);
 
     const send = async () => {
         const text = draft.trim();

@@ -1,20 +1,20 @@
-/** Persistierte Akten-Anlagen (Datei auf Disk) + Vorschau über `convertFileSrc` in Tauri. */
+/** Persisted Akte attachments (file on disk) + preview via `convertFileSrc` in Tauri. */
 
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 export const ANLAGE_MAX_BYTES = 50 * 1024 * 1024;
 
-/** Persistierte Schlüssel — müssen mit `akte_anlage_commands::ALLOWED_DOCUMENT_KINDS` übereinstimmen. */
+/** Persisted keys — must match `akte_anlage_commands::ALLOWED_DOCUMENT_KINDS`. */
 export const AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT = "SONSTIGES";
 
-export const AKTE_ANLAGE_DOCUMENT_KINDS: readonly { id: string; label: string }[] = [
-    { id: "MRT", label: "MRT / Kernspintomografie" },
-    { id: "CT", label: "CT" },
-    { id: "ROENTGEN", label: "Röntgen / OPG / intraoral" },
-    { id: "LABOR", label: "Laborbefund" },
-    { id: "UEBERWEISUNG", label: "Überweisung / externer Befund" },
-    { id: "EINVERSTAENDNIS", label: "Einverständnis / Aufklärung" },
-    { id: "SONSTIGES", label: "Sonstiges" },
+export const AKTE_ANLAGE_DOCUMENT_KINDS: readonly { id: string; labelKey: string }[] = [
+    { id: "MRT", labelKey: "anlage.kind.mrt" },
+    { id: "CT", labelKey: "anlage.kind.ct" },
+    { id: "ROENTGEN", labelKey: "anlage.kind.roentgen" },
+    { id: "LABOR", labelKey: "anlage.kind.labor" },
+    { id: "UEBERWEISUNG", labelKey: "anlage.kind.ueberweisung" },
+    { id: "EINVERSTAENDNIS", labelKey: "anlage.kind.einverstaendnis" },
+    { id: "SONSTIGES", labelKey: "anlage.kind.sonstiges" },
 ];
 
 export function normalizeAkteDocumentKind(raw: string | undefined | null): string {
@@ -22,8 +22,22 @@ export function normalizeAkteDocumentKind(raw: string | undefined | null): strin
     return AKTE_ANLAGE_DOCUMENT_KINDS.some((k) => k.id === u) ? u : AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT;
 }
 
-export function labelForAkteDocumentKind(id: string): string {
-    return AKTE_ANLAGE_DOCUMENT_KINDS.find((k) => k.id === normalizeAkteDocumentKind(id))?.label ?? id;
+export function labelForAkteDocumentKind(t: (key: string) => string, id: string): string {
+    const kind = AKTE_ANLAGE_DOCUMENT_KINDS.find((k) => k.id === normalizeAkteDocumentKind(id));
+    return kind ? t(kind.labelKey) : id;
+}
+
+export function validateAnlageFile(t: (key: string) => string, file: File): string | null {
+    if (file.size > ANLAGE_MAX_BYTES) {
+        return t("anlage.error.file_too_large");
+    }
+    const lower = file.name.toLowerCase();
+    const okExt = ALLOWED_EXT.some((e) => lower.endsWith(e));
+    const okMime = !file.type || ALLOWED_MIME.has(file.type);
+    if (!okExt && !okMime) {
+        return t("anlage.error.invalid_format");
+    }
+    return null;
 }
 
 const ALLOWED_EXT = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".dcm", ".tif", ".tiff", ".heic", ".heif"];
@@ -48,35 +62,22 @@ export type AkteAnlage = {
     addedAt: string;
     mimeType: string;
     sizeBytes: number;
-    /** Vordefinierter Dokumenttyp (MRT, Labor, …). */
+    /** Predefined document type (MRT, Labor, …). */
     documentKind: string;
-    /** Vorschau-URL (`blob:` vor dem Speichern oder `convertFileSrc` nach dem Speichern) */
+    /** Preview URL (`blob:` before save or `convertFileSrc` after save) */
     previewUrl: string;
-    /** Nur nach Persistenz: absoluter Pfad auf dem Gerät (Tauri) */
+    /** Only after persistence: absolute path on device (Tauri) */
     absPath?: string;
 };
 
-/** Hauptdateiauswahl: nur erlaubte Endungen (Browser filtert den Dialog passend ein). */
+/** Main file picker: allowed extensions only (browser filters the dialog accordingly). */
 export function anlageInputAccept(): string {
     return ALLOWED_EXT.join(",");
 }
 
-/** Kamera / „Foto“: nur Bildtypen, die wir auch persistieren dürfen. */
+/** Camera / "photo": image types only that we are allowed to persist. */
 export function anlageCameraInputAccept(): string {
     return ".jpg,.jpeg,.png,.webp,.heic,.heif";
-}
-
-export function validateAnlageFile(file: File): string | null {
-    if (file.size > ANLAGE_MAX_BYTES) {
-        return "Datei zu groß (max. 50 MB).";
-    }
-    const lower = file.name.toLowerCase();
-    const okExt = ALLOWED_EXT.some((e) => lower.endsWith(e));
-    const okMime = !file.type || ALLOWED_MIME.has(file.type);
-    if (!okExt && !okMime) {
-        return "Nur PDF, JPG, PNG, DCM und ähnliche Bildformate erlaubt.";
-    }
-    return null;
 }
 
 export function anlageBadgeExt(name: string, mime: string): string {
@@ -129,7 +130,7 @@ function extensionFromFileOrMime(file: File): string {
     return ".jpg";
 }
 
-/** Lesbare Vorschlagsbezeichnung (nie roher UUID-Dateiname für Nutzer). */
+/** Human-readable suggested label (never raw UUID filename for users). */
 export function deriveAnlageDisplayName(file: File): string {
     const raw = file.name?.trim() ?? "";
     const stamp = new Date().toISOString().slice(0, 10);
@@ -152,7 +153,7 @@ export function deriveAnlageDisplayName(file: File): string {
     return raw;
 }
 
-/** Hängt die Original-Endung an, wenn der Nutzer nur einen Titel ohne „.xyz“ eingibt (Backend/OCR-Fallback). */
+/** Appends the original extension when the user enters a title without ".xyz" (backend/OCR fallback). */
 export function ensureAnlageDisplayNameExtension(displayName: string, file: File): string {
     const t = displayName.trim();
     if (!t) return t;
@@ -175,7 +176,7 @@ export function buildAnlageRowFromFile(file: File): AkteAnlage {
     };
 }
 
-/** Base64 (Standard) für Tauri `create_akte_anlage`. FileReader für große Dateien ohne Call-Stack-Grenzen. */
+/** Base64 (standard) for Tauri `create_akte_anlage`. FileReader for large files without call-stack limits. */
 export function fileToBase64ForAnlage(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const fr = new FileReader();
@@ -193,7 +194,7 @@ export function fileToBase64ForAnlage(file: File): Promise<string> {
     });
 }
 
-/** Antwort von `list_akte_anlagen` / `create_akte_anlage` (serde snake_case). */
+/** Response from `list_akte_anlagen` / `create_akte_anlage` (serde snake_case). */
 export type AkteAnlageRowDto = {
     id: string;
     display_name: string;

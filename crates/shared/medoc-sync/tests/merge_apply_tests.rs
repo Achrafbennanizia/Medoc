@@ -2,7 +2,7 @@
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_sync::merge::{apply_remote_entry, ConflictPolicy};
+use medoc_sync::merge::{apply_remote_entry, apply_remote_entry_phased, ConflictPolicy};
 use medoc_sync::repo::{mark_applied, was_applied, OutboxEntry};
 use medoc_sync::schema::ensure_sync_tables;
 use sqlx::SqlitePool;
@@ -280,6 +280,33 @@ async fn apply_replica_skips_collision_without_timestamps() {
         .await
         .unwrap();
     assert_eq!(name, "Replica Local");
+}
+
+#[tokio::test]
+async fn apply_replica_accepts_admin_pull_without_timestamps() {
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-000000000007b";
+    seed_patient(&pool, id, "Replica Local", "2099-01-01 00:00:00").await;
+    let payload = format!(r#"{{"id":"{id}","name":"Admin Authoritative"}}"#);
+    let e = entry("master", 12, "patient", id, "UPDATE", &payload);
+    assert!(
+        apply_remote_entry_phased(
+            &pool,
+            LOCAL_REPLICA,
+            false,
+            true,
+            ConflictPolicy::LastWriteWins,
+            &e,
+        )
+        .await
+        .unwrap()
+    );
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Admin Authoritative");
 }
 
 #[tokio::test]

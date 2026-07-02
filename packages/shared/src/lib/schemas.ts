@@ -118,14 +118,14 @@ export const UpdatePersonalSchema = z
     })
     .strict();
 
-/** Eigenes Konto (Einstellungen) — mindestens ein Feld erforderlich. */
+/** Own account (Einstellungen) — at least one field required. */
 export const UpdateOwnProfileSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
         email: z.string().email("Ungültige E-Mail").optional(),
         taetigkeitsbereich: optionalText,
         fachrichtung: optionalText,
-        /** Leerstring löscht die gespeicherte Nummer (wie Backend). */
+        /** Empty string clears stored number (like backend). */
         telefon: z.string().max(40).optional(),
     })
     .strict()

@@ -53,7 +53,7 @@ export const ClockIcon: FC<{ size?: number }> = ({ size = 14 }) => (
 export const PhoneIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M6 4h3l1 4-2 1a12 12 0 006 6l1-2 4 1v3a2 2 0 01-2 2C9 19 5 15 5 7a2 2 0 012-2z" /></IconBase>;
 export const MailIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M4 7l8 6 8-6" /></IconBase>;
 export const ExportIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 3v12" /><path d="M8 7l4-4 4 4" /><path d="M5 14v5h14v-5" /></IconBase>;
-/** Pfeil nach oben im Kreis — Upload-Zone (`currentColor`, Dark-Mode-tauglich). */
+/** Up arrow in circle — upload zone (`currentColor`, dark-mode friendly). */
 export const UploadCircleIcon: FC<{ size?: number }> = ({ size = 44 }) => (
     <IconBase size={size} aria-hidden>
         <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity={0.12} stroke="currentColor" strokeWidth="1.25" />
@@ -72,7 +72,7 @@ export const SunIcon: FC<{ size?: number }> = ({ size = 18 }) => (
         <path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77" />
     </IconBase>
 );
-/** Einstellungen-Schieberegler — Arbeitsabläufe. */
+/** Einstellungen slider — workflows. */
 export const SlidersHorizontalIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     <IconBase size={size}>
         <path d="M4 21v-6.5M4 10V3M12 21v-3M12 14V3M20 21v-9M20 8V3M9 10h6M14 17h7M7 17H5" />
@@ -86,7 +86,7 @@ export const StethoscopeIcon: FC<{ size?: number }> = ({ size = 18 }) => (
         <path d="M12 11V9" />
     </IconBase>
 );
-/** Schlüssel — Lizenz & Abo. */
+/** Key — license & subscription. */
 export const KeyRoundIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     <IconBase size={size}>
         <path d="M3 14l9.5 9.5a3 3 0 004.24-4.24L10.5 12.5" />
@@ -134,7 +134,7 @@ export const PackageIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase s
 const ChartIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M4 19V9M10 19V5M16 19v-7M22 19v-3" /></IconBase>;
 export const PillIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="4" y="8" width="16" height="8" rx="4" /><path d="M12 8v8" /></IconBase>;
 const DocIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></IconBase>;
-/** Verwaltung / Gebäude — an Lucide „building“ angelehnt; Lizenz siehe `third_party/LICENSES.md`. */
+/** Verwaltung / building — inspired by Lucide "building"; license see `third_party/LICENSES.md`. */
 const BuildingIcon: FC<{ size?: number }> = ({ size = 17 }) => (
     <IconBase size={size}>
         <path d="M6 22V10l6-4 6 4v12" />
@@ -166,13 +166,13 @@ const HelpCircleIconImpl: FC<{ size?: number }> = ({ size = 17 }) => (
     </IconBase>
 );
 
-/** Hilfe-Kreis (Fragezeichen) — z. B. Hilfe-Route. */
+/** Help circle (question mark) — e.g. Hilfe route. */
 export const HelpCircleIcon = HelpCircleIconImpl;
 
-/** Topbar-Info — dieselbe Glyphe wie {@link HelpCircleIcon}. */
+/** Topbar info — same glyph as {@link HelpCircleIcon}. */
 export const InfoIcon = HelpCircleIconImpl;
 
-/** Nur Routen-Pfade (`href`), konsistent mit der Sidebar. Namens-Aliasse siehe {@link NAV_ICON_ALIASES}. */
+/** Route paths only (`href`), consistent with sidebar. Name aliases see {@link NAV_ICON_ALIASES}. */
 export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
   "/": DashboardIcon,
   "/termine": CalendarIcon,
@@ -199,7 +199,7 @@ export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
     "/verwaltung": BuildingIcon,
 };
 
-/** Legacy Schlüssel aus Verwaltungs-Kacheln / eingebetteten Modulen — nicht mit Routen-Pfaden mischen. */
+/** Legacy keys from Verwaltung tiles / embedded modules — do not mix with route paths. */
 export const NAV_ICON_ALIASES: Record<string, FC<{ size?: number }>> = {
     Users: UsersIcon,
     Wallet: WalletIcon,
@@ -208,7 +208,7 @@ export const NAV_ICON_ALIASES: Record<string, FC<{ size?: number }>> = {
     Sparkle: SparkleIcon,
 };
 
-/** Sidebar + Verwaltung: Routen + optionale Namens-Aliasse. */
+/** Sidebar + Verwaltung: routes + optional name aliases. */
 export const NAV_ICONS: Record<string, FC<{ size?: number }>> = {
     ...NAV_ROUTE_ICONS,
     ...NAV_ICON_ALIASES,

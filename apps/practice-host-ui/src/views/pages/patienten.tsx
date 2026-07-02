@@ -333,7 +333,13 @@ export function PatientenPage() {
                                     <div style={{ color: "var(--fg-3)" }}>{p.email || "—"}</div>
                                 </div>
                                 <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                                    <Badge variant={pill.variant}>{pill.label}</Badge>
+                                    {p.status === "NEU" ? (
+                                        <span title={t("patient.status.neu.explanation")}>
+                                            <Badge variant={pill.variant}>{pill.label}</Badge>
+                                        </span>
+                                    ) : (
+                                        <Badge variant={pill.variant}>{pill.label}</Badge>
+                                    )}
                                     {openInv ? (
                                         <span title={t("patient.pill.payment_open_title")}>
                                             <Badge variant="warning">{t("patient.pill.payment_open")}</Badge>

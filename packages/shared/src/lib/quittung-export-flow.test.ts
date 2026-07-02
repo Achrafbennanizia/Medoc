@@ -69,6 +69,6 @@ describe("quittung-export-flow (GAP-11)", () => {
     it("buildQuittungExportForZahlung throws when praxis not ready", async () => {
         const { getInvoicePraxisFromStorage } = await import("@/lib/invoice-leistung");
         vi.mocked(getInvoicePraxisFromStorage).mockReturnValueOnce({ name: "", addr: "" } as never);
-        await expect(buildQuittungExportForZahlung(z)).rejects.toThrow(/Stammdaten/);
+        await expect(buildQuittungExportForZahlung(z)).rejects.toThrow(/Practice master data incomplete/);
     });
 });

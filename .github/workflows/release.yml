@@ -8,6 +8,12 @@ on:
 
 env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_UPDATER_GITHUB_REPO: ${{ github.repository }}
+  # Long-lived read-only PAT for private release assets (NOT the ephemeral GITHUB_TOKEN).
+  MEDOC_UPDATER_GITHUB_TOKEN: ${{ secrets.MEDOC_UPDATER_GITHUB_PAT }}
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+  TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
 
 jobs:
   build-keygen:
@@ -102,6 +108,8 @@ jobs:
           workspaces: . -> target
       - run: npm ci
       - run: npm run build -w medoc
+      - name: Configure Tauri updater (GitHub Releases endpoint)
+        run: node scripts/configure-tauri-updater.mjs
       - name: Tauri bundle
         run: npm run tauri build -w medoc -- --bundles ${{ matrix.bundles }}
       - name: Upload installer
@@ -109,3 +117,27 @@ jobs:
         with:
           name: medoc-installer-${{ matrix.os }}
           path: apps/practice-host/target/release/bundle/**/*
+
+  publish-release:
+    name: Publish GitHub Release (updater manifest)
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [build-installer]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - name: Merge updater latest.json
+        run: |
+          node scripts/merge-updater-latest.mjs release-artifacts > latest.json
+          cat latest.json
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            latest.json
+            release-artifacts/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false

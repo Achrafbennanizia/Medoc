@@ -72,9 +72,9 @@ export function ReportExportPickerDialog({
 
     const resolvedPathLabel = useMemo(() => {
         if (folderOnce?.trim()) return folderOnce.trim();
-        if (pathCfg) return describeResolvedExportPath(pathCfg);
+        if (pathCfg) return describeResolvedExportPath(pathCfg, t);
         return "…";
-    }, [folderOnce, pathCfg]);
+    }, [folderOnce, pathCfg, t]);
 
     const revokePreview = useCallback(() => {
         const u = previewUrlRef.current;
@@ -198,7 +198,7 @@ export function ReportExportPickerDialog({
                 await finishExportWithSettings({
                     format: "csv",
                     title: bundle.exportTitle,
-                    hint: "Komma-getrennt (UTF-8 BOM) für Excel.",
+                    hint: t("export.report.csv_excel_hint"),
                     suggestedFilename: finalName,
                     mime: "text/csv;charset=utf-8",
                     textBody: finanzenTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames),

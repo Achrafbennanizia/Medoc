@@ -152,7 +152,7 @@ export async function deleteBehandlung(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_behandlung", { id });
 }
 
-/** FA-LEIST-05: zur Abrechnung freigeben (nur ärztliche Rolle). */
+/** FA-LEIST-05: release for billing (physician role only). */
 export async function releaseBehandlungForBilling(behandlungId: string): Promise<Behandlung> {
     return practiceSystem.invoke<Behandlung>("release_behandlung_for_billing", { behandlung_id: behandlungId });
 }

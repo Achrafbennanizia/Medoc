@@ -18,16 +18,22 @@ export const DENTAL_STATUS_KEYS = [
 
 export type DentalStatusKey = (typeof DENTAL_STATUS_KEYS)[number];
 
-export const DENTAL_STATES: Record<DentalStatusKey, { fill: string; stroke: string; label: string }> = {
-    healthy: { fill: "var(--dental-healthy-fill)", stroke: "var(--dental-healthy-stroke)", label: "Gesund" },
-    karies: { fill: "var(--dental-karies-fill)", stroke: "var(--dental-karies-stroke)", label: "Karies" },
-    fuellung: { fill: "var(--dental-fuellung-fill)", stroke: "var(--dental-fuellung-stroke)", label: "Füllung" },
-    krone: { fill: "var(--dental-krone-fill)", stroke: "var(--dental-krone-stroke)", label: "Krone" },
-    wurzel: { fill: "var(--dental-wurzel-fill)", stroke: "var(--dental-wurzel-stroke)", label: "Wurzel-Fx" },
-    fehlt: { fill: "transparent", stroke: "var(--dental-fehlt-stroke)", label: "Fehlt" },
-    implantat: { fill: "var(--dental-implantat-fill)", stroke: "var(--dental-implantat-stroke)", label: "Implantat" },
-    geplant: { fill: "var(--dental-geplant-fill)", stroke: "var(--dental-geplant-stroke)", label: "Geplant" },
+export const DENTAL_STATES: Record<DentalStatusKey, { fill: string; stroke: string; labelKey: string }> = {
+    healthy: { fill: "var(--dental-healthy-fill)", stroke: "var(--dental-healthy-stroke)", labelKey: "dental.status.healthy" },
+    karies: { fill: "var(--dental-karies-fill)", stroke: "var(--dental-karies-stroke)", labelKey: "dental.status.karies" },
+    fuellung: { fill: "var(--dental-fuellung-fill)", stroke: "var(--dental-fuellung-stroke)", labelKey: "dental.status.fuellung" },
+    krone: { fill: "var(--dental-krone-fill)", stroke: "var(--dental-krone-stroke)", labelKey: "dental.status.krone" },
+    wurzel: { fill: "var(--dental-wurzel-fill)", stroke: "var(--dental-wurzel-stroke)", labelKey: "dental.status.wurzel" },
+    fehlt: { fill: "transparent", stroke: "var(--dental-fehlt-stroke)", labelKey: "dental.status.fehlt" },
+    implantat: { fill: "var(--dental-implantat-fill)", stroke: "var(--dental-implantat-stroke)", labelKey: "dental.status.implantat" },
+    geplant: { fill: "var(--dental-geplant-fill)", stroke: "var(--dental-geplant-stroke)", labelKey: "dental.status.geplant" },
 };
+
+export type DentalLabelFn = (key: string) => string;
+
+export function dentalStatusLabel(t: DentalLabelFn, key: DentalStatusKey): string {
+    return t(DENTAL_STATES[key].labelKey);
+}
 
 export type DentalToothShapeKey = "incisor" | "canine" | "premolar" | "molar";
 
@@ -81,7 +87,7 @@ export function behandlungenForTooth(behandlungen: Behandlung[], fdi: string): B
 
 /**
  * Split stored Beschwerden text into tag fragments. Semicolons separate tags; commas
- * outside parentheses also separate (legacy), but commas inside `(Zähne 14, 16)` do not.
+ * outside parentheses also separate (legacy), but commas inside German tooth-list parentheticals do not.
  */
 export function splitBeschwerdenParts(raw: string | null | undefined): string[] {
     const t = (raw ?? "").trim();
@@ -133,7 +139,7 @@ export function sortFdiTeeth(teeth: string[]): string[] {
 
 /**
  * Parses one stored Beschwerden fragment for Zahnschmerz + teeth, e.g.
- * `Zahnschmerzen (Zahn 14)` or `Zahnschmerzen (Zähne 14, 16)`.
+ * toothache entries with single or multiple tooth numbers in parentheses.
  */
 export function parseZahnschmerzTeethFromBeschwerdenPart(part: string): string[] | null {
     const p = part.trim();

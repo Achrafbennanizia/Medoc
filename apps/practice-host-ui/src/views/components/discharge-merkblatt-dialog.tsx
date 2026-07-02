@@ -37,11 +37,12 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
     }, [open]);
 
     const suggestedFilename = useMemo(() => {
-        if (!patient) return "Entlassungs-Merkblatt.pdf";
+        if (!patient) return t("discharge.merkblatt.filename");
         const slug = slugPatientName(patient.name);
         const ymd = new Date().toISOString().slice(0, 10);
-        return `Entlassungs-Merkblatt-${slug}-${ymd}.pdf`;
-    }, [patient]);
+        const base = t("discharge.merkblatt.filename").replace(/\.pdf$/i, "");
+        return `${base}-${slug}-${ymd}.pdf`;
+    }, [patient, t]);
 
     const runExport = useCallback(async () => {
         if (!patient) {
@@ -64,8 +65,8 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
             await finishExportWithSettings({
                 format: "pdf",
-                title: "Entlassungs-Merkblatt / Nachsorge",
-                hint: "FA-DOK-08 — kompakte Zusammenfassung für den Patienten.",
+                title: t("discharge.merkblatt.export_title"),
+                hint: t("discharge.merkblatt.export_hint"),
                 suggestedFilename,
                 mime: "application/pdf",
                 binaryBody: bytes,
@@ -82,6 +83,8 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
         zusatzHinweise,
         ueberweisungHinweise,
         suggestedFilename,
+        t,
+        tp,
         toast,
         onClose,
         praxisReadiness.ready,
@@ -95,7 +98,7 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
             footer={
                 <div className="modal-actions" style={{ justifyContent: "flex-end", gap: 8 }}>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-                        Abbrechen
+                        {t("common.cancel")}
                     </Button>
                     <Button type="button" variant="primary" onClick={() => void runExport()} disabled={busy || !patient}>
                         {busy ? t("discharge.merkblatt.creating") : t("discharge.merkblatt.create_pdf")}
@@ -105,8 +108,7 @@ export function DischargeMerkblattDialog({ open, onClose, patientId, patient }: 
         >
             <div className="modal-body stack gap-3" style={{ maxWidth: 520 }}>
                 <p style={{ fontSize: 13, color: "var(--fg-3)", lineHeight: 1.45, margin: 0 }}>
-                    Enthält Stammdaten, die letzte dokumentierte Behandlung, einen Auszug der Rezepte sowie den nächsten Termin.
-                    Freitextfelder sind optional.
+                    {t("discharge.merkblatt.intro")}
                 </p>
                 <label className="stack gap-1" style={{ fontSize: 13 }}>
                     <span style={{ fontWeight: 600 }}>{t("discharge.merkblatt.referral")}</span>

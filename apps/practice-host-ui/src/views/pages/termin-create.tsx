@@ -19,7 +19,7 @@ import {
     type PraxisArbeitszeitenConfig,
 } from "@/lib/praxis-planning";
 import {
-    formatAlternativeSlotsDe,
+    formatAlternativeSlots,
     isTerminConflictErrorMessage,
     suggestAlternativeTerminSlots,
     terminSchedulingBlockReason,
@@ -178,7 +178,7 @@ export function TerminCreatePage() {
     const [statusWunsch, setStatusWunsch] = useState("GEPLANT");
     const [patientError, setPatientError] = useState("");
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
-    /** Strukturierter Plan aus der Akte („Plan nächsten Termin“). */
+    /** Structured plan from Akte (plan-next-Termin workflow). */
     const [doctorPlan, setDoctorPlan] = useState<PlanNextTerminV2 | null>(null);
     const [praxisCfg, setPraxisCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
 
@@ -260,8 +260,8 @@ export function TerminCreatePage() {
         }
         draftRestoredRef.current = true;
         if (isEdit) {
-            // Im Bearbeiten-Modus übernimmt ein eigener useEffect die Datenlast,
-            // der lokale Entwurf wird ignoriert.
+            // In edit mode a dedicated useEffect handles data loading,
+            // local draft is ignored.
             setDraftHydrated(true);
             return;
         }
@@ -577,7 +577,7 @@ export function TerminCreatePage() {
         }
         const durMin = Math.max(5, Number(dauerMin) || 30);
         const startM = uhrzeitToMinutes(uhrzeit);
-        const blockReason = terminSchedulingBlockReason(effectivePraxisCfg, abwesenheiten, datum, startM, startM + durMin);
+        const blockReason = terminSchedulingBlockReason(effectivePraxisCfg, abwesenheiten, datum, startM, startM + durMin, t);
         if (blockReason) {
             toast(blockReason, "error");
             return;
@@ -640,8 +640,9 @@ export function TerminCreatePage() {
                     praxisCfg: effectivePraxisCfg,
                     abwesenheiten,
                     excludeTerminId: isEdit && editId ? editId : undefined,
+                    t,
                 });
-                const hint = formatAlternativeSlotsDe(alts);
+                const hint = formatAlternativeSlots(alts, tp);
                 toast(
                     hint
                         ? tp("termin.create.toast_conflict_alts", { alts: hint })
@@ -837,7 +838,7 @@ export function TerminCreatePage() {
                                                         }}
                                                     >
                                                         <b>{p.name}</b>
-                                                        <span style={{ color: "var(--fg-3)", marginLeft: 8 }}>{p.versicherungsnummer}</span>
+                                                        <span style={{ color: "var(--fg-3)", marginInlineStart: 8 }}>{p.versicherungsnummer}</span>
                                                     </button>
                                                 ))}
                                                 <button

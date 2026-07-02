@@ -22,7 +22,7 @@ export type { PermissionOverride };
 
 export { RBAC_ALL_ACTIONS };
 
-/** Finanzen-Lesezugriff: volle Übersicht oder Kassenbereich (Rezeption). */
+/** Finanzen read access: full overview or cash area (Rezeption). */
 export const FINANZEN_READ_OR_RECEPTION = ["finanzen.read", "finanzen.reception.view"] as const;
 
 export function canReadFinanzen(
@@ -45,7 +45,7 @@ export function parseRole(s: string | undefined): Role | null {
     return null;
 }
 
-/** Rollenmatrix ohne Overrides — generated from `config/rbac.yaml`. */
+/** Role matrix without overrides — generated from `config/rbac.yaml`. */
 function baseAllowed(action: string, role: Role): boolean {
     return baseAllowedGenerated(action, role);
 }
@@ -186,7 +186,7 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "verwaltung/vorlagen": { kind: "action", action: "verwaltung.vorlagen.read" },
     "verwaltung/vorlagen/editor": { kind: "action", action: "verwaltung.vorlagen.write" },
     "verwaltung/behandlungs-katalog": { kind: "action", action: "patient.read_medical" },
-    /** Bestellwesen (nicht `finanzen.*`) — spiegelt Tauri `bestellung.read` / `bestellung.write` für Praxis-Stammdaten. */
+    /** Order management (not `finanzen.*`) — mirrors Tauri `bestellung.read` / `bestellung.write` for practice master data. */
     "verwaltung/bestellstamm": { kind: "action", action: "bestellung.read" },
     "verwaltung/finanzen-werkzeuge": { kind: "action", action: "finanzen.read" },
     "verwaltung/tagesabschluss": { kind: "action", action: "finanzen.tagesabschluss.write" },
@@ -307,15 +307,15 @@ export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavV
     system: { kind: "anyOf", actions: ["ops.backup", "ops.system", "ops.logs"] },
     /** Lizenz-Aktivierung, Abo-Portal — Praxisleitung / IT (ops.system). */
     lizenz: { kind: "action", action: "ops.system" },
-    /** Hersteller-Schnittstellen — nicht für Frontdesk. */
+    /** Manufacturer interfaces — not for front desk. */
     integrationen: { kind: "action", action: "ops.system" },
-    /** Praxis-Stammdaten (Rechnung, Logo) — Praxisleitung. Rezeption: nur über Verwaltung/Frontdesk-relevante Bereiche. */
+    /** Practice master data (invoice, logo) — practice management. Rezeption: only via Verwaltung/front-desk-relevant areas. */
     praxis: { kind: "action", action: "ops.system" },
-    /** Compliance / 2FA-Richtlinien — Praxisleitung; Rezeption sieht Gerätesitzungen unter Konto. */
+    /** Compliance / 2FA policies — practice management; Rezeption sees device sessions under account. */
     sicherheit: { kind: "action", action: "ops.system" },
 };
 
-/** Frontdesk: explizite Allowlist — verhindert „Default = sichtbar“ für Admin-Panels. */
+/** Front desk: explicit allowlist — prevents "default = visible" for admin panels. */
 export const REZEPTION_SETTINGS_SECTIONS: ReadonlySet<SettingsSectionId> = new Set(
     [
         "konto",
@@ -326,7 +326,7 @@ export const REZEPTION_SETTINGS_SECTIONS: ReadonlySet<SettingsSectionId> = new S
     ] satisfies readonly SettingsSectionId[],
 );
 
-/** Geräteverbund admin panel: app RBAC ARZT + ADMIN seat (seat checked in UI/backend). */
+/** Device network admin panel: app RBAC ARZT + ADMIN seat (seat checked in UI/backend). */
 export function canAccessVerbundAdminPanel(rolle: string | undefined): boolean {
     return parseRole(rolle) === "ARZT";
 }

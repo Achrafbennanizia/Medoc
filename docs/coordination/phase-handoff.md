@@ -69,9 +69,10 @@
 
 ### Next
 
-1. Product decision on merge ordering (C8) before merge E2E tests.
-2. Tag release for `release.yml` smoke.
-3. Wave 5 calendar + PDF export fixes.
+1. Tag release for `release.yml` smoke.
+2. Wave 5 calendar + PDF export fixes.
+
+**Merge ordering (C8):** Confirmed — push (member LWW) then pull (admin authoritative via `admin_pull`); see [`serverless-sync.md`](../architecture/serverless-sync.md).
 
 ---
 

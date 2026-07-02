@@ -366,7 +366,7 @@ export function EinstellungenDeploymentSection({
                     title={t("settings.deployment.audit_blocked_title")}
                     subtitle={
                         <>
-                            HTTPS-Server, Pairing und Speichern sind blockiert, bis die Audit-Störung quittiert wird
+                            {t("settings.deployment.audit_blocked")}
                             {auditChain.broken_at ? ` (Eintrag ${auditChain.broken_at.slice(0, 8)}…)` : ""}.
                         </>
                     }

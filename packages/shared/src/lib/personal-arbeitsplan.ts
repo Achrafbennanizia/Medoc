@@ -1,6 +1,6 @@
 /**
- * Lokaler Arbeitsplan pro Mitarbeiter (Einsätze / Schichten) — zur Workflow-Organisation.
- * Persistenz: localStorage (gleiches Gerät).
+ * Local work plan per staff member (assignments / shifts) — for workflow organization.
+ * Persistence: localStorage (same device).
  */
 import { addDays, format, getISODay, parseISO, startOfWeek } from "date-fns";
 import { de as dateFnsDe } from "date-fns/locale/de";
@@ -30,7 +30,7 @@ export type PersonalArbeitsBlock = {
 export type ArbeitsplanSettings = {
     /** Sichtbarer Beginn (Minuten ab Mitternacht) */
     dayStartMin: number;
-    /** Sichtbares Ende (exkl. obere Grenze für Blöcke: max = dayEndMin) */
+    /** Visible end (exclusive upper bound for blocks: max = dayEndMin) */
     dayEndMin: number;
     snapMin: 5 | 10 | 15 | 30 | 60;
     /** Pixel pro Minute (Zoom) */
@@ -58,9 +58,9 @@ export type ArbeitsplanStore = {
     settings: ArbeitsplanSettings;
     presets: ArbeitszeitPreset[];
     weeklyRules: WochenarbeitsRegel[];
-    /** Benannte Pläne (Arbeit/Pause, Gültigkeit, Kaskade) — siehe `arbeitsplan-preferences.ts` */
+    /** Named plans (work/break, validity, cascade) — see `arbeitsplan-preferences.ts` */
     planPreferences: PlanPreference[];
-    /** Additive Entwurfs-Einträge (Hinzufügen / Freistellen) — siehe `arbeitsplan-compose.ts` */
+    /** Additive draft entries (add / time off) — see `arbeitsplan-compose.ts` */
     composeEntries: ArbeitsplanComposeEntry[];
 };
 
@@ -285,7 +285,7 @@ export function newRuleId(): string {
     return globalThis.crypto?.randomUUID?.() ?? `apwr-${Date.now()}`;
 }
 
-/** Minuten seit Mitternacht aus Stunden 0–23, Min 0–59 */
+/** Minutes since midnight from hours 0–23, min 0–59 */
 export function timeToMin(h: number, m: number): number {
     return h * 60 + m;
 }
@@ -340,7 +340,7 @@ export function rulesForDay(
     return rules.filter((r) => r.personalId === personalId && r.weekday === wd);
 }
 
-/** Einfache Farbe pro personalId (UI) — FNV-1a-artige Streuung über HSL-Hue. */
+/** Simple color per personalId (UI) — FNV-1a-like spread over HSL hue. */
 export function hueForPersonal(id: string): number {
     let h = 2166136261;
     for (let i = 0; i < id.length; i++) {

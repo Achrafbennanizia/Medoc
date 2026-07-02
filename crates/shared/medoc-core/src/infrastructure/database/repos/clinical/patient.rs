@@ -138,6 +138,46 @@ pub async fn update(
     Ok(updated)
 }
 
+/// FA-PAT-03: NEU marks first-time visitors with initial appointment(s).
+/// Status expires automatically when their first appointment is completed (`DURCHGEFUEHRT`).
+pub async fn expire_neu_status_after_completed_termin(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<bool, AppError> {
+    let existing = find_by_id(pool, patient_id).await?;
+    let Some(p) = existing else {
+        return Ok(false);
+    };
+    if !p.status.eq_ignore_ascii_case("NEU") {
+        return Ok(false);
+    }
+
+    let result = sqlx::query(
+        "UPDATE patient SET status = 'AKTIV', updated_at = CURRENT_TIMESTAMP WHERE id = ?1 AND status = 'NEU'",
+    )
+    .bind(patient_id)
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Ok(false);
+    }
+
+    let updated = find_by_id(pool, patient_id)
+        .await?
+        .ok_or(AppError::Internal("Update failed".into()))?;
+    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{patient_id}\"}}"));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "patient",
+        patient_id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(true)
+}
+
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     sqlx::query("DELETE FROM patient WHERE id = ?1")
         .bind(id)

@@ -1,4 +1,4 @@
-/** Kompaktes Label+Wert-Feld — gleiche Leselogik wie „Rezepte und Atteste vordefinieren“ / Produkte-Detail. */
+/** Compact label+value field — same read logic as "Rezepte und Atteste vordefinieren" / products detail. */
 export function VerwaltungReadField({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

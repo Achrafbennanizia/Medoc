@@ -12,10 +12,10 @@
       {
         "label": "main",
         "title": "MeDoc",
-        "width": 1280,
-        "height": 800,
+        "width": 1024,
+        "height": 681,
         "minWidth": 1024,
-        "minHeight": 700,
+        "minHeight": 681,
         "resizable": true,
         "fullscreen": false
       }
@@ -62,7 +62,8 @@
       "endpoints": [
         "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
       ],
-      "dialog": true,
+      "dialog": false,
+      "active": false,
       "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBKEY"
     }
   }

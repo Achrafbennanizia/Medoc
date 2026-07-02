@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
     verbundAcceptRequest,
     verbundBlockDevice,
+    verbundGetStatus,
     verbundListDevices,
     verbundListPending,
     verbundReclaimDevice,
@@ -16,6 +17,7 @@ import {
 import { useVerbundStore } from "@/models/store/verbund-store";
 import { useAuthStore } from "@/models/store/auth-store";
 import { canAccessVerbundAdminPanel } from "@/lib/rbac";
+import { VERBUND_ADMIN_PANEL_V1_ENABLED } from "@/lib/v1-ui-flags";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -26,13 +28,24 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
     const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const status = useVerbundStore((s) => s.status);
+    const setStatus = useVerbundStore((s) => s.setStatus);
     const toast = useToastStore((s) => s.add);
     const [pending, setPending] = useState<PendingRequest[]>([]);
     const [devices, setDevices] = useState<GeraetView[]>([]);
     const [sasById, setSasById] = useState<Record<string, string>>({});
     const [busy, setBusy] = useState(false);
 
+    useEffect(() => {
+        if (status != null) return;
+        void verbundGetStatus()
+            .then(setStatus)
+            .catch(() => undefined);
+    }, [status, setStatus]);
+
+    const isMemberDevice = !!status?.provisioned && !status.isOwner;
+
     const allowed =
+        VERBUND_ADMIN_PANEL_V1_ENABLED &&
         session?.rolle &&
         canAccessVerbundAdminPanel(session.rolle) &&
         status?.isOwner;
@@ -52,6 +65,34 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
         void reload();
         void verbundStartListener().catch(() => undefined);
     }, [reload]);
+
+    if (isMemberDevice) {
+        return (
+            <section className="settings-subcard">
+                <div className="card-head">
+                    <div className="card-title">{t("settings.geraeteverbund.member_device_title")}</div>
+                    <div className="card-sub">{t("settings.geraeteverbund.member_device_subtitle")}</div>
+                </div>
+                <div className="settings-row" style={{ alignItems: "flex-start" }}>
+                    <div>
+                        <b>{t("settings.geraeteverbund.activate_new_device")}</b>
+                        <div className="settings-row-muted">
+                            {t("settings.geraeteverbund.activate_new_device_disabled_hint")}
+                        </div>
+                    </div>
+                    <Button type="button" size="sm" disabled title={t("settings.geraeteverbund.ca_owner_only")}>
+                        {t("settings.geraeteverbund.activate_new_device")}
+                    </Button>
+                </div>
+                {status?.localFingerprint ? (
+                    <p className="card-sub" style={{ marginTop: 8 }}>
+                        {t("settings.geraeteverbund.local_fingerprint")}{" "}
+                        <code>{status.localFingerprint}</code>
+                    </p>
+                ) : null}
+            </section>
+        );
+    }
 
     if (!allowed) {
         return embedded ? null : (

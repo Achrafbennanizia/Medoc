@@ -30,7 +30,7 @@ function formatAddrOneLine(addr: string): string {
 export type EinstellungenPraxisSectionProps = {
     sessionUserId: string | undefined;
     onOpenArbeitsablaeufe: () => void;
-    /** Stammdaten bearbeiten (Rechnung, Logo, KV) — ops.system / Praxisleitung. */
+    /** Edit master data (invoice, logo, KV) — ops.system / practice management. */
     canEditPraxis?: boolean;
 };
 

@@ -21,12 +21,12 @@ import {
 
 const STEP_COUNT = 6;
 
-/** Kurze Arbeitspunkte je Schritt — ergänzen den Fließtext. */
+/** Brief bullet points per step — supplement the body text. */
 const STEP_FOCUS_KEY_GROUPS = [["migration.focus.s0_0","migration.focus.s0_1"],["migration.focus.s1_0","migration.focus.s1_1"],["migration.focus.s2_0","migration.focus.s2_1"],["migration.focus.s3_0","migration.focus.s3_1"],["migration.focus.s4_0","migration.focus.s4_1"],["migration.focus.s5_0","migration.focus.s5_1"]] as const;
 
 export type MigrationWizardPageProps = {
     embedded?: boolean;
-    /** Bei eingebetteter Ansicht statt Navigation nach /ops */
+    /** When embedded view instead of navigation to /ops */
     onEmbeddedExit?: () => void;
 };
 
@@ -121,7 +121,7 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
                         <ul
                             style={{
                                 margin: 0,
-                                paddingLeft: 20,
+                                paddingInlineStart: 20,
                                 fontSize: 13,
                                 color: "var(--fg-2)",
                                 lineHeight: 1.55,
@@ -265,7 +265,7 @@ function DeviceFilePanel() {
                 <div style={{ marginTop: 16 }}>
                     <Input id="scan-folder" label={t("migration.device.scan_folder")} value={scanFolder} onChange={(e) => setScanFolder(e.target.value)} placeholder="/Users/…/scans" />
                     <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45 }}>
-                        Öffnen Sie zuerst die System-Scanner-App (Image Capture / Windows Scan / simple-scan) und speichern in diesen Ordner — dann „Liste aktualisieren“.
+                        {t("migration.device.scanner_folder_hint")}
                     </p>
                     <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: "wrap" }}>
                         <Button
@@ -281,7 +281,7 @@ function DeviceFilePanel() {
                                 })();
                             }}
                         >
-                            System-Scanner öffnen
+                            {t("migration.device.scanner_open_btn")}
                         </Button>
                         <Button type="button" onClick={() => void runScan()} disabled={scanBusy} loading={scanBusy}>{t("migration.device.refresh_list")}</Button>
                     </div>

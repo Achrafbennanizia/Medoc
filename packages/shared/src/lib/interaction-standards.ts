@@ -1,6 +1,6 @@
 /**
- * Zahlenwerte für TS/React — visuelle Grundlage ist `index.css` (`:root`, `.icon-btn`, `.btn`, …).
- * Dialogradius = `--radius-card` (16px); Abweichungen nur mit triftigem Grund.
+ * Numeric values for TS/React — visual foundation is `index.css` (`:root`, `.icon-btn`, `.btn`, …).
+ * Dialog radius = `--radius-card` (16px); deviations only with good reason.
  */
 export const INTERACTION_STANDARD = {
     control: {

@@ -25,7 +25,7 @@ function stichtagDefault(): string {
 }
 
 export type TagesabschlussProtokollExtra = {
-    /** PDF-Tagesbericht: alle relevanten B-/U-Leistungen des Stichtags (gesamt), FA-FIN-INVOICE-Layout. */
+    /** PDF daily report: all relevant B/U services for the date (aggregate), FA-FIN-INVOICE layout. */
     tagesberichtPdf: boolean;
 };
 
@@ -33,11 +33,11 @@ export type TagesabschlussFormProps = {
     canWrite: boolean;
     getPatientName: (patientId: string) => string;
     onProtokolliere: (data: CreateTagesabschlussProtokoll, extra: TagesabschlussProtokollExtra) => Promise<void>;
-    /** Wenn gesetzt, Stichtag fix (nur Anzeige). */
+    /** When set, fixed date (display only). */
     fixedStichtag?: string;
     onCancel?: () => void;
     showCancelButton?: boolean;
-    /** Während create läuft (Seite) */
+    /** While create is running (page) */
     saveBusy?: boolean;
 };
 
@@ -284,7 +284,7 @@ export function TagesabschlussForm({
                                     <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
                                     <th>{t("page.tagesabschluss.col.art")}</th>
                                     <th>{t("common.status")}</th>
-                                    <th style={{ textAlign: "right" }}>€</th>
+                                    <th style={{ textAlign: "end" }}>€</th>
                                     <th>{t("page.tagesabschluss.col.cash_checked")}</th>
                                 </tr>
                             </thead>
@@ -302,7 +302,7 @@ export function TagesabschlussForm({
                                         </td>
                                         <td>{z.zahlungsart}</td>
                                         <td>{z.status}</td>
-                                        <td style={{ textAlign: "right" }}>{formatCurrency(z.betrag)}</td>
+                                        <td style={{ textAlign: "end" }}>{formatCurrency(z.betrag)}</td>
                                         <td style={{ textAlign: "center" }}>{(z.kasse_geprueft ?? 0) === 1 ? "✓" : "—"}</td>
                                     </tr>
                                 ))}

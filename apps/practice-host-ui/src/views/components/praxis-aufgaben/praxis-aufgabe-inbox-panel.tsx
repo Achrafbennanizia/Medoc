@@ -89,7 +89,7 @@ export function PraxisAufgabeInboxPanel({ userId, isArzt, isRezeption, active }:
                         <PraxisAufgabeInboxRow
                             key={a.id}
                             aufgabe={a}
-                            patientName={aufgabePatientLabel(a.patient_id, patientMap)}
+                            patientName={aufgabePatientLabel(a.patient_id, patientMap, t("common.dash"))}
                             selected={selectedId === a.id}
                             canOpen={canOpen}
                             onOpen={() => {
@@ -103,8 +103,8 @@ export function PraxisAufgabeInboxPanel({ userId, isArzt, isRezeption, active }:
             {selected && userCanViewAufgabe(selected, userId, { isRezeption }) ? (
                 <PraxisAufgabeDetailDrawer
                     aufgabe={selected}
-                    patientName={aufgabePatientLabel(selected.patient_id, patientMap)}
-                    creatorLabel={personalMap.get(selected.created_by)?.name ?? "—"}
+                    patientName={aufgabePatientLabel(selected.patient_id, patientMap, t("common.dash"))}
+                    creatorLabel={personalMap.get(selected.created_by)?.name ?? t("common.dash")}
                     personal={personal}
                     userId={userId}
                     isArzt={isArzt}

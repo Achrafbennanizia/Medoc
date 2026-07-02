@@ -29,6 +29,8 @@ export interface UpdateInfo {
     latest_version: string;
     update_available: boolean;
     channel: string;
+    release_notes?: string;
+    source?: string;
 }
 
 export const verifyLicense = (token: string) =>
@@ -44,6 +46,9 @@ export const clearLicense = () => practiceSystem.invoke<void>("clear_license");
 
 export const checkForUpdates = () =>
     practiceSystem.invoke<UpdateInfo>("check_for_updates");
+
+export const installAvailableUpdate = () =>
+    practiceSystem.invoke<void>("install_available_update");
 
 export const changePassword = (oldPassword: string, newPassword: string) =>
     practiceSystem.invoke<void>("change_password", { old_password: oldPassword, new_password: newPassword });

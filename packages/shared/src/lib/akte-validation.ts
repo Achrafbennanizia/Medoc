@@ -1,5 +1,5 @@
 /**
- * Akte-Validierung (Doktor bestätigt vom Empfang erfasste Daten).
+ * Akte validation (physician confirms reception-captured data).
  *
  * Persistenz: SQLite `akte_validation` via `validation.controller.ts`.
  */
@@ -19,7 +19,7 @@ export interface ValidationRecord {
     by?: string;
 }
 
-/** Nur noch für Stammdaten + Anamnese (Sektion). */
+/** Only for master data + anamnesis (section). */
 export type ValidationState = Partial<Record<ValidationSection, ValidationRecord>>;
 
 export type ItemValidationKey =
@@ -29,7 +29,7 @@ export type ItemValidationKey =
     | `anl:${string}`
     | `rx:${string}`;
 
-/** Badge: Sektionen stamm/anam + aggregierte Listen (anlage/zahl) über fehlende Item-Validierungen. */
+/** Badge: stamm/anam sections + aggregated lists (anlage/zahl) over missing item validations. */
 export function pendingSections(
     state: ValidationState,
     hasData: Record<ValidationSection, boolean>,

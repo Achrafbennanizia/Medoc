@@ -132,7 +132,7 @@ export function PatientDetailPage() {
     } | null>(null);
     const [katalog, setKatalog] = useState<BehandlungsKatalogItem[]>([]);
     const [selectedBehandTooth, setSelectedBehandTooth] = useState<string | null>(null);
-    /** Anamnese: zuerst nur lesen, Felder nach „Bearbeiten“ freischalten. */
+    /** Anamnese: read-only first, fields unlock after edit action. */
     const [anamEditing, setAnamEditing] = useState(false);
     const [anamQuick, setAnamQuick] = useState({
         versicherungsstatus: "",
@@ -155,12 +155,6 @@ export function PatientDetailPage() {
     const [untersuchungForm, setUntersuchungForm] = useState({
         beschwerden: "", ergebnisse: "", diagnose: "",
     });
-    const [unterBillingForm, setUnterBillingForm] = useState({
-        kategorie: "",
-        leistungsname: "",
-        leistungKatalogId: "",
-        gesamtkosten: "",
-    });
     /** Aufgeklappter Untersuchungs-Eintrag (zeigt strukturierte Detailansicht). */
     const [unterDetailId, setUnterDetailId] = useState<string | null>(null);
     const rezeptTabRef = useRef<PatientDetailRezeptTabHandle>(null);
@@ -176,7 +170,7 @@ export function PatientDetailPage() {
     const [showEditPatient, setShowEditPatient] = useState(false);
     const [akteSaveConfirm, setAkteSaveConfirm] = useState<AkteSavePending | null>(null);
     const [akteSaveBusy, setAkteSaveBusy] = useState(false);
-    /** Wenn Speichern über ein Popup läuft (z. B. Untersuchung), hier den Composer entblocken. */
+    /** When save runs via popup (e.g. Untersuchung), unblock composer here. */
     const [patientDeleteOpen, setPatientDeleteOpen] = useState(false);
     const [patientDeleteBusy, setPatientDeleteBusy] = useState(false);
     const [editForm, setEditForm] = useState({ name: "", telefon: "", email: "", adresse: "" });
@@ -197,7 +191,7 @@ export function PatientDetailPage() {
     const [behandComposerMode, setBehandComposerMode] = useState<"new" | "continue" | null>(null);
     const [continueFromBehandlungId, setContinueFromBehandlungId] = useState<string>("");
     const [behandEditId, setBehandEditId] = useState<string | null>(null);
-    /** Beim Bearbeiten einer Zeile: zuerst Ansicht (gesperrt), dann „Bearbeiten“. Neu/Fortsetzen: sofort frei. */
+    /** When editing a row: view first (locked), then edit. New/continue: unlocked immediately. */
     const [behandFormUnlocked, setBehandFormUnlocked] = useState(true);
     const [behandDeleteId, setBehandDeleteId] = useState<string | null>(null);
     const [unterEdit, setUnterEdit] = useState<Untersuchung | null>(null);
@@ -535,11 +529,11 @@ export function PatientDetailPage() {
                 ? `${zahlNewForm.linkKind}:${zahlNewForm.linkId}`
                 : "";
         if (!v) return;
-        const openOpts = buildOpenZahlLinkSelectOptions(zahlungen, id, behandlungen, untersuchungen);
+        const openOpts = buildOpenZahlLinkSelectOptions(zahlungen, id, behandlungen, untersuchungen, t, tp);
         if (!openOpts.some((o) => o.value === v)) {
             setZahlNewForm((p) => ({ ...p, linkKind: "", linkId: "" }));
         }
-    }, [id, zahlungen, behandlungen, untersuchungen, zahlNewForm.linkKind, zahlNewForm.linkId]);
+    }, [id, zahlungen, behandlungen, untersuchungen, zahlNewForm.linkKind, zahlNewForm.linkId, t, tp]);
 
     useEffect(() => {
         setAnlagen((prev) => {
@@ -726,41 +720,18 @@ export function PatientDetailPage() {
                     unterEditUnlocked={unterEditUnlocked}
                     unterDeleteId={unterDeleteId}
                     canViewClinical={canViewClinical}
-                    showClinicalPrices={showClinicalPrices}
-                    onToggleClinicalPrices={() => setShowClinicalPrices((v) => !v)}
                     onStartNewUntersuchung={() => {
                         setUnterEdit(null);
                         setUnterDeleteId(null);
                         setShowUnterComposer(true);
                     }}
                     onToggleDetail={(id, open) => setUnterDetailId(open ? null : id)}
-                    onReleaseForBilling={async (untersuchungId) => {
-                        try {
-                            const upd = await releaseUntersuchungForBilling(untersuchungId);
-                            setUntersuchungen((prev) => prev.map((x) => (x.id === untersuchungId ? upd : x)));
-                            toast(t("patient.detail.toast.untersuchung_released"), "success");
-                        } catch (e) {
-                            toast(e instanceof Error ? e.message : String(e), "error");
-                        }
-                    }}
                     onStartEdit={(u) => {
                         setUnterDeleteId(null);
                         setShowUnterComposer(false);
                         setUnterEditUnlocked(false);
                         setUnterEdit({ ...u });
-                        setUnterBillingForm({
-                            kategorie: u.kategorie ?? "",
-                            leistungsname: u.leistungsname ?? "",
-                            leistungKatalogId: "",
-                            gesamtkosten:
-                                u.gesamtkosten != null && Number.isFinite(u.gesamtkosten)
-                                    ? String(u.gesamtkosten)
-                                    : "",
-                        });
                     }}
-                    katalog={katalog}
-                    unterBillingForm={unterBillingForm}
-                    setUnterBillingForm={setUnterBillingForm}
                     onRequestDelete={(untersuchungId) => {
                         setUnterEdit(null);
                         setUnterDeleteId(untersuchungId);
@@ -896,7 +867,7 @@ export function PatientDetailPage() {
                     canManageAnlagen={canWriteMedical}
                     canValidate={canViewClinical}
                     onPickFile={(file) => {
-                        const err = validateAnlageFile(file);
+                        const err = validateAnlageFile(t, file);
                         if (err) {
                             toast(err, "error");
                             return;

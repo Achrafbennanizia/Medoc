@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "@/lib/i18n";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -45,7 +46,7 @@ export const useToastStore = create<ToastState>((set) => ({
             type,
             durationMs,
             onUndo: options?.onUndo,
-            undoLabel: options?.undoLabel ?? "Rückgängig",
+            undoLabel: options?.undoLabel ?? t("common.undo"),
         };
         set((s) => ({ toasts: [...s.toasts, toast] }));
     },

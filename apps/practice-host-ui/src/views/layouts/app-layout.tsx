@@ -11,7 +11,7 @@ import { countAktenZuValidieren } from "@/systems/practice-host/controllers/akte
 import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
 import { NAV_SECTIONS } from "@/lib/nav-sections";
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, allowed, parseRole, type NavItemDefinition } from "@/lib/rbac";
-import { useT, useTParams, useLocale, translateLocale } from "@/lib/i18n";
+import { useT, useTParams, useLocale, translateLocale, applyDocumentLocale } from "@/lib/i18n";
 import { breadcrumbKeysForPath } from "@/lib/breadcrumb-keys";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
@@ -121,6 +121,7 @@ export function AppLayout() {
     const [bgBusy, setBgBusy] = useState(false);
     const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
     const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [updateLatestVersion, setUpdateLatestVersion] = useState("");
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
     const [commandOpen, setCommandOpen] = useState(false);
@@ -134,7 +135,7 @@ export function AppLayout() {
     const [wideShellLayout, setWideShellLayout] = useState(() =>
         typeof window !== "undefined" ? window.matchMedia("(min-width: 900px)").matches : true,
     );
-    /** Hilfe-Texte aus dem nativen Menü (Windows/Linux-Menüleiste bzw. macOS-Menü). */
+    /** Help texts from native menu (Windows/Linux menu bar or macOS menu). */
     const [nativeHelpTopic, setNativeHelpTopic] = useState<null | "calendar" | "shortcuts">(null);
     const [praxisSetupOpen, setPraxisSetupOpen] = useState(() => shouldShowPraxisSetupWizard());
     const [aboutOpen, setAboutOpen] = useState(false);
@@ -272,10 +273,7 @@ export function AppLayout() {
     // Throttle activity pings to once every 30 s and poll the session status
     // every minute so the UI auto-redirects on expiry.
     useEffect(() => {
-        document.documentElement.lang = locale;
-        const rtl = locale === "ar";
-        document.documentElement.dir = rtl ? "rtl" : "ltr";
-        document.documentElement.dataset.arabicFont = rtl ? "1" : "";
+        applyDocumentLocale(locale);
     }, [locale]);
 
     useEffect(() => {
@@ -308,7 +306,7 @@ export function AppLayout() {
         return () => mq.removeEventListener("change", sync);
     }, []);
 
-    /** Narrow strip: kein Konto-Menü in der Leiste — nur Anzeige (Name); Menü über Topbar. */
+    /** Narrow strip: no account menu in rail — display only (name); menu via topbar. */
     const sidebarProfileDisplayOnly =
         (wideShellLayout && sidebarRailPref === "icons") || (!wideShellLayout && !mobileNavOpen);
 
@@ -518,7 +516,10 @@ export function AppLayout() {
         window.addEventListener("online", onOnline);
         window.addEventListener("offline", onOffline);
         void checkForUpdates()
-            .then((u) => setUpdateAvailable(Boolean(u.update_available)))
+            .then((u) => {
+                setUpdateAvailable(Boolean(u.update_available));
+                setUpdateLatestVersion(u.latest_version ?? "");
+            })
             .catch((e) => {
                 setUpdateAvailable(false);
                 console.warn("Update check failed", e);
@@ -812,7 +813,7 @@ export function AppLayout() {
             <div
                 className="topbar-actions"
                 style={{
-                    marginLeft: "auto",
+                    marginInlineStart: "auto",
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
@@ -825,12 +826,17 @@ export function AppLayout() {
                         ⌘K
                     </span>
                 </button>
-                {updateAvailable && (
-                    <button className="tb-chip update" onClick={() => navigate("/einstellungen")}>
+                {updateAvailable ? (
+                    <button
+                        className="tb-chip update"
+                        type="button"
+                        onClick={() => navigate("/einstellungen")}
+                        title={tp("app.layout.update_available_title", { version: updateLatestVersion })}
+                    >
                         <DownloadIcon size={12} />
-                        Update 2026.4.3
+                        {tp("app.layout.update_available", { version: updateLatestVersion })}
                     </button>
-                )}
+                ) : null}
                 <SyncStatusBadge />
                 <span className={`tb-chip ${isOnline ? "live" : ""}`}>
                     <WifiIcon size={12} />

@@ -2,7 +2,7 @@ import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.
 import type { PermissionOverride, Personal, Rolle } from "@/models/types";
 import { CreatePersonalSchema, UpdatePersonalSchema, UpdateOwnProfileSchema, parseOrThrow } from "@/lib/schemas";
 
-/** Antwort von `get_own_profile` / `update_own_profile` (ohne Passwort-Hash). */
+/** Response from `get_own_profile` / `update_own_profile` (without password hash). */
 export interface OwnProfileDto {
     user_id: string;
     name: string;
@@ -70,7 +70,7 @@ export async function deletePersonal(id: string): Promise<void> {
     return practiceSystem.invoke("delete_personal", { id });
 }
 
-/** Setzt das Passwort für ein Team-Mitglied (Personalverwaltung, ohne altes Passwort). */
+/** Sets password for a team member (staff management, without old password). */
 export async function setPersonalPasswordByAdmin(
     id: string,
     newPassword: string,
@@ -104,12 +104,12 @@ export async function resetPersonalPermissionOverrides(personalId: string): Prom
     return practiceSystem.invoke<number>("reset_personal_permission_overrides", { personal_id: personalId });
 }
 
-/** ALLOW für jede RBAC-Aktion aus `config/rbac.yaml`. */
+/** ALLOW for each RBAC action from `config/rbac.yaml`. */
 export async function grantPersonalAllPermissions(personalId: string): Promise<number> {
     return practiceSystem.invoke<number>("grant_personal_all_permissions", { personal_id: personalId });
 }
 
-/** Entsperrt Brute-Force-Sperre für ein Team-Mitglied (Admin). */
+/** Unlocks brute-force lock for a team member (admin). */
 export async function adminUnlockBruteForce(targetEmail: string): Promise<number> {
     return practiceSystem.invoke<number>("admin_unlock_brute_force", { target_email: targetEmail.trim() });
 }

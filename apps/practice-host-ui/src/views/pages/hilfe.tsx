@@ -9,7 +9,7 @@ import { Card, CardHeader } from "../components/ui/card";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 
 export type HilfePageProps = {
-    /** In Einstellungen eingebettet: keine Sprünge zu anderen Routen */
+    /** Embedded in Einstellungen: no jumps to other routes */
     embedded?: boolean;
 };
 

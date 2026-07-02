@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import type { AkteAnlage } from "@/lib/akte-anlagen";
 import { AkteAnlagenPanel } from "@/views/components/akte-anlagen-panel";
 import { Card } from "@/views/components/ui/card";
@@ -39,14 +40,15 @@ export function PatientDetailAnlageTab({
     formatAddedAt,
     onScannerClick,
 }: PatientDetailAnlageTabProps) {
+    const t = useT();
     return (
         <div id="panel-anlage" role="tabpanel" aria-labelledby="tab-anlage">
             <Card className="card-pad">
                 <AkteAnlagenPanel
                     subtitle={
                         hasAnlagen
-                            ? "Je Datei einzeln durch den Arzt bestätigen — Aktionen über das Menü (···)."
-                            : "Noch keine Anlagen — Datei hierher ziehen oder „Datei wählen“."
+                            ? t("patient.anlage.menu_hint")
+                            : t("patient.anlage.empty_title")
                     }
                     anlagen={anlagen}
                     fileInputId={fileInputId}

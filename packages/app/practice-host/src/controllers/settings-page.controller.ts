@@ -1,18 +1,18 @@
 /**
- * Zentrale IPC-Funktionen für die Einstellungen-Seite sowie eingebettete Bereiche
- * (LAN-Host, eingebettete Bereiche).
+ * Central IPC functions for Einstellungen page and embedded sections
+ * (LAN host, embedded sections).
  *
- * **`medoc-server` (LAN)** — dieselben Praxis-KV-Schlüssel wie Tauri `get_app_kv` / `set_app_kv`:
- * `GET /api/v1/app-kv?key=…`, `PUT /api/v1/app-kv` mit `{ key, value }`, `DELETE /api/v1/app-kv?key=…`
- * (JWT `Bearer`, RBAC wie `application/app_kv_policy.rs`).
+ * **`medoc-server` (LAN)** — same practice KV keys as Tauri `get_app_kv` / `set_app_kv`:
+ * `GET /api/v1/app-kv?key=…`, `PUT /api/v1/app-kv` with `{ key, value }`, `DELETE /api/v1/app-kv?key=…`
+ * (JWT `Bearer`, RBAC as in `application/app_kv_policy.rs`).
  *
- * **Eigenes Konto (Profil):** Tauri `get_own_profile` / `update_own_profile`; LAN spiegelt
- * `GET /api/v1/me`, `PATCH /api/v1/me` mit JSON-Körper wie `UpdateOwnProfile` (nur geänderte Felder).
+ * **Own account (profile):** Tauri `get_own_profile` / `update_own_profile`; LAN mirrors
+ * `GET /api/v1/me`, `PATCH /api/v1/me` with JSON body like `UpdateOwnProfile` (changed fields only).
  *
- * **Hersteller-Portal (LAN-Spiegel):** mit JWT und Rolle `ops.system` — `GET /api/v1/company/summary`,
+ * **Manufacturer portal (LAN mirror):** with JWT and role `ops.system` — `GET /api/v1/company/summary`,
  * `GET /api/v1/company/integrations/status`, `GET /api/v1/company/feature-flags`, `POST /api/v1/company/billing/portal-session`
- * (leerer JSON-Körper). Nutzt dieselbe Praxis-KV-Konfiguration wie der Desktop (`company.portal.config.v1`).
- * UI-Store (`useUiPreferencesStore`), Bestätigungsdialoge — bewusst nur auf diesem Gerät.
+ * (empty JSON body). Uses same practice KV configuration as desktop (`company.portal.config.v1`).
+ * UI store (`useUiPreferencesStore`), confirmation dialogs — intentionally device-local only.
  */
 
 export {
@@ -20,6 +20,7 @@ export {
     changePassword,
     checkForUpdates,
     currentAppVersion,
+    installAvailableUpdate,
     type DetectedPhotoViewerApp,
     getPerfThresholdMs,
     listDetectedPhotoViewerApps,
@@ -29,6 +30,7 @@ export {
     systemHealthCheck,
     type HealthCheck,
     type LicenseStatus,
+    type UpdateInfo,
     verifyLicense,
     activateLicense,
     currentLicenseStatus,

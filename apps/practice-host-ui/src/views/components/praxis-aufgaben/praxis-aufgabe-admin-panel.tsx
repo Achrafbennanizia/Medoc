@@ -83,12 +83,18 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
             if (filterStatus && r.status !== filterStatus) return false;
             if (filterTyp && r.typ !== filterTyp) return false;
             if (!q) return true;
-            const hay = [r.titel, r.body ?? "", r.typ, r.status, aufgabePatientLabel(r.patient_id, patientMap)]
+            const hay = [
+                r.titel,
+                r.body ?? "",
+                r.typ,
+                r.status,
+                aufgabePatientLabel(r.patient_id, patientMap, t("common.dash")),
+            ]
                 .join(" ")
                 .toLowerCase();
             return hay.includes(q);
         });
-    }, [rows, search, filterStatus, filterTyp, patientMap]);
+    }, [rows, search, filterStatus, filterTyp, patientMap, t]);
 
     const statusCounts = useMemo(() => {
         const counts: Record<string, number> = { "": rows.length };
@@ -193,7 +199,7 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
                 {embedded ? (
                     <Button type="button" variant="primary" onClick={() => navigate(CREATE_HREF)}>
                         <PlusIcon size={16} />
-                        Neue Aufgabe
+                        {t("breadcrumb.new_task")}
                     </Button>
                 ) : null}
             </div>
@@ -228,7 +234,7 @@ export function PraxisAufgabeAdminPanel({ embedded = false, backHref = "/verwalt
             {selected ? (
                 <PraxisAufgabeDetailDrawer
                     aufgabe={selected}
-                    patientName={aufgabePatientLabel(selected.patient_id, patientMap)}
+                    patientName={aufgabePatientLabel(selected.patient_id, patientMap, t("common.dash"))}
                     creatorLabel={personalMap.get(selected.created_by)?.name ?? t("common.dash")}
                     personal={personal}
                     userId={userId}

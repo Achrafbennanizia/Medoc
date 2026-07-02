@@ -7,42 +7,66 @@ export type { DocumentKind };
 
 export type PraxisReadinessResult = {
     ready: boolean;
-    missingFields: { field: string; label: string }[];
+    missingFields: { field: string; labelKey: string }[];
 };
 
-const RULES: Record<
-    DocumentKind,
-    { field: keyof InvoicePraxis | "addr"; label: string }[]
-> = {
+type TFn = (key: string) => string;
+type TParamsFn = (key: string, params: Record<string, string | number>) => string;
+
+const FIELD_LABEL_KEYS: Partial<Record<keyof InvoicePraxis | "addr", string>> = {
+    name: "praxis.setup.practice_name",
+    addr: "praxis.setup.address",
+    behandler_name: "praxis.setup.behandler",
+    zanr: "praxis.setup.zanr",
+    bsnr: "praxis.setup.bsnr",
+    bankverbindung_iban: "praxis.setup.iban",
+    bankverbindung_bic: "praxis.setup.bic",
+    bankverbindung_bank: "praxis.setup.bank",
+    telefon: "praxis.setup.phone",
+    email: "praxis.setup.email",
+    berufsbezeichnung: "praxis.setup.berufsbezeichnung",
+    steuernummer: "praxis.setup.tax_number",
+    ust_id: "praxis.setup.tax_id",
+    ust_befreiung_hinweis: "praxis.setup.tax_exempt",
+};
+
+const RULES: Record<DocumentKind, { field: keyof InvoicePraxis | "addr" }[]> = {
     rechnung: [
-        { field: "name", label: "Praxisname" },
-        { field: "addr", label: "Adresse" },
-        { field: "behandler_name", label: "Behandler-Name" },
-        { field: "zanr", label: "ZANR" },
-        { field: "bsnr", label: "BSNR" },
-        { field: "bankverbindung_iban", label: "IBAN" },
+        { field: "name" },
+        { field: "addr" },
+        { field: "behandler_name" },
+        { field: "zanr" },
+        { field: "bsnr" },
+        { field: "bankverbindung_iban" },
     ],
     rezept: [
-        { field: "name", label: "Praxisname" },
-        { field: "addr", label: "Adresse" },
-        { field: "behandler_name", label: "Behandler-Name" },
-        { field: "zanr", label: "ZANR" },
-        { field: "bsnr", label: "BSNR" },
+        { field: "name" },
+        { field: "addr" },
+        { field: "behandler_name" },
+        { field: "zanr" },
+        { field: "bsnr" },
     ],
     attest: [
-        { field: "name", label: "Praxisname" },
-        { field: "addr", label: "Adresse" },
-        { field: "behandler_name", label: "Behandler-Name" },
-        { field: "zanr", label: "ZANR" },
-        { field: "bsnr", label: "BSNR" },
+        { field: "name" },
+        { field: "addr" },
+        { field: "behandler_name" },
+        { field: "zanr" },
+        { field: "bsnr" },
     ],
-    quittung: [
-        { field: "name", label: "Praxisname" },
-        { field: "addr", label: "Adresse" },
-    ],
-    akte: [{ field: "name", label: "Praxisname" }],
-    tagesbericht: [{ field: "name", label: "Praxisname" }],
-    audit_list: [{ field: "name", label: "Praxisname" }],
+    quittung: [{ field: "name" }, { field: "addr" }],
+    akte: [{ field: "name" }],
+    tagesbericht: [{ field: "name" }],
+    audit_list: [{ field: "name" }],
+};
+
+const DOCUMENT_KIND_KEYS: Record<DocumentKind, string> = {
+    rechnung: "praxis.readiness.kind.rechnung",
+    rezept: "praxis.readiness.kind.rezept",
+    attest: "praxis.readiness.kind.attest",
+    quittung: "praxis.readiness.kind.quittung",
+    tagesbericht: "praxis.readiness.kind.tagesbericht",
+    akte: "praxis.readiness.kind.akte",
+    audit_list: "praxis.readiness.kind.audit_list",
 };
 
 function fieldEmpty(praxis: InvoicePraxis, field: keyof InvoicePraxis | "addr"): boolean {
@@ -59,8 +83,15 @@ export function checkPraxisDocumentReadiness(
     const rules = RULES[documentKind] ?? RULES.akte;
     const missingFields = rules
         .filter((r) => fieldEmpty(praxis, r.field))
-        .map((r) => ({ field: String(r.field), label: r.label }));
+        .map((r) => ({
+            field: String(r.field),
+            labelKey: FIELD_LABEL_KEYS[r.field] ?? `praxis.setup.${String(r.field)}`,
+        }));
     return { ready: missingFields.length === 0, missingFields };
+}
+
+export function praxisMissingFieldLabel(t: TFn, field: { labelKey: string }): string {
+    return t(field.labelKey);
 }
 
 export function shouldShowPraxisSetupWizard(): boolean {
@@ -79,21 +110,15 @@ export function dismissPraxisSetupWizard(): void {
     }
 }
 
-export function praxisReadinessDialogBody(documentKind: DocumentKind, missing: PraxisReadinessResult["missingFields"]): string {
-    const labels = missing.map((m) => m.label).join(", ");
-    const kindLabel =
-        documentKind === "rechnung"
-            ? "Rechnungen"
-            : documentKind === "rezept"
-              ? "Rezepte"
-              : documentKind === "attest"
-                ? "Atteste"
-                : documentKind === "quittung"
-                  ? "Quittungen"
-                  : documentKind === "tagesbericht"
-                    ? "Tagesberichte"
-                    : documentKind === "akte"
-                      ? "Patientenakten"
-                      : "Dokumente";
-    return `Für ${kindLabel} werden folgende Angaben benötigt: ${labels}. Bitte unter Einstellungen › Praxis ausfüllen.`;
+export function praxisReadinessDialogBody(
+    t: TFn,
+    tp: TParamsFn,
+    documentKind: DocumentKind,
+    missing: PraxisReadinessResult["missingFields"],
+): string {
+    const labels = missing.map((m) => t(m.labelKey)).join(", ");
+    return tp("praxis.readiness.body", {
+        kind: t(DOCUMENT_KIND_KEYS[documentKind]),
+        fields: labels,
+    });
 }

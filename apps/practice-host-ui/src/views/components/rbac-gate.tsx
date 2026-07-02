@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useT } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
 import type { NavVisibility, Role } from "@/lib/rbac";
 
@@ -71,23 +72,24 @@ export function CanRoute({
 
 /** Full-page message when a route or section is not permitted. */
 export function AccessDeniedView({
-    title = "Kein Zugriff",
-    detail = "Für Ihre Rolle ist dieser Bereich nicht freigegeben.",
+    title,
+    detail,
 }: {
     title?: string;
     detail?: string;
 }) {
+    const t = useT();
     return (
         <div className="card card-pad animate-fade-in" role="alert" style={{ maxWidth: 520, margin: "24px auto" }}>
             <h2 className="page-title" style={{ fontSize: "1.15rem" }}>
-                {title}
+                {title ?? t("rbac.access_denied_title")}
             </h2>
             <p className="page-sub" style={{ marginTop: 8 }}>
-                {detail}
+                {detail ?? t("rbac.access_denied_detail")}
             </p>
             <p style={{ marginTop: 16 }}>
                 <Link to="/" className="btn btn-primary">
-                    Zum Dashboard
+                    {t("rbac.to_dashboard")}
                 </Link>
             </p>
         </div>

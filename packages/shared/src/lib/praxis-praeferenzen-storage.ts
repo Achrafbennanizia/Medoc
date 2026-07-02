@@ -1,5 +1,5 @@
 /**
- * Termin-Puffer / Reminder / No-Show — authoritative copy in SQLite `app_kv`
+ * Termin buffer / reminder / no-show — authoritative copy in SQLite `app_kv`
  * under {@link PRAXIS_TERMIN_PREFERENCES_KV_KEY} (migrated from legacy `praxis.preferences.v1`
  * field `terminPlanning` and from removed browser cache).
  */
@@ -20,13 +20,13 @@ export const PRAXIS_TERMIN_PREFERENCES_KV_KEY =
 /** @deprecated Legacy `localStorage` key — cleared on migration. */
 export const PRAXIS_PRAEFERENZEN_LS_KEY = "medoc-praxis-praeferenzen-v1";
 
-/** Schwellen für die Anzahl **Termine** pro Tag in der Monatsansicht (Farb-Badge). */
+/** Thresholds for **Termin** count per day in month view (color badge). */
 export type MonthCalendarPatientLoadPrefs = {
-    /** Bis einschließlich: Stufe „wenig“. */
+    /** Up to and including: "wenig" tier. */
     fewMax: number;
-    /** Bis einschließlich: Stufe „mittel“ (darüber = „hoch“). Muss &gt; {@link fewMax}. */
+    /** Up to and including: "mittel" tier (above = "hoch"). Must be &gt; {@link fewMax}. */
     mediumMax: number;
-    /** Hex-Farben (#RRGGBB), für Fläche/Rand im Kalender */
+    /** Hex colors (#RRGGBB), for surface/border in calendar */
     colorFew: string;
     colorMedium: string;
     colorHigh: string;
@@ -40,7 +40,7 @@ export const DEFAULT_MONTH_CAL_PATIENT_LOAD: MonthCalendarPatientLoadPrefs = {
     colorHigh: "#EF4444",
 };
 
-/** Stufe aus der **Terminanzahl** eines Tages (Monatskalender-Badge). */
+/** Tier from **Termin count** of a day (month calendar badge). */
 export type MonthCalPatientLoadTier = "few" | "medium" | "high";
 
 export function normalizeMonthCalendarPatientLoad(

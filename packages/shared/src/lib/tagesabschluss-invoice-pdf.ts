@@ -7,14 +7,15 @@ import {
     buildInvoiceHeaderAddressLinesForExport,
     getInvoicePraxisFromStorage,
 } from "@/lib/invoice-leistung";
-import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
+import { checkPraxisDocumentReadiness, praxisMissingFieldLabel } from "@/lib/praxis-completeness";
+import { translateLocale } from "@/lib/i18n";
 import { openExportPreview } from "@/models/store/export-preview-store";
 import type { Patient, Zahlung } from "@/models/types";
 
 type PatientName = Pick<Patient, "id" | "name" | "adresse">;
 
 /**
- * Tagesbericht (PDF) für den Stichtag — alle Patienten mit B/U-Zuordnung an diesem Tag, gleicher Druck-Backend (FA-FIN-INVOICE), kein einzelner Patienten-Empfänger.
+ * Daily report (PDF) for the date — all Patients with B/U assignment that day, same print backend (FA-FIN-INVOICE), no single patient recipient.
  */
 export async function downloadTagesabschlussBerichtPdf(
     row: TagesabschlussProtokoll,
@@ -43,7 +44,7 @@ export async function downloadTagesabschlussBerichtPdf(
             const akte = await getAkte(pid);
             [beh, unters] = await Promise.all([listBehandlungen(akte.id), listUntersuchungen(akte.id)]);
         } catch {
-            // Akte fehlt — Zeilen trotzdem leer oder nur generisch
+            // Akte missing — lines still empty or generic only
         }
         const part = buildTagesberichtLines(stichtag, pid, zahlungen, beh, unters);
         for (const l of part) {
@@ -69,8 +70,12 @@ export async function downloadTagesabschlussBerichtPdf(
     const praxis = getInvoicePraxisFromStorage();
     const readiness = checkPraxisDocumentReadiness(praxis, "tagesbericht");
     if (!readiness.ready) {
-        const labels = readiness.missingFields.map((m) => m.label).join(", ");
-        throw new Error(`Praxis-Stammdaten unvollständig (${labels}). Bitte unter Einstellungen › Praxis ausfüllen.`);
+        const labels = readiness.missingFields
+            .map((m) => praxisMissingFieldLabel((k) => translateLocale("en", k), m))
+            .join(", ");
+        throw new Error(
+            `Practice master data incomplete (${labels}). Please fill in Settings › Practice.`,
+        );
     }
     const num = await allocateBerichtNummer(stichtag);
     const bankLines: string[] = [];

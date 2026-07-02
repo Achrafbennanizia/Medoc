@@ -1,4 +1,4 @@
-/** Leerer Bogen (wird bei neuer Akte angelegt / im UI als Startpunkt genutzt). */
+/** Empty form (created with new Akte / used as UI starting point). */
 export const EMPTY_ANAMNESE_V1_JSON = JSON.stringify(
     { version: 1, vorerkrankungen: {}, medikation: {}, allergien: {} },
     null,
@@ -34,7 +34,12 @@ export const ANAMNESE_SECTION_LABELS: Record<string, string> = {
     impfreaktionen: "Impfreaktionen",
 };
 
-export function anamneseLabelFor(key: string): string {
+export function anamneseLabelFor(key: string, t?: (key: string) => string): string {
+    if (t) {
+        const i18nKey = `anamnese.field.${key}`;
+        const translated = t(i18nKey);
+        if (translated !== i18nKey) return translated;
+    }
     return ANAMNESE_SECTION_LABELS[key] ?? key.replace(/_/g, " ");
 }
 
@@ -76,7 +81,7 @@ export function parseAnamneseV1(json: string): AnamneseV1 | null {
     }
 }
 
-/** Kurzzeile für Stammdaten-Karte (z. B. Versicherung + Risiko). */
+/** Short line for master data card (e.g. insurance + risk). */
 export function anamneseSummaryLine(v1: AnamneseV1 | null): string | null {
     if (!v1) return null;
     const bits: string[] = [];

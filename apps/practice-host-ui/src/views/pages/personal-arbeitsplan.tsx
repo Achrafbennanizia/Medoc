@@ -62,7 +62,7 @@ import { listArbeitsplanAdjustments } from "@/systems/practice-host/controllers/
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 
 const DND_MIME = "application/x-medoc-arbeitsblock";
-/** Maximale sichtbare Timeline-Höhe (px) — Tagesansicht; Woche nutzt horizontale Minizeilen. */
+/** Max visible timeline height (px) — day view; week uses horizontal mini rows. */
 const MAX_TIMELINE_PX = 256;
 
 const ALL_DAYS: Array<1 | 2 | 3 | 4 | 5 | 6 | 7> = [1, 2, 3, 4, 5, 6, 7];
@@ -177,7 +177,7 @@ function horizontalSegmentsForDay(
     daySpan: number,
     compose: ComposeCalOpts | null,
 ): HSeg[] {
-    if (compose && compose.use && compose.focusId === personalId) {
+    if (compose && personUsesComposeDraft(personalId, compose.use, compose.entries)) {
         if (filterLayer === "break") return [];
         const ivs = resolveComposeWorkIntervals(personalId, ymdStr, compose.entries);
         return ivs.map((seg, i) => {
@@ -214,7 +214,7 @@ function dayMinutesForDisplay(
     kind: FilterLayer,
     compose: ComposeCalOpts | null,
 ): number {
-    if (compose && compose.use && compose.focusId === personalId) {
+    if (compose && personUsesComposeDraft(personalId, compose.use, compose.entries)) {
         if (kind === "break") return 0;
         const m = composeWorkMinutesForDay(personalId, ymdStr, compose.entries);
         if (kind === "work" || kind === "net") return m;
@@ -223,7 +223,7 @@ function dayMinutesForDisplay(
     return dayMinutesForPerson(personalId, ymdStr, prefs, kind);
 }
 
-/** Anzeige Soll‑Arbeitsintervalle (Brutto) für die Mitarbeiter-Übersicht */
+/** Display target work intervals (gross) for staff overview */
 function formatWorkDayRanges(workRaw: [number, number][]): string {
     if (workRaw.length === 0) return "—";
     return workRaw.map(([a, b]) => `${minToLabel(a)} – ${minToLabel(b)}`).join(" · ");
@@ -233,7 +233,48 @@ function totalIntervalMinutes(iv: [number, number][]): number {
     return iv.reduce((s, [a, b]) => s + (b - a), 0);
 }
 
-/** z. B. 7 h 30 min */
+function personUsesComposeDraft(
+    personalId: string,
+    useComposeInCal: boolean,
+    entries: ArbeitsplanComposeEntry[],
+): boolean {
+    return useComposeInCal && entries.some((e) => e.personalId === personalId);
+}
+
+function personHasComposeEntries(personalId: string, entries: ArbeitsplanComposeEntry[]): boolean {
+    return entries.some((e) => e.personalId === personalId);
+}
+
+function sollDayBreakdown(
+    personalId: string,
+    ymdStr: string,
+    planPreferences: PlanPreference[],
+    composeEntries: ArbeitsplanComposeEntry[],
+) {
+    if (personHasComposeEntries(personalId, composeEntries)) {
+        const workRaw = resolveComposeWorkIntervals(personalId, ymdStr, composeEntries);
+        const workMin = totalIntervalMinutes(workRaw);
+        return {
+            workRaw,
+            breakRaw: [] as [number, number][],
+            net: workRaw,
+            workMin,
+            breakMin: 0,
+            netMin: workMin,
+        };
+    }
+    const { workRaw, breakRaw, net } = buildNetWorkForDay(personalId, ymdStr, planPreferences);
+    return {
+        workRaw,
+        breakRaw,
+        net,
+        workMin: totalIntervalMinutes(workRaw),
+        breakMin: totalIntervalMinutes(breakRaw),
+        netMin: totalIntervalMinutes(net),
+    };
+}
+
+/** e.g. 7 h 30 min */
 function formatDurationMins(
     mins: number,
     tp: (key: string, params: Record<string, string | number>) => string,
@@ -413,7 +454,7 @@ function ArbeitsplanComposeCard(props: {
                                         style={{ justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12.5, lineHeight: 1.35, padding: "6px 8px", borderRadius: 6, background: "var(--surface-1)" }}
                                     >
                                         <span>
-                                            <span style={{ color: e.kind === "cut_range" ? "#B45309" : "var(--accent)", fontWeight: 700, marginRight: 6 }}>{e.kind === "cut_range" ? "−" : "+"}</span>
+                                            <span style={{ color: e.kind === "cut_range" ? "#B45309" : "var(--accent)", fontWeight: 700, marginInlineEnd: 6 }}>{e.kind === "cut_range" ? "−" : "+"}</span>
                                             {composeEntryLine(e, t, tp, dayShort)}
                                         </span>
                                         {canWrite ? (
@@ -619,28 +660,34 @@ export function PersonalArbeitsplanPage() {
         return h;
     };
 
-    const employeeSollForReferenceDay = useMemo(
-        () => sortedP.map((p) => {
-            if (useComposeInCal && composeFocusId === p.id) {
-                const workRaw = resolveComposeWorkIntervals(p.id, dayYmd, composeEntries);
-                const netM = workRaw.reduce((s, [a, b]) => s + (b - a), 0);
-                return {
-                    personal: p,
-                    sollArbeit: formatWorkDayRanges(workRaw),
-                    pausenMin: 0,
-                    nettoMin: netM,
-                };
+    const referenceDays = useMemo(() => {
+        if (view === "day") return [dayYmd];
+        if (view === "week") return weekDays.map(ymd);
+        return monthDays.filter((d) => isSameMonth(d, monthStart)).map(ymd);
+    }, [view, dayYmd, weekDays, monthDays, monthStart]);
+
+    const employeeSollRows = useMemo(() => {
+        const singleDay = referenceDays.length === 1;
+        return sortedP.map((p) => {
+            let workMin = 0;
+            let breakMin = 0;
+            let netMin = 0;
+            let dayWorkRaw: [number, number][] = [];
+            for (const d of referenceDays) {
+                const b = sollDayBreakdown(p.id, d, planPreferences, composeEntries);
+                workMin += b.workMin;
+                breakMin += b.breakMin;
+                netMin += b.netMin;
+                if (singleDay) dayWorkRaw = b.workRaw;
             }
-            const { workRaw, breakRaw, net } = buildNetWorkForDay(p.id, dayYmd, planPreferences);
             return {
                 personal: p,
-                sollArbeit: formatWorkDayRanges(workRaw),
-                pausenMin: totalIntervalMinutes(breakRaw),
-                nettoMin: totalIntervalMinutes(net),
+                sollArbeit: singleDay ? formatWorkDayRanges(dayWorkRaw) : formatDurationMins(workMin, tp),
+                pausenMin: breakMin,
+                nettoMin: netMin,
             };
-        }),
-        [sortedP, dayYmd, planPreferences, useComposeInCal, composeFocusId, composeEntries],
-    );
+        });
+    }, [sortedP, referenceDays, planPreferences, composeEntries, tp]);
 
     const toggleFilterPerson = (id: string) => {
         setFilterPersonSet((s) => {
@@ -826,7 +873,7 @@ export function PersonalArbeitsplanPage() {
                     }}
                 />
                 </div>
-                <div className="card card-pad arbeitsplan-cal-card" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overflow: "hidden" }}>
+                <div className="card card-pad arbeitsplan-cal-card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>{t("page.arbeitsplan.calendar.all_filtered")}</h2>
                     <p className="arbeitsplan-cal-preface" style={{ fontSize: 12, color: "var(--fg-3)", margin: 0, lineHeight: 1.35 }}>
                         {t("page.arbeitsplan.calendar.preface")}
@@ -834,7 +881,7 @@ export function PersonalArbeitsplanPage() {
                     <div className="arbeitsplan-cal-panel">
                     <div className="arbeitsplan-filter-bar arbeitsplan-filter-bar--compact" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <div className="arbeitsplan-filter-btns" style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-                            <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, marginRight: 2 }}>{t("page.arbeitsplan.display")}</span>
+                            <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, marginInlineEnd: 2 }}>{t("page.arbeitsplan.display")}</span>
                             {(["work", "break", "both", "net"] as const).map((k) => (
                                 <button
                                     key={k}
@@ -945,6 +992,7 @@ export function PersonalArbeitsplanPage() {
                     ) : null}
                     {view === "week" && activePeople.length > 0 ? (
                         <div className="arbeitsplan-cal-embed" key={`w-${getISOWeek(weekStart)}-${dragKey}`}>
+                            <div className="arbeitsplan-week-matrix-wrap">
                             <div className="arbeitsplan-week-matrix" role="grid" aria-label={t("page.arbeitsplan.week.aria")}>
                                 <div className="arbeitsplan-week-matrix__corner" aria-hidden>{t("page.arbeitsplan.week.corner")}</div>
                                 {weekDays.map((d) => {
@@ -989,6 +1037,7 @@ export function PersonalArbeitsplanPage() {
                                     </Fragment>
                                 ))}
                             </div>
+                            </div>
                             <p className="arbeitsplan-week-hint" style={{ fontSize: 10.5, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.3 }}>
                                 {tp("page.arbeitsplan.week.hint", { start: minToLabel(minD), end: minToLabel(maxD) })}
                             </p>
@@ -1000,6 +1049,9 @@ export function PersonalArbeitsplanPage() {
 
             <div className="card card-pad">
                 <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitsplan.soll_table.title")}</h2>
+                <p className="card-sub" style={{ margin: "4px 0 12px" }}>
+                    {tp("page.arbeitsplan.soll_table.period_hint", { period: periodLabel })}
+                </p>
                 <div className="arbeitsplan-table-wrap">
                     {sortedP.length === 0 ? (
                         <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 13 }}>{t("page.arbeitsplan.empty.no_staff")}</p>
@@ -1014,7 +1066,7 @@ export function PersonalArbeitsplanPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {employeeSollForReferenceDay.map((row) => (
+                                {employeeSollRows.map((row) => (
                                     <tr key={row.personal.id} className="arbeitsplan-employee-soll__row">
                                         <td>
                                             <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{row.personal.name}</span>
@@ -1173,9 +1225,9 @@ function WeekAggregateSegments({ ymdStr, people, prefs, kind, minD, daySpan, com
 }) {
     const segs: Array<{ top: number; h: number; c: string }> = [];
     for (const person of people) {
-        if (composeCal && composeCal.use && composeCal.focusId === person.id) {
+        if (composeCal && personUsesComposeDraft(person.id, composeCal.use, composeCal.entries)) {
             if (kind === "break") {
-                /* keine Pausen im Plan-Bau-Entwurf */
+                /* no breaks in plan-build draft */
             } else {
                 const ivs = resolveComposeWorkIntervals(person.id, ymdStr, composeCal.entries);
                 for (const [a, b] of ivs) {

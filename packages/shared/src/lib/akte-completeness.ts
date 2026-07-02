@@ -1,6 +1,6 @@
 /**
- * FA-AKTE-16 — Heuristik für fehlende Pflicht-/Basis-Einträge (kein klinisches Urteil).
- * Reine Frontend-Logik; kann später mit Praxis-Regeln erweitert werden.
+ * FA-AKTE-16 — heuristic for missing required/base entries (not clinical judgment).
+ * Pure frontend logic; can be extended with practice rules later.
  */
 
 import type { PatientStatus } from "@/models/types";
@@ -12,7 +12,7 @@ export type AkteCompletenessTab = "anam" | "unter" | "behand";
 export type AkteCompletenessGap = {
     id: string;
     label: string;
-    /** Fehlt bei Feldern, die nur im Hero sichtbar sind (z. B. Versicherungsnummer). */
+    /** Missing for fields visible only in hero (e.g. insurance number). */
     tab?: AkteCompletenessTab;
 };
 
@@ -30,7 +30,7 @@ function deepHasNonEmptyString(o: unknown): boolean {
     return false;
 }
 
-/** True wenn Anamnese-JSON faktisch leer (nur Struktur / Platzhalter). */
+/** True when anamnesis JSON is effectively empty (structure / placeholders only). */
 export function anamneseLooksEmpty(json: string): boolean {
     const t = json.trim();
     if (!t) return true;
@@ -54,7 +54,7 @@ export type ComputeAkteCompletenessArgs = {
     zahnbefundeCount: number;
     untersuchungenCount: number;
     patientStatus: PatientStatus;
-    /** Arzt — klinische Lücken (Anamnese, Zahn, Untersuchung); ohne Rolle nur Stammdaten. */
+    /** Physician — clinical gaps (anamnesis, tooth, Untersuchung); without role master data only. */
     includeClinicalGaps: boolean;
 };
 

@@ -14,6 +14,7 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { MEDIKAMENT_SUGGESTIONS } from "@/lib/medikamente";
+import { ILLNESS_SUGGESTION_KEYS } from "@/lib/attest-composer";
 import type { DokumentVorlage } from "../../models/types";
 
 const MEDIKAMENTE_RAW =
@@ -21,19 +22,6 @@ const MEDIKAMENTE_RAW =
         ? MEDIKAMENT_SUGGESTIONS.map((s) => ({ value: s.label, label: s.label }))
         : null;
 
-const KRANKHEITEN_SUGGESTIONS: string[] = [
-    "grippaler Infekt",
-    "Rückenschmerzen",
-    "Migräne",
-    "Zahnbehandlung",
-    "Akute Pulpitis",
-    "Parodontitis",
-    "Wundheilung nach Extraktion",
-    "Kieferorthopädische Behandlung",
-    "Sonstiges",
-];
-
-const DEFAULT_KRANKHEIT = KRANKHEITEN_SUGGESTIONS[0]!;
 
 type RezeptItem = { medikament: string; dosierung: string; beschreibung: string };
 
@@ -53,8 +41,8 @@ export type VorlageEditorPanelProps =
       };
 
 /**
- * Eingebetteter Editor für Rezept-/Attest-Vorlagen (Rechte Spalte auf „Rezepte und Atteste vordefinieren“).
- * Keine eigene Seite — entfernte Route leitet per `VorlageEditorPage` mit Query-Parametern um.
+ * Embedded editor for prescription/certificate templates (right column on "Rezepte und Atteste vordefinieren").
+ * No standalone page — removed route redirects via `VorlageEditorPage` with query parameters.
  */
 export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
     const t = useT();
@@ -71,17 +59,22 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
         () => MEDIKAMENTE_RAW ?? [{ value: "", label: t("vorlage.editor.med_no_suggestions") }],
         [t],
     );
+    const illnessSuggestions = useMemo(
+        () => ILLNESS_SUGGESTION_KEYS.map((k) => t(k)),
+        [t],
+    );
+    const defaultIllness = illnessSuggestions[0] ?? "";
     const defaultMedPick = medikamenteOptions[0]?.value ?? "";
     const [medPick, setMedPick] = useState(defaultMedPick);
     const [dosierung, setDosierung] = useState("");
     const [beschreibung, setBeschreibung] = useState("");
-    const [krankheiten, setKrankheiten] = useState(DEFAULT_KRANKHEIT);
+    const [krankheiten, setKrankheiten] = useState(defaultIllness);
     const [tageAnzahl, setTageAnzahl] = useState("");
     const [einschraenkung, setEinschraenkung] = useState("");
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [resetOpen, setResetOpen] = useState(false);
     const [lineRemoveIdx, setLineRemoveIdx] = useState<number | null>(null);
-    /** Gespeicherte Form-Signatur nach Laden (null = Laden / keine Basis). */
+    /** Saved form signature after load (null = loading / no baseline). */
     const [baselineSig, setBaselineSig] = useState<string | null>(null);
 
     const applyRow = useCallback((row: DokumentVorlage) => {
@@ -92,12 +85,12 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
             if (row.kind === "REZEPT") {
                 const items = p.items as RezeptItem[] | undefined;
                 setRezeptItems(Array.isArray(items) ? items : []);
-                setKrankheiten(DEFAULT_KRANKHEIT);
+                setKrankheiten(defaultIllness);
                 setTageAnzahl("");
                 setEinschraenkung("");
             } else {
                 setRezeptItems([]);
-                setKrankheiten(String(p.krankheiten || DEFAULT_KRANKHEIT));
+                setKrankheiten(String(p.krankheiten || defaultIllness));
                 const rawTage = p.tage_anzahl;
                 setTageAnzahl(
                     rawTage === undefined || rawTage === null ? "" : String(rawTage),
@@ -106,14 +99,14 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
             }
         } catch {
             setRezeptItems([]);
-            setKrankheiten(DEFAULT_KRANKHEIT);
+            setKrankheiten(defaultIllness);
             setTageAnzahl("");
             setEinschraenkung("");
         }
         setMedPick(defaultMedPick);
         setDosierung("");
         setBeschreibung("");
-    }, [defaultMedPick]);
+    }, [defaultMedPick, defaultIllness]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -126,7 +119,7 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
                 setBeschreibung("");
                 setTageAnzahl("");
                 setEinschraenkung("");
-                setKrankheiten(DEFAULT_KRANKHEIT);
+                setKrankheiten(defaultIllness);
                 setMedPick(defaultMedPick);
                 return;
             }
@@ -143,7 +136,7 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
         } finally {
             setLoading(false);
         }
-    }, [editingId, newTemplateKind, applyRow, onClose, toast, defaultMedPick, t]);
+    }, [editingId, newTemplateKind, applyRow, onClose, toast, defaultMedPick, defaultIllness, t]);
 
     useEffect(() => {
         void load();
@@ -361,8 +354,8 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
             ) : (
                 <>
                     <datalist id="ve-krankheiten-suggestions-embedded">
-                        {KRANKHEITEN_SUGGESTIONS.map((k) => (
-                            <option key={k} value={k} />
+                        {illnessSuggestions.map((label) => (
+                            <option key={label} value={label} />
                         ))}
                     </datalist>
                     <Input
@@ -418,7 +411,7 @@ export function VorlageEditorPanel(props: VorlageEditorPanelProps) {
     );
 }
 
-/** Rückwärtskompatibel: alte `/verwaltung/vorlagen/editor` URLs → listenbasiert mit Query-Parametern. */
+/** Backward compatible: old `/verwaltung/vorlagen/editor` URLs → list-based with query parameters. */
 export function VorlageEditorPage() {
     const { id } = useParams<{ id: string }>();
     const [sp] = useSearchParams();

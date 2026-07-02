@@ -28,6 +28,7 @@ import {
     TERMIN_HOUR_PX,
     TERMIN_PX_PER_MIN,
     terminUhrzeitToMinutes,
+    TERMIN_CALENDAR_WORKING_DAYS,
     type TerminDoctorTone,
 } from "@/lib/termin-calendar-ui";
 import type { Termin } from "@/models/types";
@@ -73,7 +74,7 @@ function useDayTimelineLayout() {
     return { hostRef, layout };
 }
 
-/** Tag-Ansicht: unter dieser Höhe kompakte Seitenleiste (Scroll + verdichtete Karten). */
+/** Day view: below this height compact sidebar (scroll + condensed cards). */
 const TERMIN_DAY_COMPACT_HEIGHT_PX = 680;
 
 function useTerminDayCompactChrome(hostRef: React.RefObject<HTMLDivElement | null>) {
@@ -131,13 +132,14 @@ function TerminApptBlockView({
     dragPreviewUhrzeit?: string;
     daySlotDurationMin?: number;
     dragging?: boolean;
-    /** Tagesansicht: Kurzdatum des Ziels wenn per Drag ein anderer Tag gewählt wird */
+    /** Day view: short date of target when another day is chosen via drag */
     dragTargetDatumHint?: string;
     style?: CSSProperties;
     onClick: () => void;
     onMouseDown: (e: ReactMouseEvent) => void;
     onContextMenu: (e: ReactMouseEvent) => void;
 }) {
+    const tp = useTParams();
     const blockTone = blockToneForTermin(termin, doctorTone);
     const cancelled = termin.status === "ABGESAGT" || termin.status === "NICHT_ERSCHIENEN";
     const durMin = daySlotDurationMin ?? TERMIN_DEFAULT_DUR_MIN;
@@ -158,6 +160,7 @@ function TerminApptBlockView({
             onContextMenu={onContextMenu}
         >
             <span className="termin-appt-block-time-col">
+                <span className="termin-appt-block-time-col-primary">{patientName}</span>
                 <span className={`termin-appt-block-time${dragPreviewUhrzeit ? " termin-appt-block-time--drag-live" : ""}`}>{timeStr}</span>
                 <span className="termin-appt-block-duration">{durMin} min</span>
             </span>
@@ -175,9 +178,11 @@ function TerminApptBlockView({
                 {schmerzZaehne.length ? (
                     <span
                         className="termin-appt-block-zahn"
-                        title={`Zahnschmerz · FDI ${schmerzZaehne.join(", ")}`}
+                        title={tp("dental.toothache.title", { teeth: schmerzZaehne.join(", ") })}
                     >
-                        {schmerzZaehne.length === 1 ? `Zahn ${schmerzZaehne[0]}` : `Zähne ${schmerzZaehne.join(", ")}`}
+                        {schmerzZaehne.length === 1
+                            ? tp("dental.picker.one_tooth", { tooth: schmerzZaehne[0] })
+                            : tp("dental.picker.many_teeth", { teeth: schmerzZaehne.join(", ") })}
                     </span>
                 ) : null}
                 {dragTargetDatumHint ? (
@@ -235,16 +240,16 @@ function TerminTimeColumnBody({
             currentStartMin: number;
         } | null>
     >;
-    /** Tagesansicht: Stunden-Snap zurücksetzen wenn ein Termin-Block zum Ziehen gegriffen wird */
+    /** Day view: reset hour snap when a Termin block is grabbed for dragging */
     onBeginAppointmentDrag?: () => void;
     onOpenDrawer: (t: Termin) => void;
     onContextMenu: (t: Termin, e: ReactMouseEvent) => void;
     onNewAt: (isoDay: string, startMin: number) => void;
     nowMin: () => number;
     singleDay: boolean;
-    /** Wochenansicht: erster Klick nach Drag-Drop verwerfen (s. Parent-Ref). */
+    /** Week view: discard first click after drag-drop (see parent ref). */
     clickSuppressUntilRef?: MutableRefObject<number>;
-    /** Tag- und Wochenansicht: Stundenhöhe aus verfügbarem Raster (ResizeObserver) */
+    /** Day and week view: hour height from available grid (ResizeObserver) */
     axisLayout?: { hourPx: number; pxPerMin: number };
 }) {
     const t = useT();
@@ -403,7 +408,11 @@ export function TerminWeekGrid({
 }) {
     const dateFnsLocale = useDateFnsLocale();
     const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(anchor, i));
+    const days = useMemo(
+        () =>
+            Array.from({ length: TERMIN_CALENDAR_WORKING_DAYS }, (_, i) => addDays(anchor, i)),
+        [anchor],
+    );
     const byDate = useMemo(() => {
         const acc: Record<string, Termin[]> = {};
         for (const termin of termine) {
@@ -417,7 +426,7 @@ export function TerminWeekGrid({
     const hourGutterPhase: "drag" | "placed" | null = dragState != null ? "drag" : snapLabel != null ? "placed" : null;
 
     return (
-        <div className="card card-pad termin-week-card fade-up">
+        <div className="card card-pad termin-week-card termin-week-card--workweek fade-up">
             <div className="termin-week-head-grid">
                 <div className="termin-week-corner" aria-hidden />
                 {days.map((d) => {

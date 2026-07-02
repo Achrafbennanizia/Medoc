@@ -1,2 +1,2 @@
-/** Volle Seite „Neue Zahlung“ unter Kasseneingänge (`/finanzen/kasse/neu`). */
+/** Full page "Neue Zahlung" under cash receipts (`/finanzen/kasse/neu`). */
 export { ZahlungKasseCreatePage } from "./zahlung-create-panel";

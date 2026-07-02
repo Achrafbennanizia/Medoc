@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
-/** Untermenü „Finanzen & Berichte“ — gleiche Listenseite wie Produkte/Verwaltung-TOC. */
+/** Submenu "Finanzen & Berichte" — same list page as products/Verwaltung TOC. */
 export function VerwaltungFinanzenBerichtePage() {
     const t = useT();
     const links = useMemo<VerwaltungTocLink[]>(

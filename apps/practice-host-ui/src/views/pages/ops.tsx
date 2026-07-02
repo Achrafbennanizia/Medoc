@@ -225,7 +225,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     {t("ops.health.run_btn")}
                 </Button>
                 {health && (
-                    <ul className="text-body" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }} aria-live="polite">
+                    <ul className="text-body" style={{ margin: 0, paddingInlineStart: 20, display: "flex", flexDirection: "column", gap: 4 }} aria-live="polite">
                         <li>{tp("ops.health.version", { version: health.version })}</li>
                         <li>{tp("ops.health.db", { status: health.db_ok ? t("ops.health.db_ok") : t("ops.health.db_error"), ms: health.db_latency_ms })}</li>
                         <li>{t("ops.page.audit_chain_label")} {health.audit_chain_ok ? t("ops.page.audit_chain_ok") : tp("ops.page.audit_chain_broken", { at: health.audit_broken_at ?? "" })}</li>
@@ -290,7 +290,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     {t("ops.backup.create_btn")}
                 </Button>
                 {backups.length > 0 && (
-                    <ul className="text-body font-mono" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <ul className="text-body font-mono" style={{ margin: 0, paddingInlineStart: 20, display: "flex", flexDirection: "column", gap: 4 }}>
                         {backups.slice(0, 5).map((b) => (
                             <li key={b.path}>
                                 {b.path} — {(b.size_bytes / 1024).toFixed(1)} KB
@@ -378,7 +378,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                                             : "",
                                     })}
                                 </summary>
-                                <ul className="font-mono text-label mt-2" style={{ margin: 0, paddingLeft: 18 }}>
+                                <ul className="font-mono text-label mt-2" style={{ margin: 0, paddingInlineStart: 18 }}>
                                     {report.errors.slice(0, CSV_ERROR_PREVIEW_LIMIT).map((errLine, i) => (
                                         <li key={i}>{errLine}</li>
                                     ))}
