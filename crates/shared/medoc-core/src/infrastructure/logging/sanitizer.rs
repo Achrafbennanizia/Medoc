@@ -25,6 +25,28 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn pii_json_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(
+            r#"(?i)"(patient_id|patientid|patient_name|patientname|vorname|nachname|email|telefon|adresse|versicherungsnummer|geburtsdatum)"\s*:\s*"[^"]*""#,
+        )
+        .ok()
+    })
+    .as_ref()
+}
+
+fn pii_kv_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(
+            r"(?i)(patient_id|patientid|patient_name|patientname|vorname|nachname|email|telefon|adresse|versicherungsnummer|geburtsdatum)\s*[:=]\s*\S+",
+        )
+        .ok()
+    })
+    .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
@@ -33,8 +55,16 @@ pub fn sanitize(input: &str) -> String {
         Some(re) => re.replace_all(input, "$1=***").into_owned(),
         None => input.to_string(),
     };
-    match jwt_re() {
+    let masked = match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
+        None => masked,
+    };
+    let masked = match pii_json_re() {
+        Some(re) => re.replace_all(&masked, "\"$1\":\"***\"").into_owned(),
+        None => masked,
+    };
+    match pii_kv_re() {
+        Some(re) => re.replace_all(&masked, "$1=***").into_owned(),
         None => masked,
     }
 }
@@ -142,5 +172,23 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn masks_patient_pii_pairs() {
+        let s = sanitize("patient_id=pat-123 email=alice@example.org");
+        assert!(s.contains("patient_id=***"));
+        assert!(s.contains("email=***"));
+        assert!(!s.contains("pat-123"));
+        assert!(!s.contains("alice@example.org"));
+    }
+
+    #[test]
+    fn masks_patient_pii_json_fields() {
+        let s = sanitize("{\"patient_id\":\"pat-9\",\"patient_name\":\"Alice\"}");
+        assert!(s.contains("\"patient_id\":\"***\""));
+        assert!(s.contains("\"patient_name\":\"***\""));
+        assert!(!s.contains("pat-9"));
+        assert!(!s.contains("Alice"));
     }
 }
