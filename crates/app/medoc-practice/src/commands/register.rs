@@ -1,6 +1,8 @@
 //! Central Tauri IPC registration (TASK 3.3).
 //! Per-module `register_*!()` macros in `*_commands.rs` must match this flat list.
 
+use crate::infrastructure::logging::workflow;
+
 #[macro_export]
 macro_rules! medoc_invoke_handler {
     () => {
@@ -176,6 +178,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::logging_commands::export_logs,
             $crate::commands::logging_commands::verify_audit_chain,
             $crate::commands::logging_commands::log_dir,
+            $crate::commands::logging_commands::workflow_log_event,
             $crate::commands::menu_commands::sync_native_menu,
             $crate::commands::ops_commands::create_backup,
             $crate::commands::ops_commands::list_backups,
@@ -273,7 +276,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system_commands::current_license_status,
             $crate::commands::system_commands::clear_license,
             $crate::commands::system_commands::check_for_updates,
-        $crate::commands::system_commands::install_available_update,
+            $crate::commands::system_commands::install_available_update,
             $crate::commands::system_commands::list_detected_photo_viewer_apps,
             $crate::commands::system_commands::system_health_check,
             $crate::commands::system_commands::get_perf_threshold_ms,
@@ -305,11 +308,18 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 295;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 297;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
 /// Concrete `Wry` runtime required so commands taking `AppHandle` type-check (see `akte_anlage_commands`).
 pub fn register_invoke_handler(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.invoke_handler(crate::medoc_invoke_handler!())
+    let invoke_handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = crate::medoc_invoke_handler!();
+    builder.invoke_handler(move |invoke| {
+        let command = invoke.message.command().to_string();
+        workflow::emit_backend_command_received(&command);
+        let handled = invoke_handler(invoke);
+        workflow::emit_backend_command_dispatched(&command, handled);
+        handled
+    })
 }

@@ -7,7 +7,7 @@ use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
-use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
+use crate::infrastructure::logging::{self, workflow::WorkflowEvent, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
 
 #[tauri::command]
@@ -56,6 +56,13 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event), fields(workflow = %event.workflow, step = event.step.as_str()))]
+pub fn workflow_log_event(event: WorkflowEvent) -> Result<(), AppError> {
+    logging::workflow::emit_frontend_event(event);
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +72,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::workflow_log_event,
     };
 }

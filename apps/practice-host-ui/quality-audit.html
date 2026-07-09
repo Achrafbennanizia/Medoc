@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MeDoc Quality Audit Surface</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f4f6ff;
+            color: #101828;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            background: #f4f6ff;
+            color: #101828;
+        }
+
+        #quality-audit-root {
+            width: min(960px, 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        [data-audit="card"] {
+            margin: 0;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #d0d5dd;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        [data-audit="controls"] {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .qa-button {
+            min-height: 40px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #344054;
+            background: #111827;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .qa-button--secondary {
+            background: #ffffff;
+            color: #1f2937;
+        }
+
+        .qa-icon-button {
+            width: 40px;
+            height: 40px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #344054;
+            background: #ffffff;
+            color: #1f2937;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .qa-button:focus-visible,
+        .qa-icon-button:focus-visible {
+            outline: 2px solid #4f46e5;
+            outline-offset: 2px;
+        }
+
+        .toast-stack {
+            position: fixed;
+            right: max(12px, env(safe-area-inset-right, 0px));
+            bottom: max(12px, env(safe-area-inset-bottom, 0px));
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: min(320px, calc(100vw - 24px));
+            z-index: 30;
+        }
+
+        .toast-item {
+            margin: 0;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #d0d5dd;
+            background: #ffffff;
+            color: #101828;
+            font-size: 14px;
+        }
+
+        .toast-item--warning {
+            background: #fff4e5;
+            border-color: #f59e0b;
+            color: #7a4300;
+        }
+
+        @media (min-width: 768px) {
+            body {
+                padding: 24px;
+            }
+
+            #quality-audit-root {
+                padding: 24px;
+            }
+        }
+
+        @media (min-width: 1259px) {
+            #quality-audit-root {
+                max-width: 1040px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main id="quality-audit-root" aria-labelledby="qa-audit-title">
+        <section data-audit="card" aria-labelledby="qa-audit-title">
+            <h1 id="qa-audit-title">MeDoc quality audit surface</h1>
+            <p>This deterministic page is used for automated geometry, spacing, and accessibility checks.</p>
+            <div data-audit="controls" role="group" aria-label="Audit interaction controls">
+                <button class="qa-button" type="button">Primary action</button>
+                <button class="qa-button qa-button--secondary" type="button">Secondary action</button>
+                <button class="qa-icon-button" type="button" aria-label="Close quality audit panel">×</button>
+            </div>
+        </section>
+
+        <section data-audit="card" aria-labelledby="qa-keyboard-title">
+            <h2 id="qa-keyboard-title">Keyboard contract</h2>
+            <p>Tab order is logical, Enter confirms the primary action, and Escape dismisses dialogs.</p>
+        </section>
+    </main>
+
+    <div class="toast-stack" role="region" aria-label="Toast notifications">
+        <article class="toast-item" role="status" aria-live="polite">Autosave succeeded.</article>
+        <article class="toast-item toast-item--warning" role="status" aria-live="polite">
+            Review required before submission.
+        </article>
+    </div>
+</body>
+</html>

@@ -32,6 +32,7 @@ import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
+import { logWorkflowEvent } from "@/systems/practice-host/controllers/logging.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
@@ -327,6 +328,15 @@ export function AppLayout() {
         setMobileNavOpen(false);
     }, [location.pathname]);
 
+    useEffect(() => {
+        void logWorkflowEvent({
+            workflow: "ui.route",
+            step: "route_enter",
+            route: location.pathname,
+            status: "entered",
+        });
+    }, [location.pathname]);
+
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {
         if (!session?.rolle) return;
@@ -578,8 +588,34 @@ export function AppLayout() {
     }, [userMenuOpen, userMenuAnchor, sidebarRailPref, sidebarProfileDisplayOnly, session?.rolle, t]);
 
     const handleLogout = async () => {
-        await logout();
-        navigate("/login");
+        void logWorkflowEvent({
+            workflow: "ui.session.logout",
+            step: "primary_action",
+            route: location.pathname,
+            action: "logout",
+            status: "started",
+        });
+        try {
+            await logout();
+            navigate("/login");
+            void logWorkflowEvent({
+                workflow: "ui.session.logout",
+                step: "success",
+                route: location.pathname,
+                action: "logout",
+                status: "ok",
+            });
+        } catch (e) {
+            void logWorkflowEvent({
+                workflow: "ui.session.logout",
+                step: "error",
+                route: location.pathname,
+                action: "logout",
+                status: "failed",
+                message: errorMessage(e),
+            });
+            throw e;
+        }
     };
     const requestLogout = () => setLogoutConfirmOpen(true);
 
@@ -1192,7 +1228,16 @@ export function AppLayout() {
             ) : null}
             <ConfirmDialog
                 open={logoutConfirmOpen}
-                onClose={() => setLogoutConfirmOpen(false)}
+                onClose={() => {
+                    setLogoutConfirmOpen(false);
+                    void logWorkflowEvent({
+                        workflow: "ui.session.logout",
+                        step: "cancel",
+                        route: location.pathname,
+                        action: "logout_confirm",
+                        status: "cancelled",
+                    });
+                }}
                 onConfirm={async () => {
                     setLogoutConfirmOpen(false);
                     await handleLogout();

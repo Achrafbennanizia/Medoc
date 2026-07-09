@@ -1,6 +1,49 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (Background quality run — logger + workflow/UI quality sweep)
+
+## Background quality run — verified (2026-07-09)
+
+### Workflow map + instrumentation coverage (read-only)
+
+- **Routes enumerated:** 69 route entries in `apps/practice-host-ui/src/App.tsx` (`rg 'path="'` count).
+- **Navigation model source:** `packages/shared/src/lib/nav-sections.ts` + `packages/shared/src/lib/rbac.ts` (`ROUTE_VISIBILITY`).
+- **Workflow logging coverage observed:**  
+  - frontend command lifecycle (`primary_action` / `success` / `error`) in `apps/practice-host-ui/src/services/tauri.service.ts`  
+  - route-enter + logout (`primary_action` / `success` / `cancel` / `error`) in `apps/practice-host-ui/src/views/layouts/app-layout.tsx`  
+  - backend invoke receive/dispatch wrapper in `crates/app/medoc-practice/src/commands/register.rs`
+
+### Findings register (id, location, finding, evidence, severity, action)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| QA-WF-001 | `crates/shared/medoc-core/src/infrastructure/logging/workflow.rs`, `crates/app/medoc-practice/src/commands/register.rs` | Workflow logger captures frontend steps + backend command ingress/egress, but **no dedicated service-layer/domain-state transition emitters are wired yet**. | `rg 'log_workflow!|emit_backend_command_received|emit_backend_command_dispatched|emit_frontend_event'` returned only command/bridge locations. | P1 | Add explicit workflow emit points at application-service/domain transition boundaries (non-security paths only). |
+| QA-UI-001 | `apps/practice-host-ui/src/views/components/ui/toast-store.ts`, `apps/practice-host-ui/src/index.css` | Toast policy mismatch vs required UX rules: error default is 6000ms (expected 5000ms), stack is top-right (expected bottom-right). | `npm run test` → failed `packages/shared/src/lib/toast-policy.test.ts` (`expected 6000 to be 5000`; missing `bottom`, contains `top`). | P2 | Update toast defaults and stack anchoring, then rerun toast policy tests. |
+| QA-CSS-001 | `apps/practice-host-ui/src/views/components/behandlung-akte-composer-panel.tsx:265` | Arbitrary Tailwind spacing token bypasses scale (`min-h-[72px]`). | `npm run lint:tailwind-spacing` flagged the token directly. | P2 | Replace arbitrary utility with scale token or add sanctioned design token entry. |
+| QA-BUILD-001 | `packages/app/practice-host/src/pages/patient-detail/patient-detail-unter-tab.tsx`, `packages/app/practice-host/src/pages/patient-detail/patient-detail.tsx` | Frontend production build currently fails on unused variables. | `npm run build` → TS6133 for `canViewClinical`, `releaseUntersuchungForBilling`. | P1 | Remove/consume dead variables so `tsc && vite build` passes again. |
+| QA-RUST-001 | workspace Rust quality gates | Rust baseline gates are not green in this branch snapshot (fmt/clippy/test). | `cargo fmt --all -- --check` diff; `cargo clippy --workspace --all-targets -- -D warnings` failed with `clippy::uninlined_format_args`; `cargo test --workspace --tests` failed in `auth_session_audit_tests`. | P1 | Triage separately from this UI-quality slice; keep branch-level blocker tracked in ledger. |
+
+### Command evidence (this run)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow bridge unit tests | `npm run test -w medoc -- src/services/tauri.service.test.ts src/views/components/ui/ui-library.behavior.smoke.test.tsx src/lib/toast-policy.test.ts` | **PARTIAL** — workflow + UI behavior tests PASS; toast policy tests FAIL (2). |
+| Tailwind arbitrary spacing lint | `npm run lint:tailwind-spacing` | **FAIL** — `min-h-[72px]` detected in `behandlung-akte-composer-panel.tsx`. |
+| Playwright geometry + axe | `npm run test:playwright -w medoc -- e2e-playwright/ui-quality.spec.ts` | **PASS** — 4/4 tests (375/768/1259 snapshots + axe critical=0 on audit surface). |
+| Rust sanitizer tests | `cargo +1.88.0 test -p medoc-core sanitize_event_masks` | **PASS** — 2/2 sanitizer masking tests. |
+| Invoke registration integrity | `cargo +1.88.0 test -p medoc-practice --test invoke_command_registry_tests && cargo +1.88.0 test -p medoc --test invoke_registration_tests` | **PASS** — command-count and uniqueness checks green. |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — large pre-existing rustfmt drift reported across workspace. |
+| Rust clippy gate | `cargo +1.88.0 clippy --workspace --all-targets -- -D warnings` | **FAIL** — pre-existing `clippy::uninlined_format_args` violations in `medoc-core` (25+). |
+| Rust tests gate | `cargo +1.88.0 test --workspace --tests` | **FAIL** — `auth_session_audit_tests` (`Maximal 1 Arzt-Konto erlaubt`) in current baseline. |
+| Frontend tests gate | `npm run test` | **FAIL** — only `toast-policy.test.ts` fails; remaining suites pass. |
+| Frontend build gate | `npm run build` | **FAIL** — TS6133 unused vars in patient-detail files. |
+
+### Quality-audit execution fix delivered
+
+- Added `apps/practice-host-ui/quality-audit.html` as deterministic browser audit surface.
+- Updated `apps/practice-host-ui/e2e-playwright/ui-quality.spec.ts` to target `/quality-audit.html` with a reusable `gotoAuditSurface()` helper and status assertion.
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

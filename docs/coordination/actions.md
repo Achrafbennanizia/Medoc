@@ -1,8 +1,25 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (Background quality run — logger + UI quality sweep)
 
 ## Now
+
+- **QA-WF-001 (P1):** instrument application/service and domain-state transition logs beyond command ingress/egress wrappers.
+- **QA-UI-001 (P2):** align toast policy with spec (error 5s, bottom-right anchor, action-required persistent).
+- **QA-CSS-001 (P2):** replace arbitrary spacing utility (`min-h-[72px]`) with sanctioned scale token.
+- **QA-BUILD-001 (P1):** clear TS6133 dead variables blocking `npm run build`.
+- **Rust gate debt:** fmt/clippy/test baseline failures (`cargo fmt --check`, `clippy -D warnings`, `auth_session_audit_tests`) tracked as cross-cutting blocker for strict green gates.
+
+## Done (2026-07-09 — background quality run)
+
+- Added deterministic browser audit surface: `apps/practice-host-ui/quality-audit.html`.
+- Updated Playwright quality spec to use `/quality-audit.html` and pass geometry + axe checks at 375/768/1259 (`4/4` PASS).
+- Re-ran targeted and full validation gates; recorded exact pass/fail evidence and findings in `validation.md`.
+- Logged newly observed contradictions (C9–C11) in `contradictions.md`.
+
+---
+
+**Last updated (prior):** 2026-06-18 (Work-Time program complete)
 
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.

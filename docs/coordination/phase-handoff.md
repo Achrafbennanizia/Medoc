@@ -1,6 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Last phase label:** Background Quality Run (2026-07-09)  
+**Last closed:** Logger/test sweep continuation — Playwright audit surface fix, workflow map evidence, findings register refresh.
+
+### Verified (2026-07-09 — quality run)
+
+- **Playwright unblock:** added `apps/practice-host-ui/quality-audit.html`; updated `apps/practice-host-ui/e2e-playwright/ui-quality.spec.ts` to target `/quality-audit.html`.
+- **Geometry + a11y checks:** `npm run test:playwright -w medoc -- e2e-playwright/ui-quality.spec.ts` **PASS** (4/4; 375/768/1259 snapshots + axe critical=0 on audit surface).
+- **Workflow instrumentation evidence:** frontend command lifecycle logging in `tauri.service.ts`; route/logout workflow logs in `app-layout.tsx`; backend command receive/dispatch logs in `commands/register.rs`; dedicated workflow log channel + sanitizer tests (`cargo +1.88.0 test -p medoc-core sanitize_event_masks`) **PASS**.
+- **Command registry integrity:** invoke registry tests **PASS** (medoc-practice + medoc command-count tests).
+- **Findings recorded in ledgers:** QA-WF-001, QA-UI-001, QA-CSS-001, QA-BUILD-001, QA-RUST-001 (see `validation.md` and `contradictions.md` C9–C11).
+
+### Remains unverified / failing
+
+- **Full green gates:** `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, `npm run test`, and `npm run build` are **NOT green** in this snapshot (documented failures in `validation.md`).
+- **Complete service/domain transition logging:** still **NOT IMPLEMENTED** beyond command ingress/egress and selected UI workflow steps.
+- **Live Tauri manual QA** for focus-mode/nav/upload remains **NOT OBSERVED** (carried over).
+
+### Understanding delta
+
+- Step-4 browser quality checks are now runnable and reproducible without relying on `/login` runtime state.
+- The dominant blockers for strict gate compliance are currently baseline quality debt (toast policy mismatch, arbitrary spacing token, TS unused vars, Rust fmt/clippy/test failures), not the new Playwright harness itself.
+
+### Must happen next (ordered)
+
+1. Fix P1 blockers from findings register: QA-WF-001 (logging breadth), QA-BUILD-001 (TypeScript build errors), QA-RUST-001 gate debt triage.
+2. Fix UI policy findings QA-UI-001 and QA-CSS-001, then rerun `npm run test`, `npm run lint:tailwind-spacing`, and Playwright quality spec.
+3. Re-run full Rust gates once baseline clippy/fmt/test failures are addressed or formally quarantined.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
