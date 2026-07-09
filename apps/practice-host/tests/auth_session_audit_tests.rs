@@ -12,8 +12,9 @@ use medoc_lib::infrastructure::database::connection::{run_migrations, test_memor
 
 #[tokio::test]
 async fn authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled() {
+    let totp_enabled = std::hint::black_box(mvp_security::TOTP_2FA_ENABLED);
     assert!(
-        !mvp_security::TOTP_2FA_ENABLED,
+        !totp_enabled,
         "test documents intentional MVP bypass via centralized authenticate chokepoint"
     );
 
