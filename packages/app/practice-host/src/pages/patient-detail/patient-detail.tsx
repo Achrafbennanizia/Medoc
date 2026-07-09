@@ -9,7 +9,6 @@ import {
     listBehandlungen,
     listUntersuchungen,
     releaseBehandlungForBilling,
-    releaseUntersuchungForBilling,
     listAkteAnlagen,
     renameAkteAnlage,
     openAkteAnlageExternally,
@@ -719,7 +718,6 @@ export function PatientDetailPage() {
                     unterEdit={unterEdit}
                     unterEditUnlocked={unterEditUnlocked}
                     unterDeleteId={unterDeleteId}
-                    canViewClinical={canViewClinical}
                     onStartNewUntersuchung={() => {
                         setUnterEdit(null);
                         setUnterDeleteId(null);
