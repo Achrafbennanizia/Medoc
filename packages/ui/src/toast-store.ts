@@ -7,15 +7,15 @@ export interface Toast {
     id: string;
     message: string;
     type: ToastType;
-    /** Auto-dismiss duration (ms). */
-    durationMs: number;
+    /** Auto-dismiss duration (ms). `null` keeps the toast persistent until manual dismiss. */
+    durationMs: number | null;
     onUndo?: () => void;
     undoLabel?: string;
 }
 
 const DURATION: Record<ToastType, number> = {
     success: 3000,
-    error: 6000,
+    error: 5000,
     info: 4000,
     warning: 5000,
 };
@@ -28,7 +28,12 @@ interface ToastState {
     add: (
         message: string,
         type?: ToastType,
-        options?: { onUndo?: () => void | Promise<void>; undoLabel?: string; durationMs?: number },
+        options?: {
+            onUndo?: () => void | Promise<void>;
+            undoLabel?: string;
+            durationMs?: number | null;
+            persistent?: boolean;
+        },
     ) => void;
     remove: (id: string) => void;
 }
@@ -39,7 +44,7 @@ export const useToastStore = create<ToastState>((set) => ({
     setToastStackPointerInside: (v) => set({ toastStackPointerInside: v }),
     add: (message, type = "success", options) => {
         const id = crypto.randomUUID();
-        const durationMs = options?.durationMs ?? DURATION[type];
+        const durationMs = options?.persistent ? null : (options?.durationMs ?? DURATION[type]);
         const toast: Toast = {
             id,
             message,

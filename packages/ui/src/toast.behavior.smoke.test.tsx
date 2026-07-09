@@ -36,6 +36,17 @@ describe("toast policy and behavior", () => {
         expect(toasts[3].durationMs).toBe(4000);
     });
 
+    it("supports persistent action-required toasts until manually dismissed", async () => {
+        const user = userEvent.setup();
+        useToastStore.getState().add("Action required", "warning", { persistent: true });
+        render(<ToastContainer />);
+
+        expect(screen.getByText("Action required")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Dismiss notification" }));
+        expect(screen.queryByText("Action required")).not.toBeInTheDocument();
+    });
+
     it("renders dismissable rows and supports undo callbacks", async () => {
         const user = userEvent.setup();
         const undo = vi.fn();
