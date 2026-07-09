@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import { mergeAutocompleteFromPraxisKvIntoLocal } from "@/lib/praxis-search-prefs-sync";
@@ -23,6 +23,7 @@ describe("SessionGate behavior", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        cleanup();
     });
 
     it("shows children after successful session check", async () => {
