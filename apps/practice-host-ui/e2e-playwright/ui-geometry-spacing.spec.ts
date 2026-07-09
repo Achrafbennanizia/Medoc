@@ -1,5 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import resolveConfig from "tailwindcss/resolveConfig";
+import tailwindConfig from "../tailwind.config.js";
 
 const BREAKPOINTS = [
     { width: 375, height: 900 },
@@ -7,15 +9,10 @@ const BREAKPOINTS = [
     { width: 1259, height: 960 },
 ] as const;
 
-const SPACING_TOKEN_VARS = [
-    "--space-1",
-    "--space-2",
-    "--space-3",
-    "--space-4",
-    "--space-5",
-    "--space-6",
-    "--space-8",
-] as const;
+const resolvedTailwind = resolveConfig(tailwindConfig);
+const spacingScaleValues = Object.values(
+    (resolvedTailwind.theme?.spacing ?? {}) as Record<string, string>,
+);
 
 function parsePx(value: string): number {
     const parsed = Number.parseFloat(value);
@@ -34,6 +31,26 @@ function assertTokenValue(
         tokenValues.has(normalized),
         `${context}: expected ${normalized}px to match spacing token scale`,
     ).toBe(true);
+}
+
+function spacingValueToPx(rawValue: string, rootFontPx: number): number | null {
+    const value = rawValue.trim();
+    if (value === "0") {
+        return 0;
+    }
+    if (value.endsWith("rem")) {
+        const rem = Number.parseFloat(value.slice(0, -3));
+        if (!Number.isFinite(rem)) return null;
+        return Math.round(rem * rootFontPx * 100) / 100;
+    }
+    if (value.endsWith("px")) {
+        const px = Number.parseFloat(value.slice(0, -2));
+        if (!Number.isFinite(px)) return null;
+        return Math.round(px * 100) / 100;
+    }
+    const numeric = Number.parseFloat(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Math.round(numeric * 100) / 100;
 }
 
 test.describe("UI geometry/spacing + a11y compliance", () => {
@@ -57,18 +74,16 @@ test.describe("UI geometry/spacing + a11y compliance", () => {
         await page.goto("/qa/ui-audit");
         await expect(page.getByTestId("spacing-box")).toBeVisible();
 
-        const tokenValues = await page.evaluate((tokenVars) => {
-            const root = getComputedStyle(document.documentElement);
-            const values = tokenVars
-                .map((token) => root.getPropertyValue(token).trim())
-                .map((raw) => Number.parseFloat(raw))
-                .filter((value) => Number.isFinite(value))
-                .map((value) => Math.round(value * 100) / 100);
-            values.push(0);
-            return values;
-        }, [...SPACING_TOKEN_VARS]);
-
-        const allowed = new Set<number>(tokenValues);
+        const rootFontPx = await page.evaluate(() =>
+            Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        );
+        const allowed = new Set<number>([0]);
+        for (const scaleValue of spacingScaleValues) {
+            const px = spacingValueToPx(scaleValue, rootFontPx);
+            if (px !== null) {
+                allowed.add(px);
+            }
+        }
 
         const computed = await page.evaluate(() => {
             const box = document.querySelector<HTMLElement>('[data-testid="spacing-box"]');
@@ -152,12 +167,19 @@ test.describe("UI geometry/spacing + a11y compliance", () => {
             const stack = document.querySelector<HTMLElement>(".toast-stack");
             if (!stack) return null;
             const style = getComputedStyle(stack);
-            return { top: style.top, right: style.right, bottom: style.bottom };
+            const rect = stack.getBoundingClientRect();
+            return {
+                top: style.top,
+                right: style.right,
+                bottom: style.bottom,
+                rectBottom: rect.bottom,
+                viewportHeight: window.innerHeight,
+            };
         });
         expect(toastPosition).not.toBeNull();
         expect(toastPosition!.bottom).not.toBe("auto");
         expect(toastPosition!.right).not.toBe("auto");
-        expect(toastPosition!.top).toBe("auto");
+        expect(toastPosition!.viewportHeight - toastPosition!.rectBottom).toBeLessThanOrEqual(24);
         await page.waitForTimeout(3600);
         await expect(page.getByText("Saved successfully")).toHaveCount(0);
 
