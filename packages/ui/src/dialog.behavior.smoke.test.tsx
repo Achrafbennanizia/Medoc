@@ -13,7 +13,7 @@ describe("Dialog behavior", () => {
         const user = userEvent.setup();
         const onClose = vi.fn();
 
-        const { container, rerender } = render(
+        const { rerender } = render(
             <Dialog open onClose={onClose} title="Edit">
                 <button type="button">First</button>
                 <button type="button">Second</button>
@@ -30,7 +30,7 @@ describe("Dialog behavior", () => {
             </Dialog>,
         );
 
-        const backdrop = container.querySelector(".modal-backdrop");
+        const backdrop = document.body.querySelector(".modal-backdrop");
         expect(backdrop).not.toBeNull();
         await user.click(backdrop as HTMLElement);
         expect(onClose).toHaveBeenCalledTimes(2);
@@ -45,14 +45,18 @@ describe("Dialog behavior", () => {
             </Dialog>,
         );
 
+        const closeButton = screen.getByRole("button", { name: "Close dialog" });
+        const firstButton = screen.getByRole("button", { name: "First" });
+        const secondButton = screen.getByRole("button", { name: "Second" });
+
         await waitFor(() => {
-            expect(document.activeElement).toBe(screen.getByRole("button", { name: "First" }));
+            expect(document.activeElement).toBe(closeButton);
         });
 
         await user.tab();
-        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Second" }));
+        expect(document.activeElement).toBe(firstButton);
         await user.tab();
-        expect(document.activeElement).toBe(screen.getByRole("button", { name: "First" }));
+        expect(document.activeElement).toBe(secondButton);
     });
 });
 

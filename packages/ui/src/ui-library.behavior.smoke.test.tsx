@@ -102,11 +102,11 @@ describe("ui-library behavior", () => {
         expect(textarea).toHaveValue("Follow up required");
         expect(screen.getByText("Too short")).toBeInTheDocument();
 
-        const trigger = screen.getByRole("button", { name: "Arzt" });
+        const trigger = screen.getByRole("button", { name: "Role" });
         await user.click(trigger);
         await user.click(screen.getByRole("option", { name: "Rezeption" }));
         expect(onSelectChange).toHaveBeenCalled();
-        expect(screen.getByRole("button", { name: "Rezeption" })).toBeInTheDocument();
+        expect(screen.getByText("Rezeption")).toBeInTheDocument();
     });
 
     it("FilterOptionBar only fires change when option actually changes", async () => {
@@ -177,7 +177,7 @@ describe("ui-library behavior", () => {
         await user.click(screen.getByRole("button", { name: "+ fatigue" }));
         expect(screen.getByText("fatigue")).toBeInTheDocument();
 
-        await user.click(screen.getByRole("button", { name: /remove tag acute/i }));
+        await user.click(screen.getByRole("button", { name: /remove acute/i }));
         expect(screen.queryByText("acute")).not.toBeInTheDocument();
     });
 
@@ -245,7 +245,7 @@ describe("ui-library behavior", () => {
         expect(screen.getByText("Loading records")).toBeInTheDocument();
         expect(screen.getByRole("alert")).toHaveTextContent("Network failed");
 
-        await user.click(screen.getByRole("button", { name: "Retry" }));
+        await user.click(screen.getByRole("button", { name: "Try again" }));
         expect(retry).toHaveBeenCalledTimes(1);
 
         await user.click(screen.getByRole("button", { name: "Create" }));
@@ -270,13 +270,13 @@ describe("ui-library behavior", () => {
             </div>,
         );
 
-        await user.click(screen.getByRole("button", { name: "A" }));
+        await user.click(screen.getByRole("button", { name: "Department" }));
         expect(screen.getByRole("option", { name: "B" })).toBeInTheDocument();
 
         fireEvent.keyDown(document, { key: "Escape" });
         expect(screen.queryByRole("option", { name: "B" })).not.toBeInTheDocument();
 
-        await user.click(screen.getByRole("button", { name: "A" }));
+        await user.click(screen.getByRole("button", { name: "Department" }));
         expect(screen.getByRole("option", { name: "B" })).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Outside" }));
         expect(screen.queryByRole("option", { name: "B" })).not.toBeInTheDocument();

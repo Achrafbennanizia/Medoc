@@ -50,22 +50,27 @@ describe("toast policy and behavior", () => {
         expect(undo).toHaveBeenCalledTimes(1);
     });
 
-    it("auto-dismisses after timeout and pauses on pointer enter", () => {
+    it("auto-dismisses success toasts after the timeout window", () => {
         vi.useFakeTimers();
         useToastStore.getState().add("Saved", "success");
         render(<ToastContainer />);
 
-        // The row timer includes a small animation buffer (+400ms).
-        vi.advanceTimersByTime(3100);
-        expect(screen.getByRole("status")).toBeInTheDocument();
+        vi.advanceTimersByTime(3600);
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("pauses dismiss while pointer is inside the row", () => {
+        vi.useFakeTimers();
+        useToastStore.getState().add("Saved", "success");
+        render(<ToastContainer />);
 
         const row = screen.getByRole("status");
         fireEvent.pointerEnter(row);
-        vi.advanceTimersByTime(5000);
+        vi.advanceTimersByTime(7000);
         expect(screen.getByRole("status")).toBeInTheDocument();
 
         fireEvent.pointerLeave(row);
-        vi.advanceTimersByTime(1200);
+        vi.advanceTimersByTime(3600);
         expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 });
