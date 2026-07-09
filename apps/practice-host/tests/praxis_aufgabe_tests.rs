@@ -491,7 +491,7 @@ fn workflow_aufgabe_rejects_invalid_transition() {
         false,
     )
     .expect_err("arzt cannot reopen without ZURUECK");
-    assert!(matches!(err, AppError::Validation(_)));
+    assert!(matches!(err, AppError::ValidationCode(_)));
 }
 
 #[tokio::test]
