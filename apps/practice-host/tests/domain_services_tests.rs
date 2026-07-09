@@ -195,9 +195,9 @@ fn workflow_bestellung_and_ticket() {
 
 #[test]
 fn pricing_require_release_maps_to_validation() {
-    let err =
-        pricing::require_released_for_billing(None, None, "error.entity.behandlung").expect_err("must fail");
-    assert!(matches!(err, AppError::Validation(_)));
+    let err = pricing::require_released_for_billing(None, None, "error.entity.behandlung")
+        .expect_err("must fail");
+    assert!(matches!(err, AppError::ValidationCode(_)));
 }
 
 #[test]
