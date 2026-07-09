@@ -274,7 +274,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system_commands::current_license_status,
             $crate::commands::system_commands::clear_license,
             $crate::commands::system_commands::check_for_updates,
-        $crate::commands::system_commands::install_available_update,
+            $crate::commands::system_commands::install_available_update,
             $crate::commands::system_commands::list_detected_photo_viewer_apps,
             $crate::commands::system_commands::system_health_check,
             $crate::commands::system_commands::get_perf_threshold_ms,
@@ -306,7 +306,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 296;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 297;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
