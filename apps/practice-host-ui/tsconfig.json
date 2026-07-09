@@ -37,6 +37,7 @@
             ],
             "@medoc/shared/*": ["../../packages/shared/src/*"],
             "#shared-locales/*": ["../../packages/shared/locales/*"],
+            "@medoc/ui": ["../../packages/ui/src/index.ts"],
             "@medoc/ui/*": ["../../packages/ui/src/*"],
             "@medoc/system-practice/*": ["../../packages/app/practice-host/src/*"],
             "@medoc/system-lan/*": ["../../packages/server/lan/src/*"],

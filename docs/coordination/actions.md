@@ -1,9 +1,32 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (workflow + geometry quality run)
+
+## Done (2026-07-09 — workflow logger instrumentation run)
+
+- Added dedicated `workflow.log` tracing channel in existing logging subsystem (`crates/shared/medoc-core/src/infrastructure/logging/{mod.rs,config.rs}`).
+- Added sanitized backend workflow bridge command `log_workflow_event` and registered it in IPC (`crates/app/medoc-practice/src/commands/system/logging.rs`, `commands/register.rs`).
+- Added frontend workflow telemetry hooks:
+  - route enter logger (`apps/practice-host-ui/src/views/components/workflow-route-logger.tsx`);
+  - command lifecycle logging (primary action / success / error) in `apps/practice-host-ui/src/services/tauri.service.ts`;
+  - cancel logging from dialogs (`packages/ui/src/dialog.tsx`).
+- Added workflow bridge tests (`apps/practice-host-ui/src/services/tauri.service.test.ts`) and sanitizer unit tests (`commands/system/logging.rs` test module).
+- Build gate fixes required for this run:
+  - vendored OpenSSL SQLCipher feature + lockfile update (`apps/practice-host/Cargo.toml`, `crates/server/*/Cargo.toml`, `crates/shared/medoc-sync/Cargo.toml`, `Cargo.lock`);
+  - TypeScript `noUnusedLocals` cleanups in patient-detail tabs.
+- Pushed commits: `5b443f0`, `c045522`, `77f00a8`, `de44ed8`, `b75dfed`.
+- Added Playwright geometry/a11y harness stabilization:
+  - resolved off-scale `stack gap=14px` in audit harness by forcing 16px root font on `ui-audit.html`;
+  - replaced brittle toast `top===auto` assertion with bottom-right token anchoring checks;
+  - generated snapshot baselines at 375/768/1259.
+- Fixed TS build alias gap (`@medoc/ui` bare import) by adding explicit path alias in `apps/practice-host-ui/tsconfig.json`.
+- Pushed commits: `4052071`, `226dd56`, `66b8cd5`.
 
 ## Now
 
+- Resolve environment blocker for Rust gates in this cloud image (`gdk-3.0.pc` / GTK libs missing for Tauri-linked crates).
+- Decide policy for repo-wide rustfmt baseline drift vs changed-files-only fmt checks in bounded automation runs.
+- Continue STEP-2 workflow-map/state-machine detection and register any non-terminable paths.
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).

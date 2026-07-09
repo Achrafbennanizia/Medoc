@@ -16,24 +16,25 @@ function ToastRow({
     const isError = toast.type === "error";
     const live = isError ? "assertive" : "polite";
     const role = isError ? "alert" : "status";
+    const persistent = toast.durationMs == null;
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    const remainingRef = useRef(toast.durationMs);
+    const remainingRef = useRef(toast.durationMs ?? 0);
     const endAtRef = useRef(0);
     const pausedRef = useRef(false);
 
     const armTimer = useCallback(() => {
         clearTimeout(timeoutRef.current);
-        if (pausedRef.current || stackPointerInside) return;
+        if (pausedRef.current || stackPointerInside || persistent) return;
         const delay = remainingRef.current;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);
         }, delay + 400);
-    }, [remove, toast.id, stackPointerInside]);
+    }, [persistent, remove, toast.id, stackPointerInside]);
 
     useEffect(() => {
-        remainingRef.current = toast.durationMs;
+        remainingRef.current = toast.durationMs ?? 0;
         pausedRef.current = false;
         armTimer();
         return () => clearTimeout(timeoutRef.current);
@@ -54,6 +55,7 @@ function ToastRow({
     };
 
     const onPointerEnter = () => {
+        if (persistent) return;
         if (pausedRef.current) return;
         pausedRef.current = true;
         clearTimeout(timeoutRef.current);
@@ -61,6 +63,7 @@ function ToastRow({
     };
 
     const onPointerLeave = () => {
+        if (persistent) return;
         if (!pausedRef.current) return;
         pausedRef.current = false;
         if (!stackPointerInside) armTimer();
@@ -72,7 +75,7 @@ function ToastRow({
             role={role}
             aria-live={live}
             tabIndex={0}
-            style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
+            style={toast.durationMs == null ? undefined : { ["--toast-dur" as string]: `${toast.durationMs}ms` }}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
         >
@@ -96,9 +99,11 @@ function ToastRow({
                     ×
                 </button>
             </div>
-            <div className="toast-progress-track" aria-hidden>
-                <div className="toast-progress-bar" />
-            </div>
+            {toast.durationMs == null ? null : (
+                <div className="toast-progress-track" aria-hidden>
+                    <div className="toast-progress-bar" />
+                </div>
+            )}
         </div>
     );
 }

@@ -1,4 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+    logActionError,
+    logActionSuccess,
+    logPrimaryAction,
+    WORKFLOW_LOG_COMMAND,
+} from "@/systems/practice-host/lib/workflow-log";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -52,10 +58,22 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = args == null ? {} : omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    const logLifecycle = cmd !== WORKFLOW_LOG_COMMAND;
+    if (logLifecycle) {
+        logPrimaryAction(cmd, cleaned);
+    }
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (logLifecycle) {
+            logActionSuccess(cmd);
+        }
+        return result;
+    } catch (err) {
+        if (logLifecycle) {
+            logActionError(cmd, err);
+        }
+        throw err;
+    }
 }

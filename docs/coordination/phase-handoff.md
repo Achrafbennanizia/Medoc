@@ -1,7 +1,59 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** UI geometry + validation remediation run (2026-07-09)  
+**Last closed:** Resolved Playwright spacing/a11y assertion failures, generated baseline geometry snapshots, fixed TypeScript alias build break, and reran frontend + Rust gates.
+
+### Verified (2026-07-09 — geometry remediation)
+
+- **Geometry spacing defect fixed:** Playwright failure `stack gap=14px` resolved by setting audit-page root font-size to 16px in `apps/practice-host-ui/ui-audit.html` (commit `4052071`).
+- **Toast anchoring assertion hardened:** geometry test now validates fixed bottom-right token anchoring instead of brittle `computed top === auto` check (`apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts`, commit `226dd56`).
+- **Playwright baselines created:** `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts-snapshots/ui-audit-{375,768,1259}-chromium-linux.png`.
+- **Build break fixed:** added bare-module alias `@medoc/ui` in `apps/practice-host-ui/tsconfig.json` (commit `66b8cd5`) after `npm run build` failed with TS2307.
+- **Frontend validations:** `npm run test` **PASS** (289 passed / 3 skipped), `npm run build` **PASS**, `npm run lint:tailwind-spacing` **PASS**, Playwright geometry+a11y **PASS** (4/4).
+
+### Remains unverified
+
+- Full Rust workspace gate success on this runner: `cargo clippy --workspace --all-targets -D warnings` and `cargo test --workspace --tests` are blocked by missing `gdk-3.0.pc` (GTK/GDK system dependency for Tauri-linked crates).
+- `cargo fmt --all -- --check` full-green baseline (workspace currently reports broad formatting drift outside this run).
+- Live Tauri manual verification of workflow logs on disk (rotation + redaction of realistic patient payloads) — **NOT OBSERVED** in this run.
+
+### Next
+
+1. Provide GTK/GDK build deps (or approved Rust gate split) in cloud image; rerun full Rust gates.
+2. Decide/execute baseline rustfmt strategy (repo-wide sweep vs changed-files gate) and rerun fmt gate.
+3. Run live Tauri workflow smoke (route enter, action, success/error/cancel) and verify `workflow.log` rotation/redaction with real files.
+4. Continue STEP-2 workflow-map state-machine detection and record any non-terminable flows as register entries.
+
+---
+
+**Previous phase label:** Workflow logger instrumentation run (2026-07-09)  
+**Previous closed:** Extended existing logging stack with dedicated workflow channel + sanitized FE→BE bridge + lifecycle hooks + tests.
+
+### Verified (2026-07-09 — workflow logger instrumentation)
+
+- **Logger extension:** Added `workflow.log` to existing tracing subsystem (`crates/shared/medoc-core/src/infrastructure/logging/{mod.rs,config.rs}`).
+- **Backend bridge:** Added `log_workflow_event` IPC command (sanitized payload fields + context) and registered it (`crates/app/medoc-practice/src/commands/system/logging.rs`, `commands/register.rs`).
+- **Frontend hooks:** route enter logger (`apps/practice-host-ui/src/views/components/workflow-route-logger.tsx`), invoke lifecycle logging in `tauri.service.ts`, dialog cancel logging in `packages/ui/src/dialog.tsx`.
+- **Tests:** `npm run test` **PASS** (246 passed / 3 skipped), `npm run test -w medoc -- src/services/tauri.service.test.ts` **PASS** (3/3), `npm run build` **PASS**.
+- **Support fixes delivered:** SQLCipher vendored OpenSSL feature + lockfile update (`apps/practice-host/Cargo.toml`, `crates/server/*/Cargo.toml`, `crates/shared/medoc-sync/Cargo.toml`, `Cargo.lock`); TypeScript `noUnusedLocals` fixes in patient-detail tabs.
+- **Commits:** `5b443f0`, `c045522`, `77f00a8`, `de44ed8`, `b75dfed`.
+
+### Remains unverified
+
+- Full Rust workspace gate success on this runner: `cargo clippy --workspace --all-targets -D warnings` and `cargo test --workspace --tests` are blocked by missing `gdk-3.0.pc` (GTK/GDK system dependency for Tauri-linked crates).
+- `cargo fmt --all -- --check` full-green baseline (workspace currently reports broad formatting drift outside this run).
+- Live Tauri manual verification of workflow logs on disk (rotation + redaction of realistic patient payloads) — **NOT OBSERVED** in this run.
+
+### Next
+
+1. Provide GTK/GDK build deps (or approved Rust gate split) in cloud image; rerun full Rust gates.
+2. Decide/execute baseline rustfmt strategy (repo-wide sweep vs changed-files gate) and rerun fmt gate.
+3. Run live Tauri workflow smoke (route enter, action, success/error/cancel) and verify `workflow.log` rotation/redaction with real files.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 
