@@ -268,6 +268,26 @@ export function ConfirmDialog({
     const confirm = confirmLabel ?? t("common.confirm");
     const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
+
+    useEffect(() => {
+        if (!open || loading) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Enter") return;
+            const target = event.target as HTMLElement | null;
+            const tag = target?.tagName;
+            // Keep native multiline-entry behavior untouched for safety.
+            if (tag === "TEXTAREA") return;
+            if (tag === "INPUT") return;
+            event.preventDefault();
+            event.stopPropagation();
+            onConfirm();
+        };
+        document.addEventListener("keydown", onKeyDown, true);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown, true);
+        };
+    }, [open, loading, onConfirm]);
+
     const handleClose = () => {
         if (!loading) onClose();
     };
