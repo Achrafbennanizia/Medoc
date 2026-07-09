@@ -36,7 +36,9 @@ pub async fn break_glass_activate(
     mvp_security::require_break_glass_enabled()?;
     let session = rbac::require(&session_state, "patient.read_medical")?;
     if reason.trim().len() < 10 {
-        return Err(AppError::validation_code("error.break_glass.reason_too_short"));
+        return Err(AppError::validation_code(
+            "error.break_glass.reason_too_short",
+        ));
     }
     log_security!(error,
         event = "BREAK_GLASS_ACTIVATED",

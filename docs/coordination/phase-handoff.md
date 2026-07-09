@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Workflow Quality Audit + Playwright Hardening (2026-07-09)  
+**Last closed:** Logging bridge verification, behavior/geometry/a11y automation, and gated UI defect fixes.
+
+### Verified (2026-07-09 — workflow quality run)
+
+- **Workflow logging channel:** dedicated `workflow.log` channel is wired with daily rotation + sanitizer writer (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`).
+- **Frontend→backend workflow bridge:** route-enter + IPC lifecycle events call `workflow_log_event` via `tauriInvoke` wrapper (`apps/practice-host-ui/src/services/tauri.service.ts`, `workflow-route-logger.tsx`, `crates/app/medoc-practice/src/commands/system/logging.rs`).
+- **Behavior coverage:** smoke tests cover key non-terminable paths (session timeout unblocking, load-error retry, dialog cancel/escape, toast persistence).
+- **Geometry/a11y audit:** Playwright spec passes at 375/768/1259 with snapshot baselines, spacing-scale assertions, dialog keyboard checks, icon-button labels, and axe critical gate (`apps/practice-host-ui/e2e-playwright/ui-geometry-spacing.spec.ts`).
+- **Validation matrix:** `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build`, `npm run lint:tailwind-spacing`, and Playwright spec all **PASS** (see `validation.md`, 2026-07-09 block).
+
+### Remains unverified
+
+- Live Tauri runtime validation of workflow log files in an installed desktop session (**NOT OBSERVED** this run).
+- Real clock-bound daily rollover execution of log rotation (**INFERRED** from `Rotation::DAILY`, not runtime-observed).
+- Full manual route-by-route workflow state-machine walkthrough beyond the QA harness page (**PARTIAL**).
+
+### Understanding delta
+
+- The remaining blockers in this loop were primarily **test infrastructure defects** (ESM config pathing, snapshot baseline absence, browser/bootstrap dependencies), not newly discovered production a11y/layout regressions in the audited harness.
+- Spacing assertions needed to align with Tailwind’s resolved spacing scale under the app’s effective root font-size rather than raw CSS token vars.
+
+### Next
+
+1. Address test-hygiene warning `QA-TEST-001` (`await` missing in `http-practice.adapter.test.ts`).
+2. Run dedicated lint-remediation pass for `QA-LINT-001` (current optional `npm run lint` fails outside this patch scope).
+3. Run/manual-sign off live Tauri workflow logging + rotation observation in desktop runtime.
+4. Continue manual G21b / workflow-map live checklist rows marked **NOT OBSERVED**.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 

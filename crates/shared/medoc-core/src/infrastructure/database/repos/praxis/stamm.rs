@@ -224,7 +224,9 @@ pub async fn create_dokument_vorlage(
 ) -> Result<DokumentVorlage, AppError> {
     let kind = data.kind.trim().to_uppercase();
     if kind != "REZEPT" && kind != "ATTEST" {
-        return Err(AppError::validation_code("error.stamm.template_kind_invalid"));
+        return Err(AppError::validation_code(
+            "error.stamm.template_kind_invalid",
+        ));
     }
     if data.titel.trim().is_empty() {
         return Err(AppError::validation_code("error.stamm.title_required"));
@@ -342,7 +344,9 @@ pub async fn create_behandlungs_katalog_item(
     data: &CreateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::validation_code("error.stamm.category_name_required"));
+        return Err(AppError::validation_code(
+            "error.stamm.category_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -370,7 +374,9 @@ pub async fn update_behandlungs_katalog_item(
     data: &UpdateBehandlungsKatalogItem,
 ) -> Result<BehandlungsKatalogItem, AppError> {
     if data.kategorie.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::validation_code("error.stamm.category_name_required"));
+        return Err(AppError::validation_code(
+            "error.stamm.category_name_required",
+        ));
     }
     let sort = data.sort_order.unwrap_or(0);
     let r = sqlx::query(
@@ -479,7 +485,9 @@ pub async fn create_lieferant_stamm(
 ) -> Result<LieferantStammRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::validation_code("error.stamm.supplier_name_required"));
+        return Err(AppError::validation_code(
+            "error.stamm.supplier_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -528,7 +536,9 @@ pub async fn create_pharmaberater_stamm(
 ) -> Result<PharmaberaterStammRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::validation_code("error.stamm.contact_name_required"));
+        return Err(AppError::validation_code(
+            "error.stamm.contact_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -632,7 +642,9 @@ pub async fn create_lieferant_pharma_vorlage(
     let pid = data.pharmaberater_id.trim();
     let prid = data.produkt_id.trim();
     if lid.is_empty() || pid.is_empty() || prid.is_empty() {
-        return Err(AppError::validation_code("error.stamm.order_fields_required"));
+        return Err(AppError::validation_code(
+            "error.stamm.order_fields_required",
+        ));
     }
     let l_ok: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM lieferant_stamm WHERE id = ?1 AND aktiv = 1")

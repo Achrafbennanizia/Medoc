@@ -1,12 +1,22 @@
 import { defineConfig } from "@playwright/test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseURL = process.env.MEDOC_VITE_URL ?? "http://127.0.0.1:5173";
 const lanServer = process.env.MEDOC_LAN_URL ?? "https://127.0.0.1:8787";
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     testDir: "./e2e-playwright",
     timeout: 60_000,
     retries: 0,
+    webServer: {
+        command: "npm run build && npm run preview -- --host 127.0.0.1 --port 5173",
+        url: baseURL,
+        cwd: configDir,
+        reuseExistingServer: true,
+        timeout: 180_000,
+    },
     use: {
         baseURL,
         ignoreHTTPSErrors: true,

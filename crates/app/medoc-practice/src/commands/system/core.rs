@@ -226,10 +226,7 @@ pub async fn install_available_update(
         return Err(AppError::Validation("Kein Update verfügbar".into()));
     };
     update
-        .download_and_install(
-            |_, _| {},
-            || {},
-        )
+        .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     log_system!(info, event = "UPDATE_INSTALLED", version = %update.version);

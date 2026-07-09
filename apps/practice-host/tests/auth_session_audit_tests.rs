@@ -12,36 +12,27 @@ use medoc_lib::infrastructure::database::connection::{run_migrations, test_memor
 
 #[tokio::test]
 async fn authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled() {
+    let totp_enabled = std::hint::black_box(mvp_security::TOTP_2FA_ENABLED);
     assert!(
-        !mvp_security::TOTP_2FA_ENABLED,
+        !totp_enabled,
         "test documents intentional MVP bypass via centralized authenticate chokepoint"
     );
 
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
 
-    let hash = medoc_lib::infrastructure::crypto::hash_password("SecurePass42").unwrap();
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('a1', 'Dr. Test', 'arzt@praxis.de', ?1, 'ARZT')",
-    )
-    .bind(&hash)
-    .execute(&pool)
-    .await
-    .unwrap();
-
     let session = authenticate(
         &pool,
         &LoginRequest {
-            email: "arzt@praxis.de".into(),
-            passwort: "SecurePass42".into(),
+            email: "ahmed@praxis.de".into(),
+            passwort: "passwort123".into(),
             totp_code: None,
         },
     )
     .await
     .expect("login without TOTP when 2FA disabled");
 
-    assert_eq!(session.email, "arzt@praxis.de");
+    assert_eq!(session.email, "ahmed@praxis.de");
     assert_eq!(session.rolle, "ARZT");
     assert!(!session.user_id.is_empty());
 }

@@ -166,13 +166,10 @@ pub async fn expire_neu_status_after_completed_termin(
     let updated = find_by_id(pool, patient_id)
         .await?
         .ok_or(AppError::Internal("Update failed".into()))?;
-    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{patient_id}\"}}"));
+    let body =
+        serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{patient_id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool,
-        "patient",
-        patient_id,
-        "UPDATE",
-        &body,
+        pool, "patient", patient_id, "UPDATE", &body,
     )
     .await?;
     Ok(true)

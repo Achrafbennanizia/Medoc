@@ -4,6 +4,25 @@ import { mergeAutocompleteFromPraxisKvIntoLocal } from "@/lib/praxis-search-pref
 import { useT } from "@/lib/i18n";
 import { useAuthStore } from "../../models/store/auth-store";
 
+const SESSION_CHECK_TIMEOUT_MS = 7000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error(`session-check-timeout-${timeoutMs}`));
+        }, timeoutMs);
+        promise
+            .then((value) => {
+                clearTimeout(timeoutId);
+                resolve(value);
+            })
+            .catch((error) => {
+                clearTimeout(timeoutId);
+                reject(error);
+            });
+    });
+}
+
 /**
  * Runs once at startup so `get_session` hydrates Zustand before route guards run.
  * Without this, a full reload cleared client session while Rust still had a session.
@@ -13,7 +32,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
     const sessionChecked = useAuthStore((s) => s.sessionChecked);
 
     useEffect(() => {
-        void checkSession()
+        void withTimeout(checkSession(), SESSION_CHECK_TIMEOUT_MS)
             .then(() => mergeAutocompleteFromPraxisKvIntoLocal())
             .catch((e) => {
                 console.warn("SessionGate: checkSession failed", e);

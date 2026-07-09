@@ -107,7 +107,9 @@ pub async fn forward_akte_to_physicians(
         .into_iter()
         .collect();
     if ids.is_empty() {
-        return Err(AppError::validation_code("error.akte.select_doctor_required"));
+        return Err(AppError::validation_code(
+            "error.akte.select_doctor_required",
+        ));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
@@ -198,7 +200,9 @@ pub async fn create_praxis_ticket(
         .await?
         .ok_or(AppError::NotFound("error.entity.arzt".into()))?;
     if !to.rolle.eq_ignore_ascii_case("ARZT") {
-        return Err(AppError::validation_code("error.akte.target_must_be_doctor"));
+        return Err(AppError::validation_code(
+            "error.akte.target_must_be_doctor",
+        ));
     }
     let t = praxis_ticket_repo::insert(
         &pool,

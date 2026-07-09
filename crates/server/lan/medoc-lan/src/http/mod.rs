@@ -259,7 +259,9 @@ async fn login(
         CheckResult::Locked { remaining_secs } => {
             return Err((
                 StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({ "error": format!("error.app.rate_limited|seconds={remaining_secs}") })),
+                Json(
+                    json!({ "error": format!("error.app.rate_limited|seconds={remaining_secs}") }),
+                ),
             )
                 .into_response());
         }

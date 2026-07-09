@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { Card, CardHeader } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
-import { PageLoading } from "../components/ui/page-status";
+import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { useToastStore } from "../components/ui/toast-store";
 import type { PraxisClosureMode, PraxisClosureRule } from "@/lib/praxis-planning";
@@ -20,6 +20,7 @@ export function SonderSperrzeitenPage() {
     const { canWritePraxisplanung } = useRbac();
     const [closures, setClosures] = useState<PraxisClosureRule[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [closureDate, setClosureDate] = useState("");
     const [closureMode, setClosureMode] = useState<PraxisClosureMode>("FULL_DAY");
     const [closurePeriods, setClosurePeriods] = useState<Array<{ from: string; to: string }>>([{ from: "08:00", to: "12:00" }]);
@@ -28,12 +29,19 @@ export function SonderSperrzeitenPage() {
     const [sperrEdit, setSperrEdit] = useState(false);
     const [selected, setSelected] = useState<PraxisClosureRule | null>(null);
 
-    useEffect(() => {
+    const loadClosures = useCallback(() => {
         let cancelled = false;
         setLoading(true);
+        setLoadError(null);
         void loadPraxisArbeitszeitenConfig()
             .then((parsed) => {
                 if (!cancelled) setClosures(parsed.closures ?? []);
+            })
+            .catch((e: unknown) => {
+                if (!cancelled) {
+                    setClosures([]);
+                    setLoadError(errorMessage(e));
+                }
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -42,6 +50,11 @@ export function SonderSperrzeitenPage() {
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        const cleanup = loadClosures();
+        return cleanup;
+    }, [loadClosures]);
 
     const saveClosures = async (next: PraxisClosureRule[]) => {
         const previous = closures;
@@ -338,6 +351,7 @@ export function SonderSperrzeitenPage() {
     })();
 
     if (loading) return <PageLoading label={t("page.sonder_sperrzeiten.loading")} />;
+    if (loadError) return <PageLoadError message={loadError} onRetry={() => void loadClosures()} />;
 
     return (
         <div className="produkte-page praxis-workspace-page animate-fade-in">

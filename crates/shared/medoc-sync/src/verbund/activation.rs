@@ -2,18 +2,18 @@
 
 use std::path::Path;
 
-use medoc_core::argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use chrono::Utc;
 use ed25519_dalek::SigningKey;
+use medoc_core::argon2::{Algorithm, Argon2, Params, Version};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::database::db_key;
 use medoc_core::infrastructure::license_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use chacha20poly1305::aead::{Aead, KeyInit};
-use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use zeroize::Zeroizing;
 
 use crate::master_keys;
@@ -166,7 +166,9 @@ fn verify_device_pubkey(device_pk: &[u8], plain: &[u8]) -> Result<(), AppError> 
 
 fn verify_ca_pubkey(ca_pk: &[u8], plain: &[u8]) -> Result<(), AppError> {
     if ca_pk.len() != 32 {
-        return Err(AppError::Validation("cluster_ca_pubkey Länge ungültig".into()));
+        return Err(AppError::Validation(
+            "cluster_ca_pubkey Länge ungültig".into(),
+        ));
     }
     let ca_seed: [u8; 32] = plain[64..96]
         .try_into()
@@ -192,7 +194,9 @@ pub async fn import_owner_activation(
 ) -> Result<ActivationSummary, AppError> {
     require_owner_activation_device(pool).await?;
     if passphrase.is_empty() {
-        return Err(AppError::validation_code("error.verbund.passphrase_required"));
+        return Err(AppError::validation_code(
+            "error.verbund.passphrase_required",
+        ));
     }
     if activation_already_done(pool).await? {
         let status = verbund_status(pool).await?;
@@ -245,13 +249,9 @@ pub async fn import_owner_activation(
         .map_err(|_| AppError::Internal("db key".into()))?;
 
     let db_path = app_data_dir.join("medoc.db");
-    let rekeyed = db_key::apply_activation_sqlcipher_key(
-        pool,
-        app_data_dir,
-        &db_path,
-        &sqlcipher_key,
-    )
-    .await?;
+    let rekeyed =
+        db_key::apply_activation_sqlcipher_key(pool, app_data_dir, &db_path, &sqlcipher_key)
+            .await?;
 
     let work_pool = if rekeyed {
         connection::reopen_app_pool(app_data_dir).await?
@@ -277,9 +277,7 @@ pub async fn import_owner_activation(
     };
 
     let device_id = license_repo::ensure_device_id(&work_pool).await?;
-    let repos = SqliteVerbundRepos {
-        pool: &work_pool,
-    };
+    let repos = SqliteVerbundRepos { pool: &work_pool };
     repos.save(&lizenz).await?;
 
     let geraet = Geraet {
@@ -287,9 +285,7 @@ pub async fn import_owner_activation(
         cluster_id: cluster_id.clone(),
         device_id,
         pubkey: identity.pubkey_bytes.to_vec(),
-        hostname: hostname::get()
-            .ok()
-            .and_then(|h| h.into_string().ok()),
+        hostname: hostname::get().ok().and_then(|h| h.into_string().ok()),
         os: Some(std::env::consts::OS.into()),
         last_ip: None,
         seat_role: SeatRolle::Admin,
@@ -389,10 +385,8 @@ mod tests {
             "missing {} — run scripts/dev-onboarding-reset.sh",
             manifest.display()
         );
-        let app_dir = std::path::PathBuf::from(
-            std::env::var("HOME").expect("HOME"),
-        )
-        .join("Library/Application Support/de.medoc.app");
+        let app_dir = std::path::PathBuf::from(std::env::var("HOME").expect("HOME"))
+            .join("Library/Application Support/de.medoc.app");
         let pool = connection::init_db_headless(&app_dir)
             .await
             .expect("open medoc.db (set MEDOC_DB_KEY like tools/dev-tauri.sh)");

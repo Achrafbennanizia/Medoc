@@ -16,6 +16,7 @@ function ToastRow({
     const isError = toast.type === "error";
     const live = isError ? "assertive" : "polite";
     const role = isError ? "alert" : "status";
+    const finiteDuration = Number.isFinite(toast.durationMs);
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const remainingRef = useRef(toast.durationMs);
@@ -24,20 +25,20 @@ function ToastRow({
 
     const armTimer = useCallback(() => {
         clearTimeout(timeoutRef.current);
-        if (pausedRef.current || stackPointerInside) return;
+        if (pausedRef.current || stackPointerInside || !finiteDuration) return;
         const delay = remainingRef.current;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);
         }, delay + 400);
-    }, [remove, toast.id, stackPointerInside]);
+    }, [finiteDuration, remove, toast.id, stackPointerInside]);
 
     useEffect(() => {
-        remainingRef.current = toast.durationMs;
+        remainingRef.current = finiteDuration ? toast.durationMs : 0;
         pausedRef.current = false;
         armTimer();
         return () => clearTimeout(timeoutRef.current);
-    }, [toast.durationMs, armTimer]);
+    }, [finiteDuration, toast.durationMs, armTimer]);
 
     useEffect(() => {
         if (stackPointerInside) {
@@ -68,11 +69,11 @@ function ToastRow({
 
     return (
         <div
-            className={`toast-item ${toast.type} animate-slide-up`}
+            className={`toast-item ${toast.type} ${toast.persistent ? "toast-item--persistent" : ""} animate-slide-up`}
             role={role}
             aria-live={live}
             tabIndex={0}
-            style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
+            style={finiteDuration ? { ["--toast-dur" as string]: `${toast.durationMs}ms` } : undefined}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
         >
@@ -96,9 +97,11 @@ function ToastRow({
                     ×
                 </button>
             </div>
-            <div className="toast-progress-track" aria-hidden>
-                <div className="toast-progress-bar" />
-            </div>
+            {finiteDuration ? (
+                <div className="toast-progress-track" aria-hidden>
+                    <div className="toast-progress-bar" />
+                </div>
+            ) : null}
         </div>
     );
 }

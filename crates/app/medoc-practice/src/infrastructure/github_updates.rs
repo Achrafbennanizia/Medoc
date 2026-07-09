@@ -68,14 +68,21 @@ fn github_client(token: Option<&str>) -> Result<reqwest::Client, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-async fn fetch_bytes(url: &str, client: &reqwest::Client, octet_stream: bool) -> Result<Vec<u8>, AppError> {
+async fn fetch_bytes(
+    url: &str,
+    client: &reqwest::Client,
+    octet_stream: bool,
+) -> Result<Vec<u8>, AppError> {
     let mut req = client.get(url);
     if octet_stream {
         req = req.header(reqwest::header::ACCEPT, "application/octet-stream");
     } else {
         req = req.header(reqwest::header::ACCEPT, "application/vnd.github+json");
     }
-    let res = req.send().await.map_err(|e| AppError::Internal(e.to_string()))?;
+    let res = req
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     if !res.status().is_success() {
         return Err(AppError::Internal(format!(
             "GitHub update fetch failed (HTTP {})",
@@ -119,10 +126,13 @@ async fn fetch_latest_json(repo: &str, token: Option<&str>) -> Result<LatestJson
         .and_then(|u| u.as_str())
         .ok_or_else(|| AppError::Internal("latest.json asset has no url".into()))?;
     let bytes = fetch_bytes(asset_url, &client, true).await?;
-    serde_json::from_slice(&bytes).map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
+    serde_json::from_slice(&bytes)
+        .map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
 }
 
-pub async fn check_github_updates(pool: &SqlitePool) -> Result<Option<GithubUpdateCheck>, AppError> {
+pub async fn check_github_updates(
+    pool: &SqlitePool,
+) -> Result<Option<GithubUpdateCheck>, AppError> {
     let Some(repo) = configured_repo() else {
         return Ok(None);
     };

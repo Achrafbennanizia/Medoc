@@ -23,15 +23,7 @@ pub async fn apply_remote_entry(
     policy: ConflictPolicy,
     entry: &OutboxEntry,
 ) -> Result<bool, AppError> {
-    apply_remote_entry_phased(
-        pool,
-        local_device_id,
-        local_is_master,
-        false,
-        policy,
-        entry,
-    )
-    .await
+    apply_remote_entry_phased(pool, local_device_id, local_is_master, false, policy, entry).await
 }
 
 /// `admin_pull`: replica applying master rows after push-then-pull — admin

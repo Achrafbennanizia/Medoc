@@ -4,16 +4,16 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use medoc_sync::net::{
-    bind_verbund_listener, handle_join_connection, join_admin_endpoint, scan_admins,
-    AdminEndpoint, DEFAULT_VERBUND_PORT, MdnsResponder,
+    bind_verbund_listener, handle_join_connection, join_admin_endpoint, scan_admins, AdminEndpoint,
+    MdnsResponder, DEFAULT_VERBUND_PORT,
 };
 use medoc_sync::verbund::crypto::DeviceIdentity;
 use medoc_sync::verbund::services::{
-    accept_join_request, activate_cluster_license, block_device,
-    import_owner_activation, list_devices, list_pending_requests, mirror_join_session,
-    reclaim_stale_seat, reject_join_request, require_owner_admin, revoke_device, submit_sas,
-    unblock_device, verbund_network_ready, verbund_status, GeraetView, ImportActivationResult,
-    JoinRequestResult, KopplungHandle, PendingRequest, ProvisionResult, SasCode, VerbundStatus,
+    accept_join_request, activate_cluster_license, block_device, import_owner_activation,
+    list_devices, list_pending_requests, mirror_join_session, reclaim_stale_seat,
+    reject_join_request, require_owner_admin, revoke_device, submit_sas, unblock_device,
+    verbund_network_ready, verbund_status, GeraetView, ImportActivationResult, JoinRequestResult,
+    KopplungHandle, PendingRequest, ProvisionResult, SasCode, VerbundStatus,
 };
 use medoc_sync::verbund::SeatRolle;
 use serde::Deserialize;

@@ -86,10 +86,20 @@ async fn restore_from_backup_replaces_live_db_file() {
         .await
         .unwrap();
 
+    // `MEDOC_DB_KEY` is process-global and may be overridden by parallel tests;
+    // re-assert it immediately before restore/reopen to avoid key drift flakes.
+    std::env::set_var(
+        "MEDOC_DB_KEY",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
     medoc_lib::infrastructure::backup::restore_from_backup(&pool, &dir, &backup_path)
         .await
         .expect("restore");
 
+    std::env::set_var(
+        "MEDOC_DB_KEY",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
     let pool2 = medoc_lib::infrastructure::database::connection::init_db_headless(&dir)
         .await
         .expect("reopen db");

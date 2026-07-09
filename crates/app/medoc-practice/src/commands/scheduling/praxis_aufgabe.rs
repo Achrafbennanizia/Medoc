@@ -61,7 +61,9 @@ pub async fn create_praxis_aufgabe(
     let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
     let titel = data.titel.trim().to_string();
     if titel.is_empty() {
-        return Err(AppError::validation_code("error.praxis_aufgabe.title_required"));
+        return Err(AppError::validation_code(
+            "error.praxis_aufgabe.title_required",
+        ));
     }
     let patient_id = normalize_patient_id(data.patient_id.as_deref());
     let pid = patient_id
@@ -104,12 +106,16 @@ pub async fn create_praxis_aufgabe(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .ok_or_else(|| AppError::validation_code("error.praxis_aufgabe.assignee_doctor_required"))?;
+                .ok_or_else(|| {
+                    AppError::validation_code("error.praxis_aufgabe.assignee_doctor_required")
+                })?;
             let arzt = personal_repo::find_by_id(&pool, aid)
                 .await?
                 .ok_or(AppError::NotFound("Arzt".into()))?;
             if !arzt.rolle.eq_ignore_ascii_case("ARZT") {
-                return Err(AppError::validation_code("error.praxis_aufgabe.target_must_be_doctor"));
+                return Err(AppError::validation_code(
+                    "error.praxis_aufgabe.target_must_be_doctor",
+                ));
             }
             payload.assignee_role = None;
         }
@@ -296,7 +302,9 @@ pub async fn create_praxis_aufgabe_admin(
     let session = rbac::require(&session_state, "verwaltung.read")?;
     let titel = data.titel.trim().to_string();
     if titel.is_empty() {
-        return Err(AppError::validation_code("error.praxis_aufgabe.title_required"));
+        return Err(AppError::validation_code(
+            "error.praxis_aufgabe.title_required",
+        ));
     }
     let patient_id = normalize_patient_id(data.patient_id.as_deref());
     if let Some(pid) = patient_id.as_deref() {
@@ -354,7 +362,9 @@ pub async fn update_praxis_aufgabe_admin(
         .map(str::trim)
         .is_some_and(|s| s.is_empty())
     {
-        return Err(AppError::validation_code("error.praxis_aufgabe.title_required"));
+        return Err(AppError::validation_code(
+            "error.praxis_aufgabe.title_required",
+        ));
     }
     if let Some(t) = patch.typ.as_deref() {
         normalize_typ(t)?;

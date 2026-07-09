@@ -120,7 +120,9 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = row else {
-            return Err(AppError::validation_code("error.zahlung.behandlung_not_found"));
+            return Err(AppError::validation_code(
+                "error.zahlung.behandlung_not_found",
+            ));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
@@ -139,7 +141,9 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = ok else {
-            return Err(AppError::validation_code("error.zahlung.untersuchung_not_found"));
+            return Err(AppError::validation_code(
+                "error.zahlung.untersuchung_not_found",
+            ));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
@@ -154,14 +158,18 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         return Err(AppError::validation_code("error.zahlung.amount_invalid"));
     }
     if is_placeholder && data.leistung_id.is_some() {
-        return Err(AppError::validation_code("error.zahlung.leistung_positive_required"));
+        return Err(AppError::validation_code(
+            "error.zahlung.leistung_positive_required",
+        ));
     }
 
     // Wenn positiver Betrag: optional Preis aus `leistung` übernehmen.
     let betrag = if is_placeholder {
         0.0
     } else if data.betrag <= EPS {
-        return Err(AppError::validation_code("error.zahlung.amount_must_be_positive"));
+        return Err(AppError::validation_code(
+            "error.zahlung.amount_must_be_positive",
+        ));
     } else if let Some(ref lid) = data.leistung_id {
         let row: Option<(f64,)> = sqlx::query_as("SELECT preis FROM leistung WHERE id = ?1")
             .bind(lid)
@@ -465,14 +473,18 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
         return Err(AppError::NotFound("Zahlung".into()));
     };
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
-        return Err(AppError::validation_code("error.zahlung.edit_locked_status"));
+        return Err(AppError::validation_code(
+            "error.zahlung.edit_locked_status",
+        ));
     }
     let zahlungsart = serde_json::to_string(&data.zahlungsart)
         .map_err(|e| AppError::Internal(format!("Zahlungsart serialisieren: {e}")))?
         .trim_matches('"')
         .to_uppercase();
     if data.betrag <= 0.0 {
-        return Err(AppError::validation_code("error.zahlung.amount_must_be_positive"));
+        return Err(AppError::validation_code(
+            "error.zahlung.amount_must_be_positive",
+        ));
     }
 
     if let Some(ref bid) = behandlung_id {
@@ -577,7 +589,9 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
         .await?;
     let st = row.ok_or(AppError::NotFound("Zahlung".into()))?.0;
     if st != "AUSSTEHEND" && st != "TEILBEZAHLT" {
-        return Err(AppError::validation_code("error.zahlung.delete_locked_status"));
+        return Err(AppError::validation_code(
+            "error.zahlung.delete_locked_status",
+        ));
     }
     sqlx::query("DELETE FROM zahlung WHERE id = ?1")
         .bind(id)

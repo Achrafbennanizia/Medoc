@@ -206,7 +206,7 @@ impl SyncEngine {
                 ConflictPolicy::LastWriteWins,
                 entry,
             )
-                .await?
+            .await?
             {
                 applied += 1;
             } else {

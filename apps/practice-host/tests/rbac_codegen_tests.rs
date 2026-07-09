@@ -46,6 +46,10 @@ const YAML_ACTIONS: &[&str] = &[
     "ops.audit_chain_ack",
     "aufgabe.status.fulfill",
     "aufgabe.status.admin",
+    "work_time.self",
+    "work_time.team.read",
+    "work_time.admin",
+    "statistik.read",
 ];
 
 #[test]

@@ -9,6 +9,7 @@ import { VerbundOnboardingGate } from "./views/components/verbund-onboarding-gat
 import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
+import { WorkflowRouteLogger } from "./views/components/workflow-route-logger";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
 
@@ -114,6 +115,9 @@ const AktivierungImportOnboardingPage = lazy(async () => ({
 const VerbundBeitretenPage = lazy(async () => ({
     default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
 }));
+const QaUiAuditPage = lazy(async () => ({
+    default: (await import("./views/pages/qa-ui-audit")).QaUiAuditPage,
+}));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const session = useAuthStore((s) => s.session);
@@ -136,8 +140,17 @@ export default function App() {
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowRouteLogger />
         <VerbundOnboardingGate>
             <Routes>
+                <Route
+                    path="/qa/ui-audit"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <QaUiAuditPage />
+                        </Suspense>
+                    )}
+                />
                 <Route
                     path="/onboarding"
                     element={(
