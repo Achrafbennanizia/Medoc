@@ -1,10 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (CI/CD tier migration)
 
 ## Now
 
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
+- **CI baseline cleanup:** resolve pre-existing `cargo fmt`, ESLint, and TypeScript failures so Tier-1 `verify.yml` can pass green on current `main`.
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
@@ -22,6 +23,15 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-07-09 — CI/CD tier migration)
+
+- Added `.github/workflows/verify.yml` (push/PR gate + `workflow_call`) with Rust/web/a11y checks, package-manager detection, timeouts, and concurrency cancellation.
+- Added `.github/workflows/autofix.yml` (PR-only deterministic fixes, loop guard, commit-back to PR head).
+- Added `.github/workflows/fix-proposal.yml` (manual or failed-main trigger; new branch + draft PR + before/after evidence + sensitive-path label guard).
+- Rewrote `.github/workflows/release.yml` to gate on reusable verify and build signed bundles only in protected `release` environment.
+- Retired legacy `.github/workflows/ci.yml`.
+- Added `docs/coordination/ci-cd-plan.md`; updated `validation.md` with command evidence.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

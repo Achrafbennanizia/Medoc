@@ -1,6 +1,30 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Last phase label:** CI/CD Pipeline Tier Migration (2026-07-09)
+**Last closed:** Tiered workflow rollout (`verify`/`autofix`/`fix-proposal`/`release`) + coordination ledger updates.
+
+### Verified (2026-07-09 — CI/CD pipeline)
+
+- **Tiered workflows:** Added `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`; rewrote `release.yml`; removed legacy `ci.yml`.
+- **Workspace targeting:** Pipelines now operate from repo-root Cargo/npm workspaces (`crates/*`, `apps/*`, `packages/*`) with package-manager auto-detection.
+- **A11y gate wiring:** Added `apps/practice-host-ui/scripts/a11y-check.mjs` (axe-core + Playwright critical WCAG 2.1 AA gate) and root `test:a11y` script wiring.
+- **Evidence capture:** Validation ledger updated with local command outcomes (`validation.md`, 2026-07-09 section).
+
+### Remains unverified
+
+- First GitHub Actions execution of new workflows on real PR/tag events (**NOT OBSERVED** in this session).
+- Tier-1 verify green status on current codebase: local `cargo fmt`, ESLint, and TypeScript checks still fail due pre-existing issues.
+- Local end-to-end axe run (`npm run test:a11y`) blocked because local build currently fails before producing `dist/`.
+
+### Next
+
+1. Resolve pre-existing Rust fmt / ESLint / TypeScript errors so `verify.yml` can pass.
+2. Open a PR to observe one full `autofix` + `verify` loop and confirm loop guard behavior.
+3. Run a controlled `release.yml` dispatch/tag smoke with protected `release` approval path.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
