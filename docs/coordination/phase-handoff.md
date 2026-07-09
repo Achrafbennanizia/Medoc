@@ -25,8 +25,9 @@
 ### Next
 
 1. Address test-hygiene warning `QA-TEST-001` (`await` missing in `http-practice.adapter.test.ts`).
-2. Run/manual-sign off live Tauri workflow logging + rotation observation in desktop runtime.
-3. Continue manual G21b / workflow-map live checklist rows marked **NOT OBSERVED**.
+2. Run dedicated lint-remediation pass for `QA-LINT-001` (current optional `npm run lint` fails outside this patch scope).
+3. Run/manual-sign off live Tauri workflow logging + rotation observation in desktop runtime.
+4. Continue manual G21b / workflow-map live checklist rows marked **NOT OBSERVED**.
 
 ---
 

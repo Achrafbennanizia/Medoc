@@ -14,6 +14,7 @@
 
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Test hygiene follow-up:** fix `QA-TEST-001` (`await` missing in `http-practice.adapter.test.ts`) before Vitest 3 strictness.
+- **Lint remediation follow-up:** resolve `QA-LINT-001` (`npm run lint` currently 14 errors / 26 warnings) in a dedicated pass.
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).

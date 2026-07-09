@@ -14,6 +14,7 @@
 | QA-PLAY-002 | `apps/practice-host-ui/e2e-playwright/ui-geometry-spacing.spec.ts` | Spacing assertion used CSS token vars only, diverging from Tailwind spacing scale under 14px root font size. | Playwright failure: `spacing-box padding-left: expected 14px to match spacing token scale`. | P2 | Resolved spacing allow-list from `tailwind.config.js` via `resolveConfig` + root font conversion. | **Resolved** |
 | QA-PLAY-003 | `apps/practice-host-ui/e2e-playwright/ui-geometry-spacing.spec.ts` | Toast position assertion incorrectly expected computed `top === "auto"`; computed style returns used px values. | Playwright failure: expected `"auto"`, received pixel value for `top`. | P3 | Switched to geometry assertion (`rectBottom` near viewport bottom). | **Resolved** |
 | QA-TEST-001 | `packages/shared/src/lib/http-practice.adapter.test.ts` | One Vitest assertion is not awaited; currently warning-only but could fail on stricter Vitest behavior. | `npm run test` warning: `Promise returned by expect(...).rejects.toThrow(...) was not awaited`. | P3 | Add explicit `await` on rejects assertion in follow-up test-hygiene pass. | **Open** |
+| QA-LINT-001 | `apps/practice-host-ui/src` (multiple files) | Optional `npm run lint` gate currently fails with pre-existing hooks/compiler lint issues outside this patch scope. | `npm run lint` → 14 errors / 26 warnings (hooks-order + react-compiler diagnostics). | P2 | Track a dedicated lint-remediation pass; not part of the required user matrix for this run. | **Open** |
 
 ## Open contradictions
 

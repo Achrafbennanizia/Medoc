@@ -12,6 +12,7 @@
 | Frontend tests (pre-fix) | `npm run test` | **FAIL** — `session-gate.behavior.smoke.test.tsx` found duplicate `Ready` nodes |
 | Frontend tests (post-fix) | `npm run test` | **PASS** (57 files passed, 1 skipped; 259 tests passed, 3 skipped) |
 | Frontend build | `npm run build` | **PASS** |
+| Frontend lint (informational) | `npm run lint` | **FAIL (pre-existing)** — 14 errors / 26 warnings in unrelated files (hooks-order + react-compiler lint findings) |
 | Tailwind spacing static lint | `npm run lint:tailwind-spacing` (workspace `medoc`) | **PASS** — no arbitrary spacing utilities found |
 | Playwright (pre-fix 1) | `npm run test:playwright -- e2e-playwright/ui-geometry-spacing.spec.ts` | **FAIL** — `__dirname` in ESM config |
 | Playwright (pre-fix 2) | same command | **FAIL** — missing `@axe-core/playwright` / missing browser binary |
