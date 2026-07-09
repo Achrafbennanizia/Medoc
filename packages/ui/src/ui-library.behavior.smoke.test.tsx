@@ -106,7 +106,7 @@ describe("ui-library behavior", () => {
         await user.click(trigger);
         await user.click(screen.getByRole("option", { name: "Rezeption" }));
         expect(onSelectChange).toHaveBeenCalled();
-        expect(screen.getByText("Rezeption")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Role" })).toHaveTextContent("Rezeption");
     });
 
     it("FilterOptionBar only fires change when option actually changes", async () => {

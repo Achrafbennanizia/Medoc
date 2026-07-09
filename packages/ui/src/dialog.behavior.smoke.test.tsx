@@ -13,7 +13,7 @@ describe("Dialog behavior", () => {
         const user = userEvent.setup();
         const onClose = vi.fn();
 
-        const { rerender } = render(
+        const { unmount } = render(
             <Dialog open onClose={onClose} title="Edit">
                 <button type="button">First</button>
                 <button type="button">Second</button>
@@ -22,17 +22,16 @@ describe("Dialog behavior", () => {
 
         fireEvent.keyDown(document, { key: "Escape" });
         expect(onClose).toHaveBeenCalledTimes(1);
+        unmount();
 
-        rerender(
+        render(
             <Dialog open onClose={onClose} title="Edit">
                 <button type="button">First</button>
                 <button type="button">Second</button>
             </Dialog>,
         );
 
-        const backdrop = document.body.querySelector(".modal-backdrop");
-        expect(backdrop).not.toBeNull();
-        await user.click(backdrop as HTMLElement);
+        await user.click(screen.getByRole("presentation"));
         expect(onClose).toHaveBeenCalledTimes(2);
     });
 

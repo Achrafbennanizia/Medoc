@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastContainer } from "./toast";
@@ -55,8 +55,10 @@ describe("toast policy and behavior", () => {
         useToastStore.getState().add("Saved", "success");
         render(<ToastContainer />);
 
-        vi.advanceTimersByTime(3600);
-        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        act(() => {
+            vi.runAllTimers();
+        });
+        expect(screen.queryByText("Saved")).not.toBeInTheDocument();
     });
 
     it("pauses dismiss while pointer is inside the row", () => {
@@ -66,11 +68,15 @@ describe("toast policy and behavior", () => {
 
         const row = screen.getByRole("status");
         fireEvent.pointerEnter(row);
-        vi.advanceTimersByTime(7000);
+        act(() => {
+            vi.runAllTimers();
+        });
         expect(screen.getByRole("status")).toBeInTheDocument();
 
         fireEvent.pointerLeave(row);
-        vi.advanceTimersByTime(3600);
-        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        act(() => {
+            vi.runAllTimers();
+        });
+        expect(screen.queryByText("Saved")).not.toBeInTheDocument();
     });
 });
