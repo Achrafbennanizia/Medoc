@@ -128,15 +128,6 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         .await
         .expect("create patient");
 
-    // Seed a `personal` row so the `arzt_id` FK resolves.
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-1', 'Dr. Test', 'arzt@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
     let create = CreateTermin {
         patient_id: p.id.clone(),
         datum: "2099-01-01".into(),
@@ -144,7 +135,7 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         art: TerminArt::Kontrolle,
         notizen: None,
         beschwerden: None,
-        arzt_id: "arzt-1".into(),
+        arzt_id: "seed-arzt-001".into(),
     };
     let t = termin_repo::create(&pool, &create).await.expect("create");
 
@@ -292,19 +283,11 @@ async fn rezept_create_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-rezept', 'Dr. Rezept', 'rezept@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
     rezept_repo::create(
         &pool,
         &CreateRezept {
             patient_id: p.id.clone(),
-            arzt_id: "arzt-rezept".into(),
+            arzt_id: "seed-arzt-001".into(),
             medikament: "Ibuprofen 600mg".into(),
             wirkstoff: Some("Ibuprofen".into()),
             dosierung: "1-0-1".into(),
@@ -335,20 +318,11 @@ async fn praxis_ticket_insert_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-ticket', 'Frau Rezeption', 'rez@test', 'x', 'REZEPTION'),
-               ('arzt-ticket', 'Dr. Ticket', 'arzt@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
     praxis_ticket_repo::insert(
         &pool,
         &p.id,
-        "rez-ticket",
-        "arzt-ticket",
+        "seed-rez-001",
+        "seed-arzt-001",
         "Port hook ticket",
     )
     .await
