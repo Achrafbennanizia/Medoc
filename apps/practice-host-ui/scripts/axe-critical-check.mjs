@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 
 const PREVIEW_HOST = process.env.A11Y_PREVIEW_HOST ?? "localhost";
-const PREVIEW_PORT = process.env.A11Y_PREVIEW_PORT ?? "4173";
+const PREVIEW_PORT = process.env.A11Y_PREVIEW_PORT ?? String(4100 + Math.floor(Math.random() * 1000));
 const BASE_URL = process.env.A11Y_BASE_URL ?? `http://${PREVIEW_HOST}:${PREVIEW_PORT}`;
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const require = createRequire(import.meta.url);
