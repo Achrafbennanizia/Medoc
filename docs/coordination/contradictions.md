@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-09
 
 ## Open contradictions
 
@@ -10,6 +10,9 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Required Rust workspace gates vs runner capabilities | Run policy requires `cargo clippy --workspace --all-targets -D warnings` and `cargo test --workspace --tests` | Cloud runner lacks GTK/GDK pkg-config metadata (`gdk-3.0.pc`) needed by `gdk-sys` during Tauri-linked Rust builds | **Open blocker** — needs image-level GTK/GDK packages or an approved gate split for this environment. |
+| C10 | Required `cargo fmt --check` vs repository baseline | Run policy requires green fmt before/after each step | Current workspace baseline reports broad rustfmt drift outside this run (`FMT_EXIT=1`) | **Open process mismatch** — requires baseline formatting sweep or changed-files-only fmt policy for bounded quality runs. |
+| C11 | `medoc-core` standalone test assumption | `cargo test -p medoc-core` used as fallback validation when workspace Rust gates are blocked | `dev_init_seed_tests` fails standalone with `no such function: sqlcipher_export` in this environment | **Open investigation** — determine whether standalone path must force SQLCipher feature unification or skip this integration test outside workspace runs. |
 
 ## Resolved (recent)
 

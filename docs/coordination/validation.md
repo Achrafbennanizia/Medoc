@@ -1,6 +1,44 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (workflow + geometry quality run)
+
+## Workflow + geometry quality run — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend tests | `npm run test` | **PASS** — 62 files, 289 passed / 3 skipped |
+| Frontend build (pre-fix) | `npm run build` | **FAIL** — TS2307 (`Cannot find module '@medoc/ui'`) in `src/ui-audit-main.tsx` |
+| Frontend build (post-fix) | `npm run build` | **PASS** — `tsc && vite build` complete |
+| Playwright geometry + snapshots | `npm run test:playwright -w medoc -- e2e-playwright/ui-geometry-a11y.spec.ts --update-snapshots` | **PASS** — 4/4; snapshots written for 375/768/1259 |
+| Playwright geometry re-check | `npm run test:playwright -w medoc -- e2e-playwright/ui-geometry-a11y.spec.ts` | **PASS** — 4/4 |
+| Tailwind arbitrary spacing lint | `npm run lint:tailwind-spacing` | **PASS** — no arbitrary spacing tokens |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — `FMT_EXIT=1`; broad pre-existing rustfmt drift |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `CLIPPY_EXIT=101`; `gdk-sys` missing system `gdk-3.0.pc` |
+| Rust tests gate | `cargo test --workspace --tests` | **FAIL** — `CARGO_TEST_EXIT=101`; same `gdk-3.0.pc` blocker |
+
+**Delivered commits (this run):**
+
+- `5b443f0` — `feat(logging): add sanitized workflow log channel and bridge`
+- `c045522` — `test(logging): cover workflow bridge and sanitizer behavior`
+- `77f00a8` + `b75dfed` — SQLCipher vendored OpenSSL feature + lockfile update
+- `de44ed8` — TypeScript build gate fix (unused symbols)
+- `4052071` — `fix(playwright): normalize audit harness rem spacing scale`
+- `226dd56` — `test(playwright): assert toast bottom-right anchoring robustly`
+- `66b8cd5` — `fix(build): add bare @medoc/ui tsconfig path alias`
+
+**Findings register (reused tracker for this run):**
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| F-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/*`, `crates/app/medoc-practice/src/commands/system/logging.rs`, FE bridge files | Missing dedicated workflow telemetry channel and sanitized FE→BE workflow event path | Implemented in `5b443f0`; verified by frontend tests and build | P1 | **Closed in this run** |
+| F-GEO-001 | `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts`, `apps/practice-host-ui/ui-audit.html` | Geometry audit measured `stack gap=14px` (off Palenight spacing scale) | Playwright failure before fix; root cause: rem-based Tailwind spacing with 14px root font on audit page | P1 | **Closed** — force 16px root font on `ui-audit.html` (commit `4052071`) |
+| F-TEST-001 | `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts` | Toast position assertion assumed `computed top` must be `auto` | Playwright failure: `toast top is expected to be auto/empty, got 944px` while bottom/right anchoring was correct | P2 | **Closed** — assert fixed bottom-right token anchoring instead (commit `226dd56`) |
+| F-BUILD-001 | `apps/practice-host-ui/tsconfig.json`, `src/ui-audit-main.tsx` | Build blocked by missing bare-module alias for `@medoc/ui` | `npm run build` TS2307 in `ui-audit-main.tsx` | P1 | **Closed** — add `@medoc/ui` path alias (commit `66b8cd5`) |
+| F-ENV-001 | Rust workspace gates on cloud runner | `gdk-3.0.pc` missing prevents `gdk-sys` build during clippy/tests | `CLIPPY_EXIT=101`, `CARGO_TEST_EXIT=101` with pkg-config error for `gdk-3.0` | P1 | **Open** — needs runner image/system package change |
+| F-ENV-002 | Repo-wide fmt gate | `cargo fmt --all -- --check` reports large baseline drift not introduced by this patch set | `FMT_EXIT=1` with broad diff output | P2 | **Open** — decide baseline sweep vs changed-files fmt policy |
+| F-CORE-001 | `crates/shared/medoc-core/tests/dev_init_seed_tests.rs` | Standalone `medoc-core` integration seed test fails (`sqlcipher_export`) when run outside full workspace context | `cargo test -p medoc-core` output: `no such function: sqlcipher_export` | P2 | **Open** — investigate SQLCipher feature unification for standalone runs |
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

@@ -1,7 +1,26 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-09  
 **Scope:** Canonical statements supported by repository evidence.
+
+## Workflow telemetry extension (2026-07-09) — stable truth
+
+- **Dedicated workflow channel exists in the existing tracing subsystem:** `workflow.log` added alongside app/security/system/device/migration/perf channels in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`; app JSON filter excludes `medoc::workflow` in `config.rs`.
+- **Sanitized frontend→backend bridge exists:** new Tauri IPC `log_workflow_event` in `crates/app/medoc-practice/src/commands/system/logging.rs`, registered in `commands/register.rs` (invoke count now 296).
+- **Frontend workflow steps now emit bridge events:**
+  - route-enter events via `apps/practice-host-ui/src/views/components/workflow-route-logger.tsx`;
+  - primary action / success / error around Tauri invokes in `apps/practice-host-ui/src/services/tauri.service.ts`;
+  - cancel events on dialog dismiss (escape/backdrop/close button) in `packages/ui/src/dialog.tsx`.
+- **Bridge behavior is test-covered on frontend:** `apps/practice-host-ui/src/services/tauri.service.test.ts` (3 tests).
+- **Runner-specific Rust gate limitations remain:** full workspace clippy/tests are blocked on missing system `gdk-3.0` pkg-config metadata in this cloud image; see `docs/coordination/validation.md` and `contradictions.md` C9.
+
+## UI geometry/a11y audit harness (2026-07-09) — stable truth
+
+- **Playwright geometry harness is active and green:** `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts` passes with 4/4 tests (375/768/1259 snapshots + axe critical scan).
+- **Audit page spacing normalization is scoped to harness page only:** `apps/practice-host-ui/ui-audit.html` sets `html, body { font-size: 16px !important; }` so rem-based Tailwind spacing resolves to Palenight token values during geometry audits.
+- **Snapshot baselines exist:** `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts-snapshots/ui-audit-{375,768,1259}-chromium-linux.png`.
+- **Toast placement checks validate bottom-right anchoring:** geometry test asserts `toastBottom` + `toastRight` on scale and `position: fixed`, avoiding brittle `computed top` assumptions.
+- **Build path mapping now supports bare design-system import:** `apps/practice-host-ui/tsconfig.json` contains `@medoc/ui` + `@medoc/ui/*` aliases.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 
