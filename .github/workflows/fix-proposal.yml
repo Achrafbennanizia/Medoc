@@ -1,0 +1,282 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_class:
+        description: "Primary failing class to target."
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - test
+          - typecheck
+          - advisory
+      failure_context:
+        description: "Optional link or note describing the failure."
+        required: false
+        type: string
+      fix_command:
+        description: "Optional bounded command the fix agent should run."
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  agent-fix-proposal:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+      BASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      FAILURE_CLASS: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_class || 'auto' }}
+      FAILURE_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_context || '' }}
+      CUSTOM_FIX_COMMAND: ${{ github.event_name == 'workflow_dispatch' && inputs.fix_command || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_SHA }}
+          fetch-depth: 0
+
+      - name: Create fix-proposal branch
+        id: branch
+        run: |
+          BRANCH="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install JS dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}"; exit 1 ;;
+          esac
+
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          mkdir -p .ci-fix
+          STATUS=0
+          run_and_capture() {
+            "$@" >> .ci-fix/before.log 2>&1
+            RC=$?
+            if [ "$RC" -ne 0 ]; then
+              STATUS="$RC"
+            fi
+          }
+          : > .ci-fix/before.log
+          case "$FAILURE_CLASS" in
+            advisory)
+              run_and_capture cargo-audit audit
+              ;;
+            typecheck)
+              run_and_capture cargo check --workspace --all-targets
+              run_and_capture ${{ steps.pm.outputs.pm }} run typecheck
+              ;;
+            test)
+              run_and_capture cargo test --workspace --tests
+              run_and_capture ${{ steps.pm.outputs.pm }} run test
+              ;;
+            *)
+              run_and_capture cargo test --workspace --tests
+              run_and_capture ${{ steps.pm.outputs.pm }} run typecheck
+              run_and_capture cargo-audit audit
+              ;;
+          esac
+          echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Attempt bounded fix
+        run: |
+          set +e
+          cargo fix --workspace --all-targets --allow-dirty --allow-staged
+          HAS_LINT_FIX="$(node -e "const p=require('./package.json');process.stdout.write(p.scripts&&p.scripts['lint:fix']?'1':'0')")"
+          HAS_FORMAT="$(node -e "const p=require('./package.json');process.stdout.write(p.scripts&&p.scripts['format']?'1':'0')")"
+          if [ "$HAS_LINT_FIX" = "1" ]; then
+            ${{ steps.pm.outputs.pm }} run lint:fix
+          fi
+          if [ "$HAS_FORMAT" = "1" ]; then
+            ${{ steps.pm.outputs.pm }} run format
+          fi
+          if [ "$FAILURE_CLASS" = "advisory" ]; then
+            cargo update
+            if [ "${{ steps.pm.outputs.pm }}" = "npm" ]; then
+              npm audit fix --omit=dev || true
+            fi
+          fi
+          if [ -n "$CUSTOM_FIX_COMMAND" ]; then
+            bash -lc "$CUSTOM_FIX_COMMAND"
+          fi
+          true
+
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          STATUS=0
+          run_and_capture() {
+            "$@" >> .ci-fix/after.log 2>&1
+            RC=$?
+            if [ "$RC" -ne 0 ]; then
+              STATUS="$RC"
+            fi
+          }
+          : > .ci-fix/after.log
+          case "$FAILURE_CLASS" in
+            advisory)
+              run_and_capture cargo-audit audit
+              ;;
+            typecheck)
+              run_and_capture cargo check --workspace --all-targets
+              run_and_capture ${{ steps.pm.outputs.pm }} run typecheck
+              ;;
+            test)
+              run_and_capture cargo test --workspace --tests
+              run_and_capture ${{ steps.pm.outputs.pm }} run test
+              ;;
+            *)
+              run_and_capture cargo test --workspace --tests
+              run_and_capture ${{ steps.pm.outputs.pm }} run typecheck
+              run_and_capture cargo-audit audit
+              ;;
+          esac
+          echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Detect candidate diff
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          SENSITIVE_FILES="$(git diff --name-only | grep -E '(^|/)(security|audit|crypto|rbac)(/|_|\\.|-)|config/rbac\\.yaml' || true)"
+          if [ -n "$SENSITIVE_FILES" ]; then
+            printf "%s\n" "$SENSITIVE_FILES" > .ci-fix/sensitive-paths.txt
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push fix proposal branch
+        id: commit
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: propose fix for ${FAILURE_CLASS} failure"
+          git push -u origin "${{ steps.branch.outputs.name }}"
+
+      - name: Create draft pull request
+        id: pr
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          if [ -z "$FAILURE_CONTEXT" ]; then
+            FAILURE_CONTEXT="verify workflow_run id: ${{ github.event.workflow_run.id || 'manual-dispatch' }}"
+          fi
+          BEFORE_SNIPPET="$(tail -n 80 .ci-fix/before.log || true)"
+          AFTER_SNIPPET="$(tail -n 80 .ci-fix/after.log || true)"
+          cat > .ci-fix/pr-body.md <<EOF
+          ## Why this proposal exists
+
+          Automated tier-3 fix proposal generated after a failing verify path.
+
+          - Failure class: \`$FAILURE_CLASS\`
+          - Failure context: $FAILURE_CONTEXT
+          - Base commit: \`${BASE_SHA}\`
+
+          ## Evidence
+
+          - failing-before exit code: \`${{ steps.before.outputs.exit_code }}\`
+          - passing-after exit code: \`${{ steps.after.outputs.exit_code }}\`
+
+          ### Failing-before (tail)
+
+          \`\`\`
+          ${BEFORE_SNIPPET}
+          \`\`\`
+
+          ### Passing-after (tail)
+
+          \`\`\`
+          ${AFTER_SNIPPET}
+          \`\`\`
+
+          ## Safety
+
+          - This PR is **draft** and never auto-merged.
+          - If security/audit/crypto/RBAC paths were touched, the workflow labels \`needs-human-review\` and stops.
+          EOF
+          PR_URL="$(gh pr create --draft --base main --head "${{ steps.branch.outputs.name }}" --title "ci: fix proposal (${FAILURE_CLASS}) for ${BASE_SHA::7}" --body-file .ci-fix/pr-body.md)"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Add needs-human-review label for sensitive changes
+        if: steps.diff.outputs.has_changes == 'true' && steps.diff.outputs.sensitive == 'true'
+        run: |
+          gh api -X POST repos/${{ github.repository }}/labels -f name='needs-human-review' -f color='B60205' -f description='Automation touched security/audit/crypto/RBAC paths.' >/dev/null 2>&1 || true
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label "needs-human-review"
+
+      - name: Upload fix-proposal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: .ci-fix
+
+      - name: Stop on compliance-sensitive proposal
+        if: steps.diff.outputs.has_changes == 'true' && steps.diff.outputs.sensitive == 'true'
+        run: |
+          echo "Proposal touched security/audit/crypto/RBAC paths and has been labeled needs-human-review."
+          exit 1
+
+      - name: Stop when no proposal diff was produced
+        if: steps.diff.outputs.has_changes != 'true'
+        run: |
+          echo "No bounded fix diff was produced; no PR opened."
