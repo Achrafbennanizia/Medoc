@@ -1,6 +1,17 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (CI/CD tiered pipeline)
+
+## Done (2026-07-09 — CI/CD tiered pipeline)
+
+- Replaced legacy `.github/workflows/ci.yml` with tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Added root/app scripts to support CI gates: `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Added `apps/practice-host-ui/scripts/axe-critical-check.mjs` and wired Playwright Chromium install in `verify.yml` a11y job.
+- Cleared new typecheck blockers by removing two unused patient-detail symbols.
+
+## Now (CI follow-up)
+
+- **Lint debt cleanup required:** `npm run lint` currently fails with pre-existing hook/memoization errors (14 errors, 26 warnings); verify tier now surfaces this debt explicitly.
 
 ## Now
 

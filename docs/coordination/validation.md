@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workspace install parity | `npm ci` | **PASS** |
+| JS typecheck gate | `npm run typecheck` | **PASS** |
+| JS lint gate | `npm run lint` | **FAIL (pre-existing)** — 14 errors / 26 warnings in existing UI files (`break-glass-banner`, `praxis-aufgabe-*`, `finanzen`, `leistungen`, etc.) |
+| JS unit/smoke tests | `npm run test` | **PASS** — 246 passed, 3 skipped |
+| JS build gate | `npm run build` | **PASS** |
+| A11y critical gate | `npx playwright install --with-deps chromium && npm run test:a11y` | **PASS** — built UI + axe-core check reported no critical WCAG 2.1 A/AA violations |
+
+**Notes**
+
+- Added `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and gated `release.yml`; removed legacy `ci.yml`.
+- Added root and app-level scripts for `typecheck`, `lint:fix`, `format`, and `test:a11y`.
+- Fixed two TS blockers (`patient-detail.tsx`, `patient-detail-unter-tab.tsx`) so the new `typecheck` gate can run.
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
