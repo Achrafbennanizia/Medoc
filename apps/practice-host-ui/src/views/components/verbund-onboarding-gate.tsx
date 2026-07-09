@@ -32,6 +32,7 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
     const loadError = useVerbundStore((s) => s.loadError);
     const setLoadError = useVerbundStore((s) => s.setLoadError);
     const needsOnboarding = status === null ? true : needsVerbundOnboarding(status);
+    const isQaRoute = location.pathname.startsWith("/qa/");
 
     const refresh = useCallback(() => {
         setLoadError(null);
@@ -46,6 +47,10 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
     useEffect(() => {
         refresh();
     }, [refresh]);
+
+    if (isQaRoute) {
+        return <>{children}</>;
+    }
 
     if (status === null && loadError) {
         return (

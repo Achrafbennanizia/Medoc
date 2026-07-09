@@ -7,6 +7,13 @@ export default defineConfig({
     testDir: "./e2e-playwright",
     timeout: 60_000,
     retries: 0,
+    webServer: {
+        command: "npm run build && npm run preview -- --host 127.0.0.1 --port 5173",
+        url: baseURL,
+        cwd: __dirname,
+        reuseExistingServer: true,
+        timeout: 180_000,
+    },
     use: {
         baseURL,
         ignoreHTTPSErrors: true,

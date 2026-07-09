@@ -115,6 +115,9 @@ const AktivierungImportOnboardingPage = lazy(async () => ({
 const VerbundBeitretenPage = lazy(async () => ({
     default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
 }));
+const QaUiAuditPage = lazy(async () => ({
+    default: (await import("./views/pages/qa-ui-audit")).QaUiAuditPage,
+}));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const session = useAuthStore((s) => s.session);
@@ -140,6 +143,14 @@ export default function App() {
         <WorkflowRouteLogger />
         <VerbundOnboardingGate>
             <Routes>
+                <Route
+                    path="/qa/ui-audit"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <QaUiAuditPage />
+                        </Suspense>
+                    )}
+                />
                 <Route
                     path="/onboarding"
                     element={(
