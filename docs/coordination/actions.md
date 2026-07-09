@@ -1,15 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (CI/CD pipeline tier migration)
 
 ## Now
 
-- **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
-- **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- Validate first GitHub PR run for `CI -> verify.yml` (Rust/web/a11y jobs, concurrency cancellation, timeout behavior).
+- Validate `autofix.yml` loop guard and protected-path block with a controlled formatting-only PR.
+- Run one manual `fix-proposal.yml` dispatch and inspect the draft PR evidence body + uploaded before/after logs.
+- Run one gated `release.yml` dry run through protected `release` environment approval.
+- Keep manual product QA and deferred MVP tracks in place (`geplant.md`, deferred-role/security/docs ledgers).
+
+## Done (2026-07-09 — CI/CD pipeline tier migration)
+
+- Added reusable **Tier 1** workflow `.github/workflows/verify.yml` (Rust verify, web lint/typecheck/test/build, a11y axe-core).
+- Migrated `.github/workflows/ci.yml` into a push/PR wrapper that delegates to `verify.yml`.
+- Added **Tier 2** `.github/workflows/autofix.yml` with PR-only loop guard and deterministic fix scope.
+- Added **Tier 3** `.github/workflows/fix-proposal.yml` with workflow-run/manual triggers, evidence capture, draft PR creation, and `needs-human-review` labeling for protected paths.
+- Replaced `.github/workflows/release.yml` with gated **Tier 4** release flow (verify gate, protected `release` environment, signed multi-OS bundles, zero source mutation).
+- Added `docs/coordination/ci-cd-plan.md` and appended validation evidence in `docs/coordination/validation.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

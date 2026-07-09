@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-09  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -19,7 +19,7 @@
 - **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`crates/shared/medoc-core/src/infrastructure/database/connection.rs`, `sqlcipher.rs`, `db_key.rs`).
-- **CI scope:** `.github/workflows/ci.yml` — Rust workspace (repo root): fmt, check, test, clippy, cargo-audit (requires `MEDOC_VENDOR_PUBKEY`); frontend: npm audit, lint, vitest, build from root `package.json`. **No** root-level `src/` Next.js tree in repo (2026-05-19).
+- **CI/CD scope (2026-07-09):** Tiered workflows under `.github/workflows/`: `ci.yml` wrapper -> reusable `verify.yml` (Rust fmt/clippy/test/audit, web lint/typecheck/test/build, a11y critical WCAG checks), `autofix.yml` (PR-only deterministic fixes), `fix-proposal.yml` (draft proposal PRs on failed main verify/manual trigger), and gated `release.yml` (verify gate + protected environment + signed multi-OS bundles). Plan document: `docs/coordination/ci-cd-plan.md`.
 - **Vendor Ed25519 pubkey:** Compile-time via `apps/practice-host/build.rs` → `OUT_DIR/pubkey.rs`; used by `license.rs` and `update.rs` (`apps/practice-host/src/infrastructure/crypto/sig.rs`).
 - **Update signatures:** `update::evaluate` rejects unsigned/tampered manifests with `UpdateStatus::Error { message: "Signatur ungültig" }`.
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `einstellungen-company-portal-section.tsx`.

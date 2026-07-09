@@ -1,7 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD Pipeline Tier Migration (2026-07-09)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows + coordination CI/CD plan.
+
+### Verified (2026-07-09 — CI/CD pipeline)
+
+- **Tier 1 verify:** Reusable `.github/workflows/verify.yml` with Rust (`fmt`, `clippy -D warnings`, `test`, `cargo audit`), web (lockfile-based PM detect + lint/typecheck/test/build), a11y (axe-core critical WCAG 2.1 AA).
+- **CI wrapper migration:** `.github/workflows/ci.yml` now delegates to reusable `verify.yml` for every push and PR, replacing direct legacy job wiring.
+- **Tier 2 autofix:** `.github/workflows/autofix.yml` on PR only with loop guard, deterministic fix scope (`cargo fmt`, lint/format fallbacks), bot commit-back, and protected-path blocker for security/audit/crypto/RBAC.
+- **Tier 3 fix proposal:** `.github/workflows/fix-proposal.yml` triggers on manual dispatch or failed main verify, captures failing-before/passing-after evidence, creates a new branch, opens draft PR, and applies `needs-human-review` when protected paths are touched.
+- **Tier 4 release:** `.github/workflows/release.yml` now gates on full verify, requires protected `release` environment approval, re-runs Rust tests, and builds signed cross-platform Tauri artifacts without source mutation.
+- **Docs:** `docs/coordination/ci-cd-plan.md` added; `docs/coordination/validation.md` updated with command evidence.
+
+### Remains unverified
+
+- First end-to-end GitHub run of the new tier chain (`CI -> verify`, `autofix`, `release` gate/build) on hosted runners.
+- Live tier-3 `fix-proposal.yml` draft-PR behavior on a real failed `main` verify event.
+
+### Next
+
+1. Trigger a PR run to validate `verify` + `autofix` sequencing and loop guard behavior.
+2. Execute one controlled `workflow_dispatch` of `fix-proposal.yml` to validate draft PR + evidence body generation.
+3. Run a tag or manual `release.yml` dry run through protected `release` environment approval.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)  
+**Previous closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
 ### Verified (2026-06-18 — Work-Time program)
 

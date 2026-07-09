@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Async setup state | `if [ -f /tmp/cursor/async-install/install-user.status ] ...` | **PASS** — `no_async_install_files` |
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** — `autofix.yml`, `ci.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parsed successfully |
+| Workflow/docs commit | `git commit` + `git push -u origin cursor/medoc-ci-cd-pipeline-394f` | **PASS** — commit `a0adba1` pushed |
+| Full CI execution on GitHub runners | GitHub Actions run | **NOT RUN** (local session only; workflow behavior to be validated in CI run) |
+
+**Delivered in this phase:** tiered CI/CD workflows (`verify`, `autofix`, `fix-proposal`, `release`), `ci.yml` wrapper migration, and `docs/coordination/ci-cd-plan.md`.
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program)
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
