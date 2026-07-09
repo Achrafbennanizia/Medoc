@@ -1,6 +1,26 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (Workflow quality audit + Playwright hardening)
+
+## Workflow quality audit + gated fixes — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo fmt --all -- --check` | **PASS** |
+| Rust lint | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test --workspace --tests` | **PASS** |
+| Frontend tests (pre-fix) | `npm run test` | **FAIL** — `session-gate.behavior.smoke.test.tsx` found duplicate `Ready` nodes |
+| Frontend tests (post-fix) | `npm run test` | **PASS** (57 files passed, 1 skipped; 259 tests passed, 3 skipped) |
+| Frontend build | `npm run build` | **PASS** |
+| Tailwind spacing static lint | `npm run lint:tailwind-spacing` (workspace `medoc`) | **PASS** — no arbitrary spacing utilities found |
+| Playwright (pre-fix 1) | `npm run test:playwright -- e2e-playwright/ui-geometry-spacing.spec.ts` | **FAIL** — `__dirname` in ESM config |
+| Playwright (pre-fix 2) | same command | **FAIL** — missing `@axe-core/playwright` / missing browser binary |
+| Playwright snapshot seed | `npm run test:playwright -- e2e-playwright/ui-geometry-spacing.spec.ts --update-snapshots` | **PASS** — 3 baselines generated (375/768/1259) |
+| Playwright final run | `npm run test:playwright -- e2e-playwright/ui-geometry-spacing.spec.ts` | **PASS** (6/6) |
+
+**Notes:** Non-blocking warnings observed during passing runs: Vite chunk-size warning in preview build, Vitest warning about un-awaited rejection assertion in `packages/shared/src/lib/http-practice.adapter.test.ts`.
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

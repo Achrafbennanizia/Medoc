@@ -1,10 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (Workflow quality audit run)
+
+## Done (2026-07-09 — workflow quality audit + gated fixes)
+
+- Stabilized smoke tests for `SessionGate` and router-dependent page tests (`MemoryRouter` + cleanup).
+- Hardened Playwright pipeline (`playwright.config.ts` ESM-safe `cwd`, browser/bootstrap deps, baseline snapshots).
+- Added/validated geometry + spacing + a11y spec at 375/768/1259 breakpoints with axe critical gate.
+- Re-ran full required matrix: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build`, `npm run lint:tailwind-spacing`, Playwright spec.
+- Updated coordination ledgers (`validation.md`, `contradictions.md`, `phase-handoff.md`) with this run's evidence and findings register.
 
 ## Now
 
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
+- **Test hygiene follow-up:** fix `QA-TEST-001` (`await` missing in `http-practice.adapter.test.ts`) before Vitest 3 strictness.
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
