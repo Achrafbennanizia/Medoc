@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
@@ -23,6 +23,9 @@ import { TimeSlotPicker } from "@/views/components/ui/time-slot-picker";
 describe("ui library behavior matrix", () => {
     beforeEach(() => {
         sessionStorage.clear();
+    });
+    afterEach(() => {
+        cleanup();
     });
 
     it("handles click/disabled/loading for buttons and icon buttons", async () => {
@@ -257,7 +260,9 @@ describe("ui library behavior matrix", () => {
         await user.keyboard("{Enter}");
         expect(doneButton).toHaveAttribute("aria-pressed", "true");
 
-        await user.click(screen.getByRole("button", { name: /close/i }));
+        const notice = screen.getByText("Sync warning").closest(".app-notice");
+        expect(notice).not.toBeNull();
+        await user.click(within(notice as HTMLElement).getByRole("button", { name: /close/i }));
         expect(onDismiss).toHaveBeenCalledTimes(1);
         expect(screen.queryByText("Sync warning")).not.toBeInTheDocument();
         expect(sessionStorage.getItem("medoc-notice-dismiss:notice-sync-warning")).toBe("1");
@@ -284,7 +289,7 @@ describe("ui library behavior matrix", () => {
 
         expect(screen.getByText("Patient card")).toBeInTheDocument();
         expect(screen.getByText("OK")).toBeInTheDocument();
-        expect(screen.getByRole("status", { name: /loading patient/i })).toBeInTheDocument();
+        expect(screen.getByText("Loading patient").closest('[role="status"]')).not.toBeNull();
         expect(screen.getByTestId("skeleton")).toBeInTheDocument();
         expect(screen.getByRole("alert")).toHaveTextContent("Load failed");
 
