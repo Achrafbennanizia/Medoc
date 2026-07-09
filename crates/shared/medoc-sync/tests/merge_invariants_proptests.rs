@@ -33,6 +33,13 @@ async fn fresh_seeded_pool() -> SqlitePool {
     let pool = test_memory_pool().await.expect("memory pool");
     run_migrations(&pool).await.expect("migrations");
     ensure_sync_tables(&pool).await.expect("schema");
+    // Pin local device id so timestamp-tie behavior is deterministic:
+    // remote ids (`merge-prop-dev-*`) are lexicographically smaller and
+    // therefore lose ties against this local id.
+    sqlx::query("INSERT OR REPLACE INTO app_kv (key, value) VALUES ('sync.device_id.v1', 'zzzz-local-device')")
+        .execute(&pool)
+        .await
+        .expect("seed local sync device");
     sqlx::query(
         "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
                               telefon, email, adresse, status, created_at, updated_at)
