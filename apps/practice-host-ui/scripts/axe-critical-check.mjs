@@ -5,7 +5,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 
-const PREVIEW_HOST = process.env.A11Y_PREVIEW_HOST ?? "127.0.0.1";
+const PREVIEW_HOST = process.env.A11Y_PREVIEW_HOST ?? "localhost";
 const PREVIEW_PORT = process.env.A11Y_PREVIEW_PORT ?? "4173";
 const BASE_URL = process.env.A11Y_BASE_URL ?? `http://${PREVIEW_HOST}:${PREVIEW_PORT}`;
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -43,7 +43,7 @@ let browser;
 try {
     previewProcess = spawn(
         npmCommand,
-        ["exec", "vite", "preview", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
+        ["exec", "--", "vite", "preview", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
         { stdio: "inherit" },
     );
 
