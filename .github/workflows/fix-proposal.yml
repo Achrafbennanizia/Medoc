@@ -1,0 +1,248 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Branch or SHA to analyze for a fix proposal"
+        required: false
+        default: "main"
+  workflow_run:
+    workflows: ["CI", "verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: meta
+        name: Resolve target context
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "target_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "reason=verify failure on main" >> "$GITHUB_OUTPUT"
+            echo "failure_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_ref=${{ inputs.target_ref }}" >> "$GITHUB_OUTPUT"
+            echo "reason=manual dispatch" >> "$GITHUB_OUTPUT"
+            echo "failure_url=manual dispatch (no upstream failed run URL)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "proposal_branch=ci/fix-proposal/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.target_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" && exit 1 ;;
+          esac
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+          cargo audit > before-cargo-audit.log 2>&1
+          cargo_audit=$?
+          cargo test --workspace --tests > before-rust-tests.log 2>&1
+          rust_tests=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc exec tsc --noEmit > before-typecheck.log 2>&1 ;;
+            yarn) yarn workspace medoc tsc --noEmit > before-typecheck.log 2>&1 ;;
+            npm) npm exec -w medoc tsc -- --noEmit > before-typecheck.log 2>&1 ;;
+          esac
+          typecheck=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run test > before-js-tests.log 2>&1 ;;
+            yarn) yarn run test > before-js-tests.log 2>&1 ;;
+            npm) npm run test > before-js-tests.log 2>&1 ;;
+          esac
+          js_tests=$?
+          {
+            echo "cargo_audit=${cargo_audit}"
+            echo "rust_tests=${rust_tests}"
+            echo "typecheck=${typecheck}"
+            echo "js_tests=${js_tests}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Attempt fix proposal on a new branch
+        run: |
+          set -euo pipefail
+          git switch -c "${{ steps.meta.outputs.proposal_branch }}"
+
+          if [ "${{ steps.before.outputs.cargo_audit }}" -ne 0 ]; then
+            cargo update || true
+          fi
+
+          if [ "${{ steps.before.outputs.typecheck }}" -ne 0 ] || [ "${{ steps.before.outputs.js_tests }}" -ne 0 ]; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run lint:fix || pnpm --filter medoc exec eslint src --fix || true ;;
+              yarn) yarn run lint:fix || yarn workspace medoc eslint src --fix || true ;;
+              npm) npm run lint:fix || npm exec -w medoc eslint src --fix || true ;;
+            esac
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run format || true ;;
+              yarn) yarn run format || true ;;
+              npm) npm run format || true ;;
+            esac
+          fi
+
+          if [ "${{ steps.before.outputs.rust_tests }}" -ne 0 ]; then
+            cargo fix --workspace --all-targets --allow-dirty --allow-staged || true
+          fi
+
+          cargo fmt --all || true
+      - id: after
+        name: Capture passing-after evidence
+        run: |
+          set +e
+          cargo audit > after-cargo-audit.log 2>&1
+          cargo_audit=$?
+          cargo test --workspace --tests > after-rust-tests.log 2>&1
+          rust_tests=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc exec tsc --noEmit > after-typecheck.log 2>&1 ;;
+            yarn) yarn workspace medoc tsc --noEmit > after-typecheck.log 2>&1 ;;
+            npm) npm exec -w medoc tsc -- --noEmit > after-typecheck.log 2>&1 ;;
+          esac
+          typecheck=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run test > after-js-tests.log 2>&1 ;;
+            yarn) yarn run test > after-js-tests.log 2>&1 ;;
+            npm) npm run test > after-js-tests.log 2>&1 ;;
+          esac
+          js_tests=$?
+          {
+            echo "cargo_audit=${cargo_audit}"
+            echo "rust_tests=${rust_tests}"
+            echo "typecheck=${typecheck}"
+            echo "js_tests=${js_tests}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Upload before/after logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs-${{ github.run_id }}
+          path: |
+            before-cargo-audit.log
+            before-rust-tests.log
+            before-typecheck.log
+            before-js-tests.log
+            after-cargo-audit.log
+            after-rust-tests.log
+            after-typecheck.log
+            after-js-tests.log
+      - name: Build fix proposal summary
+        run: |
+          cat > fix-proposal-summary.md <<'EOF'
+          ## CI fix proposal (draft, human review required)
+
+          This draft PR was created by tier-3 `fix-proposal.yml` on a **new branch** after a failed verification path.
+
+          ### Trigger
+
+          - Reason: ${{ steps.meta.outputs.reason }}
+          - Upstream run: ${{ steps.meta.outputs.failure_url }}
+          - Target ref: `${{ steps.meta.outputs.target_ref }}`
+
+          ### Evidence (failing-before vs passing-after)
+
+          | Check | Before | After |
+          | --- | --- | --- |
+          | `cargo audit` | `${{ steps.before.outputs.cargo_audit }}` | `${{ steps.after.outputs.cargo_audit }}` |
+          | `cargo test --workspace --tests` | `${{ steps.before.outputs.rust_tests }}` | `${{ steps.after.outputs.rust_tests }}` |
+          | `tsc --noEmit` | `${{ steps.before.outputs.typecheck }}` | `${{ steps.after.outputs.typecheck }}` |
+          | `npm run test` | `${{ steps.before.outputs.js_tests }}` | `${{ steps.after.outputs.js_tests }}` |
+
+          Exit code `0` = pass, non-zero = fail.
+
+          ### Logs captured in workflow artifacts
+
+          - `before-cargo-audit.log`, `after-cargo-audit.log`
+          - `before-rust-tests.log`, `after-rust-tests.log`
+          - `before-typecheck.log`, `after-typecheck.log`
+          - `before-js-tests.log`, `after-js-tests.log`
+
+          This PR is intentionally opened as **draft** and is never auto-merged.
+          EOF
+      - id: guard
+        name: Evaluate changed files and labels
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          protected='(^|/)(security|audit|crypto|rbac)(/|\\.|_|-)|(^|/)config/rbac\.yaml$'
+          labels="ci/fix-proposal"
+          if git diff --name-only | rg -q "${protected}"; then
+            labels="${labels},needs-human-review"
+            echo "needs_human=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "labels=${labels}" >> "$GITHUB_OUTPUT"
+      - name: Open draft pull request
+        if: steps.guard.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "ci: draft fix proposal from failed verify run"
+          branch: ${{ steps.meta.outputs.proposal_branch }}
+          base: main
+          title: "ci: fix proposal (${{ steps.meta.outputs.reason }})"
+          body-path: fix-proposal-summary.md
+          draft: true
+          labels: ${{ steps.guard.outputs.labels }}
+          delete-branch: false
+      - name: No proposal changes detected
+        if: steps.guard.outputs.has_changes != 'true'
+        run: echo "No code changes were produced by this proposal run."
+      - name: Stop after protected-path proposal
+        if: steps.guard.outputs.has_changes == 'true' && steps.guard.outputs.needs_human == 'true'
+        run: echo "Protected files changed. Draft PR labeled needs-human-review."

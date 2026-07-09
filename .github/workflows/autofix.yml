@@ -1,0 +1,98 @@
+name: autofix
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" && exit 1 ;;
+          esac
+      - name: Apply deterministic autofixes
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm run lint:fix || pnpm --filter medoc exec eslint src --fix || true
+              pnpm run format || true
+              ;;
+            yarn)
+              yarn run lint:fix || yarn workspace medoc eslint src --fix || true
+              yarn run format || true
+              ;;
+            npm)
+              npm run lint:fix || npm exec -w medoc eslint src --fix || true
+              npm run format || true
+              ;;
+          esac
+      - name: Block protected security/audit/crypto/RBAC paths
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No autofix changes detected."
+            exit 0
+          fi
+          protected='(^|/)(security|audit|crypto|rbac)(/|\\.|_|-)|(^|/)config/rbac\.yaml$'
+          if git diff --name-only | rg -q "${protected}"; then
+            echo "Autofix touched protected paths and is blocked:"
+            git diff --name-only
+            exit 1
+          fi
+      - name: Commit fixes if anything changed
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply automated formatting and lint fixes"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No deterministic fixes to commit."
+          fi
