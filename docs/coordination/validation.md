@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow lint | `$HOME/go/bin/actionlint .github/workflows/*.yml` | **PASS** |
+| Axe runner syntax | `node --check scripts/ci/run-axe-a11y.mjs` | **PASS** |
+| Frontend lint (verify parity) | `npm run lint -w medoc` | **FAIL** — 14 errors / 26 warnings (pre-existing React hooks + memoization lint debt) |
+| Frontend typecheck + build | `npm run typecheck -w medoc && npm run build -w medoc` | **PASS** |
+| Local critical a11y gate | `npm run preview -w medoc -- --host 127.0.0.1 --port 4173` + `node scripts/ci/run-axe-a11y.mjs` | **PASS** — no critical WCAG 2.1 AA violations (1 non-critical reported) |
+| Legacy `ci.yml` removal / tiered workflows added | `.github/workflows/{verify,autofix,fix-proposal,release}.yml` | **DONE** |
+
+**Observed during validation:**
+
+- `npm run typecheck -w medoc` initially failed with two TS6133 unused-symbol errors in patient-detail files; both were removed and the command was re-run successfully.
+- `npm run lint -w medoc` still fails due pre-existing lint debt; no broad lint refactor was applied in this pipeline-focused change.
+- Accessibility scan initially failed locally because Playwright browsers were missing; after `npx playwright install chromium`, the scan succeeded.
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

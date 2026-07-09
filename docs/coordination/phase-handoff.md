@@ -1,5 +1,31 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tiering (2026-07-09)  
+**Last closed:** Tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`) + coordination docs update.
+
+### Verified (2026-07-09 — CI/CD tier migration)
+
+- **Workflow tiering:** added `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`; removed legacy `.github/workflows/ci.yml`.
+- **Release gate:** `.github/workflows/release.yml` now calls `verify.yml` as a blocking gate, then builds signed bundles under protected `release` environment.
+- **A11y gate:** `scripts/ci/run-axe-a11y.mjs` + `apps/practice-host-ui/package.json` `test:a11y` script enforce axe-core critical WCAG 2.1 AA check on built UI.
+- **Coordination docs:** added [`ci-cd-plan.md`](ci-cd-plan.md) and updated references in `project-truth.md`, `vendor-key-rotation.md`, and `freigabeprozess.md`.
+
+### Remains unverified
+
+- Live GitHub Actions execution of all four new workflows on hosted runners (**NOT RUN** in this session).
+- Protected `release` environment approval policy wiring in repository settings (**NOT OBSERVED** from local workspace).
+- Fix-proposal workflow behavior against an actual failed `verify` run on `main` (**NOT OBSERVED**).
+- Current frontend lint debt still triggers errors on `npm run lint -w medoc`; pipeline policy is wired, but remediation is pending.
+
+### Next
+
+1. Trigger `verify.yml` on PR to confirm rust/web/a11y jobs execute on GitHub-hosted runners.
+2. Trigger `autofix.yml` from a formatting-only PR to confirm loop guard + sensitive-path block.
+3. Trigger `fix-proposal.yml` manually and from a simulated failed verify run to validate draft PR evidence flow.
+4. Execute a tag-based `release.yml` dry run through protected `release` environment.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
