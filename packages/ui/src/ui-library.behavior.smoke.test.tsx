@@ -293,7 +293,8 @@ describe("ui library behavior matrix", () => {
         expect(screen.getByTestId("skeleton")).toBeInTheDocument();
         expect(screen.getByRole("alert")).toHaveTextContent("Load failed");
 
-        await user.click(screen.getByRole("button", { name: "Retry" }));
+        const retryButton = within(screen.getByRole("alert")).getByRole("button");
+        await user.click(retryButton);
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 });
