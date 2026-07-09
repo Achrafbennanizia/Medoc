@@ -156,3 +156,28 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_text_masks_secrets_and_trims() {
+        let got = sanitize_text(Some("password=hunter2"), WORKFLOW_TEXT_LIMIT);
+        assert_eq!(got, "password=***");
+        assert!(!got.contains("hunter2"));
+    }
+
+    #[test]
+    fn sanitize_context_masks_nested_tokens() {
+        let value = serde_json::json!({
+            "patientId": "pat-123",
+            "auth": "token=abc123",
+            "jwt": "eyJhbGciOiJIUzI1NiJ9.payload.sig"
+        });
+        let got = sanitize_context(&Some(value));
+        assert!(got.contains("\"auth\":\"token=***\""));
+        assert!(got.contains("\"jwt\":\"eyJ***\""));
+        assert!(!got.contains("abc123"));
+    }
+}
