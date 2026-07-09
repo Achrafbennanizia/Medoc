@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 
 export type DbSetupStatus = {
     needsPassphraseSetup: boolean;
@@ -6,13 +6,13 @@ export type DbSetupStatus = {
 };
 
 export async function getDbSetupStatus(): Promise<DbSetupStatus> {
-    return invoke<DbSetupStatus>("get_db_setup_status");
+    return practiceSystem.invoke<DbSetupStatus>("get_db_setup_status");
 }
 
 export async function provisionDbPassphrase(passphrase: string, confirm: string): Promise<void> {
-    await invoke("provision_db_passphrase", { passphrase, confirm });
+    await practiceSystem.invoke("provision_db_passphrase", { passphrase, confirm });
 }
 
 export async function unlockDbPassphrase(passphrase: string): Promise<void> {
-    await invoke("unlock_db_passphrase", { passphrase });
+    await practiceSystem.invoke("unlock_db_passphrase", { passphrase });
 }
