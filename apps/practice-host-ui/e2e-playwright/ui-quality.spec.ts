@@ -1,4 +1,3 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import resolveConfig from "tailwindcss/resolveConfig";
 import tailwindConfig from "../tailwind.config.js";
@@ -100,11 +99,20 @@ test.describe("UI quality geometry and accessibility", () => {
         await page.goto("/login");
         await page.waitForSelector(".login-form");
 
-        const result = await new AxeBuilder({ page })
-            .withTags(["wcag2a", "wcag2aa"])
-            .analyze();
+        await page.addScriptTag({
+            url: "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.3/axe.min.js",
+        });
+        const result = await page.evaluate(async () => {
+            const axe = (window as Window & { axe: { run: (context?: unknown, options?: unknown) => Promise<unknown> } }).axe;
+            return axe.run(document, {
+                runOnly: {
+                    type: "tag",
+                    values: ["wcag2a", "wcag2aa"],
+                },
+            });
+        });
 
-        const critical = result.violations.filter(
+        const critical = (result as { violations: Array<{ impact: string | null }> }).violations.filter(
             (violation) => violation.impact === "critical",
         );
         expect(critical).toEqual([]);
