@@ -1,5 +1,35 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tier migration (2026-07-09)
+**Last closed:** Verify/autofix/fix-proposal/release workflows aligned to live `apps/*` + `crates/*` + `packages/*` workspace.
+
+### Verified (2026-07-09 — CI/CD tier migration)
+
+- **Tier 1 verify:** Added `.github/workflows/verify.yml` with Rust fmt/clippy/test/audit, package-manager detection for JS, lint/typecheck/test/build, and axe-core critical WCAG scan fallback.
+- **Tier 2 autofix:** Added `.github/workflows/autofix.yml` (`pull_request` only), deterministic fixes (`cargo fmt`, lint autofix/format where available), bot loop guard, push-back to PR head only.
+- **Tier 3 proposal:** Added `.github/workflows/fix-proposal.yml` with manual + red-main trigger (`workflow_run` on failed `verify`), draft PR creation, before/after evidence capture, and sensitive-path `needs-human-review` labeling.
+- **Tier 4 release:** Replaced `.github/workflows/release.yml` to call `verify.yml` as gate and build signed artifacts under protected `release` environment with provenance attestations.
+- **Documentation:** Added [`ci-cd-plan.md`](ci-cd-plan.md); updated [`../process/freigabeprozess.md`](../process/freigabeprozess.md) and CI truth in [`project-truth.md`](project-truth.md).
+
+### Remains unverified
+
+- Live GitHub Actions execution on real PR/tag events (**NOT RUN** in this session).
+- Existence/behavior of optional Tier-3 secret `FIX_PROPOSAL_AGENT_CMD` in repository settings (**NOT OBSERVED**).
+- Environment protection policy enforcement for `release` (manual approval gate) on GitHub settings side (**NOT OBSERVED**).
+
+### Understanding delta
+
+- CI responsibilities are now explicitly separated by mutation level: verify (read-only), autofix (deterministic PR-only), proposal (draft + human gate), release (verify + signed artifacts, no source edits).
+- Legacy single-file CI (`ci.yml`) is superseded by tiered workflows and reusable verify gate wiring.
+
+### Next
+
+1. Run a dry PR against this branch to observe `verify` + `autofix` interaction on GitHub Actions.
+2. Configure and test `FIX_PROPOSAL_AGENT_CMD` for Tier-3 if automated non-deterministic proposals are desired.
+3. Perform one signed tag dry-run through protected `release` environment and attach evidence in `validation.md`.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 

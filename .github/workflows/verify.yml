@@ -1,0 +1,216 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test --workspace
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Lint, typecheck, test, build (no mutation)
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_medoc_script() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run "$1" ;;
+              yarn) yarn workspace medoc run "$1" ;;
+              npm) npm run "$1" -w medoc ;;
+            esac
+          }
+
+          run_medoc_script lint
+
+          if node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('apps/practice-host-ui/package.json','utf8')); process.exit(pkg.scripts && pkg.scripts.typecheck ? 0 : 1);" ; then
+            run_medoc_script typecheck
+          else
+            case "$PM" in
+              pnpm) pnpm --filter medoc exec tsc --noEmit ;;
+              yarn) yarn workspace medoc tsc --noEmit ;;
+              npm) npm exec --workspace medoc -- tsc --noEmit ;;
+            esac
+          fi
+
+          run_medoc_script test
+          run_medoc_script build
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [web]
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Build web UI
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc run build ;;
+            npm) npm run build -w medoc ;;
+          esac
+      - name: Run axe-core (critical WCAG 2.1 A/AA)
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_medoc_script() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run "$1" ;;
+              yarn) yarn workspace medoc run "$1" ;;
+              npm) npm run "$1" -w medoc ;;
+            esac
+          }
+
+          if node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('apps/practice-host-ui/package.json','utf8')); process.exit(pkg.scripts && pkg.scripts['test:a11y'] ? 0 : 1);" ; then
+            run_medoc_script test:a11y
+            exit 0
+          fi
+
+          run_medoc_preview() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 ;;
+              yarn) yarn workspace medoc preview --host 127.0.0.1 --port 4173 ;;
+              npm) npm run preview -w medoc -- --host 127.0.0.1 --port 4173 ;;
+            esac
+          }
+
+          run_medoc_preview >/tmp/medoc-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+
+          for i in {1..30}; do
+            if curl -fsS "http://127.0.0.1:4173" >/dev/null; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Preview server did not become ready."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          set +e
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" --tags wcag2a,wcag2aa --save axe-report.json
+          AXE_EXIT=$?
+          set -e
+
+          if [ ! -f axe-report.json ]; then
+            echo "axe-core report was not generated."
+            exit "${AXE_EXIT:-1}"
+          fi
+
+          node <<'NODE'
+          const fs = require("fs");
+          const raw = fs.readFileSync("axe-report.json", "utf8");
+          const parsed = JSON.parse(raw);
+          const docs = Array.isArray(parsed) ? parsed : [parsed];
+          const critical = [];
+          for (const doc of docs) {
+            const violations = doc.violations || (doc.results && doc.results.violations) || [];
+            for (const violation of violations) {
+              if ((violation.impact || "").toLowerCase() === "critical") {
+                critical.push({
+                  id: violation.id,
+                  impact: violation.impact,
+                  help: violation.help,
+                  nodes: Array.isArray(violation.nodes) ? violation.nodes.length : 0,
+                });
+              }
+            }
+          }
+
+          if (critical.length > 0) {
+            console.error("Critical WCAG 2.1 A/AA violations detected:");
+            for (const item of critical) {
+              console.error(`- ${item.id} (${item.impact}) nodes=${item.nodes}: ${item.help}`);
+            }
+            process.exit(1);
+          }
+          console.log("No critical WCAG 2.1 A/AA violations detected.");
+          NODE
