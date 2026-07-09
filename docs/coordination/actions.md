@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (CI/CD pipeline tier migration)
 
 ## Now
 
+- **CI debt follow-up:** resolve pre-existing `npm run lint -w medoc` errors (React hooks/memoization lint findings) so `verify.yml` can stay green.
 - **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
@@ -22,6 +23,13 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-07-09 — CI/CD pipeline tier migration)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`; removed legacy `ci.yml`.
+- Reworked `release.yml` to run `verify.yml` as gate and build signed artifacts in protected `release` environment.
+- Added axe-core accessibility gate script: `scripts/ci/run-axe-a11y.mjs`; wired `test:a11y`, `typecheck`, `lint:fix`, `format` scripts for `medoc`.
+- Added [`ci-cd-plan.md`](ci-cd-plan.md) and updated coordination/process docs referencing CI workflow structure.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

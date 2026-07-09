@@ -18,7 +18,6 @@ export type PatientDetailUnterTabProps = {
     unterEdit: Untersuchung | null;
     unterEditUnlocked: boolean;
     unterDeleteId: string | null;
-    canViewClinical: boolean;
     onStartNewUntersuchung: () => void;
     onToggleDetail: (id: string, open: boolean) => void;
     onStartEdit: (u: Untersuchung) => void;
@@ -43,7 +42,6 @@ export function PatientDetailUnterTab({
     unterEdit,
     unterEditUnlocked,
     unterDeleteId,
-    canViewClinical,
     onStartNewUntersuchung,
     onToggleDetail,
     onStartEdit,
