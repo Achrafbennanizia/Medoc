@@ -45,7 +45,7 @@ test.describe("UI geometry + a11y audit harness", () => {
                     rootPaddingRight: px(root.paddingRight),
                     toastBottom: px(toast.bottom),
                     toastRight: px(toast.right),
-                    toastTopRaw: toast.top,
+                    toastPosition: toast.position,
                 };
             });
 
@@ -56,13 +56,10 @@ test.describe("UI geometry + a11y audit harness", () => {
             assertSpacingOnScale("action margin-top", metrics.actionMarginTop);
             assertSpacingOnScale("root padding-left", metrics.rootPaddingLeft);
             assertSpacingOnScale("root padding-right", metrics.rootPaddingRight);
+            assertSpacingOnScale("toast bottom", metrics.toastBottom);
+            assertSpacingOnScale("toast right", metrics.toastRight);
 
-            expect(metrics.toastBottom).toBeGreaterThanOrEqual(0);
-            expect(metrics.toastRight).toBeGreaterThanOrEqual(0);
-            expect(
-                metrics.toastTopRaw === "auto" || metrics.toastTopRaw === "",
-                `toast top is expected to be auto/empty, got ${metrics.toastTopRaw}`,
-            ).toBeTruthy();
+            expect(metrics.toastPosition).toBe("fixed");
 
             await expect(page).toHaveScreenshot(`ui-audit-${width}.png`, {
                 fullPage: true,
