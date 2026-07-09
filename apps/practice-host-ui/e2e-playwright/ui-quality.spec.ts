@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import resolveConfig from "tailwindcss/resolveConfig.js";
 import tailwindConfig from "../tailwind.config.js";
 
@@ -44,17 +44,25 @@ const PROPERTIES = [
     "gap",
 ] as const;
 
+const AUDIT_PATH = "/quality-audit.html";
+const AUDIT_ROOT_SELECTOR = "#quality-audit-root";
+
+async function gotoAuditSurface(page: Page) {
+    const response = await page.goto(AUDIT_PATH);
+    expect(response?.ok()).toBeTruthy();
+    await page.waitForSelector(AUDIT_ROOT_SELECTOR);
+}
+
 test.describe("UI quality geometry and accessibility", () => {
     for (const viewport of VIEWPORTS) {
-        test(`captures login snapshots and checks spacing scale at ${viewport.label}`, async ({
+        test(`captures quality audit snapshots and checks spacing scale at ${viewport.label}`, async ({
             page,
         }, testInfo) => {
             await page.setViewportSize({ width: viewport.width, height: viewport.height });
-            await page.goto("/login");
-            await page.waitForSelector(".login-form");
+            await gotoAuditSurface(page);
 
             await page.screenshot({
-                path: testInfo.outputPath(`login-${viewport.label}.png`),
+                path: testInfo.outputPath(`quality-audit-${viewport.label}.png`),
                 fullPage: true,
             });
 
@@ -85,7 +93,12 @@ test.describe("UI quality geometry and accessibility", () => {
                     return findings;
                 },
                 {
-                    selectors: [".login-root", ".login-root__panels", ".login-form", ".login-submit"],
+                    selectors: [
+                        "#quality-audit-root",
+                        '[data-audit="card"]',
+                        '[data-audit="controls"]',
+                        ".toast-stack",
+                    ],
                     properties: PROPERTIES,
                     allowed: [...spacingScalePx],
                 },
@@ -95,9 +108,8 @@ test.describe("UI quality geometry and accessibility", () => {
         });
     }
 
-    test("reports no critical axe violations on login", async ({ page }) => {
-        await page.goto("/login");
-        await page.waitForSelector(".login-form");
+    test("reports no critical axe violations on quality audit surface", async ({ page }) => {
+        await gotoAuditSurface(page);
 
         await page.addScriptTag({
             url: "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.3/axe.min.js",
