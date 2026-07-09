@@ -211,11 +211,12 @@ export function IosConfirmActions({
     destructive = false,
 }: IosConfirmActionsProps) {
     const t = useT();
-    const busy = disabled || loading;
+    const cancelDisabled = disabled;
+    const confirmDisabled = disabled || loading;
     const cancel = cancelLabel ?? t("common.cancel");
     return (
         <div className="ios-confirm-actions" role="group" aria-label={t("a11y.dialog_actions")}>
-            <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={busy}>
+            <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={cancelDisabled}>
                 {cancel}
             </button>
             <span className="ios-confirm-actions__vsep" aria-hidden="true" />
@@ -223,7 +224,7 @@ export function IosConfirmActions({
                 type="button"
                 className={`ios-confirm-btn ios-confirm-btn--primary${destructive ? " ios-confirm-btn--destructive" : ""}`}
                 onClick={onConfirm}
-                disabled={busy}
+                disabled={confirmDisabled}
             >
                 {loading ? "…" : confirmLabel}
             </button>
@@ -260,9 +261,7 @@ export function ConfirmDialog({
     const confirm = confirmLabel ?? t("common.confirm");
     const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
-    const handleClose = () => {
-        if (!loading) onClose();
-    };
+    const handleClose = () => onClose();
     return (
         <Dialog
             open={open}

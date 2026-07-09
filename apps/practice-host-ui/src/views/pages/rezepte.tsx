@@ -472,10 +472,21 @@ export function RezeptePage() {
 
             <Dialog
                 open={showCreate}
-                onClose={() => { if (!creating) { setShowCreate(false); resetCreateForm(); } }}
+                onClose={() => {
+                    setShowCreate(false);
+                    resetCreateForm();
+                }}
                 title={t("page.rezepte.create_title")}
                 footer={<>
-                    <Button variant="ghost" onClick={() => { setShowCreate(false); resetCreateForm(); }} disabled={creating}>{t("common.cancel")}</Button>
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            setShowCreate(false);
+                            resetCreateForm();
+                        }}
+                    >
+                        {t("common.cancel")}
+                    </Button>
                     <Button
                         onClick={() => void handleCreate()}
                         disabled={creating || (lines.length === 0 && validateLine(draft) !== null)}
@@ -623,7 +634,7 @@ export function RezeptePage() {
                 onClose={() => setERezeptTarget(null)}
                 title={tp("page.rezepte.eprescription_title", { medication: eRezeptTarget?.medikament ?? "" })}
                 footer={<>
-                    <Button variant="ghost" onClick={() => setERezeptTarget(null)} disabled={eRezBusy}>{t("common.close")}</Button>
+                    <Button variant="ghost" onClick={() => setERezeptTarget(null)}>{t("common.close")}</Button>
                     <Button variant="secondary" onClick={() => void handleValidateERezept()} disabled={eRezBusy} loading={eRezBusy}>{t("page.rezepte.validate")}</Button>
                     {eprescriptionLive ? (
                         <Button onClick={() => void handleSubmitERezept()} disabled={eRezBusy} loading={eRezBusy}>{t("page.rezepte.send_ti")}</Button>

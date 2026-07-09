@@ -3562,7 +3562,7 @@ html[data-theme="dark"] {
   .cal-evt.grey { background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev)); color: var(--fg-3); }
   .toast-stack {
     position: fixed;
-    top: max(12px, env(safe-area-inset-top, 0px));
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
     right: max(12px, env(safe-area-inset-right, 0px));
     z-index: var(--z-toast);
     display: flex;
