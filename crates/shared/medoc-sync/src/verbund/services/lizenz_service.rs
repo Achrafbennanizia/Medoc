@@ -263,13 +263,13 @@ pub async fn verbund_status(pool: &SqlitePool) -> Result<VerbundStatus, AppError
 
 #[cfg(test)]
 mod tests {
+    use crate::schema::ensure_sync_tables;
     use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+    use chrono::{TimeZone, Utc};
     use ed25519_dalek::Signer;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
     use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
     use serial_test::serial;
-    use crate::schema::ensure_sync_tables;
-    use chrono::{TimeZone, Utc};
 
     use super::*;
     use crate::master_keys;
@@ -307,10 +307,8 @@ mod tests {
     }
 
     async fn fresh_pool() -> sqlx::SqlitePool {
-        let audit_dir = std::env::temp_dir().join(format!(
-            "medoc-sync-test-audit-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let audit_dir =
+            std::env::temp_dir().join(format!("medoc-sync-test-audit-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&audit_dir).expect("audit dir");
         medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir)
             .expect("audit key");
@@ -347,7 +345,9 @@ mod tests {
             .await
             .expect("lizenz");
 
-        let device_id = license_repo::ensure_device_id(&pool).await.expect("device id");
+        let device_id = license_repo::ensure_device_id(&pool)
+            .await
+            .expect("device id");
         repos
             .upsert(&Geraet {
                 fingerprint: fp_before.clone(),
@@ -413,7 +413,9 @@ mod tests {
             .await
             .expect("lizenz");
 
-        let device_id = license_repo::ensure_device_id(&pool).await.expect("device id");
+        let device_id = license_repo::ensure_device_id(&pool)
+            .await
+            .expect("device id");
         repos
             .upsert(&Geraet {
                 fingerprint: identity.fingerprint.clone(),
@@ -432,8 +434,13 @@ mod tests {
             .await
             .expect("geraet");
 
-        let lic = license_repo::current_status(&pool).await.expect("license status");
-        assert!(!lic.valid, "empty license_ref / no app_kv must not imply valid license");
+        let lic = license_repo::current_status(&pool)
+            .await
+            .expect("license status");
+        assert!(
+            !lic.valid,
+            "empty license_ref / no app_kv must not imply valid license"
+        );
 
         let vs = verbund_status(&pool).await.expect("verbund status");
         assert!(vs.is_owner);

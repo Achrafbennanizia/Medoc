@@ -426,7 +426,9 @@ pub async fn start_totp_enrollment(
         .await?
         .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     if personal_repo::is_totp_enrolled(&user) {
-        return Err(AppError::validation_code("error.personal.totp_already_active"));
+        return Err(AppError::validation_code(
+            "error.personal.totp_already_active",
+        ));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
     personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
@@ -450,7 +452,9 @@ pub async fn confirm_totp_enrollment(
         .as_deref()
         .ok_or_else(|| AppError::validation_code("error.auth.totp_setup_not_started"))?;
     if !totp::verify_code(secret, &code)? {
-        return Err(AppError::validation_code("error.personal.totp_invalid_code"));
+        return Err(AppError::validation_code(
+            "error.personal.totp_invalid_code",
+        ));
     }
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     audit_repo::create(

@@ -4,8 +4,8 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 
-use crate::verbund::SeatRolle;
 use crate::verbund::services::create_join_request;
+use crate::verbund::SeatRolle;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_responder;

@@ -3,8 +3,8 @@
 //! Evolves the existing master/replica pairing model with seat roles (ADMIN/MEMBER),
 //! atomic 3/7/10 caps, seat certificates, and provisioning guards.
 
-pub mod crypto;
 pub mod activation;
+pub mod crypto;
 mod entities;
 mod enums;
 mod identity;

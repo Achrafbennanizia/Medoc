@@ -97,9 +97,7 @@ pub async fn create_join_request(
         state: KopplungStatus::JoinRequested,
         sas_hash: None,
         requested_role,
-        hostname: hostname
-            .map(str::to_string)
-            .or_else(local_hostname),
+        hostname: hostname.map(str::to_string).or_else(local_hostname),
         created_at: now,
         expires_at: now + Duration::seconds(KOPPLUNG_TTL_SECS),
     };

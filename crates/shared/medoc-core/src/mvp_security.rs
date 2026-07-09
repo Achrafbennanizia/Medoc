@@ -149,10 +149,7 @@ pub fn quota_error_messages(limits: StaffQuotaLimits) -> QuotaErrorMessages {
             "Maximal {} Arzt-Konto erlaubt (Admin-Platz belegt)",
             limits.max_arzt
         ),
-        max_rezeption: format!(
-            "Maximal {} Rezeptions-Konten erlaubt",
-            limits.max_rezeption
-        ),
+        max_rezeption: format!("Maximal {} Rezeptions-Konten erlaubt", limits.max_rezeption),
     }
 }
 
@@ -244,12 +241,11 @@ pub fn staff_quota_trigger_ddl_with_messages(
 async fn stored_staff_quota_limits_fingerprint(
     pool: &SqlitePool,
 ) -> Result<Option<String>, AppError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
-            .bind(STAFF_QUOTA_LIMITS_KV_KEY)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::Database)?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
+        .bind(STAFF_QUOTA_LIMITS_KV_KEY)
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(row.map(|(v,)| v))
 }
 
@@ -264,7 +260,10 @@ fn log_staff_quota_trigger_drift(stored: &str, expected: &str) {
 }
 
 async fn staff_quota_triggers_present(pool: &SqlitePool) -> Result<bool, AppError> {
-    for name in ["trg_personal_quota_insert", "trg_personal_quota_update_rolle"] {
+    for name in [
+        "trg_personal_quota_insert",
+        "trg_personal_quota_update_rolle",
+    ] {
         let n: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?1",
         )
@@ -294,7 +293,10 @@ pub async fn reinstall_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), 
 
     let (insert_sql, update_sql) = staff_quota_trigger_ddl(limits);
 
-    for name in ["trg_personal_quota_insert", "trg_personal_quota_update_rolle"] {
+    for name in [
+        "trg_personal_quota_insert",
+        "trg_personal_quota_update_rolle",
+    ] {
         sqlx::query(&format!("DROP TRIGGER IF EXISTS {name}"))
             .execute(pool)
             .await
@@ -397,10 +399,7 @@ async fn staff_counts_tx(
     })
 }
 
-async fn count_personal<'e, E>(
-    executor: E,
-    exclude_id: Option<&str>,
-) -> Result<u32, AppError>
+async fn count_personal<'e, E>(executor: E, exclude_id: Option<&str>) -> Result<u32, AppError>
 where
     E: sqlx::Executor<'e, Database = Sqlite>,
 {
@@ -426,13 +425,11 @@ where
     E: sqlx::Executor<'e, Database = Sqlite>,
 {
     let row: (i64,) = if let Some(id) = exclude_id {
-        sqlx::query_as(
-            "SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = UPPER(?1) AND id != ?2",
-        )
-        .bind(rolle)
-        .bind(id)
-        .fetch_one(executor)
-        .await?
+        sqlx::query_as("SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = UPPER(?1) AND id != ?2")
+            .bind(rolle)
+            .bind(id)
+            .fetch_one(executor)
+            .await?
     } else {
         sqlx::query_as("SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = UPPER(?1)")
             .bind(rolle)

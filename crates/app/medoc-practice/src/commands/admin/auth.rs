@@ -194,9 +194,7 @@ pub async fn logout(
         {
             if pref.auto_record_on_logout {
                 let _ = crate::commands::work_time_commands::end_open_session_for_user(
-                    &pool,
-                    &user_id,
-                    "logout",
+                    &pool, &user_id, "logout",
                 )
                 .await;
             }

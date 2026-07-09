@@ -103,7 +103,10 @@ pub struct WorkTimeReconcileReport {
     pub closed_stale_count: u32,
 }
 
-async fn open_session(pool: &SqlitePool, personal_id: &str) -> Result<Option<WorkTimeSession>, AppError> {
+async fn open_session(
+    pool: &SqlitePool,
+    personal_id: &str,
+) -> Result<Option<WorkTimeSession>, AppError> {
     let row = sqlx::query_as::<_, WorkTimeSession>(
         "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
@@ -126,11 +129,7 @@ fn parse_rfc3339(s: &str) -> Option<chrono::DateTime<Utc>> {
 
 fn session_work_minutes(s: &WorkTimeSession, now: chrono::DateTime<Utc>) -> (i64, i64) {
     let start = parse_rfc3339(&s.started_at).unwrap_or(now);
-    let end = s
-        .ended_at
-        .as_deref()
-        .and_then(parse_rfc3339)
-        .unwrap_or(now);
+    let end = s.ended_at.as_deref().and_then(parse_rfc3339).unwrap_or(now);
     let gross = (end - start).num_minutes().max(0);
     let mut pause = s.pause_minutes.max(0);
     if s.status == "PAUSED" {
@@ -317,11 +316,13 @@ fn summarize_days(sessions: &[WorkTimeSession]) -> Vec<WorkTimeDaySummary> {
         e.1 += pause;
     }
     map.into_iter()
-        .map(|(date, (worked_minutes, pause_minutes))| WorkTimeDaySummary {
-            date,
-            worked_minutes,
-            pause_minutes,
-        })
+        .map(
+            |(date, (worked_minutes, pause_minutes))| WorkTimeDaySummary {
+                date,
+                worked_minutes,
+                pause_minutes,
+            },
+        )
         .collect()
 }
 
@@ -362,7 +363,9 @@ pub async fn work_time_start(
     let session = rbac::require(&session_state, "work_time.self")?;
     reconcile_stale_sessions(&pool, &session.user_id).await?;
     if open_session(&pool, &session.user_id).await?.is_some() {
-        return Err(AppError::validation_code("error.work_time.session_already_running"));
+        return Err(AppError::validation_code(
+            "error.work_time.session_already_running",
+        ));
     }
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -391,9 +394,13 @@ pub async fn work_time_pause(
     let session = rbac::require(&session_state, "work_time.self")?;
     let row = open_session(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::validation_code("error.work_time.no_running_session"))?;
+        .ok_or(AppError::validation_code(
+            "error.work_time.no_running_session",
+        ))?;
     if row.status != "RUNNING" {
-        return Err(AppError::validation_code("error.work_time.session_not_running"));
+        return Err(AppError::validation_code(
+            "error.work_time.session_not_running",
+        ));
     }
     let now = Utc::now().to_rfc3339();
     let seg_id = Uuid::new_v4().to_string();
@@ -427,9 +434,13 @@ pub async fn work_time_resume(
     let session = rbac::require(&session_state, "work_time.self")?;
     let row = open_session(&pool, &session.user_id)
         .await?
-        .ok_or(AppError::validation_code("error.work_time.no_paused_session"))?;
+        .ok_or(AppError::validation_code(
+            "error.work_time.no_paused_session",
+        ))?;
     if row.status != "PAUSED" {
-        return Err(AppError::validation_code("error.work_time.session_not_paused"));
+        return Err(AppError::validation_code(
+            "error.work_time.session_not_paused",
+        ));
     }
     close_open_pause_segment(&pool, &row.id).await?;
     sqlx::query(
@@ -505,7 +516,10 @@ pub async fn work_time_get_week_overview(
     .map_err(AppError::Database)?;
 
     let now = Utc::now();
-    let total_minutes: i64 = sessions.iter().map(|s| session_work_minutes(s, now).0).sum();
+    let total_minutes: i64 = sessions
+        .iter()
+        .map(|s| session_work_minutes(s, now).0)
+        .sum();
     let days = summarize_days(&sessions);
 
     Ok(WorkTimeWeekOverview {
@@ -621,7 +635,10 @@ pub async fn work_time_get_statistics(
         .filter(|s| started_date(&s.started_at).is_some_and(|d| d >= week_start))
         .map(|s| session_work_minutes(s, now).0)
         .sum();
-    let month_minutes: i64 = sessions.iter().map(|s| session_work_minutes(s, now).0).sum();
+    let month_minutes: i64 = sessions
+        .iter()
+        .map(|s| session_work_minutes(s, now).0)
+        .sum();
     let pause_minutes_week: i64 = sessions
         .iter()
         .filter(|s| started_date(&s.started_at).is_some_and(|d| d >= week_start))
@@ -650,9 +667,7 @@ pub async fn work_time_get_statistics(
                 let mine: Vec<_> = sessions.iter().filter(|s| s.personal_id == pid).collect();
                 let week_minutes: i64 = mine
                     .iter()
-                    .filter(|s| {
-                        started_date(&s.started_at).is_some_and(|d| d >= week_start)
-                    })
+                    .filter(|s| started_date(&s.started_at).is_some_and(|d| d >= week_start))
                     .map(|s| session_work_minutes(s, now).0)
                     .sum();
                 let today_minutes: i64 = mine
@@ -732,20 +747,24 @@ pub async fn work_time_set_preference(
             .map_err(AppError::Database)?;
     }
     if let Some(l) = patch.auto_record_on_login {
-        sqlx::query("UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE personal_id = ?2")
-            .bind(l as i32)
-            .bind(&pid)
-            .execute(pool.inner())
-            .await
-            .map_err(AppError::Database)?;
+        sqlx::query(
+            "UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE personal_id = ?2",
+        )
+        .bind(l as i32)
+        .bind(&pid)
+        .execute(pool.inner())
+        .await
+        .map_err(AppError::Database)?;
     }
     if let Some(o) = patch.auto_record_on_logout {
-        sqlx::query("UPDATE work_time_preference SET auto_record_on_logout = ?1 WHERE personal_id = ?2")
-            .bind(o as i32)
-            .bind(&pid)
-            .execute(pool.inner())
-            .await
-            .map_err(AppError::Database)?;
+        sqlx::query(
+            "UPDATE work_time_preference SET auto_record_on_logout = ?1 WHERE personal_id = ?2",
+        )
+        .bind(o as i32)
+        .bind(&pid)
+        .execute(pool.inner())
+        .await
+        .map_err(AppError::Database)?;
     }
     get_or_create_preference(&pool, &pid).await
 }
@@ -758,12 +777,11 @@ pub async fn work_time_set_auto_record_on_login(
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "personal.write")?;
     app_kv_repo::set(&pool, AUTO_RECORD_KV, if enabled { "1" } else { "0" }).await?;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')",
-    )
-    .fetch_all(pool.inner())
-    .await
-    .map_err(AppError::Database)?;
+    let rows: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')")
+            .fetch_all(pool.inner())
+            .await
+            .map_err(AppError::Database)?;
     for (pid,) in rows {
         let _ = get_or_create_preference(&pool, &pid).await?;
         sqlx::query(
@@ -842,15 +860,16 @@ mod tests {
         .await
         .expect("insert session");
 
-        let n = reconcile_stale_sessions(&pool, pid).await.expect("reconcile");
+        let n = reconcile_stale_sessions(&pool, pid)
+            .await
+            .expect("reconcile");
         assert_eq!(n, 1);
 
-        let status: String = sqlx::query_scalar(
-            "SELECT status FROM work_time_session WHERE id = 's1'",
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("status");
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM work_time_session WHERE id = 's1'")
+                .fetch_one(&pool)
+                .await
+                .expect("status");
         assert_eq!(status, "ENDED");
     }
 

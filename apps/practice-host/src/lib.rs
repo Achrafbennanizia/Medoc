@@ -10,7 +10,9 @@ pub mod systems;
 // inside the practice crate would not resolve after the logging module
 // moved into `medoc-core`. Re-exporting them here keeps every existing
 // `use crate::log_security;` / `crate::log_system!(…)` call site working.
-pub use medoc_practice::{log_device, log_migration, log_perf, log_security, log_system, log_workflow};
+pub use medoc_practice::{
+    log_device, log_migration, log_perf, log_security, log_system, log_workflow,
+};
 
 use commands::audit_chain_commands::AuditChainGuardExt;
 use commands::auth_commands::{BruteForceState, SessionState};

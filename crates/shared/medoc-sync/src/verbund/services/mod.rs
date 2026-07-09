@@ -8,9 +8,8 @@ pub mod verbund_service;
 pub use crate::verbund::activation::{import_owner_activation, ActivationSummary};
 pub use lizenz_service::{
     activate_cluster_license, needs_verbund_onboarding, require_owner_activation_device,
-    require_owner_admin,
-    require_owner_vendor_license, verbund_network_ready, verbund_status, ImportActivationResult,
-    VerbundStatus,
+    require_owner_admin, require_owner_vendor_license, verbund_network_ready, verbund_status,
+    ImportActivationResult, VerbundStatus,
 };
 pub use provisioning_service::{apply_provisioning, is_local_provisioned, ProvisionResult};
 pub use verbund_service::{

@@ -15,10 +15,8 @@ use medoc_sync::verbund::SeatRolle;
 use tokio::net::TcpStream;
 
 async fn fresh_pool() -> sqlx::SqlitePool {
-    let audit_dir = std::env::temp_dir().join(format!(
-        "medoc-verbund-test-{}",
-        uuid::Uuid::new_v4()
-    ));
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-verbund-test-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&audit_dir).expect("audit dir");
     init_audit_hmac_key(&audit_dir).expect("audit key");
     let pool = test_memory_pool().await.expect("pool");
@@ -44,7 +42,9 @@ fn noise_xx_produces_shared_transcript() {
 
 #[tokio::test]
 async fn xx_handshake_over_tcp_matches_transcript() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
     let addr = listener.local_addr().expect("addr");
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept");
