@@ -120,5 +120,7 @@ jobs:
             npm) npm ci ;;
             *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}"; exit 1 ;;
           esac
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Run axe-core critical WCAG checks
         run: ${{ steps.pm.outputs.pm }} run test:a11y
