@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import resolveConfig from "tailwindcss/resolveConfig";
+import resolveConfig from "tailwindcss/resolveConfig.js";
 import tailwindConfig from "../tailwind.config.js";
 
 type AuditPoint = {
