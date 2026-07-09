@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` on `.github/workflows/*.yml` | **PASS** |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/a11y-check.mjs` | **PASS** |
+| Rust fmt gate | `cargo fmt --all --check` | **FAIL** — pre-existing repository formatting diffs across many Rust files |
+| Frontend lint gate | `npm run lint` | **FAIL** — pre-existing ESLint errors (14 errors / 26 warnings) in existing UI files |
+| Frontend typecheck gate | `npm run typecheck` | **FAIL** — pre-existing TypeScript errors (`i18next` resolution + unused locals) |
+| Frontend build gate | `npm run build` | **FAIL** — same pre-existing TypeScript errors as typecheck |
+| Local axe execution | `npm run test:a11y -w medoc` | **FAIL** — expected guard path: `Preview server returned 404. Run npm run build before npm run test:a11y.` |
+
+**Workflow migration delivered:** removed legacy `.github/workflows/ci.yml`; added `verify.yml`, `autofix.yml`, `fix-proposal.yml`; rewrote `release.yml` to gate on reusable verify + protected `release` environment; documented in [`ci-cd-plan.md`](ci-cd-plan.md).
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 
