@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-09
 
 ## Open contradictions
 
@@ -10,6 +10,9 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Workflow instrumentation scope | Quality-run requirement: every Tauri command + application/service call + domain state transition logged | Current wiring logs frontend command lifecycle + backend invoke ingress/egress, but no explicit service/domain transition emit points (`workflow.rs` usage is command-scoped) | Gaps in traceability for mid-layer state transitions | Add explicit transition emitters at service/domain boundaries; keep sanitizer path mandatory. |
+| C10 | Toast UX policy | Required policy: bottom-right toasts; success 3s, error 5s, action-required persistent | `toast-store.ts` sets error 6000ms; `index.css` anchors `.toast-stack` to `top` | Failing policy tests and inconsistent UX behavior | Align duration constants + CSS anchor; rerun `toast-policy.test.ts`. |
+| C11 | Tokenized spacing discipline | Quality-run rule: no arbitrary Tailwind spacing values bypassing scale | `lint-tailwind-arbitrary-spacing.mjs` reports `min-h-[72px]` in `behandlung-akte-composer-panel.tsx` | Style drift outside design tokens | Replace arbitrary utility with approved spacing token or extend scale intentionally. |
 
 ## Resolved (recent)
 

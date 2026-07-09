@@ -1,7 +1,15 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-09  
 **Scope:** Canonical statements supported by repository evidence.
+
+## Background quality run (2026-07-09) — stable truth
+
+- **Deterministic browser audit surface exists:** `apps/practice-host-ui/quality-audit.html` is now present and used by Playwright quality checks.
+- **Playwright quality suite currently green on audit surface:** `apps/practice-host-ui/e2e-playwright/ui-quality.spec.ts` passes 4/4 (375, 768, 1259 snapshots + axe critical check).
+- **Workflow logging is command-centric today:** frontend command lifecycle and route/logout steps are logged (`tauri.service.ts`, `app-layout.tsx`), backend invoke receive/dispatch is logged (`commands/register.rs`), but no dedicated service/domain transition emitters are yet wired.
+- **UI policy debt remains in code:** toast stack is top-anchored and error toast default is 6000ms (`src/index.css`, `toast-store.ts`), conflicting with the quality-run policy expectation (bottom-right, 5000ms error).
+- **Token discipline gap remains:** static lint reports `min-h-[72px]` in `apps/practice-host-ui/src/views/components/behandlung-akte-composer-panel.tsx`.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 
