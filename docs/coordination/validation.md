@@ -1,6 +1,27 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-09 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-09)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** (`verify`, `autofix`, `fix-proposal`, `release`) |
+| Diff hygiene | `git diff --check` | **PASS** (after removing two trailing spaces in changed coordination docs) |
+| Release gate wiring | `python3` assertion (`release.jobs.gate.uses == ./.github/workflows/verify.yml` and `verify` has `workflow_call`) | **PASS** |
+| Live GitHub Actions runtime | PR/tag-triggered workflow execution | **NOT RUN** (local session only) |
+
+**Implemented artifacts:**
+
+- `.github/workflows/verify.yml`
+- `.github/workflows/autofix.yml`
+- `.github/workflows/fix-proposal.yml`
+- `.github/workflows/release.yml` (replaced legacy release pipeline)
+- `docs/coordination/ci-cd-plan.md`
+- `docs/operations/vendor-key-rotation.md` (CI workflow references migrated)
+- `.github/workflows/ci.yml` removed
+
+---
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

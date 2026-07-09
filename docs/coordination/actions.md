@@ -1,6 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-09 (CI/CD tier migration)
+
+## Done (2026-07-09 — CI/CD tier migration)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and gated `release.yml`.
+- Removed legacy `.github/workflows/ci.yml`; release now reuses `verify.yml` through `workflow_call`.
+- Added `docs/coordination/ci-cd-plan.md` and updated `docs/process/freigabeprozess.md` CI gate references.
+- Added Tier-3 safeguards: draft-only fix proposals, sensitive-path `needs-human-review` labeling.
+- Added release provenance attestation (`actions/attest-build-provenance@v2`) and protected `release` environment hook.
 
 ## Now
 
