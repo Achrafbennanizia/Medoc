@@ -1,7 +1,29 @@
 # Phase handoff
 
-**Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
-**Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
+**Last phase label:** CI/CD tiered pipeline (2026-07-09)  
+**Last closed:** Workspace-aware verify/autofix/fix-proposal/release workflows + CI evidence logging.
+
+### Verified (2026-07-09 — CI/CD tiering)
+
+- **Path migration complete:** retired `.github/workflows/ci.yml` removed; new tiered workflows added at `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- **Workspace detection in CI:** lockfile-based package manager detection + Rust workspace commands target repo-root `Cargo.toml` / `package.json` workspaces (`apps/*`, `crates/*`, `packages/*`).
+- **A11y gate wired:** `test:a11y` now builds the app and runs axe-core critical WCAG 2.1 A/AA scan; `verify.yml` installs Playwright Chromium first.
+- **Validation snapshot:** `npm ci` PASS; `npm run typecheck` PASS; `npm run test` PASS (246/249); `npm run build` PASS; `npx playwright install --with-deps chromium && npm run test:a11y` PASS.
+
+### Remains unverified
+
+- `fix-proposal.yml` end-to-end behavior on GitHub runners (manual dispatch + draft PR creation) — **NOT OBSERVED** in this local session.
+- Current lint baseline remains failing (`npm run lint`: 14 errors, 26 warnings; pre-existing hook/memoization issues).
+
+### Next
+
+1. Resolve existing lint debt so the verify web gate can become fully green.
+2. Trigger `fix-proposal.yml` manually in GitHub once to validate branch/PR labeling behavior.
+3. Confirm protected `release` environment approval flow with a tag or dispatch dry run.
+
+---
+
+**Previous phase label:** Work-Time & Team Overview Program (2026-06-18)
 
 ### Verified (2026-06-18 — Work-Time program)
 
