@@ -59,7 +59,7 @@ fn emit_menu<R: Runtime>(app: &AppHandle<R>, payload: serde_json::Value) {
         return;
     }
     let mut any_ok = false;
-    for (_label, w) in wins.iter() {
+    for w in wins.values() {
         if w.emit("app-menu", payload.clone()).is_ok() {
             any_ok = true;
         }

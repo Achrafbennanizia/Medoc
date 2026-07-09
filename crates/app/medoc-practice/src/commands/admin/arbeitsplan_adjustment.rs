@@ -29,6 +29,8 @@ pub struct ArbeitsplanAdjustmentListQuery {
     pub active_only: Option<bool>,
 }
 
+type ArbeitsplanAdjustmentRow = (String, String, Option<String>, String, String, i64, String);
+
 pub async fn insert_cut_range_adjustment(
     pool: &SqlitePool,
     source: &str,
@@ -84,7 +86,7 @@ pub async fn list_arbeitsplan_adjustments(
         session.user_id.clone()
     };
     let active_only = query.active_only.unwrap_or(true);
-    let rows: Vec<(String, String, Option<String>, String, String, i64, String)> = if active_only {
+    let rows: Vec<ArbeitsplanAdjustmentRow> = if active_only {
         sqlx::query_as(
             "SELECT id, source, source_id, personal_id, payload_json, active, created_at
              FROM arbeitsplan_adjustment
@@ -108,17 +110,19 @@ pub async fn list_arbeitsplan_adjustments(
     .map_err(AppError::Database)?;
     Ok(rows
         .into_iter()
-        .map(|(id, source, source_id, personal_id, payload_json, active, created_at)| {
-            ArbeitsplanAdjustmentRecord {
-                id,
-                source,
-                source_id,
-                personal_id,
-                payload_json,
-                active: active != 0,
-                created_at,
-            }
-        })
+        .map(
+            |(id, source, source_id, personal_id, payload_json, active, created_at)| {
+                ArbeitsplanAdjustmentRecord {
+                    id,
+                    source,
+                    source_id,
+                    personal_id,
+                    payload_json,
+                    active: active != 0,
+                    created_at,
+                }
+            },
+        )
         .collect())
 }
 
