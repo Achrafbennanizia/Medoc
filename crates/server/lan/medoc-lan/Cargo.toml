@@ -43,7 +43,7 @@ sqlx = { version = "0.8", default-features = false, features = [
     "chrono",
 ] }
 # Pulls in the same SQLCipher-enabled sqlite as the practice + medoc-core crates.
-libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
+libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher-vendored-openssl"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
