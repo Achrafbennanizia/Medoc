@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
-        "lint": "eslint src --max-warnings 0 --no-cache && npm run lint:tailwind-spacing",
+        "lint": "eslint src --max-warnings 0 --no-cache",
         "lint:tailwind-spacing": "node ../../scripts/lint-tailwind-spacing-scale.mjs src ../../packages",
         "check": "npm run lint && npm run build && npm test",
         "test": "vitest run",

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -16,6 +16,10 @@ import { TagInput } from "./tag-input";
 import { TimeSlotPicker } from "./time-slot-picker";
 
 describe("ui components behavior", () => {
+    afterEach(() => {
+        cleanup();
+    });
+
     it("handles click, loading and disabled states on buttons", async () => {
         const user = userEvent.setup();
         const onClick = vi.fn();
@@ -54,8 +58,8 @@ describe("ui components behavior", () => {
         await user.type(screen.getByLabelText("Name"), "Jane");
         expect(screen.getByLabelText("Name")).toHaveValue("Jane");
 
-        await user.click(screen.getByRole("button", { name: "Alpha" }));
-        await user.click(screen.getByRole("option", { name: "Beta" }));
+        await user.click(screen.getByRole("button", { name: "Mode" }));
+        await user.click(await screen.findByRole("option", { name: "Beta" }));
         expect(onSelect).toHaveBeenCalled();
 
         await user.type(screen.getByLabelText("Notes"), "text");

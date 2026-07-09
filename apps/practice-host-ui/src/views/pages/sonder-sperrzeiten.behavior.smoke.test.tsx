@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import type { PraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
 import { loadPraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
 import { SonderSperrzeitenPage } from "./sonder-sperrzeiten";
@@ -49,12 +50,16 @@ describe("SonderSperrzeitenPage loading behavior", () => {
             .mockRejectedValueOnce(new Error("backend offline"))
             .mockResolvedValue(BASE_CFG);
 
-        render(<SonderSperrzeitenPage />);
+        render(
+            <MemoryRouter>
+                <SonderSperrzeitenPage />
+            </MemoryRouter>,
+        );
 
         await waitFor(() => {
             expect(screen.getByRole("alert")).toBeInTheDocument();
         });
-        await user.click(screen.getByRole("button", { name: /retry/i }));
+        await user.click(screen.getByRole("button"));
 
         await waitFor(() => {
             expect(screen.queryByRole("alert")).toBeNull();

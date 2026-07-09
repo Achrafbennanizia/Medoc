@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastContainer } from "./toast";
 import { useToastStore } from "./toast-store";
@@ -12,11 +12,14 @@ describe("toast behavior", () => {
     afterEach(() => {
         vi.useRealTimers();
         useToastStore.setState({ toasts: [], toastStackPointerInside: false });
+        cleanup();
     });
 
     it("auto-dismisses success in ~3s and error in ~5s", () => {
         render(<ToastContainer />);
-        useToastStore.getState().add("Saved", "success");
+        act(() => {
+            useToastStore.getState().add("Saved", "success");
+        });
         expect(screen.getByText("Saved")).toBeInTheDocument();
 
         act(() => {
@@ -24,7 +27,9 @@ describe("toast behavior", () => {
         });
         expect(screen.queryByText("Saved")).toBeNull();
 
-        useToastStore.getState().add("Failed", "error");
+        act(() => {
+            useToastStore.getState().add("Failed", "error");
+        });
         expect(screen.getByText("Failed")).toBeInTheDocument();
         act(() => {
             vi.advanceTimersByTime(5600);
@@ -34,7 +39,11 @@ describe("toast behavior", () => {
 
     it("keeps action-required toast persistent", () => {
         render(<ToastContainer />);
-        useToastStore.getState().add("Action required", "warning", { persistent: true });
+        act(() => {
+            useToastStore
+                .getState()
+                .add("Action required", "warning", { persistent: true });
+        });
 
         expect(screen.getByText("Action required")).toBeInTheDocument();
         act(() => {

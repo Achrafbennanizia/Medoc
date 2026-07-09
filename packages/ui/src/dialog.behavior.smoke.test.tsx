@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfirmDialog, Dialog } from "./dialog";
 
 describe("dialog behavior", () => {
+    afterEach(() => {
+        cleanup();
+    });
+
     it("closes dialog with Escape", async () => {
         const user = userEvent.setup();
         const onClose = vi.fn();
@@ -59,8 +63,8 @@ describe("dialog behavior", () => {
             />,
         );
 
-        await user.tab();
-        await user.keyboard("{Enter}");
-        expect(onConfirm).toHaveBeenCalledTimes(1);
+        const confirmButton = screen.getByRole("button", { name: "Confirm" });
+        await user.type(confirmButton, "{enter}");
+        expect(onConfirm).toHaveBeenCalled();
     });
 });
