@@ -1,0 +1,103 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - id: guard_author
+        run: |
+          author="$(git log -1 --format='%an')"
+          if [ "$author" = "github-actions[bot]" ]; then
+            echo "run_autofix=false" >> "$GITHUB_OUTPUT"
+            echo "Latest commit is bot-authored; skipping."
+          else
+            echo "run_autofix=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        with:
+          components: rustfmt
+      - id: pm
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - if: steps.guard_author.outputs.run_autofix == 'true'
+        run: corepack enable
+      - if: steps.guard_author.outputs.run_autofix == 'true'
+        run: ${{ steps.pm.outputs.install_command }}
+      - name: Deterministic Rust formatting
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        run: cargo fmt --all
+      - name: Deterministic JS fixes only
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm run --if-present lint:fix || pnpm run lint -- --fix || true
+              pnpm run --if-present format || true
+              ;;
+            yarn)
+              yarn run lint:fix || yarn run lint --fix || true
+              yarn run format || true
+              ;;
+            npm)
+              npm run lint:fix --if-present || npm run lint -- --fix || true
+              npm run format --if-present || true
+              ;;
+          esac
+      - name: Guard restricted code areas
+        id: restricted
+        if: steps.guard_author.outputs.run_autofix == 'true'
+        run: |
+          changed="$(git diff --name-only)"
+          if [ -z "$changed" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | rg -n '(^|/)(security|audit|crypto|rbac)(/|_|\\.)'; then
+            echo "Autofix touched restricted security/audit/crypto/RBAC paths; refusing commit."
+            exit 1
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+      - name: Commit and push deterministic fixes
+        if: steps.guard_author.outputs.run_autofix == 'true' && steps.restricted.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply automated formatting and lint fixes"
+          git push origin HEAD:${{ github.head_ref }}
