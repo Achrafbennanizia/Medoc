@@ -32,6 +32,12 @@
 
 1. `VERBUND_ADMIN_PANEL_V1_ENABLED = true` when Geräteverbund wire ships (v1.1)
 
+### Patient Akte header (record)
+
+1. `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = true` in [`v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts)
+2. Manual QA: Task to reception (ARZT), Request review (ARZT/REZEPTION), Discharge sheet PDF
+3. See [`geplant.md`](geplant.md) — Clinical / dental UI section
+
 ## Do NOT blind (has runtime effect)
 
 - **Akte confirmations (runtime)** — [`akte-confirm-presentation.tsx`](../../apps/practice-host-ui/src/views/components/akte-confirm-presentation.tsx) still uses stored prefs; only the **settings UI** is hidden.

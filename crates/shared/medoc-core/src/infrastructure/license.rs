@@ -61,12 +61,18 @@ include!(concat!(env!("OUT_DIR"), "/pubkey.rs"));
 include!(concat!(env!("OUT_DIR"), "/license_seed.rs"));
 
 /// v1 license payload (legacy, signed-only, expiry-bound).
+/// Token bodies use snake_case; IPC uses camelCase (`LicenseStatus` envelope).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct License {
+    #[serde(alias = "customer_id")]
     pub customer_id: String,
     pub edition: String,
+    #[serde(alias = "issued_at")]
     pub issued_at: DateTime<Utc>,
+    #[serde(alias = "expires_at")]
     pub expires_at: DateTime<Utc>,
+    #[serde(alias = "max_users")]
     pub max_users: u32,
     #[serde(default)]
     pub modules: Vec<String>,
@@ -74,18 +80,22 @@ pub struct License {
 
 /// v2 license payload (perpetual, device-bound).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LicenseV2 {
     #[serde(rename = "v")]
     pub version: u32,
+    #[serde(alias = "customer_id")]
     pub customer_id: String,
     pub edition: String,
+    #[serde(alias = "device_id")]
     pub device_id: String,
+    #[serde(alias = "activated_at")]
     pub activated_at: DateTime<Utc>,
-    #[serde(default)]
+    #[serde(default, alias = "max_users")]
     pub max_users: u32,
     #[serde(default)]
     pub modules: Vec<String>,
-    #[serde(default)]
+    #[serde(default, alias = "edition_features")]
     pub edition_features: Vec<String>,
 }
 

@@ -1,14 +1,20 @@
 import type { Rolle, Patient } from "@/models/types";
-import { deriveAnlageDisplayName } from "@/lib/akte-anlagen";
+import type { AkteSavePending } from "@/lib/patient-detail-utils";
 import { parseRole } from "@/lib/rbac";
 import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
-import type { AkteSavePending } from "@/lib/patient-detail-utils";
 import { useT, useTParams } from "@/lib/i18n";
-import { ConfirmDialog } from "@/views/components/ui/dialog";
+import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
+import { Select } from "@/views/components/ui/input";
+import { Button } from "@/views/components/ui/button";
+import {
+    AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT,
+    AKTE_ANLAGE_DOCUMENT_KINDS,
+    deriveAnlageDisplayName,
+} from "@/lib/akte-anlagen";
 import { ExportPickerDialog, HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
 import { DischargeMerkblattDialog } from "@/views/components/discharge-merkblatt-dialog";
 import { PraxisReadinessDialog } from "@/views/components/praxis-readiness-dialog";
@@ -27,6 +33,7 @@ export type PatientDetailOverlaysProps = {
     akteSaveBusy: boolean;
     onCloseAkteSave: () => void;
     onConfirmAkteSave: () => void;
+    onPatchAkteSaveConfirm?: (patch: Partial<Extract<AkteSavePending, { kind: "anlage_add" }>>) => void;
     akteExportPickerOpen: boolean;
     onCloseAkteExport: () => void;
     dischargeMerkblattOpen: boolean;
@@ -107,6 +114,7 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
         akteSaveBusy,
         onCloseAkteSave,
         onConfirmAkteSave,
+        onPatchAkteSaveConfirm,
         akteExportPickerOpen,
         onCloseAkteExport,
         dischargeMerkblattOpen,
@@ -123,18 +131,57 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
     const t = useT();
     const tp = useTParams();
     const confirmUi = akteSaveConfirm ? akteSaveConfirmUi(akteSaveConfirm, t, tp) : null;
+    const anlageAddPending = akteSaveConfirm?.kind === "anlage_add" ? akteSaveConfirm : null;
 
     return (
         <>
-            <ConfirmDialog
-                open={akteSaveConfirm !== null}
-                onClose={onCloseAkteSave}
-                onConfirm={onConfirmAkteSave}
-                title={confirmUi?.title ?? ""}
-                message={confirmUi?.message ?? ""}
-                confirmLabel={confirmUi?.confirmLabel ?? t("common.ok")}
-                loading={akteSaveBusy}
-            />
+            {anlageAddPending ? (
+                <Dialog
+                    open
+                    onClose={onCloseAkteSave}
+                    title={t("patient.detail.confirm.anlage_add.title")}
+                    footer={(
+                        <>
+                            <Button type="button" variant="ghost" onClick={onCloseAkteSave} disabled={akteSaveBusy}>
+                                {t("common.cancel")}
+                            </Button>
+                            <Button type="button" onClick={onConfirmAkteSave} loading={akteSaveBusy}>
+                                {t("common.add")}
+                            </Button>
+                        </>
+                    )}
+                >
+                    <div className="col" style={{ gap: 12 }}>
+                        <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)" }}>
+                            {tp("patient.detail.confirm.anlage_add.message", {
+                                name: deriveAnlageDisplayName(anlageAddPending.file),
+                            })}
+                        </p>
+                        <Select
+                            id="anlage-add-doc-kind"
+                            label={t("akte.anlagen.doc_type")}
+                            value={anlageAddPending.documentKind ?? AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT}
+                            options={AKTE_ANLAGE_DOCUMENT_KINDS.map((k) => ({
+                                value: k.id,
+                                label: t(k.labelKey),
+                            }))}
+                            onChange={(e) =>
+                                onPatchAkteSaveConfirm?.({ documentKind: e.target.value })
+                            }
+                        />
+                    </div>
+                </Dialog>
+            ) : (
+                <ConfirmDialog
+                    open={akteSaveConfirm !== null}
+                    onClose={onCloseAkteSave}
+                    onConfirm={onConfirmAkteSave}
+                    title={confirmUi?.title ?? ""}
+                    message={confirmUi?.message ?? ""}
+                    confirmLabel={confirmUi?.confirmLabel ?? t("common.ok")}
+                    loading={akteSaveBusy}
+                />
+            )}
             {patientId ? (
                 <ExportPickerDialog
                     open={akteExportPickerOpen}

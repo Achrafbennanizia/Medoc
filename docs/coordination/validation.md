@@ -1,8 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
 
-## Full UI i18n program — verified (2026-06-18, continued)
+## Sell-ready MVP program — verified (2026-07-05)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity | `npm run i18n:verify` | **PASS** — 4264 keys × 4 locales |
+| Frontend tests | `npm test` | **PASS** — 247 tests (250 total, 3 skipped) |
+| Frontend build | `npm run build` | **PASS** |
+| G21 automated proxy | `bash tools/g21-verify-automated.sh` | **PASS** |
+| Sync C8 `last_seen_at` | e2e `touch_replica_seen_updates_last_seen_on_sync_pull` + repo test extension | **ADDED** (Rust compile requires `MEDOC_VENDOR_PUBKEY` locally — **NOT RUN** in this session) |
+| G21b live Tauri manual rows 1–9 | `bash tools/g21-dev-smoke.sh` + checklist | **NOT RUN** |
+| Tauri tag / release.yml smoke | tag-driven build | **NOT RUN** |
+
+**Delivered:** UI honesty (license portal empty state, E-Rezept gate, KARTE booking label, replica sync error in Deployment); locale plumbing (`bcp47ForLocale`, `useIntlLocaleTag`, locale-aware format/sort); Arabic/RTL (export labels, print `lang`/`dir`, sidebar logical CSS, termin context menu); CSS responsive (1024px min-width, settings 900px, patienten scroll); workflow blinds documented in `geplant.md`.
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program)
 
 | Check | Command | Result |
 |-------|---------|--------|

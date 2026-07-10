@@ -1,10 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
 
 ## Now
 
-- **Manual QA:** focus-mode nav, team arbeitszeit grid, Krankenbescheinigung upload on Tauri desktop — **NOT RUN**
+- **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
+- **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
@@ -22,6 +23,15 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-07-10 — Patient Akte MVC / domain split)
+
+- `akte-anlagen` pure domain → `packages/shared/src/lib/akte-anlagen.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-anlagen.ts`.
+- `desktop-window-frame` Tauri calls → `src/platform/desktop-window-controls.ts`.
+- ESLint `no-restricted-imports`: views/pages cannot import `@tauri-apps/*` or transport/registry directly.
+- `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
+- Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
+- `npm run build` **PASS** (2026-07-10).
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

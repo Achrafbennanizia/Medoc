@@ -6,12 +6,15 @@ type TimeSlotPickerProps = {
     /** ISO dates (yyyy-MM-dd) where a slot is already taken — dims button. */
     busyKeys?: Set<string>;
     selectedDate: string;
+    /** When set, renders exactly these times (from practice hours / availability). */
+    slots?: string[];
     startHour?: number;
     endHour?: number;
     stepMinutes?: number;
+    emptyLabel?: string;
 };
 
-function slots(startHour: number, endHour: number, step: number): string[] {
+function slotsFromRange(startHour: number, endHour: number, step: number): string[] {
     const out: string[] = [];
     for (let h = startHour; h <= endHour; h++) {
         for (let m = 0; m < 60; m += step) {
@@ -22,31 +25,40 @@ function slots(startHour: number, endHour: number, step: number): string[] {
     return out;
 }
 
-/** Grid of selectable times (wireframe „Zeit“-Raster). */
+/** Grid of selectable times driven by practice hours and availability data. */
 export function TimeSlotPicker({
     value,
     onChange,
     busyKeys,
     selectedDate,
+    slots,
     startHour = 8,
     endHour = 18,
     stepMinutes = 30,
+    emptyLabel,
 }: TimeSlotPickerProps) {
     const t = useT();
-    const list = slots(startHour, endHour, stepMinutes);
+    const list = slots ?? slotsFromRange(startHour, endHour, stepMinutes);
+    if (list.length === 0) {
+        return (
+            <p className="time-slot-grid-empty" style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>
+                {emptyLabel ?? t("termin.create.time_no_slots")}
+            </p>
+        );
+    }
     return (
         <div role="group" aria-label={t("a11y.pick_time")} className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8 }}>
-            {list.map((t) => {
-                const busy = busyKeys?.has(`${selectedDate}|${t}`) ?? false;
-                const active = value === t;
+            {list.map((slot) => {
+                const busy = busyKeys?.has(`${selectedDate}|${slot}`) ?? false;
+                const active = value === slot;
                 return (
                     <button
-                        key={t}
+                        key={slot}
                         type="button"
                         className={`time-slot-btn ${active ? "active" : ""} ${busy ? "busy" : ""}`}
                         disabled={busy}
                         aria-pressed={active}
-                        onClick={() => onChange(t)}
+                        onClick={() => onChange(slot)}
                         style={{
                             padding: "10px 6px",
                             borderRadius: 10,
@@ -58,7 +70,7 @@ export function TimeSlotPicker({
                             cursor: busy ? "not-allowed" : "pointer",
                         }}
                     >
-                        {t.slice(0, 5)}
+                        {slot.slice(0, 5)}
                     </button>
                 );
             })}

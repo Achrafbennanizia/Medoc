@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import { mergeAutocompleteFromPraxisKvIntoLocal } from "@/lib/praxis-search-prefs-sync";
+import { usePraxisArbeitszeitenStore } from "@/models/store/praxis-arbeitszeiten-store";
 import { useT } from "@/lib/i18n";
 import { useAuthStore } from "../../models/store/auth-store";
 
@@ -15,6 +16,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
     useEffect(() => {
         void checkSession()
             .then(() => mergeAutocompleteFromPraxisKvIntoLocal())
+            .then(() => usePraxisArbeitszeitenStore.getState().hydrate())
             .catch((e) => {
                 console.warn("SessionGate: checkSession failed", e);
             })

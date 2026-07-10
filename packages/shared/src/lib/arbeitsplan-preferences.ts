@@ -2,6 +2,7 @@
  * Named work/break rules (PlanPreference): work / break, validity, cascade — UI: "Arbeits- & Pausenregeln".
  */
 import { addDays, endOfMonth, format, getISODay, parseISO, startOfDay, startOfWeek } from "date-fns";
+import { collatorLocale, useLocale } from "./i18n";
 
 function parseYmd(s: string): Date {
     return parseISO(s.length >= 10 ? s.slice(0, 10) : s);
@@ -292,7 +293,7 @@ export function inferAutoParentId(
         const sorted = [...cands].sort(
             (a, b) =>
                 defaultLayerForScope(a.scopeType) - defaultLayerForScope(b.scopeType) ||
-                a.name.localeCompare(b.name, "de"),
+                a.name.localeCompare(b.name, collatorLocale(useLocale.getState().locale)),
         );
         return sorted[0]!.id;
     };

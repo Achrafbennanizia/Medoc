@@ -1,3 +1,4 @@
+import { useLocale, bcp47ForLocale } from "@/lib/i18n";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     getAkte,
@@ -10,7 +11,7 @@ import {
 import { listAtteste, type Attest } from "@/systems/practice-host/controllers/attest.controller";
 import { listRezepte, type Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { listZahlungenForPatient } from "@/systems/practice-host/controllers/zahlung.controller";
-import type { AkteAnlageRowDto } from "@/lib/akte-anlagen";
+import type { AkteAnlageRowDto } from "./akte-anlagen";
 import type { Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, Zahlung } from "@/models/types";
 
 /**
@@ -72,6 +73,7 @@ export type AkteExportSectionsState = {
 
 export const AKTE_EXPORT_SECTION_META: {
     key: keyof AkteExportSectionsState;
+    /** @deprecated Use {@link akteExportSectionLabel} — kept for tests/fallback. */
     label: string;
     needsMedical: boolean;
     needsDocuments?: boolean;
@@ -90,6 +92,14 @@ export const AKTE_EXPORT_SECTION_META: {
     { key: "zahlungen", label: "Zahlungen", needsMedical: false, needsFinanzen: true },
     { key: "audit", label: "Audit-Auszug", needsMedical: false, needsAuditRead: true },
 ];
+
+/** Localized label for export section checkbox (Akte export picker). */
+export function akteExportSectionLabel(
+    key: keyof AkteExportSectionsState,
+    t: (translationKey: string) => string,
+): string {
+    return t(`export.section.${key}`);
+}
 
 export function defaultAkteExportSections(): AkteExportSectionsState {
     return {
@@ -377,7 +387,7 @@ export function buildDocumentManifest(
             name: snap.exportMeta.app,
             product: "MeDoc patient record export",
         },
-        language: "de-DE",
+        language: bcp47ForLocale(useLocale.getState().locale),
         rbacFilteredSections: sec,
         conformanceDisclaimer:
             "Mapping nach FHIR R4 und ISO-13606-orientiertem Extract-Muster ist informativ; dies ist kein zertifizierter HL7- oder EN-13606-Export.",

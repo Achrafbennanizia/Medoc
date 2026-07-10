@@ -6,10 +6,11 @@ import { useT } from "@/lib/i18n";
  *
  * 1. Replica (mode = serverless_peer, role = REPLICA) without an
  *    `activationToken` → render the pairing-scan page.
- * 2. Geräteverbund member provisioned through the owner main device → any
+ * 2. Practice device-mesh member provisioned through the owner primary device → any
  *    logged-in user may use the app (no local vendor license required).
  * 3. Master (anything else) without a valid v2/v1 license → render
- *    the license-activate page.
+ *    the license-activate page (first: primary vs secondary device, then
+ *    company token or device-mesh join respectively).
  * 4. Otherwise → render children unchanged.
  *
  * Runs only inside `ProtectedRoute` so the user is already authenticated.
@@ -17,17 +18,12 @@ import { useT } from "@/lib/i18n";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
-import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { errorMessage } from "@/lib/utils";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
+import { currentLicenseStatus } from "@/systems/practice-host/controllers/system.controller";
 import { verbundGetStatus } from "@/systems/practice-host/controllers/verbund.controller";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
-
-type LicenseStatusLite = {
-    valid: boolean;
-    format: string | null;
-};
 
 type Decision = "loading" | "ok" | "needs-license" | "needs-pairing" | "error";
 
@@ -56,9 +52,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
                 setDecision("ok");
                 return;
             }
-            const status = await practiceSystem
-                .invoke<LicenseStatusLite>("current_license_status")
-                .catch(() => null);
+            const status = await currentLicenseStatus().catch(() => null);
             if (!status?.valid) {
                 setDecision("needs-license");
                 return;

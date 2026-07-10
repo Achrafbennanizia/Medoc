@@ -6,7 +6,7 @@
 import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
 import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import type { Patient, Behandlung, Untersuchung, Zahlung } from "@/models/types";
-import { translateLocale, translateLocaleParams } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
 import { buildClinicalTemplateKopfLines } from "@/lib/clinical-document-pdf";
@@ -14,8 +14,9 @@ import { emptyDocumentTemplatePayloadV1, type PraxisFieldKey } from "@/lib/docum
 import { loadPraxisHeaderPrivacy } from "@/lib/praxis-header-privacy";
 import { formatZahlungBezugLine, zahlStatusDisplay, zahlungsartLabel } from "@/lib/zahlung-buchung";
 
-const docT = (key: string) => translateLocale("de", key);
-const docTp = (key: string, params: Record<string, string | number>) => translateLocaleParams("de", key, params);
+const docT = (key: string) => translateLocale(useLocale.getState().locale, key);
+const docTp = (key: string, params: Record<string, string | number>) =>
+    translateLocaleParams(useLocale.getState().locale, key, params);
 
 const KOPF_FIELDS: PraxisFieldKey[] = [
     "name",
@@ -67,9 +68,9 @@ function headerContactRightFromPraxis(): string[] {
     const tel = (p.telefon ?? "").trim();
     const fax = (p.fax ?? "").trim();
     const mail = (p.email ?? "").trim();
-    if (tel) out.push(`Telefon: ${tel}`);
-    if (fax) out.push(`Fax: ${fax}`);
-    if (mail) out.push(`E-Mail: ${mail}`);
+    if (tel) out.push(`${docT("document.print.phone")}: ${tel}`);
+    if (fax) out.push(`${docT("document.print.fax")}: ${fax}`);
+    if (mail) out.push(`${docT("document.print.email")}: ${mail}`);
     return out;
 }
 

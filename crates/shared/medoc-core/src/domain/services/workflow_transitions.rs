@@ -39,6 +39,21 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
     allowed_transition(&cur, next, allowed)
 }
 
+/// FA-AKTE-14: reception/physician forward → queue (`IN_BEARBEITUNG`).
+pub fn patientenakte_forward_review_transition(current: &str) -> Result<(), AppError> {
+    let s = current.trim().to_uppercase();
+    if s == "READONLY" {
+        return Err(AppError::validation_code("error.workflow.akte_readonly"));
+    }
+    if s == "ENTWURF" || s == "IN_BEARBEITUNG" || s == "VALIDIERT" {
+        return Ok(());
+    }
+    Err(AppError::validation_code_params(
+        "error.workflow.akte_status_invalid",
+        &[("status", &s)],
+    ))
+}
+
 /// FA-AKTE-15: validate Patientenakte → `VALIDIERT`.
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();

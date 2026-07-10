@@ -35,5 +35,30 @@ export default tseslint.config(
                 { allowConstantExport: true },
             ],
         },
-    }
+    },
+    {
+        files: [
+            "src/views/**/*.{ts,tsx}",
+            "../../packages/app/**/src/pages/**/*.{ts,tsx}",
+        ],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            group: ["@tauri-apps/*"],
+                            message:
+                                "Views/pages must not import Tauri directly — use controllers or src/platform/* wrappers.",
+                        },
+                        {
+                            group: ["**/systems/registry", "**/systems/shared/transport/*"],
+                            message:
+                                "Views/pages must not call practiceSystem/transport directly — use controllers under systems/*/controllers.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 );

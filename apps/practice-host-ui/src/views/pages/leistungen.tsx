@@ -1,4 +1,4 @@
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams, useCollatorLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { listLeistungen, createLeistung, deleteLeistung, updateLeistung } from "@/systems/practice-host/controllers/leistung.controller";
@@ -73,6 +73,7 @@ function formValid(f: LeistungForm): boolean {
 export function LeistungenPage() {
     const t = useT();
     const tp = useTParams();
+    const sortLocale = useCollatorLocale();
     const specialExamCategory = t("leistungen.kind.special_examination_category");
     const [searchParams, setSearchParams] = useSearchParams();
     const [leistungen, setLeistungen] = useState<Leistung[]>([]);
@@ -243,8 +244,8 @@ export function LeistungenPage() {
     };
 
     const leistungenSorted = useMemo(
-        () => [...leistungen].sort((a, b) => a.name.localeCompare(b.name, "de")),
-        [leistungen],
+        () => [...leistungen].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
+        [leistungen, sortLocale],
     );
 
     const kategorieVorschlaege = useMemo(() => {
@@ -253,8 +254,8 @@ export function LeistungenPage() {
             const k = l.kategorie?.trim();
             if (k) s.add(k);
         }
-        return [...s].sort((a, b) => a.localeCompare(b, "de"));
-    }, [leistungen, specialExamCategory]);
+        return [...s].sort((a, b) => a.localeCompare(b, sortLocale));
+    }, [leistungen, specialExamCategory, sortLocale]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

@@ -9,7 +9,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { BehandlungsKatalogItem } from "../../models/types";
 import { errorMessage, formatCurrency } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { useT , useCollatorLocale} from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/input";
@@ -31,6 +31,7 @@ const DEFAULT_KATEGORIEN = [
 
 export function BehandlungsKatalogPage() {
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
@@ -55,7 +56,7 @@ export function BehandlungsKatalogPage() {
         const fromDb = new Set(rows.map((r) => r.kategorie));
         DEFAULT_KATEGORIEN.forEach((k) => fromDb.add(k.value));
         return Array.from(fromDb)
-            .sort((a, b) => a.localeCompare(b, "de"))
+            .sort((a, b) => a.localeCompare(b, sortLocale))
             .map((value) => ({ value, label: value }));
     }, [rows]);
 
@@ -207,7 +208,7 @@ export function BehandlungsKatalogPage() {
     };
 
     const sorted = useMemo(
-        () => [...rows].sort((a, b) => a.kategorie.localeCompare(b.kategorie, "de") || a.name.localeCompare(b.name, "de")),
+        () => [...rows].sort((a, b) => a.kategorie.localeCompare(b.kategorie, sortLocale) || a.name.localeCompare(b.name, sortLocale)),
         [rows],
     );
 

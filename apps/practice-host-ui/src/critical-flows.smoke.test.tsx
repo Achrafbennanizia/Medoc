@@ -453,6 +453,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
         render(<LicenseActivatePage onActivated={onActivated} />);
 
         expect(await screen.findByRole("heading", { name: "Activate license" })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: /Main device \(practice hub\)/ }));
 
         const tokenInput = screen.getByLabelText("License token") as HTMLTextAreaElement;
         await user.type(tokenInput, "v2.dummybody.dummysig");

@@ -8,7 +8,7 @@ import {
     type TotpEnrollment,
 } from "@/systems/practice-host/controllers/totp.controller";
 import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
-import { EyeIcon, EyeOffIcon, PinIcon } from "@/lib/icons";
+import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
@@ -157,8 +157,8 @@ export function LoginPage() {
         }
     };
 
-    const onPasswordKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.getModifierState) {
+    const syncCapsLock = (e: React.KeyboardEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>) => {
+        if ("getModifierState" in e && typeof e.getModifierState === "function") {
             setCapsOn(e.getModifierState("CapsLock"));
         }
     };
@@ -184,11 +184,14 @@ export function LoginPage() {
                 onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
             >
                 <div className="login-art__content" style={{ position: "relative", zIndex: 1 }}>
-                    <div className="row" style={{ gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "grid", placeItems: "center" }}>
-                            <PinIcon size={18} />
+                    <div className="login-brand-row row">
+                        <div className="login-brand-mark" aria-hidden>
+                            <PinIcon size={ICON_SIZE_LG} />
                         </div>
-                        <div style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>{t("login.brand")} <span style={{ opacity: 0.6, fontWeight: 400 }}>{t("login.brand_subtitle")}</span></div>
+                        <div className="login-brand-text">
+                            {t("login.brand")}{" "}
+                            <span className="login-brand-text__sub">{t("login.brand_subtitle")}</span>
+                        </div>
                     </div>
                     <div style={{ marginTop: 48 }}>
                         <h1 style={{ fontSize: 44, fontWeight: 700, letterSpacing: "-0.03em", margin: "0 0 14px", maxWidth: 460, lineHeight: 1.05 }}>
@@ -341,23 +344,33 @@ export function LoginPage() {
                         <input
                             id="passwort"
                             className="input-edit login-password-input-row__field"
-                            style={{ border: 0, boxShadow: "none", padding: 0 }}
                             type={showPw ? "text" : "password"}
                             value={passwort}
                             onChange={(e) => setPasswort(e.target.value)}
-                            onKeyDown={onPasswordKey}
+                            onFocus={syncCapsLock}
+                            onKeyDown={syncCapsLock}
+                            onKeyUp={syncCapsLock}
                             placeholder="••••••••"
                             required
                             autoComplete="current-password"
                         />
+                        {capsOn ? (
+                            <span
+                                className="login-password-caps"
+                                role="img"
+                                aria-label={t("login.caps_warning")}
+                                title={t("login.caps_warning")}
+                            >
+                                <CapsLockIcon size={ICON_SIZE_SM} />
+                            </span>
+                        ) : null}
                         <button
                             type="button"
-                            className="icon-btn"
-                            style={{ width: 28, height: 28 }}
+                            className="icon-btn login-password-toggle"
                             aria-label={showPw ? t("login.pw_toggle_hide") : t("login.pw_toggle_show")}
                             onClick={() => setShowPw((v) => !v)}
                         >
-                            {showPw ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
+                            {showPw ? <EyeOffIcon size={ICON_SIZE_SM} /> : <EyeIcon size={ICON_SIZE_SM} />}
                         </button>
                     </div>
                     {capsOn ? (
@@ -365,8 +378,8 @@ export function LoginPage() {
                             {t("login.caps_warning")}
                         </p>
                     ) : null}
-                    <div className="row" style={{ marginBottom: 14, color: "var(--fg-3)", fontSize: 12.5, flexWrap: "wrap", gap: 8 }}>
-                        <label className="row" style={{ gap: 8 }}>
+                    <div className="row login-remember-row">
+                        <label className="login-remember-label">
                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
                             {t("login.remember_email")}
                         </label>

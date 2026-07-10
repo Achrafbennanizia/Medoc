@@ -4,7 +4,7 @@ import {
     flushAttestFinalizeVorlage,
     flushRezeptFinalizeVorlage,
 } from "@/lib/patient-detail-rezept-actions";
-import { deriveAnlageDisplayName, fileToBase64ForAnlage } from "@/lib/akte-anlagen";
+import { deriveAnlageDisplayName, fileToBase64ForAnlage, normalizeAkteDocumentKind } from "@/lib/akte-anlagen";
 import type { AkteSavePending } from "@/lib/patient-detail-utils";
 import type { Patientenakte } from "@/models/types";
 import type { PatientDetailRezeptTabHandle } from "./patient-detail-rezept-tab";
@@ -73,6 +73,7 @@ export function usePatientDetailAkteSave({
                         display_name: displayName,
                         mime_type: p.file.type || "application/octet-stream",
                         bytes_base64: b64,
+                        document_kind: normalizeAkteDocumentKind(p.documentKind),
                     });
                     toast(t("patient.detail.toast.anlage_saved"), "success");
                     await refreshAnlagen(akte.id);

@@ -1,3 +1,4 @@
+import { translateLocale, useLocale, bcp47ForLocale, type Locale } from "@/lib/i18n";
 import type { Bilanz, StatistikOverview, Zahlung } from "@/models/types";
 import type { BilanzSnapshot } from "@/systems/practice-host/controllers/bilanz-snapshot.controller";
 import type { Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
@@ -194,97 +195,103 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
 
 type Period = "6m" | "12m";
 
-function periodLabel(period: Period): string {
-    return period === "6m" ? "Letzte 6 Monate" : "Letzte 12 Monate";
+function periodLabel(period: Period, locale: Locale): string {
+    return translateLocale(locale, period === "6m" ? "export.report.period_6m" : "export.report.period_12m");
 }
 
-function todayDe(): string {
-    return new Date().toLocaleDateString("de-DE");
+function todayLocalized(locale: Locale): string {
+    return new Date().toLocaleDateString(bcp47ForLocale(locale));
 }
 
 /** Statistik page — full overview including Einnahmen (income) section. */
-export function buildStatistikReportBundle(stats: StatistikOverview, period: Period): ReportBundle {
-    const pl = periodLabel(period);
+export function buildStatistikReportBundle(stats: StatistikOverview, period: Period, locale?: Locale): ReportBundle {
+    const loc = locale ?? useLocale.getState().locale;
+    const tr = (key: string) => translateLocale(loc, key);
+    const pl = periodLabel(period, loc);
     const dateStamp = new Date().toISOString().slice(0, 10);
     const detailRows: string[][] = [];
-    detailRows.push(["Patienten gesamt", String(stats.patienten_gesamt)]);
-    detailRows.push(["Produkte unter Mindestbestand", String(stats.produkte_niedrig)]);
-    detailRows.push(["Einnahmen Kalendermonat (laufend)", formatCurrency(stats.einnahmen_aktueller_monat)]);
+    detailRows.push([tr("export.report.patients_total"), String(stats.patienten_gesamt)]);
+    detailRows.push([tr("export.report.products_low_stock"), String(stats.produkte_niedrig)]);
+    detailRows.push([tr("export.report.income_current_month"), formatCurrency(stats.einnahmen_aktueller_monat, loc)]);
     for (const m of stats.patienten_neu_pro_monat) {
-        detailRows.push([`Neue Patienten ${m.month}`, String(m.value)]);
+        detailRows.push([`${tr("export.report.new_patients")} ${m.month}`, String(m.value)]);
     }
     for (const m of stats.einnahmen_pro_monat) {
-        detailRows.push([`Einnahmen ${m.month}`, formatCurrency(m.value)]);
+        detailRows.push([`${tr("export.report.income")} ${m.month}`, formatCurrency(m.value, loc)]);
     }
     for (const m of stats.termine_pro_monat) {
-        detailRows.push([`Termine ${m.month}`, String(m.value)]);
+        detailRows.push([`${tr("export.report.appointments")} ${m.month}`, String(m.value)]);
     }
     for (const m of stats.behandlungen_pro_monat) {
-        detailRows.push([`Behandlungen ${m.month}`, String(m.value)]);
+        detailRows.push([`${tr("export.report.treatments")} ${m.month}`, String(m.value)]);
     }
     for (const m of stats.bestellungen_pro_monat) {
-        detailRows.push([`Bestellungen ${m.month}`, String(m.value)]);
+        detailRows.push([`${tr("export.report.orders")} ${m.month}`, String(m.value)]);
     }
     for (const v of stats.altersgruppen) {
-        detailRows.push([`Altersgruppe ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.age_group")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.geschlechter) {
-        detailRows.push([`Geschlecht ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.gender")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.behandlungen_nach_kategorie) {
-        detailRows.push([`Behandlungskategorie ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.treatment_category")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.krankheitsbilder_top ?? []) {
-        detailRows.push([`Krankheitsbild ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.condition")} ${v.label}`, String(v.value)]);
     }
     for (const m of stats.krankheitsbilder_verlauf_pro_monat ?? []) {
-        detailRows.push([`Krankheitsbild-Verlauf ${m.month}`, String(m.value)]);
+        detailRows.push([`${tr("export.report.condition_trend")} ${m.month}`, String(m.value)]);
     }
     for (const v of stats.medikamente_top) {
-        detailRows.push([`Top-Wirkstoff ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.top_ingredient")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.termin_status) {
-        detailRows.push([`Termin-Status ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.appointment_status")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.termin_art) {
-        detailRows.push([`Termin-Art ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.appointment_type")} ${v.label}`, String(v.value)]);
     }
     for (const v of stats.bestellungen_nach_status) {
-        detailRows.push([`Bestell-Status ${v.label}`, String(v.value)]);
+        detailRows.push([`${tr("export.report.order_status")} ${v.label}`, String(v.value)]);
     }
 
-    const einnahmenRows = stats.einnahmen_pro_monat.map((m) => [m.month, formatCurrency(m.value)]);
-    const zahlungsartRows = stats.umsatz_nach_zahlungsart.map((v) => [v.label, formatCurrency(v.value)]);
+    const einnahmenRows = stats.einnahmen_pro_monat.map((m) => [m.month, formatCurrency(m.value, loc)]);
+    const zahlungsartRows = stats.umsatz_nach_zahlungsart.map((v) => [v.label, formatCurrency(v.value, loc)]);
 
     return {
-        docTitle: "Statistik — Einnahmen & Praxisauswertung",
-        exportTitle: "Statistik exportieren",
-        hint: `${pl} · PDF, CSV, JSON oder XML — gleicher Druck-Backend wie Akte und Rechnung.`,
+        docTitle: tr("export.report.statistik_doc_title"),
+        exportTitle: tr("export.report.statistik_export_title"),
+        hint: tr("export.report.statistik_hint").replace("{period}", pl),
         suggestedBasename: `medoc-statistik-${period}-${dateStamp}`,
-        generatedAt: todayDe(),
+        generatedAt: todayLocalized(loc),
         summary: [
-            { label: "Zeitraum", value: pl },
-            { label: "Einnahmen (Kalendermonat)", value: formatCurrency(stats.einnahmen_aktueller_monat) },
-            { label: "Patienten gesamt", value: String(stats.patienten_gesamt) },
+            { label: tr("export.report.period"), value: pl },
+            { label: tr("export.report.income_current_month"), value: formatCurrency(stats.einnahmen_aktueller_monat, loc) },
+            { label: tr("export.report.patients_total"), value: String(stats.patienten_gesamt) },
         ],
         sections: [
             {
-                title: "Einnahmen pro Monat",
-                headers: ["Monat", "Betrag"],
+                title: tr("export.report.income_by_month"),
+                headers: [tr("export.report.month"), tr("export.report.amount")],
                 rows: einnahmenRows,
             },
             {
-                title: "Umsatz nach Zahlungsart",
-                headers: ["Zahlungsart", "Betrag"],
+                title: tr("export.report.income_by_payment"),
+                headers: [tr("export.report.payment_type"), tr("export.report.amount")],
                 rows: zahlungsartRows,
             },
             {
-                title: "Detailkennzahlen",
-                headers: ["Kennzahl", "Wert"],
+                title: tr("export.report.detail_metrics"),
+                headers: [tr("export.report.metric"), tr("export.report.value")],
                 rows: detailRows,
             },
         ],
     };
+}
+
+function todayDe(): string {
+    return todayLocalized(useLocale.getState().locale);
 }
 
 /** Bilanz page — income / outstanding / monthly breakdown. */

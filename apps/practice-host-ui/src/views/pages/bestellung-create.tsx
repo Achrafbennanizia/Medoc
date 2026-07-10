@@ -1,13 +1,20 @@
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { createBestellung, listBestellungen, type Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
+import { createBestellung } from "@/systems/practice-host/controllers/bestellung.controller";
 import { listProdukte } from "@/systems/practice-host/controllers/produkt.controller";
 import {
     listLieferantStamm,
     listPharmaberaterStamm,
     listLieferantPharmaVorlagen,
 } from "@/systems/practice-host/controllers/praxis.controller";
+import {
+    clearBestellungCreateDraft,
+    emptyBestellungCreateDraft,
+    readBestellungCreateDraft,
+    saveBestellungCreateDraft,
+    type BestellungCreateDraft,
+} from "@/lib/bestellung-produkt-bridge";
 import { countProdukteWithName, errorMessage, formatCurrency, produktSelectLabel } from "@/lib/utils";
 import { roundMoney2 } from "@/lib/zahlung-buchung";
 import { allowed, parseRole } from "@/lib/rbac";
@@ -19,33 +26,6 @@ import { Input, Textarea, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
-
-interface CreateForm {
-    lieferant: string;
-    /** Selection from `Produkt.id` (order item text = `Produkt.name`) */
-    artikelProduktId: string;
-    menge: string;
-    einheit: string;
-    erwartet_am: string;
-    bemerkung: string;
-    pharmaberater: string;
-}
-
-function emptyForm(): CreateForm {
-    return {
-        lieferant: "",
-        artikelProduktId: "",
-        menge: "1",
-        einheit: "",
-        erwartet_am: "",
-        bemerkung: "",
-        pharmaberater: "",
-    };
-}
-
-function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
-}
 
 /** Display text for quick-select template (supplier · contact · product). */
 function formatVorlageDatalistLine(
@@ -79,9 +59,13 @@ function buildVorlagenDatalistRows(
     return rows;
 }
 
-function validateForm(f: CreateForm, anzahlProdukte: number, t: (key: string) => string): string | null {
+function todayISO(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function validateForm(f: BestellungCreateDraft, anzahlProdukte: number, t: (key: string) => string): string | null {
     const menge = Number(f.menge);
-    if (!f.lieferant.trim()) return t("page.bestellung.create.validation.supplier_required");
+    if (!f.lieferantId.trim()) return t("page.bestellung.create.validation.supplier_required");
     if (anzahlProdukte < 1) return t("page.bestellung.create.validation.products_required");
     if (!f.artikelProduktId.trim()) return t("page.bestellung.create.validation.article_required");
     if (!Number.isFinite(menge) || menge <= 0) return t("page.bestellung.create.validation.quantity_positive");
@@ -89,44 +73,45 @@ function validateForm(f: CreateForm, anzahlProdukte: number, t: (key: string) =>
     return null;
 }
 
+function stammName(list: { id: string; name: string }[], id: string): string {
+    return list.find((x) => x.id === id)?.name.trim() ?? "";
+}
+
 export function BestellungCreatePage() {
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
     const from = searchParams.get("from");
+    const produktIdFromReturn = searchParams.get("produktId");
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canAddProdukt = role != null && allowed("produkt.write", role);
 
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
-    const [rowsForHints, setRowsForHints] = useState<Bestellung[]>([]);
     const [produkte, setProdukte] = useState<Produkt[]>([]);
     const [lieferantenStamm, setLieferantenStamm] = useState<LieferantStamm[]>([]);
     const [pharmaberaterStamm, setPharmaberaterStamm] = useState<PharmaberaterStamm[]>([]);
     const [vorlagen, setVorlagen] = useState<LieferantPharmaVorlage[]>([]);
-    /** Input text; exact match with `datalist` adopts supplier/contact/product. */
-    const [vorlageInputText, setVorlageInputText] = useState("");
     const vorlageDatalistDomId = useId();
 
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [form, setForm] = useState<CreateForm>(emptyForm);
+    const [form, setForm] = useState<BestellungCreateDraft>(emptyBestellungCreateDraft);
 
     const load = useCallback(async () => {
         setLoading(true);
         setLoadError(null);
         try {
-            const [list, lief, ph, vor, prods] = await Promise.all([
-                listBestellungen(),
+            const [lief, ph, vor, prods] = await Promise.all([
                 listLieferantStamm(),
                 listPharmaberaterStamm(),
                 listLieferantPharmaVorlagen(),
                 listProdukte(),
             ]);
-            setRowsForHints(list);
             setProdukte(prods);
             setLieferantenStamm(lief);
             setPharmaberaterStamm(ph);
@@ -142,23 +127,45 @@ export function BestellungCreatePage() {
         void load();
     }, [load]);
 
-    const lieferantSuggestions = useMemo(() => {
-        const set = new Set<string>();
-        for (const x of lieferantenStamm) set.add(x.name);
-        for (const r of rowsForHints) if (r.lieferant) set.add(r.lieferant);
-        return Array.from(set).sort();
-    }, [lieferantenStamm, rowsForHints]);
+    /** Restore draft after returning from New product. */
+    useEffect(() => {
+        if (!produktIdFromReturn) return;
+        const draft = readBestellungCreateDraft();
+        const next: BestellungCreateDraft = {
+            ...(draft ?? emptyBestellungCreateDraft()),
+            artikelProduktId: produktIdFromReturn,
+        };
+        setForm(next);
+        clearBestellungCreateDraft();
+        setSearchParams(
+            (prev) => {
+                const n = new URLSearchParams(prev);
+                n.delete("produktId");
+                return n;
+            },
+            { replace: true },
+        );
+    }, [produktIdFromReturn, setSearchParams]);
 
-    const pharmaSuggestions = useMemo(() => {
-        const set = new Set<string>();
-        for (const x of pharmaberaterStamm) set.add(x.name);
-        for (const r of rowsForHints) if (r.pharmaberater) set.add(r.pharmaberater);
-        return Array.from(set).sort();
-    }, [pharmaberaterStamm, rowsForHints]);
+    const stammPlaceholder = t("page.bestellstamm.select_placeholder");
+    const lieferantOptions = useMemo(
+        () => [
+            { value: "", label: stammPlaceholder },
+            ...lieferantenStamm.map((x) => ({ value: x.id, label: x.name })),
+        ],
+        [lieferantenStamm, stammPlaceholder],
+    );
+    const pharmaOptions = useMemo(
+        () => [
+            { value: "", label: stammPlaceholder },
+            ...pharmaberaterStamm.map((x) => ({ value: x.id, label: x.name })),
+        ],
+        [pharmaberaterStamm, stammPlaceholder],
+    );
 
     const produkteSorted = useMemo(
-        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, "de")),
-        [produkte],
+        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
+        [produkte, sortLocale],
     );
 
     const artikelProduktOptions = useMemo(
@@ -186,6 +193,7 @@ export function BestellungCreatePage() {
     }, [produkte, form.artikelProduktId, form.menge]);
 
     function goNeuesProdukt() {
+        saveBestellungCreateDraft(form);
         const returnTo = `${location.pathname}${location.search}`;
         const params = new URLSearchParams();
         params.set("neu", "1");
@@ -194,6 +202,7 @@ export function BestellungCreatePage() {
     }
 
     function goBack() {
+        clearBestellungCreateDraft();
         if (from === "finanzen") navigate("/finanzen");
         else navigate("/bestellungen");
     }
@@ -209,22 +218,29 @@ export function BestellungCreatePage() {
             setError(t("page.bestellung.create.invalid_product"));
             return;
         }
+        const lieferantName = stammName(lieferantenStamm, form.lieferantId);
+        if (!lieferantName) {
+            setError(t("page.bestellung.create.validation.supplier_required"));
+            return;
+        }
         const mengeN = Number(String(form.menge).replace(",", "."));
         const gesamtbetrag =
             Number.isFinite(mengeN) && mengeN > 0 ? roundMoney2(produkt.preis * mengeN) : null;
+        const pharmaberaterName = stammName(pharmaberaterStamm, form.pharmaberaterId);
         setBusy(true);
         setError(null);
         try {
             const created = await createBestellung({
-                lieferant: form.lieferant.trim(),
+                lieferant: lieferantName,
                 artikel: produkt.name,
                 menge: mengeN,
                 einheit: form.einheit.trim() || null,
                 erwartet_am: form.erwartet_am || null,
                 bemerkung: form.bemerkung.trim() || null,
-                pharmaberater: form.pharmaberater.trim() || null,
+                pharmaberater: pharmaberaterName || null,
                 ...(gesamtbetrag != null ? { gesamtbetrag: gesamtbetrag } : {}),
             });
+            clearBestellungCreateDraft();
             toast(tp("page.bestellung.create.created_toast", { nummer: created.bestellnummer ?? "" }), "success");
             navigate(`/bestellungen?bestellung=${encodeURIComponent(created.id)}`);
         } catch (e) {
@@ -239,6 +255,7 @@ export function BestellungCreatePage() {
 
     const validationError = validateForm(form, produkte.length, t);
     const cannotSave = validationError !== null || busy;
+    const stammEmpty = lieferantenStamm.length === 0 || pharmaberaterStamm.length === 0;
 
     return (
         <div className="bestellung-create-page praxis-workspace-page praxis-workspace-page--form animate-fade-in--sticky-safe">
@@ -247,18 +264,7 @@ export function BestellungCreatePage() {
                 back={{ onClick: goBack, label: t("page.bestellungen.title") }}
             />
 
-            <datalist id="best-create-lieferant-list">
-                {lieferantSuggestions.map((l) => (
-                    <option key={l} value={l} />
-                ))}
-            </datalist>
-            <datalist id="best-create-pharma-list">
-                {pharmaSuggestions.map((p) => (
-                    <option key={p} value={p} />
-                ))}
-            </datalist>
-
-            <Card className="bestellung-create-page__card card-elevated">
+            <Card className="bestellung-create-page__card card-elevated card--overflow-visible">
                 <CardHeader title={t("page.bestellung.create.card_title")} subtitle={t("page.bestellung.create.card_sub")} />
                 <div className="card-pad bestellung-create-form">
                     {error ? (
@@ -273,19 +279,19 @@ export function BestellungCreatePage() {
                                 id="bc-vorlage"
                                 label={t("page.bestellung.create.template_label")}
                                 list={vorlageDatalistDomId}
-                                value={vorlageInputText}
+                                value={form.vorlageInputText}
                                 autoComplete="off"
                                 placeholder={t("page.bestellung.create.search_ph")}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    setVorlageInputText(val);
                                     const v = vorlageByDatalistLabel.get(val.trim());
                                     if (v) {
                                         const p = produkte.find((x) => x.id === v.produkt_id);
                                         setForm((f) => ({
                                             ...f,
-                                            lieferant: v.lieferant_name,
-                                            pharmaberater: v.pharmaberater_name,
+                                            vorlageInputText: val,
+                                            lieferantId: v.lieferant_id,
+                                            pharmaberaterId: v.pharmaberater_id,
                                             artikelProduktId: p ? v.produkt_id : "",
                                         }));
                                         if (v.produkt_id && !p) {
@@ -294,6 +300,8 @@ export function BestellungCreatePage() {
                                                 "error",
                                             );
                                         }
+                                    } else {
+                                        setForm((f) => ({ ...f, vorlageInputText: val }));
                                     }
                                 }}
                             />
@@ -305,35 +313,49 @@ export function BestellungCreatePage() {
                         </div>
                     ) : null}
                     <div className="bestellung-create-form__grid bestellung-create-form__grid--2">
-                        <Input
+                        <Select
                             id="bc-lief"
                             label={t("common.supplier")}
-                            list="best-create-lieferant-list"
-                            value={form.lieferant}
+                            value={form.lieferantId}
                             onChange={(e) => {
-                                setVorlageInputText("");
-                                setForm({ ...form, lieferant: e.target.value });
+                                setForm((f) => ({
+                                    ...f,
+                                    vorlageInputText: "",
+                                    lieferantId: e.target.value,
+                                }));
                             }}
+                            options={lieferantOptions}
+                            disabled={lieferantenStamm.length === 0}
                         />
-                        <Input
+                        <Select
                             id="bc-pharma"
                             label={t("page.bestellung.create.pharma_contact")}
-                            list="best-create-pharma-list"
-                            value={form.pharmaberater}
+                            value={form.pharmaberaterId}
                             onChange={(e) => {
-                                setVorlageInputText("");
-                                setForm({ ...form, pharmaberater: e.target.value });
+                                setForm((f) => ({
+                                    ...f,
+                                    vorlageInputText: "",
+                                    pharmaberaterId: e.target.value,
+                                }));
                             }}
+                            options={pharmaOptions}
+                            disabled={pharmaberaterStamm.length === 0}
                         />
                     </div>
+                    {stammEmpty ? (
+                        <p className="bestellung-create-form__note">{t("produkte.form.stamm_empty_hint")}</p>
+                    ) : null}
                     <div className="bestellung-create-form__field bestellung-create-form__artikel-row">
                         <Select
                             id="bc-art"
                             label={t("page.bestellung.create.article_label")}
                             value={form.artikelProduktId}
                             onChange={(e) => {
-                                setVorlageInputText("");
-                                setForm({ ...form, artikelProduktId: e.target.value });
+                                setForm((f) => ({
+                                    ...f,
+                                    vorlageInputText: "",
+                                    artikelProduktId: e.target.value,
+                                }));
                             }}
                             options={artikelProduktOptions}
                         />
@@ -360,14 +382,14 @@ export function BestellungCreatePage() {
                             type="number"
                             min={1}
                             value={form.menge}
-                            onChange={(e) => setForm({ ...form, menge: e.target.value })}
+                            onChange={(e) => setForm((f) => ({ ...f, menge: e.target.value }))}
                         />
                         <Input
                             id="bc-einheit"
                             label={t("common.unit")}
                             placeholder={t("page.bestellung.create.unit_ph")}
                             value={form.einheit}
-                            onChange={(e) => setForm({ ...form, einheit: e.target.value })}
+                            onChange={(e) => setForm((f) => ({ ...f, einheit: e.target.value }))}
                         />
                     </div>
                     {voraussichtGesamtbetrag != null ? (
@@ -387,14 +409,14 @@ export function BestellungCreatePage() {
                         type="date"
                         min={todayISO()}
                         value={form.erwartet_am}
-                        onChange={(e) => setForm({ ...form, erwartet_am: e.target.value })}
+                        onChange={(e) => setForm((f) => ({ ...f, erwartet_am: e.target.value }))}
                     />
                     <Textarea
                         id="bc-bem"
                         label={t("common.note")}
                         rows={3}
                         value={form.bemerkung}
-                        onChange={(e) => setForm({ ...form, bemerkung: e.target.value })}
+                        onChange={(e) => setForm((f) => ({ ...f, bemerkung: e.target.value }))}
                     />
                     <div className="bestellung-create-form__actions">
                         <Button type="button" variant="ghost" onClick={goBack} disabled={busy}>

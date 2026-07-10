@@ -29,7 +29,7 @@ import { errorMessage } from "@/lib/utils";
 import { MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
 import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
-import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
+import { terminIstNotfallMarkiert, parseTerminDurationMin } from "@/lib/termin-domain";
 import {
     DEFAULT_CLIENT_SETTINGS,
     loadClientSettings,
@@ -46,7 +46,26 @@ import {
     readPraxisArbeitszeitenConfig,
     type PraxisArbeitszeitenConfig,
 } from "@/lib/praxis-planning";
+import { usePraxisArbeitszeitenStore } from "@/models/store/praxis-arbeitszeiten-store";
+import { PRAXIS_ARBEITSZEITEN_CHANGED_EVENT } from "@/lib/termin-calendar-layout";
 import { validateTerminSchedulingUpdates } from "@/lib/termin-availability";
+import { deriveDayPackingBounds, snapTerminDragPosition } from "@/lib/termin-drag-snap";
+import {
+    clearTerminDragSession,
+    findTerminDragColumnByIso,
+    hitTerminDragHourGutter,
+    invalidateTerminDragColumnCache,
+    listTerminDragColumns,
+    paintTerminDragVisual,
+    paintTerminHourGutterSnap,
+    pickTerminDragColumn,
+    positionTerminDragGhost,
+    setTerminDragNavEdge,
+    detectWeekGridDragEdge,
+    detectCanvasDragEdge,
+    terminDragPatchChanged,
+    type TerminDragPatch,
+} from "@/lib/termin-drag-runtime";
 import type { Termin as TCalEvent, Patient, Abwesenheit } from "../../models/types";
 import { ConfirmDialog } from "../components/ui/dialog";
 // import { Dialog, IosConfirmActions } from "../components/ui/dialog"; — Pause/Notfall-Dialoge deaktiviert
@@ -73,13 +92,13 @@ import {
     buildArztToneMap,
     calendarMonthOffsetFromToday,
     computePackedUpdatesAfterMove,
+    deriveTerminTimelineBounds,
     minutesToUhrzeit,
     terminArtLabelFromTermin,
     terminArtFilterOptions,
+    terminCalendarWeekDays,
     terminCountsAsPlanned,
     terminUhrzeitToMinutes,
-    TERMIN_DAY_END_MIN,
-    TERMIN_DAY_START_MIN,
     TERMIN_DEFAULT_DUR_MIN,
     TERMIN_PX_PER_MIN,
     TERMIN_STATUS_BADGE,
@@ -87,13 +106,11 @@ import {
 
 const statusBadge = TERMIN_STATUS_BADGE;
 const PX_PER_MIN = TERMIN_PX_PER_MIN;
-const DAY_START_MIN = TERMIN_DAY_START_MIN;
-const DAY_END_MIN = TERMIN_DAY_END_MIN;
 /** Day view: dragging left/right beside the grid changes target date (±1 day). */
 const DAY_DRAG_EDGE_PX = 40;
-/** Day view: left/right edge within day column changes calendar day */
-const DAY_INNER_EDGE_PX = 36;
-/** Week view: dragging left/right outside the grid changes the week. */
+/** In-component border zone (px) that triggers week/day navigation while dragging. */
+const CANVAS_DRAG_EDGE_ZONE_PX = 36;
+/** Week view: extra grab area outside the grid (still supported). */
 const WEEK_NAV_EDGE_PX = 48;
 /** While dragging: calendar day or week changes at most once every 500 ms (avoids walk-through). */
 const DRAG_DATUM_NAV_COOLDOWN_MS = 500;
@@ -120,6 +137,10 @@ export function TerminePage() {
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
     const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
     const [praxisPlanCfg, setPraxisPlanCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
+    const storePraxisCfg = usePraxisArbeitszeitenStore((s) => s.config);
+    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisPlanCfg), [praxisPlanCfg]);
+    const dayStartMin = timelineBounds.startMin;
+    const dayEndMin = timelineBounds.endMin;
     const [terminPufferMin, setTerminPufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -157,12 +178,14 @@ export function TerminePage() {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; termin: TCalEvent } | null>(null);
     const [dragState, setDragState] = useState<null | {
         id: string;
+        arztId: string;
         datum: string;
         durMin: number;
         originalDatum: string;
         originalStartMin: number;
         currentDatum: string;
         currentStartMin: number;
+        dropAllowed: boolean;
     }>(null);
     /** Day view: last hour chosen via drag on the hour rail (persists until new interaction). */
     const [terminDaySnapLabel, setTerminDaySnapLabel] = useState<null | { iso: string; startMin: number }>(null);
@@ -177,6 +200,13 @@ export function TerminePage() {
     const suppressApptClickUntilRef = useRef(0);
     const dragPointerTravelRef = useRef(0);
     const dragLastClientRef = useRef<{ x: number; y: number } | null>(null);
+    const dragRafRef = useRef<number | null>(null);
+    const dragMoveEventRef = useRef<MouseEvent | null>(null);
+    const lastDragPatchRef = useRef<TerminDragPatch | null>(null);
+    const praxisPlanCfgRef = useRef(praxisPlanCfg);
+    const abwesenheitenRef = useRef(abwesenheiten);
+    praxisPlanCfgRef.current = praxisPlanCfg;
+    abwesenheitenRef.current = abwesenheiten;
     const goNeuerTermin = useCallback((opts?: {
         datum?: string;
         patient_id?: string;
@@ -255,6 +285,10 @@ export function TerminePage() {
     useEffect(() => { void load(); }, [load]);
 
     useEffect(() => {
+        setPraxisPlanCfg(storePraxisCfg);
+    }, [storePraxisCfg]);
+
+    useEffect(() => {
         const refreshMonthCalPrefs = () => {
             void loadPraxisPraeferenzenFromKv().then((p) => {
                 setMonthCalPatientLoad(p.monthCalendarPatientLoad);
@@ -278,7 +312,16 @@ export function TerminePage() {
             }
         };
         document.addEventListener("visibilitychange", onVis);
-        return () => document.removeEventListener("visibilitychange", onVis);
+        const onCfgChanged = () => {
+            void loadPraxisArbeitszeitenConfig()
+                .then(setPraxisPlanCfg)
+                .catch(() => setPraxisPlanCfg(readPraxisArbeitszeitenConfig()));
+        };
+        window.addEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
+        return () => {
+            document.removeEventListener("visibilitychange", onVis);
+            window.removeEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
+        };
     }, [location.pathname, toast]);
 
     useEffect(() => {
@@ -511,15 +554,14 @@ export function TerminePage() {
         }
     }, [searchParams, setSearchParams, goNeuerTermin, selectedDayIso]);
 
-    const tagTermine = useMemo(
-        () =>
-            displayTermine.filter(
-                (t) =>
-                    t.datum === selectedDayIso ||
-                    (view === "tag" && dragState != null && dragState.id === t.id),
-            ),
-        [displayTermine, selectedDayIso, view, dragState],
-    );
+    const tagTermine = useMemo(() => {
+        const dragFollowId = dragState?.id ?? null;
+        return displayTermine.filter(
+            (t) =>
+                t.datum === selectedDayIso ||
+                (view === "tag" && dragFollowId != null && dragFollowId === t.id),
+        );
+    }, [displayTermine, selectedDayIso, view, dragState?.id]);
 
     const tagViewHasActiveFilters = useMemo(
         () => Boolean(quickSearch.trim() || filterArt || filterStatus || filterArztIds.length > 0),
@@ -576,7 +618,8 @@ export function TerminePage() {
         if (view === "tag") return format(selectedDayDate, "EEEE, d. MMMM", { locale: dateFnsLocale });
         if (view === "woche") {
             const start = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
-            const end = addDays(start, 6);
+            const days = terminCalendarWeekDays(start, praxisPlanCfg);
+            const end = days[days.length - 1] ?? addDays(start, 6);
             const wn = getISOWeek(start);
             return tp("termine.page.week_label", {
                 week: wn,
@@ -585,7 +628,7 @@ export function TerminePage() {
             });
         }
         return format(addMonths(new Date(), monthOffset), "MMMM yyyy", { locale: dateFnsLocale });
-    }, [view, weekOffset, monthOffset, selectedDayDate, dateFnsLocale, tp]);
+    }, [view, weekOffset, monthOffset, selectedDayDate, dateFnsLocale, tp, praxisPlanCfg]);
 
     const jumpToIsoDate = useCallback((iso: string) => {
         const d = parseISO(iso);
@@ -598,13 +641,22 @@ export function TerminePage() {
 
     const commitDrag = useCallback(
         async (id: string, datum: string, startMin: number) => {
+            const moving = termine.find((t) => t.id === id);
+            const dayBounds =
+                moving?.arzt_id != null
+                    ? (deriveDayPackingBounds(praxisPlanCfg, moving.arzt_id, datum) ?? timelineBounds)
+                    : timelineBounds;
+            const slotDur = moving
+                ? Math.max(5, parseTerminDurationMin(moving.notizen, TERMIN_DEFAULT_DUR_MIN))
+                : TERMIN_DEFAULT_DUR_MIN;
             const { updates, error } = computePackedUpdatesAfterMove(
                 termine,
                 id,
                 datum,
                 startMin,
-                TERMIN_DEFAULT_DUR_MIN,
+                slotDur,
                 terminPufferMin,
+                dayBounds,
             );
             if (error) {
                 toast(error);
@@ -614,7 +666,7 @@ export function TerminePage() {
             const schedErr = validateTerminSchedulingUpdates(
                 termine,
                 updates,
-                TERMIN_DEFAULT_DUR_MIN,
+                slotDur,
                 praxisPlanCfg,
                 abwesenheiten,
                 t,
@@ -641,7 +693,7 @@ export function TerminePage() {
                 toast(errorMessage(e));
             }
         },
-        [load, toast, termine, praxisPlanCfg, abwesenheiten, terminPufferMin, t, tp],
+        [load, toast, termine, praxisPlanCfg, abwesenheiten, terminPufferMin, timelineBounds, t, tp],
     );
 
     const handleApptContextMenu = useCallback((termin: TCalEvent, e: ReactMouseEvent) => {
@@ -657,14 +709,175 @@ export function TerminePage() {
         if (!dragId) return undefined;
         dragPointerTravelRef.current = 0;
         dragLastClientRef.current = null;
-        const spanMin = DAY_END_MIN - DAY_START_MIN;
+        dragMoveEventRef.current = null;
+        lastDragPatchRef.current = null;
+        invalidateTerminDragColumnCache();
+        document.body.classList.add("termin-calendar-dragging");
+
+        lastDragPatchRef.current = {
+            currentDatum: dragState.currentDatum,
+            currentStartMin: dragState.currentStartMin,
+            dropAllowed: dragState.dropAllowed,
+        };
+
+        const spanMin = dayEndMin - dayStartMin;
+        const timelineBoundsLocal = { startMin: dayStartMin, endMin: dayEndMin };
+        const weekCanvas = document.querySelector<HTMLElement>("[data-termin-week-canvas]");
+        const dayCanvas = document.querySelector<HTMLElement>("[data-termin-day-canvas]");
+        let weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
+        let dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
+
+        const activeDragDatum = () =>
+            lastDragPatchRef.current?.currentDatum ?? dragStateRef.current?.currentDatum ?? "";
+        const activeDragStartMin = () =>
+            lastDragPatchRef.current?.currentStartMin ?? dragStateRef.current?.currentStartMin ?? 0;
+
+        const repaintAfterNav = () => {
+            requestAnimationFrame(() => {
+                invalidateTerminDragColumnCache();
+                const patch = lastDragPatchRef.current;
+                if (patch) {
+                    paintDragVisual(patch.currentDatum, patch.currentStartMin, !patch.dropAllowed);
+                }
+            });
+        };
+
+        const pxPerMinForColumn = (height: number) => (height > 8 ? height / spanMin : PX_PER_MIN);
+
+        const paintDragVisual = (finalIso: string, startMin: number, dropAllowed: boolean) => {
+            const col = findTerminDragColumnByIso(finalIso);
+            if (!col) return;
+            const topPx = (startMin - dayStartMin) * pxPerMinForColumn(col.height);
+            if (view === "woche") {
+                positionTerminDragGhost(col, topPx, startMin, !dropAllowed);
+            } else {
+                paintTerminDragVisual(topPx, startMin, !dropAllowed);
+            }
+            paintTerminHourGutterSnap(topPx, startMin);
+        };
+
+        const commitDragPatch = (patch: TerminDragPatch) => {
+            paintDragVisual(patch.currentDatum, patch.currentStartMin, patch.dropAllowed);
+            if (!terminDragPatchChanged(lastDragPatchRef.current, patch)) return;
+            lastDragPatchRef.current = patch;
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return;
+            dragStateRef.current = { ...prev, ...patch };
+            if (view === "woche") return;
+            setDragState((p) => (p && p.id === dragId ? { ...p, ...patch } : p));
+        };
+
+        const resolveSnapped = (targetIso: string, rawMin: number) => {
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return null;
+            return snapTerminDragPosition({
+                praxisCfg: praxisPlanCfgRef.current,
+                abwesenheiten: abwesenheitenRef.current,
+                arztId: prev.arztId,
+                isoDate: targetIso,
+                rawStartMin: rawMin,
+                durMin: prev.durMin,
+                timelineBounds: timelineBoundsLocal,
+            });
+        };
+
         const clampStartMin = (rawMin: number, durMin: number) => {
             const snapped = Math.round(rawMin / 5) * 5;
-            const lo = DAY_START_MIN;
-            const hi = DAY_END_MIN - durMin;
+            const lo = dayStartMin;
+            const hi = dayEndMin - durMin;
             return Math.max(lo, Math.min(snapped, hi));
         };
-        const onMove = (e: MouseEvent) => {
+
+        const timeFromY = (clientY: number, colTop: number, colHeight: number, durMin: number) => {
+            const y = clientY - colTop;
+            const minRaw = dayStartMin + y / pxPerMinForColumn(colHeight);
+            return clampStartMin(minRaw, durMin);
+        };
+
+        const applyDragTimeline = (targetIso: string, rawMin: number, jumpIfDayChanges: boolean) => {
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return;
+
+            const activeDatum = lastDragPatchRef.current?.currentDatum ?? prev.currentDatum;
+            if (targetIso !== activeDatum) {
+                const probe = resolveSnapped(targetIso, rawMin);
+                if (!probe?.dayAllowed) return;
+                if (view !== "woche") {
+                    const nowTs = Date.now();
+                    if (nowTs - lastDragDatumNavAtRef.current < DRAG_DATUM_NAV_COOLDOWN_MS) return;
+                    lastDragDatumNavAtRef.current = nowTs;
+                }
+            }
+
+            const snap = resolveSnapped(targetIso, rawMin);
+            if (!snap) return;
+            const finalIso = snap.dayAllowed ? targetIso : activeDatum;
+            const finalSnap = snap.dayAllowed ? snap : resolveSnapped(activeDatum, rawMin);
+            if (!finalSnap) return;
+
+            commitDragPatch({
+                currentDatum: finalIso,
+                currentStartMin: finalSnap.startMin,
+                dropAllowed: finalSnap.dayAllowed && finalSnap.slotAllowed,
+            });
+
+            if (jumpIfDayChanges && view !== "woche" && finalIso !== activeDatum && snap.dayAllowed) {
+                jumpToIsoDateRef.current(finalIso);
+            }
+        };
+
+        const tryWeekHop = (deltaDays: number, deltaWeekOffset: number, clientX: number, clientY: number) => {
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return false;
+            const now = Date.now();
+            if (now - lastDragDatumNavAtRef.current < DRAG_DATUM_NAV_COOLDOWN_MS) return true;
+            const datum = activeDragDatum();
+            const startMin = activeDragStartMin();
+            const newDatum = format(addDays(parseISO(datum), deltaDays), "yyyy-MM-dd");
+            const refCol =
+                findTerminDragColumnByIso(datum)
+                ?? pickTerminDragColumn(clientX, clientY)
+                ?? listTerminDragColumns()[0];
+            const rawMin = refCol
+                ? timeFromY(clientY, refCol.top, refCol.height, prev.durMin)
+                : startMin;
+            const snap = resolveSnapped(newDatum, rawMin);
+            if (!snap?.dayAllowed) return true;
+            lastDragDatumNavAtRef.current = now;
+            setWeekOffset((w) => w + deltaWeekOffset);
+            invalidateTerminDragColumnCache();
+            commitDragPatch({
+                currentDatum: newDatum,
+                currentStartMin: snap.startMin,
+                dropAllowed: snap.slotAllowed,
+            });
+            repaintAfterNav();
+            return true;
+        };
+
+        const tryDayHop = (deltaDays: number, clientY: number) => {
+            const prev = dragStateRef.current;
+            if (!prev || prev.id !== dragId) return false;
+            const now = Date.now();
+            if (now - lastDragDatumNavAtRef.current < DRAG_DATUM_NAV_COOLDOWN_MS) return true;
+            const datum = activeDragDatum();
+            const col = findTerminDragColumnByIso(datum) ?? listTerminDragColumns()[0];
+            const rawMin = col ? timeFromY(clientY, col.top, col.height, prev.durMin) : activeDragStartMin();
+            const newDatum = format(addDays(parseISO(datum), deltaDays), "yyyy-MM-dd");
+            const snap = resolveSnapped(newDatum, rawMin);
+            if (!snap?.dayAllowed || !snap.slotAllowed) return true;
+            lastDragDatumNavAtRef.current = now;
+            commitDragPatch({
+                currentDatum: newDatum,
+                currentStartMin: snap.startMin,
+                dropAllowed: true,
+            });
+            jumpToIsoDateRef.current(newDatum);
+            repaintAfterNav();
+            return true;
+        };
+
+        const processMove = (e: MouseEvent) => {
             const ds = dragStateRef.current;
             if (!ds || ds.id !== dragId) return;
 
@@ -677,132 +890,121 @@ export function TerminePage() {
                 dragLastClientRef.current = { x: e.clientX, y: e.clientY };
             }
 
-            /** New target date during drag only every `DRAG_DATUM_NAV_COOLDOWN_MS` (same day → time without cooldown). */
-            const applyDragTimeline = (targetIso: string, clamped: number, jumpIfDayChanges: boolean) => {
-                const prev = dragStateRef.current;
-                if (!prev || prev.id !== dragId) return;
-                if (targetIso === prev.currentDatum) {
-                    setDragState((p) => (p && p.id === dragId ? { ...p, currentStartMin: clamped } : p));
-                    return;
-                }
-                const nowTs = Date.now();
-                if (nowTs - lastDragDatumNavAtRef.current < DRAG_DATUM_NAV_COOLDOWN_MS) return;
-                lastDragDatumNavAtRef.current = nowTs;
-                setDragState((p) =>
-                    p && p.id === dragId ? { ...p, currentDatum: targetIso, currentStartMin: clamped } : p,
+            if (view === "woche" && weekCanvasRect) {
+                const edge = detectWeekGridDragEdge(
+                    e.clientX,
+                    e.clientY,
+                    weekCanvasRect,
+                    CANVAS_DRAG_EDGE_ZONE_PX,
                 );
-                if (jumpIfDayChanges && targetIso !== prev.currentDatum) {
-                    jumpToIsoDateRef.current(targetIso);
+                const outsideLeft = e.clientX < weekCanvasRect.left - WEEK_NAV_EDGE_PX;
+                const outsideRight = e.clientX > weekCanvasRect.right + WEEK_NAV_EDGE_PX;
+                setTerminDragNavEdge(weekCanvas, edge);
+                if (edge === "left" || outsideLeft) {
+                    if (tryWeekHop(-7, -1, e.clientX, e.clientY)) return;
                 }
-            };
+                if (edge === "right" || outsideRight) {
+                    if (tryWeekHop(7, 1, e.clientX, e.clientY)) return;
+                }
+            } else if (view === "tag" && dayCanvasRect) {
+                const edge = detectCanvasDragEdge(
+                    e.clientX,
+                    e.clientY,
+                    dayCanvasRect,
+                    CANVAS_DRAG_EDGE_ZONE_PX,
+                );
+                const outsideLeft = e.clientX < dayCanvasRect.left - DAY_DRAG_EDGE_PX;
+                const outsideRight = e.clientX > dayCanvasRect.right + DAY_DRAG_EDGE_PX;
+                setTerminDragNavEdge(dayCanvas, edge);
+                if (edge === "left" || outsideLeft) {
+                    if (tryDayHop(-1, e.clientY)) return;
+                }
+                if (edge === "right" || outsideRight) {
+                    if (tryDayHop(1, e.clientY)) return;
+                }
+            } else {
+                setTerminDragNavEdge(null, null);
+            }
 
             if (view === "woche") {
-                const canvas = document.querySelector<HTMLElement>("[data-termin-week-canvas]");
-                if (canvas) {
-                    const br = canvas.getBoundingClientRect();
-                    if (e.clientY >= br.top && e.clientY <= br.bottom) {
-                        const tryWeekHop = (deltaDays: number, deltaWeekOffset: number) => {
-                            const t = Date.now();
-                            if (t - lastDragDatumNavAtRef.current < DRAG_DATUM_NAV_COOLDOWN_MS) return;
-                            lastDragDatumNavAtRef.current = t;
-                            setWeekOffset((w) => w + deltaWeekOffset);
-                            setDragState((prev) => {
-                                if (!prev || prev.id !== dragId) return prev;
-                                return {
-                                    ...prev,
-                                    currentDatum: format(addDays(parseISO(prev.currentDatum), deltaDays), "yyyy-MM-dd"),
-                                };
-                            });
-                        };
-                        if (e.clientX < br.left - WEEK_NAV_EDGE_PX) {
-                            tryWeekHop(-7, -1);
-                            return;
-                        }
-                        if (e.clientX > br.right + WEEK_NAV_EDGE_PX) {
-                            tryWeekHop(7, 1);
-                            return;
-                        }
-                    }
+                const col = pickTerminDragColumn(e.clientX, e.clientY);
+                if (col) {
+                    applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
+                    return;
                 }
+                const gutter = hitTerminDragHourGutter(e.clientX, e.clientY);
+                if (gutter) {
+                    const activeDatum = lastDragPatchRef.current?.currentDatum ?? ds.currentDatum;
+                    applyDragTimeline(
+                        activeDatum,
+                        timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
+                        false,
+                    );
+                }
+                return;
             }
 
-            const cols = document.querySelectorAll<HTMLElement>("[data-termin-day-col]");
-            const timeFromY = (clientY: number, r: DOMRect) => {
-                const y = clientY - r.top;
-                const pxPerMinCol = r.height > 8 ? r.height / spanMin : PX_PER_MIN;
-                const minRaw = DAY_START_MIN + y / pxPerMinCol;
-                return clampStartMin(minRaw, ds.durMin);
-            };
-
-            let hit = false;
-            for (const col of cols) {
-                const r = col.getBoundingClientRect();
-                const iso = col.dataset.terminDayCol;
-                if (!iso) continue;
-                if (e.clientY < r.top || e.clientY > r.bottom) continue;
-
-                if (view === "tag" && cols.length === 1) {
-                    if (e.clientX >= r.left && e.clientX <= r.left + DAY_INNER_EDGE_PX) {
-                        const targetIso = format(addDays(parseISO(iso), -1), "yyyy-MM-dd");
-                        const clamped = timeFromY(e.clientY, r);
-                        applyDragTimeline(targetIso, clamped, true);
-                        hit = true;
-                        break;
-                    }
-                    if (e.clientX >= r.right - DAY_INNER_EDGE_PX && e.clientX <= r.right) {
-                        const targetIso = format(addDays(parseISO(iso), 1), "yyyy-MM-dd");
-                        const clamped = timeFromY(e.clientY, r);
-                        applyDragTimeline(targetIso, clamped, true);
-                        hit = true;
-                        break;
-                    }
+            const cols = listTerminDragColumns();
+            const col = cols[0];
+            if (col) {
+                if (e.clientX >= col.left && e.clientX <= col.right) {
+                    applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
+                    return;
                 }
-
-                if (e.clientX >= r.left && e.clientX <= r.right) {
-                    const clamped = timeFromY(e.clientY, r);
-                    applyDragTimeline(iso, clamped, false);
-                    hit = true;
-                    break;
-                }
-            }
-            if (!hit) {
-                for (const g of document.querySelectorAll<HTMLElement>("[data-termin-hour-gutter]")) {
-                    const r = g.getBoundingClientRect();
-                    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-                        const clamped = timeFromY(e.clientY, r);
-                        setDragState((prev) => (prev && prev.id === dragId ? { ...prev, currentStartMin: clamped } : prev));
-                        hit = true;
-                        break;
-                    }
-                }
-            }
-            if (!hit && view === "tag" && cols.length === 1) {
-                const col = cols[0]!;
-                const iso0 = col.dataset.terminDayCol;
-                if (!iso0) return;
-                const r = col.getBoundingClientRect();
-                if (e.clientY < r.top || e.clientY > r.bottom) return;
-                let targetIso: string | null = null;
-                if (e.clientX < r.left - DAY_DRAG_EDGE_PX) {
-                    targetIso = format(addDays(parseISO(iso0), -1), "yyyy-MM-dd");
-                } else if (e.clientX > r.right + DAY_DRAG_EDGE_PX) {
-                    targetIso = format(addDays(parseISO(iso0), 1), "yyyy-MM-dd");
-                }
-                if (targetIso) {
-                    const clamped = timeFromY(e.clientY, r);
-                    applyDragTimeline(targetIso, clamped, true);
+                const gutter = hitTerminDragHourGutter(e.clientX, e.clientY);
+                if (gutter) {
+                    applyDragTimeline(
+                        activeDragDatum(),
+                        timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
+                        false,
+                    );
                 }
             }
         };
+
+        const flushMove = () => {
+            dragRafRef.current = null;
+            const e = dragMoveEventRef.current;
+            if (!e) return;
+            processMove(e);
+        };
+
+        const onMove = (e: MouseEvent) => {
+            dragMoveEventRef.current = e;
+            if (dragRafRef.current != null) return;
+            dragRafRef.current = requestAnimationFrame(flushMove);
+        };
+
+        const onScroll = () => {
+            invalidateTerminDragColumnCache();
+            weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
+            dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
+        };
+
         const onUp = () => {
+            if (dragRafRef.current != null) {
+                cancelAnimationFrame(dragRafRef.current);
+                dragRafRef.current = null;
+            }
             const travel = dragPointerTravelRef.current;
             dragPointerTravelRef.current = 0;
             dragLastClientRef.current = null;
+            dragMoveEventRef.current = null;
             const prev = dragStateRef.current;
             if (!prev || prev.id !== dragId) return;
-            const changed = prev.currentDatum !== prev.originalDatum || prev.currentStartMin !== prev.originalStartMin;
+            const live = lastDragPatchRef.current;
+            const finalDatum = live?.currentDatum ?? prev.currentDatum;
+            const finalStart = live?.currentStartMin ?? prev.currentStartMin;
+            const finalDrop = live?.dropAllowed ?? prev.dropAllowed;
+            lastDragPatchRef.current = null;
+            const changed =
+                finalDatum !== prev.originalDatum || finalStart !== prev.originalStartMin;
             if (changed) {
-                void commitDrag(prev.id, prev.currentDatum, prev.currentStartMin);
+                if (finalDrop) {
+                    void commitDrag(prev.id, finalDatum, finalStart);
+                } else {
+                    toast(t("termine.scheduling.outside_hours"), "error");
+                }
             }
             const endedDragGesture = changed || travel >= APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX;
             if (endedDragGesture) {
@@ -811,16 +1013,29 @@ export function TerminePage() {
                     suppressApptClickUntilRef.current = Date.now() + APPT_CLICK_SUPPRESS_AFTER_DROP_MS;
                 }
             }
+            clearTerminDragSession();
+            document.body.classList.remove("termin-calendar-dragging");
             setDragState(null);
         };
-        window.addEventListener("mousemove", onMove);
+
+        window.addEventListener("mousemove", onMove, { passive: true });
         window.addEventListener("mouseup", onUp);
+        window.addEventListener("scroll", onScroll, true);
+        window.addEventListener("resize", onScroll);
         return () => {
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
+            window.removeEventListener("scroll", onScroll, true);
+            window.removeEventListener("resize", onScroll);
+            if (dragRafRef.current != null) {
+                cancelAnimationFrame(dragRafRef.current);
+                dragRafRef.current = null;
+            }
+            clearTerminDragSession();
+            document.body.classList.remove("termin-calendar-dragging");
             lastDragDatumNavAtRef.current = 0;
         };
-    }, [dragState?.id, view, commitDrag]);
+    }, [dragState?.id, view, commitDrag, dayStartMin, dayEndMin, t]);
 
     const openDrawerFor = useCallback(
         (termin: TCalEvent) => {
@@ -1081,33 +1296,35 @@ export function TerminePage() {
             ) : null}
 
             <div className="card card-pad termin-toolbar-row fade-up">
-                <button
-                    type="button"
-                    className="icon-btn"
-                    title={t("termine.page.nav_back_title")}
-                    aria-label={t("termine.page.nav_back")}
-                    onClick={() => {
-                        if (view === "monat") setMonthOffset((o) => o - 1);
-                        else if (view === "woche") setWeekOffset((w) => w - 1);
-                        else setDayOffset((d) => d - 1);
-                    }}
-                >
-                    <ChevronLeftIcon size={18} />
-                </button>
-                <span className="termin-toolbar-nav-label">{toolbarNavLabel}</span>
-                <button
-                    type="button"
-                    className="icon-btn"
-                    title={t("termine.page.nav_forward_title")}
-                    aria-label={t("termine.page.nav_forward")}
-                    onClick={() => {
-                        if (view === "monat") setMonthOffset((o) => o + 1);
-                        else if (view === "woche") setWeekOffset((w) => w + 1);
-                        else setDayOffset((d) => d + 1);
-                    }}
-                >
-                    <ChevronRightIcon size={18} />
-                </button>
+                <div className="termin-nav-controls" dir="ltr">
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        title={t("termine.page.nav_back_title")}
+                        aria-label={t("termine.page.nav_back")}
+                        onClick={() => {
+                            if (view === "monat") setMonthOffset((o) => o - 1);
+                            else if (view === "woche") setWeekOffset((w) => w - 1);
+                            else setDayOffset((d) => d - 1);
+                        }}
+                    >
+                        <ChevronLeftIcon size={18} />
+                    </button>
+                    <span className="termin-toolbar-nav-label">{toolbarNavLabel}</span>
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        title={t("termine.page.nav_forward_title")}
+                        aria-label={t("termine.page.nav_forward")}
+                        onClick={() => {
+                            if (view === "monat") setMonthOffset((o) => o + 1);
+                            else if (view === "woche") setWeekOffset((w) => w + 1);
+                            else setDayOffset((d) => d + 1);
+                        }}
+                    >
+                        <ChevronRightIcon size={18} />
+                    </button>
+                </div>
                 <button
                     type="button"
                     className="btn btn-subtle"
@@ -1152,6 +1369,7 @@ export function TerminePage() {
                             patientNameById={patientNameById}
                             arztToneMap={arztToneMap}
                             aerzte={aerzte}
+                            praxisCfg={praxisPlanCfg}
                             monthOffset={monthOffset}
                             onMonthOffsetChange={setMonthOffset}
                             daySnapLabel={terminDaySnapLabel}
@@ -1187,6 +1405,7 @@ export function TerminePage() {
                             aerzte={aerzte}
                             arztToneMap={arztToneMap}
                             patientLoadSettings={monthCalPatientLoad}
+                            praxisCfg={praxisPlanCfg}
                             onPickDay={(iso) => {
                                 jumpToIsoDate(iso);
                                 setView("tag");
@@ -1198,6 +1417,7 @@ export function TerminePage() {
                             weekOffset={weekOffset}
                             patientNameById={patientNameById}
                             arztToneMap={arztToneMap}
+                            praxisCfg={praxisPlanCfg}
                             dragState={dragState}
                             setDragState={setDragState}
                             snapLabel={terminDaySnapLabel}

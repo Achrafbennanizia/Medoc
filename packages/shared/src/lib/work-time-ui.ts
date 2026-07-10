@@ -21,6 +21,16 @@ export function formatWorkMinutes(m: number): string {
     return `${h}h ${min}m`;
 }
 
+/** Compact axis label: "Aya Müller" → "Aya M." (full name stays in tooltip). */
+export function formatStaffShortName(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return name;
+    if (parts.length === 1) return parts[0]!;
+    const last = parts[parts.length - 1]!;
+    const initial = last.length <= 2 && last.endsWith(".") ? last : `${last.charAt(0).toUpperCase()}.`;
+    return `${parts[0]} ${initial}`;
+}
+
 export function sollMinutesForDay(
     personalId: string,
     dateYmd: string,

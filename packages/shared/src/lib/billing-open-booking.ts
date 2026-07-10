@@ -16,6 +16,14 @@ export function behandlungHasBillableLeistung(
 
 export const untersuchungHasBillableLeistung = behandlungHasBillableLeistung;
 
+/** FA-LEIST-05 — physician billing release recorded on Behandlung / Untersuchung rows. */
+export function isReleasedForBilling(entry: {
+    freigegeben_von_arzt_id?: string | null;
+    freigegeben_am?: string | null;
+}): boolean {
+    return Boolean(entry.freigegeben_von_arzt_id) && (entry.freigegeben_am ?? "").trim() !== "";
+}
+
 export type ZahlNewFormState = {
     linkKind: "" | "behand" | "unter";
     linkId: string;

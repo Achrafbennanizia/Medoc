@@ -125,7 +125,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             error,
             id,
             options,
-            menuPortal = false,
+            menuPortal = true,
             menuClassName,
             "aria-describedby": ariaDescribedBy,
             ...props
@@ -262,7 +262,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         id={selectId}
                         type="button"
                         className={["input-edit", "select-edit", "select-trigger", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
-                        onClick={() => setOpen((v) => !v)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (props.disabled) return;
+                            setOpen((v) => !v);
+                        }}
                         disabled={props.disabled}
                         aria-invalid={error ? true : undefined}
                         aria-describedby={describedBy || undefined}

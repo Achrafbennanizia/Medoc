@@ -35,7 +35,7 @@ import { passwordPolicyError } from "@/lib/password-policy";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Rolle } from "@/models/types";
 import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 
 function initialsFromName(name: string) {
     return name
@@ -66,6 +66,7 @@ function quotaOverCapHint(staffQuota: StaffQuota, t: (key: string) => string): s
 
 export function PersonalPage() {
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const [personal, setPersonal] = useState<Personal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -344,7 +345,7 @@ export function PersonalPage() {
     };
 
     const sorted = useMemo(
-        () => [...personal].sort((a, b) => a.name.localeCompare(b.name, "de")),
+        () => [...personal].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
         [personal],
     );
 

@@ -3,6 +3,7 @@ import type { PraxisArbeitszeitenConfig } from "./praxis-planning";
 import {
     isAppointmentSpanBlockedByPraxisConfig,
     isSlotBlockedByPraxisConfig,
+    resolveBookingArbeitszeitenForArzt,
     resolveEffectiveArbeitszeitenForArzt,
 } from "./praxis-planning";
 
@@ -77,6 +78,20 @@ export function terminSchedulingBlockReason(
     return undefined;
 }
 
+/** Boolean guard for slot grids (no i18n). */
+export function isTerminSpanSchedulable(
+    praxisCfg: PraxisArbeitszeitenConfig,
+    abwesenheiten: Abwesenheit[],
+    isoDate: string,
+    startMin: number,
+    endMin: number,
+): boolean {
+    return (
+        !isAppointmentSpanBlockedByPraxisConfig(praxisCfg, isoDate, startMin, endMin)
+        && !isAppointmentSpanBlockedByAbwesenheiten(abwesenheiten, isoDate, startMin, endMin)
+    );
+}
+
 /** After a drag/pack proposal, ensure every affected slot is still erlaubt (Arbeitszeiten, Sperren, Abwesenheiten). */
 export function validateTerminSchedulingUpdates(
     termine: Termin[],
@@ -96,7 +111,7 @@ export function validateTerminSchedulingUpdates(
         const arztId =
             (typeof u.data.arzt_id === "string" && u.data.arzt_id.trim() ? u.data.arzt_id.trim() : undefined)
             ?? termin.arzt_id;
-        const eff = resolveEffectiveArbeitszeitenForArzt(praxisCfg, arztId);
+        const eff = resolveBookingArbeitszeitenForArzt(praxisCfg, arztId);
         const reason = terminSchedulingBlockReason(eff, abwesenheiten, datum, startMin, endMin, t);
         if (reason) return reason;
     }
@@ -151,7 +166,7 @@ export function suggestAlternativeTerminSlots(opts: {
     t: TFn;
 }): string[] {
     const max = opts.max ?? 5;
-    const eff = resolveEffectiveArbeitszeitenForArzt(opts.praxisCfg, opts.arztId);
+    const eff = resolveBookingArbeitszeitenForArzt(opts.praxisCfg, opts.arztId);
     const step = Math.max(5, opts.slotStep);
     const prefMin = uhrzeitToMinutes(normUhrzeitHm(opts.preferredUhrzeit));
     const offsets: number[] = [0];

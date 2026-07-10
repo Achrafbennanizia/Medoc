@@ -41,6 +41,7 @@ import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select } from "@/views/components/ui/input";
 import { errorMessage } from "@/lib/utils";
+import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
 
@@ -203,6 +204,8 @@ export function EinstellungenDeploymentSection({
     const [masterInfo, setMasterInfo] = useState<PairingMasterInfo | null>(null);
     const [busy, setBusy] = useState(false);
     const [syncBusy, setSyncBusy] = useState(false);
+    const lastSyncError = useReplicaSyncStatusStore((s) => s.lastError);
+    const setLastSyncError = useReplicaSyncStatusStore((s) => s.setLastError);
 
     const reload = useCallback(async () => {
         try {
@@ -313,8 +316,10 @@ export function EinstellungenDeploymentSection({
                     ? ` Mesh: ${report.mesh.errors.join("; ")}`
                     : "";
             if (report.error) {
+                setLastSyncError(report.error);
                 toast(tp("settings.deployment.toast.sync_partial", { error: report.error, meshHint }), "warning");
             } else {
+                setLastSyncError(null);
                 toast(
                     report.mesh && report.mesh.attempted > 0
                         ? tp("settings.deployment.toast.sync_done_mesh", {
@@ -619,6 +624,17 @@ export function EinstellungenDeploymentSection({
                         <> · {t("settings.deployment.sync_queue_empty")}</>
                     )}
                 </div>
+            ) : null}
+
+            {isReplica && lastSyncError ? (
+                <DismissibleNotice
+                    variant="warning"
+                    role="status"
+                    closable={false}
+                    className="settings-serverless-sync-error"
+                    title={t("settings.deployment.last_sync_error_title")}
+                    subtitle={lastSyncError}
+                />
             ) : null}
 
             <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>

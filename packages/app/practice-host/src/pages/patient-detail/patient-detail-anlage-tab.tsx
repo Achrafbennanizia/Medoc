@@ -12,6 +12,7 @@ export type PatientDetailAnlageTabProps = {
     canValidate: boolean;
     onPickFile: (file: File) => void;
     onRename: (idx: number, name: string) => void;
+    onSetDocumentKind?: (idx: number, kind: string) => void;
     onRequestRemove: (idx: number, name: string) => void;
     onOpenExternal: (idx: number) => void;
     onDuplicate?: (idx: number) => void;
@@ -31,6 +32,7 @@ export function PatientDetailAnlageTab({
     canValidate,
     onPickFile,
     onRename,
+    onSetDocumentKind,
     onRequestRemove,
     onOpenExternal,
     onDuplicate,
@@ -56,6 +58,7 @@ export function PatientDetailAnlageTab({
                     canManageAnlagen={canManageAnlagen}
                     onPickFile={onPickFile}
                     onRename={onRename}
+                    onSetDocumentKind={onSetDocumentKind}
                     onRequestRemove={onRequestRemove}
                     onOpenExternal={onOpenExternal}
                     onDuplicate={onDuplicate}

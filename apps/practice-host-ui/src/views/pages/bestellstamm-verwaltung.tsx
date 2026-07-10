@@ -15,7 +15,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { LieferantPharmaVorlage, LieferantStamm, PharmaberaterStamm, Produkt } from "@/models/types";
 import { countProdukteWithName, errorMessage, produktSelectLabel } from "@/lib/utils";
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
@@ -25,7 +25,8 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { TrashIcon } from "@/lib/icons";
 import { ProduktFormFields } from "../components/produkt-form-shared";
-import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt-form-model";
+import { emptyForm, formValid, hasStammLinkSelection, parseForm, type ProduktForm } from "@/lib/produkt-form-model";
+import { PRODUKT_STOCK_UI_ENABLED } from "@/lib/catalog-menu-flags";
 
 /**
  * Verwaltung: master data for orders — suppliers, Pharmaberater/contacts
@@ -33,12 +34,14 @@ import { emptyForm, formValid, parseForm, type ProduktForm } from "@/lib/produkt
  */
 export function BestellstammVerwaltungPage() {
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.rolle);
     const canWrite = role ? allowed("bestellung.write", role) : false;
     const canProduktWrite = role ? allowed("produkt.write", role) : false;
+    const stockFormOpts = { stockUi: PRODUKT_STOCK_UI_ENABLED } as const;
 
     const [lieferanten, setLieferanten] = useState<LieferantStamm[]>([]);
     const [kontakte, setKontakte] = useState<PharmaberaterStamm[]>([]);
@@ -103,7 +106,7 @@ export function BestellstammVerwaltungPage() {
     );
 
     const produkteSorted = useMemo(
-        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, "de")),
+        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
         [produkte],
     );
     const produktOptions = useMemo(
@@ -121,7 +124,7 @@ export function BestellstammVerwaltungPage() {
             const k = p.kategorie?.trim();
             if (k) s.add(k);
         }
-        return [...s].sort((a, b) => a.localeCompare(b, "de"));
+        return [...s].sort((a, b) => a.localeCompare(b, sortLocale));
     }, [produkte]);
 
     const addLieferant = async () => {
@@ -166,11 +169,18 @@ export function BestellstammVerwaltungPage() {
     };
 
     const handleCreateProdukt = async () => {
-        if (!formValid(produktCreateForm) || !canProduktWrite) return;
+        if (!formValid(produktCreateForm, stockFormOpts) || !canProduktWrite) return;
         setProduktCreateBusy(true);
         try {
-            const payload = parseForm(produktCreateForm);
+            const payload = parseForm(produktCreateForm, stockFormOpts);
             const created = await createProdukt(payload);
+            if (canWrite && hasStammLinkSelection(produktCreateForm)) {
+                await createLieferantPharmaVorlage({
+                    lieferant_id: produktCreateForm.lieferantId,
+                    pharmaberater_id: produktCreateForm.pharmaberaterId,
+                    produkt_id: created.id,
+                });
+            }
             toast(t("page.bestellstamm.toast.product_created"), "success");
             setProduktCreateForm(emptyForm());
             setCreatingProdukt(false);
@@ -343,6 +353,9 @@ export function BestellstammVerwaltungPage() {
                                 setForm={setProduktCreateForm}
                                 idPrefix="bs-prod-new"
                                 kategorieVorschlaege={kategorieVorschlaege}
+                                showStammLink
+                                lieferanten={lieferanten}
+                                pharmaberater={kontakte}
                             />
                             <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                                 <Button type="button" variant="ghost" onClick={cancelCreateProdukt} disabled={produktCreateBusy}>
@@ -351,7 +364,7 @@ export function BestellstammVerwaltungPage() {
                                 <Button
                                     type="button"
                                     onClick={() => void handleCreateProdukt()}
-                                    disabled={!formValid(produktCreateForm) || produktCreateBusy}
+                                    disabled={!formValid(produktCreateForm, stockFormOpts) || produktCreateBusy}
                                     loading={produktCreateBusy}
                                 >
                                     {t("common.create")}

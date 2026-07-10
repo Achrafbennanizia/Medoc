@@ -1,11 +1,40 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { FC, SVGProps } from "react";
 
+/** Shared icon sizes — use in buttons, nav, and toolbars for consistency. */
+export const ICON_SIZE_SM = 14;
+export const ICON_SIZE_MD = 16;
+export const ICON_SIZE_LG = 18;
+export const ICON_SIZE_XL = 20;
+
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function IconBase({ size = 18, children, ...props }: IconProps) {
+function IconBase({ size = ICON_SIZE_MD, children, className, style, ...props }: IconProps) {
+  const dim = size ?? ICON_SIZE_MD;
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg
+      {...props}
+      className={className ? `ui-icon ${className}` : "ui-icon"}
+      width={dim}
+      height={dim}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      preserveAspectRatio="xMidYMid meet"
+      style={{
+        width: dim,
+        height: dim,
+        minWidth: dim,
+        minHeight: dim,
+        maxWidth: dim,
+        maxHeight: dim,
+        flexShrink: 0,
+        ...style,
+      }}
+    >
       {children}
     </svg>
   );
@@ -53,6 +82,14 @@ export const ClockIcon: FC<{ size?: number }> = ({ size = 14 }) => (
 export const PhoneIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M6 4h3l1 4-2 1a12 12 0 006 6l1-2 4 1v3a2 2 0 01-2 2C9 19 5 15 5 7a2 2 0 012-2z" /></IconBase>;
 export const MailIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M4 7l8 6 8-6" /></IconBase>;
 export const ExportIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 3v12" /><path d="M8 7l4-4 4 4" /><path d="M5 14v5h14v-5" /></IconBase>;
+/** Caps Lock — password field hint (replaces stretched WebKit native indicator). */
+export const CapsLockIcon: FC<{ size?: number }> = ({ size = 14 }) => (
+    <IconBase size={size}>
+        <path d="M7 10.5V8.2L12 4.5l5 3.7v2.3" />
+        <path d="M6 10.5h12" />
+        <rect x="6" y="12.5" width="12" height="4.5" rx="1" fill="currentColor" stroke="none" />
+    </IconBase>
+);
 /** Up arrow in circle — upload zone (`currentColor`, dark-mode friendly). */
 export const UploadCircleIcon: FC<{ size?: number }> = ({ size = 44 }) => (
     <IconBase size={size} aria-hidden>

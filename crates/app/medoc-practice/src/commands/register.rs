@@ -7,6 +7,7 @@ macro_rules! medoc_invoke_handler {
         tauri::generate_handler![
             $crate::commands::akte_anlage_commands::list_akte_anlagen,
             $crate::commands::akte_anlage_commands::create_akte_anlage,
+            $crate::commands::akte_anlage_commands::create_akte_anlage_from_path,
             $crate::commands::akte_anlage_commands::delete_akte_anlage,
             $crate::commands::akte_anlage_commands::rename_akte_anlage,
             $crate::commands::akte_anlage_commands::set_akte_anlage_document_kind,
@@ -61,6 +62,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::attest_commands::delete_attest,
             $crate::commands::audit_chain_commands::get_audit_chain_status,
             $crate::commands::audit_chain_commands::acknowledge_audit_chain_break,
+            $crate::commands::audit_chain_commands::repair_audit_chain,
             $crate::commands::audit_commands::list_audit_logs,
             $crate::commands::audit_commands::list_audit_logs_paged,
             $crate::commands::audit_commands::export_audit_csv,
@@ -225,6 +227,8 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::work_time_commands::work_time_set_preference,
             $crate::commands::work_time_commands::work_time_set_auto_record_on_login,
             $crate::commands::work_time_commands::work_time_get_auto_record_on_login,
+            $crate::commands::work_time_commands::work_time_get_practice_policy,
+            $crate::commands::work_time_commands::work_time_set_practice_policy,
             $crate::commands::krankenbescheinigung_commands::krankenbescheinigung_save,
             $crate::commands::krankenbescheinigung_commands::list_krankenbescheinigungen,
             $crate::commands::krankenbescheinigung_commands::end_krankenbescheinigung,
@@ -305,7 +309,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 295;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 300;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

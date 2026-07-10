@@ -54,12 +54,13 @@ import { Select } from "../components/ui/input";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { useToastStore } from "../components/ui/toast-store";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
+import { ArbeitsplanPracticeTimePolicy } from "../components/arbeitsplan-practice-time-policy";
 import {
-    workTimeGetPreference,
-    workTimeSetPreference,
+    workTimeGetPracticePolicy,
+    workTimeSetPracticePolicy,
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { listArbeitsplanAdjustments } from "@/systems/practice-host/controllers/arbeitsplan-adjustment.controller";
-import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { useDateFnsLocale, useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 
 const DND_MIME = "application/x-medoc-arbeitsblock";
 /** Max visible timeline height (px) — day view; week uses horizontal mini rows. */
@@ -536,6 +537,7 @@ function ArbeitsplanComposeCard(props: {
 export function PersonalArbeitsplanPage() {
     const t = useT();
     const tp = useTParams();
+    const sortLocale = useCollatorLocale();
     const dateFnsLocale = useDateFnsLocale();
     const [personal, setPersonal] = useState<Personal[]>([]);
     const [store, setStore] = useState<ArbeitsplanStore>(loadArbeitsplanStore);
@@ -551,6 +553,7 @@ export function PersonalArbeitsplanPage() {
 
     const [autoRecordOnLogin, setAutoRecordOnLogin] = useState(false);
     const [autoRecordOnLogout, setAutoRecordOnLogout] = useState(false);
+    const [timePolicyBusy, setTimePolicyBusy] = useState(false);
 
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
@@ -614,13 +617,43 @@ export function PersonalArbeitsplanPage() {
     }, [load]);
     useEffect(() => {
         if (!canWrite) return;
-        void workTimeGetPreference()
+        void workTimeGetPracticePolicy()
             .then((p) => {
                 setAutoRecordOnLogin(p.autoRecordOnLogin);
                 setAutoRecordOnLogout(p.autoRecordOnLogout);
             })
             .catch(() => undefined);
     }, [canWrite]);
+
+    const patchPracticeTimePolicy = useCallback(
+        (patch: { autoRecordOnLogin?: boolean; autoRecordOnLogout?: boolean }) => {
+            setTimePolicyBusy(true);
+            void workTimeSetPracticePolicy(patch)
+                .then((p) => {
+                    setAutoRecordOnLogin(p.autoRecordOnLogin);
+                    setAutoRecordOnLogout(p.autoRecordOnLogout);
+                    if (patch.autoRecordOnLogin != null) {
+                        toast(
+                            patch.autoRecordOnLogin
+                                ? t("page.arbeitsplan.toast.auto_login_on")
+                                : t("page.arbeitsplan.toast.auto_login_off"),
+                            "success",
+                        );
+                    }
+                    if (patch.autoRecordOnLogout != null) {
+                        toast(
+                            patch.autoRecordOnLogout
+                                ? t("page.arbeitsplan.toast.auto_logout_on")
+                                : t("page.arbeitsplan.toast.auto_logout_off"),
+                            "success",
+                        );
+                    }
+                })
+                .catch((err) => toast(errorMessage(err), "error"))
+                .finally(() => setTimePolicyBusy(false));
+        },
+        [t, toast],
+    );
     useEffect(() => {
         const end = () => setDndActiveId(null);
         window.addEventListener("dragend", end);
@@ -628,8 +661,8 @@ export function PersonalArbeitsplanPage() {
     }, []);
 
     const sortedP = useMemo(
-        () => [...personal].sort((a, b) => a.name.localeCompare(b.name, "de")),
-        [personal],
+        () => [...personal].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
+        [personal, sortLocale],
     );
     useEffect(() => {
         if (sortedP.length === 0) return;
@@ -803,56 +836,13 @@ export function PersonalArbeitsplanPage() {
             />
 
             {canWrite ? (
-                <div className="card card-pad" style={{ marginBottom: 16 }}>
-                    <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>{t("page.arbeitsplan.time_tracking")}</h2>
-                    <label className="row" style={{ gap: 10, cursor: "pointer", marginBottom: 8 }}>
-                        <input
-                            type="checkbox"
-                            checked={autoRecordOnLogin}
-                            onChange={(e) => {
-                                const next = e.target.checked;
-                                void workTimeSetPreference({ autoRecordOnLogin: next })
-                                    .then((p) => {
-                                        setAutoRecordOnLogin(p.autoRecordOnLogin);
-                                        toast(
-                                            next
-                                                ? t("page.arbeitsplan.toast.auto_login_on")
-                                                : t("page.arbeitsplan.toast.auto_login_off"),
-                                            "success",
-                                        );
-                                    })
-                                    .catch((err) => toast(errorMessage(err), "error"));
-                            }}
-                        />
-                        <span style={{ fontSize: 14 }}>{t("page.arbeitsplan.time_tracking.auto_login")}</span>
-                    </label>
-                    <label className="row" style={{ gap: 10, cursor: "pointer" }}>
-                        <input
-                            type="checkbox"
-                            checked={autoRecordOnLogout}
-                            onChange={(e) => {
-                                const next = e.target.checked;
-                                void workTimeSetPreference({ autoRecordOnLogout: next })
-                                    .then((p) => {
-                                        setAutoRecordOnLogout(p.autoRecordOnLogout);
-                                        toast(
-                                            next
-                                                ? t("page.arbeitsplan.toast.auto_logout_on")
-                                                : t("page.arbeitsplan.toast.auto_logout_off"),
-                                            "success",
-                                        );
-                                    })
-                                    .catch((err) => toast(errorMessage(err), "error"));
-                            }}
-                        />
-                        <span style={{ fontSize: 14 }}>{t("page.arbeitsplan.time_tracking.auto_logout")}</span>
-                    </label>
-                    <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                        <Link to="/verwaltung/team/arbeitszeit">{t("page.arbeitsplan.link.team_work_time")}</Link>
-                        {" · "}
-                        <Link to="/personal/arbeitszeit">{t("page.arbeitsplan.link.own_work_time")}</Link>
-                    </p>
-                </div>
+                <ArbeitsplanPracticeTimePolicy
+                    autoRecordOnLogin={autoRecordOnLogin}
+                    autoRecordOnLogout={autoRecordOnLogout}
+                    busy={timePolicyBusy}
+                    onAutoLoginChange={(next) => patchPracticeTimePolicy({ autoRecordOnLogin: next })}
+                    onAutoLogoutChange={(next) => patchPracticeTimePolicy({ autoRecordOnLogout: next })}
+                />
             ) : null}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
@@ -926,7 +916,7 @@ export function PersonalArbeitsplanPage() {
                                 </button>
                             ))}
                         </div>
-                        <div className="arbeitsplan-nav">
+                        <div className="arbeitsplan-nav termin-nav-controls" dir="ltr">
                             <button type="button" className="btn btn-ghost" onClick={() => {
                                 if (view === "day") setAnchor((a) => addDays(a, -1));
                                 else if (view === "week") setAnchor((a) => addWeeks(a, -1));

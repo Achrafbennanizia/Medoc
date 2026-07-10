@@ -1,5 +1,7 @@
 /** Parse / stringify delimiter-separated text for export preview & re-export after sorting. */
 
+import { collatorLocale, useLocale } from "./i18n";
+
 export function stripBom(text: string): string {
     return text.replace(/^\uFEFF/, "");
 }
@@ -78,7 +80,7 @@ export function sortGridRows(rows: string[][], columnIndex: number, direction: "
         const bothNumeric =
             sa !== "" && sb !== "" && Number.isFinite(na) && Number.isFinite(nb) && !Number.isNaN(na) && !Number.isNaN(nb);
         if (bothNumeric && na !== nb) return mult * (na - nb);
-        return mult * String(va).localeCompare(String(vb), "de", { numeric: true, sensitivity: "base" });
+        return mult * String(va).localeCompare(String(vb), collatorLocale(useLocale.getState().locale), { numeric: true, sensitivity: "base" });
     });
     return [header, ...sorted];
 }

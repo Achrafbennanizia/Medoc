@@ -106,6 +106,13 @@ fn workflow_patientenakte_validate() {
 }
 
 #[test]
+fn workflow_patientenakte_forward_review() {
+    assert!(workflow_transitions::patientenakte_forward_review_transition("ENTWURF").is_ok());
+    assert!(workflow_transitions::patientenakte_forward_review_transition("VALIDIERT").is_ok());
+    assert!(workflow_transitions::patientenakte_forward_review_transition("READONLY").is_err());
+}
+
+#[test]
 fn workflow_praxis_aufgabe_transitions() {
     use medoc_lib::application::rbac::Role;
     assert!(workflow_transitions::praxis_aufgabe_status_transition(

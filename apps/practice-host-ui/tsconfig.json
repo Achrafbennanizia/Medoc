@@ -24,6 +24,7 @@
         "baseUrl": ".",
         "paths": {
             "@/lib/mac-window-drag": ["./src/platform/mac-window-drag.ts"],
+            "@/lib/desktop-window-controls": ["./src/platform/desktop-window-controls.ts"],
             "@/lib/akte-anlagen": ["./src/platform/akte-anlagen.ts"],
             "@/lib/native-app-menu-bridge": ["./src/platform/native-app-menu-bridge.ts"],
             "@/lib/*": ["../../packages/shared/src/lib/*"],

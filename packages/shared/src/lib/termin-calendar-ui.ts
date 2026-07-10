@@ -44,8 +44,15 @@ export function terminNotfallConfirmMessage(): string {
     return t("termin.calendar.notfall_confirm_message");
 }
 
-export const TERMIN_DAY_START_MIN = 8 * 60;
-export const TERMIN_DAY_END_MIN = 19 * 60;
+import {
+    TERMIN_TIMELINE_DEFAULT_END_MIN,
+    TERMIN_TIMELINE_DEFAULT_START_MIN,
+} from "./termin-calendar-layout";
+
+/** @deprecated Prefer {@link deriveTerminTimelineBounds} with practice config. */
+export const TERMIN_DAY_START_MIN = TERMIN_TIMELINE_DEFAULT_START_MIN;
+/** @deprecated Prefer {@link deriveTerminTimelineBounds} with practice config. */
+export const TERMIN_DAY_END_MIN = TERMIN_TIMELINE_DEFAULT_END_MIN;
 export const TERMIN_DEFAULT_DUR_MIN = 45;
 export const TERMIN_HOUR_PX = 84;
 export const TERMIN_PX_PER_MIN = 1.4;
@@ -197,14 +204,17 @@ export function computePackedUpdatesAfterMove(
     desiredStartMin: number,
     slotDur: number,
     gapAfterMin: number,
+    dayBounds?: { startMin: number; endMin: number },
 ): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
+    const dayStartMin = dayBounds?.startMin ?? TERMIN_DAY_START_MIN;
+    const dayEndMin = dayBounds?.endMin ?? TERMIN_DAY_END_MIN;
     const moving = all.find((t) => t.id === movingId);
     if (!moving) return { updates: [] };
 
     const arztId = moving.arzt_id;
     const step = 5;
     let start = Math.round(desiredStartMin / step) * step;
-    start = Math.max(TERMIN_DAY_START_MIN, Math.min(start, TERMIN_DAY_END_MIN - slotDur));
+    start = Math.max(dayStartMin, Math.min(start, dayEndMin - slotDur));
 
     type Bl = { id: string; start: number };
     const blocks: Bl[] = all
@@ -240,7 +250,7 @@ export function computePackedUpdatesAfterMove(
     }
 
     for (const b of blocks) {
-        if (b.start + slotDur > TERMIN_DAY_END_MIN) {
+        if (b.start + slotDur > dayEndMin) {
             return {
                 updates: [],
                 error: t("termin.calendar.move_no_space"),
@@ -272,16 +282,17 @@ export function calendarMonthOffsetFromToday(d: Date): number {
     return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
 }
 
-/** Termin calendar surfaces show Mon–Fri only (Sat/Sun hidden to widen working columns). */
-export const TERMIN_CALENDAR_WORKING_DAYS = 5;
-export const TERMIN_CALENDAR_MONTH_ROWS = 6;
-
-export function isTerminCalendarWorkingDay(date: Date): boolean {
-    const dow = date.getDay();
-    return dow >= 1 && dow <= 5;
-}
-
-/** Index 0 = Monday … 4 = Friday within ISO week starting Monday. */
-export function terminCalendarWorkingDayIndex(date: Date): number {
-    return (date.getDay() + 6) % 7;
-}
+export {
+    TERMIN_CALENDAR_MONTH_ROWS,
+    TERMIN_CALENDAR_WORKING_DAYS,
+    buildTerminMonthCalendarCells,
+    deriveTerminTimelineBounds,
+    isTerminCalendarWorkingDay,
+    terminCalendarColumnCount,
+    terminCalendarIsoWeekdayOffsets,
+    terminCalendarWeekDays,
+    terminCalendarWeekdayLabelKeys,
+    terminCalendarWorkingDayIndex,
+    terminTimelineHourLabels,
+    type TerminTimelineBounds,
+} from "./termin-calendar-layout";

@@ -12,6 +12,7 @@ const root = __dirname;
 /** Path aliases — tiered packages first, app shell last. */
 const medocAliases = [
     { find: "@/lib/mac-window-drag", replacement: path.resolve(root, "src/platform/mac-window-drag.ts") },
+    { find: "@/lib/desktop-window-controls", replacement: path.resolve(root, "src/platform/desktop-window-controls.ts") },
     { find: "@/lib/akte-anlagen", replacement: path.resolve(root, "src/platform/akte-anlagen.ts") },
     {
         find: "@/lib/native-app-menu-bridge",

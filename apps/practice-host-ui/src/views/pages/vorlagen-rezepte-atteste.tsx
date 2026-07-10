@@ -5,7 +5,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { DokumentVorlage } from "../../models/types";
 import { errorMessage } from "@/lib/utils";
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -38,6 +38,7 @@ export function VorlagenRezepteAttestePage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
@@ -107,7 +108,7 @@ export function VorlagenRezepteAttestePage() {
     };
 
     const sorted = useMemo(
-        () => [...rows].sort((a, b) => a.titel.localeCompare(b.titel, "de")),
+        () => [...rows].sort((a, b) => a.titel.localeCompare(b.titel, sortLocale)),
         [rows],
     );
 

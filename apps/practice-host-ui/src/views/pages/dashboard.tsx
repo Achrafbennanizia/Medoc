@@ -18,7 +18,8 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
-import { useLocale, useT, useTParams } from "@/lib/i18n";
+import { terminArtLabel } from "@/lib/termin-calendar-ui";
+import { useLocale, useT, useTParams, useCollatorLocale, bcp47ForLocale } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
@@ -74,6 +75,7 @@ export function DashboardPage() {
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
+    const sortLocale = useCollatorLocale();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [termine, setTermine] = useState<Termin[]>([]);
@@ -269,7 +271,7 @@ export function DashboardPage() {
 
     const pruefStammRows = useMemo(() => {
         return [...pruefStammPendingIds].sort((a, b) =>
-            (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", "de", { sensitivity: "base" }),
+            (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", sortLocale, { sensitivity: "base" }),
         );
     }, [pruefStammPendingIds, patientNameById]);
 
@@ -413,7 +415,7 @@ export function DashboardPage() {
         return <PageLoading />;
     }
 
-    const localeTag = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
+    const localeTag = bcp47ForLocale(locale);
     const today = new Intl.DateTimeFormat(localeTag, { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
     const freigabenSub = pruefScanLoading
@@ -525,8 +527,8 @@ export function DashboardPage() {
                                         {t("dashboard.freigaben.cta")}
                                     </button>
                                 ) : null}
-                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/patienten")}>
-                                    {t("dashboard.freigaben.show_all")} ›
+                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/patienten")}>
+                                    {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
                             </div>
                         </div>
@@ -691,8 +693,8 @@ export function DashboardPage() {
                                 <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/produkte")}>
                                     {t("dashboard.bestellungen.cta_produkte")}
                                 </button>
-                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/bestellungen")}>
-                                    {t("dashboard.bestellungen.show_all")} ›
+                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/bestellungen")}>
+                                    {t("dashboard.bestellungen.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
                             </div>
                         </div>
@@ -809,7 +811,7 @@ export function DashboardPage() {
                                                     {u.datum} {u.uhrzeit.slice(0, 5)}
                                                 </div>
                                                 <div className="schedule-day-time-meta">
-                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {u.art.replace(/_/g, " ")}
+                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {terminArtLabel(u.art)}
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: "end", fontSize: 13 }}>
@@ -853,7 +855,7 @@ export function DashboardPage() {
                                         <div key={r.id} className="dashboard-timeline-row">
                                             <div>
                                                 <div className="schedule-day-time-primary">{r.uhrzeit.slice(0, 5)}</div>
-                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? t("dashboard.termine.notfall") : r.art.replace(/_/g, " ")}</div>
+                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? t("dashboard.termine.notfall") : terminArtLabel(r.art)}</div>
                                             </div>
                                             <div className="row" style={{ gap: 12 }}>
                                                 <div

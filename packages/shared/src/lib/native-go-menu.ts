@@ -6,6 +6,10 @@
 import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "./rbac";
 import { DATENSCHUTZ_UI_ENABLED } from "./datenschutz-config";
 import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
+import {
+    LEISTUNGEN_MENU_ENABLED,
+    REZEPTE_ATTESTE_MENU_ENABLED,
+} from "./catalog-menu-flags";
 
 export type NativeGoMenuPayloadItem = { path: string; label: string };
 
@@ -85,7 +89,9 @@ export function buildNativeFileNewGate(rolle: string | undefined): NativeFileNew
         patient: navVisibilitySatisfied({ kind: "action", action: "patient.write" }, rolle),
         zahlung: navVisibilitySatisfied({ kind: "action", action: "finanzen.write" }, rolle),
         bestellung: navVisibilitySatisfied({ kind: "action", action: "bestellung.write" }, rolle),
-        leistung: navVisibilitySatisfied({ kind: "action", action: "finanzen.write" }, rolle),
+        leistung:
+            LEISTUNGEN_MENU_ENABLED
+            && navVisibilitySatisfied({ kind: "action", action: "finanzen.write" }, rolle),
         // TODO(deferred-roles): was ["ARZT", "STEUERBERATER"]
         bilanz: navVisibilitySatisfied({ kind: "roles", roles: ["ARZT"] }, rolle),
     };
@@ -112,6 +118,9 @@ export function buildNativeGoMenuItems(rolle: string | undefined, t: (key: strin
         for (const path of group) {
             if (!POSTEINGANG_UI_ENABLED && path === "/posteingang") continue;
             if (!DATENSCHUTZ_UI_ENABLED && path === "/datenschutz") continue;
+            if (!REZEPTE_ATTESTE_MENU_ENABLED && (path === "/rezepte" || path === "/atteste")) continue;
+            if (!LEISTUNGEN_MENU_ENABLED && path === "/leistungen") continue;
+            if (path === "/produkte") continue;
             if (!navVisibilitySatisfied(visibilityForNativeGoPath(path), rolle)) continue;
             const labelKey = PATH_LABEL_KEYS[path];
             if (!labelKey) throw new Error(`native-go-menu: missing label key for "${path}"`);

@@ -1,6 +1,13 @@
 import { useLocale, useT } from "@/lib/i18n";
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { WindowChromeMaximizeIcon, WindowChromeMinimizeIcon, WindowChromeRestoreIcon, XIcon } from "@/lib/icons";
+import {
+    closeDesktopWindow,
+    minimizeDesktopWindow,
+    setDesktopWindowTitle,
+    subscribeDesktopWindowMaximized,
+    toggleDesktopWindowMaximize,
+} from "@/lib/desktop-window-controls";
 import { DesktopChromeProvider } from "./desktop-chrome";
 import { resolveDesktopChromeMode } from "./resolve-desktop-chrome-mode";
 
@@ -15,14 +22,7 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
     useEffect(() => {
         const title = t(WINDOW_TITLE_KEY);
         document.title = title;
-        void (async () => {
-            try {
-                const { getCurrentWindow } = await import("@tauri-apps/api/window");
-                await getCurrentWindow().setTitle(title);
-            } catch {
-                /* browser / tests */
-            }
-        })();
+        void setDesktopWindowTitle(title);
     }, [locale, t]);
 
     useLayoutEffect(() => {
@@ -40,63 +40,21 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (mode !== "frameless") return;
-
-        let unlistenResize: (() => void) | undefined;
-        let cancelled = false;
-
-        void (async () => {
-            try {
-                const { getCurrentWindow } = await import("@tauri-apps/api/window");
-                const w = getCurrentWindow();
-                if (cancelled) return;
-                setMaximized(await w.isMaximized());
-                unlistenResize = await w.onResized(() => {
-                    void w.isMaximized().then(setMaximized);
-                });
-            } catch {
-                /* API unavailable (e.g. tests) */
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-            unlistenResize?.();
-        };
+        return subscribeDesktopWindowMaximized(setMaximized);
     }, [mode]);
 
     const onMinimize = () => {
-        void (async () => {
-            try {
-                const { getCurrentWindow } = await import("@tauri-apps/api/window");
-                await getCurrentWindow().minimize();
-            } catch {
-                /* noop */
-            }
-        })();
+        void minimizeDesktopWindow();
     };
 
     const onToggleMaximize = () => {
-        void (async () => {
-            try {
-                const { getCurrentWindow } = await import("@tauri-apps/api/window");
-                const w = getCurrentWindow();
-                await w.toggleMaximize();
-                setMaximized(await w.isMaximized());
-            } catch {
-                /* noop */
-            }
-        })();
+        void toggleDesktopWindowMaximize().then((next) => {
+            if (next != null) setMaximized(next);
+        });
     };
 
     const onClose = () => {
-        void (async () => {
-            try {
-                const { getCurrentWindow } = await import("@tauri-apps/api/window");
-                await getCurrentWindow().close();
-            } catch {
-                /* noop */
-            }
-        })();
+        void closeDesktopWindow();
     };
 
     if (mode === "browser") {
@@ -108,9 +66,9 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
             <DesktopChromeProvider mode={mode}>
                 <div className="desktop-app-frame">
                     {/*
-                      Kein zusätzlicher Drag-Shim: Verkehrsampeln liegen im Overlay: Ziehen passiert
-                      über die React-Topbar (`data-tauri-drag-region` + -webkit-app-region in index.css).
-                      Ein zweiter Streifen erzeugte sichtbaren Abstand und doppelte Chrome-Höhe.
+                      No extra drag shim: traffic lights sit in the overlay; dragging uses the React
+                      top bar (`data-tauri-drag-region` + -webkit-app-region in index.css). A second
+                      strip caused visible gap and double chrome height.
                     */}
                     <div className="desktop-app-frame__body">
                         <div className="desktop-app-frame__fill">{children}</div>

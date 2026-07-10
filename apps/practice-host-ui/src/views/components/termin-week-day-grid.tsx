@@ -4,56 +4,62 @@ import {
     type MutableRefObject,
     type MouseEvent as ReactMouseEvent,
     type SetStateAction,
+    memo,
     useLayoutEffect,
     useMemo,
     useRef,
     useState,
 } from "react";
-import { addDays, addMonths, addWeeks, format, parseISO, startOfWeek } from "date-fns";
+import { addMonths, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import type { AerztSummary } from "@/systems/practice-host/controllers/personal.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { extractZahnschmerzFdisFromBeschwerden } from "@/lib/dental";
-import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
+import { terminIstNotfallMarkiert, parseTerminDurationMin } from "@/lib/termin-domain";
 import { minutesToUhrzeit } from "@/lib/termin-availability";
+import type { PraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
 import {
     blockToneForTermin,
     calendarMonthOffsetFromToday,
+    deriveTerminTimelineBounds,
     doctorStripeVar,
+    isTerminCalendarWorkingDay,
     terminArtLabelFromTermin,
+    terminCalendarColumnCount,
     terminCalendarStatusPill,
+    terminCalendarWeekDays,
     terminCountsAsPlanned,
-    TERMIN_DAY_END_MIN,
-    TERMIN_DAY_START_MIN,
     TERMIN_DEFAULT_DUR_MIN,
     TERMIN_HOUR_PX,
     TERMIN_PX_PER_MIN,
+    terminTimelineHourLabels,
     terminUhrzeitToMinutes,
-    TERMIN_CALENDAR_WORKING_DAYS,
     type TerminDoctorTone,
+    type TerminTimelineBounds,
 } from "@/lib/termin-calendar-ui";
 import type { Termin } from "@/models/types";
 import { BoltIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { DoctorLegend } from "@/views/components/termin-doctor-legend";
+import { bindTerminDragBlock, createTerminDragGhost, paintTerminDragVisual } from "@/lib/termin-drag-runtime";
 
 const PX_PER_MIN = TERMIN_PX_PER_MIN;
-const DAY_START_MIN = TERMIN_DAY_START_MIN;
-const DAY_END_MIN = TERMIN_DAY_END_MIN;
 const HOUR_PX = TERMIN_HOUR_PX;
 const uhrzeitToMinutes = terminUhrzeitToMinutes;
 
 export type TerminDragState = {
     id: string;
+    arztId: string;
     datum: string;
     durMin: number;
     originalDatum: string;
     originalStartMin: number;
     currentDatum: string;
     currentStartMin: number;
+    dropAllowed: boolean;
 };
 
-function useDayTimelineLayout() {
+function useDayTimelineLayout(bounds: TerminTimelineBounds) {
     const hostRef = useRef<HTMLDivElement>(null);
     const [layout, setLayout] = useState(() => ({ hourPx: HOUR_PX, pxPerMin: PX_PER_MIN }));
     useLayoutEffect(() => {
@@ -61,7 +67,7 @@ function useDayTimelineLayout() {
         if (!el) return;
         const apply = () => {
             const h = el.clientHeight;
-            const slots = (DAY_END_MIN - DAY_START_MIN) / 60;
+            const slots = (bounds.endMin - bounds.startMin) / 60;
             if (h < 40) return;
             const hourPx = h / slots;
             setLayout({ hourPx, pxPerMin: hourPx / 60 });
@@ -70,7 +76,7 @@ function useDayTimelineLayout() {
         const ro = new ResizeObserver(apply);
         ro.observe(el);
         return () => ro.disconnect();
-    }, []);
+    }, [bounds.endMin, bounds.startMin]);
     return { hostRef, layout };
 }
 
@@ -95,13 +101,14 @@ function TerminHourGutterSnap(props: {
     startMin: number | null;
     pxPerMin: number;
     phase: "drag" | "placed" | null;
+    dayStartMin: number;
 }) {
-    const { startMin, pxPerMin, phase } = props;
+    const { startMin, pxPerMin, phase, dayStartMin } = props;
     if (startMin == null || phase == null) return null;
     return (
         <div
             className={`termin-hour-gutter-snap termin-hour-gutter-snap--${phase}`}
-            style={{ top: (startMin - DAY_START_MIN) * pxPerMin }}
+            style={{ top: (startMin - dayStartMin) * pxPerMin }}
             aria-hidden
         >
             <span className="termin-hour-gutter-snap__time">{minutesToUhrzeit(startMin)}</span>
@@ -109,7 +116,7 @@ function TerminHourGutterSnap(props: {
     );
 }
 
-function TerminApptBlockView({
+const TerminApptBlockView = memo(function TerminApptBlockView({
     termin,
     patientName,
     doctorTone,
@@ -117,6 +124,7 @@ function TerminApptBlockView({
     daySlotDurationMin,
     dragPreviewUhrzeit,
     dragging,
+    dragInvalid,
     dragTargetDatumHint,
     style,
     onClick,
@@ -132,6 +140,7 @@ function TerminApptBlockView({
     dragPreviewUhrzeit?: string;
     daySlotDurationMin?: number;
     dragging?: boolean;
+    dragInvalid?: boolean;
     /** Day view: short date of target when another day is chosen via drag */
     dragTargetDatumHint?: string;
     style?: CSSProperties;
@@ -151,7 +160,8 @@ function TerminApptBlockView({
     return (
         <button
             type="button"
-            className={`termin-appt-block termin-appt-block--calendar-row ${dayColumn ? "termin-appt-block--day-tall" : "termin-appt-block--week-compact"} termin-appt-block--${blockTone}${cancelled ? " termin-appt-block--cancelled" : ""}${dragging ? " termin-appt-block--dragging" : ""}${weekCompact ? ` termin-appt-status-surface--${pill.tone}` : ""}`}
+            data-termin-appt-id={termin.id}
+            className={`termin-appt-block termin-appt-block--calendar-row ${dayColumn ? "termin-appt-block--day-tall" : "termin-appt-block--week-compact"} termin-appt-block--${blockTone}${cancelled ? " termin-appt-block--cancelled" : ""}${dragging ? " termin-appt-block--dragging" : ""}${dragging && dragInvalid ? " termin-appt-block--drag-invalid" : ""}${weekCompact ? ` termin-appt-status-surface--${pill.tone}` : ""}`}
             style={{
                 ...style,
             }}
@@ -196,7 +206,7 @@ function TerminApptBlockView({
             )}
         </button>
     );
-}
+});
 
 function TerminTimeColumnBody({
     iso,
@@ -214,32 +224,16 @@ function TerminTimeColumnBody({
     singleDay,
     axisLayout,
     clickSuppressUntilRef,
+    timelineBounds,
+    praxisCfg,
 }: {
     iso: string;
     termine: Termin[];
     patientNameById: Map<string, string>;
     arztToneMap: Map<string, TerminDoctorTone>;
     arztNameById?: Map<string, string>;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
+    dragState: TerminDragState | null;
+    setDragState: Dispatch<SetStateAction<TerminDragState | null>>;
     /** Day view: reset hour snap when a Termin block is grabbed for dragging */
     onBeginAppointmentDrag?: () => void;
     onOpenDrawer: (t: Termin) => void;
@@ -251,44 +245,58 @@ function TerminTimeColumnBody({
     clickSuppressUntilRef?: MutableRefObject<number>;
     /** Day and week view: hour height from available grid (ResizeObserver) */
     axisLayout?: { hourPx: number; pxPerMin: number };
+    timelineBounds: TerminTimelineBounds;
+    praxisCfg: PraxisArbeitszeitenConfig;
 }) {
     const t = useT();
     const dateFnsLocale = useDateFnsLocale();
+    const dayStartMin = timelineBounds.startMin;
+    const dayEndMin = timelineBounds.endMin;
     const hourPx = axisLayout?.hourPx ?? HOUR_PX;
     const pxPerMin = axisLayout?.pxPerMin ?? PX_PER_MIN;
-    const axisHeightPx = ((DAY_END_MIN - DAY_START_MIN) / 60) * hourPx;
+    const axisHeightPx = ((dayEndMin - dayStartMin) / 60) * hourPx;
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const isTodayCol = iso === todayIso;
-    const isWeekend = [0, 6].includes(parseISO(iso).getDay());
+    const isInactiveDay = !isTerminCalendarWorkingDay(parseISO(iso), praxisCfg);
     const dayList = useMemo(() => [...termine].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit)), [termine]);
     const nMin = nowMin();
+
+    useLayoutEffect(() => {
+        if (!singleDay || !dragState || dragState.currentDatum !== iso) return;
+        const el = document.querySelector<HTMLButtonElement>(`[data-termin-appt-id="${dragState.id}"]`);
+        if (!el) return;
+        bindTerminDragBlock(el);
+        const topPx = (dragState.currentStartMin - dayStartMin) * pxPerMin;
+        el.style.setProperty("--termin-drag-top", `${topPx}px`);
+        paintTerminDragVisual(topPx, dragState.currentStartMin, !dragState.dropAllowed);
+    }, [dragState, iso, dayStartMin, pxPerMin]);
 
     const onColDblClick = (e: ReactMouseEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
         const r = el.getBoundingClientRect();
         const y = e.clientY - r.top;
-        const raw = DAY_START_MIN + y / pxPerMin;
+        const raw = dayStartMin + y / pxPerMin;
         const snapped = Math.round(raw / 15) * 15;
-        const lo = DAY_START_MIN;
-        const hi = DAY_END_MIN - 15;
+        const lo = dayStartMin;
+        const hi = dayEndMin - 15;
         const start = Math.max(lo, Math.min(snapped, hi));
         onNewAt(iso, start);
     };
 
     return (
         <div
-            className={`termin-day-col ${isTodayCol ? "termin-day-col--today" : ""} ${isWeekend ? "termin-day-col--weekend" : ""}`}
+            className={`termin-day-col ${isTodayCol ? "termin-day-col--today" : ""} ${isInactiveDay ? "termin-day-col--weekend" : ""}`}
             data-termin-day-col={iso}
             data-single-day={singleDay ? "1" : undefined}
             style={{ minHeight: axisHeightPx }}
             onDoubleClick={onColDblClick}
             role="presentation"
         >
-            {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }).map((_, i) => (
+            {Array.from({ length: (dayEndMin - dayStartMin) / 60 }).map((_, i) => (
                 <div key={i} className="termin-hour-line" style={{ top: i * hourPx }} />
             ))}
-            {isTodayCol && nMin >= DAY_START_MIN && nMin <= DAY_END_MIN ? (
-                <div className="termin-now-line" style={{ top: (nMin - DAY_START_MIN) * pxPerMin }}>
+            {isTodayCol && nMin >= dayStartMin && nMin <= dayEndMin ? (
+                <div className="termin-now-line" style={{ top: (nMin - dayStartMin) * pxPerMin }}>
                     <span className="termin-now-dot" />
                     {!singleDay ? null : (
                         <span className="termin-now-pill">
@@ -298,13 +306,13 @@ function TerminTimeColumnBody({
                 </div>
             ) : null}
             {dayList.map((ap) => {
-                if (!singleDay && dragState && dragState.id === ap.id && dragState.currentDatum !== iso) return null;
+                if (!singleDay && dragState?.id === ap.id && ap.datum !== iso) return null;
                 const st = uhrzeitToMinutes(ap.uhrzeit);
                 const docTone = arztToneMap.get(ap.arzt_id) ?? "accent";
-                const isDragThis = dragState?.id === ap.id;
+                const isDragThis = singleDay && dragState?.id === ap.id;
                 const dispStart = isDragThis ? dragState!.currentStartMin : st;
-                const top = (dispStart - DAY_START_MIN) * pxPerMin;
-                const dur = TERMIN_DEFAULT_DUR_MIN;
+                const layoutTop = (dispStart - dayStartMin) * pxPerMin;
+                const dur = Math.max(5, parseTerminDurationMin(ap.notizen, TERMIN_DEFAULT_DUR_MIN));
                 const minDayBlockPx = singleDay ? Math.max(56, pxPerMin * 24) : 0;
                 const minWeekBlockPx = singleDay ? 0 : 48;
                 const blockHeight = Math.max(dur * pxPerMin - 2, singleDay ? minDayBlockPx : minWeekBlockPx);
@@ -324,9 +332,10 @@ function TerminTimeColumnBody({
                         daySlotDurationMin={dur}
                         dragPreviewUhrzeit={isDragThis ? minutesToUhrzeit(dispStart) : undefined}
                         dragging={isDragThis}
+                        dragInvalid={isDragThis && dragState ? !dragState.dropAllowed : false}
                         dragTargetDatumHint={targetDayHint}
                         style={{
-                            top,
+                            ...(isDragThis ? {} : { top: layoutTop }),
                             height: blockHeight,
                             insetInlineStart: 4,
                             insetInlineEnd: 4,
@@ -339,14 +348,25 @@ function TerminTimeColumnBody({
                             if (e.button !== 0) return;
                             e.stopPropagation();
                             onBeginAppointmentDrag?.();
+                            const el = e.currentTarget as HTMLButtonElement;
+                            const durMin = Math.max(5, parseTerminDurationMin(ap.notizen, TERMIN_DEFAULT_DUR_MIN));
+                            if (singleDay) {
+                                const topPx = (st - dayStartMin) * pxPerMin;
+                                el.style.setProperty("--termin-drag-top", `${topPx}px`);
+                                bindTerminDragBlock(el);
+                            } else {
+                                createTerminDragGhost(el, ap.id);
+                            }
                             setDragState({
                                 id: ap.id,
+                                arztId: ap.arzt_id,
                                 datum: iso,
-                                durMin: dur,
+                                durMin,
                                 originalDatum: ap.datum,
                                 originalStartMin: st,
                                 currentDatum: ap.datum,
                                 currentStartMin: st,
+                                dropAllowed: true,
                             });
                         }}
                         onContextMenu={(e) => onContextMenu(ap, e)}
@@ -362,6 +382,7 @@ export function TerminWeekGrid({
     weekOffset,
     patientNameById,
     arztToneMap,
+    praxisCfg,
     dragState,
     setDragState,
     snapLabel,
@@ -377,27 +398,10 @@ export function TerminWeekGrid({
     weekOffset: number;
     patientNameById: Map<string, string>;
     arztToneMap: Map<string, TerminDoctorTone>;
+    praxisCfg: PraxisArbeitszeitenConfig;
     clickSuppressUntilRef: MutableRefObject<number>;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
+    dragState: TerminDragState | null;
+    setDragState: Dispatch<SetStateAction<TerminDragState | null>>;
     snapLabel: { iso: string; startMin: number } | null;
     onClearSnapLabel: () => void;
     onHeaderDay: (iso: string) => void;
@@ -407,11 +411,17 @@ export function TerminWeekGrid({
     nowMin: () => number;
 }) {
     const dateFnsLocale = useDateFnsLocale();
+    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisCfg), [praxisCfg]);
+    const hourLabels = useMemo(() => terminTimelineHourLabels(timelineBounds), [timelineBounds]);
+    const columnCount = useMemo(() => terminCalendarColumnCount(praxisCfg), [praxisCfg]);
+    const gridStyle = useMemo(
+        () => ({ "--termin-calendar-cols": columnCount } as CSSProperties),
+        [columnCount],
+    );
     const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
     const days = useMemo(
-        () =>
-            Array.from({ length: TERMIN_CALENDAR_WORKING_DAYS }, (_, i) => addDays(anchor, i)),
-        [anchor],
+        () => terminCalendarWeekDays(anchor, praxisCfg),
+        [anchor, praxisCfg],
     );
     const byDate = useMemo(() => {
         const acc: Record<string, Termin[]> = {};
@@ -421,24 +431,24 @@ export function TerminWeekGrid({
         return acc;
     }, [termine]);
 
-    const { hostRef: weekTimelineRef, layout: weekAxisLayout } = useDayTimelineLayout();
+    const { hostRef: weekTimelineRef, layout: weekAxisLayout } = useDayTimelineLayout(timelineBounds);
     const hourGutterSnapMin = dragState != null ? dragState.currentStartMin : snapLabel?.startMin ?? null;
     const hourGutterPhase: "drag" | "placed" | null = dragState != null ? "drag" : snapLabel != null ? "placed" : null;
 
     return (
-        <div className="card card-pad termin-week-card termin-week-card--workweek fade-up">
+        <div className="card card-pad termin-week-card termin-week-card--workweek fade-up" style={gridStyle}>
             <div className="termin-week-head-grid">
                 <div className="termin-week-corner" aria-hidden />
                 {days.map((d) => {
                     const iso = format(d, "yyyy-MM-dd");
                     const isToday = iso === format(new Date(), "yyyy-MM-dd");
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    const isInactiveDay = !isTerminCalendarWorkingDay(d, praxisCfg);
                     const dow = format(d, "EEEEE", { locale: dateFnsLocale }).toUpperCase();
                     return (
                         <button
                             key={iso}
                             type="button"
-                            className={`termin-week-dow ${isToday ? "today" : ""} ${isWeekend ? "weekend" : ""}`}
+                            className={`termin-week-dow ${isToday ? "today" : ""} ${isInactiveDay ? "weekend" : ""}`}
                             onClick={() => onHeaderDay(iso)}
                         >
                             <span className="termin-week-dow-short">{dow}</span>
@@ -451,27 +461,22 @@ export function TerminWeekGrid({
                 <div className="termin-week-body-grid" data-termin-week-canvas="1">
                     <div className="termin-week-hours">
                         <div className="termin-week-hours-stack" data-termin-hour-gutter="1">
-                            {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }, (_, i) => {
-                                const h = 8 + i;
-                                return (
-                                    <div key={h} className="termin-hour-label" style={{ height: weekAxisLayout.hourPx }}>
-                                        {`${String(h).padStart(2, "0")}:00`}
-                                    </div>
-                                );
-                            })}
-                            <TerminHourGutterSnap startMin={hourGutterSnapMin} pxPerMin={weekAxisLayout.pxPerMin} phase={hourGutterPhase} />
+                            {hourLabels.map((h) => (
+                                <div key={h} className="termin-hour-label" style={{ height: weekAxisLayout.hourPx }}>
+                                    {`${String(h).padStart(2, "0")}:00`}
+                                </div>
+                            ))}
+                            <TerminHourGutterSnap
+                                startMin={hourGutterSnapMin}
+                                pxPerMin={weekAxisLayout.pxPerMin}
+                                phase={hourGutterPhase}
+                                dayStartMin={timelineBounds.startMin}
+                            />
                         </div>
                     </div>
                     {days.map((d) => {
                         const iso = format(d, "yyyy-MM-dd");
-                        const baseList = byDate[iso] ?? [];
-                        const columnTermine =
-                            dragState != null && dragState.currentDatum === iso && !baseList.some((x) => x.id === dragState.id)
-                                ? (() => {
-                                      const ghost = termine.find((x) => x.id === dragState.id);
-                                      return ghost ? [...baseList, ghost] : baseList;
-                                  })()
-                                : baseList;
+                        const columnTermine = byDate[iso] ?? [];
                         return (
                             <TerminTimeColumnBody
                                 key={iso}
@@ -487,6 +492,8 @@ export function TerminWeekGrid({
                                 nowMin={nowMin}
                                 singleDay={false}
                                 axisLayout={weekAxisLayout}
+                                timelineBounds={timelineBounds}
+                                praxisCfg={praxisCfg}
                                 onBeginAppointmentDrag={onClearSnapLabel}
                                 clickSuppressUntilRef={clickSuppressUntilRef}
                             />
@@ -505,6 +512,7 @@ export function TerminDaySplit({
     patientNameById,
     arztToneMap,
     aerzte,
+    praxisCfg,
     monthOffset,
     onMonthOffsetChange,
     daySnapLabel,
@@ -526,30 +534,13 @@ export function TerminDaySplit({
     patientNameById: Map<string, string>;
     arztToneMap: Map<string, TerminDoctorTone>;
     aerzte: AerztSummary[];
+    praxisCfg: PraxisArbeitszeitenConfig;
     monthOffset: number;
     onMonthOffsetChange: Dispatch<SetStateAction<number>>;
     daySnapLabel: { iso: string; startMin: number } | null;
     onClearDaySnapLabel: () => void;
-    dragState: {
-        id: string;
-        datum: string;
-        durMin: number;
-        originalDatum: string;
-        originalStartMin: number;
-        currentDatum: string;
-        currentStartMin: number;
-    } | null;
-    setDragState: Dispatch<
-        SetStateAction<{
-            id: string;
-            datum: string;
-            durMin: number;
-            originalDatum: string;
-            originalStartMin: number;
-            currentDatum: string;
-            currentStartMin: number;
-        } | null>
-    >;
+    dragState: TerminDragState | null;
+    setDragState: Dispatch<SetStateAction<TerminDragState | null>>;
     onOpenDrawer: (t: Termin) => void;
     onContextMenu: (t: Termin, e: ReactMouseEvent) => void;
     onNewAt: (iso: string, min: number) => void;
@@ -572,11 +563,13 @@ export function TerminDaySplit({
         "termin.calendar.weekday.sun",
     ] as const;
     const iso = format(dayDate, "yyyy-MM-dd");
-    const { hostRef: dayTimelineRef, layout: dayAxisLayout } = useDayTimelineLayout();
+    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisCfg), [praxisCfg]);
+    const hourLabels = useMemo(() => terminTimelineHourLabels(timelineBounds), [timelineBounds]);
+    const { hostRef: dayTimelineRef, layout: dayAxisLayout } = useDayTimelineLayout(timelineBounds);
     const arztNameById = useMemo(() => new Map(aerzte.map((a) => [a.id, a.name])), [aerzte]);
     const planned = termine.filter(terminCountsAsPlanned);
     const bestaetigt = termine.filter((t) => t.status === "BESTAETIGT").length;
-    const slotMin = (DAY_END_MIN - DAY_START_MIN);
+    const slotMin = timelineBounds.endMin - timelineBounds.startMin;
     const bookedMin = planned.length * TERMIN_DEFAULT_DUR_MIN;
     const auslastung = slotMin > 0 ? Math.min(100, Math.round((bookedMin / slotMin) * 100)) : 0;
     const freiH = Math.max(0, Math.round(((slotMin - bookedMin) / 60) * 10) / 10);
@@ -605,7 +598,7 @@ export function TerminDaySplit({
 
     const miniMonthCard = (
         <div className="card card-pad termin-mini-month-card">
-            <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+            <div className="row termin-nav-controls" dir="ltr" style={{ justifyContent: "space-between", marginBottom: 8 }}>
                 <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_prev")} onClick={() => onMonthOffsetChange((o) => o - 1)}>
                     <ChevronLeftIcon size={16} />
                 </button>
@@ -717,19 +710,21 @@ export function TerminDaySplit({
                         </div>
                     </div>
                 ) : (
-                    <div className="termin-day-timeline-host" ref={dayTimelineRef}>
+                    <div className="termin-day-timeline-host" ref={dayTimelineRef} data-termin-day-canvas="1">
                         <div className="termin-week-body-grid termin-day-body-grid">
                             <div className="termin-week-hours termin-day-hours">
                                 <div className="termin-day-hours-stack" data-termin-hour-gutter="1">
-                                    {Array.from({ length: (DAY_END_MIN - DAY_START_MIN) / 60 }, (_, i) => {
-                                        const h = 8 + i;
-                                        return (
-                                            <div key={h} className="termin-hour-label termin-day-hour-label" style={{ height: dayAxisLayout.hourPx }}>
-                                                {`${String(h).padStart(2, "0")}:00`}
-                                            </div>
-                                        );
-                                    })}
-                                    <TerminHourGutterSnap startMin={hourGutterSnapMin} pxPerMin={dayAxisLayout.pxPerMin} phase={hourGutterPhase} />
+                                    {hourLabels.map((h) => (
+                                        <div key={h} className="termin-hour-label termin-day-hour-label" style={{ height: dayAxisLayout.hourPx }}>
+                                            {`${String(h).padStart(2, "0")}:00`}
+                                        </div>
+                                    ))}
+                                    <TerminHourGutterSnap
+                                        startMin={hourGutterSnapMin}
+                                        pxPerMin={dayAxisLayout.pxPerMin}
+                                        phase={hourGutterPhase}
+                                        dayStartMin={timelineBounds.startMin}
+                                    />
                                 </div>
                             </div>
                             <TerminTimeColumnBody
@@ -747,6 +742,8 @@ export function TerminDaySplit({
                                 nowMin={nowMin}
                                 singleDay
                                 axisLayout={dayAxisLayout}
+                                timelineBounds={timelineBounds}
+                                praxisCfg={praxisCfg}
                             />
                         </div>
                     </div>

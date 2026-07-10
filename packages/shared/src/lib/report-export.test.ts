@@ -43,7 +43,7 @@ const minimalBilanz: Bilanz = {
 
 describe("buildStatistikReportBundle", () => {
     it("includes Einnahmen section and PDF-friendly basename", () => {
-        const bundle = buildStatistikReportBundle(minimalStats, "6m");
+        const bundle = buildStatistikReportBundle(minimalStats, "6m", "de");
         expect(bundle.docTitle).toContain("Einnahmen");
         expect(bundle.sections.some((s) => s.title.includes("Einnahmen pro Monat"))).toBe(true);
         expect(bundle.suggestedBasename).toMatch(/^medoc-statistik-6m-/);
@@ -54,7 +54,7 @@ describe("buildBilanzReportBundle", () => {
     it("maps monthly income rows", () => {
         const bundle = buildBilanzReportBundle(minimalBilanz, [["2026-05", { einnahmen: 8450, ausstehend: 0, storniert: 0 }]], []);
         expect(bundle.summary[0]?.label).toBe("Einnahmen (bezahlt)");
-        expect(bundle.sections[0]?.rows[0]?.[1]).toContain("8.450");
+        expect(bundle.sections[0]?.rows[0]?.[1]).toMatch(/8[,.]?450/);
     });
 });
 
@@ -81,7 +81,7 @@ describe("buildAuditReportBundleFromCsv", () => {
 });
 
 describe("report serializations", () => {
-    const bundle = buildStatistikReportBundle(minimalStats, "12m");
+    const bundle = buildStatistikReportBundle(minimalStats, "12m", "de");
 
     it("produces UTF-8 BOM CSV with semicolons", () => {
         const csv = reportBundleToCsv(bundle);

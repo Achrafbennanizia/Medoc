@@ -24,6 +24,83 @@ export interface LicenseStatus {
     daysUntilExpiry: number | null;
 }
 
+type LicenseRecordRaw = Record<string, unknown>;
+
+function pickString(raw: LicenseRecordRaw, camel: string, snake: string): string {
+    const value = raw[camel] ?? raw[snake];
+    return typeof value === "string" ? value : "";
+}
+
+function pickNumber(raw: LicenseRecordRaw, camel: string, snake: string): number {
+    const value = raw[camel] ?? raw[snake];
+    return typeof value === "number" ? value : 0;
+}
+
+function pickStringArray(raw: LicenseRecordRaw, key: string): string[] {
+    const value = raw[key];
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+/** Accept camelCase (current IPC) and legacy snake_case payloads from older builds. */
+export function normalizeLicenseStatus(raw: LicenseStatus & LicenseRecordRaw): LicenseStatus {
+    const licenseRaw = (raw.license ?? raw.license_v1 ?? null) as LicenseRecordRaw | null;
+    const licenseV2Raw = (raw.licenseV2 ?? raw.license_v2 ?? null) as LicenseRecordRaw | null;
+
+    const license = licenseRaw
+        ? {
+              customerId: pickString(licenseRaw, "customerId", "customer_id"),
+              edition: pickString(licenseRaw, "edition", "edition"),
+              issuedAt: pickString(licenseRaw, "issuedAt", "issued_at"),
+              expiresAt: pickString(licenseRaw, "expiresAt", "expires_at"),
+              maxUsers: pickNumber(licenseRaw, "maxUsers", "max_users"),
+              modules: pickStringArray(licenseRaw, "modules"),
+          }
+        : null;
+
+    const licenseV2 = licenseV2Raw
+        ? {
+              customerId: pickString(licenseV2Raw, "customerId", "customer_id"),
+              edition: pickString(licenseV2Raw, "edition", "edition"),
+              deviceId: pickString(licenseV2Raw, "deviceId", "device_id"),
+              activatedAt: pickString(licenseV2Raw, "activatedAt", "activated_at"),
+              maxUsers: pickNumber(licenseV2Raw, "maxUsers", "max_users"),
+              modules: pickStringArray(licenseV2Raw, "modules"),
+              editionFeatures: pickStringArray(licenseV2Raw, "editionFeatures").length
+                  ? pickStringArray(licenseV2Raw, "editionFeatures")
+                  : pickStringArray(licenseV2Raw, "edition_features"),
+          }
+        : null;
+
+    return {
+        valid: Boolean(raw.valid),
+        reason: typeof raw.reason === "string" ? raw.reason : raw.reason ?? null,
+        format: typeof raw.format === "string" ? raw.format : raw.format ?? null,
+        license,
+        licenseV2,
+        daysUntilExpiry:
+            typeof raw.daysUntilExpiry === "number"
+                ? raw.daysUntilExpiry
+                : typeof raw.days_until_expiry === "number"
+                  ? raw.days_until_expiry
+                  : null,
+    };
+}
+
+async function invokeLicenseStatus(cmd: "verify_license" | "activate_license" | "current_license_status", args?: { token: string }) {
+    const raw = args
+        ? await practiceSystem.invoke<LicenseStatus & LicenseRecordRaw>(cmd, args)
+        : await practiceSystem.invoke<LicenseStatus & LicenseRecordRaw>(cmd);
+    return normalizeLicenseStatus(raw);
+}
+
+export const verifyLicense = (token: string) => invokeLicenseStatus("verify_license", { token });
+
+export const activateLicense = (token: string) => invokeLicenseStatus("activate_license", { token });
+
+export const currentLicenseStatus = () => invokeLicenseStatus("current_license_status");
+
+export const clearLicense = () => practiceSystem.invoke<void>("clear_license");
+
 export interface UpdateInfo {
     current_version: string;
     latest_version: string;
@@ -32,17 +109,6 @@ export interface UpdateInfo {
     release_notes?: string;
     source?: string;
 }
-
-export const verifyLicense = (token: string) =>
-    practiceSystem.invoke<LicenseStatus>("verify_license", { token });
-
-export const activateLicense = (token: string) =>
-    practiceSystem.invoke<LicenseStatus>("activate_license", { token });
-
-export const currentLicenseStatus = () =>
-    practiceSystem.invoke<LicenseStatus>("current_license_status");
-
-export const clearLicense = () => practiceSystem.invoke<void>("clear_license");
 
 export const checkForUpdates = () =>
     practiceSystem.invoke<UpdateInfo>("check_for_updates");

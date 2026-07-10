@@ -304,7 +304,7 @@ export function PatientenPage() {
                     </div>
                 </div>
             ) : (
-                <div className="card patienten-table card--overflow-visible">
+                <div className="card patienten-table card--overflow-visible tbl-scroll">
                     <div className="patienten-grid-head">
                         <div>{t("patient.table.patient")}</div><div>{t("patient.table.birthdate")}</div><div>{t("patient.table.contact")}</div><div>{t("patient.table.status")}</div><div />
                     </div>

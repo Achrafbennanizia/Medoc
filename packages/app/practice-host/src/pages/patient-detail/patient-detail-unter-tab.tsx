@@ -1,16 +1,25 @@
+import { useState } from "react";
 import { useT, useTParams } from "@/lib/i18n";
-import type { Patientenakte, Untersuchung, Zahnbefund } from "@/models/types";
-import { parseUntersuchungV1 } from "@/lib/untersuchung";
+import type { BehandlungsKatalogItem, Patientenakte, Untersuchung, Zahnbefund } from "@/models/types";
+import { clinicalSummaryFromUntersuchung } from "@/lib/untersuchung";
+import { isReleasedForBilling, untersuchungHasBillableLeistung } from "@/lib/billing-open-booking";
 import type { UntersuchungSubmit } from "@/views/components/UntersuchungComposer";
 import { formatDateTime } from "@/lib/utils";
 import { AkteInlineEditPanelShell, ConfirmOrInline } from "@/views/components/akte-confirm-presentation";
 import { UntersuchungComposer } from "@/views/components/UntersuchungComposer";
+import { UntersuchungDetailPanel } from "@/views/components/UntersuchungDetailPanel";
+import {
+    EMPTY_UNTERSUCHUNG_BILLING,
+    UntersuchungBillingFields,
+} from "@/views/components/untersuchung-billing-fields";
 import { Button } from "@/views/components/ui/button";
+import { Badge } from "@/views/components/ui/badge";
 import { Card, CardHeader } from "@/views/components/ui/card";
 
 export type PatientDetailUnterTabProps = {
     akte: Patientenakte | null;
     befunde: Zahnbefund[];
+    katalog: BehandlungsKatalogItem[];
     untersuchungen: Untersuchung[];
     showUnterComposer: boolean;
     nextUnterPreview: string;
@@ -31,11 +40,13 @@ export type PatientDetailUnterTabProps = {
     onApplyTooth: (tooth: number, statusKey: string) => Promise<void>;
     onSaveEdit: (payload: UntersuchungSubmit) => Promise<void>;
     onCreateUntersuchung: (payload: UntersuchungSubmit) => Promise<void>;
+    onReleaseForBilling: (untersuchungId: string) => void | Promise<void>;
 };
 
 export function PatientDetailUnterTab({
     akte,
     befunde,
+    katalog,
     untersuchungen,
     showUnterComposer,
     nextUnterPreview,
@@ -56,10 +67,24 @@ export function PatientDetailUnterTab({
     onApplyTooth,
     onSaveEdit,
     onCreateUntersuchung,
+    onReleaseForBilling,
 }: PatientDetailUnterTabProps) {
     const t = useT();
     const tp = useTParams();
     const emDash = t("common.em_dash");
+    const [billingForm, setBillingForm] = useState(EMPTY_UNTERSUCHUNG_BILLING);
+
+    const wrapCreateWithBilling = async (payload: UntersuchungSubmit) => {
+        const gRaw = billingForm.gesamtkosten.trim().replace(",", ".");
+        const g = gRaw ? Number.parseFloat(gRaw) : NaN;
+        await onCreateUntersuchung({
+            ...payload,
+            kategorie: billingForm.kategorie.trim() || null,
+            leistungsname: billingForm.leistungsname.trim() || null,
+            gesamtkosten: Number.isFinite(g) ? g : null,
+        });
+        setBillingForm(EMPTY_UNTERSUCHUNG_BILLING());
+    };
     const deleteTarget = unterDeleteId
         ? untersuchungen.find((x) => x.id === unterDeleteId)
         : undefined;
@@ -92,11 +117,16 @@ export function PatientDetailUnterTab({
                                 </Button>
                             </div>
                             <div className="akte-inline-panel-body" style={{ paddingTop: 12 }}>
+                                <UntersuchungBillingFields
+                                    katalog={katalog}
+                                    form={billingForm}
+                                    setForm={setBillingForm}
+                                />
                                 <UntersuchungComposer
                                     befunde={befunde}
                                     onApplyTooth={onApplyTooth}
                                     onCancel={onCloseComposer}
-                                    onSave={onCreateUntersuchung}
+                                    onSave={wrapCreateWithBilling}
                                 />
                             </div>
                         </div>
@@ -106,8 +136,10 @@ export function PatientDetailUnterTab({
                     ) : (
                         <div className="col unter-stack" style={{ gap: 8 }}>
                             {untersuchungen.flatMap((u) => {
-                                const detail = parseUntersuchungV1(u.ergebnisse);
+                                const summary = clinicalSummaryFromUntersuchung(u);
                                 const open = unterDetailId === u.id;
+                                const billable = untersuchungHasBillableLeistung(u.leistungsname, u.gesamtkosten);
+                                const released = isReleasedForBilling(u);
                                 const entryCard = (
                                     <div key={u.id} className="card" style={{ padding: 12 }}>
                                         <div
@@ -125,18 +157,40 @@ export function PatientDetailUnterTab({
                                                     {formatDateTime(u.created_at)}
                                                 </div>
                                                 <div style={{ fontWeight: 600 }}>
-                                                    {u.diagnose || detail?.diagnosis || t("patient.detail.tab.common.diagnosis_open")}
+                                                    {summary.diagnosis || t("patient.detail.tab.common.diagnosis_open")}
                                                 </div>
-                                                {detail?.generalNote?.trim() ? (
+                                                {summary.plan ? (
                                                     <div style={{ fontSize: 13, color: "var(--fg-2)", whiteSpace: "pre-line" }}>
-                                                        {detail.generalNote}
+                                                        <span style={{ fontWeight: 600, color: "var(--fg-3)" }}>
+                                                            {t("untersuchung.composer.plan")}:{" "}
+                                                        </span>
+                                                        {summary.plan}
                                                     </div>
                                                 ) : null}
-                                                <div style={{ color: "var(--fg-3)", fontSize: 13 }}>
-                                                    {u.beschwerden || detail?.chiefComplaint || emDash}
-                                                </div>
+                                                {!open && summary.generalNote ? (
+                                                    <div style={{ fontSize: 13, color: "var(--fg-2)", whiteSpace: "pre-line" }}>
+                                                        {summary.generalNote}
+                                                    </div>
+                                                ) : null}
                                             </div>
-                                            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                                            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                                {billable ? (
+                                                    released ? (
+                                                        <Badge variant="primary">{t("patient.detail.tab.common.billing_released")}</Badge>
+                                                    ) : (
+                                                        <Badge variant="warning">{t("patient.detail.tab.common.billing_pending")}</Badge>
+                                                    )
+                                                ) : null}
+                                                {canViewClinical && billable && !released ? (
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={() => void onReleaseForBilling(u.id)}
+                                                    >
+                                                        {t("patient.detail.tab.common.release_short")}
+                                                    </Button>
+                                                ) : null}
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -156,158 +210,9 @@ export function PatientDetailUnterTab({
                                             </div>
                                         </div>
                                         {open ? (
-                                            detail ? (
-                                                <div
-                                                    className="untersuchung-detail-sheet"
-                                                    style={{
-                                                        marginTop: 14,
-                                                        border: "1px solid var(--line)",
-                                                        borderRadius: 12,
-                                                        overflow: "hidden",
-                                                        background: "var(--surface)",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            padding: "14px 16px",
-                                                            background: "var(--accent-soft)",
-                                                            borderBottom: "1px solid var(--line)",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                fontSize: 11,
-                                                                letterSpacing: "0.04em",
-                                                                color: "var(--fg-3)",
-                                                                textTransform: "uppercase",
-                                                            }}
-                                                        >
-                                                            {t("patient.detail.tab.unter.summary_title")}
-                                                        </div>
-                                                        <div style={{ fontWeight: 700, fontSize: 15, marginTop: 6 }}>
-                                                            {detail.diagnosis || u.diagnose || emDash}
-                                                        </div>
-                                                        {detail.plan ? (
-                                                            <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                                                                <strong>{t("patient.detail.tab.unter.plan_prefix")}</strong> {detail.plan}
-                                                            </p>
-                                                        ) : null}
-                                                        {detail.generalNote?.trim() ? (
-                                                            <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                                                                <strong>{t("patient.detail.tab.unter.general_note_prefix")}</strong> {detail.generalNote}
-                                                            </p>
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-0" style={{ fontSize: 13 }}>
-                                                        <div
-                                                            style={{
-                                                                padding: 14,
-                                                                borderBottom: "1px solid var(--line)",
-                                                                borderRight: "1px solid var(--line)",
-                                                            }}
-                                                        >
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.chief_complaint")}
-                                                            </div>
-                                                            <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || emDash}</p>
-                                                            {detail.painVas ? (
-                                                                <div style={{ marginTop: 8, color: "var(--fg-3)" }}>
-                                                                    {tp("patient.detail.tab.unter.vas_line", {
-                                                                        vas: detail.painVas,
-                                                                        location: detail.painLocation || emDash,
-                                                                    })}
-                                                                </div>
-                                                            ) : null}
-                                                        </div>
-                                                        <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.extraoral")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.tmj")} {detail.extraoral.tmj || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.lymph")} {detail.extraoral.lymphNodes || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.extraoral.asymmetry")} {detail.extraoral.asymmetry || emDash}</p>
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                padding: 14,
-                                                                borderBottom: "1px solid var(--line)",
-                                                                borderRight: "1px solid var(--line)",
-                                                            }}
-                                                        >
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.intraoral")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.mucosa")} {detail.intraoral.mucosa || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.tongue")} {detail.intraoral.tongue || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}</p>
-                                                        </div>
-                                                        <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.periodontal")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>
-                                                                {t("patient.detail.tab.unter.periodontal.psi")}{" "}
-                                                                {Object.values(detail.psi).filter(Boolean).join(" / ") || emDash}
-                                                            </p>
-                                                            <p style={{ margin: "4px 0" }}>
-                                                                {tp("patient.detail.tab.unter.periodontal.metrics", {
-                                                                    bop: detail.bopPercent || emDash,
-                                                                    pi: detail.plaqueIndex || emDash,
-                                                                    mh: detail.hygieneScore || emDash,
-                                                                })}
-                                                            </p>
-                                                        </div>
-                                                        <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.function")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.function.cmd")} {detail.function.cmd || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.function.bruxism")} {detail.function.bruxism || emDash}</p>
-                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.function.notes || ""}</p>
-                                                        </div>
-                                                        <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.tooth_notes")}
-                                                            </div>
-                                                            {Object.entries(detail.toothNotes).filter(([, n]) => n.trim()).length > 0 ? (
-                                                                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                                                                    {Object.entries(detail.toothNotes)
-                                                                        .filter(([, n]) => n.trim())
-                                                                        .sort(([a], [b]) => Number(a) - Number(b))
-                                                                        .map(([tooth, note]) => (
-                                                                            <li key={tooth}>
-                                                                                <strong>{tp("untersuchung.composer.tooth_label", { tooth })}</strong>
-                                                                                <span style={{ display: "block", marginTop: 2, whiteSpace: "pre-line" }}>{note}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                </ul>
-                                                            ) : (
-                                                                <p style={{ margin: 0 }}>{emDash}</p>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ padding: 14 }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                                                                {t("patient.detail.tab.unter.imaging")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.unter.imaging.ordered")} {detail.imaging.ordered || emDash}</p>
-                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.imaging.findings || emDash}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <pre
-                                                    style={{
-                                                        whiteSpace: "pre-wrap",
-                                                        marginTop: 12,
-                                                        fontSize: 12,
-                                                        background: "var(--bg-2, rgba(0,0,0,0.04))",
-                                                        padding: 12,
-                                                        borderRadius: 8,
-                                                    }}
-                                                >
-                                                    {u.ergebnisse || t("patient.detail.tab.unter.no_structured_data")}
-                                                </pre>
-                                            )
+                                            <div style={{ marginTop: 14 }}>
+                                                <UntersuchungDetailPanel untersuchung={u} />
+                                            </div>
                                         ) : null}
                                     </div>
                                 );
