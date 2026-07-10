@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-06-18 (Full UI i18n program)
+**Last updated:** 2026-07-10 (CI/CD tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-07-10)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** — YAML parse OK for 4 workflow files |
+| A11y helper script syntax | `node --check scripts/check-axe-critical.mjs` | **PASS** |
+| Diff hygiene | `git diff --check` | **PASS** |
+
+**Delivered:** tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, updated `release.yml`), stale `ci.yml` removal, `docs/coordination/ci-cd-plan.md`, and `scripts/check-axe-critical.mjs`.
+
+**NOT RUN:** live GitHub Actions execution of the new workflows; tag-driven release run with protected `release` approval; autonomous fix-proposal run (requires `CURSOR_API_KEY` secret in GitHub).
+
+---
+
+**Prior last updated:** 2026-06-18 (Full UI i18n program)
 
 ## Full UI i18n program — verified (2026-06-18, continued)
 

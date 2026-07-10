@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-06-18 (Work-Time program complete)
+**Last updated:** 2026-07-10 (CI/CD tier migration)
 
 ## Now
 
@@ -10,6 +10,14 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-07-10 — CI/CD tier migration)
+
+- Added tiered workflows: `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`.
+- Updated `.github/workflows/release.yml` with verify gate, protected release environment, and provenance attestation.
+- Removed stale `.github/workflows/ci.yml`.
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Added a11y critical-fail parser: `scripts/check-axe-critical.mjs`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

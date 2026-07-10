@@ -1,10 +1,19 @@
-name: Release
+name: release
 
 on:
   workflow_dispatch:
   push:
     tags:
       - "v*"
+
+permissions:
+  contents: read
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
@@ -16,9 +25,15 @@ env:
   TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
 
 jobs:
+  gate:
+    uses: ./.github/workflows/verify.yml
+    secrets: inherit
+
   build-keygen:
     name: medoc-keygen (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: [gate]
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +75,7 @@ jobs:
     name: Activation interop smoke
     runs-on: ubuntu-latest
     needs: [build-keygen]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
@@ -71,8 +87,6 @@ jobs:
           ./installer/dist/medoc-keygen-verify-linux-* /tmp/activation.json 'correct horse battery staple'
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
       - name: Rust activation unwrap test
         run: MEDOC_VENDOR_PUBKEY=$MEDOC_VENDOR_PUBKEY cargo test -p medoc-sync activation::tests::unwrap_matches_cpp_keygen_when_available -- --nocapture
 
@@ -80,6 +94,8 @@ jobs:
     name: App installer (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [activation-smoke]
+    timeout-minutes: 90
+    environment: release
     strategy:
       fail-fast: false
       matrix:
@@ -92,11 +108,26 @@ jobs:
             bundles: nsis,msi
     steps:
       - uses: actions/checkout@v4
+      - id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: package-lock.json
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Linux Tauri deps
         if: runner.os == 'Linux'
@@ -104,25 +135,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
-      - run: npm ci
-      - run: npm run build -w medoc
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_command }}
+      - run: cargo test --workspace
+      - name: Build frontend
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
       - name: Configure Tauri updater (GitHub Releases endpoint)
         run: node scripts/configure-tauri-updater.mjs
-      - name: Tauri bundle
-        run: npm run tauri build -w medoc -- --bundles ${{ matrix.bundles }}
+      - name: Build signed Tauri bundles
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run tauri -- build --bundles ${{ matrix.bundles }} ;;
+            yarn) yarn workspace medoc run tauri build --bundles ${{ matrix.bundles }} ;;
+            npm) npm run tauri -w medoc -- build --bundles ${{ matrix.bundles }} ;;
+          esac
+      - name: Assert source tree is unchanged (release must not mutate)
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Release build mutated the working tree; aborting."
+            git status --short
+            exit 1
+          fi
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: medoc-installer-${{ matrix.os }}
           path: apps/practice-host/target/release/bundle/**/*
+      - name: Generate artifact provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: apps/practice-host/target/release/bundle/**/*
 
   publish-release:
     name: Publish GitHub Release (updater manifest)
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     needs: [build-installer]
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:

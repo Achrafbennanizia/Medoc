@@ -1,0 +1,184 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failing_command:
+        description: "Command that reproduces the failure."
+        required: false
+        default: "cargo test --workspace"
+      repair_goal:
+        description: "Brief fix objective for the proposal branch."
+        required: false
+        default: "Fix failing verify checks on main"
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      FAILING_COMMAND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.failing_command || 'cargo test --workspace' }}
+      REPAIR_GOAL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_goal || format('Recover failed verify run {0}', github.event.workflow_run.id) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0
+
+      - name: Create proposal branch
+        id: branch
+        run: |
+          branch_name="ci/fix-proposal-${GITHUB_RUN_ID}"
+          git checkout -b "$branch_name"
+          echo "name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          set +e
+          bash -lc "$FAILING_COMMAND" > fix-before.log 2>&1
+          before_status=$?
+          set -e
+          echo "status=$before_status" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Cursor API key is configured
+        run: |
+          if [ -z "${CURSOR_API_KEY}" ]; then
+            echo "CURSOR_API_KEY secret is required for fix-proposal automation."
+            exit 1
+          fi
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+
+      - name: Run autonomous fix agent
+        run: |
+          set -euo pipefail
+          if command -v agent >/dev/null 2>&1; then
+            AGENT_BIN="agent"
+          elif command -v cursor-agent >/dev/null 2>&1; then
+            AGENT_BIN="cursor-agent"
+          else
+            echo "Cursor agent binary not found after installation."
+            exit 1
+          fi
+
+          "$AGENT_BIN" -p "
+          Repository: ${GITHUB_REPOSITORY}
+          Branch: ${GITHUB_REF_NAME}
+          Goal: ${REPAIR_GOAL}
+          Reproduction command: ${FAILING_COMMAND}
+
+          Requirements:
+          - Attempt a real code fix for the failing command.
+          - Re-run the failing command after the fix.
+          - Keep changes scoped and reviewable.
+          - Never auto-merge.
+          - If edits touch security/audit/crypto/RBAC paths, keep that visible for human review.
+          "
+
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          set +e
+          bash -lc "$FAILING_COMMAND" > fix-after.log 2>&1
+          after_status=$?
+          set -e
+          echo "status=$after_status" >> "$GITHUB_OUTPUT"
+
+      - name: Detect proposal changes
+        id: changes
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - name: Detect sensitive path touches
+        id: sensitive
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          changed="$(git diff --name-only)"
+          if printf '%s\n' "$changed" | rg -n '(^|/)(security|audit|crypto|rbac)(/|_|\\.)'; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push proposal branch
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: draft fix proposal (${REPAIR_GOAL})"
+          git push -u origin "${{ steps.branch.outputs.name }}"
+
+      - name: Build draft PR body
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cat <<EOF > pr-body.md
+          ## Automated fix proposal
+
+          - Trigger: \`${{ github.event_name }}\`
+          - Goal: \`${REPAIR_GOAL}\`
+          - Reproduction command: \`${FAILING_COMMAND}\`
+          - Exit code before fix: \`${{ steps.before.outputs.status }}\`
+          - Exit code after fix: \`${{ steps.after.outputs.status }}\`
+
+          ### Evidence artifacts
+          - \`fix-before.log\`
+          - \`fix-after.log\`
+
+          This pull request is intentionally opened as **draft** for human review.
+          EOF
+
+      - name: Open draft PR
+        if: steps.changes.outputs.has_changes == 'true'
+        id: pr
+        run: |
+          pr_url=$(gh pr create \
+            --base main \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "fix-proposal: ${REPAIR_GOAL}" \
+            --body-file pr-body.md \
+            --draft)
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Label sensitive proposals for human review
+        if: steps.changes.outputs.has_changes == 'true' && steps.sensitive.outputs.needs_human_review == 'true'
+        run: |
+          gh label create needs-human-review --color B60205 --description "Touches security/audit/crypto/RBAC paths." || true
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label needs-human-review
+
+      - name: Note when no changes were produced
+        if: steps.changes.outputs.has_changes != 'true'
+        run: echo "No fix changes were generated; no PR opened."
+
+      - name: Upload evidence logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: |
+            fix-before.log
+            fix-after.log
+            pr-body.md
