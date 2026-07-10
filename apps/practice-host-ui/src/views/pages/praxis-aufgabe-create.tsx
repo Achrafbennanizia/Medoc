@@ -102,7 +102,7 @@ export function PraxisAufgabeCreatePage() {
                         <Button type="button" variant="primary" disabled={busy} onClick={() => void save()}>
                             {t("praxis.aufgaben.create.btn")}
                         </Button>
-                        <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate(BACK_HREF)}>
+                        <Button type="button" variant="ghost" disabled={busy} className="btn-nav-back" onClick={() => navigate(BACK_HREF)}>
                             <ChevronLeftIcon size={16} />
                             {t("common.cancel")}
                         </Button>

@@ -83,7 +83,7 @@ export function ArbeitszeitTeamPage() {
                 <CardHeader
                     title={tp("page.arbeitszeit.team.calendar_week", { start: weekLabel, end: weekEndLabel })}
                     action={
-                        <div className="row" style={{ gap: 6 }}>
+                        <div className="row termin-nav-controls" dir="ltr" style={{ gap: 6 }}>
                             <Button type="button" variant="ghost" size="sm" onClick={() => setWeekAnchor((d) => subWeeks(d, 1))}>
                                 ←
                             </Button>

@@ -11,7 +11,7 @@ import {
     type PairingMasterInfo,
     type PairingRequest,
 } from "@/systems/practice-host/controllers/pairing.controller";
-import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -56,9 +56,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
             const [list, info, enabledRaw] = await Promise.all([
                 pairingListAll(),
                 pairingMasterInfo().catch(() => null),
-                practiceSystem
-                    .invoke<string | null>("get_app_kv", { key: PAIRING_ENABLED_KEY })
-                    .catch(() => null),
+                getAppKvRaw(PAIRING_ENABLED_KEY).catch(() => null),
             ]);
             setPairingEnabled(enabledRaw !== "0" && enabledRaw !== "false");
             setItems(list);
@@ -148,7 +146,7 @@ export function EinstellungenPairingInbox({ embedded = false }: { embedded?: boo
         setPairingToggleBusy(true);
         try {
             const next = pairingEnabled ? "0" : "1";
-            await practiceSystem.invoke("set_app_kv", { key: PAIRING_ENABLED_KEY, value: next });
+            await setAppKvRaw(PAIRING_ENABLED_KEY, next);
             setPairingEnabled(!pairingEnabled);
             toast(
                 pairingEnabled ? t("settings.pairing.toggle_disabled") : t("settings.pairing.toggle_enabled"),

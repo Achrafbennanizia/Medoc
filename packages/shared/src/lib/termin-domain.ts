@@ -9,3 +9,12 @@ export type { TerminArtNotizen };
 export function terminIstNotfallMarkiert(t: TerminArtNotizen): boolean {
     return t.art === "BEHANDLUNG" && Boolean(t.notizen?.includes(TERMIN_NOTFALL_NOTIZ_MARKER));
 }
+
+const TERMIN_DURATION_RE = /Dauer:\s*(\d+)\s*min/i;
+
+/** Reads duration from `termin.notizen` (`Dauer: N min`); falls back when missing. */
+export function parseTerminDurationMin(notizen: string | null | undefined, fallback = 30): number {
+    const m = TERMIN_DURATION_RE.exec(notizen ?? "");
+    const n = m ? Number(m[1]) : Number.NaN;
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}

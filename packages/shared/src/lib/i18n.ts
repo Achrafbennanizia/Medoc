@@ -143,6 +143,25 @@ export function isRtlLocale(locale: Locale): boolean {
     return locale === "ar";
 }
 
+/** BCP 47 tag for `Intl` / `toLocaleString` formatters. */
+export function bcp47ForLocale(locale: Locale): string {
+    switch (locale) {
+        case "en":
+            return "en-US";
+        case "fr":
+            return "fr-FR";
+        case "ar":
+            return "ar-SA";
+        default:
+            return "de-DE";
+    }
+}
+
+/** Locale code for `String.localeCompare` (same as {@link Locale}). */
+export function collatorLocale(locale: Locale): string {
+    return locale;
+}
+
 export function dateFnsLocaleFor(locale: Locale): DateFnsLocale {
     switch (locale) {
         case "en":
@@ -160,6 +179,18 @@ export function dateFnsLocaleFor(locale: Locale): DateFnsLocale {
 export function useDateFnsLocale(): DateFnsLocale {
     const locale = useLocale((s) => s.locale);
     return dateFnsLocaleFor(locale);
+}
+
+/** React hook: BCP 47 tag for `Intl` / `toLocaleString`. */
+export function useIntlLocaleTag(): string {
+    const locale = useLocale((s) => s.locale);
+    return bcp47ForLocale(locale);
+}
+
+/** React hook: locale code for `String.localeCompare`. */
+export function useCollatorLocale(): string {
+    const locale = useLocale((s) => s.locale);
+    return collatorLocale(locale);
 }
 
 /** Keys present in the catalog for a locale (CI missing-key guard). */

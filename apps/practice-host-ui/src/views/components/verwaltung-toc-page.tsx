@@ -1,7 +1,7 @@
 import { useT, useTParams } from "@/lib/i18n";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
-import { NAV_ICONS } from "@/lib/icons";
+import { NAV_ICONS, ICON_SIZE_LG } from "@/lib/icons";
 import { routeChildPathAllowed } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { VerwaltungPageHeader } from "./verwaltung-page-header";
@@ -86,7 +86,7 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
                                             {useIcons && Ic ? (
                                                 <>
                                                     <span className="verwaltung-toc-ic" aria-hidden>
-                                                        <Ic size={18} />
+                                                        <Ic size={ICON_SIZE_LG} />
                                                     </span>
                                                     <span className="verwaltung-toc-title-cell">{item.title}</span>
                                                     <span className="page-sub verwaltung-toc-desc-cell">{item.desc}</span>

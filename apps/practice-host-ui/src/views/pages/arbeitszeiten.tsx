@@ -7,6 +7,7 @@ import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon } from "@/lib/icons";
 import type { PraxisArbeitszeitenConfig, PraxisDayKey, PraxisDayPlan } from "@/lib/praxis-planning";
 import { loadPraxisArbeitszeitenConfig, savePraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
+import { usePraxisArbeitszeitenStore } from "@/models/store/praxis-arbeitszeiten-store";
 import type { PlanValidationIssue } from "@/lib/praxis-arbeitszeiten-validation";
 import {
     isValidPauseRange,
@@ -200,6 +201,7 @@ export function ArbeitszeitenPage() {
                 };
             }
             await savePraxisArbeitszeitenConfig(nextCfg);
+            usePraxisArbeitszeitenStore.getState().setConfig(nextCfg);
             setStoredCfg(nextCfg);
             setHasOwnSavedProfile(true);
             setEditing(false);

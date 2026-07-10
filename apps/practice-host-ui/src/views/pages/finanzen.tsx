@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type FC, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { listZahlungen } from "@/systems/practice-host/controllers/zahlung.controller";
@@ -20,7 +20,6 @@ import { ReportExportToolbar } from "../components/report-export-toolbar";
 import type { Zahlung, Patient, ZahlungsArt } from "../../models/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { FilterOptionBar } from "../components/ui/filter-option-bar";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -140,6 +139,8 @@ const FinanzKpiCard: FC<FinanzKpiCardProps> = ({ label, value, sub, subTone, ico
 export function FinanzenPage() {
     const t = useT();
     const tp = useTParams();
+    const typeFilterId = useId();
+    const artFilterId = useId();
     const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
@@ -460,46 +461,62 @@ export function FinanzenPage() {
             <div className="finanzen-workspace__list">
                 <div className="finanzen-tx-section-head">
                     <h2 className="finanzen-tx-section-title">{t("page.finanzen.transactions")}</h2>
-                    <div className="finanzen-tx-section-head__meta">
-                        <span className="finanzen-tx-count">
-                            {tp("page.finanzen.entries_count", { count: filteredRows.length })}
-                        </span>
-                        {txTab !== "alle" || artFilter !== "ALLE" ? (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                    setTxTab("alle");
-                                    setArtFilter("ALLE");
-                                }}
-                            >
-                                {t("common.reset")}
-                            </Button>
-                        ) : null}
-                    </div>
-                </div>
-                <div className="finanzen-tx-filter-strip">
-                    <div className="finanzen-tx-filter-row">
-                        <span className="finanzen-tx-filter-row__label">{t("page.finanzen.filter_label_type")}</span>
-                        <FilterOptionBar
-                            ariaLabel={t("page.finanzen.aria_filter_type")}
-                            value={txTab}
-                            options={finTxTabOptions}
-                            onChange={setTxTab}
-                            fill
-                            className="finanzen-tx-filter-row__bar"
-                        />
-                    </div>
-                    <div className="finanzen-tx-filter-row">
-                        <span className="finanzen-tx-filter-row__label">{t("page.finanzen.filter_label_art")}</span>
-                        <FilterOptionBar
-                            ariaLabel={t("page.finanzen.aria_filter_art")}
-                            value={artFilter}
-                            options={finTxArtOptions}
-                            onChange={setArtFilter}
-                            fill
-                            className="finanzen-tx-filter-row__bar"
-                        />
+                    <div className="finanzen-tx-section-head__controls">
+                        <div className="finanzen-tx-filter-selects">
+                            <div className="finanzen-tx-filter-select-field">
+                                <label htmlFor={typeFilterId} className="finanzen-tx-filter-select__label">
+                                    {t("page.finanzen.filter_label_type")}
+                                </label>
+                                <select
+                                    id={typeFilterId}
+                                    className="input-edit finanzen-tx-filter-select"
+                                    value={txTab}
+                                    aria-label={t("page.finanzen.aria_filter_type")}
+                                    onChange={(e) => setTxTab(e.target.value as FinanzTxTab)}
+                                >
+                                    {finTxTabOptions.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                            {o.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="finanzen-tx-filter-select-field">
+                                <label htmlFor={artFilterId} className="finanzen-tx-filter-select__label">
+                                    {t("page.finanzen.filter_label_art")}
+                                </label>
+                                <select
+                                    id={artFilterId}
+                                    className="input-edit finanzen-tx-filter-select"
+                                    value={artFilter}
+                                    aria-label={t("page.finanzen.aria_filter_art")}
+                                    onChange={(e) => setArtFilter(e.target.value as "ALLE" | ZahlungsArt)}
+                                >
+                                    {finTxArtOptions.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                            {o.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="finanzen-tx-section-head__meta">
+                            <span className="finanzen-tx-count">
+                                {tp("page.finanzen.entries_count", { count: filteredRows.length })}
+                            </span>
+                            {txTab !== "alle" || artFilter !== "ALLE" ? (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setTxTab("alle");
+                                        setArtFilter("ALLE");
+                                    }}
+                                >
+                                    {t("common.reset")}
+                                </Button>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
                 {sortedRows.length === 0 ? (

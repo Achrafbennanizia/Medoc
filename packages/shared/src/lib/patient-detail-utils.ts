@@ -1,4 +1,4 @@
-import { deriveAnlageDisplayName } from "@/lib/akte-anlagen";
+import { deriveAnlageDisplayName } from "./akte-anlagen";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import type { RezeptLine } from "@/lib/medikamente";
@@ -47,7 +47,7 @@ export type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name
 export type AkteSavePending =
     | { kind: "rezept_finalize_vorlage"; titel: string; lines: RezeptLine[]; shared: string }
     | { kind: "attest_finalize_vorlage"; titel: string; fields: AttestComposerFormFields }
-    | { kind: "anlage_add"; file: File }
+    | { kind: "anlage_add"; file: File; documentKind?: string }
     | { kind: "anlage_remove"; id: string; name: string };
 
 export const PATIENT_DETAIL_TOAST_UNDO_MS = 5200;

@@ -1,13 +1,14 @@
 import type { AkteCompletenessGap } from "@/lib/akte-completeness";
-import { CalendarIcon, EditIcon, ExportIcon, MailIcon, PhoneIcon, PinIcon, ShieldCheckIcon } from "@/lib/icons";
+import { CalendarIcon, EditIcon, ExportIcon, ICON_SIZE_MD, MailIcon, PhoneIcon, PinIcon, ShieldCheckIcon } from "@/lib/icons";
 import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
 import { emptyPlanNextTermin, planNextHasContent, type PlanNextTerminV2 } from "@/lib/plan-next-termin";
 import { alterAusGeburtsdatum } from "@/lib/patient-detail-utils";
 import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
 import type { ValidationRecord } from "@/lib/akte-validation";
-import type { PatientStatus, Patient, Patientenakte, Zahnbefund, Behandlung, Zahlung, Rolle } from "@/models/types";
+import type { PatientStatus, Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, Zahlung, Rolle } from "@/models/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { DentalMiniBar } from "@/views/components/DentalMiniBar";
+import { PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED } from "@/lib/v1-ui-flags";
 import { AkteEditFormOrInline, ConfirmOrInline } from "@/views/components/akte-confirm-presentation";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
@@ -36,6 +37,7 @@ export type PatientDetailShellHeaderProps = {
     akte: Patientenakte | null;
     befunde: Zahnbefund[];
     behandlungen: Behandlung[];
+    untersuchungen: Untersuchung[];
     zahlungen: Zahlung[];
     patientDeleteOpen: boolean;
     patientDeleteBusy: boolean;
@@ -91,6 +93,7 @@ export function PatientDetailShellHeader({
     akte,
     befunde,
     behandlungen,
+    untersuchungen,
     zahlungen,
     patientDeleteOpen,
     patientDeleteBusy,
@@ -171,7 +174,7 @@ export function PatientDetailShellHeader({
                                 : undefined
                         }
                     >
-                        <CalendarIcon />
+                        <CalendarIcon size={ICON_SIZE_MD} />
                         {t("patient.detail.header.plan_next_button")}
                         {planNextHasContent(planNext) ? (
                             <span
@@ -196,7 +199,7 @@ export function PatientDetailShellHeader({
                         disabled={!patientId}
                         title={t("patient.detail.header.export_title")}
                     >
-                        <ExportIcon />
+                        <ExportIcon size={ICON_SIZE_MD} />
                         {t("patient.detail.header.export_button")}
                     </button>
                     {role === "REZEPTION" ? (
@@ -209,7 +212,8 @@ export function PatientDetailShellHeader({
                             {t("patient.detail.header.ticket_doctor_button")}
                         </button>
                     ) : null}
-                    {role === "ARZT" ? (
+                    {/* MVP blind — Task to reception / Request review / Discharge sheet (`PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED`) */}
+                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && role === "ARZT" ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
@@ -219,7 +223,7 @@ export function PatientDetailShellHeader({
                             {t("patient.detail.header.task_reception_button")}
                         </button>
                     ) : null}
-                    {role === "ARZT" || role === "REZEPTION" ? (
+                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && (role === "ARZT" || role === "REZEPTION") ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
@@ -229,7 +233,7 @@ export function PatientDetailShellHeader({
                             {t("patient.detail.header.review_request_button")}
                         </button>
                     ) : null}
-                    {canViewClinical ? (
+                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && canViewClinical ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
@@ -241,7 +245,7 @@ export function PatientDetailShellHeader({
                         </button>
                     ) : null}
                     <button type="button" className="btn btn-accent" onClick={onOpenTermin}>
-                        <CalendarIcon />
+                        <CalendarIcon size={ICON_SIZE_MD} />
                         {t("patient.detail.header.termin_button")}
                     </button>
                 </div>
@@ -311,7 +315,7 @@ export function PatientDetailShellHeader({
                     </div>
                     {canViewClinical && akte ? (
                         <div className="patient-hero-dental">
-                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} visible />
+                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} untersuchungen={untersuchungen} visible />
                         </div>
                     ) : null}
                 </div>
@@ -369,7 +373,7 @@ export function PatientDetailShellHeader({
                     </div>
                     <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         <Button size="sm" variant="secondary" onClick={onOpenEdit}>
-                            <EditIcon />
+                            <EditIcon size={ICON_SIZE_MD} />
                             {t("common.edit")}
                         </Button>
                         {canViewClinical ? (
@@ -379,7 +383,7 @@ export function PatientDetailShellHeader({
                                 </Button>
                             ) : (
                                 <Button size="sm" variant="primary" onClick={() => void onValidateStamm()}>
-                                    <ShieldCheckIcon />
+                                    <ShieldCheckIcon size={ICON_SIZE_MD} />
                                     {t("patient.detail.header.validate")}
                                 </Button>
                             )

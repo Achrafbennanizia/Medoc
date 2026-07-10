@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { ExportIcon } from "@/lib/icons";
+import { ExportIcon, ICON_SIZE_SM } from "@/lib/icons";
 import {
     type FinanzTxRow,
     type ReportBundle,
@@ -80,7 +80,7 @@ export function ReportExportToolbar({
                     loading={importBusy}
                     disabled={disabled || importBusy}
                 >
-                    <ExportIcon size={14} /> {t("export.report.export_btn")}
+                    <ExportIcon size={ICON_SIZE_SM} /> {t("export.report.export_btn")}
                 </Button>
                 {showImport ? (
                     <>

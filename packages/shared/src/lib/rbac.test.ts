@@ -14,6 +14,11 @@ import {
 import { DATENSCHUTZ_UI_ENABLED } from "./datenschutz-config";
 import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
 import {
+    LEISTUNGEN_MENU_ENABLED,
+    PRODUKTE_MENU_ENABLED,
+    REZEPTE_ATTESTE_MENU_ENABLED,
+} from "./catalog-menu-flags";
+import {
     BENACHRICHTIGUNGEN_SETTINGS_ENABLED,
     INTEGRATIONEN_SETTINGS_ENABLED,
     MIGRATION_SETTINGS_ENABLED,
@@ -54,8 +59,8 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
         "verwaltung/arbeitszeiten": true,
         "verwaltung/sonder-sperrzeiten": true,
         "verwaltung/praxis-praeferenzen": true,
-        "verwaltung/vorlagen": true,
-        "verwaltung/vorlagen/editor": true,
+        "verwaltung/vorlagen": REZEPTE_ATTESTE_MENU_ENABLED,
+        "verwaltung/vorlagen/editor": REZEPTE_ATTESTE_MENU_ENABLED,
         "verwaltung/behandlungs-katalog": true,
         "verwaltung/bestellstamm": true,
         "verwaltung/finanzen-werkzeuge": true,
@@ -206,6 +211,25 @@ describe("routeChildPathAllowed", () => {
             expect(routeChildPathAllowed("datenschutz", "ARZT")).toBe(true);
         } else {
             expect(routeChildPathAllowed("datenschutz", "ARZT")).toBe(false);
+        }
+    });
+    it("catalog menu routes respect catalog-menu-flags", () => {
+        if (REZEPTE_ATTESTE_MENU_ENABLED) {
+            expect(routeChildPathAllowed("rezepte", "ARZT")).toBe(true);
+            expect(routeChildPathAllowed("verwaltung/vorlagen", "ARZT")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("rezepte", "ARZT")).toBe(false);
+            expect(routeChildPathAllowed("verwaltung/vorlagen", "ARZT")).toBe(false);
+        }
+        if (LEISTUNGEN_MENU_ENABLED) {
+            expect(routeChildPathAllowed("leistungen", "ARZT")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("leistungen", "ARZT")).toBe(false);
+        }
+        if (PRODUKTE_MENU_ENABLED) {
+            expect(routeChildPathAllowed("produkte", "ARZT")).toBe(true);
+        } else {
+            expect(routeChildPathAllowed("produkte", "ARZT")).toBe(false);
         }
     });
     it("GAP-01: REZEPTION cannot read medical records action", () => {

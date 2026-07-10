@@ -31,9 +31,9 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { NAV_ICONS } from "@/lib/icons";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
-import { workTimeGetStatistics, type WorkTimeStatistics } from "@/systems/practice-host/controllers/work-time.controller";
-import { formatWorkMinutes } from "@/lib/work-time-ui";
-import { useT, useTParams, useDateFnsLocale } from "@/lib/i18n";
+import { workTimeGetStatistics, type WorkTimeStatistics, type WorkTimeTeamMemberRow } from "@/systems/practice-host/controllers/work-time.controller";
+import { formatStaffShortName, formatWorkMinutes } from "@/lib/work-time-ui";
+import { useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
 
 type Period = "6m" | "12m";
 
@@ -155,6 +155,7 @@ interface MonthBarProps {
 
 function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
     const t = useT();
+    const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
@@ -166,7 +167,7 @@ function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
                 <Tooltip
                     cursor={{ fill: "rgba(0,0,0,0.04)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
+                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString(intlTag), t("page.statistik.chart.value")]}
                 />
                 <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={42} />
             </BarChart>
@@ -176,6 +177,7 @@ function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
 
 function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: string }) {
     const t = useT();
+    const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
@@ -186,7 +188,7 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
                 <YAxis tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={false} allowDecimals={false} width={36} />
                 <Tooltip
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
+                    formatter={(v: number) => [v.toLocaleString(intlTag), t("page.statistik.chart.value")]}
                 />
                 <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.4} dot={{ r: 3, fill: color }} activeDot={{ r: 5 }} />
             </LineChart>
@@ -196,6 +198,7 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
 
 function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: LabelValue[]; color?: string; valueFormatter?: (v: number) => string }) {
     const t = useT();
+    const intlTag = useIntlLocaleTag();
     return (
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
@@ -205,7 +208,7 @@ function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: Label
                 <Tooltip
                     cursor={{ fill: "rgba(0,0,0,0.04)" }}
                     contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString("de-DE"), t("page.statistik.chart.value")]}
+                    formatter={(v: number) => [valueFormatter ? valueFormatter(v) : v.toLocaleString(intlTag), t("page.statistik.chart.value")]}
                 />
                 <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={48} />
             </BarChart>
@@ -213,8 +216,93 @@ function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: Label
     );
 }
 
+type WorkTimeBarRow = {
+    personalId: string;
+    name: string;
+    shortName: string;
+    minutes: number;
+};
+
+function WorkTimeBarTooltip({
+    active,
+    payload,
+}: {
+    active?: boolean;
+    payload?: ReadonlyArray<{ payload?: WorkTimeBarRow }>;
+}) {
+    const t = useT();
+    if (!active || !payload?.length) return null;
+    const row = payload[0]?.payload;
+    if (!row) return null;
+    return (
+        <div className="statistik-chart-tooltip">
+            <div className="statistik-chart-tooltip__title">{row.name}</div>
+            <div className="statistik-chart-tooltip__value">{formatWorkMinutes(row.minutes)}</div>
+            <div className="statistik-chart-tooltip__meta">{t("page.statistik.arbeitszeit.week_actual")}</div>
+        </div>
+    );
+}
+
+function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
+    const chartData = useMemo<WorkTimeBarRow[]>(
+        () =>
+            [...members]
+                .sort((a, b) => b.weekMinutes - a.weekMinutes || a.name.localeCompare(b.name, "de"))
+                .map((p) => ({
+                    personalId: p.personalId,
+                    name: p.name,
+                    shortName: formatStaffShortName(p.name),
+                    minutes: p.weekMinutes,
+                })),
+        [members],
+    );
+    const yMax = useMemo(() => {
+        const peak = Math.max(...chartData.map((d) => d.minutes), 0);
+        if (peak <= 0) return 60;
+        return Math.ceil(peak / 30) * 30;
+    }, [chartData]);
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 4 }} barCategoryGap="24%">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                <XAxis
+                    dataKey="shortName"
+                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "rgba(0,0,0,0.08)" }}
+                    interval={0}
+                />
+                <YAxis
+                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={52}
+                    domain={[0, yMax]}
+                    tickFormatter={(v) => formatWorkMinutes(v)}
+                />
+                <Tooltip cursor={false} content={<WorkTimeBarTooltip />} />
+                <Bar dataKey="minutes" radius={[6, 6, 2, 2]} maxBarSize={52} minPointSize={3}>
+                    {chartData.map((entry, index) => (
+                        <Cell
+                            key={entry.personalId}
+                            fill={
+                                entry.minutes > 0
+                                    ? PALETTE[index % PALETTE.length]
+                                    : "color-mix(in oklab, var(--fg) 12%, transparent)"
+                            }
+                        />
+                    ))}
+                </Bar>
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
+
 function PiePanel({ data }: { data: LabelValue[] }) {
     const t = useT();
+    const intlTag = useIntlLocaleTag();
     const filtered = data.filter((d) => d.value > 0);
     return (
         <ResponsiveContainer width="100%" height="100%">
@@ -224,7 +312,7 @@ function PiePanel({ data }: { data: LabelValue[] }) {
                     formatter={(v: number, _n: string, item) => {
                         const total = filtered.reduce((s, d) => s + d.value, 0);
                         const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-                        return [`${v.toLocaleString("de-DE")} (${pct}%)`, item?.payload?.label ?? t("page.statistik.chart.value")];
+                        return [`${v.toLocaleString(intlTag)} (${pct}%)`, item?.payload?.label ?? t("page.statistik.chart.value")];
                     }}
                 />
                 <Legend
@@ -432,6 +520,7 @@ function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
 export function StatistikPage() {
     const t = useT();
     const tp = useTParams();
+    const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const [period, setPeriod] = useState<Period>("6m");
     const [stats, setStats] = useState<StatistikOverview | null>(null);
@@ -652,7 +741,7 @@ export function StatistikPage() {
                 >
                     <StatOverviewCard
                         label={t("page.statistik.kpi.patients_total")}
-                        value={stats.patienten_gesamt.toLocaleString("de-DE")}
+                        value={stats.patienten_gesamt.toLocaleString(intlTag)}
                         icon="Users"
                         accent="var(--accent)"
                         sub={patientDeltaPct}
@@ -666,7 +755,7 @@ export function StatistikPage() {
                     />
                     <StatOverviewCard
                         label={t("page.statistik.kpi.new_patients")}
-                        value={Math.round(dash.neuCur).toLocaleString("de-DE")}
+                        value={Math.round(dash.neuCur).toLocaleString(intlTag)}
                         icon="Sparkle"
                         accent="#FF9500"
                         sub={neuDeltaStr}
@@ -753,7 +842,7 @@ export function StatistikPage() {
                 >
                     <StatOverviewCard
                         label={t("page.statistik.kpi.appointments_last_month")}
-                        value={Math.round(dash.tCur).toLocaleString("de-DE")}
+                        value={Math.round(dash.tCur).toLocaleString(intlTag)}
                         icon="Calendar"
                         accent="#0A84FF"
                         sub={fmtMom(dash.termMom) ?? undefined}
@@ -779,7 +868,7 @@ export function StatistikPage() {
                     />
                     <StatOverviewCard
                         label={t("page.statistik.kpi.treatments_last_month")}
-                        value={Math.round(dash.behCur).toLocaleString("de-DE")}
+                        value={Math.round(dash.behCur).toLocaleString(intlTag)}
                         icon="/leistungen"
                         accent="var(--accent)"
                         sub={fmtMom(dash.behMom) ?? undefined}
@@ -807,7 +896,7 @@ export function StatistikPage() {
                     />
                     <StatOverviewCard
                         label={tp("page.statistik.kpi.appointments_sum", { period: periodLabel })}
-                        value={trimmedTermine.reduce((s, m) => s + m.value, 0).toLocaleString("de-DE")}
+                        value={trimmedTermine.reduce((s, m) => s + m.value, 0).toLocaleString(intlTag)}
                         icon="/termine"
                         accent="#0A84FF"
                         sub={t("page.statistik.kpi.appointments_sum_sub")}
@@ -815,7 +904,7 @@ export function StatistikPage() {
                     />
                     <StatOverviewCard
                         label={t("page.statistik.kpi.low_stock")}
-                        value={stats.produkte_niedrig.toLocaleString("de-DE")}
+                        value={stats.produkte_niedrig.toLocaleString(intlTag)}
                         icon="Package"
                         accent={stats.produkte_niedrig > 0 ? "#FF3B30" : "#FF9500"}
                         sub={stats.produkte_niedrig > 0 ? t("page.statistik.kpi.low_stock_alert") : t("page.statistik.kpi.low_stock_ok")}
@@ -823,7 +912,7 @@ export function StatistikPage() {
                     />
                     <StatOverviewCard
                         label={tp("page.statistik.kpi.treatments_sum", { period: periodLabel })}
-                        value={trimmedBeh.reduce((s, m) => s + m.value, 0).toLocaleString("de-DE")}
+                        value={trimmedBeh.reduce((s, m) => s + m.value, 0).toLocaleString(intlTag)}
                         icon="/leistungen"
                         accent="#AF52DE"
                         sub={t("page.statistik.kpi.treatments_sum_sub")}
@@ -957,40 +1046,28 @@ export function StatistikPage() {
                         ) : null}
                         {workStats ? (
                             <>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <Card>
-                                        <CardHeader title={t("page.statistik.arbeitszeit.week_actual")} />
-                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
-                                            {formatWorkMinutes(workStats.weekMinutes)}
-                                        </div>
-                                    </Card>
-                                    <Card>
-                                        <CardHeader title={t("page.statistik.arbeitszeit.month_actual")} />
-                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
-                                            {formatWorkMinutes(workStats.monthMinutes)}
-                                        </div>
-                                    </Card>
-                                    <Card>
-                                        <CardHeader title={t("page.statistik.arbeitszeit.pause_week")} />
-                                        <div className="card-pad" style={{ fontSize: 22, fontWeight: 700 }}>
-                                            {formatWorkMinutes(workStats.pauseMinutesWeek)}
-                                        </div>
-                                    </Card>
+                                <div className="statistik-work-kpis">
+                                    <div className="statistik-work-kpi">
+                                        <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.week_actual")}</span>
+                                        <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.weekMinutes)}</span>
+                                    </div>
+                                    <div className="statistik-work-kpi">
+                                        <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.month_actual")}</span>
+                                        <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.monthMinutes)}</span>
+                                    </div>
+                                    <div className="statistik-work-kpi">
+                                        <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.pause_week")}</span>
+                                        <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.pauseMinutesWeek)}</span>
+                                    </div>
                                 </div>
                                 {workStats.byPerson.length > 0 ? (
-                                    <ChartCard title={t("page.statistik.arbeitszeit.chart_by_person")} hasData>
-                                        <ResponsiveContainer width="100%" height={260}>
-                                            <BarChart data={workStats.byPerson.map((p) => ({
-                                                name: p.name,
-                                                minutes: p.weekMinutes,
-                                            }))}>
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                                <YAxis tick={{ fontSize: 11 }} />
-                                                <Tooltip formatter={(v: number) => formatWorkMinutes(v)} />
-                                                <Bar dataKey="minutes" fill="var(--accent)" radius={[4, 4, 0, 0]} />
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                    <ChartCard
+                                        title={t("page.statistik.arbeitszeit.chart_by_person")}
+                                        height={280}
+                                        hasData={workStats.byPerson.length > 0}
+                                        emptyHint={t("page.statistik.arbeitszeit.chart_empty")}
+                                    >
+                                        <WorkTimePersonBar members={workStats.byPerson} />
                                     </ChartCard>
                                 ) : null}
                             </>

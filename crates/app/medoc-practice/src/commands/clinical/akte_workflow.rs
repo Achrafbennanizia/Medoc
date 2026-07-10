@@ -112,6 +112,7 @@ pub async fn forward_akte_to_physicians(
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
         .ok_or(AppError::NotFound("Patient".into()))?;
+    akte_repo::mark_akte_for_physician_review(&pool, &args.patient_id).await?;
     let patient_name = patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
         .map(|p| p.name)

@@ -24,7 +24,7 @@ import { ToastContainer } from "../components/ui/toast";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Select, Textarea } from "../components/ui/input";
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
+import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, ICON_SIZE_LG, ICON_SIZE_MD, ICON_SIZE_SM, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
@@ -820,7 +820,7 @@ export function AppLayout() {
                 }}
             >
                 <button type="button" className="input focus-ring topbar-search-trigger" onClick={openCommandPalette}>
-                    <SearchIcon size={14} aria-hidden />
+                    <SearchIcon size={ICON_SIZE_SM} aria-hidden />
                     <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
                     <span className="ui-kbd-hint" style={{ fontSize: 11, color: "var(--fg-4)" }}>
                         ⌘K
@@ -849,7 +849,7 @@ export function AppLayout() {
                     title={t("nav.quick_add")}
                     onClick={openCommandPalette}
                 >
-                    <PlusIcon size={18} />
+                    <PlusIcon size={ICON_SIZE_LG} />
                 </button>
                 <div ref={notifWrapRef} style={{ position: "relative" }}>
                     <button
@@ -862,7 +862,7 @@ export function AppLayout() {
                             setUserMenuOpen(false);
                         }}
                     >
-                        <BellIcon size={18} />
+                        <BellIcon size={ICON_SIZE_LG} />
                         {inAppUnread > 0 ? <span className="dot" aria-hidden /> : null}
                     </button>
                     {notifOpen ? (
@@ -1001,7 +1001,7 @@ export function AppLayout() {
                                         >
                                             {(() => {
                                                 const Ic = NAV_ICONS[item.to] ?? PinIcon;
-                                                return <Ic size={16} aria-hidden />;
+                                                return <Ic size={ICON_SIZE_MD} aria-hidden />;
                                             })()}
                                             <span className="sb-item-label" aria-hidden="true">
                                                 {label}

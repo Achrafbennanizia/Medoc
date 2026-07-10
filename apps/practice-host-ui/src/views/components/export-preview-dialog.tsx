@@ -1,4 +1,4 @@
-import { useT, useTParams, translateLocale } from "@/lib/i18n";
+import { useT, useTParams, translateLocale, useLocale, isRtlLocale } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -36,8 +36,8 @@ function formatLabel(format: ExportPreviewPayload["format"], t: (key: string) =>
     }
 }
 
-function buildPrintHtmlTable(rows: string[][]): string {
-    if (rows.length === 0) return `<p>${translateLocale("de", "common.no_data")}</p>`;
+function buildPrintHtmlTable(rows: string[][], locale: import("@/lib/i18n").Locale): string {
+    if (rows.length === 0) return `<p>${translateLocale(locale, "common.no_data")}</p>`;
     const [head, ...body] = rows;
     const th = (head ?? []).map((c) => `<th>${escapeHtml(c)}</th>`).join("");
     const trs = body
@@ -49,7 +49,7 @@ function buildPrintHtmlTable(rows: string[][]): string {
 /**
  * Print without `window.open` (often blocked in WKWebView / Tauri). Uses a minimal hidden iframe.
  */
-function printHtmlInHiddenIframe(title: string, innerHtml: string): void {
+function printHtmlInHiddenIframe(title: string, innerHtml: string, locale: import("@/lib/i18n").Locale): void {
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
     Object.assign(iframe.style, {
@@ -69,18 +69,20 @@ function printHtmlInHiddenIframe(title: string, innerHtml: string): void {
         iframe.remove();
         return;
     }
-    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+    const lang = locale;
+    const dir = isRtlLocale(locale) ? "rtl" : "ltr";
+    const html = `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; padding: 16px; color: #111; }
   table { border-collapse: collapse; width: 100%; font-size: 11px; }
-  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: start; vertical-align: top; }
   th { background: #f0f0f0; font-weight: 600; }
   pre { white-space: pre-wrap; font-size: 11px; font-family: ui-monospace, monospace; }
   h1 { font-size: 16px; margin: 0 0 12px; }
   .meta { color: #555; font-size: 12px; margin-bottom: 16px; }
 </style></head><body>
 <h1>${escapeHtml(title)}</h1>
-<div class="meta">${escapeHtml(translateLocale("de", "export.preview.meta"))}</div>
+<div class="meta">${escapeHtml(translateLocale(locale, "export.preview.meta"))}</div>
 ${innerHtml}
 </body></html>`;
     doc.open();
@@ -163,6 +165,7 @@ export type ExportPreviewDialogProps = {
 export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogProps) {
     const t = useT();
     const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const toast = useToastStore((s) => s.add);
     const [fileName, setFileName] = useState(payload.suggestedFilename);
     const [saveBusy, setSaveBusy] = useState(false);
@@ -241,15 +244,15 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
     const handlePrint = () => {
         const title = payload.title;
         if (payload.format === "csv" && displayGrid.length > 0) {
-            printHtmlInHiddenIframe(title, buildPrintHtmlTable(displayGrid));
+            printHtmlInHiddenIframe(title, buildPrintHtmlTable(displayGrid, locale), locale);
             return;
         }
         if (payload.format === "json" && payload.textBody) {
-            printHtmlInHiddenIframe(title, `<pre>${escapeHtml(payload.textBody)}</pre>`);
+            printHtmlInHiddenIframe(title, `<pre>${escapeHtml(payload.textBody)}</pre>`, locale);
             return;
         }
         if (payload.format === "xml" && payload.textBody) {
-            printHtmlInHiddenIframe(title, `<pre>${escapeHtml(payload.textBody)}</pre>`);
+            printHtmlInHiddenIframe(title, `<pre>${escapeHtml(payload.textBody)}</pre>`, locale);
             return;
         }
         if (payload.format === "html" && payload.textBody) {

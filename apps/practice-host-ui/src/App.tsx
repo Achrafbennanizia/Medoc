@@ -7,6 +7,7 @@ import { DbSetupGate } from "./views/components/db-setup-gate";
 import { LicenseAndPairingGate } from "./views/components/license-and-pairing-gate";
 import { VerbundOnboardingGate } from "./views/components/verbund-onboarding-gate";
 import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
+import { PraxisArbeitszeitenBackground } from "./views/components/praxis-arbeitszeiten-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
@@ -19,7 +20,7 @@ const TerminCreatePage = lazy(async () => ({ default: (await import("./views/pag
 const PatientenPage = lazy(async () => ({ default: (await import("./views/pages/patienten")).PatientenPage }));
 const PatientDetailPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/patient-detail/patient-detail")).PatientDetailPage }));
 const AktenZuValidierenPage = lazy(async () => ({
-    default: (await import("./views/pages/akten-zu-validieren")).AktenZuValidierenPage,
+    default: (await import("@/systems/practice-host/pages/akten-zu-validieren")).AktenZuValidierenPage,
 }));
 const PraxisTicketsPage = lazy(async () => ({
     default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
@@ -49,10 +50,10 @@ const ArbeitszeitTeamPage = lazy(async () => ({
     default: (await import("./views/pages/arbeitszeit-team")).ArbeitszeitTeamPage,
 }));
 const StatistikPage = lazy(async () => ({ default: (await import("./views/pages/statistik")).StatistikPage }));
-const AuditPage = lazy(async () => ({ default: (await import("./views/pages/audit")).AuditPage }));
-const LoggingPage = lazy(async () => ({ default: (await import("./views/pages/logging")).LoggingPage }));
-const OpsPage = lazy(async () => ({ default: (await import("./views/pages/ops")).OpsPage }));
-const CompliancePage = lazy(async () => ({ default: (await import("./views/pages/compliance")).CompliancePage }));
+const AuditPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/audit")).AuditPage }));
+const LoggingPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/logging")).LoggingPage }));
+const OpsPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/ops")).OpsPage }));
+const CompliancePage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/compliance")).CompliancePage }));
 const RezeptePage = lazy(async () => ({ default: (await import("./views/pages/rezepte")).RezeptePage }));
 const AttestePage = lazy(async () => ({ default: (await import("./views/pages/atteste")).AttestePage }));
 const EinstellungenPage = lazy(async () => ({ default: (await import("./views/pages/einstellungen")).EinstellungenPage }));
@@ -184,6 +185,7 @@ export default function App() {
                         <ProtectedRoute>
                             <LicenseAndPairingGate>
                                 <ReplicaSyncBackground />
+                                <PraxisArbeitszeitenBackground />
                                 <AppLayout />
                             </LicenseAndPairingGate>
                         </ProtectedRoute>

@@ -12,6 +12,52 @@ use crate::infrastructure::database::app_kv_repo;
 use tauri::State;
 
 const AUTO_RECORD_KV: &str = "work_time.auto_record_on_login.v1";
+const AUTO_RECORD_LOGOUT_KV: &str = "work_time.auto_record_on_logout.v1";
+
+async fn practice_auto_record_on_login(pool: &SqlitePool) -> Result<bool, AppError> {
+    Ok(app_kv_repo::get(pool, AUTO_RECORD_KV).await?.as_deref() == Some("1"))
+}
+
+async fn practice_auto_record_on_logout(pool: &SqlitePool) -> Result<bool, AppError> {
+    Ok(app_kv_repo::get(pool, AUTO_RECORD_LOGOUT_KV)
+        .await?
+        .as_deref()
+        == Some("1"))
+}
+
+async fn sync_practice_auto_flags(
+    pool: &SqlitePool,
+    login: Option<bool>,
+    logout: Option<bool>,
+) -> Result<(), AppError> {
+    if let Some(v) = login {
+        app_kv_repo::set(pool, AUTO_RECORD_KV, if v { "1" } else { "0" }).await?;
+    }
+    if let Some(v) = logout {
+        app_kv_repo::set(pool, AUTO_RECORD_LOGOUT_KV, if v { "1" } else { "0" }).await?;
+    }
+    let login_val = practice_auto_record_on_login(pool).await?;
+    let logout_val = practice_auto_record_on_logout(pool).await?;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    for (pid,) in rows {
+        let _ = get_or_create_preference(pool, &pid).await?;
+        sqlx::query(
+            "UPDATE work_time_preference SET auto_record_on_login = ?1, auto_record_on_logout = ?2 WHERE personal_id = ?3",
+        )
+        .bind(login_val as i32)
+        .bind(logout_val as i32)
+        .bind(&pid)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -197,21 +243,22 @@ pub async fn get_or_create_preference(
         });
     }
 
-    let kv_login = app_kv_repo::get(pool, AUTO_RECORD_KV).await?;
-    let auto_login = kv_login.as_deref() == Some("1");
+    let auto_login = practice_auto_record_on_login(pool).await?;
+    let auto_logout = practice_auto_record_on_logout(pool).await?;
     sqlx::query(
         "INSERT INTO work_time_preference (personal_id, focus_mode, auto_record_on_login, auto_record_on_logout)
-         VALUES (?1, 0, ?2, 0)",
+         VALUES (?1, 0, ?2, ?3)",
     )
     .bind(personal_id)
     .bind(auto_login as i32)
+    .bind(auto_logout as i32)
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
     Ok(WorkTimePreference {
         focus_mode: false,
         auto_record_on_login: auto_login,
-        auto_record_on_logout: false,
+        auto_record_on_logout: auto_logout,
     })
 }
 
@@ -750,6 +797,51 @@ pub async fn work_time_set_preference(
     get_or_create_preference(&pool, &pid).await
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkTimePracticePolicy {
+    pub auto_record_on_login: bool,
+    pub auto_record_on_logout: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkTimePracticePolicyPatch {
+    pub auto_record_on_login: Option<bool>,
+    pub auto_record_on_logout: Option<bool>,
+}
+
+#[tauri::command]
+pub async fn work_time_get_practice_policy(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<WorkTimePracticePolicy, AppError> {
+    rbac::require(&session_state, "personal.write")?;
+    Ok(WorkTimePracticePolicy {
+        auto_record_on_login: practice_auto_record_on_login(&pool).await?,
+        auto_record_on_logout: practice_auto_record_on_logout(&pool).await?,
+    })
+}
+
+#[tauri::command]
+pub async fn work_time_set_practice_policy(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    patch: WorkTimePracticePolicyPatch,
+) -> Result<WorkTimePracticePolicy, AppError> {
+    rbac::require(&session_state, "personal.write")?;
+    if patch.auto_record_on_login.is_none() && patch.auto_record_on_logout.is_none() {
+        return work_time_get_practice_policy(pool, session_state).await;
+    }
+    sync_practice_auto_flags(
+        &pool,
+        patch.auto_record_on_login,
+        patch.auto_record_on_logout,
+    )
+    .await?;
+    work_time_get_practice_policy(pool, session_state).await
+}
+
 #[tauri::command]
 pub async fn work_time_set_auto_record_on_login(
     pool: State<'_, SqlitePool>,
@@ -757,25 +849,7 @@ pub async fn work_time_set_auto_record_on_login(
     enabled: bool,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "personal.write")?;
-    app_kv_repo::set(&pool, AUTO_RECORD_KV, if enabled { "1" } else { "0" }).await?;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')",
-    )
-    .fetch_all(pool.inner())
-    .await
-    .map_err(AppError::Database)?;
-    for (pid,) in rows {
-        let _ = get_or_create_preference(&pool, &pid).await?;
-        sqlx::query(
-            "UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE personal_id = ?2",
-        )
-        .bind(enabled as i32)
-        .bind(&pid)
-        .execute(pool.inner())
-        .await
-        .map_err(AppError::Database)?;
-    }
-    Ok(())
+    sync_practice_auto_flags(&pool, Some(enabled), None).await
 }
 
 #[tauri::command]
@@ -783,9 +857,8 @@ pub async fn work_time_get_auto_record_on_login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<bool, AppError> {
-    let session = rbac::require_authenticated(&session_state)?;
-    let pref = get_or_create_preference(&pool, &session.user_id).await?;
-    Ok(pref.auto_record_on_login)
+    rbac::require(&session_state, "personal.write")?;
+    practice_auto_record_on_login(&pool).await
 }
 
 #[macro_export]
@@ -804,6 +877,8 @@ macro_rules! register_work_time_commands {
         $crate::commands::work_time_commands::work_time_set_preference,
         $crate::commands::work_time_commands::work_time_set_auto_record_on_login,
         $crate::commands::work_time_commands::work_time_get_auto_record_on_login,
+        $crate::commands::work_time_commands::work_time_get_practice_policy,
+        $crate::commands::work_time_commands::work_time_set_practice_policy,
     };
 }
 
@@ -815,9 +890,10 @@ mod tests {
     async fn seed_personal(pool: &SqlitePool, id: &str) {
         sqlx::query(
             "INSERT INTO personal (id, name, email, rolle, passwort_hash, verfuegbar, created_at, updated_at)
-             VALUES (?1, 'Test', 't@example.com', 'REZEPTION', 'x', 1, datetime('now'), datetime('now'))",
+             VALUES (?1, 'Test', ?2, 'REZEPTION', 'x', 1, datetime('now'), datetime('now'))",
         )
         .bind(id)
+        .bind(format!("{id}@example.com"))
         .execute(pool)
         .await
         .expect("seed personal");
@@ -852,6 +928,24 @@ mod tests {
         .await
         .expect("status");
         assert_eq!(status, "ENDED");
+    }
+
+    #[tokio::test]
+    async fn practice_policy_syncs_all_staff_preferences() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        seed_personal(&pool, "p-a").await;
+        seed_personal(&pool, "p-b").await;
+        sync_practice_auto_flags(&pool, Some(true), Some(true))
+            .await
+            .expect("sync");
+        for pid in ["p-a", "p-b"] {
+            let pref = get_or_create_preference(&pool, pid).await.expect("pref");
+            assert!(pref.auto_record_on_login);
+            assert!(pref.auto_record_on_logout);
+        }
+        assert!(practice_auto_record_on_login(&pool).await.expect("kv login"));
+        assert!(practice_auto_record_on_logout(&pool).await.expect("kv logout"));
     }
 
     #[tokio::test]

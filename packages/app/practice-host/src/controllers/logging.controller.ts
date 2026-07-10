@@ -22,3 +22,9 @@ export async function verifyAuditChain(): Promise<string | null> {
 export async function getLogDir(): Promise<string> {
     return practiceSystem.invoke<string>("log_dir");
 }
+
+/** Example log file path for display (`app.log` in the log directory). */
+export async function getExampleAppLogPath(logDir: string): Promise<string> {
+    const { join } = await import("@tauri-apps/api/path");
+    return join(logDir, "app.log");
+}

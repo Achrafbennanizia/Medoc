@@ -10,6 +10,7 @@ interface UseDismissibleLayerOptions {
 
 /**
  * Shared overlay behavior: close on outside pointer (touch / pen / mouse, capture) and Escape.
+ * Listener is deferred one tick so the same click that opened the layer does not dismiss it.
  */
 export function useDismissibleLayer({ open, rootRef, containRefs, onDismiss }: UseDismissibleLayerOptions) {
     useEffect(() => {
@@ -33,11 +34,19 @@ export function useDismissibleLayer({ open, rootRef, containRefs, onDismiss }: U
             if (event.key === "Escape") onDismiss();
         };
 
-        document.addEventListener("pointerdown", onPointerDown, true);
-        document.addEventListener("keydown", onKeyDown);
+        let active = false;
+        const timerId = window.setTimeout(() => {
+            active = true;
+            document.addEventListener("pointerdown", onPointerDown, true);
+            document.addEventListener("keydown", onKeyDown);
+        }, 0);
+
         return () => {
-            document.removeEventListener("pointerdown", onPointerDown, true);
-            document.removeEventListener("keydown", onKeyDown);
+            window.clearTimeout(timerId);
+            if (active) {
+                document.removeEventListener("pointerdown", onPointerDown, true);
+                document.removeEventListener("keydown", onKeyDown);
+            }
         };
     }, [open, rootRef, containRefs, onDismiss]);
 }

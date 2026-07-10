@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { NAV_ITEM_DEFINITIONS } from "./rbac";
 import { NAV_SECTIONS } from "./nav-sections";
 import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
+import {
+    LEISTUNGEN_MENU_ENABLED,
+    REZEPTE_ATTESTE_MENU_ENABLED,
+} from "./catalog-menu-flags";
 
 describe("NAV_SECTIONS (G17 sidebar regression)", () => {
     it("every sidebar path is defined in rbac nav items", () => {
@@ -15,9 +19,20 @@ describe("NAV_SECTIONS (G17 sidebar regression)", () => {
 
     it("G21-critical sidebar paths are defined in rbac nav items", () => {
         const defined = new Set(NAV_ITEM_DEFINITIONS.map((i) => i.to));
-        for (const path of ["/tickets", "/patienten", "/rezepte", "/leistungen", "/produkte"]) {
+        for (const path of ["/tickets", "/patienten"]) {
             expect(defined.has(path)).toBe(true);
         }
+        if (REZEPTE_ATTESTE_MENU_ENABLED) {
+            expect(defined.has("/rezepte")).toBe(true);
+        } else {
+            expect(defined.has("/rezepte")).toBe(false);
+        }
+        if (LEISTUNGEN_MENU_ENABLED) {
+            expect(defined.has("/leistungen")).toBe(true);
+        } else {
+            expect(defined.has("/leistungen")).toBe(false);
+        }
+        expect(defined.has("/produkte")).toBe(false);
         if (POSTEINGANG_UI_ENABLED) {
             expect(defined.has("/posteingang")).toBe(true);
         } else {

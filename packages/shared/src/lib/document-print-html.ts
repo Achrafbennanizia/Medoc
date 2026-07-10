@@ -1,4 +1,4 @@
-import { translateLocale, translateLocaleParams } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, useLocale, isRtlLocale } from "@/lib/i18n";
 import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
 import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
@@ -20,8 +20,14 @@ import {
     type ClinicalPdfLayout,
 } from "@/lib/clinical-pdf-layout";
 
-const docT = (key: string) => translateLocale("de", key);
-const docTp = (key: string, params: Record<string, string | number>) => translateLocaleParams("de", key, params);
+const docT = (key: string) => translateLocale(useLocale.getState().locale, key);
+const docTp = (key: string, params: Record<string, string | number>) =>
+    translateLocaleParams(useLocale.getState().locale, key, params);
+
+function htmlLangDir(): { lang: string; dir: string } {
+    const loc = useLocale.getState().locale;
+    return { lang: loc, dir: isRtlLocale(loc) ? "rtl" : "ltr" };
+}
 
 function rezeptStatusLabel(status: string): string {
     const s = status.trim();
@@ -489,7 +495,7 @@ export function buildAttestPrintHtml(a: Attest, patient: Patient | null): string
     const span = `${escapeHtml(formatDate(a.gueltig_von))} – ${escapeHtml(formatDate(a.gueltig_bis))}`;
     const aus = escapeHtml(formatDate(a.ausgestellt_am));
     const bodyHtml = escapeHtml(a.inhalt);
-    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>${title}</title>
+    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${title}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
             h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
             .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
@@ -525,7 +531,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
     const geb = patient ? escapeHtml(formatDate(patient.geburtsdatum)) : "";
     const aus = escapeHtml(formatDate(r.ausgestellt_am));
     const statusLabel = escapeHtml(rezeptStatusLabel(r.status));
-    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>${docT("document.print.prescription_title")}</title>
+    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${docT("document.print.prescription_title")}</title>
             <style>
               body{font-family:Helvetica,Arial,sans-serif;padding:24px;color:#111;line-height:1.45}
               h1{font-size:20px;margin:0 0 16px}
@@ -556,7 +562,7 @@ export function buildRezeptPrintHtml(r: Rezept, patient: Patient | null): string
 /** Multiple prescriptions on one printout (prescription overview). */
 export function buildRezepteComboPrintHtml(items: Rezept[], patient: Patient | null): string {
     if (items.length === 0) {
-        return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Rezept</title></head><body><p>${docT("document.print.no_prescription")}</p></body></html>`;
+        return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>Rezept</title></head><body><p>${docT("document.print.no_prescription")}</p></body></html>`;
     }
     const first = items[0]!;
     const title = items.length === 1 ? "Rezept" : `Kombinationsrezept (${items.length})`;
@@ -564,7 +570,7 @@ export function buildRezepteComboPrintHtml(items: Rezept[], patient: Patient | n
     const patientLine = escapeHtml(patient?.name ?? "");
     const geb = patient ? escapeHtml(formatDate(patient.geburtsdatum)) : "";
     const body = items.map(rezeptSectionBlock).join("");
-    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
             h1{font-size:18pt;margin-bottom:0.4cm}h2{font-size:13pt;margin:0.4cm 0 0.2cm;color:#333}
             .row{margin:0.25cm 0}.label{display:inline-block;width:4cm;color:#555}
@@ -595,7 +601,7 @@ export function buildQuittungPrintHtml(
     const beschr = escapeHtml((z.beschreibung ?? "").trim() || "—");
     const pname = escapeHtml(patient.name);
     const geb = escapeHtml(formatDate(patient.geburtsdatum));
-    return `<!doctype html><html lang="de"><head><meta charset="utf-8"/><title>Quittung</title>
+    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>Quittung</title>
             <style>
               body{font-family:Helvetica,Arial,sans-serif;padding:28px;color:#111;line-height:1.45}
               h1{font-size:18px;margin:0 0 6px}

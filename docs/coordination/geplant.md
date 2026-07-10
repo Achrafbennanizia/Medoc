@@ -1,6 +1,6 @@
 # Geplant — project status for future development
 
-**Last updated:** 2026-06-18  
+**Last updated:** 2026-07-05  
 **Purpose:** Authoritative register of features **not yet active** in the product. Maintained here in coordination docs — **not** as in-app UI lists.
 
 **How to use**
@@ -57,12 +57,34 @@ See also [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) for GAP-08/09/12 skips
 | KBV-Zulassung row | **Hidden** | `LICENSE_KBV_ROW_ENABLED` |
 | Support-Vertrag row | **Hidden** | `LICENSE_SUPPORT_ROW_ENABLED` |
 | PDF Dokumentvorlage picker | **Hidden** | `PDF_LAYOUT_TEMPLATE_PICKER_ENABLED` |
-| Einführung coachmark (NFA-USE-09) | **Hidden** | `ONBOARDING_COACHMARK_ENABLED` |
+| Einführung coachmark (NFA-USE-09) | **Hidden** | `ONBOARDING_COACHMARK_ENABLED` + `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED` (settings reset row); runtime coachmark unmounted |
+| Bestätigung bei kritischen Aktionen (Akte) | **Hidden (settings UI)** | `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED`; runtime modal confirms via `akte-confirm-presentation.tsx` (default modal) |
 | Migration GDT/DICOM/Scanner steps | **Hidden** | `MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED` |
 | Geräteverbund admin panel | **Hidden** | `VERBUND_ADMIN_PANEL_V1_ENABLED` (v1.1) |
 | KIM / process_payment / DICOM C-STORE | **No UI** | stubs only — see [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
 
 Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) · program: [`v1-completion-program.md`](v1-completion-program.md)
+
+---
+
+## Clinical / dental UI
+
+| Item | Status | Notes | Evidence |
+| ---- | ------ | ----- | -------- |
+| Zahnschema popover — Befunde / Diagnosen list | **Removed (MVP)** | Per-tooth Zahnbefund history list removed from header tooth-chart hover; status color + Untersuchungen + Behandlungen remain | `DentalMiniBar.tsx` (2026-07-05); i18n keys `dental.mini.findings_heading`, `dental.mini.no_findings` kept for re-enable |
+| Zahnschema popover — Befunde / Diagnosen list re-enable | Geplant | Restore list section if structured Zahnbefund timeline is needed alongside Untersuchung `toothNotes` | See row above |
+| Untersuchung — structured sections (Hauptbeschwerde/VAS, Extraoral, Intraoral, Parodontal, Funktion, Bildgebung) | **Removed (MVP UI)** | Composer + detail summary show general note, Zahnschema tooth notes, diagnosis & plan only; legacy fields remain in `UntersuchungV1` JSON for export/migration | `UntersuchungComposer.tsx`, `patient-detail-unter-tab.tsx` (2026-07-05) |
+| Untersuchung — structured sections re-enable | Geplant | Restore tabbed composer + detail grid when full dental exam protocol is required | i18n keys `untersuchung.composer.section_*` retained |
+| Untersuchung detail — Diagnosis + Treatment plan | **Active (MVP)** | List row + Show detail panel; `clinicalSummaryFromUntersuchung`; backend `diagnose` column + `plan` in V1 JSON | `UntersuchungDetailPanel.tsx`, `untersuchung.ts`, `patient-detail-unter-tab.tsx` |
+| Sidebar + Verwaltung — Rezepte & Atteste | **Blinded (MVP)** | `/rezepte`, `/verwaltung/vorlagen*` hidden; patient Akte tab unchanged | `catalog-menu-flags.ts` → `REZEPTE_ATTESTE_MENU_ENABLED` |
+| Sidebar + Verwaltung — Leistungen | **Blinded (MVP)** | `/leistungen` + Verwaltung hub row hidden; Behandlungskatalog hub remains | `LEISTUNGEN_MENU_ENABLED` |
+| Sidebar + Verwaltung — Produkte | **Enabled (MVP)** | `/produkte` via Verwaltung → Lager only (not main sidebar); Bestellstamm/Verträge remain | `PRODUKTE_MENU_ENABLED` |
+| Produkte — stock column + min-stock alerts | **Blinded (MVP)** | Table STOCK column hidden; form shows **Amount** only (maps to `bestand`); min-stock inputs blinded | `PRODUKT_STOCK_UI_ENABLED` |
+| Produkte — stock + min-stock form re-enable | Geplant | Restore stock/min-stock fields and table column when full inventory tracking is ready | See row above |
+| Patient Akte header — Task to reception | **Blinded (MVP)** | ARZT → Rezeption Aufgabe dialog; backend wired | `v1-ui-flags.ts` → `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED` |
+| Patient Akte header — Request review | **Blinded (MVP)** | Forward Akte to physicians dialog | Same flag |
+| Patient Akte header — Discharge sheet | **Blinded (MVP)** | Discharge Merkblatt PDF export | Same flag |
+| Patient Akte workflow header buttons re-enable | Geplant | Set `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = true`; polish UX + manual QA on G21 rows | [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
 
 ---
 

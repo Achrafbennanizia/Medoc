@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localeCatalogKeys, translateLocale, isRtlLocale, type Locale } from "./i18n";
+import { localeCatalogKeys, translateLocale, isRtlLocale, bcp47ForLocale, type Locale } from "./i18n";
 import deCatalog from "../../locales/de.json";
 import enCatalog from "../../locales/en.json";
 import frCatalog from "../../locales/fr.json";
@@ -46,5 +46,12 @@ describe("i18n locale parity", () => {
     it("RTL locale helper marks Arabic", () => {
         expect(isRtlLocale("ar")).toBe(true);
         expect(isRtlLocale("de")).toBe(false);
+    });
+
+    it("bcp47ForLocale maps UI locales to Intl tags", () => {
+        expect(bcp47ForLocale("de")).toBe("de-DE");
+        expect(bcp47ForLocale("en")).toBe("en-US");
+        expect(bcp47ForLocale("fr")).toBe("fr-FR");
+        expect(bcp47ForLocale("ar")).toBe("ar-SA");
     });
 });

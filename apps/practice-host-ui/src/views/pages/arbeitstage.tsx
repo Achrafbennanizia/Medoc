@@ -225,7 +225,7 @@ export function ArbeitstagePage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <div className="card card-pad">
                     <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.arbeitstage.calendar")}</h2>
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+                    <div className="row termin-nav-controls" dir="ltr" style={{ justifyContent: "space-between", marginBottom: 10 }}>
                         <Button type="button" variant="ghost" size="sm" onClick={() => {
                             if (calMonth === 0) {
                                 setCalMonth(11);

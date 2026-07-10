@@ -547,14 +547,15 @@ pub struct AkteZuValidierenRow {
     pub patient_name: String,
     pub akte_id: String,
     pub akte_status: String,
-    pub updated_at: chrono::NaiveDateTime,
+    pub updated_at: String,
 }
 
 pub async fn list_akten_zu_validieren(
     pool: &SqlitePool,
 ) -> Result<Vec<AkteZuValidierenRow>, AppError> {
     let rows = sqlx::query_as::<_, AkteZuValidierenRow>(
-        "SELECT p.id AS patient_id, p.name AS patient_name, pa.id AS akte_id, pa.status AS akte_status, pa.updated_at
+        "SELECT p.id AS patient_id, p.name AS patient_name, pa.id AS akte_id, pa.status AS akte_status,
+                strftime('%Y-%m-%d %H:%M:%S', pa.updated_at) AS updated_at
          FROM patientenakte pa
          INNER JOIN patient p ON p.id = pa.patient_id
          WHERE pa.status IN ('ENTWURF', 'IN_BEARBEITUNG')
@@ -574,6 +575,43 @@ pub async fn count_akten_zu_validieren(pool: &SqlitePool) -> Result<i64, AppErro
     .fetch_one(pool)
     .await?;
     Ok(row.0)
+}
+
+/// FA-AKTE-14: mark record for physician review (validation queue).
+pub async fn mark_akte_for_physician_review(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Patientenakte, AppError> {
+    let cur = find_akte_by_patient(pool, patient_id)
+        .await?
+        .ok_or(AppError::NotFound("Patientenakte".into()))?;
+    crate::domain::services::workflow_transitions::patientenakte_forward_review_transition(
+        &cur.status,
+    )?;
+    if cur.status.eq_ignore_ascii_case("IN_BEARBEITUNG") {
+        return Ok(cur);
+    }
+    sqlx::query(
+        "UPDATE patientenakte SET status = 'IN_BEARBEITUNG', updated_at = CURRENT_TIMESTAMP
+         WHERE patient_id = ?1",
+    )
+    .bind(patient_id)
+    .execute(pool)
+    .await?;
+    let updated = find_akte_by_patient(pool, patient_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Akte nach Weiterleitung nicht lesbar".into()))?;
+    let body = serde_json::to_string(&updated)
+        .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "patientenakte",
+        &updated.id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
 }
 
 /// Setzt Akten-Status auf VALIDIERT (nur Vorwärts aus ENTWURF / IN_BEARBEITUNG).

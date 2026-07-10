@@ -261,4 +261,11 @@ async fn touch_replica_seen_updates_peer_base_url() {
             .await
             .unwrap();
     assert!(url.as_deref().is_some_and(|u| u.contains("192.168.1.50")));
+    let seen: Option<String> =
+        sqlx::query_scalar("SELECT last_seen_at FROM sync_device WHERE device_id = ?1")
+            .bind(&device)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(seen.as_deref().is_some_and(|s| !s.is_empty()));
 }

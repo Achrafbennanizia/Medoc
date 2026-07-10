@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 import { PlusIcon } from "@/lib/icons";
 import { rezeptStatusDisplay } from "@/lib/patient-detail-utils";
 import { AkteEditFormOrInline, ConfirmOrInline } from "@/views/components/akte-confirm-presentation";
+import { ZahlRowActionsMenu, type ZahlRowAction } from "@/views/components/zahl-row-actions-menu";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
@@ -108,7 +109,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
 
     return (
     <div id="panel-rezept" role="tabpanel" aria-labelledby="tab-rezept">
-    <Card className="card-pad">
+    <Card className="card-pad card--overflow-visible">
         <div className="akte-zahl-modus" role="tablist" aria-label={t("page.patient_detail.rezept.view_aria")} style={{ marginBottom: 16 }}>
             <button
                 type="button"
@@ -144,14 +145,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
             title={t("page.patient_detail.rezept.title")}
             subtitle={t("page.patient_detail.rezept.subtitle")}
             action={canWriteMedical ? (
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <>
                     <Button type="button" size="sm" variant="secondary" onClick={openRezeptPick} disabled={!id}>
                         {t("page.patient_detail.rezept.predefined_btn")}
                     </Button>
                     <Button type="button" size="sm" onClick={openRezeptNeu} disabled={!id}>
                         <PlusIcon /> {t("page.patient_detail.rezept.new_btn")}
                     </Button>
-                </div>
+                </>
             ) : null}
         />
         {!canWriteMedical ? (
@@ -500,8 +501,8 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                         : undefined}
                 />
             ) : (
-                <div style={{ overflowX: "auto" }}>
-                    <table className="tbl">
+                <div className="rezept-attest-table-scroll">
+                    <table className="tbl tbl-rezept-akte">
                         <thead>
                             <tr>
                                 <th>{t("page.rezepte.col.medication")}</th>
@@ -509,7 +510,7 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                 <th>{t("page.rezepte.col.duration")}</th>
                                 <th>{t("page.rezepte.col.status")}</th>
                                 <th>{t("common.issued")}</th>
-                                <th style={{ minWidth: 200 }}>{t("common.actions")}</th>
+                                <th className="rezept-th-actions">{t("patient.detail.tab.behand.col.action")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -642,22 +643,21 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                             <td>{r.dauer}</td>
                                             <td><Badge variant={st.variant}>{st.label}</Badge></td>
                                             <td>{formatDate(r.ausgestellt_am)}</td>
-                                            <td>
-                                                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        type="button"
-                                                        onClick={() => handlePrintRezept(r)}
-                                                    >
-                                                        {t("common.export")}
-                                                    </Button>
-                                                    {canWriteMedical ? (
-                                                        <>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() => {
+                                            <td className="rezept-td-actions">
+                                                {(() => {
+                                                    const actions: ZahlRowAction[] = [
+                                                        {
+                                                            id: "export",
+                                                            label: t("common.export"),
+                                                            onClick: () => handlePrintRezept(r),
+                                                        },
+                                                    ];
+                                                    if (canWriteMedical) {
+                                                        actions.push(
+                                                            {
+                                                                id: "edit",
+                                                                label: t("common.edit"),
+                                                                onClick: () => {
                                                                     setRezeptDeleteId(null);
                                                                     resetRezeptWizard();
                                                                     setRezeptEditUnlocked(false);
@@ -669,24 +669,27 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                                                         hinweise: r.hinweise ?? "",
                                                                     });
                                                                     setRezeptEdit(r);
-                                                                }}
-                                                            >
-                                                                {t("common.edit")}
-                                                            </Button>
-                                                            <Button
-                                                                variant="danger"
-                                                                size="sm"
-                                                                onClick={() => {
+                                                                },
+                                                            },
+                                                            {
+                                                                id: "delete",
+                                                                label: t("common.delete"),
+                                                                onClick: () => {
                                                                     resetRezeptWizard();
                                                                     setRezeptEdit(null);
                                                                     setRezeptDeleteId(r.id);
-                                                                }}
-                                                            >
-                                                                {t("common.delete")}
-                                                            </Button>
-                                                        </>
-                                                    ) : null}
-                                                </div>
+                                                                },
+                                                                danger: true,
+                                                            },
+                                                        );
+                                                    }
+                                                    return (
+                                                        <ZahlRowActionsMenu
+                                                            ariaLabel={t("common.actions")}
+                                                            actions={actions}
+                                                        />
+                                                    );
+                                                })()}
                                             </td>
                                         </tr>
                                     </Fragment>
@@ -729,14 +732,14 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
             title={t("page.patient_detail.attest.title")}
             subtitle={t("page.patient_detail.attest.subtitle")}
             action={canWriteMedical ? (
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <>
                     <Button type="button" size="sm" variant="secondary" onClick={openAttestPick} disabled={!id}>
                         {t("page.patient_detail.attest.predefined_btn")}
                     </Button>
                     <Button type="button" size="sm" onClick={openAttestNeu} disabled={!id}>
                         <PlusIcon /> {t("page.patient_detail.attest.new_btn")}
                     </Button>
-                </div>
+                </>
             ) : null}
         />
         {!canWriteMedical ? (
@@ -1055,15 +1058,15 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                         : undefined}
                 />
             ) : (
-                <div style={{ overflowX: "auto" }}>
-                    <table className="tbl">
+                <div className="rezept-attest-table-scroll">
+                    <table className="tbl tbl-attest-akte">
                         <thead>
                             <tr>
                                 <th>{t("page.patient_detail.attest.col.type")}</th>
                                 <th>{t("common.valid_from")}</th>
                                 <th>{t("common.valid_until")}</th>
                                 <th>{t("common.issued")}</th>
-                                <th style={{ minWidth: 200 }}>{t("common.actions")}</th>
+                                <th className="attest-th-actions">{t("patient.detail.tab.behand.col.action")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1073,27 +1076,33 @@ export function PatientDetailRezeptTabPanel(props: PatientDetailRezeptTabPanelPr
                                     <td>{formatDate(a.gueltig_von)}</td>
                                     <td>{formatDate(a.gueltig_bis)}</td>
                                     <td>{formatDate(a.ausgestellt_am)}</td>
-                                    <td>
-                                        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                            <Button type="button" size="sm" variant="secondary" onClick={() => handlePrintAttest(a)}>
-                                                {t("common.export")}
-                                            </Button>
-                                            {canWriteMedical ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="danger"
-                                                    size="sm"
-                                                    onClick={() => {
+                                    <td className="attest-td-actions">
+                                        {(() => {
+                                            const actions: ZahlRowAction[] = [
+                                                {
+                                                    id: "export",
+                                                    label: t("common.export"),
+                                                    onClick: () => handlePrintAttest(a),
+                                                },
+                                            ];
+                                            if (canWriteMedical) {
+                                                actions.push({
+                                                    id: "delete",
+                                                    label: t("common.delete"),
+                                                    onClick: () => {
                                                         resetAttestWizard();
                                                         setAttestDeleteId(a.id);
-                                                    }}
-                                                >
-                                                    {t("common.delete")}
-                                                </Button>
-                                            ) : (
-                                                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>—</span>
-                                            )}
-                                        </div>
+                                                    },
+                                                    danger: true,
+                                                });
+                                            }
+                                            return (
+                                                <ZahlRowActionsMenu
+                                                    ariaLabel={t("common.actions")}
+                                                    actions={actions}
+                                                />
+                                            );
+                                        })()}
                                     </td>
                                 </tr>
                             ))}

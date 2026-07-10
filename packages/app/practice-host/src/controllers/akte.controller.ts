@@ -175,6 +175,15 @@ export async function createAkteAnlage(data: {
     return practiceSystem.invoke<AkteAnlageRowDto>("create_akte_anlage", { data });
 }
 
+export async function createAkteAnlageFromPath(data: {
+    akte_id: string;
+    src_path: string;
+    display_name?: string | null;
+    document_kind?: string | null;
+}): Promise<AkteAnlageRowDto> {
+    return practiceSystem.invoke<AkteAnlageRowDto>("create_akte_anlage_from_path", { data });
+}
+
 export async function deleteAkteAnlage(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_akte_anlage", { id });
 }

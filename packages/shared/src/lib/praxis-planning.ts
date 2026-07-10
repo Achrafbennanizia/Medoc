@@ -1,4 +1,5 @@
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
+import { PRAXIS_ARBEITSZEITEN_CHANGED_EVENT } from "./termin-calendar-layout";
 
 /**
  * Browser-side cache key. The authoritative store is the backend `app_kv`
@@ -206,6 +207,9 @@ export async function savePraxisArbeitszeitenConfig(cfg: PraxisArbeitszeitenConf
     const blob = JSON.stringify(cfg);
     try { localStorage.setItem(PRAXIS_ARBEITSZEITEN_LS_KEY, blob); } catch { /* ignore */ }
     await setAppKv(PRAXIS_KV_KEY, blob);
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, { detail: cfg }));
+    }
 }
 
 /**
@@ -229,14 +233,54 @@ export function resolveEffectiveArbeitszeitenForArzt(
     };
 }
 
+/**
+ * Termin booking: practice administration hours are the baseline for every open day.
+ * A doctor profile may narrow hours on days it marks active; it cannot hide days the
+ * practice keeps open (e.g. Saturday enabled in Verwaltung → Arbeitszeiten).
+ */
+export function resolveBookingArbeitszeitenForArzt(
+    cfg: PraxisArbeitszeitenConfig,
+    arztId: string | null | undefined,
+): PraxisArbeitszeitenConfig {
+    const id = typeof arztId === "string" ? arztId.trim() : "";
+    if (!id) return cfg;
+    const prof = cfg.arztSchedules?.[id];
+    if (!prof) return cfg;
+
+    const mergedPlan = { ...cfg.plan } as Record<PraxisDayKey, PraxisDayPlan>;
+    for (const key of PRAXIS_DAY_KEYS) {
+        const practiceDay = cfg.plan[key];
+        const doctorDay = prof.plan[key];
+        if (doctorDay?.aktiv) {
+            mergedPlan[key] = doctorDay;
+        } else if (practiceDay?.aktiv) {
+            mergedPlan[key] = practiceDay;
+        } else {
+            mergedPlan[key] = doctorDay ?? practiceDay ?? mergedPlan[key];
+        }
+    }
+
+    return {
+        ...cfg,
+        plan: mergedPlan,
+        pauseVon: prof.pauseVon,
+        pauseBis: prof.pauseBis,
+        slotMin: prof.slotMin,
+    };
+}
+
 function hmToMinutes(hm: string): number {
     const [h, m] = hm.split(":").map((n) => Number(n));
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
-function dayKeyFromIsoDate(iso: string): PraxisDayKey {
-    const d = new Date(`${iso}T00:00:00`);
-    const js = d.getDay(); // 0..6 Sun..Sat
+export function dayKeyFromIsoDate(iso: string): PraxisDayKey {
+    const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+    if (!p) return "mo";
+    const y = Number(p[1]);
+    const mo = Number(p[2]) - 1;
+    const da = Number(p[3]);
+    const js = new Date(y, mo, da).getDay();
     const map: PraxisDayKey[] = ["so", "mo", "di", "mi", "do", "fr", "sa"];
     return map[js] ?? "mo";
 }
@@ -279,13 +323,54 @@ export function isAppointmentSpanBlockedByPraxisConfig(
 }
 
 export function hasAnyAvailableSlot(cfg: PraxisArbeitszeitenConfig, isoDate: string): boolean {
+    const dayKey = dayKeyFromIsoDate(isoDate);
+    const day = cfg.plan[dayKey];
+    if (!day?.aktiv) return false;
+    for (const r of cfg.closures) {
+        if (r.date === isoDate && r.mode === "FULL_DAY") return false;
+    }
     const step = Math.max(5, Number(cfg.slotMin) || 30);
-    for (let h = 6; h <= 21; h += 1) {
-        for (let m = 0; m < 60; m += step) {
-            if (h === 21 && m > 0) break;
-            const hm = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    for (const seg of day.segments ?? []) {
+        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
+        const segStart = hmToMinutes(seg.from);
+        const segEnd = hmToMinutes(seg.to);
+        for (let m = segStart; m < segEnd; m += step) {
+            const h = Math.floor(m / 60);
+            const mi = m % 60;
+            const hm = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
             if (!isSlotBlockedByPraxisConfig(cfg, isoDate, hm)) return true;
         }
     }
     return false;
+}
+
+/** Day is open per administration plan (active flag + hours segment, no full-day closure). */
+export function isPraxisDayOpen(cfg: PraxisArbeitszeitenConfig, isoDate: string): boolean {
+    const dayKey = dayKeyFromIsoDate(isoDate);
+    const day = cfg.plan[dayKey];
+    if (!day?.aktiv) return false;
+    if (cfg.closures.some((c) => c.date === isoDate && c.mode === "FULL_DAY")) return false;
+    return (day.segments ?? []).some((s) => s.from && s.to && s.from < s.to);
+}
+
+/**
+ * Calendar day pickers: practice administration hours always apply; a doctor-specific
+ * profile can additionally enable days beyond the practice default.
+ */
+export function isCalendarDaySelectable(
+    praxisCfg: PraxisArbeitszeitenConfig,
+    isoDate: string,
+    arztId?: string | null,
+): boolean {
+    if (isPraxisDayOpen(praxisCfg, isoDate)) return true;
+    const id = typeof arztId === "string" ? arztId.trim() : "";
+    if (!id) return false;
+    const eff = resolveEffectiveArbeitszeitenForArzt(praxisCfg, id);
+    if (eff === praxisCfg) return false;
+    return isPraxisDayOpen(eff, isoDate);
+}
+
+/** Practice-wide: can any appointment be booked on this calendar day? */
+export function isPraxisDayBookable(cfg: PraxisArbeitszeitenConfig, isoDate: string): boolean {
+    return hasAnyAvailableSlot(cfg, isoDate);
 }

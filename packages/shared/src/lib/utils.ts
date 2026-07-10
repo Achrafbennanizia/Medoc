@@ -3,6 +3,8 @@ import { twMerge } from "tailwind-merge";
 
 import type { Produkt } from "@/models/types";
 import { formatIpcError } from "./ipc-errors";
+import type { Locale } from "./i18n";
+import { bcp47ForLocale, useLocale } from "./i18n";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -28,16 +30,20 @@ export function errorMessage(e: unknown): string {
     return formatIpcError(e);
 }
 
-export function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString("de-DE", {
+function resolveLocaleTag(locale?: Locale): string {
+    return bcp47ForLocale(locale ?? useLocale.getState().locale);
+}
+
+export function formatDate(dateStr: string, locale?: Locale): string {
+    return new Date(dateStr).toLocaleDateString(resolveLocaleTag(locale), {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
     });
 }
 
-export function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("de-DE", {
+export function formatCurrency(amount: number, locale?: Locale): string {
+    return new Intl.NumberFormat(resolveLocaleTag(locale), {
         style: "currency",
         currency: "EUR",
     }).format(amount);
@@ -57,8 +63,8 @@ export function produktSelectLabel(p: Produkt, nameDupCount: number): string {
     return base;
 }
 
-export function formatDateTime(dateStr: string): string {
-    return new Date(dateStr).toLocaleString("de-DE", {
+export function formatDateTime(dateStr: string, locale?: Locale): string {
+    return new Date(dateStr).toLocaleString(resolveLocaleTag(locale), {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

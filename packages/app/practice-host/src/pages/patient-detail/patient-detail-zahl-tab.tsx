@@ -23,6 +23,7 @@ import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
+import { ZahlRowActionsMenu, type ZahlRowAction } from "@/views/components/zahl-row-actions-menu";
 
 export type ZahlNewFormState = {
     linkKind: "" | "behand" | "unter";
@@ -348,7 +349,7 @@ export function PatientDetailZahlTab({
 
     return (
         <div id="panel-zahl" role="tabpanel" aria-labelledby="tab-zahl">
-            <Card className="card-pad">
+            <Card className="card-pad card--overflow-visible">
                 <CardHeader
                     title={t("patient.detail.tab.zahl.title")}
                     subtitle={
@@ -359,7 +360,7 @@ export function PatientDetailZahlTab({
                                 : t("patient.detail.tab.zahl.subtitle_historie")
                     }
                     action={(
-                        <div className="row akte-zahl-toolbar" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                        <div className="akte-zahl-toolbar">
                             <div className="akte-zahl-modus" role="tablist" aria-label={t("patient.detail.tab.zahl.view_billing_aria")}>
                                 <button
                                     type="button"
@@ -759,14 +760,16 @@ export function PatientDetailZahlTab({
                                                 <Badge variant={st.variant}>{st.label}</Badge>
                                             </td>
                                             <td className="zahl-td-actions">
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => handlePrintQuittungFromSummeRow(row)}
-                                                >
-                                                    {t("patient.detail.tab.zahl.receipt")}
-                                                </Button>
+                                                <ZahlRowActionsMenu
+                                                    ariaLabel={t("common.actions")}
+                                                    actions={[
+                                                        {
+                                                            id: "receipt",
+                                                            label: t("patient.detail.tab.zahl.receipt"),
+                                                            onClick: () => handlePrintQuittungFromSummeRow(row),
+                                                        },
+                                                    ]}
+                                                />
                                             </td>
                                         </tr>
                                     );
@@ -782,7 +785,7 @@ export function PatientDetailZahlTab({
                             <col style={{ width: "12%" }} />
                             <col style={{ width: "14%" }} />
                             <col style={{ width: "12%" }} />
-                            <col style={{ width: "37%" }} />
+                            <col style={{ width: "8%" }} />
                         </colgroup>
                         <thead>
                             <tr>
@@ -834,68 +837,79 @@ export function PatientDetailZahlTab({
                                         </td>
                                         <td className="zahl-td-num">{z.betrag.toFixed(2)} €</td>
                                         <td className="zahl-td-actions">
-                                            <div className="zahl-actions-inner">
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => handlePrintQuittung(z)}
-                                                >
-                                                    {t("patient.detail.tab.zahl.receipt")}
-                                                </Button>
-                                                {canViewClinical ? (
-                                                    itemValidation[itemValidationKey("zahl", z.id)] ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() =>
-                                                                void revokeItemValidationRow(
-                                                                    itemValidationKey("zahl", z.id),
-                                                                    tp("patient.detail.tab.zahl.validate_label_amount", {
-                                                                        amount: z.betrag.toFixed(2),
-                                                                    }),
-                                                                )}
-                                                        >
-                                                            {t("patient.detail.tab.zahl.revoke_validation")}
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() =>
-                                                                void requestValidateItem(
-                                                                    itemValidationKey("zahl", z.id),
-                                                                    tp("patient.detail.tab.zahl.validate_label_dated", {
-                                                                        date: formatDate(z.created_at),
-                                                                        amount: z.betrag.toFixed(2),
-                                                                    }),
-                                                                )}
-                                                        >
-                                                            <ShieldCheckIcon />{t("patient.detail.tab.zahl.validate")}
-                                                        </Button>
-                                                    )
-                                                ) : null}
-                                                {canFinanzenWrite ? (
-                                                    <>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            disabled={z.status !== "AUSSTEHEND" && z.status !== "TEILBEZAHLT"}
-                                                            onClick={() => onStartEditZahlung(z)}
-                                                        >
-                                                            {t("common.edit")}
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="danger"
-                                                            disabled={z.status !== "AUSSTEHEND" && z.status !== "TEILBEZAHLT"}
-                                                            onClick={() => onRequestDeleteZahlung(z.id)}
-                                                        >
-                                                            {t("common.delete")}
-                                                        </Button>
-                                                    </>
-                                                ) : null}
-                                            </div>
+                                            {(() => {
+                                                const canEditZahl =
+                                                    canFinanzenWrite &&
+                                                    (z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT");
+                                                const validated = Boolean(
+                                                    itemValidation[itemValidationKey("zahl", z.id)],
+                                                );
+                                                const actions: ZahlRowAction[] = [
+                                                    {
+                                                        id: "receipt",
+                                                        label: t("patient.detail.tab.zahl.receipt"),
+                                                        onClick: () => handlePrintQuittung(z),
+                                                    },
+                                                ];
+                                                if (canViewClinical) {
+                                                    actions.push(
+                                                        validated
+                                                            ? {
+                                                                  id: "revoke",
+                                                                  label: t("patient.detail.tab.zahl.revoke_validation"),
+                                                                  onClick: () =>
+                                                                      void revokeItemValidationRow(
+                                                                          itemValidationKey("zahl", z.id),
+                                                                          tp("patient.detail.tab.zahl.validate_label_amount", {
+                                                                              amount: z.betrag.toFixed(2),
+                                                                          }),
+                                                                      ),
+                                                              }
+                                                            : {
+                                                                  id: "validate",
+                                                                  label: (
+                                                                      <>
+                                                                          <ShieldCheckIcon size={14} />
+                                                                          {t("patient.detail.tab.zahl.validate")}
+                                                                      </>
+                                                                  ),
+                                                                  onClick: () =>
+                                                                      void requestValidateItem(
+                                                                          itemValidationKey("zahl", z.id),
+                                                                          tp("patient.detail.tab.zahl.validate_label_dated", {
+                                                                              date: formatDate(z.created_at),
+                                                                              amount: z.betrag.toFixed(2),
+                                                                          }),
+                                                                      ),
+                                                              },
+                                                    );
+                                                }
+                                                if (canFinanzenWrite) {
+                                                    actions.push(
+                                                        {
+                                                            id: "edit",
+                                                            label: t("common.edit"),
+                                                            onClick: () => onStartEditZahlung(z),
+                                                            disabled: !canEditZahl,
+                                                        },
+                                                        {
+                                                            id: "delete",
+                                                            label: t("common.delete"),
+                                                            onClick: () => onRequestDeleteZahlung(z.id),
+                                                            disabled: !canEditZahl,
+                                                            danger: true,
+                                                        },
+                                                    );
+                                                }
+                                                return (
+                                                    <ZahlRowActionsMenu
+                                                        ariaLabel={tp("patient.detail.tab.zahl.row_actions_aria", {
+                                                            amount: z.betrag.toFixed(2),
+                                                        })}
+                                                        actions={actions}
+                                                    />
+                                                );
+                                            })()}
                                         </td>
                                     </tr>
                                 );

@@ -211,6 +211,99 @@ async fn touch_replica_seen_updates_peer_url_on_sync_push() {
             .await
             .expect("row");
     assert_eq!(url.as_deref(), Some("https://192.168.1.55:8787"));
+
+    let seen_push: Option<String> =
+        sqlx::query_scalar("SELECT last_seen_at FROM sync_device WHERE device_id = ?1")
+            .bind(device_id)
+            .fetch_one(&lan.pool)
+            .await
+            .expect("row");
+    assert!(seen_push.as_deref().is_some_and(|s| !s.is_empty()));
+
+    let master_device_id = medoc_sync::repo::ensure_local_device(&lan.pool, "E2E Master")
+        .await
+        .expect("master id");
+    let (status, _pull) = lan
+        .json_with_connect(
+            connect,
+            "POST",
+            "/api/v1/sync/pull",
+            Some(&serde_json::json!({
+                "deviceId": master_device_id,
+                "sinceSeq": 0,
+                "requesterId": device_id,
+            })),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let seen_pull: Option<String> =
+        sqlx::query_scalar("SELECT last_seen_at FROM sync_device WHERE device_id = ?1")
+            .bind(device_id)
+            .fetch_one(&lan.pool)
+            .await
+            .expect("row");
+    assert!(seen_pull.as_deref().is_some_and(|s| !s.is_empty()));
+}
+
+#[tokio::test]
+async fn touch_replica_seen_updates_last_seen_on_sync_pull() {
+    let mut lan = LanHarness::new().await;
+    let jwt = lan.login_ops_jwt().await;
+    let device_id = "replica-pull-touch-001";
+    let connect = connect_from_ip("192.168.1.56");
+
+    let (status, submitted) = lan
+        .json_with_connect(
+            connect,
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": device_id,
+                "slavePubkey": slave_pubkey_b64(&slave_signing_key(12)),
+                "slaveLabel": "Pull Touch",
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let request_id = submitted["id"].as_str().unwrap();
+    let token = lan
+        .pairing_decide_accept_and_confirm(request_id, &jwt)
+        .await;
+
+    sqlx::query("UPDATE sync_device SET last_seen_at = NULL WHERE device_id = ?1")
+        .bind(device_id)
+        .execute(&lan.pool)
+        .await
+        .expect("clear seen");
+
+    let master_device_id = medoc_sync::repo::ensure_local_device(&lan.pool, "E2E Master")
+        .await
+        .expect("master id");
+    let (status, _pull) = lan
+        .json_with_connect(
+            connect,
+            "POST",
+            "/api/v1/sync/pull",
+            Some(&serde_json::json!({
+                "deviceId": master_device_id,
+                "sinceSeq": 0,
+                "requesterId": device_id,
+            })),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let seen: Option<String> =
+        sqlx::query_scalar("SELECT last_seen_at FROM sync_device WHERE device_id = ?1")
+            .bind(device_id)
+            .fetch_one(&lan.pool)
+            .await
+            .expect("row");
+    assert!(seen.as_deref().is_some_and(|s| !s.is_empty()));
 }
 
 #[tokio::test]

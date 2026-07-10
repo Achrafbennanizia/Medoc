@@ -165,7 +165,7 @@ export function ArbeitszeitTrackingPage() {
                 <CardHeader
                     title={t("page.arbeitszeit.week_overview")}
                     action={
-                        <div className="row" style={{ gap: 6 }}>
+                        <div className="row termin-nav-controls" dir="ltr" style={{ gap: 6 }}>
                             <Button type="button" variant="ghost" size="sm" onClick={() => setWeekAnchor((d) => subWeeks(d, 1))}>
                                 ←
                             </Button>

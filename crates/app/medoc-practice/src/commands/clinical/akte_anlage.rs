@@ -41,6 +41,50 @@ pub struct CreateAkteAnlageInput {
     pub document_kind: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateAkteAnlageFromPathInput {
+    pub akte_id: String,
+    pub src_path: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default, alias = "documentKind")]
+    pub document_kind: Option<String>,
+}
+
+fn mime_from_path(path: &Path) -> String {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "pdf" => "application/pdf",
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "tif" | "tiff" => "image/tiff",
+        "dcm" => "application/dicom",
+        _ => "application/octet-stream",
+    }
+    .to_string()
+}
+
+fn allowed_anlage_extension(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "pdf" | "jpg" | "jpeg" | "png" | "webp" | "heic" | "heif" | "gif" | "bmp" | "tif" | "tiff" | "dcm"
+    )
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct AkteAnlageDto {
     pub id: String,
@@ -221,6 +265,62 @@ pub async fn create_akte_anlage(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, app, data))]
+pub async fn create_akte_anlage_from_path(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: CreateAkteAnlageFromPathInput,
+) -> Result<AkteAnlageDto, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let app_dir = app_data_dir(&app)?;
+    let src = Path::new(data.src_path.trim());
+    if !src.is_file() {
+        return Err(AppError::NotFound("Scanner-Datei".into()));
+    }
+    if !allowed_anlage_extension(src) {
+        return Err(AppError::validation_code("error.anlage.invalid_format"));
+    }
+    let bytes =
+        std::fs::read(src).map_err(|e| AppError::Internal(format!("Scanner-Datei lesen: {e}")))?;
+    let display_name = data
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            src.file_name()
+                .and_then(|n| n.to_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "scan".to_string());
+    let kind = normalize_document_kind(data.document_kind.as_deref());
+    let mime = mime_from_path(src);
+    let row = akte_anlage_repo::create(
+        &pool,
+        &app_dir,
+        &data.akte_id,
+        &display_name,
+        &mime,
+        &kind,
+        &bytes,
+    )
+    .await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "CREATE",
+        "AkteAnlage",
+        Some(&row.id),
+        Some("scanner_import"),
+    )
+    .await
+    .ok();
+    Ok(row_to_dto(&app_dir, row))
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, app))]
 pub async fn delete_akte_anlage(
     app: AppHandle,
@@ -369,6 +469,7 @@ macro_rules! register_akte_anlage_commands {
     () => {
         $crate::commands::akte_anlage_commands::list_akte_anlagen,
         $crate::commands::akte_anlage_commands::create_akte_anlage,
+        $crate::commands::akte_anlage_commands::create_akte_anlage_from_path,
         $crate::commands::akte_anlage_commands::delete_akte_anlage,
         $crate::commands::akte_anlage_commands::rename_akte_anlage,
         $crate::commands::akte_anlage_commands::set_akte_anlage_document_kind,

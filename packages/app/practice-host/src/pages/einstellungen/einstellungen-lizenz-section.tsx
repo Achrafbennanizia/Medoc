@@ -48,31 +48,61 @@ export function EinstellungenLizenzSection({
 
     const activeV2 = licenseStatus?.valid ? licenseStatus.licenseV2 : null;
     const activeV1 = licenseStatus?.valid ? licenseStatus.license : null;
+    const localCustomerId = activeV2?.customerId?.trim() || activeV1?.customerId?.trim() || "";
 
-    const portalLicId =
-        typeof portalSummary?.practice_slug === "string" && portalSummary.practice_slug.trim()
+    const portalConnected = portalSummary != null;
+
+    const portalLicId = portalConnected
+        ? typeof portalSummary.practice_slug === "string" && portalSummary.practice_slug.trim()
             ? `MD-PORTAL-${portalSummary.practice_slug.trim().toUpperCase()}`
-            : "MD-PRO-DE-2026-0448-MR";
+            : localCustomerId
+              ? `MD-${localCustomerId.toUpperCase()}`
+              : t("common.dash")
+        : localCustomerId
+          ? `MD-${localCustomerId.toUpperCase()}`
+          : t("common.dash");
+
+    const desktopLicenseSummary = activeV2
+        ? [
+              activeV2.edition,
+              activeV2.deviceId
+                  ? tp("settings.license.device_suffix", { id: activeV2.deviceId.slice(0, 8) })
+                  : null,
+              activeV2.customerId || null,
+          ]
+              .filter(Boolean)
+              .join(" · ")
+        : activeV1
+          ? [
+                activeV1.edition,
+                activeV1.customerId || null,
+                activeV1.expiresAt
+                    ? tp("settings.license.valid_until", { date: formatDeDateShort(activeV1.expiresAt) })
+                    : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : t("settings.license.no_valid");
     const portalRawMax =
         typeof portalSummary?.max_users === "number" ? portalSummary.max_users : MAX_TOTAL_PERSONAL;
     const portalMaxUsers = Math.min(portalRawMax, MAX_TOTAL_PERSONAL);
     const portalActiveUsers = typeof portalSummary?.active_users === "number" ? portalSummary.active_users : 1;
     const userBarPct = portalMaxUsers > 0 ? Math.min(100, Math.round((portalActiveUsers / portalMaxUsers) * 100)) : 50;
     const portalStorageGb = typeof portalSummary?.storage_gb === "number" ? portalSummary.storage_gb : 100;
-    const portalStorageUsed = typeof portalSummary?.storage_used_gb === "number" ? portalSummary.storage_used_gb : 12.4;
+    const portalStorageUsed = typeof portalSummary?.storage_used_gb === "number" ? portalSummary.storage_used_gb : 0;
     const storageBarPct =
-        portalStorageGb > 0 ? Math.min(100, Math.round((portalStorageUsed / portalStorageGb) * 100)) : 12;
-    const erUsed = typeof portalSummary?.erezept_month_used === "number" ? portalSummary.erezept_month_used : 142;
+        portalStorageGb > 0 ? Math.min(100, Math.round((portalStorageUsed / portalStorageGb) * 100)) : 0;
+    const erUsed = typeof portalSummary?.erezept_month_used === "number" ? portalSummary.erezept_month_used : 0;
     const erQuota = typeof portalSummary?.erezept_month_quota === "number" ? portalSummary.erezept_month_quota : 0;
-    const erLabel = erQuota > 0 ? `${erUsed} / ${erQuota}` : `${erUsed} / ∞`;
-    const erBarPct = erQuota > 0 ? Math.min(100, Math.round((erUsed / erQuota) * 100)) : 8;
+    const erLabel = erQuota > 0 ? `${erUsed} / ${erQuota}` : portalConnected ? `${erUsed} / ∞` : t("common.dash");
+    const erBarPct = erQuota > 0 ? Math.min(100, Math.round((erUsed / erQuota) * 100)) : 0;
 
     const planTitle =
         typeof portalSummary?.plan_name === "string" && portalSummary.plan_name.trim()
             ? portalSummary.plan_name.trim()
             : null;
 
-    const heroSub = portalSummary
+    const heroSub = portalConnected
         ? tp("settings.license.hero_with_portal", {
               name:
                   typeof portalSummary.display_name === "string" ? portalSummary.display_name : "Praxis",
@@ -99,16 +129,27 @@ export function EinstellungenLizenzSection({
                     <p className="card-sub" style={{ margin: "8px 0 0", maxWidth: "42rem" }}>
                         {heroSub}
                     </p>
+                    {!portalConnected ? (
+                        <p className="card-sub" style={{ margin: "8px 0 0", color: "var(--fg-3)" }}>
+                            {t("settings.license.portal_not_connected")}
+                        </p>
+                    ) : null}
                     <div className="settings-license-hero__grid">
                         <div className="settings-license-metric">
                             {t("settings.license.monthly_fee")}
                             <strong>
-                                {portalSummary ? formatEurFromCents(portalSummary.monthly_fee_cents) : "€ 189,00"}
+                                {portalConnected
+                                    ? formatEurFromCents(portalSummary.monthly_fee_cents)
+                                    : t("common.dash")}
                             </strong>
                         </div>
                         <div className="settings-license-metric">
                             {t("settings.license.next_billing")}
-                            <strong>{portalSummary ? formatDeDateShort(portalSummary.next_billing_iso) : "01.05.2026"}</strong>
+                            <strong>
+                                {portalConnected
+                                    ? formatDeDateShort(portalSummary.next_billing_iso)
+                                    : t("common.dash")}
+                            </strong>
                         </div>
                         {LICENSE_BILLING_CONNECTORS_ENABLED ? (
                             <div className="settings-license-metric">
@@ -216,13 +257,7 @@ export function EinstellungenLizenzSection({
                 <div className="settings-row">
                     <div>
                         <b>{t("settings.license.desktop_license")}</b>
-                        <div className="settings-row-muted">
-                            {activeV2
-                                ? `${activeV2.edition} · ${tp("settings.license.device_suffix", { id: activeV2.deviceId.slice(0, 8) })} · ${activeV2.customerId}`
-                                : activeV1
-                                  ? `${activeV1.edition} · ${activeV1.customerId}`
-                                  : t("settings.license.no_valid")}
-                        </div>
+                        <div className="settings-row-muted">{desktopLicenseSummary}</div>
                     </div>
                     <span className={licenseStatus?.valid ? "settings-pill-green" : "settings-pill-gray"}>
                         {licenseStatus?.valid ? t("settings.license.status_active") : t("settings.license.inactive")}

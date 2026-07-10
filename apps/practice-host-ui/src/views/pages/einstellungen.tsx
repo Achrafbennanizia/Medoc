@@ -52,19 +52,7 @@ import { EinstellungenMigrationSection } from "@/systems/practice-host/pages/ein
 import { EinstellungenUeberSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-ueber-section";
 import { EinstellungenLizenzSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-lizenz-section";
 import { EinstellungenIntegrationenSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-integrationen-section";
-import {
-    BellIcon,
-    BoltIcon,
-    DownloadIcon,
-    InfoIcon,
-    KeyRoundIcon,
-    SettingsIcon,
-    ShieldIcon,
-    SlidersHorizontalIcon,
-    StethoscopeIcon,
-    SunIcon,
-    UsersIcon,
-} from "@/lib/icons";
+import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SlidersHorizontalIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
 
 const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
 
@@ -371,7 +359,7 @@ export function EinstellungenPage() {
                                     className={`settings-nav-btn${activeSection === item.id ? " active" : ""}`}
                                     onClick={() => setSection(item.id)}
                                 >
-                                    <Icon size={18} aria-hidden />
+                                    <Icon size={ICON_SIZE_LG} aria-hidden />
                                     <span className="settings-nav-label">{t(item.labelKey)}</span>
                                 </button>
                             );
@@ -391,7 +379,7 @@ export function EinstellungenPage() {
                                     className={`settings-nav-btn${activeSection === item.id ? " active" : ""}`}
                                     onClick={() => setSection(item.id)}
                                 >
-                                    <Icon size={18} aria-hidden />
+                                    <Icon size={ICON_SIZE_LG} aria-hidden />
                                     <span className="settings-nav-label">{t(item.labelKey)}</span>
                                 </button>
                             );

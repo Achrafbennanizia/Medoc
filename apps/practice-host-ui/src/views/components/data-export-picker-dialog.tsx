@@ -200,10 +200,10 @@ export function DataExportPickerDialog({
                     </div>
                 </div>
                 <div className="akte-export-dialog-preview-col">
-                    <div className="text-label">Vorschau</div>
+                    <div className="text-label">{t("common.preview")}</div>
                     <div className="akte-export-pdf-preview-box">
                         {loading ? (
-                            <p className="card-pad card-sub" style={{ margin: 0 }}>Daten werden geladen …</p>
+                            <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.loading_data")}</p>
                         ) : !payload ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.no_export_data")}</p>
                         ) : format === "csv" && csvPreviewRows.length > 0 ? (

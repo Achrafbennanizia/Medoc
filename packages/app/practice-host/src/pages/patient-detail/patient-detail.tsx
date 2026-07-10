@@ -12,6 +12,8 @@ import {
     releaseUntersuchungForBilling,
     listAkteAnlagen,
     renameAkteAnlage,
+    setAkteAnlageDocumentKind,
+    createAkteAnlageFromPath,
     openAkteAnlageExternally,
     duplicateAkteAnlage,
 } from "@/systems/practice-host/controllers/akte.controller";
@@ -57,8 +59,11 @@ import { loadPlanNextTerminWithMigration, persistPlanNextTerminToBackend } from 
 import {
     validateAnlageFile,
     mapAkteAnlageRowDto,
+    AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT,
+    normalizeAkteDocumentKind,
     type AkteAnlage,
 } from "@/lib/akte-anlagen";
+import { AkteScannerImportDialog } from "@/views/components/akte-scanner-import-dialog";
 import { loadClientSettings } from "@/lib/client-settings";
 import { resolveOpenImageWithAppPath } from "@/lib/photo-viewer-apps";
 import { type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
@@ -165,6 +170,8 @@ export function PatientDetailPage() {
     const [zahlungen, setZahlungen] = useState<Zahlung[]>([]);
     const [anlagen, setAnlagen] = useState<AkteAnlage[]>([]);
     const anlagenRef = useRef<AkteAnlage[]>([]);
+    const [scannerImportOpen, setScannerImportOpen] = useState(false);
+    const [scannerImportBusy, setScannerImportBusy] = useState(false);
     const anlageFileInputId = useId();
     const anlageCameraInputId = useId();
     const [showEditPatient, setShowEditPatient] = useState(false);
@@ -300,10 +307,10 @@ export function PatientDetailPage() {
         try {
             const rows = await listAkteAnlagen(akteId);
             setAnlagen(rows.map(mapAkteAnlageRowDto));
-        } catch {
-            setAnlagen([]);
+        } catch (e) {
+            toast(tp("patient.detail.toast.anlage_load_failed", { message: errorMessage(e) }), "error");
         }
-    }, []);
+    }, [toast, tp]);
 
     const load = useCallback(async () => {
         if (!id) return;
@@ -644,6 +651,7 @@ export function PatientDetailPage() {
                 akte={akte}
                 befunde={befunde}
                 behandlungen={behandlungen}
+                untersuchungen={untersuchungen}
                 zahlungen={zahlungen}
                 patientDeleteOpen={patientDeleteOpen}
                 patientDeleteBusy={patientDeleteBusy}
@@ -712,6 +720,7 @@ export function PatientDetailPage() {
                 <PatientDetailUnterTab
                     akte={akte}
                     befunde={befunde}
+                    katalog={katalog}
                     untersuchungen={untersuchungen}
                     showUnterComposer={showUnterComposer}
                     nextUnterPreview={nextUnterPreview}
@@ -748,6 +757,15 @@ export function PatientDetailPage() {
                     }}
                     onSaveEdit={runSaveUntersuchungEdit}
                     onCreateUntersuchung={handleCreateUntersuchung}
+                    onReleaseForBilling={async (untersuchungId: string) => {
+                        try {
+                            const upd = await releaseUntersuchungForBilling(untersuchungId);
+                            setUntersuchungen((prev) => prev.map((x) => (x.id === untersuchungId ? upd : x)));
+                            toast(t("patient.detail.toast.released_billing"), "success");
+                        } catch (e) {
+                            toast(e instanceof Error ? e.message : String(e), "error");
+                        }
+                    }}
                 />
             ) : null}
 
@@ -872,7 +890,32 @@ export function PatientDetailPage() {
                             toast(err, "error");
                             return;
                         }
-                        setAkteSaveConfirm({ kind: "anlage_add", file });
+                        setAkteSaveConfirm({
+                            kind: "anlage_add",
+                            file,
+                            documentKind: AKTE_ANLAGE_DOCUMENT_KIND_DEFAULT,
+                        });
+                    }}
+                    onSetDocumentKind={(idx, kind) => {
+                        const row = anlagen[idx];
+                        if (!row) return;
+                        const normalized = normalizeAkteDocumentKind(kind);
+                        setAnlagen((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, documentKind: normalized } : x)),
+                        );
+                        void (async () => {
+                            try {
+                                await setAkteAnlageDocumentKind(row.id, normalized);
+                            } catch (e) {
+                                toast(
+                                    tp("patient.detail.toast.anlage_kind_failed", {
+                                        message: e instanceof Error ? e.message : String(e),
+                                    }),
+                                    "error",
+                                );
+                                if (akte) await refreshAnlagen(akte.id);
+                            }
+                        })();
                     }}
                     onRename={(idx, name) => {
                         const row = anlagen[idx];
@@ -937,14 +980,36 @@ export function PatientDetailPage() {
                         void (async () => {
                             try {
                                 await openSystemScanUtility();
-                                toast(
-                                    t("patient.detail.toast.scanner_open"),
-                                    "success",
-                                );
+                                setScannerImportOpen(true);
                             } catch (e) {
-                                toast(tp("patient.detail.toast.scanner_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+                                toast(tp("patient.detail.toast.scanner_failed", { message: errorMessage(e) }), "error");
                             }
                         })();
+                    }}
+                />
+            ) : null}
+            {akte && scannerImportOpen ? (
+                <AkteScannerImportDialog
+                    open={scannerImportOpen}
+                    busy={scannerImportBusy}
+                    onClose={() => setScannerImportOpen(false)}
+                    onImport={async (srcPath, documentKind) => {
+                        if (!akte) return;
+                        setScannerImportBusy(true);
+                        try {
+                            await createAkteAnlageFromPath({
+                                akte_id: akte.id,
+                                src_path: srcPath,
+                                document_kind: normalizeAkteDocumentKind(documentKind),
+                            });
+                            toast(t("patient.detail.toast.anlage_saved"), "success");
+                            await refreshAnlagen(akte.id);
+                            setScannerImportOpen(false);
+                        } catch (e) {
+                            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
+                        } finally {
+                            setScannerImportBusy(false);
+                        }
                     }}
                 />
             ) : null}
@@ -1029,6 +1094,11 @@ export function PatientDetailPage() {
                     akteSaveBusy={akteSaveBusy}
                     onCloseAkteSave={cancelAkteSave}
                     onConfirmAkteSave={() => void flushAkteSave()}
+                    onPatchAkteSaveConfirm={(patch) =>
+                        setAkteSaveConfirm((p) =>
+                            p?.kind === "anlage_add" ? { ...p, ...patch } : p,
+                        )
+                    }
                     akteExportPickerOpen={akteExportPickerOpen}
                     onCloseAkteExport={() => setAkteExportPickerOpen(false)}
                     dischargeMerkblattOpen={dischargeMerkblattOpen}

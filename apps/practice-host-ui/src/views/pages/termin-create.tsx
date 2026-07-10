@@ -10,14 +10,16 @@ import { listAbwesenheiten } from "@/systems/practice-host/controllers/praxis.co
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage } from "@/lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
+import { loadPraxisPraeferenzenFromKv } from "@/lib/praxis-praeferenzen-storage";
 import {
-    hasAnyAvailableSlot,
-    isSlotBlockedByPraxisConfig,
+    isCalendarDaySelectable,
     loadPraxisArbeitszeitenConfig,
     readPraxisArbeitszeitenConfig,
-    resolveEffectiveArbeitszeitenForArzt,
+    resolveBookingArbeitszeitenForArzt,
     type PraxisArbeitszeitenConfig,
 } from "@/lib/praxis-planning";
+import { usePraxisArbeitszeitenStore } from "@/models/store/praxis-arbeitszeiten-store";
+import { PRAXIS_ARBEITSZEITEN_CHANGED_EVENT } from "@/lib/termin-calendar-layout";
 import {
     formatAlternativeSlots,
     isTerminConflictErrorMessage,
@@ -25,6 +27,12 @@ import {
     terminSchedulingBlockReason,
     uhrzeitToMinutes,
 } from "@/lib/termin-availability";
+import { parseTerminDurationMin } from "@/lib/termin-domain";
+import {
+    buildTerminSlotGrid,
+    durationOptionsForSlotMin,
+    firstBookableTerminSlot,
+} from "@/lib/termin-slot-grid";
 import { parseZahnschmerzTeethFromBeschwerdenPart, sortFdiTeeth, splitBeschwerdenParts } from "@/lib/dental";
 import { TERMIN_ART_VALUES, type Patient, type Termin, type Abwesenheit, type Zahnbefund } from "../../models/types";
 import { Button } from "../components/ui/button";
@@ -65,8 +73,6 @@ const STATUS_OPTION_KEYS = [
     { value: "GEPLANT", labelKey: "termin.create.status.GEPLANT" },
     { value: "BESTAETIGT", labelKey: "termin.create.status.BESTAETIGT" },
 ] as const;
-
-const DURATION_VALUES = ["", "15", "30", "45", "60"] as const;
 
 const BESCHWERDEN_SUG_KEYS = [
     "termin.create.beschwerden.ZAHNSCHMERZEN",
@@ -134,6 +140,7 @@ export function TerminCreatePage() {
     const [aerzte, setAerzte] = useState<AerztSummary[]>([]);
     const [termine, setTermine] = useState<Termin[]>([]);
     const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
+    const [terminPufferMin, setTerminPufferMin] = useState(0);
     const [busy, setBusy] = useState(false);
     const [patientQuery, setPatientQuery] = useState("");
     const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -163,7 +170,7 @@ export function TerminCreatePage() {
     const patientPickerRef = useRef<HTMLDivElement>(null);
 
     const [datum, setDatum] = useState(datumInit);
-    const [uhrzeit, setUhrzeit] = useState(() => uhrzeitInit ?? "09:00");
+    const [uhrzeit, setUhrzeit] = useState(() => uhrzeitInit ?? "");
     const [patientId, setPatientId] = useState(patientInit);
     const [arztId, setArztId] = useState("");
     const [art, setArt] = useState(() => normalizeArt(artInit));
@@ -172,8 +179,8 @@ export function TerminCreatePage() {
     const [chartBefunde, setChartBefunde] = useState<Zahnbefund[]>([]);
     const [notizen, setNotizen] = useState("");
     const [dauerMin, setDauerMin] = useState(() => {
-        const n = loadClientSettings().workflows?.defaultTerminDauerMin ?? 30;
-        return String(Number.isFinite(n) && n > 0 ? n : 30);
+        const n = loadClientSettings().workflows?.defaultTerminDauerMin;
+        return typeof n === "number" && Number.isFinite(n) && n > 0 ? String(n) : "";
     });
     const [statusWunsch, setStatusWunsch] = useState("GEPLANT");
     const [patientError, setPatientError] = useState("");
@@ -181,21 +188,66 @@ export function TerminCreatePage() {
     /** Structured plan from Akte (plan-next-Termin workflow). */
     const [doctorPlan, setDoctorPlan] = useState<PlanNextTerminV2 | null>(null);
     const [praxisCfg, setPraxisCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
+    const storePraxisCfg = usePraxisArbeitszeitenStore((s) => s.config);
+
+    useEffect(() => {
+        setPraxisCfg(storePraxisCfg);
+    }, [storePraxisCfg]);
 
     useEffect(() => {
         let cancelled = false;
-        void loadPraxisArbeitszeitenConfig().then((cfg) => {
+        void usePraxisArbeitszeitenStore.getState().hydrate().then((cfg) => {
             if (!cancelled) setPraxisCfg(cfg);
         });
+        const onCfgChanged = () => {
+            void loadPraxisArbeitszeitenConfig()
+                .then((cfg) => {
+                    if (!cancelled) setPraxisCfg(cfg);
+                })
+                .catch(() => {
+                    if (!cancelled) setPraxisCfg(readPraxisArbeitszeitenConfig());
+                });
+        };
+        window.addEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
         return () => {
             cancelled = true;
+            window.removeEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
         };
     }, []);
 
     const effectivePraxisCfg = useMemo(
-        () => resolveEffectiveArbeitszeitenForArzt(praxisCfg, arztId || null),
+        () => resolveBookingArbeitszeitenForArzt(praxisCfg, arztId || null),
         [praxisCfg, arztId],
     );
+
+    const slotStep = useMemo(() => Math.max(5, Number(effectivePraxisCfg.slotMin) || 30), [effectivePraxisCfg.slotMin]);
+
+    const durMinNum = useMemo(() => Math.max(5, Number(dauerMin) || slotStep), [dauerMin, slotStep]);
+
+    const slotGrid = useMemo(
+        () =>
+            buildTerminSlotGrid({
+                praxisCfg,
+                abwesenheiten,
+                datum,
+                arztId,
+                termine,
+                durMin: durMinNum,
+                pufferMin: terminPufferMin,
+                excludeTerminId: isEdit && editId ? editId : undefined,
+                defaultTerminDurMin: slotStep,
+            }),
+        [praxisCfg, abwesenheiten, datum, arztId, termine, durMinNum, terminPufferMin, isEdit, editId, slotStep],
+    );
+
+    const timeSlotBusyKeys = useMemo(() => {
+        const busy = new Set<string>();
+        for (const hm of slotGrid.slots) {
+            const key = `${datum}|${hm}`;
+            if (!slotGrid.bookableKeys.has(key)) busy.add(key);
+        }
+        return busy;
+    }, [slotGrid, datum]);
 
     useEffect(() => {
         if (!patientId) {
@@ -334,6 +386,8 @@ export function TerminCreatePage() {
                 const dauerMatch = /Dauer:\s*(\d+)\s*min/.exec(notesRaw);
                 if (dauerMatch && dauerMatch[1]) {
                     setDauerMin(dauerMatch[1]);
+                } else {
+                    setDauerMin(String(parseTerminDurationMin(notesRaw, slotStep)));
                 }
                 const cleanedNotes = notesRaw
                     .split("·")
@@ -350,7 +404,7 @@ export function TerminCreatePage() {
                 setEditLoaded(true);
             });
         return () => { cancelled = true; };
-    }, [isEdit, editId]);
+    }, [isEdit, editId, slotStep]);
 
     const searchKeyForDraft = searchParams.toString();
 
@@ -426,6 +480,12 @@ export function TerminCreatePage() {
             } catch {
                 setAbwesenheiten([]);
             }
+            try {
+                const praef = await loadPraxisPraeferenzenFromKv();
+                setTerminPufferMin(Math.max(0, Number.parseInt(String(praef.pufferMin ?? "0"), 10) || 0));
+            } catch {
+                setTerminPufferMin(0);
+            }
         } catch (e) {
             toast(errorMessage(e), "error");
         }
@@ -433,6 +493,18 @@ export function TerminCreatePage() {
 
     useEffect(() => {
         void load();
+        const onCfgChanged = () => {
+            void load();
+        };
+        window.addEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
+        const onVis = () => {
+            if (document.visibilityState === "visible") void load();
+        };
+        document.addEventListener("visibilitychange", onVis);
+        return () => {
+            window.removeEventListener(PRAXIS_ARBEITSZEITEN_CHANGED_EVENT, onCfgChanged);
+            document.removeEventListener("visibilitychange", onVis);
+        };
     }, [load]);
 
     useDismissibleLayer({
@@ -459,37 +531,22 @@ export function TerminCreatePage() {
         });
     }, [session, aerzte, hasArztParam, arztInit, praxisCfg.defaultArztId]);
 
-    const busyKeys = useMemo(() => {
-        const s = new Set<string>();
-        for (const t of termine) {
-            if (isEdit && editId && t.id === editId) continue;
-            const time = t.uhrzeit.length >= 5 ? t.uhrzeit.slice(0, 5) : t.uhrzeit;
-            s.add(`${t.datum}|${time}`);
-        }
-        return s;
-    }, [termine, isEdit, editId]);
+    useEffect(() => {
+        setDauerMin((prev) => {
+            const n = Number(prev);
+            if (prev && Number.isFinite(n) && n >= 5) return prev;
+            return String(slotStep);
+        });
+    }, [slotStep]);
 
-    const slotStep = useMemo(() => Math.max(5, Number(effectivePraxisCfg.slotMin) || 30), [effectivePraxisCfg.slotMin]);
-
-    const blockedKeys = useMemo(() => {
-        const s = new Set<string>();
-        for (let h = 6; h <= 21; h += 1) {
-            for (let m = 0; m < 60; m += slotStep) {
-                if (h === 21 && m > 0) break;
-                const hm = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                if (isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, hm)) {
-                    s.add(`${datum}|${hm}`);
-                }
-            }
-        }
-        return s;
-    }, [datum, effectivePraxisCfg, slotStep]);
-
-    const combinedBusyKeys = useMemo(() => {
-        const all = new Set<string>(busyKeys);
-        blockedKeys.forEach((k) => all.add(k));
-        return all;
-    }, [busyKeys, blockedKeys]);
+    useEffect(() => {
+        const current = uhrzeit.slice(0, 5);
+        const key = current ? `${datum}|${current}` : "";
+        if (key && slotGrid.bookableKeys.has(key)) return;
+        const next = firstBookableTerminSlot(slotGrid, datum);
+        if (next && next !== current) setUhrzeit(next);
+        else if (!next && current) setUhrzeit("");
+    }, [datum, uhrzeit, slotGrid]);
 
     const toggleZahnschmerzZahn = useCallback((fdi: string) => {
         setZahnschmerzenTeeth((prev) => {
@@ -499,21 +556,6 @@ export function TerminCreatePage() {
             return sortFdiTeeth([...next]);
         });
     }, []);
-
-    useEffect(() => {
-        const current = uhrzeit.slice(0, 5);
-        if (!isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, current) && !busyKeys.has(`${datum}|${current}`)) return;
-        for (let h = 6; h <= 21; h += 1) {
-            for (let m = 0; m < 60; m += slotStep) {
-                if (h === 21 && m > 0) break;
-                const hm = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                if (!isSlotBlockedByPraxisConfig(effectivePraxisCfg, datum, hm) && !busyKeys.has(`${datum}|${hm}`)) {
-                    setUhrzeit(hm);
-                    return;
-                }
-            }
-        }
-    }, [datum, uhrzeit, effectivePraxisCfg, slotStep, busyKeys]);
 
     const filteredPatients = useMemo(() => {
         const q = patientQuery.trim().toLowerCase();
@@ -549,8 +591,8 @@ export function TerminCreatePage() {
     const behandlungOptions = useMemo(() => BEHANDLUNG_OPTION_KEYS.map((o) => ({ value: o.value, label: t(o.labelKey) })), [t]);
     const statusOptions = useMemo(() => STATUS_OPTION_KEYS.map((o) => ({ value: o.value, label: t(o.labelKey) })), [t]);
     const durationOptions = useMemo(
-        () => DURATION_VALUES.map((v) => ({ value: v, label: v ? tp("termin.create.duration_min", { min: v }) : "—" })),
-        [tp],
+        () => durationOptionsForSlotMin(slotStep).map((v) => ({ value: v, label: tp("termin.create.duration_min", { min: v }) })),
+        [slotStep, tp],
     );
     const weekdayLabels = useMemo(
         () => [
@@ -575,7 +617,7 @@ export function TerminCreatePage() {
             toast(t("termin.create.error_required"), "error");
             return;
         }
-        const durMin = Math.max(5, Number(dauerMin) || 30);
+        const durMin = durMinNum;
         const startM = uhrzeitToMinutes(uhrzeit);
         const blockReason = terminSchedulingBlockReason(effectivePraxisCfg, abwesenheiten, datum, startM, startM + durMin, t);
         if (blockReason) {
@@ -637,7 +679,7 @@ export function TerminCreatePage() {
                     durMin,
                     slotStep,
                     termine,
-                    praxisCfg: effectivePraxisCfg,
+                    praxisCfg,
                     abwesenheiten,
                     excludeTerminId: isEdit && editId ? editId : undefined,
                     t,
@@ -715,7 +757,7 @@ export function TerminCreatePage() {
                             <div>
                                 <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
                                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>{t("termin.create.calendar")}</span>
-                                    <div className="row" style={{ gap: 6 }}>
+                                    <div className="row termin-nav-controls" dir="ltr" style={{ gap: 6 }}>
                                         <button type="button" className="icon-btn" aria-label={t("termin.calendar.month_prev")} onClick={() => setCalendarMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
                                             <ChevronLeftIcon size={14} />
                                         </button>
@@ -734,7 +776,7 @@ export function TerminCreatePage() {
                                         const inM = isSameMonth(day, calendarMonth);
                                         const sel = iso === datum;
                                         const isToday = isSameDay(day, new Date());
-                                        const blockedDay = inM && !hasAnyAvailableSlot(effectivePraxisCfg, iso);
+                                        const blockedDay = inM && !isCalendarDaySelectable(praxisCfg, iso, arztId);
                                         return (
                                             <button
                                                 key={iso}
@@ -764,7 +806,15 @@ export function TerminCreatePage() {
                                 <Input id="tc-datum" type="date" label={t("termin.create.date")} hint={t("termin.create.date_hint")} value={datum} onChange={(e) => setDatum(e.target.value)} />
                                 <div>
                                     <span className="form-label form-label--mb-8">{t("termin.create.time")}</span>
-                                    <TimeSlotPicker value={uhrzeit.slice(0, 5)} onChange={(t) => setUhrzeit(t)} busyKeys={combinedBusyKeys} selectedDate={datum} stepMinutes={slotStep} />
+                                    <TimeSlotPicker
+                                        value={uhrzeit.slice(0, 5)}
+                                        onChange={(t) => setUhrzeit(t)}
+                                        busyKeys={timeSlotBusyKeys}
+                                        slots={slotGrid.slots}
+                                        selectedDate={datum}
+                                        stepMinutes={slotStep}
+                                        emptyLabel={!arztId ? t("termin.create.doctor_pick") : undefined}
+                                    />
                                     <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--fg-3)" }}>
                                         {t("termin.create.time_hint")}
                                     </p>

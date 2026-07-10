@@ -37,10 +37,12 @@ import type { BehandlungAkteComposerPanelProps } from "@/views/components/behand
 import {
     behandlungHasBillableLeistung,
     openZahlTabAfterBillableBehandlung,
+    openZahlTabAfterBillableUntersuchung,
+    untersuchungHasBillableLeistung,
     type ZahlNewFormState,
 } from "@/lib/billing-open-booking";
 import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 export type BehandFormState = {
@@ -130,6 +132,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const {
         patientId,
@@ -344,17 +347,21 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         beschwerden: string;
         diagnose: string;
         ergebnisseJson: string;
+        kategorie?: string | null;
+        leistungsname?: string | null;
+        gesamtkosten?: number | null;
     }) => {
         if (!akte) return;
+        const billable = untersuchungHasBillableLeistung(data.leistungsname, data.gesamtkosten ?? null);
         try {
             const created = await createUntersuchung({
                 akte_id: akte.id,
                 beschwerden: data.beschwerden.trim() || null,
                 ergebnisse: data.ergebnisseJson.trim() || null,
                 diagnose: data.diagnose.trim() || null,
-                kategorie: null,
-                leistungsname: null,
-                gesamtkosten: null,
+                kategorie: data.kategorie?.trim() || null,
+                leistungsname: data.leistungsname?.trim() || null,
+                gesamtkosten: data.gesamtkosten ?? null,
             });
             toast(t("patient.detail.toast.untersuchung_captured"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
@@ -370,6 +377,16 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setShowUnterComposer(false);
             setUntersuchungForm({ beschwerden: "", ergebnisse: "", diagnose: "" });
             await load();
+            if (sessionRolle === "ARZT" && billable) {
+                openZahlTabAfterBillableUntersuchung({
+                    untersuchungId: created.id,
+                    gesamtkosten: data.gesamtkosten ?? null,
+                    goTab,
+                    setShowZahlComposer,
+                    setZahlNewForm,
+                });
+                toast(t("patient.detail.toast.billing_area_opened"), "info");
+            }
         } catch (e) {
             toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
@@ -379,6 +396,9 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         beschwerden: string;
         diagnose: string;
         ergebnisseJson: string;
+        kategorie?: string | null;
+        leistungsname?: string | null;
+        gesamtkosten?: number | null;
     }) => {
         const data =
             payload ??
@@ -544,7 +564,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         if (behandForm.kategorie) s.add(behandForm.kategorie);
         const rest = Array.from(s)
             .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, "de"))
+            .sort((a, b) => a.localeCompare(b, sortLocale))
             .map((value) => ({ value, label: value }));
         return [{ value: "", label: t("patient.detail.behand.category_pick") }, ...rest];
     }, [katalog, behandForm.kategorie, t]);

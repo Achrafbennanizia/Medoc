@@ -244,7 +244,7 @@ export function NotificationsPopover({
                 <span className="spacer" style={{ flex: 1 }} />
                 <button
                     type="button"
-                    className="btn btn-ghost"
+                    className="btn btn-ghost nav-link-forward"
                     style={{ fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}
                     onClick={() => {
                         onClose();

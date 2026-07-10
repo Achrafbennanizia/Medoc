@@ -13,7 +13,7 @@ npm test -- --run \
   apps/practice-host-ui/src/g21-routing.smoke.test.tsx \
   apps/practice-host-ui/src/views/pages/posteingang.smoke.test.tsx \
   apps/practice-host-ui/src/views/pages/praxis-tickets.smoke.test.tsx \
-  apps/practice-host-ui/src/views/pages/ops.smoke.test.tsx \
+  packages/app/practice-host/src/pages/ops.smoke.test.tsx \
   apps/practice-host-ui/src/views/components/patient-akte-workflow-dialogs.smoke.test.tsx \
   packages/app/practice-host/src/pages/patient-detail/patient-detail-akte-subnav.smoke.test.tsx \
   apps/practice-host-ui/src/views/components/notifications-popover.smoke.test.tsx

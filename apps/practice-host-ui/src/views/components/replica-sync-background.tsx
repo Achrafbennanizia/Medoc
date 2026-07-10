@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 
 import { syncGetStatus, syncRunNow } from "@/systems/practice-host/controllers/sync.controller";
 import { errorMessage } from "@/lib/utils";
+import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 const SYNC_INTERVAL_IDLE_MS = 30_000;
@@ -17,6 +18,7 @@ export function ReplicaSyncBackground() {
     const timerRef = useRef<number | null>(null);
     const lastErrorToastAt = useRef(0);
     const toast = useToastStore((s) => s.add);
+    const setLastSyncError = useReplicaSyncStatusStore((s) => s.setLastError);
 
     useEffect(() => {
         let cancelled = false;
@@ -64,11 +66,16 @@ export function ReplicaSyncBackground() {
                 }
                 const report = await syncRunNow();
                 if (report.error) {
+                    setLastSyncError(report.error);
                     maybeToastError(`Hintergrund-Sync: ${report.error}`);
                     nextDelay = SYNC_INTERVAL_ACTIVE_MS;
+                } else {
+                    setLastSyncError(null);
                 }
             } catch (e) {
-                maybeToastError(`Hintergrund-Sync: ${errorMessage(e)}`);
+                const msg = errorMessage(e);
+                setLastSyncError(msg);
+                maybeToastError(`Hintergrund-Sync: ${msg}`);
                 nextDelay = SYNC_INTERVAL_ACTIVE_MS;
             } finally {
                 running.current = false;

@@ -65,6 +65,16 @@ export type WorkTimePreferencePatch = {
     personalId?: string | null;
 };
 
+export type WorkTimePracticePolicy = {
+    autoRecordOnLogin: boolean;
+    autoRecordOnLogout: boolean;
+};
+
+export type WorkTimePracticePolicyPatch = {
+    autoRecordOnLogin?: boolean;
+    autoRecordOnLogout?: boolean;
+};
+
 export type WorkTimeReconcileReport = {
     closedStaleCount: number;
 };
@@ -117,9 +127,19 @@ export async function workTimeSetPreference(patch: WorkTimePreferencePatch): Pro
     return practiceSystem.invoke<WorkTimePreference>("work_time_set_preference", { patch });
 }
 
-/** @deprecated Use {@link workTimeSetPreference} with autoRecordOnLogin. */
+export async function workTimeGetPracticePolicy(): Promise<WorkTimePracticePolicy> {
+    return practiceSystem.invoke<WorkTimePracticePolicy>("work_time_get_practice_policy");
+}
+
+export async function workTimeSetPracticePolicy(
+    patch: WorkTimePracticePolicyPatch,
+): Promise<WorkTimePracticePolicy> {
+    return practiceSystem.invoke<WorkTimePracticePolicy>("work_time_set_practice_policy", { patch });
+}
+
+/** @deprecated Use {@link workTimeSetPracticePolicy}. */
 export async function workTimeSetAutoRecordOnLogin(enabled: boolean): Promise<void> {
-    await workTimeSetPreference({ autoRecordOnLogin: enabled });
+    await workTimeSetPracticePolicy({ autoRecordOnLogin: enabled });
 }
 
 /** @deprecated Use {@link workTimeGetPreference}. */

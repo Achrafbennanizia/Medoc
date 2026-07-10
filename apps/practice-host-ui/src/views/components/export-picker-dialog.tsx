@@ -9,6 +9,7 @@ import { exportAktePdf } from "@/systems/practice-host/controllers/akte.controll
 import { useToastStore } from "./ui/toast-store";
 import {
     AKTE_EXPORT_SECTION_META,
+    akteExportSectionLabel,
     type AkteExportFileFormat,
     type AkteExportSectionsState,
     buildAkteExportCsvFromInterop,
@@ -442,7 +443,7 @@ function AkteExportPickerInner({
                                             }}
                                         />
                                         <span className="text-body" style={{ fontSize: 13 }}>
-                                            {row.label}
+                                            {akteExportSectionLabel(row.key, t)}
                                             {dis ? (
                                                 <span className="text-caption text-on-surface-variant">
                                                     {" "}

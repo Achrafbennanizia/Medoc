@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
+import { PRODUKTE_MENU_ENABLED } from "@/lib/catalog-menu-flags";
 import { VerwaltungTocPage, type VerwaltungTocLink } from "../components/verwaltung-toc-page";
 
 /** Inventory, products, order master data and contracts — table in card (products pattern). */
@@ -7,12 +8,16 @@ export function VerwaltungLagerBestellwesenPage() {
     const t = useT();
     const links = useMemo<VerwaltungTocLink[]>(
         () => [
-            {
-                title: t("page.verwaltung_lager.link_produkte_title"),
-                desc: t("page.verwaltung_lager.link_produkte_desc"),
-                href: "/produkte",
-                requires: "produkte",
-            },
+            ...(PRODUKTE_MENU_ENABLED
+                ? [
+                      {
+                          title: t("page.verwaltung_lager.link_produkte_title"),
+                          desc: t("page.verwaltung_lager.link_produkte_desc"),
+                          href: "/produkte",
+                          requires: "produkte",
+                      },
+                  ]
+                : []),
             {
                 title: t("page.verwaltung_lager.link_bestellstamm_title"),
                 desc: t("page.verwaltung_lager.link_bestellstamm_desc"),

@@ -459,7 +459,9 @@ export function RezeptePage() {
                                     <td>{r.status}</td>
                                     <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                                         <Button size="sm" onClick={() => handlePrint(r)}>{t("page.rezepte.export")}</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => openERezeptDialog(r)}>{t("page.rezepte.eprescription")}</Button>
+                                        {eprescriptionLive ? (
+                                            <Button size="sm" variant="ghost" onClick={() => openERezeptDialog(r)}>{t("page.rezepte.eprescription")}</Button>
+                                        ) : null}
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>{t("common.delete")}</Button>
                                     </td>
                                 </tr>

@@ -1,11 +1,16 @@
-import { useT, useTParams } from "@/lib/i18n";
+import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProdukte, createProdukt, deleteProdukt, updateProdukt } from "@/systems/practice-host/controllers/produkt.controller";
+import {
+    createLieferantPharmaVorlage,
+    listLieferantStamm,
+    listPharmaberaterStamm,
+} from "@/systems/practice-host/controllers/praxis.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
-import type { Produkt } from "../../models/types";
+import type { LieferantStamm, PharmaberaterStamm, Produkt } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -16,7 +21,15 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon } from "@/lib/icons";
 import { ProduktFormFields } from "../components/produkt-form-shared";
-import { emptyForm, formValid, parseForm, toForm, type ProduktForm } from "@/lib/produkt-form-model";
+import { emptyForm, formValid, hasStammLinkSelection, parseForm, toForm, type ProduktForm } from "@/lib/produkt-form-model";
+import {
+    appendProduktIdToReturnUrl,
+    emptyBestellungCreateDraft,
+    isBestellungCreateReturnPath,
+    readBestellungCreateDraft,
+    saveBestellungCreateDraft,
+} from "@/lib/bestellung-produkt-bridge";
+import { PRODUKT_STOCK_UI_ENABLED } from "@/lib/catalog-menu-flags";
 
 function isSafeInternalReturnPath(path: string | null): path is string {
     if (path == null || path.length === 0 || path.length > 4000) return false;
@@ -27,10 +40,13 @@ function isSafeInternalReturnPath(path: string | null): path is string {
 
 export function ProduktePage() {
     const t = useT();
+    const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [produkte, setProdukte] = useState<Produkt[]>([]);
+    const [lieferanten, setLieferanten] = useState<LieferantStamm[]>([]);
+    const [pharmaberater, setPharmaberater] = useState<PharmaberaterStamm[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     /** New product — page panel only */
@@ -45,7 +61,9 @@ export function ProduktePage() {
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.rolle));
     const canWrite = role != null && allowed("produkt.write", role);
+    const canLinkStamm = role != null && allowed("bestellung.write", role);
     const canGoVerwaltung = role != null && allowed("verwaltung.read", role);
+    const stockFormOpts = { stockUi: PRODUKT_STOCK_UI_ENABLED } as const;
 
     const load = useCallback(
         async (opts?: { initial?: boolean }) => {
@@ -55,8 +73,14 @@ export function ProduktePage() {
                 setLoadError(null);
             }
             try {
-                const data = await listProdukte();
+                const [data, lief, ph] = await Promise.all([
+                    listProdukte(),
+                    listLieferantStamm(),
+                    listPharmaberaterStamm(),
+                ]);
                 setProdukte(data);
+                setLieferanten(lief);
+                setPharmaberater(ph);
                 setSelected((cur) => {
                     if (!cur) return null;
                     const up = data.find((x) => x.id === cur.id);
@@ -78,11 +102,22 @@ export function ProduktePage() {
     }, [load]);
 
     const neuFromQuery = searchParams.get("neu");
+    const returnToPath = searchParams.get("returnTo");
     useEffect(() => {
         if (neuFromQuery !== "1" || !canWrite) return;
         setCreating(true);
         setSelected(null);
-        setCreateForm(emptyForm());
+        const draft = isBestellungCreateReturnPath(returnToPath) ? readBestellungCreateDraft() : null;
+        if (draft) {
+            setCreateForm({
+                ...emptyForm(),
+                lieferantId: draft.lieferantId,
+                pharmaberaterId: draft.pharmaberaterId,
+                bestand: draft.menge.trim() || "",
+            });
+        } else {
+            setCreateForm(emptyForm());
+        }
         setDetailEdit(false);
         setSearchParams(
             (prev) => {
@@ -92,7 +127,7 @@ export function ProduktePage() {
             },
             { replace: true },
         );
-    }, [neuFromQuery, canWrite, setSearchParams]);
+    }, [neuFromQuery, canWrite, returnToPath, setSearchParams]);
 
     const openCreate = () => {
         setCreating(true);
@@ -114,17 +149,34 @@ export function ProduktePage() {
     };
 
     const handleCreate = async () => {
-        if (!formValid(createForm) || !canWrite) return;
+        if (!formValid(createForm, stockFormOpts) || !canWrite) return;
         setCreateBusy(true);
         try {
-            const p = parseForm(createForm);
+            const p = parseForm(createForm, stockFormOpts);
             const created = await createProdukt(p);
+            if (canLinkStamm && hasStammLinkSelection(createForm)) {
+                await createLieferantPharmaVorlage({
+                    lieferant_id: createForm.lieferantId,
+                    pharmaberater_id: createForm.pharmaberaterId,
+                    produkt_id: created.id,
+                });
+            }
             toast(t("produkte.toast.created"), "success");
             setCreateForm(emptyForm());
             setCreating(false);
             const returnTo = searchParams.get("returnTo");
             if (isSafeInternalReturnPath(returnTo)) {
-                navigate(returnTo, { replace: true });
+                if (isBestellungCreateReturnPath(returnTo)) {
+                    const draft = readBestellungCreateDraft();
+                    saveBestellungCreateDraft({
+                        ...(draft ?? emptyBestellungCreateDraft()),
+                        lieferantId: createForm.lieferantId || draft?.lieferantId || "",
+                        pharmaberaterId: createForm.pharmaberaterId || draft?.pharmaberaterId || "",
+                        menge: createForm.bestand.trim() || draft?.menge || "1",
+                        artikelProduktId: created.id,
+                    });
+                }
+                navigate(appendProduktIdToReturnUrl(returnTo, created.id), { replace: true });
             } else {
                 setSelected(created);
                 setEditForm(toForm(created));
@@ -139,10 +191,13 @@ export function ProduktePage() {
     };
 
     const handleUpdate = async () => {
-        if (!selected || !formValid(editForm) || !canWrite) return;
+        if (!selected || !formValid(editForm, stockFormOpts) || !canWrite) return;
         setSaveBusy(true);
         try {
-            const p = parseForm(editForm);
+            const p = parseForm(editForm, {
+                ...stockFormOpts,
+                stockFallback: { bestand: selected.bestand, mindestbestand: selected.mindestbestand },
+            });
             const updated = await updateProdukt(selected.id, {
                 name: p.name,
                 kategorie: p.kategorie,
@@ -183,7 +238,7 @@ export function ProduktePage() {
     };
 
     const produkteSorted = useMemo(
-        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, "de")),
+        () => [...produkte].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
         [produkte],
     );
 
@@ -194,7 +249,7 @@ export function ProduktePage() {
             const k = p.kategorie?.trim();
             if (k) s.add(k);
         }
-        return [...s].sort((a, b) => a.localeCompare(b, "de"));
+        return [...s].sort((a, b) => a.localeCompare(b, sortLocale));
     }, [produkte]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
@@ -207,7 +262,7 @@ export function ProduktePage() {
     const sidePanel = (() => {
         if (creating && canWrite) {
             return (
-                <Card className="produkte-detail-card">
+                <Card className="produkte-detail-card card--overflow-visible">
                     <CardHeader
                         title={t("produkte.create.title")}
                         subtitle={t("produkte.create.subtitle")}
@@ -218,12 +273,20 @@ export function ProduktePage() {
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-                        <ProduktFormFields form={createForm} setForm={setCreateForm} idPrefix="prod-new" kategorieVorschlaege={kategorieVorschlaege} />
+                        <ProduktFormFields
+                            form={createForm}
+                            setForm={setCreateForm}
+                            idPrefix="prod-new"
+                            kategorieVorschlaege={kategorieVorschlaege}
+                            showStammLink
+                            lieferanten={lieferanten}
+                            pharmaberater={pharmaberater}
+                        />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
                             </Button>
-                            <Button type="button" onClick={() => void handleCreate()} disabled={!formValid(createForm) || createBusy} loading={createBusy}>
+                            <Button type="button" onClick={() => void handleCreate()} disabled={!formValid(createForm, stockFormOpts) || createBusy} loading={createBusy}>
                                 {t("common.create")}
                             </Button>
                         </div>
@@ -258,7 +321,7 @@ export function ProduktePage() {
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
                                         {t("common.cancel")}
                                     </Button>
-                                    <Button type="button" onClick={() => void handleUpdate()} disabled={!formValid(editForm) || saveBusy} loading={saveBusy}>
+                                    <Button type="button" onClick={() => void handleUpdate()} disabled={!formValid(editForm, stockFormOpts) || saveBusy} loading={saveBusy}>
                                         {t("common.save")}
                                     </Button>
                                 </div>
@@ -268,8 +331,8 @@ export function ProduktePage() {
                                 {readField(t("common.name"), selected.name)}
                                 {readField(t("common.category"), selected.kategorie)}
                                 {readField(t("common.price_eur"), formatCurrency(selected.preis))}
-                                {readField(t("common.stock"), selected.bestand)}
-                                {readField(t("common.min_stock"), selected.mindestbestand)}
+                                {PRODUKT_STOCK_UI_ENABLED ? readField(t("common.stock"), selected.bestand) : readField(t("produkte.form.amount"), selected.bestand)}
+                                {PRODUKT_STOCK_UI_ENABLED ? readField(t("common.min_stock"), selected.mindestbestand) : null}
                                 {readField(t("common.status"), selected.aktiv ? t("common.active") : t("common.inactive"))}
                                 <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.description"), selected.beschreibung ?? t("common.em_dash"))}</div>
                                 <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--fg-3)" }}>
@@ -330,12 +393,13 @@ export function ProduktePage() {
                                             <th scope="col">{t("common.name")}</th>
                                             <th scope="col">{t("common.category")}</th>
                                             <th scope="col" style={{ textAlign: "end" }}>{t("common.price")}</th>
-                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.stock")}</th>
+                                            {PRODUKT_STOCK_UI_ENABLED ? (
+                                                <th scope="col" style={{ textAlign: "end" }}>{t("common.stock")}</th>
+                                            ) : null}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {produkteSorted.map((p) => {
-                                            const low = p.bestand <= p.mindestbestand;
                                             const isSel = !creating && selected?.id === p.id;
                                             const pick = () => selectRow(p);
                                             const onRowKeyDown = (e: KeyboardEvent) => {
@@ -364,15 +428,17 @@ export function ProduktePage() {
                                                     </td>
                                                     <td>{p.kategorie}</td>
                                                     <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(p.preis)}</td>
-                                                    <td style={{ textAlign: "end" }}>
-                                                        {low ? (
-                                                            <Badge variant="error">
-                                                                {tp("common.stock_low", { stock: p.bestand, min: p.mindestbestand })}
-                                                            </Badge>
-                                                        ) : (
-                                                            <span className="text-on-surface" style={{ fontVariantNumeric: "tabular-nums" }}>{p.bestand}</span>
-                                                        )}
-                                                    </td>
+                                                    {PRODUKT_STOCK_UI_ENABLED ? (
+                                                        <td style={{ textAlign: "end" }}>
+                                                            {p.bestand <= p.mindestbestand ? (
+                                                                <Badge variant="error">
+                                                                    {tp("common.stock_low", { stock: p.bestand, min: p.mindestbestand })}
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-on-surface" style={{ fontVariantNumeric: "tabular-nums" }}>{p.bestand}</span>
+                                                            )}
+                                                        </td>
+                                                    ) : null}
                                                 </tr>
                                             );
                                         })}

@@ -7,6 +7,11 @@ import { baseAllowedGenerated, RBAC_ALL_ACTIONS } from "./rbac.generated";
 import { DATENSCHUTZ_UI_ENABLED } from "./datenschutz-config";
 import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
 import {
+    LEISTUNGEN_MENU_ENABLED,
+    PRODUKTE_MENU_ENABLED,
+    REZEPTE_ATTESTE_MENU_ENABLED,
+} from "./catalog-menu-flags";
+import {
     BENACHRICHTIGUNGEN_SETTINGS_ENABLED,
     INTEGRATIONEN_SETTINGS_ENABLED,
     MIGRATION_SETTINGS_ENABLED,
@@ -100,7 +105,9 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         ? [{ to: "/posteingang", labelKey: "nav.posteingang", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } } as NavItemDefinition]
         : []),
     { to: "/tickets", labelKey: "nav.praxis_tickets", visibility: { kind: "roles", roles: ["ARZT", "REZEPTION"] } },
-    { to: "/rezepte", labelKey: "nav.rezepte", visibility: { kind: "action", action: "patient.read_medical" } },
+    ...(REZEPTE_ATTESTE_MENU_ENABLED
+        ? [{ to: "/rezepte", labelKey: "nav.rezepte", visibility: { kind: "action", action: "patient.read_medical" } } as NavItemDefinition]
+        : []),
     { to: "/finanzen", labelKey: "nav.finanzen", visibility: { kind: "action", action: "finanzen.read" } },
     {
         to: "/finanzen/kasse",
@@ -108,9 +115,9 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         visibility: { kind: "action", action: "finanzen.reception.view" },
     },
     { to: "/bestellungen", labelKey: "nav.bestellungen", visibility: { kind: "action", action: "bestellung.read" } },
-    { to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "anyOf", actions: FINANZEN_READ_OR_RECEPTION } },
-    /* `produkt.read` allows every role in Rust; sidebar matches product scope. */
-    { to: "/produkte", labelKey: "nav.produkte", visibility: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] } },
+    ...(LEISTUNGEN_MENU_ENABLED
+        ? [{ to: "/leistungen", labelKey: "nav.leistungen", visibility: { kind: "anyOf", actions: FINANZEN_READ_OR_RECEPTION } } as NavItemDefinition]
+        : []),
     { to: "/verwaltung", labelKey: "nav.verwaltung", visibility: { kind: "action", action: "verwaltung.read" } },
     {
         to: "/personal/arbeitszeit",
@@ -228,6 +235,15 @@ export function routeChildPathAllowed(
         return false;
     }
     if (!DATENSCHUTZ_UI_ENABLED && routePath === "datenschutz") {
+        return false;
+    }
+    if (!REZEPTE_ATTESTE_MENU_ENABLED && (routePath === "rezepte" || routePath === "atteste" || routePath.startsWith("verwaltung/vorlagen"))) {
+        return false;
+    }
+    if (!LEISTUNGEN_MENU_ENABLED && (routePath === "leistungen" || routePath.startsWith("leistungen/"))) {
+        return false;
+    }
+    if (!PRODUKTE_MENU_ENABLED && routePath === "produkte") {
         return false;
     }
     const role = parseRole(rolle);
