@@ -1,5 +1,31 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tier migration (2026-07-10)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows aligned to root `apps/crates/packages` workspace.
+
+### Verified (2026-07-10 — CI/CD tier migration)
+
+- Added `.github/workflows/verify.yml` (tier 1): read-only Rust + JS + a11y verification, package-manager detection, timeout + concurrency guards.
+- Added `.github/workflows/autofix.yml` (tier 2): PR-only deterministic fixes, loop guard, restricted-path block for `security|audit|crypto|rbac`.
+- Added `.github/workflows/fix-proposal.yml` (tier 3): manual/failing-main trigger, agent-driven draft PR flow, before/after evidence logs, `needs-human-review` labeling for sensitive paths.
+- Updated `.github/workflows/release.yml` (tier 4): verify gate via reusable `verify.yml`, protected `release` environment, signed cross-platform artifacts, source-mutation check, provenance attestation.
+- Removed stale `.github/workflows/ci.yml`; added plan doc `docs/coordination/ci-cd-plan.md`; added `scripts/check-axe-critical.mjs`.
+
+### Remains unverified
+
+- Live GitHub Actions runtime behavior for all new workflows (**NOT OBSERVED** in this session).
+- Protected environment approval UX for `release` job (**NOT OBSERVED**).
+- Cursor agent execution path in `fix-proposal.yml` with real repository secrets (**NOT RUN**).
+
+### Next
+
+1. Run `verify` on a pull request and confirm expected branch protection checks.
+2. Trigger `autofix` on a formatting-only PR to confirm single-pass + loop guard behavior.
+3. Dispatch `fix-proposal` with a controlled failing command and verify draft PR + evidence artifacts.
+4. Execute a non-production tag dry run of `release` to validate approval and artifact signing flow.
+
+---
+
 **Last phase label:** Work-Time & Team Overview Program (2026-06-18)  
 **Last closed:** Full work-time stack — schema, IPC, employee UI, team admin, Krankenbescheinigung, Statistik panel.
 
