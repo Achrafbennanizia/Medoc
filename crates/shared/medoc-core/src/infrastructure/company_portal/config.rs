@@ -75,3 +75,16 @@ pub fn effective_api_key(cfg: &CompanyPortalConfig) -> String {
     }
     cfg.api_key.trim().to_string()
 }
+
+/// Default vendor portal URL for local dev onboarding (company server).
+pub fn default_onboarding_base_url() -> String {
+    std::env::var("MEDOC_COMPANY_API_BASE")
+        .unwrap_or_else(|_| "http://127.0.0.1:9797".into())
+        .trim()
+        .trim_end_matches('/')
+        .to_string()
+}
+
+pub fn is_portal_configured(cfg: &CompanyPortalConfig) -> bool {
+    !cfg.practice_slug.trim().is_empty() && !effective_api_key(cfg).trim().is_empty()
+}

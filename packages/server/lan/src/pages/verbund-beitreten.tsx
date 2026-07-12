@@ -15,7 +15,7 @@ export function VerbundBeitretenPage() {
         <OnboardingShell>
             <h1>{t("page.lan.verbund_join.title")}</h1>
             <p className="card-sub">{t("page.lan.verbund_join.subtitle")}</p>
-            <VerbundJoinFlow completeWithLogin />
+            <VerbundJoinFlow completeWithAccountSetup />
             <div className="onboarding-actions" style={{ marginTop: 16 }}>
                 <Link to="/onboarding" className="btn btn-subtle">
                     {t("page.lan.verbund_join.back")}

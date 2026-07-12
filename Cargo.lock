@@ -3127,6 +3127,7 @@ name = "medoc-company"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "libsqlite3-sys",
  "medoc-core",
  "serde",
@@ -3136,6 +3137,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -53,9 +53,13 @@ Non-interactive (CI / automation):
 ```
 
 Reads the passphrase without echo (interactive), confirms it, writes
-`activation.json` with owner-only permissions, and prints the device fingerprint.
+`activation.json` with owner-only permissions, and writes **`license.code`**
+(next to the manifest) containing the device fingerprint — this is what the
+admin enters in the app onboarding screen.
 
 The manifest is a secret. Import it once on the owner device, then delete it.
+In production onboarding the admin only needs the **license code** from
+`license.code` (or stderr: `license code: …`).
 
 ## Interop contract (must match the Rust importer exactly)
 

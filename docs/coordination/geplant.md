@@ -67,6 +67,14 @@ Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surface
 
 ---
 
+## Onboarding
+
+| Item | Status | Notes | Evidence |
+| ---- | ------ | ----- | -------- |
+| Subscription plan tier picker (BASIC / PRO / ENTERPRISE) | **Deferred** | UI commented out on `/onboarding/abonnement`; backend still accepts `plan`, default `PRO` | `abonnement-registrieren.tsx` |
+
+---
+
 ## Clinical / dental UI
 
 | Item | Status | Notes | Evidence |

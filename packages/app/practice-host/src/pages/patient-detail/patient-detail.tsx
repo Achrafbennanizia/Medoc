@@ -9,7 +9,6 @@ import {
     listBehandlungen,
     listUntersuchungen,
     releaseBehandlungForBilling,
-    releaseUntersuchungForBilling,
     listAkteAnlagen,
     renameAkteAnlage,
     setAkteAnlageDocumentKind,
@@ -757,15 +756,6 @@ export function PatientDetailPage() {
                     }}
                     onSaveEdit={runSaveUntersuchungEdit}
                     onCreateUntersuchung={handleCreateUntersuchung}
-                    onReleaseForBilling={async (untersuchungId: string) => {
-                        try {
-                            const upd = await releaseUntersuchungForBilling(untersuchungId);
-                            setUntersuchungen((prev) => prev.map((x) => (x.id === untersuchungId ? upd : x)));
-                            toast(t("patient.detail.toast.released_billing"), "success");
-                        } catch (e) {
-                            toast(e instanceof Error ? e.message : String(e), "error");
-                        }
-                    }}
                 />
             ) : null}
 

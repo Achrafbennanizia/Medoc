@@ -51,6 +51,61 @@ export type ImportActivationResult = {
 };
 
 export const ONBOARDING_LICENSE_PENDING_KEY = "medoc.onboarding.pending_license";
+export const ONBOARDING_LICENSE_TOKEN_KEY = "medoc.onboarding.license_token";
+
+export type OnboardingSubscriptionRequest = {
+    displayName: string;
+    practiceSlug: string;
+    adminName: string;
+    adminEmail: string;
+    adminPassword?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    plan: "BASIC" | "PRO" | "ENTERPRISE";
+    portalBaseUrl?: string;
+};
+
+export type OnboardingSubscriptionResult = {
+    practiceSlug: string;
+    planName: string;
+    licenseToken?: string;
+};
+
+export async function onboardingSubscriptionStatus(): Promise<{
+    registered: boolean;
+    practiceSlug?: string;
+    setupComplete: boolean;
+    needsAdminAccount: boolean;
+    personalCount: number;
+    needsPracticeSetup: boolean;
+    needsMemberAccount: boolean;
+}> {
+    return tauriInvoke("onboarding_subscription_status");
+}
+
+export type OnboardingMemberAccountRequest = {
+    name: string;
+    email: string;
+    password: string;
+    rolle?: "ARZT" | "REZEPTION";
+};
+
+export async function registerOnboardingMemberAccount(
+    payload: OnboardingMemberAccountRequest,
+): Promise<void> {
+    return tauriInvoke("register_onboarding_member_account", { request: payload });
+}
+
+export async function onboardingUseExistingAccount(): Promise<void> {
+    return tauriInvoke("onboarding_use_existing_account");
+}
+
+export async function registerOnboardingSubscription(
+    payload: OnboardingSubscriptionRequest,
+): Promise<OnboardingSubscriptionResult> {
+    return tauriInvoke("register_onboarding_subscription", { request: payload });
+}
 
 export async function verbundGetStatus(): Promise<VerbundStatusSnapshot> {
     return tauriInvoke("verbund_status_cmd");

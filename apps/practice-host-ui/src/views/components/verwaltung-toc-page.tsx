@@ -83,10 +83,10 @@ export function VerwaltungTocPage({ title, subtitle, links }: Props) {
                                             title={t("common.open")}
                                             onKeyDown={onLinkKeyDown}
                                         >
-                                            {useIcons && Ic ? (
+                                            {useIcons ? (
                                                 <>
                                                     <span className="verwaltung-toc-ic" aria-hidden>
-                                                        <Ic size={ICON_SIZE_LG} />
+                                                        {Ic ? <Ic size={ICON_SIZE_LG} /> : null}
                                                     </span>
                                                     <span className="verwaltung-toc-title-cell">{item.title}</span>
                                                     <span className="page-sub verwaltung-toc-desc-cell">{item.desc}</span>

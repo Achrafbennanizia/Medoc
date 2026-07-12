@@ -675,8 +675,8 @@ export function PersonalPage() {
                                     value={newPermEffect}
                                     onChange={(e) => setNewPermEffect(e.target.value as "ALLOW" | "DENY")}
                                     options={[
-                                        { value: "ALLOW", label: "ALLOW" },
-                                        { value: "DENY", label: "DENY" },
+                                        { value: "ALLOW", label: t("page.personal.perm_effect_allow") },
+                                        { value: "DENY", label: t("page.personal.perm_effect_deny") },
                                     ]}
                                     style={{ width: 120 }}
                                 />

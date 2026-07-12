@@ -10,10 +10,38 @@ fn should_run_demo_seed() -> bool {
         || std::env::args().any(|a| a == "--dev-seed")
 }
 
+const DEMO_SEED_KV_KEY: &str = "migration.demo_seed.v1";
+
+async fn demo_seed_already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
+            .bind(DEMO_SEED_KV_KEY)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    Ok(row.is_some())
+}
+
+async fn mark_demo_seed_applied(pool: &SqlitePool) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, '1', CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(DEMO_SEED_KV_KEY)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
 pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> {
     crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
     if should_run_demo_seed() {
+        if demo_seed_already_applied(pool).await? {
+            return Ok(());
+        }
         seed_demo_data(pool).await?;
+        mark_demo_seed_applied(pool).await?;
     }
     Ok(())
 }

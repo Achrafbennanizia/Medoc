@@ -1,3 +1,4 @@
+import { behandlungsKatalogCategoryLabel } from "@/lib/behandlungs-katalog-categories";
 import { useT, useTParams } from "@/lib/i18n";
 import { Fragment } from "react";
 import type { Behandlung } from "@/models/types";
@@ -141,7 +142,11 @@ export function PatientDetailBehandTab({
                                                             : formatDateTime(b.created_at)}
                                                     </td>
                                                     <td>{b.zaehne || emDash}</td>
-                                                    <td>{b.kategorie || b.art}</td>
+                                                    <td>
+                                                        {b.kategorie
+                                                            ? behandlungsKatalogCategoryLabel(t, b.kategorie)
+                                                            : b.art}
+                                                    </td>
                                                     <td>{b.leistungsname || b.beschreibung || b.art}</td>
                                                     <td>
                                                         {b.sitzung != null

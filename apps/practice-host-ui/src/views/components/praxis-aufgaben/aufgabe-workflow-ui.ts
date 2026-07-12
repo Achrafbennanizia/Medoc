@@ -60,7 +60,8 @@ export function aufgabeStatusLabel(t: (key: string) => string, status: PraxisAuf
     const key = `praxis.aufgaben.status.${status.toLowerCase()}`;
     const v = t(key);
     if (v !== key) return v;
-    return PRAXIS_AUFGABE_STATUSES.find((s) => s.value === status)?.label ?? status;
+    const fallbackKey = PRAXIS_AUFGABE_STATUSES.find((s) => s.value === status)?.labelKey;
+    return fallbackKey ? t(fallbackKey) : status;
 }
 
 export function aufgabeStatusPillClass(status: PraxisAufgabeStatus): string {
@@ -83,5 +84,6 @@ export function aufgabeTypLabel(t: (key: string) => string, typ: string): string
     const key = `praxis.aufgaben.typ.${typ.toLowerCase()}`;
     const v = t(key);
     if (v !== key) return v;
-    return PRAXIS_AUFGABE_TYPS.find((row) => row.value === typ)?.label ?? typ;
+    const fallbackKey = PRAXIS_AUFGABE_TYPS.find((row) => row.value === typ)?.labelKey;
+    return fallbackKey ? t(fallbackKey) : typ;
 }

@@ -242,6 +242,7 @@ export const NAV_ICON_ALIASES: Record<string, FC<{ size?: number }>> = {
     Wallet: WalletIcon,
     Package: PackageIcon,
     Calendar: CalendarIcon,
+    Clock: ClockIcon,
     Sparkle: SparkleIcon,
 };
 

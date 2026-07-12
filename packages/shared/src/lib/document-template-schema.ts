@@ -135,6 +135,9 @@ export const DOCUMENT_KIND_LABEL: Record<DocumentKind, string> = {
     audit_list: "Audit / Listen",
 };
 
+/** @deprecated Use `documentKindLabel(t, kind)` from `document-template-i18n` in UI. */
+export const DOCUMENT_KIND_LABEL_LEGACY = DOCUMENT_KIND_LABEL;
+
 export type BuiltinTemplateId = "sachlich" | "praxis_logo" | "behoerdlich";
 
 export interface BuiltinTemplateMeta {

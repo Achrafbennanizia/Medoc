@@ -23,11 +23,13 @@ type Phase = "scan" | "manual" | "sas" | "wait";
 export type VerbundJoinFlowProps = {
     onComplete?: () => void;
     onBack?: () => void;
-    /** Onboarding default: redirect to login after successful join. */
+    /** After join: account choice (create or sign in). */
+    completeWithAccountSetup?: boolean;
+    /** Onboarding legacy: redirect to login after successful join. */
     completeWithLogin?: boolean;
 };
 
-export function VerbundJoinFlow({ onComplete, onBack, completeWithLogin = false }: VerbundJoinFlowProps) {
+export function VerbundJoinFlow({ onComplete, onBack, completeWithAccountSetup = false, completeWithLogin = false }: VerbundJoinFlowProps) {
     const navigate = useNavigate();
     const setStatus = useVerbundStore((s) => s.setStatus);
     const toast = useToastStore((s) => s.add);
@@ -73,12 +75,16 @@ export function VerbundJoinFlow({ onComplete, onBack, completeWithLogin = false 
 
     const finishSuccess = useCallback(async () => {
         setStatus(await verbundGetStatus());
+        if (completeWithAccountSetup) {
+            navigate("/onboarding/konto", { replace: true });
+            return;
+        }
         if (completeWithLogin) {
             navigate("/login", { replace: true });
             return;
         }
         onComplete?.();
-    }, [completeWithLogin, navigate, onComplete, setStatus]);
+    }, [completeWithAccountSetup, completeWithLogin, navigate, onComplete, setStatus]);
 
     const join = async (admin: JoinAdminTarget) => {
         setJoinBusy(true);

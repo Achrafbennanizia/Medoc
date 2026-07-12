@@ -133,3 +133,33 @@ pub async fn attach_payment_method_remote(
     .await?;
     Ok(())
 }
+
+/// Public onboarding registration — no Bearer auth (creates practice + API key).
+pub async fn register_practice_onboarding(base: &str, body: Value) -> Result<Value, AppError> {
+    let base = base.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return Err(AppError::Validation(
+            "Hersteller-Portal Basis-URL fehlt.".into(),
+        ));
+    }
+    let url = format!("{base}/v1/register");
+    let c = client()?;
+    let res = c
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Hersteller-Portal POST /v1/register: {e}")))?;
+    let status = res.status();
+    if !status.is_success() {
+        let t = res.text().await.unwrap_or_default();
+        return Err(AppError::Validation(format!(
+            "Registrierung fehlgeschlagen (HTTP {}): {}",
+            status,
+            t.chars().take(400).collect::<String>()
+        )));
+    }
+    res.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(format!("Hersteller-Portal JSON /v1/register: {e}")))
+}

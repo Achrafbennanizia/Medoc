@@ -22,16 +22,12 @@ Requires `MEDOC_VENDOR_PUBKEY` and platform Tauri build dependencies (see CI).
 
 ## Admin onboarding flow
 
-1. Ops runs `medoc-keygen` on an offline workstation → `activation.json`
-2. Admin installs MeDoc from platform installer
-3. Onboarding → **Aktivierungsmanifest importieren** (`/onboarding/aktivierung`)
-4. **Lizenz aktivieren** (`/onboarding/lizenz`)
+1. **Step 1** — License code (`/onboarding/lizenz`) *or* join existing network (`/onboarding/beitreten`)
+2. **Step 2 (new network / owner)** — Practice setup + admin account (`/onboarding/abonnement`)
+3. **Step 2 (existing network / member)** — Create account or sign in (`/onboarding/konto`)
+4. Sign in at `/login`
 
-The app removes the **networked admin copy** of `activation.json` after a successful import.
-Ops must **retain the offline original** (e.g. on USB) as the disaster-recovery path — the cluster
-CA private key is not recoverable from the app alone if the admin device is lost.
-
-Member devices: **Verbund beitreten** only (no keygen).
+Run **medoc-keygen** for owner license codes (`license.code`). Member devices never need a vendor license.
 
 ## CI
 

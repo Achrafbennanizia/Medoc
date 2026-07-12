@@ -1,5 +1,5 @@
 import { useT } from "@/lib/i18n";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { verbundActivateLicense } from "@/systems/practice-host/controllers/verbund.controller";
@@ -9,27 +9,28 @@ import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-/** Onboarding path: activate license and become cluster owner (first ADMIN seat). */
+/** Step 1: license code activates a new practice network (owner device). */
 export function LizenzAktivierenOnboardingPage() {
     const t = useT();
     const navigate = useNavigate();
     const setStatus = useVerbundStore((s) => s.setStatus);
     const toast = useToastStore((s) => s.add);
-    const [token, setToken] = useState("");
+    const [code, setCode] = useState("");
     const [busy, setBusy] = useState(false);
 
     const activate = async () => {
-        if (!token.trim()) {
+        const trimmed = code.trim();
+        if (!trimmed) {
             toast(t("onboarding.license.paste_key"), "error");
             return;
         }
         setBusy(true);
         try {
-            const status = await verbundActivateLicense(token.trim());
+            const status = await verbundActivateLicense(trimmed);
             setStatus(status);
             if (status.licensed) {
-                toast(t("onboarding.license.success"), "success");
-                navigate("/login", { replace: true });
+                toast(t("onboarding.license.success_setup"), "success");
+                navigate("/onboarding/abonnement", { replace: true });
             } else {
                 toast(t("onboarding.license.invalid"), "error");
             }
@@ -40,27 +41,45 @@ export function LizenzAktivierenOnboardingPage() {
         }
     };
 
+    const onSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        void activate();
+    };
+
     return (
         <OnboardingShell>
             <h1>{t("onboarding.license.title")}</h1>
-            <p className="card-sub">{t("onboarding.license.owner_hint")}</p>
-            <label className="onboarding-field">
-                {t("onboarding.license.key_label")}
-                <textarea
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    rows={4}
-                    placeholder={t("onboarding.license.key_ph")}
-                />
-            </label>
-            <div className="onboarding-actions onboarding-actions--row">
-                <Button type="button" disabled={busy} onClick={() => void activate()}>
-                    {t("onboarding.license.activate_btn")}
-                </Button>
-                <Link to="/onboarding/aktivierung" className="btn btn-subtle">
-                    {t("onboarding.license.back")}
+            <p className="card-sub">{t("onboarding.license.intro_step1")}</p>
+            <form onSubmit={onSubmit}>
+                <label className="onboarding-field">
+                    {t("onboarding.license.key_label")}
+                    <input
+                        type="text"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        placeholder={t("onboarding.license.key_ph_simple")}
+                        autoComplete="off"
+                        autoFocus
+                        spellCheck={false}
+                        disabled={busy}
+                    />
+                </label>
+                {import.meta.env.DEV ? (
+                    <p className="card-sub" style={{ fontSize: 12, color: "var(--fg-3)", marginTop: -8 }}>
+                        {t("onboarding.license.dev_short_code_hint")}
+                    </p>
+                ) : null}
+                <div className="onboarding-actions">
+                    <Button type="submit" disabled={busy} loading={busy}>
+                        {t("onboarding.license.activate_btn")}
+                    </Button>
+                </div>
+            </form>
+            <p className="card-sub" style={{ marginTop: 20, marginBottom: 0, textAlign: "center" }}>
+                <Link to="/onboarding/beitreten" className="btn btn-subtle" style={{ display: "inline-block" }}>
+                    {t("onboarding.verbund.join")}
                 </Link>
-            </div>
+            </p>
         </OnboardingShell>
     );
 }

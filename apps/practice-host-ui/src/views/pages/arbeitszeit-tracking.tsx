@@ -108,13 +108,12 @@ export function ArbeitszeitTrackingPage() {
                 subtitle={t("page.arbeitszeit.tracking.subtitle")}
             />
 
-            <Card>
+            <div className="work-time-page__grid">
+            <Card className="work-time-today-card">
                 <CardHeader title={t("page.arbeitszeit.today")} />
-                <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <p style={{ margin: 0, fontSize: 28, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                        {formatWorkMinutes(liveMinutes)}
-                    </p>
-                    <p style={{ margin: 0, fontSize: 14 }}>
+                <div className="card-pad work-time-today-body">
+                    <p className="work-time-today-clock">{formatWorkMinutes(liveMinutes)}</p>
+                    <p className="work-time-today-status">
                         {t("page.arbeitszeit.status.label")}{" "}
                         <strong>
                             {!session
@@ -124,19 +123,19 @@ export function ArbeitszeitTrackingPage() {
                                   : t("page.arbeitszeit.status.active")}
                         </strong>
                         {session?.status === "PAUSED" && session.pauseStartedAt ? (
-                            <span style={{ color: "var(--fg-3)", marginInlineStart: 8 }}>
+                            <span className="work-time-today-since">
                                 {tp("page.arbeitszeit.status.since", {
                                     time: format(parseISO(session.pauseStartedAt), "HH:mm"),
                                 })}
                             </span>
                         ) : null}
                     </p>
-                    <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
+                    <p className="work-time-today-week-total">
                         {tp("page.arbeitszeit.week_finished", {
                             minutes: formatWorkMinutes(overview?.totalMinutes ?? 0),
                         })}
                     </p>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <div className="row work-time-today-actions">
                         {!session ? (
                             <Button type="button" disabled={busy} onClick={() => void run(workTimeStart)}>
                                 {t("page.arbeitszeit.btn.start")}
@@ -160,8 +159,7 @@ export function ArbeitszeitTrackingPage() {
                 </div>
             </Card>
 
-            <div style={{ marginTop: 16 }}>
-            <Card>
+            <Card className="work-time-week-card">
                 <CardHeader
                     title={t("page.arbeitszeit.week_overview")}
                     action={
@@ -218,7 +216,17 @@ export function ArbeitszeitTrackingPage() {
                         );
                     })}
                 </div>
-                <p className="card-pad" style={{ margin: 0, paddingTop: 0, fontSize: 12, color: "var(--fg-3)" }}>
+                <div className="work-time-week-legend card-pad">
+                    <span className="work-time-week-legend__item">
+                        <span className="work-time-week-legend__swatch work-time-week-legend__swatch--ist" aria-hidden />
+                        {t("page.statistik.arbeitszeit.week_actual")}
+                    </span>
+                    <span className="work-time-week-legend__item">
+                        <span className="work-time-week-legend__swatch work-time-week-legend__swatch--soll" aria-hidden />
+                        {t("page.arbeitsplan.soll_table.col.work")}
+                    </span>
+                </div>
+                <p className="card-pad work-time-week-footer">
                     {t("page.arbeitszeit.footer.soll_hint")}{" "}
                     <Link to="/personal/arbeitsplan">{t("page.arbeitszeit.footer.open_plan")}</Link>
                     {" · "}

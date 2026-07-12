@@ -93,7 +93,7 @@ export function PatientDetailShellHeader({
     akte,
     befunde,
     behandlungen,
-    untersuchungen,
+    untersuchungen: _untersuchungen,
     zahlungen,
     patientDeleteOpen,
     patientDeleteBusy,
@@ -315,7 +315,7 @@ export function PatientDetailShellHeader({
                     </div>
                     {canViewClinical && akte ? (
                         <div className="patient-hero-dental">
-                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} untersuchungen={untersuchungen} visible />
+                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} visible />
                         </div>
                     ) : null}
                 </div>

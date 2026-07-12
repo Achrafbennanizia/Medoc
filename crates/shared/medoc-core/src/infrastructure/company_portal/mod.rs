@@ -7,5 +7,6 @@ pub mod config;
 pub use client::{
     attach_payment_method_remote, fetch_feature_flags, fetch_integration_statuses,
     fetch_subscription_summary, fetch_update_manifest, post_billing_portal_url,
+    register_practice_onboarding,
 };
 pub use config::{load_company_portal_config, CompanyPortalConfig};

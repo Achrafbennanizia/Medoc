@@ -20,7 +20,10 @@ import type { PraxisArbeitszeitenConfig } from "@/lib/praxis-planning";
 import {
     blockToneForTermin,
     calendarMonthOffsetFromToday,
+    deriveDayClosedSpans,
+    deriveDayTimelineBounds,
     deriveTerminTimelineBounds,
+    deriveWeekTimelineBounds,
     doctorStripeVar,
     isTerminCalendarWorkingDay,
     terminArtLabelFromTermin,
@@ -170,7 +173,6 @@ const TerminApptBlockView = memo(function TerminApptBlockView({
             onContextMenu={onContextMenu}
         >
             <span className="termin-appt-block-time-col">
-                <span className="termin-appt-block-time-col-primary">{patientName}</span>
                 <span className={`termin-appt-block-time${dragPreviewUhrzeit ? " termin-appt-block-time--drag-live" : ""}`}>{timeStr}</span>
                 <span className="termin-appt-block-duration">{durMin} min</span>
             </span>
@@ -184,7 +186,13 @@ const TerminApptBlockView = memo(function TerminApptBlockView({
                     ) : null}
                     <span className="termin-appt-block-name">{patientName}</span>
                 </span>
-                <span className="termin-appt-block-type">{terminArtLabelFromTermin(termin)}</span>
+                <span className="termin-appt-block-sub">
+                    <span className="termin-appt-block-duration termin-appt-block-duration--compact">{durMin} min</span>
+                    <span className="termin-appt-block-sub-sep" aria-hidden>
+                        ·
+                    </span>
+                    <span className="termin-appt-block-type">{terminArtLabelFromTermin(termin)}</span>
+                </span>
                 {schmerzZaehne.length ? (
                     <span
                         className="termin-appt-block-zahn"
@@ -259,6 +267,10 @@ function TerminTimeColumnBody({
     const isTodayCol = iso === todayIso;
     const isInactiveDay = !isTerminCalendarWorkingDay(parseISO(iso), praxisCfg);
     const dayList = useMemo(() => [...termine].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit)), [termine]);
+    const closedSpans = useMemo(
+        () => deriveDayClosedSpans(praxisCfg, iso, timelineBounds),
+        [praxisCfg, iso, timelineBounds],
+    );
     const nMin = nowMin();
 
     useLayoutEffect(() => {
@@ -288,10 +300,25 @@ function TerminTimeColumnBody({
             className={`termin-day-col ${isTodayCol ? "termin-day-col--today" : ""} ${isInactiveDay ? "termin-day-col--weekend" : ""}`}
             data-termin-day-col={iso}
             data-single-day={singleDay ? "1" : undefined}
-            style={{ minHeight: axisHeightPx }}
+            style={{
+                minHeight: axisHeightPx,
+                height: axisHeightPx,
+                ["--termin-slot-count" as string]: String((dayEndMin - dayStartMin) / 60),
+            }}
             onDoubleClick={onColDblClick}
             role="presentation"
         >
+            {closedSpans.map((span, i) => (
+                <div
+                    key={`closed-${i}`}
+                    className="termin-day-col__closed"
+                    style={{
+                        top: (span.fromMin - dayStartMin) * pxPerMin,
+                        height: (span.toMin - span.fromMin) * pxPerMin,
+                    }}
+                    aria-hidden
+                />
+            ))}
             {Array.from({ length: (dayEndMin - dayStartMin) / 60 }).map((_, i) => (
                 <div key={i} className="termin-hour-line" style={{ top: i * hourPx }} />
             ))}
@@ -411,17 +438,25 @@ export function TerminWeekGrid({
     nowMin: () => number;
 }) {
     const dateFnsLocale = useDateFnsLocale();
-    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisCfg), [praxisCfg]);
-    const hourLabels = useMemo(() => terminTimelineHourLabels(timelineBounds), [timelineBounds]);
     const columnCount = useMemo(() => terminCalendarColumnCount(praxisCfg), [praxisCfg]);
-    const gridStyle = useMemo(
-        () => ({ "--termin-calendar-cols": columnCount } as CSSProperties),
-        [columnCount],
-    );
     const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
     const days = useMemo(
         () => terminCalendarWeekDays(anchor, praxisCfg),
         [anchor, praxisCfg],
+    );
+    const weekIsoDates = useMemo(() => days.map((d) => format(d, "yyyy-MM-dd")), [days]);
+    const timelineBounds = useMemo(
+        () => deriveWeekTimelineBounds(praxisCfg, weekIsoDates),
+        [praxisCfg, weekIsoDates],
+    );
+    const hourLabels = useMemo(() => terminTimelineHourLabels(timelineBounds), [timelineBounds]);
+    const gridStyle = useMemo(
+        () =>
+            ({
+                "--termin-calendar-cols": columnCount,
+                "--termin-slot-count": (timelineBounds.endMin - timelineBounds.startMin) / 60,
+            }) as CSSProperties,
+        [columnCount, timelineBounds.endMin, timelineBounds.startMin],
     );
     const byDate = useMemo(() => {
         const acc: Record<string, Termin[]> = {};
@@ -563,7 +598,7 @@ export function TerminDaySplit({
         "termin.calendar.weekday.sun",
     ] as const;
     const iso = format(dayDate, "yyyy-MM-dd");
-    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisCfg), [praxisCfg]);
+    const timelineBounds = useMemo(() => deriveDayTimelineBounds(praxisCfg, iso), [praxisCfg, iso]);
     const hourLabels = useMemo(() => terminTimelineHourLabels(timelineBounds), [timelineBounds]);
     const { hostRef: dayTimelineRef, layout: dayAxisLayout } = useDayTimelineLayout(timelineBounds);
     const arztNameById = useMemo(() => new Map(aerzte.map((a) => [a.id, a.name])), [aerzte]);

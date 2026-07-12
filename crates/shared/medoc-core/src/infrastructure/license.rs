@@ -50,6 +50,7 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{DateTime, Utc};
+use ed25519_dalek::{Signer, SigningKey};
 use hkdf::Hkdf;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -260,6 +261,59 @@ pub fn encrypt_v2_for_device(signed_inner: &str, device_id: &str) -> Result<Stri
         STANDARD_NO_PAD.encode(nonce_bytes),
         STANDARD_NO_PAD.encode(ct)
     ))
+}
+
+const DEV_SIGNING_KEY_HEX: &str =
+    "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf";
+
+fn dev_signing_key() -> Result<SigningKey, AppError> {
+    let mut sk_bytes = [0u8; 32];
+    for (i, chunk) in DEV_SIGNING_KEY_HEX.as_bytes().chunks(2).enumerate() {
+        sk_bytes[i] = u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16)
+            .map_err(|e| AppError::Internal(format!("dev signing key hex: {e}")))?;
+    }
+    let sk = SigningKey::from_bytes(&sk_bytes);
+    if sk.verifying_key().to_bytes() != VENDOR_PUBKEY {
+        return Err(AppError::Internal(
+            "Dev-Lizenzsignierung nicht verfügbar (VENDOR_PUBKEY passt nicht zum Testschlüssel)."
+                .into(),
+        ));
+    }
+    Ok(sk)
+}
+
+/// Dev/CI helper: mint a device-bound v2 license when build-time pubkey matches the test key.
+pub fn mint_dev_v2_license_envelope(
+    device_id: &str,
+    customer_id: &str,
+    edition: &str,
+) -> Result<String, AppError> {
+    if device_id.trim().is_empty() {
+        return Err(AppError::Validation("device_id leer".into()));
+    }
+    let edition = edition.trim().to_uppercase();
+    let lic = LicenseV2 {
+        version: 2,
+        customer_id: customer_id.into(),
+        edition: edition.clone(),
+        device_id: device_id.into(),
+        activated_at: Utc::now(),
+        max_users: match edition.as_str() {
+            "BASIC" => 2,
+            "ENTERPRISE" => 99,
+            _ => 5,
+        },
+        modules: vec!["dicom".into()],
+        edition_features: if edition == "BASIC" {
+            vec![]
+        } else {
+            vec!["statistik.advanced".into()]
+        },
+    };
+    let body = serde_json::to_string(&lic).map_err(|e| AppError::Internal(e.to_string()))?;
+    let sig = dev_signing_key()?.sign(body.as_bytes());
+    let signed = format!("{}.{}", body, STANDARD_NO_PAD.encode(sig.to_bytes()));
+    encrypt_v2_for_device(&signed, device_id)
 }
 
 /// HKDF-SHA256(salt = VENDOR_LICENSE_SEED, ikm = device_id, info = "medoc/license/v2") → 32 bytes

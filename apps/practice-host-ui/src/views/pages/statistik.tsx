@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
+import { Link } from "react-router-dom";
 import {
     Bar,
     BarChart,
     CartesianGrid,
     Cell,
+    LabelList,
     Legend,
     Line,
     LineChart,
@@ -31,7 +33,12 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { NAV_ICONS } from "@/lib/icons";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
-import { workTimeGetStatistics, type WorkTimeStatistics, type WorkTimeTeamMemberRow } from "@/systems/practice-host/controllers/work-time.controller";
+import {
+    workTimeGetStatistics,
+    type WorkTimeDaySummary,
+    type WorkTimeStatistics,
+    type WorkTimeTeamMemberRow,
+} from "@/systems/practice-host/controllers/work-time.controller";
 import { formatStaffShortName, formatWorkMinutes } from "@/lib/work-time-ui";
 import { useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
 
@@ -243,6 +250,13 @@ function WorkTimeBarTooltip({
     );
 }
 
+function workTimeStatusLabel(status: string, t: (key: string) => string): string {
+    if (status === "RUNNING") return t("page.arbeitszeit.status.active");
+    if (status === "PAUSED") return t("page.arbeitszeit.status.paused");
+    if (status === "AUS") return t("page.arbeitszeit.status.off");
+    return status;
+}
+
 function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
     const chartData = useMemo<WorkTimeBarRow[]>(
         () =>
@@ -261,10 +275,11 @@ function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
         if (peak <= 0) return 60;
         return Math.ceil(peak / 30) * 30;
     }, [chartData]);
+    const barSize = chartData.length <= 3 ? 64 : chartData.length <= 6 ? 48 : 36;
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 4 }} barCategoryGap="24%">
+            <BarChart data={chartData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
                 <XAxis
                     dataKey="shortName"
@@ -274,16 +289,22 @@ function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
                     interval={0}
                 />
                 <YAxis
-                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
                     tickLine={false}
                     axisLine={false}
                     allowDecimals={false}
-                    width={52}
+                    width={48}
                     domain={[0, yMax]}
                     tickFormatter={(v) => formatWorkMinutes(v)}
                 />
                 <Tooltip cursor={false} content={<WorkTimeBarTooltip />} />
-                <Bar dataKey="minutes" radius={[6, 6, 2, 2]} maxBarSize={52} minPointSize={3}>
+                <Bar dataKey="minutes" radius={[6, 6, 2, 2]} maxBarSize={barSize} minPointSize={3}>
+                    <LabelList
+                        dataKey="minutes"
+                        position="top"
+                        formatter={(v: number) => (v > 0 ? formatWorkMinutes(v) : "")}
+                        style={{ fontSize: 10, fontWeight: 650, fill: "var(--fg-2)" }}
+                    />
                     {chartData.map((entry, index) => (
                         <Cell
                             key={entry.personalId}
@@ -297,6 +318,117 @@ function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
                 </Bar>
             </BarChart>
         </ResponsiveContainer>
+    );
+}
+
+function WorkTimeDayBar({ days }: { days: WorkTimeDaySummary[] }) {
+    const dateLocale = useDateFnsLocale();
+    const chartData = useMemo(
+        () =>
+            [...days]
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .map((d) => ({
+                    ...d,
+                    shortLabel: format(parseISO(d.date), "EEE", { locale: dateLocale }),
+                })),
+        [days, dateLocale],
+    );
+    const yMax = useMemo(() => {
+        const peak = Math.max(...chartData.map((d) => d.workedMinutes), 0);
+        if (peak <= 0) return 60;
+        return Math.ceil(peak / 60) * 60;
+    }, [chartData]);
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                <XAxis
+                    dataKey="shortLabel"
+                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "rgba(0,0,0,0.08)" }}
+                    interval={0}
+                />
+                <YAxis
+                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={44}
+                    domain={[0, yMax]}
+                    tickFormatter={(v) => formatWorkMinutes(v)}
+                />
+                <Tooltip
+                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    formatter={(v: number, _name, item) => {
+                        const row = item?.payload as WorkTimeDaySummary | undefined;
+                        const pause = row?.pauseMinutes ?? 0;
+                        return [
+                            `${formatWorkMinutes(v)}${pause > 0 ? ` · ${formatWorkMinutes(pause)} pause` : ""}`,
+                            row?.date ?? "",
+                        ];
+                    }}
+                />
+                <Bar dataKey="workedMinutes" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
+
+function WorkTimeTeamTable({ members }: { members: WorkTimeTeamMemberRow[] }) {
+    const t = useT();
+    const rows = useMemo(
+        () => [...members].sort((a, b) => b.weekMinutes - a.weekMinutes || a.name.localeCompare(b.name, "de")),
+        [members],
+    );
+    const weekMax = useMemo(() => Math.max(...rows.map((r) => r.weekMinutes), 1), [rows]);
+
+    return (
+        <div className="statistik-work-team">
+            <h3 className="statistik-work-section-title">{t("page.arbeitszeit.team.title")}</h3>
+            <div className="statistik-work-team-scroll">
+                <table className="statistik-work-team-table">
+                    <thead>
+                        <tr>
+                            <th>{t("page.arbeitszeit.team.col.staff")}</th>
+                            <th>{t("page.arbeitszeit.team.col.status")}</th>
+                            <th>{t("page.arbeitszeit.team.col.today")}</th>
+                            <th>{t("page.arbeitszeit.team.col.week")}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row) => {
+                            const pct = Math.min(100, (row.weekMinutes / weekMax) * 100);
+                            return (
+                                <tr key={row.personalId}>
+                                    <td>
+                                        <span className="statistik-work-team-name">{row.name}</span>
+                                    </td>
+                                    <td>
+                                        <span
+                                            className={`statistik-work-team-status statistik-work-team-status--${row.status.toLowerCase()}`}
+                                        >
+                                            {workTimeStatusLabel(row.status, t)}
+                                        </span>
+                                    </td>
+                                    <td className="statistik-work-team-num">{formatWorkMinutes(row.todayMinutes)}</td>
+                                    <td>
+                                        <div className="statistik-work-team-week">
+                                            <span className="statistik-work-team-num">{formatWorkMinutes(row.weekMinutes)}</span>
+                                            <div className="statistik-work-team-bar" aria-hidden>
+                                                <div className="statistik-work-team-bar__fill" style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
 }
 
@@ -1036,7 +1168,7 @@ export function StatistikPage() {
                     ) : null}
 
                     {activePanel === "sec-arbeitszeit" ? (
-                    <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <section className="statistik-work-section">
                         <h2 className="statistik-workspace__panel-title">{t("page.statistik.arbeitszeit.title")}</h2>
                         <p className="statistik-workspace__panel-intro">{t("page.statistik.arbeitszeit.intro")}</p>
                         {workStatsError ? (
@@ -1045,32 +1177,54 @@ export function StatistikPage() {
                             </DismissibleNotice>
                         ) : null}
                         {workStats ? (
-                            <>
+                            <Card className="statistik-work-panel">
                                 <div className="statistik-work-kpis">
-                                    <div className="statistik-work-kpi">
+                                    <div className="statistik-work-kpi statistik-work-kpi--week">
                                         <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.week_actual")}</span>
                                         <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.weekMinutes)}</span>
                                     </div>
-                                    <div className="statistik-work-kpi">
+                                    <div className="statistik-work-kpi statistik-work-kpi--month">
                                         <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.month_actual")}</span>
                                         <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.monthMinutes)}</span>
                                     </div>
-                                    <div className="statistik-work-kpi">
+                                    <div className="statistik-work-kpi statistik-work-kpi--pause">
                                         <span className="statistik-work-kpi__label">{t("page.statistik.arbeitszeit.pause_week")}</span>
                                         <span className="statistik-work-kpi__value">{formatWorkMinutes(workStats.pauseMinutesWeek)}</span>
                                     </div>
                                 </div>
-                                {workStats.byPerson.length > 0 ? (
-                                    <ChartCard
-                                        title={t("page.statistik.arbeitszeit.chart_by_person")}
-                                        height={280}
-                                        hasData={workStats.byPerson.length > 0}
-                                        emptyHint={t("page.statistik.arbeitszeit.chart_empty")}
-                                    >
-                                        <WorkTimePersonBar members={workStats.byPerson} />
-                                    </ChartCard>
-                                ) : null}
-                            </>
+
+                                <div className="statistik-work-charts">
+                                    <div className="statistik-work-chart-block">
+                                        <h3 className="statistik-work-section-title">{t("page.statistik.arbeitszeit.chart_by_person")}</h3>
+                                        {workStats.byPerson.length > 0 ? (
+                                            <div className="statistik-work-chart-canvas">
+                                                <WorkTimePersonBar members={workStats.byPerson} />
+                                            </div>
+                                        ) : (
+                                            <p className="statistik-work-empty">{t("page.statistik.arbeitszeit.chart_empty")}</p>
+                                        )}
+                                    </div>
+                                    {workStats.byDay.length > 0 ? (
+                                        <div className="statistik-work-chart-block statistik-work-chart-block--daily">
+                                            <h3 className="statistik-work-section-title">{t("page.arbeitszeit.week_overview")}</h3>
+                                            <div className="statistik-work-chart-canvas statistik-work-chart-canvas--compact">
+                                                <WorkTimeDayBar days={workStats.byDay} />
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                {workStats.byPerson.length > 0 ? <WorkTimeTeamTable members={workStats.byPerson} /> : null}
+
+                                <div className="statistik-work-footer">
+                                    <Link to="/personal/arbeitszeit" className="statistik-work-link">
+                                        {t("page.arbeitszeit.team.own_tracking")}
+                                    </Link>
+                                    <Link to="/verwaltung/team/arbeitszeit" className="statistik-work-link">
+                                        {t("page.arbeitszeit.team.title")}
+                                    </Link>
+                                </div>
+                            </Card>
                         ) : (
                             <PageLoading />
                         )}

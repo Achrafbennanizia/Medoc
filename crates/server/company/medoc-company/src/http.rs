@@ -111,6 +111,7 @@ pub async fn build_company_router(pool: SqlitePool) -> Router {
 
     Router::new()
         .route("/health", get(public_health))
+        .route("/register", post(register_practice))
         .nest("/v1", protected)
         .with_state(state)
         .layer(cors_policy::company_cors_layer())
@@ -127,6 +128,111 @@ async fn public_health() -> Json<serde_json::Value> {
         "_demo": true,
         "banner": "Demo-only billing stub — not for production (GAP-15 deferred)."
     }))
+}
+
+#[derive(Deserialize)]
+struct RegisterPracticeBody {
+    display_name: String,
+    slug: String,
+    admin_name: String,
+    admin_email: String,
+    #[serde(default)]
+    street: Option<String>,
+    #[serde(default)]
+    postal_code: Option<String>,
+    #[serde(default)]
+    city: Option<String>,
+    plan: String,
+}
+
+fn plan_details(plan: &str) -> (&'static str, i64, i64) {
+    match plan.trim().to_uppercase().as_str() {
+        "BASIC" => ("MeDoc Praxis Basis", 4900, 2),
+        "ENTERPRISE" => ("MeDoc Praxis Enterprise", 17900, 99),
+        _ => ("MeDoc Praxis Pro", 9900, 5),
+    }
+}
+
+fn slug_valid(slug: &str) -> bool {
+    let s = slug.trim();
+    if s.len() < 3 || s.len() > 48 {
+        return false;
+    }
+    s.chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+async fn register_practice(
+    State(state): State<CompanyHostState>,
+    Json(body): Json<RegisterPracticeBody>,
+) -> Result<Json<serde_json::Value>, Response> {
+    let display_name = body.display_name.trim();
+    let slug = body.slug.trim().to_lowercase();
+    let admin_name = body.admin_name.trim();
+    let admin_email = body.admin_email.trim();
+    if display_name.len() < 2 {
+        return Err((StatusCode::BAD_REQUEST, "display_name too short").into_response());
+    }
+    if !slug_valid(&slug) {
+        return Err((StatusCode::BAD_REQUEST, "invalid slug").into_response());
+    }
+    if admin_name.len() < 2 {
+        return Err((StatusCode::BAD_REQUEST, "admin_name too short").into_response());
+    }
+    if !admin_email.contains('@') || admin_email.len() < 5 {
+        return Err((StatusCode::BAD_REQUEST, "invalid admin_email").into_response());
+    }
+
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT slug FROM practice WHERE slug = ?1")
+            .bind(&slug)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "db").into_response())?;
+    if existing.is_some() {
+        return Err((StatusCode::CONFLICT, "slug already registered").into_response());
+    }
+
+    let (plan_name, monthly_fee_cents, max_users) = plan_details(&body.plan);
+    let raw_key = format!(
+        "sk_live_{}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            uuid::Uuid::new_v4().as_bytes()
+        )
+    );
+    let api_hash = api_key::hash_api_key(&raw_key)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "hash").into_response())?;
+
+    sqlx::query(
+        "INSERT INTO practice (slug, display_name, api_key_hash, plan_name, monthly_fee_cents, max_users)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )
+    .bind(&slug)
+    .bind(display_name)
+    .bind(&api_hash)
+    .bind(plan_name)
+    .bind(monthly_fee_cents)
+    .bind(max_users)
+    .execute(&state.pool)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "insert").into_response())?;
+
+    Ok(Json(json!({
+        "_demo": true,
+        "practice_slug": slug,
+        "display_name": display_name,
+        "plan_name": plan_name,
+        "plan": body.plan.trim().to_uppercase(),
+        "api_key": raw_key,
+        "admin_name": admin_name,
+        "admin_email": admin_email,
+        "street": body.street,
+        "postal_code": body.postal_code,
+        "city": body.city,
+        "monthly_fee_cents": monthly_fee_cents,
+        "max_users": max_users,
+    })))
 }
 
 async fn health() -> Json<serde_json::Value> {

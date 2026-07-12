@@ -30,6 +30,7 @@ const ROLES = ACTIVE_ROLE_WIRES satisfies readonly Role[];
 const VERWALTUNG_ROUTE_KEYS = [
     "verwaltung",
     "verwaltung/team",
+    "verwaltung/team/arbeitszeit",
     "verwaltung/arbeitstage",
     "verwaltung/praxisplanung",
     "verwaltung/arbeitszeiten",
@@ -54,6 +55,7 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
     ARZT: {
         verwaltung: true,
         "verwaltung/team": true,
+        "verwaltung/team/arbeitszeit": true,
         "verwaltung/arbeitstage": true,
         "verwaltung/praxisplanung": true,
         "verwaltung/arbeitszeiten": true,
@@ -75,6 +77,7 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
     REZEPTION: {
         verwaltung: false,
         "verwaltung/team": false,
+        "verwaltung/team/arbeitszeit": false,
         "verwaltung/arbeitstage": false,
         "verwaltung/praxisplanung": false,
         "verwaltung/arbeitszeiten": false,
@@ -321,6 +324,7 @@ describe("navItemVisible", () => {
         expect(routeChildPathAllowed("verwaltung/praxisplanung", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/arbeitszeiten", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/team", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/team/arbeitszeit", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("personal", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/behandlungs-katalog", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "REZEPTION")).toBe(false);
