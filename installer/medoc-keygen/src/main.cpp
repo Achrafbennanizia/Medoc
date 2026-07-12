@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -177,8 +178,21 @@ int main(int argc, char** argv) {
   f.close();
   secure_chmod(out);
 
+  namespace fs = std::filesystem;
+  fs::path code_path = fs::path(out).parent_path() / "license.code";
+  {
+    std::ofstream cf(code_path, std::ios::binary | std::ios::trunc);
+    if (!cf) {
+      std::cerr << "cannot write " << code_path.string() << "\n";
+      return 1;
+    }
+    cf << m.fingerprint << "\n";
+  }
+  secure_chmod(code_path.string());
+
   std::cerr << "wrote " << out << "\n";
-  std::cerr << "fingerprint: " << m.fingerprint << "\n";
+  std::cerr << "license code: " << m.fingerprint << "\n";
+  std::cerr << "wrote " << code_path.string() << "\n";
   std::cerr << "NOTE: this file contains sealed key material. Import once on the "
                "owner device, then delete it.\n";
   return 0;

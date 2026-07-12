@@ -1,22 +1,31 @@
 /**
- * Pre-login gate: unlicensed and unprovisioned installs see only onboarding routes.
- * Owner (admin) devices must reach `licensed`; members may pass on `provisioned` alone.
+ * Pre-login onboarding gate:
+ * 1. License or join existing network
+ * 2a. Owner → full practice setup
+ * 2b. Member → create account or sign in to existing
  */
 
-import { useCallback, useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 import {
-    ONBOARDING_LICENSE_PENDING_KEY,
+    onboardingSubscriptionStatus,
     verbundGetStatus,
 } from "@/systems/practice-host/controllers/verbund.controller";
 import { useVerbundStore } from "@/models/store/verbund-store";
+import { useAuthStore } from "@/models/store/auth-store";
 import { useT } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/views/components/ui/button";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
 
-function needsVerbundOnboarding(
+type OnboardingPhase = {
+    needsDeviceSetup: boolean;
+    needsPracticeSetup: boolean;
+    needsMemberAccount: boolean;
+};
+
+function deviceSetupNeeded(
     status: NonNullable<ReturnType<typeof useVerbundStore.getState>["status"]>,
 ): boolean {
     if (status.licensed) return false;
@@ -28,17 +37,27 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
     const location = useLocation();
     const t = useT();
     const status = useVerbundStore((s) => s.status);
+    const session = useAuthStore((s) => s.session);
     const setStatus = useVerbundStore((s) => s.setStatus);
     const loadError = useVerbundStore((s) => s.loadError);
     const setLoadError = useVerbundStore((s) => s.setLoadError);
-    const needsOnboarding = status === null ? true : needsVerbundOnboarding(status);
+    const [phase, setPhase] = useState<OnboardingPhase | null>(null);
 
     const refresh = useCallback(() => {
         setLoadError(null);
         void verbundGetStatus()
-            .then(setStatus)
+            .then(async (s) => {
+                setStatus(s);
+                const sub = await onboardingSubscriptionStatus();
+                setPhase({
+                    needsDeviceSetup: deviceSetupNeeded(s),
+                    needsPracticeSetup: sub.needsPracticeSetup,
+                    needsMemberAccount: sub.needsMemberAccount,
+                });
+            })
             .catch((e: unknown) => {
                 setStatus(null);
+                setPhase(null);
                 setLoadError(errorMessage(e));
             });
     }, [setLoadError, setStatus]);
@@ -64,7 +83,7 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
         );
     }
 
-    if (status === null) {
+    if (status === null || phase === null) {
         return (
             <div className="onboarding-page" role="status">
                 <p className="card-sub">{t("onboarding.gate.loading")}</p>
@@ -72,24 +91,33 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
         );
     }
 
-    const onOnboarding = location.pathname.startsWith("/onboarding");
-    const pendingLicense = sessionStorage.getItem(ONBOARDING_LICENSE_PENDING_KEY) === "1";
-    const ownerNeedsLicense = !!status.clusterId && !status.licensed;
-    const ownerOnlyOnboarding =
-        location.pathname === "/onboarding/aktivierung" || location.pathname === "/onboarding/lizenz";
-    const memberDevice = (status.provisioned || !!status.clusterId) && !status.isOwner;
+    const path = location.pathname;
+    const onOnboarding = path.startsWith("/onboarding");
+    const onLizenz = path === "/onboarding" || path === "/onboarding/lizenz";
+    const onBeitreten = path === "/onboarding/beitreten";
+    const onAbonnement = path === "/onboarding/abonnement";
+    const onKonto = path === "/onboarding/konto";
+    const onLogin = path === "/login";
 
-    if (memberDevice && ownerOnlyOnboarding) {
-        return <Navigate to="/onboarding" replace />;
-    }
-    if ((pendingLicense || ownerNeedsLicense) && location.pathname !== "/onboarding/lizenz") {
-        sessionStorage.removeItem(ONBOARDING_LICENSE_PENDING_KEY);
+    const { needsDeviceSetup, needsPracticeSetup, needsMemberAccount } = phase;
+    const onboardingComplete = !needsDeviceSetup && !needsPracticeSetup && !needsMemberAccount;
+
+    if (needsDeviceSetup && !onOnboarding) {
         return <Navigate to="/onboarding/lizenz" replace />;
     }
-    if (needsOnboarding && !onOnboarding) {
-        return <Navigate to="/onboarding" replace />;
+    if (needsDeviceSetup && onOnboarding && !onLizenz && !onBeitreten) {
+        return <Navigate to="/onboarding/lizenz" replace />;
     }
-    if (!needsOnboarding && onOnboarding) {
+
+    if (needsPracticeSetup && !onAbonnement) {
+        return <Navigate to="/onboarding/abonnement" replace />;
+    }
+
+    if (needsMemberAccount && !session && !onKonto && !onLogin) {
+        return <Navigate to="/onboarding/konto" replace />;
+    }
+
+    if (onboardingComplete && onOnboarding) {
         return <Navigate to="/login" replace />;
     }
 

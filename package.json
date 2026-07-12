@@ -21,6 +21,8 @@
         "check": "npm run check -w medoc",
         "i18n:verify": "node scripts/i18n-verify-parity.mjs",
         "i18n:scan": "node scripts/i18n-scan-hardcoded.mjs",
+        "i18n:pass5": "node scripts/i18n-pass5-en-translations.mjs && node scripts/i18n-pass5-fr-ar-translations.mjs",
+        "i18n:pass6": "node scripts/i18n-pass6-ui-expansion.mjs",
         "i18n:apply-patches": "node scripts/i18n-apply-translation-patches.mjs",
         "i18n:merge-pass4": "node scripts/i18n-merge-pass4-chunks.mjs && node scripts/i18n-apply-translation-patches.mjs",
         "i18n:extract": "node scripts/extract-i18n-catalog.mjs",

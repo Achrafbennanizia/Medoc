@@ -67,6 +67,7 @@ export function getVerwaltungBackTarget(pathnameWithOptionalQuery: string): Verw
         "/leistungen": LEISTUNGEN_HUB,
         "/produkte": LAGER_HUB,
         "/personal": TEAM_HUB,
+        "/verwaltung/team/arbeitszeit": TEAM_HUB,
         "/bilanz": FINANZEN_BERICHTE,
         "/bilanz/neu": FINANZEN_BERICHTE,
     };

@@ -61,7 +61,11 @@ pub async fn lizenz_activate(
 ) -> Result<VerbundStatus, AppError> {
     // Pre-login onboarding: no session yet — use bootstrap actor id.
     let uid = user_id(&session_state).unwrap_or_else(|_| "onboarding".into());
-    activate_cluster_license(&pool, &uid, &license_key).await
+    let resolved =
+        crate::commands::company_portal_commands::resolve_onboarding_license_key(&pool, &license_key)
+            .await?;
+    let status = activate_cluster_license(&pool, &uid, &resolved).await?;
+    Ok(status)
 }
 
 #[tauri::command]

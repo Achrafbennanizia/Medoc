@@ -37,7 +37,11 @@ const CRITICAL_COMMANDS: &[&str] = &[
     "verbund_status_cmd",
     "lizenz_activate",
     "import_activation_manifest",
-    "repair_audit_chain",
+    "work_time_get_week_overview",
+    "work_time_get_team_overview",
+    "work_time_get_statistics",
+    "work_time_start",
+    "work_time_end",
 ];
 
 fn extract_handler_names(source: &str) -> Vec<String> {

@@ -31,8 +31,8 @@ function htmlLangDir(): { lang: string; dir: string } {
 
 function rezeptStatusLabel(status: string): string {
     const s = status.trim();
-    if (s === "AUSGESTELLT") return "Ausgestellt";
-    if (s === "ENTWURF") return "Entwurf";
+    if (s === "AUSGESTELLT") return docT("enum.rezept_status.ausgestellt");
+    if (s === "ENTWURF") return docT("enum.rezept_status.entwurf");
     return s || "—";
 }
 
@@ -316,7 +316,7 @@ export function bundleRezeptExport(r: Rezept, patient: Patient | null): Clinical
 }
 
 function rezeptPdfLinesCombo(items: Rezept[], patient: Patient | null): string[] {
-    if (items.length === 0) return ["Keine Rezeptdaten."];
+    if (items.length === 0) return [docT("document.print.no_prescription")];
     const first = items[0]!;
     const title =
         items.length === 1 ? "REZEPT" : `KOMBINATIONSREZEPT (${items.length} Positionen)`;

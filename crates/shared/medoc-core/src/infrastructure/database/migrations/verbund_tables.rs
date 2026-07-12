@@ -131,6 +131,11 @@ pub async fn ensure_verbund_tables(pool: &SqlitePool) -> Result<(), AppError> {
             "app_version",
             "ALTER TABLE pairing_request ADD COLUMN app_version TEXT",
         ),
+        (
+            "pairing_request",
+            "handshake_transcript_b64",
+            "ALTER TABLE pairing_request ADD COLUMN handshake_transcript_b64 TEXT",
+        ),
     ] {
         if let Err(e) = sqlx::query(ddl).execute(pool).await {
             let msg = e.to_string();

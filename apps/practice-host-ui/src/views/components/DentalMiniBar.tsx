@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Behandlung, Untersuchung, Zahnbefund } from "@/models/types";
-import { untersuchungToothNotesForTooth } from "@/lib/untersuchung";
+import type { Behandlung, Zahnbefund } from "@/models/types";
 import { useT, useTParams } from "@/lib/i18n";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
@@ -32,16 +31,15 @@ type PopState = {
 type DentalMiniBarProps = {
     befunde: Zahnbefund[];
     behandlungen: Behandlung[];
-    untersuchungen?: Untersuchung[];
     /** When false, render nothing (e.g. non-clinical role). */
     visible?: boolean;
 };
 
 /**
  * Compact two-row FDI odontogram for patient header.
- * Hover shows examination notes and treatments for that tooth (status color from Zahnbefunde).
+ * Hover shows diagnoses (Zahnbefunde) and treatments (Behandlungen) for that tooth.
  */
-export function DentalMiniBar({ befunde, behandlungen, untersuchungen = [], visible = true }: DentalMiniBarProps) {
+export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalMiniBarProps) {
     const t = useT();
     const tp = useTParams();
     const [pop, setPop] = useState<PopState | null>(null);
@@ -88,8 +86,8 @@ export function DentalMiniBar({ befunde, behandlungen, untersuchungen = [], visi
         return m;
     }, [befunde]);
 
+    const popBefunde = pop ? befundeForTooth(befunde, pop.fdi) : [];
     const popBehand = pop ? behandlungenForTooth(behandlungen, pop.fdi) : [];
-    const popExamNotes = pop ? untersuchungToothNotesForTooth(untersuchungen, pop.fdi) : [];
     const popStatus: DentalStatusKey = pop ? befundToStatusKey(map.get(Number(pop.fdi))) : "healthy";
     const popLayout = useMemo(() => {
         if (!pop) return { left: 0, top: 0, width: 280, maxHeight: 360, placement: "below" as const };
@@ -119,10 +117,7 @@ export function DentalMiniBar({ befunde, behandlungen, untersuchungen = [], visi
         const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = befundToStatusKey(map.get(Number(fdi)));
         const st = DENTAL_STATES[stateKey];
-        const hasHistory =
-            befundeForTooth(befunde, fdi).length > 0 ||
-            behandlungenForTooth(behandlungen, fdi).length > 0 ||
-            untersuchungToothNotesForTooth(untersuchungen, fdi).length > 0;
+        const hasHistory = befundeForTooth(befunde, fdi).length > 0 || behandlungenForTooth(behandlungen, fdi).length > 0;
         return (
             <div
                 key={fdi}
@@ -162,18 +157,17 @@ export function DentalMiniBar({ befunde, behandlungen, untersuchungen = [], visi
             <div className="tooth-popover-title">{tp("dental.picker.one_tooth", { tooth: pop.fdi })}</div>
             <div className="tooth-popover-meta">{dentalStatusLabel(t, popStatus)}</div>
             <div className="tooth-popover-section">
-                <div className="tooth-popover-h">{t("dental.mini.examinations_heading")}</div>
-                {popExamNotes.length === 0 ? (
-                    <div className="tooth-popover-empty">{t("dental.mini.no_examinations")}</div>
+                <div className="tooth-popover-h">{t("dental.mini.findings_heading")}</div>
+                {popBefunde.length === 0 ? (
+                    <div className="tooth-popover-empty">{t("dental.mini.no_findings")}</div>
                 ) : (
                     <ul className="tooth-popover-list">
-                        {popExamNotes.map((entry) => (
-                            <li key={`${entry.untersuchungId}-${entry.createdAt}`}>
-                                <span className="tooth-popover-pill">
-                                    {(entry.untersuchungsnummer ?? "").trim() || t("patient.detail.tab.unter.number_unknown")}
-                                </span>
-                                <span className="tooth-popover-sub">{entry.note}</span>
-                                <span className="tooth-popover-date">{formatDateTime(entry.createdAt)}</span>
+                        {popBefunde.map((b) => (
+                            <li key={b.id}>
+                                <span className="tooth-popover-pill">{b.befund}</span>
+                                {b.diagnose ? <span className="tooth-popover-sub">{b.diagnose}</span> : null}
+                                {b.notizen ? <span className="tooth-popover-sub">{b.notizen}</span> : null}
+                                <span className="tooth-popover-date">{formatDateTime(b.created_at)}</span>
                             </li>
                         ))}
                     </ul>

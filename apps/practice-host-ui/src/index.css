@@ -2515,10 +2515,10 @@ html[data-theme="dark"] {
     border-radius: 0;
   }
   .verwaltung-toc-row-link--icons {
-    grid-template-columns: 44px minmax(0, 1fr) minmax(0, 2fr) 40px;
+    grid-template-columns: 44px minmax(140px, 0.95fr) minmax(0, 1.55fr) 36px;
   }
   .verwaltung-toc-row-link:not(.verwaltung-toc-row-link--icons) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 40px;
+    grid-template-columns: minmax(140px, 0.95fr) minmax(0, 1.55fr) 36px;
   }
   .verwaltung-toc-row-link:hover {
     background: color-mix(in oklab, var(--fg-1) 3.5%, transparent);
@@ -2551,11 +2551,15 @@ html[data-theme="dark"] {
   .verwaltung-toc-title-cell {
     font-weight: 600;
     color: var(--fg-2);
+    min-width: 0;
+    line-height: 1.3;
   }
   .verwaltung-toc-desc-cell {
     font-size: 13px;
     display: block;
-    line-height: 1.4;
+    line-height: 1.45;
+    min-width: 0;
+    color: var(--fg-3);
   }
   .verwaltung-toc-chevron {
     text-align: center;
@@ -4692,6 +4696,14 @@ html[data-theme="dark"] {
     justify-content: center;
     padding: 24px 16px;
     background: var(--bg);
+    box-sizing: border-box;
+  }
+  .onboarding-page--scroll {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    padding: 12px 16px;
   }
   .onboarding-card {
     width: 100%;
@@ -4701,6 +4713,46 @@ html[data-theme="dark"] {
     border: 1px solid var(--line);
     background: var(--bg-elev);
     box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
+  }
+  .onboarding-card--wide {
+    max-width: min(720px, 100%);
+  }
+  .onboarding-card--scrollable {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+  .onboarding-card__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding: 24px 28px 8px;
+  }
+  .onboarding-card__footer {
+    flex-shrink: 0;
+    padding: 12px 28px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  .onboarding-card__footer .onboarding-actions {
+    margin-top: 0;
+  }
+  @media (max-width: 640px) {
+    .onboarding-page--scroll {
+      padding: 8px 10px;
+    }
+    .onboarding-card__scroll {
+      padding: 20px 18px 8px;
+    }
+    .onboarding-card__footer {
+      padding: 10px 18px 18px;
+    }
   }
   .onboarding-card h1 { margin: 0 0 8px; font-size: 1.35rem; font-weight: 600; }
   .onboarding-card .card-sub { margin: 0 0 20px; }
@@ -4722,8 +4774,17 @@ html[data-theme="dark"] {
     font-weight: 500;
     color: var(--fg-2);
   }
+  .onboarding-field--inline {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  .onboarding-path-row .onboarding-field--inline input {
+    margin-top: 6px;
+  }
   .onboarding-field input,
-  .onboarding-field textarea {
+  .onboarding-field textarea,
+  .onboarding-field select {
     display: block;
     width: 100%;
     margin-top: 6px;
@@ -4799,11 +4860,50 @@ html[data-theme="dark"] {
     color: var(--fg-2);
     background: color-mix(in oklab, var(--fg) 8%, transparent);
   }
+  .license-device-role-card--selected {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 6%, var(--bg-elev));
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+  .onboarding-card--wide .license-device-role-grid__cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 720px) {
+    .onboarding-card--wide .license-device-role-grid__cards {
+      grid-template-columns: 1fr;
+    }
+  }
+  .onboarding-fieldset {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    padding: 12px 14px 4px;
+    margin: 0 0 14px;
+  }
+  .onboarding-fieldset legend {
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .onboarding-field--checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-weight: 400;
+    color: var(--fg);
+  }
+  .onboarding-field--checkbox input {
+    width: auto;
+    margin-top: 2px;
+  }
   .onboarding-path-row {
     display: flex;
     gap: 8px;
-    align-items: stretch;
-    margin-top: 6px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin-top: 0;
   }
   .onboarding-path-row input { flex: 1 1 auto; margin-top: 0; min-width: 0; }
 
@@ -8077,10 +8177,21 @@ html[data-theme="dark"] {
   line-height: 1.5;
   max-width: 52ch;
 }
+.statistik-work-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.statistik-work-panel.card {
+  overflow: hidden;
+}
+.statistik-work-panel > .statistik-work-kpis {
+  padding: 18px 20px 0;
+}
 .statistik-work-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 @media (max-width: 720px) {
   .statistik-work-kpis {
@@ -8090,25 +8201,178 @@ html[data-theme="dark"] {
 .statistik-work-kpi {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
+  gap: 4px;
+  padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: var(--bg-elev);
-  box-shadow: var(--shadow-sm);
+  background: color-mix(in oklab, var(--bg-elev) 92%, var(--accent) 8%);
+  box-shadow: none;
+}
+.statistik-work-kpi--week {
+  background: color-mix(in oklab, var(--bg-elev) 88%, var(--accent) 12%);
+}
+.statistik-work-kpi--month {
+  background: color-mix(in oklab, var(--bg-elev) 92%, var(--fg) 8%);
+}
+.statistik-work-kpi--pause {
+  background: color-mix(in oklab, var(--bg-elev) 90%, var(--green) 10%);
 }
 .statistik-work-kpi__label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   color: var(--fg-3);
 }
 .statistik-work-kpi__value {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
+  line-height: 1.1;
+}
+.statistik-work-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 0;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 960px) {
+  .statistik-work-charts {
+    grid-template-columns: 1fr;
+  }
+}
+.statistik-work-chart-block {
+  padding: 16px 20px 18px;
+  min-width: 0;
+}
+.statistik-work-chart-block + .statistik-work-chart-block {
+  border-inline-start: 1px solid var(--line);
+}
+@media (max-width: 960px) {
+  .statistik-work-chart-block + .statistik-work-chart-block {
+    border-inline-start: none;
+    border-top: 1px solid var(--line);
+  }
+}
+.statistik-work-section-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.statistik-work-chart-canvas {
+  height: 220px;
+  min-height: 220px;
+}
+.statistik-work-chart-canvas--compact {
+  height: 200px;
+  min-height: 200px;
+}
+.statistik-work-empty {
+  margin: 0;
+  padding: 28px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--fg-3);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+}
+.statistik-work-team {
+  padding: 0 20px 16px;
+  border-top: 1px solid var(--line);
+}
+.statistik-work-team-scroll {
+  overflow-x: auto;
+}
+.statistik-work-team-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.statistik-work-team-table th {
+  text-align: start;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  padding: 0 10px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.statistik-work-team-table td {
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+  vertical-align: middle;
+}
+.statistik-work-team-table tr:last-child td {
+  border-bottom: none;
+}
+.statistik-work-team-name {
+  font-weight: 650;
+  color: var(--fg);
+}
+.statistik-work-team-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+.statistik-work-team-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
+  color: var(--fg-2);
+}
+.statistik-work-team-status--running {
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
+  color: #146c2e;
+}
+.statistik-work-team-status--paused {
+  background: var(--yellow-soft);
+  color: #92400e;
+}
+.statistik-work-team-week {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+.statistik-work-team-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  overflow: hidden;
+}
+.statistik-work-team-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  min-width: 2px;
+  transition: width 180ms ease;
+}
+.statistik-work-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 55%, var(--bg-elev));
+}
+.statistik-work-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.statistik-work-link:hover {
+  text-decoration: underline;
 }
 .statistik-chart-tooltip {
   padding: 10px 12px;
@@ -9850,6 +10114,18 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
   background: var(--bg-elev);
   min-height: calc(var(--termin-hour-row, 5.25rem) * var(--termin-slot-count, 11));
 }
+.termin-day-col__closed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  border-block: 1px solid color-mix(in oklab, var(--fg) 5%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.termin-day-col--today .termin-day-col__closed {
+  background: color-mix(in oklab, var(--fg) 8%, color-mix(in oklab, var(--accent) 6%, var(--bg-elev)));
+}
 .termin-day-col--today {
   background: color-mix(in oklab, var(--accent) 10%, var(--bg-elev));
 }
@@ -9954,7 +10230,6 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   opacity: 0.55;
 }
 .termin-appt-block--cancelled .termin-appt-block-name,
-.termin-appt-block--cancelled .termin-appt-block-time-col-primary,
 .termin-appt-block--cancelled .termin-appt-block-type,
 .termin-appt-block--cancelled .termin-appt-block-duration,
 .termin-appt-block--cancelled .termin-appt-status-pill {
@@ -9999,46 +10274,6 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   font-variant-numeric: tabular-nums;
   color: var(--fg);
   line-height: 1.2;
-}
-.termin-appt-block-time-col-primary {
-  display: none;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--fg);
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-  min-width: 0;
-}
-.termin-appt-block--week-compact .termin-appt-block-time-col-primary {
-  font-size: 11px;
-}
-@container termin-appt (max-width: 8.5rem) {
-  .termin-appt-block-time-col {
-    min-width: 0;
-    flex: 1;
-  }
-  .termin-appt-block-time-col-primary {
-    display: block;
-  }
-  .termin-appt-block-time {
-    display: none;
-  }
-  .termin-appt-block-body-col {
-    display: none;
-  }
-  .termin-appt-block--dragging .termin-appt-block-time-col-primary {
-    display: none;
-  }
-  .termin-appt-block--dragging .termin-appt-block-time {
-    display: block;
-  }
-  .termin-appt-block--dragging .termin-appt-block-body-col {
-    display: none;
-  }
 }
 .termin-appt-block--week-compact .termin-appt-block-time-col .termin-appt-block-time {
   font-size: 11px;
@@ -10107,6 +10342,90 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
 .termin-appt-block--week-compact .termin-appt-block-body-col .termin-appt-block-type {
   font-size: 9px;
 }
+.termin-appt-block-sub {
+  display: block;
+  min-width: 0;
+}
+.termin-appt-block-duration--compact,
+.termin-appt-block-sub-sep {
+  display: none;
+}
+.termin-appt-block-sub .termin-appt-block-type {
+  display: block;
+}
+@container termin-appt (max-width: 8.5rem) {
+  .termin-appt-block--calendar-row.termin-appt-block--week-compact {
+    align-items: stretch;
+    gap: 5px;
+    padding: 4px 5px 4px 4px;
+  }
+  .termin-appt-block-time-col {
+    display: none;
+  }
+  .termin-appt-block-stripe {
+    order: -1;
+    align-self: stretch;
+    min-height: auto;
+    margin-block: 2px;
+    border-radius: 999px;
+  }
+  .termin-appt-block-body-col {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+    justify-content: center;
+  }
+  .termin-appt-block-body-col .termin-appt-block-name {
+    font-size: 11px;
+    line-height: 1.15;
+  }
+  .termin-appt-block-sub {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1.15;
+    color: var(--fg-3);
+  }
+  .termin-appt-block-duration--compact,
+  .termin-appt-block-sub-sep {
+    display: inline;
+  }
+  .termin-appt-block-sub .termin-appt-block-type {
+    display: inline;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+  .termin-appt-block-duration--compact {
+    flex-shrink: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+  .termin-appt-block-sub-sep {
+    flex-shrink: 0;
+    font-weight: 600;
+    opacity: 0.65;
+  }
+  .termin-appt-block--dragging .termin-appt-block-time-col {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+  .termin-appt-block--dragging .termin-appt-block-body-col {
+    display: none;
+  }
+}
 .termin-appt-status-pill {
   flex-shrink: 0;
   font-size: 11px;
@@ -10149,12 +10468,12 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   border-color: color-mix(in oklab, var(--fg) 18%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-time-col .termin-appt-block-time,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-time-col .termin-appt-block-time-col-primary,
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-body-col .termin-appt-block-name {
   color: var(--fg);
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-duration,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-body-col .termin-appt-block-type {
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-body-col .termin-appt-block-type,
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--planned .termin-appt-block-sub {
   color: var(--fg-2);
 }
 
@@ -10163,12 +10482,12 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   border-color: color-mix(in oklab, var(--green) 35%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-time-col .termin-appt-block-time,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-time-col .termin-appt-block-time-col-primary,
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-body-col .termin-appt-block-name {
   color: #146c2e;
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-duration,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-body-col .termin-appt-block-type {
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-body-col .termin-appt-block-type,
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--active .termin-appt-block-sub {
   color: color-mix(in oklab, #146c2e 65%, var(--fg-3));
 }
 
@@ -10177,12 +10496,12 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-time-col .termin-appt-block-time,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-time-col .termin-appt-block-time-col-primary,
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-body-col .termin-appt-block-name {
   color: var(--accent-ink);
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-duration,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-body-col .termin-appt-block-type {
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-body-col .termin-appt-block-type,
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--done .termin-appt-block-sub {
   color: color-mix(in oklab, var(--accent-ink) 70%, var(--fg-3));
 }
 
@@ -10191,12 +10510,12 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   border-color: color-mix(in oklab, #9f1239 22%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-time-col .termin-appt-block-time,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-time-col .termin-appt-block-time-col-primary,
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-body-col .termin-appt-block-name {
   color: #9f1239;
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-duration,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-body-col .termin-appt-block-type {
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-body-col .termin-appt-block-type,
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--cancel .termin-appt-block-sub {
   color: color-mix(in oklab, #9f1239 55%, var(--fg-3));
 }
 
@@ -10205,12 +10524,12 @@ body.termin-calendar-dragging .termin-appt-block:not(.termin-appt-block--draggin
   border-color: color-mix(in oklab, #92400e 22%, var(--line));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-time-col .termin-appt-block-time,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-time-col .termin-appt-block-time-col-primary,
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-body-col .termin-appt-block-name {
   color: #92400e;
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-duration,
-.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-body-col .termin-appt-block-type {
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-body-col .termin-appt-block-type,
+.termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-sub {
   color: color-mix(in oklab, #92400e 58%, var(--fg-3));
 }
 .termin-appt-block--calendar-row.termin-appt-block--week-compact.termin-appt-status-surface--edit .termin-appt-block-notfall-ic {
@@ -11965,7 +12284,96 @@ html[data-theme="dark"] .finanzen-amt--warn {
 }
 
 .work-time-page {
-  max-width: 960px;
+  max-width: 1080px;
+}
+
+.work-time-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .work-time-page__grid {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  }
+}
+
+.work-time-today-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.work-time-today-clock {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.35rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--fg);
+}
+
+.work-time-today-status {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.work-time-today-since {
+  color: var(--fg-3);
+  margin-inline-start: 8px;
+}
+
+.work-time-today-week-total {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.work-time-today-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-time-week-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding-top: 0;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.work-time-week-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.work-time-week-legend__swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.work-time-week-legend__swatch--ist {
+  background: var(--accent);
+}
+
+.work-time-week-legend__swatch--soll {
+  background: color-mix(in oklab, var(--fg) 14%, transparent);
+  border: 1px dashed color-mix(in oklab, var(--fg) 24%, transparent);
+}
+
+.work-time-week-footer {
+  margin: 0;
+  padding-top: 0;
+  font-size: 12px;
+  color: var(--fg-3);
 }
 
 .work-time-week-grid {
@@ -12045,3 +12453,195 @@ html[data-theme="dark"] .finanzen-amt--warn {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.work-time-team-page {
+  max-width: 1080px;
+}
+
+.work-time-team-head-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-time-team-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 720px) {
+  .work-time-team-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+.work-time-team-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-elev) 88%, var(--accent) 12%);
+}
+
+.work-time-team-kpi--today {
+  background: color-mix(in oklab, var(--bg-elev) 92%, var(--fg) 8%);
+}
+
+.work-time-team-kpi--active {
+  background: color-mix(in oklab, var(--bg-elev) 90%, var(--green) 10%);
+}
+
+.work-time-team-kpi__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+
+.work-time-team-kpi__value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--fg);
+}
+
+.work-time-team-card.card {
+  overflow: hidden;
+}
+
+.work-time-team-week-nav {
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.work-time-team-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-time-team-toolbar input[type="search"] {
+  flex: 1;
+  min-width: min(100%, 220px);
+  max-width: 320px;
+}
+
+.work-time-team-toolbar__meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.work-time-team-table-wrap {
+  padding-top: 12px;
+  overflow-x: auto;
+}
+
+.work-time-team-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.work-time-team-table th {
+  text-align: start;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  padding: 0 12px 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-time-team-table td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+  vertical-align: middle;
+}
+
+.work-time-team-table tr:last-child td {
+  border-bottom: none;
+}
+
+.work-time-team-table__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg-2);
+  width: 6.5rem;
+}
+
+.work-time-team-table__empty {
+  color: var(--fg-3);
+  text-align: center;
+  padding: 28px 12px !important;
+}
+
+.work-time-team-name {
+  font-weight: 650;
+  color: var(--fg);
+}
+
+.work-time-team-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
+  color: var(--fg-2);
+}
+
+.work-time-team-status--running {
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
+  color: #146c2e;
+}
+
+.work-time-team-status--paused {
+  background: var(--yellow-soft);
+  color: #92400e;
+}
+
+.work-time-team-row--active {
+  background: color-mix(in oklab, var(--green) 5%, transparent);
+}
+
+.work-time-team-week-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.work-time-team-week-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--fg);
+}
+
+.work-time-team-week-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  overflow: hidden;
+}
+
+.work-time-team-week-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  min-width: 2px;
+  transition: width 180ms ease;
+}
+

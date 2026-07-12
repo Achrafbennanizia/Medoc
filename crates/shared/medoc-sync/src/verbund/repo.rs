@@ -398,6 +398,51 @@ pub async fn create_kopplung_session(
     Ok(())
 }
 
+pub async fn store_handshake_transcript(
+    pool: &SqlitePool,
+    session_id: &str,
+    transcript: &[u8],
+) -> Result<(), AppError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    ensure(pool).await?;
+    if transcript.is_empty() {
+        return Ok(());
+    }
+    let b64 = STANDARD.encode(transcript);
+    sqlx::query("UPDATE pairing_request SET handshake_transcript_b64 = ?1 WHERE id = ?2")
+        .bind(b64)
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
+
+pub async fn load_handshake_transcript(
+    pool: &SqlitePool,
+    session_id: &str,
+) -> Result<Option<Vec<u8>>, AppError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    ensure(pool).await?;
+    let row: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT handshake_transcript_b64 FROM pairing_request WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    let Some((Some(b64),)) = row else {
+        return Ok(None);
+    };
+    let trimmed = b64.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    STANDARD
+        .decode(trimmed)
+        .map(Some)
+        .map_err(|e| AppError::Internal(format!("handshake_transcript_b64 decode: {e}")))
+}
+
 pub async fn find_active_device_by_hostname(
     pool: &SqlitePool,
     cluster_id: &str,

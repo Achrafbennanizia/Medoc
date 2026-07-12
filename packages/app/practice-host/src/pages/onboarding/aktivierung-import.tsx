@@ -49,7 +49,7 @@ export function AktivierungImportOnboardingPage() {
             window.location.reload();
             return;
         }
-        navigate("/onboarding/lizenz", { replace: true });
+        navigate("/onboarding/abonnement", { replace: true });
     };
 
     const importManifest = async () => {
@@ -131,7 +131,7 @@ export function AktivierungImportOnboardingPage() {
                     {t("onboarding.activation.import_btn")}
                 </Button>
                 {fingerprint && !importDone ? (
-                    <Button type="button" variant="primary" onClick={() => navigate("/onboarding/lizenz")}>
+                    <Button type="button" variant="primary" onClick={() => navigate("/onboarding/abonnement")}>
                         {t("onboarding.activation.next_license")}
                     </Button>
                 ) : null}

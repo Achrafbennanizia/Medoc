@@ -1,3 +1,8 @@
+/**
+ * Structured examination detail panel (V2 UI).
+ * Currently unused — patient-detail-unter-tab renders inline detail instead.
+ * Re-enable when the full tabbed UntersuchungV1 composer ships.
+ */
 import type { Untersuchung } from "@/models/types";
 import { clinicalSummaryFromUntersuchung } from "@/lib/untersuchung";
 import { useT, useTParams } from "@/lib/i18n";

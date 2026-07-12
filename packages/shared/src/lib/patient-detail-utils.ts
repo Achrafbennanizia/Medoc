@@ -4,6 +4,7 @@ import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import type { RezeptLine } from "@/lib/medikamente";
 import type { AttestComposerFormFields } from "@/lib/attest-composer";
 import type { Behandlung, BehandlungsKatalogItem } from "@/models/types";
+import { EXAMINATION_CATALOG_CATEGORY } from "./behandlungs-katalog-categories";
 
 type TFn = (key: string) => string;
 
@@ -120,6 +121,24 @@ export function rezeptStatusDisplay(
     if (s === "AUSGESTELLT") return { variant: "success", label: t("enum.rezept_status.ausgestellt") };
     if (s === "ENTWURF") return { variant: "warning", label: t("enum.rezept_status.entwurf") };
     return { variant: "default", label: s || "—" };
+}
+
+/** @deprecated Use `EXAMINATION_CATALOG_CATEGORY` from `behandlungs-katalog-categories`. */
+export const UNTERSUCHUNG_KATALOG_KATEGORIE = EXAMINATION_CATALOG_CATEGORY;
+
+/** Default examination service from the treatment catalog (lowest `sort_order` in category). */
+export function resolveDefaultUntersuchungKatalogItem(
+    katalog: BehandlungsKatalogItem[],
+): BehandlungsKatalogItem | null {
+    const active = katalog.filter((k) => k.aktiv !== 0);
+    const category = EXAMINATION_CATALOG_CATEGORY.toLowerCase();
+    const inCategory = active.filter((k) => k.kategorie.trim().toLowerCase() === category);
+    if (inCategory.length === 0) return null;
+    return (
+        [...inCategory].sort(
+            (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+        )[0] ?? null
+    );
 }
 
 export function resolveKatalogIdForBehandlung(katalog: BehandlungsKatalogItem[], b: Behandlung): string {

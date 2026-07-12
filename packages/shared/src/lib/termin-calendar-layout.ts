@@ -114,31 +114,69 @@ export type TerminTimelineBounds = {
     endMin: number;
 };
 
-/** Visible hour range for day/week timelines — union of all active day segments. */
-export function deriveTerminTimelineBounds(
-    cfg: PraxisArbeitszeitenConfig,
-    arztId?: string | null,
-): TerminTimelineBounds {
-    const eff = resolveEffectiveArbeitszeitenForArzt(cfg, arztId);
+export type TerminClosedSpan = {
+    fromMin: number;
+    toMin: number;
+};
+
+function boundsFromSegments(
+    segments: Array<{ from: string; to: string }>,
+    fallback: TerminTimelineBounds,
+): TerminTimelineBounds | null {
     let minStart = Number.POSITIVE_INFINITY;
     let maxEnd = 0;
-    for (const key of PRAXIS_DAY_KEYS) {
-        const day = eff.plan[key];
-        if (!day?.aktiv) continue;
-        for (const seg of day.segments ?? []) {
-            if (!seg.from || !seg.to) continue;
-            minStart = Math.min(minStart, uhrzeitToMinutes(seg.from));
-            maxEnd = Math.max(maxEnd, uhrzeitToMinutes(seg.to));
-        }
+    for (const seg of segments) {
+        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
+        minStart = Math.min(minStart, uhrzeitToMinutes(seg.from));
+        maxEnd = Math.max(maxEnd, uhrzeitToMinutes(seg.to));
     }
-    if (!Number.isFinite(minStart) || maxEnd <= minStart) {
-        return { startMin: TERMIN_TIMELINE_DEFAULT_START_MIN, endMin: TERMIN_TIMELINE_DEFAULT_END_MIN };
-    }
+    if (!Number.isFinite(minStart) || maxEnd <= minStart) return null;
     const startMin = Math.max(0, Math.floor(minStart / 60) * 60);
     const endMin = Math.min(24 * 60, Math.max(Math.ceil(maxEnd / 60) * 60, startMin + 60));
     return { startMin, endMin };
 }
 
+function mergeClosedSpans(spans: TerminClosedSpan[]): TerminClosedSpan[] {
+    if (spans.length === 0) return [];
+    const sorted = [...spans]
+        .filter((s) => s.toMin > s.fromMin)
+        .sort((a, b) => a.fromMin - b.fromMin);
+    const out: TerminClosedSpan[] = [];
+    for (const s of sorted) {
+        const last = out[out.length - 1];
+        if (last && s.fromMin <= last.toMin) {
+            last.toMin = Math.max(last.toMin, s.toMin);
+        } else {
+            out.push({ ...s });
+        }
+    }
+    return out;
+}
+
+/** Visible hour range for day/week timelines — union of all active practice day segments. */
+export function deriveTerminTimelineBounds(
+    cfg: PraxisArbeitszeitenConfig,
+    arztId?: string | null,
+): TerminTimelineBounds {
+    const eff = resolveEffectiveArbeitszeitenForArzt(cfg, arztId);
+    const allSegments: Array<{ from: string; to: string }> = [];
+    for (const key of PRAXIS_DAY_KEYS) {
+        const day = eff.plan[key];
+        if (!day?.aktiv) continue;
+        for (const seg of day.segments ?? []) {
+            if (seg.from && seg.to && seg.from < seg.to) allSegments.push(seg);
+        }
+    }
+    return boundsFromSegments(allSegments, {
+        startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
+        endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
+    }) ?? {
+        startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
+        endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
+    };
+}
+
+/** Timeline height for one calendar day from its practice segments. */
 export function deriveDayTimelineBounds(
     cfg: PraxisArbeitszeitenConfig,
     isoDate: string,
@@ -147,21 +185,105 @@ export function deriveDayTimelineBounds(
     const eff = resolveEffectiveArbeitszeitenForArzt(cfg, arztId);
     const day = eff.plan[dayKeyFromIsoDate(isoDate)];
     if (!day?.aktiv) {
-        return { startMin: TERMIN_TIMELINE_DEFAULT_START_MIN, endMin: TERMIN_TIMELINE_DEFAULT_END_MIN };
-    }
-    let minStart = Number.POSITIVE_INFINITY;
-    let maxEnd = 0;
-    for (const seg of day.segments ?? []) {
-        if (!seg.from || !seg.to) continue;
-        minStart = Math.min(minStart, uhrzeitToMinutes(seg.from));
-        maxEnd = Math.max(maxEnd, uhrzeitToMinutes(seg.to));
-    }
-    if (!Number.isFinite(minStart) || maxEnd <= minStart) {
         return deriveTerminTimelineBounds(cfg, arztId);
     }
-    const startMin = Math.max(0, Math.floor(minStart / 60) * 60);
-    const endMin = Math.min(24 * 60, Math.max(Math.ceil(maxEnd / 60) * 60, startMin + 60));
+    return (
+        boundsFromSegments(day.segments ?? [], deriveTerminTimelineBounds(cfg, arztId))
+        ?? deriveTerminTimelineBounds(cfg, arztId)
+    );
+}
+
+/** Week grid: tallest day in the visible week sets the shared timeline height. */
+export function deriveWeekTimelineBounds(
+    cfg: PraxisArbeitszeitenConfig,
+    isoDates: string[],
+    arztId?: string | null,
+): TerminTimelineBounds {
+    if (isoDates.length === 0) return deriveTerminTimelineBounds(cfg, arztId);
+    let startMin = Number.POSITIVE_INFINITY;
+    let endMin = 0;
+    for (const iso of isoDates) {
+        const b = deriveDayTimelineBounds(cfg, iso, arztId);
+        startMin = Math.min(startMin, b.startMin);
+        endMin = Math.max(endMin, b.endMin);
+    }
+    if (!Number.isFinite(startMin) || endMin <= startMin) {
+        return deriveTerminTimelineBounds(cfg, arztId);
+    }
     return { startMin, endMin };
+}
+
+/**
+ * Non-working bands within the timeline (before/after hours, gaps, lunch, closures).
+ * Used to render light-gray regions in day/week columns.
+ */
+export function deriveDayClosedSpans(
+    cfg: PraxisArbeitszeitenConfig,
+    isoDate: string,
+    bounds: TerminTimelineBounds,
+): TerminClosedSpan[] {
+    const { startMin: t0, endMin: t1 } = bounds;
+    if (t1 <= t0) return [];
+
+    if (cfg.closures.some((c) => c.date === isoDate && c.mode === "FULL_DAY")) {
+        return [{ fromMin: t0, toMin: t1 }];
+    }
+
+    const day = cfg.plan[dayKeyFromIsoDate(isoDate)];
+    if (!day?.aktiv) {
+        return [{ fromMin: t0, toMin: t1 }];
+    }
+
+    const open: Array<{ from: number; to: number }> = [];
+    for (const seg of day.segments ?? []) {
+        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
+        const from = uhrzeitToMinutes(seg.from);
+        const to = uhrzeitToMinutes(seg.to);
+        if (to <= t0 || from >= t1) continue;
+        open.push({ from: Math.max(from, t0), to: Math.min(to, t1) });
+    }
+    open.sort((a, b) => a.from - b.from);
+
+    const mergedOpen: Array<{ from: number; to: number }> = [];
+    for (const o of open) {
+        const last = mergedOpen[mergedOpen.length - 1];
+        if (last && o.from <= last.to) last.to = Math.max(last.to, o.to);
+        else mergedOpen.push({ ...o });
+    }
+
+    const closed: TerminClosedSpan[] = [];
+    if (mergedOpen.length === 0) {
+        closed.push({ fromMin: t0, toMin: t1 });
+    } else {
+        let cursor = t0;
+        for (const o of mergedOpen) {
+            if (o.from > cursor) closed.push({ fromMin: cursor, toMin: o.from });
+            cursor = Math.max(cursor, o.to);
+        }
+        if (cursor < t1) closed.push({ fromMin: cursor, toMin: t1 });
+    }
+
+    if (cfg.pauseVon && cfg.pauseBis && cfg.pauseVon < cfg.pauseBis) {
+        const pv = uhrzeitToMinutes(cfg.pauseVon);
+        const pb = uhrzeitToMinutes(cfg.pauseBis);
+        const overlapsOpen = mergedOpen.some((o) => pv < o.to && pb > o.from);
+        if (overlapsOpen && pb > t0 && pv < t1) {
+            closed.push({ fromMin: Math.max(t0, pv), toMin: Math.min(t1, pb) });
+        }
+    }
+
+    for (const rule of cfg.closures) {
+        if (rule.date !== isoDate || rule.mode !== "CUSTOM") continue;
+        for (const p of rule.periods ?? []) {
+            if (!p.from || !p.to || p.from >= p.to) continue;
+            closed.push({
+                fromMin: Math.max(t0, uhrzeitToMinutes(p.from)),
+                toMin: Math.min(t1, uhrzeitToMinutes(p.to)),
+            });
+        }
+    }
+
+    return mergeClosedSpans(closed);
 }
 
 export function terminTimelineHourLabels(bounds: TerminTimelineBounds): number[] {

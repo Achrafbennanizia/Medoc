@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { addDays, startOfWeek } from "date-fns";
 import { readPraxisArbeitszeitenConfig, hasAnyAvailableSlot, isCalendarDaySelectable, isPraxisDayBookable, type PraxisArbeitszeitenConfig } from "./praxis-planning";
+import { uhrzeitToMinutes } from "./termin-availability";
 import {
     activePraxisDayKeys,
     buildTerminMonthCalendarCells,
+    deriveDayClosedSpans,
+    deriveDayTimelineBounds,
     deriveTerminTimelineBounds,
+    deriveWeekTimelineBounds,
     terminCalendarColumnCount,
     terminCalendarColumnDayKeys,
     terminCalendarIsoWeekdayOffsets,
@@ -55,11 +59,46 @@ describe("termin-calendar-layout", () => {
         expect(formatIso(days[5]!)).toBe(formatIso(addDays(anchor, 5)));
     });
 
-    it("derives timeline bounds from active segments", () => {
+    it("deriveWeekTimelineBounds uses tallest day in the week", () => {
+        const base = readPraxisArbeitszeitenConfig();
+        const cfg: PraxisArbeitszeitenConfig = {
+            ...base,
+            plan: {
+                ...base.plan,
+                fr: { aktiv: true, segments: [{ from: "08:00", to: "15:00" }] },
+                sa: { aktiv: true, segments: [{ from: "09:00", to: "13:00" }] },
+            },
+        };
+        const fri = deriveDayTimelineBounds(cfg, "2026-07-10");
+        const mon = deriveDayTimelineBounds(cfg, "2026-07-13");
+        const week = deriveWeekTimelineBounds(cfg, ["2026-07-10", "2026-07-13"]);
+        expect(week.startMin).toBe(Math.min(fri.startMin, mon.startMin));
+        expect(week.endMin).toBe(Math.max(fri.endMin, mon.endMin));
+    });
+
+    it("deriveDayClosedSpans marks lunch pause within working hours", () => {
+        const base = readPraxisArbeitszeitenConfig();
+        const bounds = deriveDayTimelineBounds(base, "2026-07-13");
+        const closed = deriveDayClosedSpans(base, "2026-07-13", bounds);
+        const pauseStart = uhrzeitToMinutes(base.pauseVon);
+        const pauseEnd = uhrzeitToMinutes(base.pauseBis);
+        expect(
+            closed.some((s) => s.fromMin <= pauseStart && s.toMin >= pauseEnd),
+        ).toBe(true);
+    });
+
+    it("deriveDayClosedSpans marks after-hours when segment ends before timeline", () => {
+        const base = readPraxisArbeitszeitenConfig();
+        const bounds = { startMin: 8 * 60, endMin: 18 * 60 };
+        const closed = deriveDayClosedSpans(base, "2026-07-10", bounds);
+        expect(closed.some((s) => s.fromMin >= 15 * 60 && s.toMin <= 18 * 60)).toBe(true);
+    });
+
+    it("deriveDayClosedSpans fills inactive days", () => {
         const cfg = cfgWithSaturday();
-        const bounds = deriveTerminTimelineBounds(cfg);
-        expect(bounds.startMin).toBe(8 * 60);
-        expect(bounds.endMin).toBeGreaterThanOrEqual(17 * 60);
+        const bounds = deriveWeekTimelineBounds(cfg, ["2026-07-12"]);
+        const closed = deriveDayClosedSpans(cfg, "2026-07-12", bounds);
+        expect(closed).toEqual([{ fromMin: bounds.startMin, toMin: bounds.endMin }]);
     });
 
     it("isCalendarDaySelectable uses practice plan even when doctor profile differs", () => {

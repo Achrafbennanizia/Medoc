@@ -93,6 +93,8 @@ import {
     calendarMonthOffsetFromToday,
     computePackedUpdatesAfterMove,
     deriveTerminTimelineBounds,
+    deriveDayTimelineBounds,
+    deriveWeekTimelineBounds,
     minutesToUhrzeit,
     terminArtLabelFromTermin,
     terminArtFilterOptions,
@@ -138,9 +140,6 @@ export function TerminePage() {
     const [abwesenheiten, setAbwesenheiten] = useState<Abwesenheit[]>([]);
     const [praxisPlanCfg, setPraxisPlanCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
     const storePraxisCfg = usePraxisArbeitszeitenStore((s) => s.config);
-    const timelineBounds = useMemo(() => deriveTerminTimelineBounds(praxisPlanCfg), [praxisPlanCfg]);
-    const dayStartMin = timelineBounds.startMin;
-    const dayEndMin = timelineBounds.endMin;
     const [terminPufferMin, setTerminPufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -392,6 +391,21 @@ export function TerminePage() {
 
     const selectedDayDate = useMemo(() => addDays(new Date(), dayOffset), [dayOffset]);
     const selectedDayIso = format(selectedDayDate, "yyyy-MM-dd");
+
+    const timelineBounds = useMemo(() => {
+        if (view === "tag") return deriveDayTimelineBounds(praxisPlanCfg, selectedDayIso);
+        if (view === "woche") {
+            const anchor = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 });
+            const days = terminCalendarWeekDays(anchor, praxisPlanCfg);
+            return deriveWeekTimelineBounds(
+                praxisPlanCfg,
+                days.map((d) => format(d, "yyyy-MM-dd")),
+            );
+        }
+        return deriveTerminTimelineBounds(praxisPlanCfg);
+    }, [view, praxisPlanCfg, selectedDayIso, weekOffset]);
+    const dayStartMin = timelineBounds.startMin;
+    const dayEndMin = timelineBounds.endMin;
 
     useEffect(() => {
         if (view !== "tag") return;
@@ -1458,8 +1472,8 @@ export function TerminePage() {
                         <p className="ios-confirm-message">{t("termin.calendar.notfall_confirm_message")}</p>
                     </div>
                     <IosConfirmActions
-                        cancelLabel="Abbrechen"
-                        confirmLabel="Notfall einplanen"
+                        cancelLabel={t("termin.calendar.notfall_confirm_cancel")}
+                        confirmLabel={t("termin.calendar.notfall_confirm_confirm")}
                         onCancel={() => setNotfallConfirmOpen(false)}
                         destructive
                         onConfirm={() => {
@@ -1488,13 +1502,13 @@ export function TerminePage() {
                 <div className="ios-confirm">
                     <div className="ios-confirm-body">
                         <h2 id={pauseTitleId} className="ios-confirm-title">
-                            Pause einfügen?
+                            {t("termin.calendar.pause_confirm_title")}
                         </h2>
                         <p className="ios-confirm-message">{t("termine.page.pause_confirm")}</p>
                     </div>
                     <IosConfirmActions
-                        cancelLabel="Abbrechen"
-                        confirmLabel="Einfügen"
+                        cancelLabel={t("termin.calendar.notfall_confirm_cancel")}
+                        confirmLabel={t("termin.calendar.pause_confirm_insert")}
                         onCancel={() => setPauseConfirmOpen(false)}
                         onConfirm={() => {
                             setPauseConfirmOpen(false);

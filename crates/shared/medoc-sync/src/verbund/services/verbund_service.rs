@@ -12,6 +12,7 @@ use crate::verbund::crypto::{
 };
 use crate::verbund::entities::{Geraet, KopplungSession};
 use crate::verbund::enums::{GeraetStatus, KopplungStatus, SeatRolle};
+use crate::verbund::repo;
 use crate::verbund::ports::{
     reserve_seat_atomic, GeraetRepo, KopplungRepo, LizenzRepo, SqliteVerbundRepos,
 };
@@ -104,6 +105,9 @@ pub async fn create_join_request(
         expires_at: now + Duration::seconds(KOPPLUNG_TTL_SECS),
     };
     repos.create_session(&session).await?;
+    if !handshake_transcript.is_empty() {
+        repo::store_handshake_transcript(pool, &session_id, handshake_transcript).await?;
+    }
 
     audit::log_kopplung(
         pool,
@@ -205,7 +209,14 @@ pub async fn accept_join_request(
     )
     .await?;
 
-    let sas = derive_sas_from_transcript(handshake_transcript);
+    let transcript_bytes = if handshake_transcript.is_empty() {
+        repo::load_handshake_transcript(pool, session_id)
+            .await?
+            .unwrap_or_default()
+    } else {
+        handshake_transcript.to_vec()
+    };
+    let sas = derive_sas_from_transcript(&transcript_bytes);
     let sas_hash = hash_sas(session_id, &sas, &lizenz.signing_key_enc);
     repos
         .update_state(session_id, KopplungStatus::AwaitingSas, Some(&sas_hash))

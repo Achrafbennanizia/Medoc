@@ -35,3 +35,5 @@ libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
 
 # Structured logging — emits `medoc::company` events.
 tracing = "0.1"
+uuid = { version = "1", features = ["v4"] }
+base64 = { version = "0.22", features = ["std"] }

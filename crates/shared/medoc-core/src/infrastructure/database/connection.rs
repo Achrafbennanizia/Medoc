@@ -46,6 +46,17 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
     let db_path = app_dir.join("medoc.db");
     maybe_migrate_plaintext_db(app_dir, &db_path).await?;
     let key = resolve_sqlcipher_key(app_dir)?;
+
+    if db_path.exists() && !sqlcipher::is_plaintext_sqlite_file(&db_path) {
+        let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;
+        if schema_needs_bootstrap(&pool).await? {
+            run_migrations(&pool).await?;
+        } else {
+            crate::mvp_security::ensure_staff_quota_db_triggers(&pool).await?;
+        }
+        return Ok(pool);
+    }
+
     let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;
     run_migrations(&pool).await?;
     pool.close().await;
@@ -53,6 +64,16 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
         sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
     }
     sqlcipher::open_encrypted_pool(&db_path, key, true).await
+}
+
+async fn schema_needs_bootstrap(pool: &SqlitePool) -> Result<bool, AppError> {
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='patient'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n == 0)
 }
 
 async fn maybe_migrate_plaintext_db(

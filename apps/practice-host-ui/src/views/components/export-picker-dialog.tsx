@@ -37,12 +37,12 @@ import {
 import { finishExportWithSettings } from "@/lib/export";
 import {
     BUILTIN_TEMPLATES_BY_KIND,
-    DOCUMENT_KIND_LABEL,
     emptyDocumentTemplatePayloadV1,
     parseTemplatePayloadJson,
     type DocumentKind,
     type DocumentTemplatePayloadV1,
 } from "@/lib/document-template-schema";
+import { documentKindLabel } from "@/lib/document-template-i18n";
 import { PDF_LAYOUT_TEMPLATE_PICKER_ENABLED } from "@/lib/v1-ui-flags";
 import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
@@ -692,7 +692,7 @@ function HtmlDocumentExportPickerInner({
     const effectiveFormatHint = useMemo(() => {
         if (!formatsCfg) return "";
         const eff = defaultFormatForKind(formatsCfg, templateKind);
-        return tp("export.picker.settings_default", { kind: DOCUMENT_KIND_LABEL[templateKind], format: eff.toUpperCase() });
+        return tp("export.picker.settings_default", { kind: documentKindLabel(t, templateKind), format: eff.toUpperCase() });
     }, [formatsCfg, templateKind, tp]);
 
     const templateOptions = useMemo(() => {
@@ -790,7 +790,7 @@ function HtmlDocumentExportPickerInner({
         }
     };
 
-    const dialogTitle = tp("export.picker.clinical_title", { kind: DOCUMENT_KIND_LABEL[templateKind] });
+    const dialogTitle = tp("export.picker.clinical_title", { kind: documentKindLabel(t, templateKind) });
     const hasContent =
         bundle.pdfBodyLines.length > 0 ||
         bundle.csvText.trim().length > 0 ||

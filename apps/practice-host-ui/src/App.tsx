@@ -103,14 +103,15 @@ const BestellungDetailPage = lazy(async () => ({ default: (await import("./views
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
 const HilfePage = lazy(async () => ({ default: (await import("./views/pages/hilfe")).HilfePage }));
-const VerbundOnboardingPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/onboarding/verbund-onboarding")).VerbundOnboardingPage,
-}));
 const LizenzAktivierenOnboardingPage = lazy(async () => ({
     default: (await import("@/systems/practice-host/pages/onboarding/lizenz-aktivieren")).LizenzAktivierenOnboardingPage,
 }));
-const AktivierungImportOnboardingPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/onboarding/aktivierung-import")).AktivierungImportOnboardingPage,
+const KontoEinrichtenOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/konto-einrichten")).KontoEinrichtenOnboardingPage,
+}));
+const AbonnementRegistrierenOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/abonnement-registrieren"))
+        .AbonnementRegistrierenOnboardingPage,
 }));
 const VerbundBeitretenPage = lazy(async () => ({
     default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
@@ -141,17 +142,22 @@ export default function App() {
             <Routes>
                 <Route
                     path="/onboarding"
+                    element={<Navigate to="/onboarding/lizenz" replace />}
+                />
+                <Route path="/onboarding/aktivierung" element={<Navigate to="/onboarding/lizenz" replace />} />
+                <Route
+                    path="/onboarding/abonnement"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <VerbundOnboardingPage />
+                            <AbonnementRegistrierenOnboardingPage />
                         </Suspense>
                     )}
                 />
                 <Route
-                    path="/onboarding/aktivierung"
+                    path="/onboarding/konto"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <AktivierungImportOnboardingPage />
+                            <KontoEinrichtenOnboardingPage />
                         </Suspense>
                     )}
                 />

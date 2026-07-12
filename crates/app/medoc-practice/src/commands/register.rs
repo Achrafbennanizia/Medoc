@@ -97,6 +97,10 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::company_portal_commands::company_portal_attach_payment,
             $crate::commands::company_portal_commands::company_portal_fetch_update_manifest,
             $crate::commands::company_portal_commands::company_portal_ping,
+            $crate::commands::company_portal_commands::onboarding_subscription_status,
+            $crate::commands::company_portal_commands::register_onboarding_subscription,
+            $crate::commands::company_portal_commands::register_onboarding_member_account,
+            $crate::commands::company_portal_commands::onboarding_use_existing_account,
             $crate::commands::db_setup_commands::get_db_setup_status,
             $crate::commands::db_setup_commands::provision_db_passphrase,
             $crate::commands::db_setup_commands::unlock_db_passphrase,
@@ -309,7 +313,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 300;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 302;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

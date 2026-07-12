@@ -20,6 +20,10 @@ import {
     resolveKatalogIdForBehandlung,
 } from "@/lib/patient-detail-utils";
 import {
+    buildBehandlungsKatalogCategoryOptions,
+    DEFAULT_CATALOG_CATEGORIES,
+} from "@/lib/behandlungs-katalog-categories";
+import {
     mergeBehandlungFollowupIntoPlan,
     planNextHasContent,
     type PlanNextTerminV2,
@@ -559,15 +563,11 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
     };
 
     const kategorieOptions = useMemo(() => {
-        const fallback = ["Kontrolluntersuchung", "Fuellungstherapie", "Parodontologie", "Chirurgie", "Prothetik"];
-        const s = new Set<string>([...fallback, ...katalog.map((k) => k.kategorie)]);
-        if (behandForm.kategorie) s.add(behandForm.kategorie);
-        const rest = Array.from(s)
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, sortLocale))
-            .map((value) => ({ value, label: value }));
+        const values = new Set<string>([...DEFAULT_CATALOG_CATEGORIES, ...katalog.map((k) => k.kategorie)]);
+        if (behandForm.kategorie) values.add(behandForm.kategorie);
+        const rest = buildBehandlungsKatalogCategoryOptions(t, values, sortLocale);
         return [{ value: "", label: t("patient.detail.behand.category_pick") }, ...rest];
-    }, [katalog, behandForm.kategorie, t]);
+    }, [katalog, behandForm.kategorie, sortLocale, t]);
 
     const leistungOptions = useMemo(() => {
         if (!behandForm.kategorie) {

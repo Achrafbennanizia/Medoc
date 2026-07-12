@@ -9,7 +9,12 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { BehandlungsKatalogItem } from "../../models/types";
 import { errorMessage, formatCurrency } from "@/lib/utils";
-import { useT , useCollatorLocale} from "@/lib/i18n";
+import {
+    behandlungsKatalogCategoryLabel,
+    buildBehandlungsKatalogCategoryOptions,
+    DEFAULT_CATALOG_CATEGORIES,
+} from "@/lib/behandlungs-katalog-categories";
+import { useT, useCollatorLocale } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/input";
@@ -21,13 +26,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { VerwaltungPageHeader } from "../components/verwaltung-page-header";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
-const DEFAULT_KATEGORIEN = [
-    { value: "Kontrolluntersuchung", label: "Kontrolluntersuchung" },
-    { value: "Fuellungstherapie", label: "Füllungstherapie" },
-    { value: "Parodontologie", label: "Parodontologie" },
-    { value: "Chirurgie", label: "Chirurgie" },
-    { value: "Prothetik", label: "Prothetik" },
-];
+const DEFAULT_CATEGORY = "Chirurgie";
 
 export function BehandlungsKatalogPage() {
     const t = useT();
@@ -41,7 +40,7 @@ export function BehandlungsKatalogPage() {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [loadError, setLoadError] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
-    const [kategorie, setKategorie] = useState("Chirurgie");
+    const [kategorie, setKategorie] = useState(DEFAULT_CATEGORY);
     const [customKategorie, setCustomKategorie] = useState("");
     const [name, setName] = useState("");
     const [kosten, setKosten] = useState("");
@@ -54,11 +53,9 @@ export function BehandlungsKatalogPage() {
 
     const kategorieOptions = useMemo(() => {
         const fromDb = new Set(rows.map((r) => r.kategorie));
-        DEFAULT_KATEGORIEN.forEach((k) => fromDb.add(k.value));
-        return Array.from(fromDb)
-            .sort((a, b) => a.localeCompare(b, sortLocale))
-            .map((value) => ({ value, label: value }));
-    }, [rows]);
+        DEFAULT_CATALOG_CATEGORIES.forEach((value) => fromDb.add(value));
+        return buildBehandlungsKatalogCategoryOptions(t, fromDb, sortLocale);
+    }, [rows, sortLocale, t]);
 
     const categorySelectOptions = useMemo(
         () => [
@@ -90,7 +87,7 @@ export function BehandlungsKatalogPage() {
 
     const fillFormFromRow = (r: BehandlungsKatalogItem) => {
         const vals = [...new Set(rows.map((x) => x.kategorie))];
-        DEFAULT_KATEGORIEN.forEach((k) => vals.push(k.value));
+        DEFAULT_CATALOG_CATEGORIES.forEach((value) => vals.push(value));
         const uniq = [...new Set(vals)];
         if (uniq.includes(r.kategorie)) {
             setKategorie(r.kategorie);
@@ -107,7 +104,7 @@ export function BehandlungsKatalogPage() {
         setCreating(true);
         setDetailEdit(false);
         setSelected(null);
-        setKategorie("Chirurgie");
+        setKategorie(DEFAULT_CATEGORY);
         setCustomKategorie("");
         setName("");
         setKosten("");
@@ -208,8 +205,15 @@ export function BehandlungsKatalogPage() {
     };
 
     const sorted = useMemo(
-        () => [...rows].sort((a, b) => a.kategorie.localeCompare(b.kategorie, sortLocale) || a.name.localeCompare(b.name, sortLocale)),
-        [rows],
+        () =>
+            [...rows].sort(
+                (a, b) =>
+                    behandlungsKatalogCategoryLabel(t, a.kategorie).localeCompare(
+                        behandlungsKatalogCategoryLabel(t, b.kategorie),
+                        sortLocale,
+                    ) || a.name.localeCompare(b.name, sortLocale),
+            ),
+        [rows, sortLocale, t],
     );
 
     if (status === "loading") return <PageLoading label={t("page.behandlungs_katalog.loading")} />;
@@ -353,7 +357,10 @@ export function BehandlungsKatalogPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="produkte-read-grid">
-                            {readField(t("page.behandlungs_katalog.field.category"), r.kategorie)}
+                            {readField(
+                                t("page.behandlungs_katalog.field.category"),
+                                behandlungsKatalogCategoryLabel(t, r.kategorie),
+                            )}
                             {readField(t("page.behandlungs_katalog.detail.cost"), r.default_kosten != null ? formatCurrency(r.default_kosten) : "—")}
                             {readField(t("page.behandlungs_katalog.detail.sort"), r.sort_order)}
                             {readField(t("page.behandlungs_katalog.detail.status"), r.aktiv ? t("page.behandlungs_katalog.status.active") : t("page.behandlungs_katalog.status.inactive"))}
@@ -419,7 +426,7 @@ export function BehandlungsKatalogPage() {
                                                 onClick={() => selectRow(r)}
                                                 style={{ cursor: "pointer" }}
                                             >
-                                                <td>{r.kategorie}</td>
+                                                <td>{behandlungsKatalogCategoryLabel(t, r.kategorie)}</td>
                                                 <td>
                                                     <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.name}</span>
                                                 </td>
