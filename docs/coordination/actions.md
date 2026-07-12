@@ -1,6 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-12 (CI/CD tier migration)
+
+## Done (2026-07-12 — CI/CD tier migration)
+
+- Replaced legacy CI with four-tier workflow set: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Added critical-only axe accessibility gate helper: `.github/scripts/axe-critical-check.mjs`.
+- Migrated workflow path assumptions to live workspace (`apps/`, `crates/`, `packages/`) and removed `.github/workflows/ci.yml`.
+- Added coordination spec: `docs/coordination/ci-cd-plan.md`.
+- Updated release-process doc reference from `ci.yml` to `verify.yml`.
 
 ## Now
 

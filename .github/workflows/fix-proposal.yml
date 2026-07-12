@@ -1,0 +1,318 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base branch for the fix proposal.
+        required: false
+        default: main
+      failure_class:
+        description: Failing class to probe.
+        required: false
+        type: choice
+        options:
+          - test
+          - advisory
+          - typecheck
+          - unspecified
+      failing_command:
+        description: Optional failing command to run for before/after evidence.
+        required: false
+      fix_command:
+        description: Optional explicit fix command (overrides built-in heuristics).
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve base ref and proposal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE_REF="${{ inputs.base_ref }}"
+          else
+            BASE_REF="main"
+          fi
+          BRANCH="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          git fetch origin "$BASE_REF"
+          git checkout -B "$BRANCH" "origin/$BASE_REF"
+
+          echo "BASE_REF=$BASE_REF" >> "$GITHUB_ENV"
+          echo "FIX_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" >&2; exit 1 ;;
+          esac
+      - name: Attempt fix and record before/after evidence
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+          FAILURE_CLASS_INPUT: ${{ inputs.failure_class }}
+          FAILING_COMMAND_INPUT: ${{ inputs.failing_command }}
+          FIX_COMMAND_INPUT: ${{ inputs.fix_command }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .github/fix-proposals
+          BEFORE_LOG=".github/fix-proposals/before.log"
+          AFTER_LOG=".github/fix-proposals/after.log"
+          REPORT_FILE=".github/fix-proposals/report.md"
+
+          run_medoc_script() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run "$1" "${@:2}" ;;
+              yarn) yarn workspace medoc "$1" "${@:2}" ;;
+              npm) npm run "$1" -w medoc -- "${@:2}" ;;
+            esac
+          }
+
+          run_js_audit() {
+            case "$PM" in
+              pnpm) pnpm audit --prod ;;
+              yarn) yarn npm audit --all ;;
+              npm) npm audit --omit=dev ;;
+            esac
+          }
+
+          run_js_audit_fix() {
+            case "$PM" in
+              pnpm) pnpm audit --fix || true ;;
+              yarn) yarn npm audit --all || true ;;
+              npm) npm audit fix --package-lock-only || true ;;
+            esac
+          }
+
+          run_failure_probe() {
+            local failure_class="$1"
+            local failing_command="$2"
+            if [ -n "$failing_command" ]; then
+              bash -lc "$failing_command"
+              return
+            fi
+
+            case "$failure_class" in
+              advisory)
+                cargo audit
+                run_js_audit
+                ;;
+              typecheck)
+                if node -e 'const fs=require("node:fs"); const pkg=JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json","utf8")); process.exit(pkg.scripts && pkg.scripts.typecheck ? 0 : 1);'; then
+                  run_medoc_script typecheck
+                else
+                  case "$PM" in
+                    pnpm) pnpm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                    yarn) yarn tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                    npm) npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                  esac
+                fi
+                ;;
+              test|workflow-run-failure|unspecified)
+                cargo test --workspace
+                ;;
+              *)
+                cargo test --workspace
+                ;;
+            esac
+          }
+
+          run_fix_attempt() {
+            local failure_class="$1"
+            local fix_command="$2"
+            if [ -n "$fix_command" ]; then
+              bash -lc "$fix_command"
+              return
+            fi
+
+            case "$failure_class" in
+              advisory)
+                cargo update || true
+                run_js_audit_fix
+                ;;
+              typecheck|test|workflow-run-failure|unspecified)
+                cargo fmt --all || true
+                if node -e 'const fs=require("node:fs"); const pkg=JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json","utf8")); process.exit(pkg.scripts && pkg.scripts["lint:fix"] ? 0 : 1);'; then
+                  run_medoc_script lint:fix || true
+                else
+                  run_medoc_script lint --fix || true
+                fi
+                if node -e 'const fs=require("node:fs"); const pkg=JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json","utf8")); process.exit(pkg.scripts && pkg.scripts.format ? 0 : 1);'; then
+                  run_medoc_script format || true
+                fi
+                ;;
+              *)
+                cargo fmt --all || true
+                ;;
+            esac
+          }
+
+          FAILURE_CLASS="${FAILURE_CLASS_INPUT:-}"
+          if [ -z "$FAILURE_CLASS" ]; then
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              FAILURE_CLASS="workflow-run-failure"
+            else
+              FAILURE_CLASS="unspecified"
+            fi
+          fi
+
+          set +e
+          run_failure_probe "$FAILURE_CLASS" "${FAILING_COMMAND_INPUT:-}" >"$BEFORE_LOG" 2>&1
+          BEFORE_EXIT=$?
+          set -e
+
+          set +e
+          run_fix_attempt "$FAILURE_CLASS" "${FIX_COMMAND_INPUT:-}"
+          FIX_EXIT=$?
+          set -e
+
+          set +e
+          run_failure_probe "$FAILURE_CLASS" "${FAILING_COMMAND_INPUT:-}" >"$AFTER_LOG" 2>&1
+          AFTER_EXIT=$?
+          set -e
+
+          cat >"$REPORT_FILE" <<EOF
+          # CI fix proposal
+
+          - Failure class: \`$FAILURE_CLASS\`
+          - Base ref: \`${BASE_REF}\`
+          - Proposal branch: \`${FIX_BRANCH}\`
+          - Trigger: \`${{ github.event_name }}\`
+          - Source verify run: ${WORKFLOW_RUN_URL:-N/A}
+          - Explicit failing command: \`${FAILING_COMMAND_INPUT:-<auto-probe>}\`
+          - Explicit fix command: \`${FIX_COMMAND_INPUT:-<heuristic-attempt>}\`
+          - Before exit code: \`${BEFORE_EXIT}\`
+          - Fix attempt exit code: \`${FIX_EXIT}\`
+          - After exit code: \`${AFTER_EXIT}\`
+
+          ## Evidence files
+
+          - \`${BEFORE_LOG}\`
+          - \`${AFTER_LOG}\`
+          EOF
+
+          echo "FAILURE_CLASS=$FAILURE_CLASS" >> "$GITHUB_ENV"
+          echo "BEFORE_EXIT=$BEFORE_EXIT" >> "$GITHUB_ENV"
+          echo "AFTER_EXIT=$AFTER_EXIT" >> "$GITHUB_ENV"
+      - name: Commit proposal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No proposal diff created; writing marker report."
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/fix-proposals/no-op.txt
+            git add .github/fix-proposals/no-op.txt
+          fi
+          git commit -m "ci: draft fix proposal for ${FAILURE_CLASS}"
+          git push -u origin "$FIX_BRANCH"
+      - name: Detect sensitive-path edits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only "origin/$BASE_REF...HEAD" > /tmp/fix-proposal-files.txt
+          if rg -i '(^|/)(security|audit|crypto|rbac)([-_./]|$)' /tmp/fix-proposal-files.txt > /tmp/fix-proposal-sensitive.txt; then
+            echo "SENSITIVE_CHANGE=true" >> "$GITHUB_ENV"
+          else
+            echo "SENSITIVE_CHANGE=false" >> "$GITHUB_ENV"
+          fi
+      - name: Open draft pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_BODY_FILE=".github/fix-proposals/pr-body.md"
+          cat >"$PR_BODY_FILE" <<EOF
+          ## Summary
+
+          Automated tier-3 fix proposal from \`fix-proposal.yml\`.
+
+          - Failure class: \`${FAILURE_CLASS}\`
+          - Branch: \`${FIX_BRANCH}\`
+          - Base: \`${BASE_REF}\`
+
+          ## Rationale
+
+          The workflow attempted a non-deterministic fix proposal on a new branch and captured before/after evidence for human review.
+
+          ## Evidence
+
+          - Before probe exit code: \`${BEFORE_EXIT}\` (see \`.github/fix-proposals/before.log\`)
+          - After probe exit code: \`${AFTER_EXIT}\` (see \`.github/fix-proposals/after.log\`)
+          - Detailed report: \`.github/fix-proposals/report.md\`
+          EOF
+
+          PR_URL="$(gh pr create \
+            --draft \
+            --base "$BASE_REF" \
+            --head "$FIX_BRANCH" \
+            --title "ci: draft fix proposal (${FAILURE_CLASS})" \
+            --body-file "$PR_BODY_FILE")"
+          echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+      - name: Enforce human-review label for sensitive changes
+        if: env.SENSITIVE_CHANGE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh label create needs-human-review --color B60205 --description "Mandatory human review for security/audit/crypto/RBAC changes." || true
+          gh pr edit "$PR_URL" --add-label needs-human-review
+          echo "Sensitive code paths changed; stopping after labeling for mandatory human review." >&2
+          exit 1
