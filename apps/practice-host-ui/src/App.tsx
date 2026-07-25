@@ -12,7 +12,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
-import { logWorkflowRouteEnter } from "@/services/tauri.service";
+import { logWorkflowRouteEnterBestEffort } from "@/lib/workflow-route-logger";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -136,7 +136,7 @@ function RouteFallback() {
 function WorkflowRouteTracker() {
     const location = useLocation();
     useEffect(() => {
-        void logWorkflowRouteEnter(location.pathname);
+        void logWorkflowRouteEnterBestEffort(location.pathname);
     }, [location.pathname]);
     return null;
 }
