@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-25  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -35,6 +35,7 @@
 - **Three-system layout (2026-06-06):** Repo root: `apps/{practice-host,practice-host-ui,lan-web-client}`, `crates/{app,server,shared,test}/`, `packages/{shared,ui,app,server}/`. Rust workspace: root `Cargo.toml`. npm workspace: root `package.json`. Legacy `app/` is a README pointer only. Isolation: `./scripts/validate-three-systems.sh`, `./scripts/validate-fe-three-systems.sh`, `./scripts/validate-lan-web-client.sh`.
 - **LAN web client (2026-06-06):** Browser-only `apps/lan-web-client` on port **1421**; Vite aliases replace Tauri adapters with `HttpPracticeAdapter` shim (`src/practice-http-shim.ts`); no `@tauri-apps` dependency.
 - **Deployment modes (2026-05-26):** `practice_desktop` (local Tauri DB), `lan_client` (HTTPS to remote LAN server), `serverless_peer` (local DB + master/replica outbox sync). Config: `app_kv` `sync.deployment.v1`; engine: `crates/shared/medoc-sync/`; docs: `docs/architecture/deployment-topologies.md`, `serverless-sync.md`.
+- **Workflow telemetry bridge (2026-07-25):** Existing tracing logger extended with dedicated `workflow.log` target/channel and sanitized Tauri command `log_workflow_event`; frontend emits route-enter and IPC lifecycle events (`primary_action`, `success`, `error`) through `tauri.service.ts` + `workflow-route-logger.ts`.
 - **Independent binaries (Wave B8):** `cargo build -p medoc-lan-server` / `medoc-company-server` / `medoc` — no Tauri in headless servers (`docs/coordination/phase-handoff.md`).
 - **License v2 (Wave V1):** Perpetual device-bound license encrypted with AES-GCM-256 (HKDF from `MEDOC_VENDOR_SEED` salted by `device_id`) and signed by `MEDOC_VENDOR_PUBKEY`. Persisted in `app_kv` under `license.v2`; runtime status via `current_license_status` Tauri IPC. Round-trip + rejection tests in `crates/shared/medoc-core/tests/license_v2_tests.rs`.
 - **Pairing handshake (Wave V1):** Replicas POST `/api/v1/pairing/request` → master decides via `/decide/{id}` → master mints an Ed25519-signed activation token (`mt2.<payload>.<sig>`) stored in `pairing_request.activation_token` and pushes per-slave `slave_permission` rows. The master signing keypair lives in the OS keychain (`medoc-sync::master_keys`).

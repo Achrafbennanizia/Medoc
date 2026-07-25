@@ -1,6 +1,30 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (workflow logging bridge pass)
+
+## Workflow logging bridge pass — verified (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend workflow bridge unit tests | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (4/4) |
+| Rust workflow sanitizer unit tests | `cargo +stable test -p medoc-practice --lib workflow_sanitizer` | **PASS** (2/2) |
+| Rust fmt gate | `cargo +stable fmt --all -- --check` | **FAIL (pre-existing)** — repo-wide formatting drift across many files outside this change set |
+| Rust clippy gate | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL (pre-existing)** — `mvp_security_gates_tests.rs` asserts constants (clippy `assertions_on_constants`) |
+| Rust workspace tests | `cargo +stable test --workspace --tests` | **FAIL (pre-existing)** — `apps/practice-host/tests/auth_session_audit_tests.rs` seat-cap assertion fails (`Maximal 1 Arzt-Konto erlaubt`) |
+| Frontend workspace tests | `npm run test` | **FAIL (pre-existing)** — 3 failing smoke tests (`critical-flows.smoke`, `g21-routing.smoke`) due `onboarding_subscription_status` mock path |
+| Frontend build | `npm run build` | **FAIL (pre-existing)** — TS6133 unused symbol errors in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+
+**Environment remediation executed (this run):**
+
+- `npm ci` (workspace dependencies installed)
+- `rustup toolchain install stable` (Rust 1.97.1)
+- `sudo apt-get install -y libssl-dev pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev`
+
+**Delivered in branch `cursor/medoc-application-quality-1681`:**
+
+- Dedicated `workflow.log` channel in existing tracing stack (`medoc-core` logging subsystem).
+- New sanitized `log_workflow_event` Tauri command (frontend→backend workflow bridge).
+- Frontend workflow telemetry hooks: route-enter + IPC lifecycle (`primary_action`, `success`, `error`) with best-effort behavior.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
