@@ -1,6 +1,27 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (workflow logging instrumentation pass)
+
+## Workflow logging instrumentation pass — verified/observed (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust toolchain upgrade | `rustup toolchain install stable` | **PASS** — installed `rustc 1.97.1` |
+| Rust format gate | `cargo +stable fmt --all -- --check` | **FAIL** — repo-wide formatting drift in many existing files (example: `apps/practice-host/tests/akte_workflow_tests.rs`, `crates/shared/medoc-sync/tests/merge_apply_tests.rs`) |
+| Rust clippy gate | `cargo +stable clippy --locked --workspace --all-targets -- -D warnings` | **FAIL** — SQLCipher build dependency missing OpenSSL headers (`openssl/crypto.h` not found) |
+| Rust test gate | `cargo +stable test --locked --workspace --tests` | **FAIL** — same SQLCipher/OpenSSL build blocker as clippy |
+| Node deps | `npm install` | **PASS** |
+| Frontend full tests | `npm run test` | **FAIL** — 3 smoke failures (`critical-flows` a/f, `g21-routing`) due unmocked `onboarding_subscription_status` |
+| Frontend targeted bridge tests | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (3/3) |
+| Frontend build | `npm run build` | **FAIL** — TS6133 unused symbol errors in termin modules (`termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`) |
+
+**Delivered code (commits):**
+
+- `6a87fc6` — workflow log channel (`workflow.log`), sanitized backend bridge (`log_workflow_event`), route/command lifecycle logging, domain transition events.
+- `e7f0be9` — workflow bridge verification tests (`tauri.service.test.ts`, sanitizer/retention/config tests).
+- `8abf401` — Vitest harness guard so workflow bridge stays off in generic tests unless explicitly forced.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
