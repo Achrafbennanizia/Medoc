@@ -13,7 +13,7 @@ use medoc_lib::infrastructure::database::connection::{run_migrations, test_memor
 #[tokio::test]
 async fn authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled() {
     assert!(
-        !mvp_security::TOTP_2FA_ENABLED,
+        mvp_security::require_totp_enabled().is_err(),
         "test documents intentional MVP bypass via centralized authenticate chokepoint"
     );
 
@@ -21,14 +21,30 @@ async fn authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled() {
     run_migrations(&pool).await.expect("migrations");
 
     let hash = medoc_lib::infrastructure::crypto::hash_password("SecurePass42").unwrap();
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('a1', 'Dr. Test', 'arzt@praxis.de', ?1, 'ARZT')",
+    if let Some((id,)) = sqlx::query_as::<_, (String,)>(
+        "SELECT id FROM personal WHERE UPPER(rolle) = 'ARZT' LIMIT 1",
     )
-    .bind(&hash)
-    .execute(&pool)
+    .fetch_optional(&pool)
     .await
-    .unwrap();
+    .expect("lookup arzt")
+    {
+        sqlx::query("UPDATE personal SET email = ?1, passwort_hash = ?2 WHERE id = ?3")
+            .bind("arzt@praxis.de")
+            .bind(&hash)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .expect("update existing arzt");
+    } else {
+        sqlx::query(
+            "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+             VALUES ('a1', 'Dr. Test', 'arzt@praxis.de', ?1, 'ARZT')",
+        )
+        .bind(&hash)
+        .execute(&pool)
+        .await
+        .expect("insert arzt");
+    }
 
     let session = authenticate(
         &pool,

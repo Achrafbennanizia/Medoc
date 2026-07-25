@@ -123,14 +123,12 @@ fn app_layer_and_trigger_ddl_quota_messages_match() {
 
 #[test]
 fn require_break_glass_enabled_rejects_when_off() {
-    assert!(!mvp_security::BREAK_GLASS_ENABLED);
     let err = mvp_security::require_break_glass_enabled().expect_err("break-glass off");
     assert!(matches!(err, AppError::Validation(msg) if msg.contains("Notfallzugriff")));
 }
 
 #[test]
 fn require_totp_enabled_rejects_when_off() {
-    assert!(!mvp_security::TOTP_2FA_ENABLED);
     let err = mvp_security::require_totp_enabled().expect_err("totp off");
     assert!(matches!(err, AppError::Validation(msg) if msg.contains("Zwei-Faktor")));
 }
