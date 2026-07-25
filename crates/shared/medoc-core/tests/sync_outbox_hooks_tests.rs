@@ -56,6 +56,14 @@ fn sample_patient(name: &str) -> CreatePatient {
     }
 }
 
+async fn first_personal_id_by_role(pool: &SqlitePool, role: &str) -> String {
+    sqlx::query_scalar("SELECT id FROM personal WHERE UPPER(rolle) = UPPER(?1) ORDER BY id LIMIT 1")
+        .bind(role)
+        .fetch_one(pool)
+        .await
+        .unwrap_or_else(|_| panic!("seeded personal row for role {role}"))
+}
+
 #[tokio::test]
 async fn patient_create_emits_one_outbox_row_per_table() {
     let pool = fresh_pool().await;
@@ -127,15 +135,7 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
     let p = patient_repo::create(&pool, &sample_patient("delta"))
         .await
         .expect("create patient");
-
-    // Seed a `personal` row so the `arzt_id` FK resolves.
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-1', 'Dr. Test', 'arzt@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    let arzt_id = first_personal_id_by_role(&pool, "ARZT").await;
 
     let create = CreateTermin {
         patient_id: p.id.clone(),
@@ -144,7 +144,7 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         art: TerminArt::Kontrolle,
         notizen: None,
         beschwerden: None,
-        arzt_id: "arzt-1".into(),
+        arzt_id: arzt_id.clone(),
     };
     let t = termin_repo::create(&pool, &create).await.expect("create");
 
@@ -177,15 +177,7 @@ async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
     let p = patient_repo::create(&pool, &sample_patient("epsilon"))
         .await
         .expect("create patient");
-
-    // Seed a `personal` row so the `created_by` FK resolves.
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-1', 'Frau Test', 'rez@test', 'x', 'REZEPTION')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    let rez_id = first_personal_id_by_role(&pool, "REZEPTION").await;
 
     let aufgabe = praxis_aufgabe_repo::insert(
         &pool,
@@ -201,7 +193,7 @@ async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
             leistungsname: None,
             gesamtkosten: None,
         },
-        "rez-1",
+        &rez_id,
     )
     .await
     .expect("insert aufgabe");
@@ -291,20 +283,13 @@ async fn rezept_create_emits_one_outbox_row() {
     let p = patient_repo::create(&pool, &sample_patient("rezept-hook"))
         .await
         .expect("create patient");
-
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-rezept', 'Dr. Rezept', 'rezept@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    let arzt_id = first_personal_id_by_role(&pool, "ARZT").await;
 
     rezept_repo::create(
         &pool,
         &CreateRezept {
             patient_id: p.id.clone(),
-            arzt_id: "arzt-rezept".into(),
+            arzt_id,
             medikament: "Ibuprofen 600mg".into(),
             wirkstoff: Some("Ibuprofen".into()),
             dosierung: "1-0-1".into(),
@@ -334,25 +319,12 @@ async fn praxis_ticket_insert_emits_one_outbox_row() {
     let p = patient_repo::create(&pool, &sample_patient("ticket-hook"))
         .await
         .expect("create patient");
+    let rez_id = first_personal_id_by_role(&pool, "REZEPTION").await;
+    let arzt_id = first_personal_id_by_role(&pool, "ARZT").await;
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-ticket', 'Frau Rezeption', 'rez@test', 'x', 'REZEPTION'),
-               ('arzt-ticket', 'Dr. Ticket', 'arzt@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
-    praxis_ticket_repo::insert(
-        &pool,
-        &p.id,
-        "rez-ticket",
-        "arzt-ticket",
-        "Port hook ticket",
-    )
-    .await
-    .expect("insert ticket");
+    praxis_ticket_repo::insert(&pool, &p.id, &rez_id, &arzt_id, "Port hook ticket")
+        .await
+        .expect("insert ticket");
 
     assert_eq!(outbox_count(&pool, "praxis_ticket").await, 1);
 }
