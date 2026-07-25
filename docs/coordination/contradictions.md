@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-25
 
 ## Open contradictions
 
@@ -10,6 +10,8 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Required full Rust validation vs runner image capabilities | Ground rule: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` must be green every step | Cloud runner lacks SQLCipher OpenSSL headers (`openssl/crypto.h`) for `libsqlite3-sys` compile | Rust quality gates cannot be executed to completion in this environment | Infra owner: add OpenSSL dev headers (or vendored SQLCipher/OpenSSL profile) to runner image, then rerun full Rust matrix |
+| C10 | "Run workflows under tests and new logs" vs deterministic unit-test mocks | Step 2 expectation to run tests with new logs active | `tauri.service.ts` disables workflow-log side effects in `MODE=test` to avoid cross-suite mock breakage | Test matrix stays deterministic but does not write real workflow channel events during Vitest | Decide whether to keep deterministic test mode (current) or add dedicated integration test profile with workflow logging enabled |
 
 ## Resolved (recent)
 

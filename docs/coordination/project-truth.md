@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-25  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -32,6 +32,7 @@
 - **AMVV rezept/attest:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `rezept-edit.tsx`.
 - **Validation (2026-06-10 refactor):** `cargo fmt --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace --tests`, `npm test` **240 PASS**, `npm run build` **PASS** — [`validation.md`](validation.md).
 - **Refactor artifacts:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md), [`refactor-register.md`](refactor-register.md), [`retired-paths.md`](retired-paths.md), [`workflow-map.md`](workflow-map.md).
+- **Workflow logging bridge (2026-07-25):** Existing tracing subsystem now includes `workflow.log` channel; frontend route-enter + IPC lifecycle events are sent via `log_workflow_event` and sanitized before write (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `apps/practice-host-ui/src/services/tauri.service.ts`).
 - **Three-system layout (2026-06-06):** Repo root: `apps/{practice-host,practice-host-ui,lan-web-client}`, `crates/{app,server,shared,test}/`, `packages/{shared,ui,app,server}/`. Rust workspace: root `Cargo.toml`. npm workspace: root `package.json`. Legacy `app/` is a README pointer only. Isolation: `./scripts/validate-three-systems.sh`, `./scripts/validate-fe-three-systems.sh`, `./scripts/validate-lan-web-client.sh`.
 - **LAN web client (2026-06-06):** Browser-only `apps/lan-web-client` on port **1421**; Vite aliases replace Tauri adapters with `HttpPracticeAdapter` shim (`src/practice-http-shim.ts`); no `@tauri-apps` dependency.
 - **Deployment modes (2026-05-26):** `practice_desktop` (local Tauri DB), `lan_client` (HTTPS to remote LAN server), `serverless_peer` (local DB + master/replica outbox sync). Config: `app_kv` `sync.deployment.v1`; engine: `crates/shared/medoc-sync/`; docs: `docs/architecture/deployment-topologies.md`, `serverless-sync.md`.
