@@ -175,6 +175,35 @@ pub fn log_workflow_event(event: WorkflowLogEventInput) -> Result<(), AppError> 
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_string_masks_secrets_and_truncates() {
+        let raw = "password=hunter2 token=abc123";
+        let masked = sanitize_string(raw, 24);
+        assert!(masked.contains("password=***"));
+        assert!(!masked.contains("hunter2"));
+        assert!(masked.len() <= 24);
+    }
+
+    #[test]
+    fn sanitize_arg_keys_filters_invalid_chars_and_caps_length() {
+        let keys = sanitize_arg_keys(vec![
+            " patient_id ".into(),
+            "normal-key".into(),
+            "bad key !".into(),
+            "".into(),
+            "x".repeat(300),
+        ]);
+        assert_eq!(keys[0], "patient_id");
+        assert_eq!(keys[1], "normal-key");
+        assert_eq!(keys[2], "badkey");
+        assert!(keys[3].len() <= WORKFLOW_MAX_ARG_KEY_CHARS);
+    }
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
