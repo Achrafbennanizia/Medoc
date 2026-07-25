@@ -1,6 +1,27 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (CI/CD tier migration: verify/autofix/fix-proposal/release)
+
+## CI/CD tier migration — verified (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` on `.github/workflows/*.yml` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` parse clean |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/axe-a11y.mjs` | **PASS** |
+| Web typecheck (current baseline) | `npm run typecheck -w medoc` | **FAIL** — missing `i18next`/`react-i18next` module resolution in TS graph + existing unused-symbol TS6133 errors |
+| Web lint (current baseline) | `npm run lint -w medoc` | **FAIL** — existing hook/memoization/refs lint violations in practice-host UI |
+| Web build (current baseline) | `npm run build -w medoc` | **FAIL** — same TS errors as typecheck |
+| A11y runtime | `npm run test:a11y -w medoc` | **NOT RUN** — blocked by failing build/typecheck baseline |
+
+**Workflow migration delivered (code-level):**
+
+- Removed retired `.github/workflows/ci.yml`.
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (immutable verify + reusable `workflow_call`)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual/red-main draft PR proposals + sensitive-path label gate)
+  - `.github/workflows/release.yml` (verify gate call + protected release env + signed cross-platform build + provenance)
+- Added `docs/coordination/ci-cd-plan.md` as implementation source-of-truth.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

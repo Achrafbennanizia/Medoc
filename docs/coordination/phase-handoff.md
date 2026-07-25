@@ -1,7 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-07-25)  
+**Last closed:** tiered verify/autofix/fix-proposal/release workflows + CI path migration from retired `ci.yml`.
+
+### Verified (2026-07-25 — CI/CD tier migration)
+
+- **Tiered workflows added:** `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, updated `.github/workflows/release.yml`.
+- **Legacy CI removed:** `.github/workflows/ci.yml` deleted to eliminate stale and duplicated gating.
+- **Release gate model:** `release.yml` now calls `verify.yml` via `workflow_call`, then builds signed cross-platform artifacts in protected `release` environment.
+- **Deterministic auto-fix scope:** PR-only `autofix.yml` with bot-loop guard and command scope limited to `cargo fmt`, `lint:fix`, `format`.
+- **A11y gate added:** `apps/practice-host-ui/scripts/axe-a11y.mjs` + `test:a11y` script for critical WCAG 2.1 AA checks using axe-core/Playwright.
+- **Coordination docs added/updated:** `docs/coordination/ci-cd-plan.md`, validation/action/project-truth entries refreshed.
+
+### Remains unverified
+
+- Full green run of new `verify.yml` on current tree (local baseline currently fails on existing web lint/typecheck/build issues).
+- Runtime execution of `test:a11y` end-to-end (blocked by current build/typecheck baseline failures).
+- First tag/dispatch execution of new `release.yml` on CI runners.
+- `fix-proposal.yml` draft-PR behavior in a real red-main run.
+
+### Understanding delta
+
+- The repository already had accumulated frontend lint/typecheck debt that will immediately surface in tier-1 verify; the new gate is wired correctly but currently expected to fail until that baseline is addressed.
+- CI ownership is now explicit by tier (verify vs mutate vs proposal vs release), replacing the single mixed-purpose legacy CI workflow.
+
+### Required next steps (ordered)
+
+1. Resolve current `medoc` lint/typecheck/build baseline failures so `verify.yml` can pass on main.
+2. Trigger `fix-proposal.yml` manually with a non-trivial `proposal_command` to validate draft-PR evidence flow.
+3. Execute a dry-run tag/dispatch for `release.yml` and record cross-OS artifact + approval-gate behavior.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

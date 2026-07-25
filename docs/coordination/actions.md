@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-25 (CI/CD tier migration + release gating)
 
 ## Now
 
+- **CI stabilization follow-up:** resolve current `medoc` typecheck/lint baseline failures so tier-1 `verify.yml` can go green on main.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -11,6 +12,14 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-07-25 — CI/CD tier migration)
+
+- Added tiered workflows: `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, and gated `release.yml`.
+- Removed stale `.github/workflows/ci.yml`; verify is now the canonical release gate and reusable workflow target.
+- Added accessibility runner `apps/practice-host-ui/scripts/axe-a11y.mjs` + `test:a11y` script with axe-core + Playwright.
+- Added deterministic web scripts for automation (`typecheck`, `lint:fix`, `format`) in `apps/practice-host-ui/package.json`.
+- Added implementation ledger `docs/coordination/ci-cd-plan.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
