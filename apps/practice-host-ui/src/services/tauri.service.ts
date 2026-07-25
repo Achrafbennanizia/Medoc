@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { emitWorkflowEvent, workflowLogCommandName } from "@/lib/workflow-logger";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -52,10 +53,52 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const expanded =
+        args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+    if (cmd === workflowLogCommandName()) {
+        return invoke<T>(cmd, expanded);
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    const route = typeof window !== "undefined" ? window.location.pathname : undefined;
+    const startedAt =
+        typeof performance !== "undefined" && typeof performance.now === "function"
+            ? performance.now()
+            : Date.now();
+
+    void emitWorkflowEvent({
+        step: "primary_action",
+        route,
+        action: cmd,
+        status: "start",
+    });
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        const finishedAt =
+            typeof performance !== "undefined" && typeof performance.now === "function"
+                ? performance.now()
+                : Date.now();
+        void emitWorkflowEvent({
+            step: "success",
+            route,
+            action: cmd,
+            status: "ok",
+            durationMs: Math.max(0, finishedAt - startedAt),
+        });
+        return result;
+    } catch (error) {
+        const finishedAt =
+            typeof performance !== "undefined" && typeof performance.now === "function"
+                ? performance.now()
+                : Date.now();
+        void emitWorkflowEvent({
+            step: "error",
+            route,
+            action: cmd,
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+            durationMs: Math.max(0, finishedAt - startedAt),
+        });
+        throw error;
+    }
 }

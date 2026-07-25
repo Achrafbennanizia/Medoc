@@ -7,6 +7,7 @@ use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::logging::workflow::WorkflowEventInput;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
 
@@ -56,6 +57,14 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+/// Sanitized frontend->backend workflow telemetry bridge.
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event))]
+pub fn record_workflow_event(event: WorkflowEventInput) -> Result<(), AppError> {
+    logging::workflow::record_ui_event(event);
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +74,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::record_workflow_event,
     };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { emitWorkflowEvent } from "@/lib/workflow-logger";
 
 interface DialogProps {
     open: boolean;
@@ -15,6 +16,16 @@ interface DialogProps {
     presentation?: "default" | "centered";
     /** Optional visible title id for `aria-labelledby` (centered mode, or default mode when the top bar is hidden). */
     labelledBy?: string;
+}
+
+function logCancel(action: string, title: string): void {
+    void emitWorkflowEvent({
+        step: "cancel",
+        route: typeof window !== "undefined" ? window.location.pathname : undefined,
+        action,
+        status: "user_cancel",
+        message: title || "dialog",
+    });
 }
 
 function collectFocusable(root: HTMLElement): HTMLElement[] {
@@ -47,6 +58,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
+                logCancel("dialog_escape", title);
                 onCloseRef.current();
                 return;
             }
@@ -102,7 +114,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             document.body.style.overflow = prevOverflow;
             prevActive?.focus?.({ preventScroll: true });
         };
-    }, [open]);
+    }, [open, title]);
 
     if (!open) return null;
 
@@ -123,7 +135,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div
+            className="modal-backdrop"
+            onClick={() => {
+                logCancel("dialog_backdrop", title);
+                onClose();
+            }}
+            role="presentation"
+        >
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +156,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => {
+                            logCancel("dialog_close_button", title);
+                            onClose();
+                        }}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +179,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    logCancel("dialog_close_button", title);
+                                    onClose();
+                                }}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
@@ -261,7 +286,10 @@ export function ConfirmDialog({
     const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
     const handleClose = () => {
-        if (!loading) onClose();
+        if (!loading) {
+            logCancel("confirm_dialog_cancel", title);
+            onClose();
+        }
     };
     return (
         <Dialog
