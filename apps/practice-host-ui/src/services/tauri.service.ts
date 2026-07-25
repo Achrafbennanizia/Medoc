@@ -50,12 +50,98 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+
+export type WorkflowStage = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+export interface WorkflowLogEventInput {
+    stage: WorkflowStage;
+    route?: string;
+    action?: string;
+    outcome?: string;
+    details?: string;
+    command?: string;
+    duration_ms?: number;
+}
+
+function workflowLoggingAvailable(): boolean {
+    if (typeof window === "undefined") {
+        return false;
+    }
+    const marker = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    return marker != null;
+}
+
+function currentRoutePath(): string | undefined {
+    if (typeof window === "undefined") {
+        return undefined;
+    }
+    return window.location?.pathname || undefined;
+}
+
+function toWorkflowError(err: unknown): string {
+    if (err instanceof Error) {
+        return err.message;
+    }
+    if (typeof err === "string") {
+        return err;
+    }
+    const raw = JSON.stringify(err);
+    return raw ?? String(err);
+}
+
+async function emitWorkflowEvent(input: WorkflowLogEventInput): Promise<void> {
+    if (!workflowLoggingAvailable()) {
+        return;
+    }
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { input });
+    } catch {
+        // Workflow telemetry must never block functional app IPC.
+    }
+}
+
+export async function logWorkflowRouteEnter(route: string): Promise<void> {
+    await emitWorkflowEvent({
+        stage: "route_enter",
+        route,
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, args ?? {});
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    const normalizedArgs =
+        args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+    const startedAt = Date.now();
+    await emitWorkflowEvent({
+        stage: "primary_action",
+        route: currentRoutePath(),
+        action: "ipc_invoke",
+        command: cmd,
+    });
+    try {
+        const result = await invoke<T>(cmd, normalizedArgs);
+        await emitWorkflowEvent({
+            stage: "success",
+            route: currentRoutePath(),
+            action: "ipc_invoke",
+            command: cmd,
+            duration_ms: Date.now() - startedAt,
+        });
+        return result;
+    } catch (err) {
+        await emitWorkflowEvent({
+            stage: "error",
+            route: currentRoutePath(),
+            action: "ipc_invoke",
+            command: cmd,
+            outcome: toWorkflowError(err),
+            duration_ms: Date.now() - startedAt,
+        });
+        throw err;
+    }
 }

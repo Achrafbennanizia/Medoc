@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +10,42 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
+use crate::log_workflow;
+
+const MAX_WORKFLOW_FIELD_CHARS: usize = 240;
+
+#[derive(Debug, Deserialize)]
+pub struct WorkflowLogEventInput {
+    pub stage: String,
+    pub route: Option<String>,
+    pub action: Option<String>,
+    pub outcome: Option<String>,
+    pub details: Option<String>,
+    pub command: Option<String>,
+    pub duration_ms: Option<u64>,
+}
+
+fn sanitize_workflow_text(raw: &str) -> String {
+    let masked = logging::sanitizer::sanitize(raw.trim());
+    let mut out = String::new();
+    for (idx, ch) in masked.chars().enumerate() {
+        if idx >= MAX_WORKFLOW_FIELD_CHARS {
+            out.push_str("...[truncated]");
+            break;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn sanitize_workflow_optional(raw: Option<String>) -> Option<String> {
+    let value = sanitize_workflow_text(raw.as_deref().unwrap_or_default());
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -56,6 +93,42 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+/// Sanitized frontend → backend workflow bridge.
+///
+/// Intentionally does not require an authenticated session so pre-login flows
+/// (onboarding/login route transitions and errors) can still be observed.
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(input))]
+pub fn log_workflow_event(input: WorkflowLogEventInput) -> Result<(), AppError> {
+    let WorkflowLogEventInput {
+        stage,
+        route,
+        action,
+        outcome,
+        details,
+        command,
+        duration_ms,
+    } = input;
+
+    let stage = sanitize_workflow_text(&stage);
+    if stage.is_empty() {
+        return Err(AppError::Validation("workflow stage fehlt".into()));
+    }
+
+    log_workflow!(
+        info,
+        event = "WORKFLOW_STEP",
+        stage = %stage,
+        route = ?sanitize_workflow_optional(route),
+        action = ?sanitize_workflow_optional(action),
+        outcome = ?sanitize_workflow_optional(outcome),
+        details = ?sanitize_workflow_optional(details),
+        command = ?sanitize_workflow_optional(command),
+        duration_ms = duration_ms,
+    );
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +138,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }
