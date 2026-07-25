@@ -141,3 +141,27 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{sanitize_workflow_optional, sanitize_workflow_text, MAX_WORKFLOW_FIELD_CHARS};
+
+    #[test]
+    fn workflow_sanitizer_masks_secret_patterns() {
+        let value = sanitize_workflow_text("password=hunter2");
+        assert_eq!(value, "password=***");
+    }
+
+    #[test]
+    fn workflow_sanitizer_truncates_long_values() {
+        let long = "x".repeat(MAX_WORKFLOW_FIELD_CHARS + 20);
+        let value = sanitize_workflow_text(&long);
+        assert!(value.ends_with("...[truncated]"));
+        assert!(value.len() > MAX_WORKFLOW_FIELD_CHARS);
+    }
+
+    #[test]
+    fn workflow_optional_returns_none_for_blank_values() {
+        assert_eq!(sanitize_workflow_optional(Some("   ".to_string())), None);
+    }
+}
