@@ -10,6 +10,7 @@ import { ReplicaSyncBackground } from "./views/components/replica-sync-backgroun
 import { PraxisArbeitszeitenBackground } from "./views/components/praxis-arbeitszeiten-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
+import { WorkflowRouteLogger } from "./views/components/workflow-route-logger";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
 
@@ -139,6 +140,7 @@ export default function App() {
         <DesktopWindowFrame>
         <BrowserRouter>
         <VerbundOnboardingGate>
+            <WorkflowRouteLogger />
             <Routes>
                 <Route
                     path="/onboarding"
