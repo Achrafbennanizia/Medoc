@@ -1,16 +1,22 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-25 (workflow logging bridge run)
 
 ## Now
 
-- **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
-- **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
-- **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **Close WF-2026-07-25-002:** fix `auth_session_audit_tests` fixture vs seat-cap gate so `cargo test --workspace --tests` is green again.
+- **Close WF-2026-07-25-003:** add onboarding IPC mocks in smoke harness (`critical-flows.smoke`, `g21-routing.smoke`).
+- **Close WF-2026-07-25-004:** resolve TS6133 unused symbol failures in termin modules to unblock `npm run build`.
+- **Re-run mandatory full gate after above fixes:** `cargo +stable fmt --all -- --check`, `cargo +stable clippy --workspace --all-targets -- -D warnings`, `cargo +stable test --workspace --tests`, `npm run test`, `npm run build`.
+
+## Done (2026-07-25 — workflow logging bridge)
+
+- Added dedicated `workflow.log` channel in existing tracing subsystem (`medoc-core`), preserving existing sanitizer/rotation architecture.
+- Added sanitized Tauri command `log_workflow_event` (frontend→backend workflow bridge).
+- Added frontend workflow emission for route-enter and IPC lifecycle steps (`primary_action`, `success`, `error`) with best-effort fallback.
+- Added focused tests:
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts` (4 passing tests).
+  - `commands::system::logging` sanitizer unit tests (`cargo +stable test -p medoc-practice --lib workflow_sanitizer`, 2 passing tests).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

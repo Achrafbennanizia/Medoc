@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging bridge pass (2026-07-25)  
+**Last closed:** Extended tracing logger with `workflow.log`, added sanitized frontend→backend workflow bridge, and recorded run findings register.
+
+### Verified (2026-07-25 — workflow logging bridge)
+
+- **Logging channel extension:** Existing tracing subsystem now includes dedicated `workflow.log` rotation channel (`crates/shared/medoc-core/src/infrastructure/logging/{mod,config}.rs`).
+- **Sanitized bridge command:** New `log_workflow_event` Tauri command sanitizes fields before logging (`crates/app/medoc-practice/src/commands/system/logging.rs`, registered in `commands/register.rs`).
+- **Frontend workflow emission:** IPC lifecycle emits `primary_action`/`success`/`error`; route transitions emit `route_enter` via best-effort helper (`apps/practice-host-ui/src/services/tauri.service.ts`, `packages/shared/src/lib/workflow-route-logger.ts`, `apps/practice-host-ui/src/App.tsx`).
+- **Focused tests:** `npm run test -w medoc -- src/services/tauri.service.test.ts` **PASS** (4); `cargo +stable test -p medoc-practice --lib workflow_sanitizer` **PASS** (2).
+
+### Remains unverified / failing gates
+
+- `cargo +stable fmt --all -- --check` **FAIL** (repo-wide pre-existing formatting drift not touched in this run).
+- `cargo +stable clippy --workspace --all-targets -- -D warnings` **FAIL** (pre-existing `assertions_on_constants` in `mvp_security_gates_tests.rs`).
+- `cargo +stable test --workspace --tests` **FAIL** (pre-existing `auth_session_audit_tests` seat-cap fixture failure).
+- `npm run test` **FAIL** (3 pre-existing smoke failures around `onboarding_subscription_status` mock path).
+- `npm run build` **FAIL** (pre-existing TS6133 unused symbol errors in termin modules).
+
+### Understanding delta
+
+- Full Rust gates in this environment required explicit host setup (`rustup stable` + OpenSSL/GTK/WebKit dev headers) before meaningful validation could run.
+- Workflow telemetry can be added without introducing a parallel logger by extending existing tracing targets + sanitizer path; this was implemented directly inside current logging architecture.
+
+### Required next steps (ordered)
+
+1. Resolve WF-2026-07-25-002..004 from `contradictions.md` (Rust auth fixture, smoke mocks, TS6133 build blockers).
+2. Re-run full mandatory gate set and update `validation.md` with green status.
+3. Continue Step 2 workflow-map detection once full gate baseline is stable.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
