@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tiers (2026-07-25)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split + a11y gate wiring.
+
+### Verified (2026-07-25 — CI/CD pipeline tiers)
+
+- **Tiered workflows:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml` now define the four-gate model; legacy `.github/workflows/ci.yml` removed.
+- **Workspace-aware commands:** workflows detect package manager from lockfile and target the live workspaces (`apps/*`, `crates/*`, `packages/*`), not retired monolith paths.
+- **Guardrails wired:** verify remains zero-mutation; autofix is PR-only with bot-loop guard and restricted compliance-path block; fix-proposal opens draft PRs on new branches with before/after evidence and `needs-human-review` labeling for sensitive paths.
+- **Release gating:** `release.yml` now reuses `verify.yml` via `workflow_call`, runs under protected `release` environment, builds signed cross-platform bundles, and emits provenance attestations.
+- **A11y gate:** `apps/practice-host-ui/scripts/test-a11y.mjs` added and linked to `test:a11y`; this runs axe against built UI and fails on critical WCAG 2.1 A/AA issues.
+
+### Remains unverified
+
+- GitHub-side execution of the new workflows on real PR/tag events (**NOT OBSERVED** in this session).
+- Protected `release` environment approval flow and secrets wiring on GitHub (**NOT OBSERVED**).
+- Frontend baseline currently fails `npm run typecheck -w medoc` and `npm run build -w medoc` due existing TS6133 errors (see `validation.md`); verify web gate will stay red until those are fixed.
+
+### Understanding delta
+
+- CI/CD source of truth moved from monolithic `ci.yml`/legacy assumptions to four explicit tier workflows plus `docs/coordination/ci-cd-plan.md`.
+- Typecheck is now first-class in verify; current frontend baseline reveals pre-existing unused-symbol failures that were not green at time of this migration.
+
+### Next
+
+1. Fix the current TypeScript TS6133 baseline failures in `termin-availability`, `termin-calendar-layout`, and `termin-week-day-grid` (including shared package mirrors) so Tier 1 web verify can pass.
+2. Run one PR through Tier 2 autofix to confirm loop guard + deterministic-only behavior in GitHub Actions.
+3. Exercise Tier 4 with a dry-run tag/dispatch in the protected `release` environment and confirm signed artifact + provenance outputs.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
