@@ -64,10 +64,14 @@ type WorkflowLogEvent = {
 const WORKFLOW_LOG_COMMAND = "log_workflow_event";
 
 function tauriRuntimeActive(): boolean {
-    return (
-        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) ||
-        "__TAURI_INTERNALS__" in globalThis
-    );
+    const g = globalThis as typeof globalThis & { __MEDOC_FORCE_TAURI_RUNTIME__?: boolean };
+    if (g.__MEDOC_FORCE_TAURI_RUNTIME__ === true) {
+        return true;
+    }
+    if (typeof process !== "undefined" && process.env.VITEST) {
+        return false;
+    }
+    return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 function nowMs(): number {

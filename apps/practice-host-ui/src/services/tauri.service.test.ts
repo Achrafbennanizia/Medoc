@@ -7,12 +7,14 @@ vi.mock("@tauri-apps/api/core", () => ({
 import { invoke } from "@tauri-apps/api/core";
 import { logUiRouteEnter, tauriInvoke } from "@/services/tauri.service";
 
-const tauriGlobal = globalThis as typeof globalThis & { __TAURI_INTERNALS__?: unknown };
+const tauriGlobal = globalThis as typeof globalThis & {
+    __MEDOC_FORCE_TAURI_RUNTIME__?: boolean;
+};
 
 describe("tauri.service workflow logging bridge", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        tauriGlobal.__TAURI_INTERNALS__ = {};
+        tauriGlobal.__MEDOC_FORCE_TAURI_RUNTIME__ = true;
     });
 
     it("emits primary_action and success workflow events for IPC calls", async () => {
