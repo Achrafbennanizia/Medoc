@@ -1,0 +1,305 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this fix proposal run was requested
+        required: false
+        type: string
+      fix_command:
+        description: Optional command to attempt a substantive fix on a new branch
+        required: false
+        type: string
+      verify_run_url:
+        description: Optional URL to the failing verify run
+        required: false
+        type: string
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - id: meta
+        name: Prepare metadata
+        run: |
+          branch="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          log_dir="${RUNNER_TEMP}/fix-proposal-logs"
+          mkdir -p "$log_dir"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            reason="verify failed on main"
+            source_sha="${{ github.event.workflow_run.head_sha }}"
+            verify_url="${{ github.event.workflow_run.html_url }}"
+          else
+            reason="${{ github.event.inputs.reason }}"
+            source_sha="${GITHUB_SHA}"
+            verify_url="${{ github.event.inputs.verify_run_url }}"
+          fi
+
+          if [ -z "$reason" ]; then
+            reason="manual fix proposal dispatch"
+          fi
+
+          printf 'branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
+          printf 'log_dir=%s\n' "$log_dir" >> "$GITHUB_OUTPUT"
+          printf 'reason=%s\n' "$reason" >> "$GITHUB_OUTPUT"
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'verify_url=%s\n' "$verify_url" >> "$GITHUB_OUTPUT"
+
+      - name: Create proposal branch
+        run: |
+          git checkout -B "${{ steps.meta.outputs.branch }}" "${{ steps.meta.outputs.source_sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+          LOG_DIR="${{ steps.meta.outputs.log_dir }}"
+          PM="${{ steps.pm.outputs.pm }}"
+          run_ui_script() {
+            script="$1"
+            if [ "$PM" = "pnpm" ]; then
+              pnpm --filter medoc run "$script"
+            elif [ "$PM" = "yarn" ]; then
+              yarn workspace medoc "$script"
+            else
+              npm run "$script" -w medoc
+            fi
+          }
+
+          cargo test --workspace > "${LOG_DIR}/before-cargo-test.log" 2>&1
+          before_cargo_test=$?
+          cargo audit > "${LOG_DIR}/before-cargo-audit.log" 2>&1
+          before_cargo_audit=$?
+          run_ui_script typecheck > "${LOG_DIR}/before-typecheck.log" 2>&1
+          before_typecheck=$?
+
+          echo "cargo_test=${before_cargo_test}" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit=${before_cargo_audit}" >> "$GITHUB_OUTPUT"
+          echo "typecheck=${before_typecheck}" >> "$GITHUB_OUTPUT"
+
+      - id: attempt
+        name: Attempt substantive fix on proposal branch
+        env:
+          FIX_COMMAND_INPUT: ${{ github.event.inputs.fix_command }}
+          FIX_COMMAND_DEFAULT: ${{ vars.MEDOC_FIX_PROPOSAL_COMMAND }}
+        run: |
+          set +e
+          PM="${{ steps.pm.outputs.pm }}"
+          run_ui_script() {
+            script="$1"
+            if [ "$PM" = "pnpm" ]; then
+              pnpm --filter medoc run "$script"
+            elif [ "$PM" = "yarn" ]; then
+              yarn workspace medoc "$script"
+            else
+              npm run "$script" -w medoc
+            fi
+          }
+          has_ui_script() {
+            node -e "const p=require('./apps/practice-host-ui/package.json'); const s=p.scripts||{}; process.exit(Object.prototype.hasOwnProperty.call(s, process.argv[1]) ? 0 : 1);" "$1"
+          }
+
+          chosen_fix_command="$FIX_COMMAND_INPUT"
+          if [ -z "$chosen_fix_command" ]; then
+            chosen_fix_command="$FIX_COMMAND_DEFAULT"
+          fi
+
+          if [ -n "$chosen_fix_command" ]; then
+            echo "Using configured fix command: $chosen_fix_command"
+            bash -lc "$chosen_fix_command"
+            attempt_status=$?
+            strategy="configured-fix-command"
+          else
+            echo "No configured fix command found; running best-effort baseline remediation."
+            cargo fix --workspace --all-targets --allow-dirty --allow-staged || true
+            if has_ui_script lint:fix; then
+              run_ui_script lint:fix || true
+            fi
+            if has_ui_script format; then
+              run_ui_script format || true
+            fi
+            attempt_status=0
+            strategy="baseline-remediation"
+          fi
+
+          echo "status=${attempt_status}" >> "$GITHUB_OUTPUT"
+          echo "strategy=${strategy}" >> "$GITHUB_OUTPUT"
+          printf 'command=%s\n' "$chosen_fix_command" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: after
+        name: Capture passing-after evidence
+        run: |
+          set +e
+          LOG_DIR="${{ steps.meta.outputs.log_dir }}"
+          PM="${{ steps.pm.outputs.pm }}"
+          run_ui_script() {
+            script="$1"
+            if [ "$PM" = "pnpm" ]; then
+              pnpm --filter medoc run "$script"
+            elif [ "$PM" = "yarn" ]; then
+              yarn workspace medoc "$script"
+            else
+              npm run "$script" -w medoc
+            fi
+          }
+
+          cargo test --workspace > "${LOG_DIR}/after-cargo-test.log" 2>&1
+          after_cargo_test=$?
+          cargo audit > "${LOG_DIR}/after-cargo-audit.log" 2>&1
+          after_cargo_audit=$?
+          run_ui_script typecheck > "${LOG_DIR}/after-typecheck.log" 2>&1
+          after_typecheck=$?
+
+          echo "cargo_test=${after_cargo_test}" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit=${after_cargo_audit}" >> "$GITHUB_OUTPUT"
+          echo "typecheck=${after_typecheck}" >> "$GITHUB_OUTPUT"
+
+      - id: guard
+        name: Enforce restricted-path guardrails
+        run: |
+          changed_files="$(git diff --name-only)"
+          if [ -z "$changed_files" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$changed_files" | rg -n -i '(^|/)(security|audit|crypto|rbac)(/|[-_.])'; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo 'changed_files<<EOF'
+            printf '%s\n' "$changed_files"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build draft PR body
+        run: |
+          cat <<'EOF' > fix-proposal-pr-body.md
+          ## Tier 3 fix proposal (draft)
+
+          This PR was opened by `fix-proposal.yml` on a **new branch** and is intentionally **draft** for human review.
+
+          ### Why this run started
+          - Reason: ${{ steps.meta.outputs.reason }}
+          - Source SHA: `${{ steps.meta.outputs.source_sha }}`
+          - Verify run URL: `${{ steps.meta.outputs.verify_url }}`
+          - Fix strategy: `${{ steps.attempt.outputs.strategy }}`
+          - Fix command: `${{ steps.attempt.outputs.command }}`
+
+          ### Failing-before evidence (exit codes)
+          - `cargo test --workspace`: `${{ steps.before.outputs.cargo_test }}`
+          - `cargo audit`: `${{ steps.before.outputs.cargo_audit }}`
+          - `npm run typecheck`: `${{ steps.before.outputs.typecheck }}`
+
+          ### Passing-after evidence (exit codes)
+          - `cargo test --workspace`: `${{ steps.after.outputs.cargo_test }}`
+          - `cargo audit`: `${{ steps.after.outputs.cargo_audit }}`
+          - `npm run typecheck`: `${{ steps.after.outputs.typecheck }}`
+
+          ### Guardrails
+          - Restricted paths touched (`security|audit|crypto|rbac`): `${{ steps.guard.outputs.restricted }}`
+          - Auto-merge: **disabled** (manual merge only)
+
+          ### Changed files
+          ```
+          ${{ steps.guard.outputs.changed_files }}
+          ```
+          EOF
+
+      - name: Upload evidence logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: ${{ steps.meta.outputs.log_dir }}
+
+      - name: Skip PR when no diff exists
+        if: steps.guard.outputs.has_changes != 'true'
+        run: echo "No file changes were produced by fix attempt; no PR will be opened."
+
+      - name: Open draft pull request
+        if: steps.guard.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.meta.outputs.branch }}
+          base: main
+          title: "ci(fix-proposal): draft remediation for failing verify"
+          commit-message: "ci: add automated fix proposal changes"
+          body-path: fix-proposal-pr-body.md
+          labels: ${{ steps.guard.outputs.labels }}
+          draft: true
+          delete-branch: false

@@ -1,0 +1,109 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - name: Apply deterministic autofixes only
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_ui_script() {
+            script="$1"
+            if [ "$PM" = "pnpm" ]; then
+              pnpm --filter medoc run "$script"
+            elif [ "$PM" = "yarn" ]; then
+              yarn workspace medoc "$script"
+            else
+              npm run "$script" -w medoc
+            fi
+          }
+          has_ui_script() {
+            node -e "const p=require('./apps/practice-host-ui/package.json'); const s=p.scripts||{}; process.exit(Object.prototype.hasOwnProperty.call(s, process.argv[1]) ? 0 : 1);" "$1"
+          }
+
+          cargo fmt --all
+          if has_ui_script lint:fix; then
+            run_ui_script lint:fix
+          else
+            echo "No lint:fix script found; skipping."
+          fi
+          if has_ui_script format; then
+            run_ui_script format
+          else
+            echo "No format script found; skipping."
+          fi
+
+      - name: Block restricted compliance paths from bot commits
+        run: |
+          changed_files="$(git diff --name-only)"
+          if [ -z "$changed_files" ]; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          if printf '%s\n' "$changed_files" | rg -n -i '(^|/)(security|audit|crypto|rbac)(/|[-_.])'; then
+            echo "Autofix touched security/audit/crypto/RBAC paths; refusing commit."
+            exit 1
+          fi
+
+      - name: Commit fixes if anything changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic autofixes"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No deterministic fixes required."
+          fi
