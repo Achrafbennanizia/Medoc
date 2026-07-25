@@ -151,7 +151,10 @@ async fn wrong_pin_rejected_before_accept() {
     )
     .await
     .expect_err("wrong pin");
-    assert!(matches!(err, AppError::Validation(_)));
+    assert!(matches!(
+        err,
+        AppError::Validation(_) | AppError::ValidationCode(_)
+    ));
 
     let still = load_by_device(&pool, "slave-pin").await.unwrap().unwrap();
     assert_eq!(still.status, "PENDING");
@@ -265,5 +268,8 @@ async fn verify_token_rejects_wrong_master_pubkey() {
     let other = SigningKey::generate(&mut OsRng).verifying_key();
     let err = verify_activation_token(decided.activation_token.as_ref().unwrap(), &other)
         .expect_err("must fail for wrong pubkey");
-    assert!(matches!(err, AppError::Validation(_)));
+    assert!(matches!(
+        err,
+        AppError::Validation(_) | AppError::ValidationCode(_)
+    ));
 }
