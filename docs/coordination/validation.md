@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (CI/CD tiered workflow migration)
+
+## CI/CD tiered workflow migration — verified (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...) ... PY` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parse successfully |
+| Retired path sweep in workflows | `rg "app/src-tauri|\\bapp/\\b" .github/workflows` | **PASS** — no matches in workflow definitions (command exit `1` = no hits) |
+| Working tree after commit | `git status --short` | **PASS** — clean after commit `6fc5e12` |
+| Ruby YAML parser fallback | `ruby -e 'require "yaml"; ...'` | **NOT RUN / unavailable** — `ruby: command not found`; Python parser used instead |
+| End-to-end GitHub Actions runtime | remote workflow execution | **NOT RUN** in this session (local static validation only) |
+
+**Delivered:** replaced legacy `.github/workflows/ci.yml` with tiered `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and gated `release.yml`; added coordination plan at `docs/coordination/ci-cd-plan.md`.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
