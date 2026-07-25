@@ -21,21 +21,25 @@ fn deletes_old_app_log_keeps_audit() {
     let fresh_app = tmp.join("app.log");
     let old_audit = tmp.join("audit.log.2010-01-01");
     let old_security = tmp.join("security.log.old");
+    let old_workflow = tmp.join("workflow.log.old");
 
     touch(&old_app, 60 * 24 * 3600); // 60 days — exceeds 30
     touch(&fresh_app, 3600); // 1h — fresh
     touch(&old_audit, 5000 * 24 * 3600); // 13 years — keep (no retention)
     touch(&old_security, 120 * 24 * 3600); // 120 days — exceeds 90
+    touch(&old_workflow, 45 * 24 * 3600); // 45 days — exceeds 30
 
     let report = enforce(&tmp).unwrap();
-    assert_eq!(report.scanned, 4);
+    assert_eq!(report.scanned, 5);
     assert!(report.deleted.iter().any(|n| n.starts_with("app.log.2025")));
     assert!(report.deleted.iter().any(|n| n.starts_with("security")));
+    assert!(report.deleted.iter().any(|n| n.starts_with("workflow")));
     assert!(!report.deleted.iter().any(|n| n.starts_with("audit")));
     assert!(fresh_app.exists());
     assert!(old_audit.exists());
     assert!(!old_app.exists());
     assert!(!old_security.exists());
+    assert!(!old_workflow.exists());
 
     fs::remove_dir_all(&tmp).ok();
 }
