@@ -10,6 +10,7 @@
 - **Tier 3 (fix proposal):** new `.github/workflows/fix-proposal.yml` (manual dispatch + failed `verify` on `main`) requiring failing-before/passing-after evidence and opening a **draft PR** only.
 - **Tier 4 (release):** `.github/workflows/release.yml` rewritten to reuse `verify.yml` as gate, then build signed cross-platform artifacts under protected `release` environment; asserts tracked source tree remains unchanged.
 - **Legacy migration:** retired `.github/workflows/ci.yml`; CI truth/actions docs updated (`project-truth.md`, `actions.md`, `ci-cd-plan.md`).
+- **Local syntax checks:** workflow YAML parse + `test-a11y.mjs` syntax check passed (see `validation.md` 2026-07-25 block).
 
 ### Remains unverified
 
@@ -17,6 +18,7 @@
 - Branch protection wiring for required `verify` checks.
 - Protected `release` environment approval policy in repository settings.
 - Tier 3 repository variable `CI_FIX_PROPOSAL_COMMAND` configuration (if red-main auto proposal should run unattended).
+- Existing repository quality debt surfaced by gate commands (`cargo fmt --check`, `npm lint`, `npm typecheck`, `npm build`) — currently failing independent of this workflow wiring.
 
 ### Understanding delta
 

@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-25  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
