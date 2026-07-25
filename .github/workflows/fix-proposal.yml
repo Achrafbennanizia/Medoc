@@ -1,0 +1,216 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Git ref or SHA to propose a fix for."
+        required: false
+        default: "main"
+      failure_context:
+        description: "Why this proposal run was triggered."
+        required: false
+        default: "manual dispatch"
+      verify_command:
+        description: "Command used for failing-before/passing-after evidence."
+        required: false
+        default: "cargo test --workspace --tests && npm run check"
+      agent_command:
+        description: "Optional command that attempts a substantive fix."
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - id: context
+        name: Resolve trigger context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "checkout_ref=${{ inputs.target_ref }}" >> "$GITHUB_OUTPUT"
+            echo "failure_context=${{ inputs.failure_context }}" >> "$GITHUB_OUTPUT"
+            echo "verify_command=${{ inputs.verify_command }}" >> "$GITHUB_OUTPUT"
+            echo "agent_command=${{ inputs.agent_command }}" >> "$GITHUB_OUTPUT"
+            echo "failing_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "failure_context=verify failed on main (run #${{ github.event.workflow_run.run_number }})" >> "$GITHUB_OUTPUT"
+            echo "verify_command=cargo test --workspace --tests && npm run check" >> "$GITHUB_OUTPUT"
+            echo "agent_command=" >> "$GITHUB_OUTPUT"
+            echo "failing_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.checkout_ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+      - run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - id: before
+        name: Capture failing-before evidence
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .ci-fix
+          set +e
+          bash -lc "${{ steps.context.outputs.verify_command }}" > .ci-fix/before.log 2>&1
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: attempt
+        name: Attempt substantive fix
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${{ steps.context.outputs.agent_command }}" ]; then
+            bash -lc "${{ steps.context.outputs.agent_command }}" > .ci-fix/attempt.log 2>&1
+            status=$?
+            echo "method=agent_command" >> "$GITHUB_OUTPUT"
+            echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -x scripts/ci/fix-proposal.sh ]; then
+            scripts/ci/fix-proposal.sh > .ci-fix/attempt.log 2>&1
+            status=$?
+            echo "method=scripts/ci/fix-proposal.sh" >> "$GITHUB_OUTPUT"
+            echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "No agent command or scripts/ci/fix-proposal.sh hook configured." > .ci-fix/attempt.log
+          echo "method=none" >> "$GITHUB_OUTPUT"
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+
+      - id: after
+        name: Capture passing-after evidence
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          bash -lc "${{ steps.context.outputs.verify_command }}" > .ci-fix/after.log 2>&1
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: proposal
+        name: Write proposal record
+        shell: bash
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          proposal_file="docs/coordination/fix-proposals/run-${{ github.run_id }}.md"
+          cat > "$proposal_file" <<EOF
+          # CI fix proposal — run ${{ github.run_id }}
+
+          - Trigger: \`${{ github.event_name }}\`
+          - Target ref: \`${{ steps.context.outputs.checkout_ref }}\`
+          - Failure context: ${{ steps.context.outputs.failure_context }}
+          - Failing-before evidence URL: ${{ steps.context.outputs.failing_url }}
+          - Verify command: \`${{ steps.context.outputs.verify_command }}\`
+          - Fix attempt method: \`${{ steps.attempt.outputs.method }}\`
+
+          ## Evidence summary
+
+          - Failing-before command exit: \`${{ steps.before.outputs.exit_code }}\`
+          - Fix attempt exit: \`${{ steps.attempt.outputs.exit_code }}\`
+          - Passing-after command exit: \`${{ steps.after.outputs.exit_code }}\`
+
+          ## Notes
+
+          - This PR is always opened as a **draft**.
+          - No auto-merge is performed.
+          - If security, audit, crypto, or RBAC files are touched, \`needs-human-review\` is applied and the workflow stops.
+          EOF
+          sed -i 's/^          //' "$proposal_file"
+          echo "path=$proposal_file" >> "$GITHUB_OUTPUT"
+
+      - id: guard
+        name: Detect sensitive-path edits
+        shell: bash
+        run: |
+          {
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u > .ci-fix/changed-files.txt
+          if rg -n "(^|/)(security|audit|crypto)(/|$)|(^|/).*rbac.*" ".ci-fix/changed-files.txt"; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: pr
+        name: Open draft fix proposal PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ci/fix-proposal/${{ github.run_id }}
+          base: main
+          commit-message: "ci: draft fix proposal from automation run ${{ github.run_id }}"
+          title: "ci: draft fix proposal for failing verification"
+          body-path: ${{ steps.proposal.outputs.path }}
+          draft: true
+          labels: |
+            fix-proposal
+
+      - name: Add needs-human-review label
+        if: steps.guard.outputs.needs_human_review == 'true' && steps.pr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.pr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+
+      - name: Stop after sensitive-path proposal
+        if: steps.guard.outputs.needs_human_review == 'true'
+        run: |
+          echo "Sensitive security/audit/crypto/RBAC paths were changed."
+          echo "Labelled PR with needs-human-review and stopping automation."
+          exit 1

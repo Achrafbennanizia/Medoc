@@ -33,6 +33,13 @@ Active cost-priority delivery plan and test allow-list:
 - Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
 - `npm run build` **PASS** (2026-07-10).
 
+## Done (2026-07-25 — CI/CD tier migration)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Retired monolithic `.github/workflows/ci.yml`.
+- Added coordination design doc: `docs/coordination/ci-cd-plan.md`.
+- Added release guard rails: verify-first reusable gate, protected `release` environment, signed bundle + provenance attestation.
+
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
 - Schema + RBAC + extended work_time/krank/adjustment IPC (294 handlers).

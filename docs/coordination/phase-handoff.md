@@ -1,6 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD tier migration (2026-07-25)
+**Last closed:** verify/autofix/fix-proposal/release workflow split, guardrails codified, monolithic `ci.yml` retired.
+
+### Verified (2026-07-25 — CI/CD tier migration)
+
+- **Tier 1 verify:** `.github/workflows/verify.yml` created with check-only gates (Rust fmt/clippy/test/audit + JS lint/typecheck/test/build + axe-core WCAG scan), concurrency cancelation, and per-job timeouts.
+- **Tier 2 autofix:** `.github/workflows/autofix.yml` created as PR-only deterministic formatter/linter path with bot loop guard and commit-back only on diff.
+- **Tier 3 fix proposal:** `.github/workflows/fix-proposal.yml` created for manual dispatch or failed-main verify, opening draft PRs on new branches with failing-before/passing-after evidence.
+- **Tier 4 release:** `.github/workflows/release.yml` rewritten to reuse verify on tag/dispatch, then build signed cross-platform bundles in protected `release` environment with provenance attestation.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `project-truth.md` and `actions.md` updated for continuity.
+
+### Remains unverified
+
+- Live GitHub Actions execution of all four workflows on this branch (**NOT RUN** in this session).
+- Release-environment approval path and secrets availability on runners (**NOT OBSERVED**).
+- Practical efficacy of tier-3 substantive fix hook (`scripts/ci/fix-proposal.sh`) in this repository (**NOT RUN**).
+
+### Next
+
+1. Run one PR dry-run to validate `verify.yml` + `autofix.yml` end-to-end behavior.
+2. Trigger `fix-proposal.yml` (manual dispatch) with a controlled failing command and verify draft PR evidence format.
+3. Trigger `release.yml` in a non-production tag/rehearsal path to confirm protected approval + signing + artifact upload.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
