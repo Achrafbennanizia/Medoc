@@ -13,6 +13,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::Duration as StdDuration;
 
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
@@ -89,8 +90,25 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
     let dir = backup_dir();
     std::fs::create_dir_all(&dir).map_err(|e| AppError::Internal(format!("backup dir: {e}")))?;
 
-    let ts = Utc::now().format("%Y%m%dT%H%M%SZ");
-    let target = dir.join(format!("medoc-{ts}.db"));
+    // Avoid second-level filename collisions (notably pre-restore snapshots)
+    // so we never VACUUM INTO an existing backup path.
+    let mut target = PathBuf::new();
+    let mut attempt = 0_u8;
+    while attempt < 4 {
+        let ts = Utc::now().format("%Y%m%dT%H%M%SZ");
+        let candidate = dir.join(format!("medoc-{ts}.db"));
+        if !candidate.exists() {
+            target = candidate;
+            break;
+        }
+        attempt += 1;
+        tokio::time::sleep(StdDuration::from_millis(1100)).await;
+    }
+    if target.as_os_str().is_empty() {
+        return Err(AppError::Internal(
+            "Backup konnte keinen eindeutigen Zeitstempel-Dateinamen erzeugen.".into(),
+        ));
+    }
 
     log_system!(info, event = "BACKUP_START", target = %target.display());
 
