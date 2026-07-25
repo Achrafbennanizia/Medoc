@@ -30,8 +30,7 @@ struct WorkflowEvent {
 
 fn sanitize_text(input: &str) -> String {
     let mut out = sanitizer::sanitize(input)
-        .replace('\n', " ")
-        .replace('\r', " ")
+        .replace(['\n', '\r'], " ")
         .trim()
         .to_string();
     if out.len() > MAX_FIELD_LEN {

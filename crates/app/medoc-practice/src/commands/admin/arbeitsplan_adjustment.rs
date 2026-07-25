@@ -10,6 +10,8 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use tauri::State;
 
+type AdjustmentRow = (String, String, Option<String>, String, String, i64, String);
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArbeitsplanAdjustmentRecord {
@@ -84,7 +86,7 @@ pub async fn list_arbeitsplan_adjustments(
         session.user_id.clone()
     };
     let active_only = query.active_only.unwrap_or(true);
-    let rows: Vec<(String, String, Option<String>, String, String, i64, String)> = if active_only {
+    let rows: Vec<AdjustmentRow> = if active_only {
         sqlx::query_as(
             "SELECT id, source, source_id, personal_id, payload_json, active, created_at
              FROM arbeitsplan_adjustment

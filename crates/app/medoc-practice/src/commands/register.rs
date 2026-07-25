@@ -314,7 +314,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 303;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 305;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
