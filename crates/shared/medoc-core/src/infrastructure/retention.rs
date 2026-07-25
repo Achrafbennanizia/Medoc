@@ -90,3 +90,14 @@ pub fn enforce(log_dir: &PathBuf) -> Result<RetentionReport, AppError> {
     );
     Ok(report)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workflow_logs_use_default_retention_window() {
+        let window = retention_for("workflow.log");
+        assert_eq!(window, Some(Duration::from_secs(30 * 24 * 3600)));
+    }
+}

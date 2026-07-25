@@ -170,4 +170,10 @@ mod tests {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
     }
+
+    #[test]
+    fn workflow_labels_strip_long_ids_and_query_params() {
+        let s = sanitize_workflow_label("/patienten/1234567890abcdef?token=abc");
+        assert_eq!(s, "/patienten/:id");
+    }
 }

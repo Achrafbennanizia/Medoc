@@ -99,3 +99,15 @@ impl LoggingConfig {
 }
 
 pub static LOGGING_CONFIG: LoggingConfig = LoggingConfig::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_filter_disables_workflow_target() {
+        LOGGING_CONFIG.set_level(LogLevel::Info);
+        let filter = LOGGING_CONFIG.app_filter().to_string();
+        assert!(filter.contains("medoc::workflow=off"));
+    }
+}
