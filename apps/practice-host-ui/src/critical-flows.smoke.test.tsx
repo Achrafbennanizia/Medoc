@@ -127,6 +127,16 @@ describe("critical flow (a) login → dashboard → logout", () => {
                         peers: [],
                         vectors: {},
                     };
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-practice",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 1,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 case "current_license_status":
                     return { valid: true, format: "v1" };
                 case "verbund_status_cmd":
@@ -364,6 +374,16 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return undefined;
                 case "get_app_kv":
                     return null;
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-practice",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 1,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
                 default:

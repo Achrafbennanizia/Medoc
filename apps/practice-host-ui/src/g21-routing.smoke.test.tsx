@@ -74,6 +74,16 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return undefined;
             case "sync_get_status":
                 return SYNC_STATUS;
+            case "onboarding_subscription_status":
+                return {
+                    registered: true,
+                    practiceSlug: "g21-smoke-practice",
+                    setupComplete: true,
+                    needsAdminAccount: false,
+                    personalCount: 1,
+                    needsPracticeSetup: false,
+                    needsMemberAccount: false,
+                };
             case "current_license_status":
                 return { valid: true, format: "v2" };
             case "verbund_status_cmd":
