@@ -25,6 +25,12 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn workflow_segment_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"/[A-Za-z0-9_-]{8,}(?=/|$)").ok())
+        .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
@@ -37,6 +43,27 @@ pub fn sanitize(input: &str) -> String {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
     }
+}
+
+/// Sanitize low-cardinality workflow identifiers before writing them to logs.
+///
+/// The value is intentionally constrained so route/action telemetry cannot leak
+/// patient identifiers or long free-form payloads.
+pub fn sanitize_workflow_label(input: &str) -> String {
+    let mut value = sanitize(input.trim());
+    if let Some((before_query, _)) = value.split_once('?') {
+        value = before_query.to_string();
+    }
+    if let Some(re) = workflow_segment_re() {
+        value = re.replace_all(&value, "/:id").into_owned();
+    }
+    value = value
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .to_string();
+    value.chars().take(120).collect()
 }
 
 #[derive(Debug, Serialize)]

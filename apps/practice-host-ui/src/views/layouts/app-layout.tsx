@@ -51,6 +51,7 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { logUiRouteEnter, logUiWorkflowCancel } from "@/services/tauri.service";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -326,6 +327,20 @@ export function AppLayout() {
     useEffect(() => {
         setMobileNavOpen(false);
     }, [location.pathname]);
+
+    useEffect(() => {
+        logUiRouteEnter(location.pathname);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        const onEscape = (ev: KeyboardEvent) => {
+            if (ev.key !== "Escape") return;
+            if (document.querySelector('[role="dialog"]') == null) return;
+            logUiWorkflowCancel("dialog_escape");
+        };
+        window.addEventListener("keydown", onEscape, true);
+        return () => window.removeEventListener("keydown", onEscape, true);
+    }, []);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {

@@ -50,12 +50,118 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+type WorkflowPhase = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+type WorkflowLogEvent = {
+    workflow: string;
+    step: string;
+    phase: WorkflowPhase;
+    status?: string;
+    detail?: string;
+    durationMs?: number;
+};
+
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+
+function tauriRuntimeActive(): boolean {
+    return (
+        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) ||
+        "__TAURI_INTERNALS__" in globalThis
+    );
+}
+
+function nowMs(): number {
+    return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function durationMs(startedAt: number): number {
+    const d = nowMs() - startedAt;
+    if (!Number.isFinite(d) || d < 0) return 0;
+    return Math.round(d);
+}
+
+function currentWorkflowLabel(): string {
+    if (typeof window === "undefined") {
+        return "route:/";
+    }
+    const p = window.location.pathname || "/";
+    return `route:${p}`;
+}
+
+function looksLikeCancel(error: unknown): boolean {
+    const raw = error instanceof Error ? error.message : String(error ?? "");
+    const text = raw.toLowerCase();
+    return text.includes("cancel") || text.includes("aborted") || text.includes("dismiss");
+}
+
+async function emitWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    if (!tauriRuntimeActive()) {
+        return;
+    }
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { event });
+    } catch {
+        // Logging must never break user workflows.
+    }
+}
+
+export function logUiRouteEnter(pathname: string): void {
+    void emitWorkflowEvent({
+        workflow: `route:${pathname || "/"}`,
+        step: "route_enter",
+        phase: "route_enter",
+        status: "ok",
+    });
+}
+
+export function logUiWorkflowCancel(step: string, detail = "escape"): void {
+    void emitWorkflowEvent({
+        workflow: currentWorkflowLabel(),
+        step,
+        phase: "cancel",
+        status: "cancelled",
+        detail,
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const startedAt = nowMs();
+    if (cmd !== WORKFLOW_LOG_COMMAND) {
+        void emitWorkflowEvent({
+            workflow: currentWorkflowLabel(),
+            step: cmd,
+            phase: "primary_action",
+            status: "started",
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        const payload =
+            args == null
+                ? {}
+                : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+        const result = await invoke<T>(cmd, payload);
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            void emitWorkflowEvent({
+                workflow: currentWorkflowLabel(),
+                step: cmd,
+                phase: "success",
+                status: "ok",
+                durationMs: durationMs(startedAt),
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            void emitWorkflowEvent({
+                workflow: currentWorkflowLabel(),
+                step: cmd,
+                phase: looksLikeCancel(error) ? "cancel" : "error",
+                status: looksLikeCancel(error) ? "cancelled" : "failed",
+                detail: looksLikeCancel(error) ? "invoke_cancelled" : "invoke_failed",
+                durationMs: durationMs(startedAt),
+            });
+        }
+        throw error;
+    }
 }
