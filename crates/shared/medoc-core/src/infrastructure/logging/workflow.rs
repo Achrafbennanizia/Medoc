@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::future::Future;
+
 use serde::{Deserialize, Serialize};
 
 use super::sanitizer;
@@ -98,6 +101,10 @@ fn sanitize_step(raw: &str) -> String {
     }
 }
 
+fn sanitize_service_name(raw: &str) -> String {
+    sanitize_token(raw, "application.service", MAX_FIELD_LEN)
+}
+
 fn looks_like_dynamic_id(segment: &str) -> bool {
     let s = segment.trim();
     if s.len() >= 4 && s.chars().all(|c| c.is_ascii_digit()) {
@@ -144,6 +151,115 @@ pub fn record_ui_step(step: WorkflowLogStep) {
     );
 }
 
+/// Record a backend Tauri command lifecycle step on the workflow channel.
+pub fn record_tauri_command_received(command: &str) {
+    let action = sanitize_token(command, "tauri.command", MAX_FIELD_LEN);
+    crate::log_workflow!(
+        info,
+        event = "TAURI_COMMAND_DISPATCH",
+        flow = "tauri.command",
+        step = "primary_action",
+        action = %action,
+        outcome = "received",
+    );
+}
+
+/// Record a backend Tauri command lifecycle step on the workflow channel.
+pub fn record_tauri_command_dispatch(command: &str, handled: bool) {
+    let action = sanitize_token(command, "tauri.command", MAX_FIELD_LEN);
+    if handled {
+        crate::log_workflow!(
+            info,
+            event = "TAURI_COMMAND_DISPATCH",
+            flow = "tauri.command",
+            step = "success",
+            action = %action,
+            outcome = "handled",
+        );
+    } else {
+        crate::log_workflow!(
+            warn,
+            event = "TAURI_COMMAND_DISPATCH",
+            flow = "tauri.command",
+            step = "error",
+            action = %action,
+            outcome = "unhandled",
+        );
+    }
+}
+
+/// Record start of an application/service call.
+pub fn record_service_call_start(service: &str, operation: &str) {
+    let flow = sanitize_service_name(service);
+    let action = sanitize_token(operation, "call", MAX_FIELD_LEN);
+    crate::log_workflow!(
+        info,
+        event = "APPLICATION_SERVICE_CALL",
+        flow = %flow,
+        step = "primary_action",
+        action = %action,
+        outcome = "start",
+    );
+}
+
+/// Record completion of an application/service call.
+pub fn record_service_call_result<T, E: Display>(
+    service: &str,
+    operation: &str,
+    result: &Result<T, E>,
+) {
+    let flow = sanitize_service_name(service);
+    let action = sanitize_token(operation, "call", MAX_FIELD_LEN);
+    match result {
+        Ok(_) => crate::log_workflow!(
+            info,
+            event = "APPLICATION_SERVICE_CALL",
+            flow = %flow,
+            step = "success",
+            action = %action,
+            outcome = "ok",
+        ),
+        Err(err) => crate::log_workflow!(
+            warn,
+            event = "APPLICATION_SERVICE_CALL",
+            flow = %flow,
+            step = "error",
+            action = %action,
+            outcome = "error",
+            detail = %sanitize_text(&err.to_string(), MAX_DETAIL_LEN),
+        ),
+    }
+}
+
+/// Run an async application/service call with start/result workflow telemetry.
+pub async fn run_service_call_async<T, E, F, Fut>(
+    service: &str,
+    operation: &str,
+    run: F,
+) -> Result<T, E>
+where
+    E: Display,
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T, E>>,
+{
+    record_service_call_start(service, operation);
+    let result = run().await;
+    record_service_call_result(service, operation, &result);
+    result
+}
+
+/// Run a sync application/service call with start/result workflow telemetry.
+pub fn run_service_call<T, E, F>(service: &str, operation: &str, run: F) -> Result<T, E>
+where
+    E: Display,
+    F: FnOnce() -> Result<T, E>,
+{
+    record_service_call_start(service, operation);
+    let result = run();
+    record_service_call_result(service, operation, &result);
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +283,14 @@ mod tests {
         assert_eq!(
             sanitize_token("token=super-secret", "fallback", 64),
             "token"
+        );
+    }
+
+    #[test]
+    fn service_name_is_normalized() {
+        assert_eq!(
+            sanitize_service_name("Application::Akte::PDF Export"),
+            "application__akte__pdf_export"
         );
     }
 }

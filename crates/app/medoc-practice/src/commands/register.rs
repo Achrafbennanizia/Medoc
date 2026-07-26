@@ -320,5 +320,12 @@ pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 303;
 ///
 /// Concrete `Wry` runtime required so commands taking `AppHandle` type-check (see `akte_anlage_commands`).
 pub fn register_invoke_handler(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.invoke_handler(crate::medoc_invoke_handler!())
+    let handler = crate::medoc_invoke_handler!();
+    builder.invoke_handler(move |invoke| {
+        let command = invoke.message.command().to_string();
+        crate::infrastructure::logging::workflow::record_tauri_command_received(&command);
+        let handled = handler(invoke);
+        crate::infrastructure::logging::workflow::record_tauri_command_dispatch(&command, handled);
+        handled
+    })
 }

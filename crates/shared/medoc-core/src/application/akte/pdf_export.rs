@@ -7,6 +7,7 @@ use crate::infrastructure::database::{
     akte_anlage_repo, akte_repo, app_kv_repo, attest_repo, audit_repo, patient_repo, rezept_repo,
     termin_repo, zahlung_repo,
 };
+use crate::infrastructure::logging::workflow;
 use crate::infrastructure::pdf::{
     render_akte_blocks, AkteHeaderContext, AktePdfBlock, AktePdfTable,
 };
@@ -179,87 +180,87 @@ pub async fn export_akte_pdf(
     session: &Session,
     args: ExportAktePdfArgs,
 ) -> Result<String, AppError> {
-    use base64::Engine;
+    workflow::run_service_call_async("application.akte.pdf_export", "export_akte_pdf", || async {
+        use base64::Engine;
 
-    let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
-    let medical = rbac::allowed("patient.read_medical", role);
-    let finanzen = rbac::allowed("finanzen.read", role);
+        let role = Role::parse(&session.rolle).ok_or(AppError::Unauthorized)?;
+        let medical = rbac::allowed("patient.read_medical", role);
+        let finanzen = rbac::allowed("finanzen.read", role);
 
-    let patient_id = args.patient_id.clone();
-    let mut sec = args.sections;
-    if !medical {
-        sec.zahnbefunde = false;
-        sec.anamnese = false;
-        sec.untersuchungen = false;
-        sec.behandlungen = false;
-        sec.rezepte = false;
-        sec.attest = false;
-    }
-    if !finanzen {
-        sec.zahlungen = false;
-    }
+        let patient_id = args.patient_id.clone();
+        let mut sec = args.sections;
+        if !medical {
+            sec.zahnbefunde = false;
+            sec.anamnese = false;
+            sec.untersuchungen = false;
+            sec.behandlungen = false;
+            sec.rezepte = false;
+            sec.attest = false;
+        }
+        if !finanzen {
+            sec.zahlungen = false;
+        }
 
-    let audit_ok = rbac::allowed("audit.read", role);
-    if !audit_ok {
-        sec.audit = false;
-    }
+        let audit_ok = rbac::allowed("audit.read", role);
+        if !audit_ok {
+            sec.audit = false;
+        }
 
-    let patient = patient_repo::find_by_id(pool, &patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patient".into()))?;
-    let akte = akte_repo::find_akte_by_patient(pool, &patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patientenakte".into()))?;
+        let patient = patient_repo::find_by_id(pool, &patient_id)
+            .await?
+            .ok_or(AppError::NotFound("Patient".into()))?;
+        let akte = akte_repo::find_akte_by_patient(pool, &patient_id)
+            .await?
+            .ok_or(AppError::NotFound("Patientenakte".into()))?;
 
-    let mut akte_display = akte.clone();
-    if !medical {
-        akte_display.diagnose = None;
-        akte_display.befunde = None;
-    }
+        let mut akte_display = akte.clone();
+        if !medical {
+            akte_display.diagnose = None;
+            akte_display.befunde = None;
+        }
 
-    let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
-    let mut blocks: Vec<AktePdfBlock> = Vec::new();
+        let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
+        let mut blocks: Vec<AktePdfBlock> = Vec::new();
 
-    let praxis_kv = praxis_kv_pairs_from_app_kv(pool).await;
-    if !praxis_kv.is_empty() {
-        blocks.insert(
-            0,
-            AktePdfBlock {
-                title: "Praxis".into(),
+        let praxis_kv = praxis_kv_pairs_from_app_kv(pool).await;
+        if !praxis_kv.is_empty() {
+            blocks.insert(
+                0,
+                AktePdfBlock {
+                    title: "Praxis".into(),
+                    body_lines: vec![],
+                    kv_pairs: praxis_kv,
+                    table: None,
+                },
+            );
+        }
+        if sec.patient {
+            let mut kv = vec![
+                ("Name".into(), patient.name.clone()),
+                ("Geburtsdatum".into(), patient.geburtsdatum.to_string()),
+                ("Geschlecht".into(), patient.geschlecht.clone()),
+                (
+                    "Versicherungsnummer".into(),
+                    patient.versicherungsnummer.clone(),
+                ),
+                ("Patienten-Status".into(), patient.status.clone()),
+            ];
+            if let Some(t) = &patient.telefon {
+                kv.push(("Telefon".into(), t.clone()));
+            }
+            if let Some(e) = &patient.email {
+                kv.push(("E-Mail".into(), e.clone()));
+            }
+            if let Some(a) = &patient.adresse {
+                kv.push(("Adresse".into(), a.clone()));
+            }
+            blocks.push(AktePdfBlock {
+                title: "Stammdaten".into(),
                 body_lines: vec![],
-                kv_pairs: praxis_kv,
+                kv_pairs: kv,
                 table: None,
-            },
-        );
-    }
-
-    if sec.patient {
-        let mut kv = vec![
-            ("Name".into(), patient.name.clone()),
-            ("Geburtsdatum".into(), patient.geburtsdatum.to_string()),
-            ("Geschlecht".into(), patient.geschlecht.clone()),
-            (
-                "Versicherungsnummer".into(),
-                patient.versicherungsnummer.clone(),
-            ),
-            ("Patienten-Status".into(), patient.status.clone()),
-        ];
-        if let Some(t) = &patient.telefon {
-            kv.push(("Telefon".into(), t.clone()));
+            });
         }
-        if let Some(e) = &patient.email {
-            kv.push(("E-Mail".into(), e.clone()));
-        }
-        if let Some(a) = &patient.adresse {
-            kv.push(("Adresse".into(), a.clone()));
-        }
-        blocks.push(AktePdfBlock {
-            title: "Stammdaten".into(),
-            body_lines: vec![],
-            kv_pairs: kv,
-            table: None,
-        });
-    }
 
     if sec.akte_core {
         let mut kv = vec![
@@ -740,17 +741,19 @@ pub async fn export_akte_pdf(
         header.as_ref(),
     )?;
 
-    audit_repo::create(
-        pool,
-        &session.user_id,
-        "EXPORT_PDF",
-        "Patientenakte",
-        Some(&patient_id),
-        None,
-    )
+        audit_repo::create(
+            pool,
+            &session.user_id,
+            "EXPORT_PDF",
+            "Patientenakte",
+            Some(&patient_id),
+            None,
+        )
+        .await
+        .ok();
+        Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+    })
     .await
-    .ok();
-    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
 /// FA-DOK-08: Entlassungs-Merkblatt / Nachsorge als PDF.
@@ -759,15 +762,19 @@ pub async fn export_discharge_merkblatt_pdf(
     session: &Session,
     args: ExportDischargeMerkblattPdfArgs,
 ) -> Result<String, AppError> {
-    use base64::Engine;
+    workflow::run_service_call_async(
+        "application.akte.pdf_export",
+        "export_discharge_merkblatt_pdf",
+        || async {
+            use base64::Engine;
 
-    let patient_id = args.patient_id.clone();
-    let patient = patient_repo::find_by_id(pool, &patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patient".into()))?;
-    let akte = akte_repo::find_akte_by_patient(pool, &patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patientenakte".into()))?;
+            let patient_id = args.patient_id.clone();
+            let patient = patient_repo::find_by_id(pool, &patient_id)
+                .await?
+                .ok_or(AppError::NotFound("Patient".into()))?;
+            let akte = akte_repo::find_akte_by_patient(pool, &patient_id)
+                .await?
+                .ok_or(AppError::NotFound("Patientenakte".into()))?;
 
     let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
     let mut blocks: Vec<AktePdfBlock> = Vec::new();
@@ -1011,17 +1018,20 @@ pub async fn export_discharge_merkblatt_pdf(
         header.as_ref(),
     )?;
 
-    audit_repo::create(
-        pool,
-        &session.user_id,
-        "EXPORT_PDF",
-        "EntlassungsMerkblatt",
-        Some(&patient_id),
-        None,
+            audit_repo::create(
+                pool,
+                &session.user_id,
+                "EXPORT_PDF",
+                "EntlassungsMerkblatt",
+                Some(&patient_id),
+                None,
+            )
+            .await
+            .ok();
+            Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+        },
     )
     .await
-    .ok();
-    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
 #[cfg(test)]
