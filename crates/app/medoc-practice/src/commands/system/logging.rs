@@ -56,6 +56,13 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(step))]
+pub fn log_workflow_step(step: logging::workflow::WorkflowLogStep) -> Result<(), AppError> {
+    logging::workflow::record_ui_step(step);
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +72,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_step,
     };
 }

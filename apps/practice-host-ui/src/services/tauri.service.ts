@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { logWorkflowStep } from "./workflow-logger.service";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +51,54 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_step";
+let invokeCorrelationSeq = 0;
+
+function nextInvokeCorrelationId(command: string): string {
+    invokeCorrelationSeq = (invokeCorrelationSeq + 1) % Number.MAX_SAFE_INTEGER;
+    return `${command}-${Date.now().toString(36)}-${invokeCorrelationSeq.toString(36)}`;
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = args == null ? {} : omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    const shouldLogLifecycle = cmd !== WORKFLOW_LOG_COMMAND;
+    const correlationId = shouldLogLifecycle ? nextInvokeCorrelationId(cmd) : undefined;
+
+    if (shouldLogLifecycle) {
+        logWorkflowStep({
+            flow: "ipc.command",
+            step: "primary_action",
+            action: cmd,
+            outcome: "invoke",
+            correlationId,
+        });
+    }
+
+    try {
+        const out = await invoke<T>(cmd, expanded);
+        if (shouldLogLifecycle) {
+            logWorkflowStep({
+                flow: "ipc.command",
+                step: "success",
+                action: cmd,
+                outcome: "ok",
+                correlationId,
+            });
+        }
+        return out;
+    } catch (error) {
+        if (shouldLogLifecycle) {
+            logWorkflowStep({
+                flow: "ipc.command",
+                step: "error",
+                action: cmd,
+                outcome: "error",
+                correlationId,
+                detail: error instanceof Error ? error.name : "invoke_error",
+            });
+        }
+        throw error;
+    }
 }

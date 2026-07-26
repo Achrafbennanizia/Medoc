@@ -22,6 +22,7 @@ fn retention_for(filename: &str) -> Option<Duration> {
         || filename.starts_with("migration")
         || filename.starts_with("perf")
         || filename.starts_with("system")
+        || filename.starts_with("workflow")
     {
         Some(Duration::from_secs(180 * 24 * 3600))
     } else {
