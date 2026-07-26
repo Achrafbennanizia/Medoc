@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,7 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Release-process docs vs tiered workflows | `docs/process/freigabeprozess.md` §3.1 still references `.github/workflows/ci.yml` commands (`cargo check`, `npm audit --omit=dev`) | CI/CD was split into `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`; `ci.yml` is now `workflow_call` compatibility wrapper | **Open** — update release-process docs to reference tiered workflow files and current gate commands. |
 
 ## Resolved (recent)
 

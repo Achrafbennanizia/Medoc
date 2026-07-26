@@ -1,6 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD tiered pipeline wiring (2026-07-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split + coordination documentation.
+
+### Verified (2026-07-26 — CI/CD tiered pipeline wiring)
+
+- **Tiered workflows added:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`; `.github/workflows/release.yml` rewritten to gate with `verify.yml` and protected `release` environment.
+- **Compatibility wrapper:** `.github/workflows/ci.yml` converted to `workflow_call` wrapper to `verify.yml` (no direct push/PR execution).
+- **Workspace command wiring:** root + `apps/practice-host-ui` now expose `typecheck`, `lint:fix`, `format`, `test:a11y`; a11y runner added at `apps/practice-host-ui/scripts/test-a11y.mjs` (axe-core + Playwright, critical WCAG 2.1 AA fail condition).
+- **Validation evidence captured:** workflow YAML parse **PASS**; a11y script syntax **PASS**; `npm run typecheck` and `npm run build -w medoc` **FAIL** (TypeScript module-resolution + unused-local errors), recorded in `docs/coordination/validation.md`.
+
+### Remains unverified
+
+- Live GitHub Actions execution of new workflows (`verify`, `autofix`, `fix-proposal`, `release`) on runners.
+- Protected `release` environment approval flow in CI.
+- Whether current TypeScript errors were pre-existing before this phase (**UNVERIFIED** — no pre-change baseline command captured in this session).
+
+### Understanding delta
+
+- CI/CD governance now matches a verify-first model: non-mutating gate, PR-only deterministic autofix, draft-only substantive proposal path, and non-mutating signed release path.
+- Documentation/process drift surfaced: `docs/process/freigabeprozess.md` still references monolithic `ci.yml` checks; tracked as contradiction **C9**.
+
+### Required next steps (ordered)
+
+1. Resolve TypeScript failures currently blocking `typecheck`/`build` (`i18next`/`react-i18next` resolution + TS6133 unused-local errors).
+2. Update `docs/process/freigabeprozess.md` to the tiered workflow model and current gate command set.
+3. Run manual CI smoke: trigger `verify` + PR `autofix` + `fix-proposal` dispatch + tag/dispatch `release` dry run.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
