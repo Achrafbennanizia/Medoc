@@ -10,6 +10,7 @@ import {
 import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
 import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
+import { logWorkflowStep } from "@/services/workflow-logger.service";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
@@ -92,6 +93,17 @@ export function LoginPage() {
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
     const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
+    const logLoginWorkflow = (
+        step: "primary_action" | "success" | "cancel" | "error",
+        outcome: string,
+    ) => {
+        logWorkflowStep({
+            flow: "auth.login",
+            step,
+            action: "submit",
+            outcome,
+        });
+    };
 
     const deviceOpts = {
         device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
@@ -109,18 +121,22 @@ export function LoginPage() {
         setError("");
         setHelperMsg("");
         setLoading(true);
+        logLoginWorkflow("primary_action", `step_${step}`);
         try {
             if (TOTP_2FA_ENABLED && step === "totp") {
                 await finishLogin(totpCode.trim());
+                logLoginWorkflow("success", "totp_verified");
                 return;
             }
             if (TOTP_2FA_ENABLED && step === "enroll") {
                 await confirmTotpEnrollmentLogin(email, passwort, enrollCode.trim());
                 await finishLogin(enrollCode.trim());
+                logLoginWorkflow("success", "totp_enrolled");
                 return;
             }
             try {
                 await finishLogin();
+                logLoginWorkflow("success", "credentials_ok");
             } catch (err) {
                 if (!TOTP_2FA_ENABLED) throw err;
                 if (isTotpEnrollError(err)) {
@@ -128,17 +144,20 @@ export function LoginPage() {
                     setEnrollment(dto);
                     setStep("enroll");
                     setError("");
+                    logLoginWorkflow("success", "totp_enroll_required");
                     return;
                 }
                 if (isTotpVerifyError(err)) {
                     setStep("totp");
                     setError("");
+                    logLoginWorkflow("success", "totp_verify_required");
                     return;
                 }
                 throw err;
             }
         } catch (err) {
             setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
+            logLoginWorkflow("error", "submit_failed");
         } finally {
             setLoading(false);
         }
@@ -147,11 +166,14 @@ export function LoginPage() {
     const handleStartEnroll = async () => {
         setError("");
         setLoading(true);
+        logLoginWorkflow("primary_action", "start_totp_enroll");
         try {
             const dto = await startTotpEnrollmentLogin(email, passwort);
             setEnrollment(dto);
+            logLoginWorkflow("success", "totp_enroll_started");
         } catch (err) {
             setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
+            logLoginWorkflow("error", "totp_enroll_start_failed");
         } finally {
             setLoading(false);
         }
@@ -285,6 +307,7 @@ export function LoginPage() {
                                     setStep("credentials");
                                     setEnrollment(null);
                                     setEnrollCode("");
+                                    logLoginWorkflow("cancel", "totp_enroll_cancelled");
                                 }}
                             >
                                 {t("common.back")}
@@ -319,6 +342,7 @@ export function LoginPage() {
                                 onClick={() => {
                                     setStep("credentials");
                                     setTotpCode("");
+                                    logLoginWorkflow("cancel", "totp_verify_cancelled");
                                 }}
                             >
                                 {t("common.back")}

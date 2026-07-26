@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::infrastructure::database::{
     akte_next_termin_repo, audit_repo, in_app_notification_repo, patient_repo,
 };
+use crate::infrastructure::logging::workflow;
 use sqlx::SqlitePool;
 
 pub async fn after_termin_created_best_effort(
@@ -13,7 +14,17 @@ pub async fn after_termin_created_best_effort(
     session_user_id: &str,
     termin: &Termin,
 ) {
-    if let Err(e) = try_fulfill_plan_hint(pool, session_user_id, termin).await {
+    workflow::record_service_call_start(
+        "application.termin_hint_fulfillment",
+        "after_termin_created_best_effort",
+    );
+    let result = try_fulfill_plan_hint(pool, session_user_id, termin).await;
+    workflow::record_service_call_result(
+        "application.termin_hint_fulfillment",
+        "after_termin_created_best_effort",
+        &result,
+    );
+    if let Err(e) = result {
         tracing::warn!(
             target: "medoc::system",
             event = "TERMIN_HINT_FULFILL_SKIP",

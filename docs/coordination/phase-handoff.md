@@ -1,5 +1,38 @@
 # Phase handoff
 
+**Last phase label:** Application quality run — C9 RBAC route-guard fix (2026-07-26)  
+**Last closed:** Contradiction C9 resolution, failing-before/passing-after RBAC regression proof, ledger synchronization.
+
+### Verified (2026-07-26 — C9 fix + revalidation)
+
+- **Workflow bridge/logging surfaces present:** `WorkflowRouteObserver` calls `logWorkflowRouteEnter`; backend command `log_workflow_step` records into `medoc::workflow` channel; Tauri invoke handler logs command receive/dispatch.
+- **Domain workflow state machines covered in code + tests:** `workflow_transitions.rs` and `apps/practice-host/tests/domain_services_tests.rs` validate transitions for `termin`, `patientenakte`, `praxis_aufgabe`, `praxis_ticket`, `bestellung`.
+- **Playwright quality suite runs in this environment:** `npm run test:playwright -w medoc` now passes (3 passed, 3 skipped) after Chromium install and overflow assertion alignment to configured `min-width`.
+- **Frontend core validation:** `npm run test -w medoc` PASS (291/294 with 3 skipped); `npm run build -w medoc` PASS.
+- **C9 resolved in code:** removed hardcoded REZEPTION `verwaltung*` deny branch in `packages/shared/src/lib/rbac.ts`; route access is now evaluated via `ROUTE_VISIBILITY` + generated RBAC matrix.
+- **Regression proof captured:** updated `packages/shared/src/lib/rbac.test.ts` expectations fail before fix and pass after fix (`npm run test -w medoc -- src/lib/rbac.test.ts`).
+- **Findings/contradictions updated:** `validation.md` marks WF-2026-07-26-01 resolved; `contradictions.md` moves C9 to resolved table.
+
+### Remains unverified
+
+- Full Rust workspace gates (`cargo +stable clippy/test --workspace`) remain blocked by missing host package `gdk-3.0` (`gdk-sys` pkg-config failure).
+- Full workspace rustfmt gate is still red due widespread pre-existing formatting drift (`cargo fmt --all -- --check`).
+- Live Tauri UI workflow execution to observe emitted `workflow.log` lines is **NOT OBSERVED** in this run.
+
+### Understanding delta
+
+- Route/action mismatch C9 is now resolved: REZEPTION Verwaltung subroute access follows RBAC action policy instead of a hardcoded path deny.
+- `/verwaltung` hub remains ARZT-only by explicit `verwaltung.read` policy; permitted REZEPTION subroutes remain reachable through direct links / command palette gating.
+- The 375/768 breakpoint overflow is currently policy-driven (desktop `min-width: 1024px`), not random layout breakage; test harness now encodes that policy while preserving screenshot/geometry/a11y coverage (C10).
+
+### Next
+
+1. Address frontend lint baseline errors in a dedicated PR (`react-hooks`/memoization/ref constraints).
+2. Re-run full Rust workspace checks once `gdk-3.0` system dependency is available on host.
+3. Optionally execute a live Tauri smoke to capture real `workflow.log` evidence end-to-end.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

@@ -2,6 +2,38 @@
 use crate::domain::rbac::Role;
 use crate::error::AppError;
 
+fn normalized_status(raw: &str) -> String {
+    raw.trim().to_uppercase()
+}
+
+fn finish_transition(
+    entity: &str,
+    current: &str,
+    next: &str,
+    result: Result<(), AppError>,
+) -> Result<(), AppError> {
+    match &result {
+        Ok(()) => crate::log_workflow!(
+            info,
+            event = "DOMAIN_WORKFLOW_TRANSITION",
+            entity = entity,
+            current = current,
+            next = next,
+            allowed = true,
+        ),
+        Err(err) => crate::log_workflow!(
+            warn,
+            event = "DOMAIN_WORKFLOW_TRANSITION",
+            entity = entity,
+            current = current,
+            next = next,
+            allowed = false,
+            error = %err,
+        ),
+    }
+    result
+}
+
 fn status_transition_denied(current: &str, next: &str) -> AppError {
     AppError::validation_code_params(
         "error.workflow.status_transition",
@@ -9,22 +41,26 @@ fn status_transition_denied(current: &str, next: &str) -> AppError {
     )
 }
 
-fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
-    let nxt = next.trim().to_uppercase();
-    if cur == nxt {
-        return Ok(());
-    }
-    if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+fn allowed_transition(
+    entity: &str,
+    current: &str,
+    next: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
+    let cur = normalized_status(current);
+    let nxt = normalized_status(next);
+    let allowed_next = cur == nxt || allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt));
+    let result = if allowed_next {
         Ok(())
     } else {
         Err(status_transition_denied(&cur, &nxt))
-    }
+    };
+    finish_transition(entity, &cur, &nxt, result)
 }
 
 /// FA-TERM-01: Termin status workflow (see `termin_commands.rs` doc).
 pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
+    let cur = normalized_status(current);
     let allowed: &[&str] = match cur.as_str() {
         "GEPLANT" => &[
             "BESTAETIGT",
@@ -34,58 +70,85 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
         ],
         "BESTAETIGT" => &["DURCHGEFUEHRT", "ABGESAGT", "NICHT_ERSCHIENEN"],
         "DURCHGEFUEHRT" | "ABGESAGT" | "NICHT_ERSCHIENEN" | "NICHTERSCHIENEN" => &[],
-        _ => return Ok(()),
+        _ => return finish_transition("termin", &cur, &normalized_status(next), Ok(())),
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("termin", &cur, next, allowed)
 }
 
 /// FA-AKTE-14: reception/physician forward → queue (`IN_BEARBEITUNG`).
 pub fn patientenakte_forward_review_transition(current: &str) -> Result<(), AppError> {
-    let s = current.trim().to_uppercase();
+    let s = normalized_status(current);
+    let next = "IN_BEARBEITUNG";
     if s == "READONLY" {
-        return Err(AppError::validation_code("error.workflow.akte_readonly"));
+        return finish_transition(
+            "patientenakte",
+            &s,
+            next,
+            Err(AppError::validation_code("error.workflow.akte_readonly")),
+        );
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" || s == "VALIDIERT" {
-        return Ok(());
+        return finish_transition("patientenakte", &s, next, Ok(()));
     }
-    Err(AppError::validation_code_params(
-        "error.workflow.akte_status_invalid",
-        &[("status", &s)],
-    ))
+    finish_transition(
+        "patientenakte",
+        &s,
+        next,
+        Err(AppError::validation_code_params(
+            "error.workflow.akte_status_invalid",
+            &[("status", &s)],
+        )),
+    )
 }
 
 /// FA-AKTE-15: validate Patientenakte → `VALIDIERT`.
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
-    let s = current.trim().to_uppercase();
+    let s = normalized_status(current);
+    let next = "VALIDIERT";
     if s == "VALIDIERT" || s == "READONLY" {
-        return Err(AppError::validation_code(
-            "error.workflow.akte_already_validated",
-        ));
+        return finish_transition(
+            "patientenakte",
+            &s,
+            next,
+            Err(AppError::validation_code(
+                "error.workflow.akte_already_validated",
+            )),
+        );
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
-        return Ok(());
+        return finish_transition("patientenakte", &s, next, Ok(()));
     }
-    Err(AppError::validation_code_params(
-        "error.workflow.akte_status_invalid",
-        &[("status", &s)],
-    ))
+    finish_transition(
+        "patientenakte",
+        &s,
+        next,
+        Err(AppError::validation_code_params(
+            "error.workflow.akte_status_invalid",
+            &[("status", &s)],
+        )),
+    )
 }
 
 /// FA-PERS-08: Praxis ticket lifecycle.
 pub fn praxis_ticket_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
+    let cur = normalized_status(current);
     let allowed: &[&str] = match cur.as_str() {
         "OFFEN" => &["IN_BEARBEITUNG", "ERLEDIGT"],
         "IN_BEARBEITUNG" => &["ERLEDIGT", "OFFEN"],
         "ERLEDIGT" => &[],
         _ => {
-            return Err(AppError::validation_code_params(
-                "error.workflow.ticket_unknown_status",
-                &[("status", &cur)],
-            ))
+            return finish_transition(
+                "praxis_ticket",
+                &cur,
+                &normalized_status(next),
+                Err(AppError::validation_code_params(
+                    "error.workflow.ticket_unknown_status",
+                    &[("status", &cur)],
+                )),
+            )
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("praxis_ticket", &cur, next, allowed)
 }
 
 const AUFGABE_STATUSES: &[&str] = &[
@@ -102,32 +165,37 @@ fn aufgabe_closed() -> AppError {
 
 /// Admin-RBAC: beliebiger Statuswechsel (außer aus `VALIDIERT`).
 pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
-    let nxt = next.trim().to_uppercase();
+    let cur = normalized_status(current);
+    let nxt = normalized_status(next);
     if cur == nxt {
-        return Ok(());
+        return finish_transition("praxis_aufgabe", &cur, &nxt, Ok(()));
     }
     if cur == "VALIDIERT" {
-        return Err(aufgabe_closed());
+        return finish_transition("praxis_aufgabe", &cur, &nxt, Err(aufgabe_closed()));
     }
     if !AUFGABE_STATUSES
         .iter()
         .any(|s| s.eq_ignore_ascii_case(&nxt))
     {
-        return Err(AppError::validation_code_params(
-            "error.workflow.aufgabe_unknown_status",
-            &[("status", &nxt)],
-        ));
+        return finish_transition(
+            "praxis_aufgabe",
+            &cur,
+            &nxt,
+            Err(AppError::validation_code_params(
+                "error.workflow.aufgabe_unknown_status",
+                &[("status", &nxt)],
+            )),
+        );
     }
-    Ok(())
+    finish_transition("praxis_aufgabe", &cur, &nxt, Ok(()))
 }
 
 /// Fulfill-RBAC / Erfüller: `IN_BEARBEITUNG` und `ERLEDIGT_REZEPTION` (inkl. Rücknahme `OFFEN`).
 fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
-    let nxt = next.trim().to_uppercase();
+    let cur = normalized_status(current);
+    let nxt = normalized_status(next);
     if cur == "VALIDIERT" {
-        return Err(aufgabe_closed());
+        return finish_transition("praxis_aufgabe", &cur, &nxt, Err(aufgabe_closed()));
     }
     let allowed: &[&str] = match cur.as_str() {
         "OFFEN" => &["IN_BEARBEITUNG"],
@@ -135,13 +203,18 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
         "ZURUECK" => &["OFFEN", "IN_BEARBEITUNG"],
         "ERLEDIGT_REZEPTION" => &[],
         _ => {
-            return Err(AppError::validation_code_params(
-                "error.workflow.aufgabe_unknown_status",
-                &[("status", &cur)],
-            ))
+            return finish_transition(
+                "praxis_aufgabe",
+                &cur,
+                &nxt,
+                Err(AppError::validation_code_params(
+                    "error.workflow.aufgabe_unknown_status",
+                    &[("status", &cur)],
+                )),
+            )
         }
     };
-    allowed_transition(&cur, &nxt, allowed)
+    allowed_transition("praxis_aufgabe", &cur, &nxt, allowed)
 }
 
 /// FA-AUFG-06: Praxis-Aufgabe — Erfüller (REZ-Pool oder zugewiesener Arzt) vs. Ersteller (Validierung).
@@ -162,10 +235,10 @@ pub fn praxis_aufgabe_status_transition(
         return praxis_aufgabe_admin_status_transition(current, next);
     }
 
-    let cur = current.trim().to_uppercase();
-    let nxt = next.trim().to_uppercase();
+    let cur = normalized_status(current);
+    let nxt = normalized_status(next);
     if cur == "VALIDIERT" {
-        return Err(aufgabe_closed());
+        return finish_transition("praxis_aufgabe", &cur, &nxt, Err(aufgabe_closed()));
     }
 
     let to_rezeption = assignee_role
@@ -184,7 +257,7 @@ pub fn praxis_aufgabe_status_transition(
 
     // Erledigte Aufgabe: Ersteller validiert/zurückgeben — auch wenn Ersteller zugleich Erfüller war.
     if is_validator && cur == "ERLEDIGT_REZEPTION" {
-        return allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]);
+        return allowed_transition("praxis_aufgabe", &cur, &nxt, &["VALIDIERT", "ZURUECK"]);
     }
 
     if is_fulfiller {
@@ -193,36 +266,48 @@ pub fn praxis_aufgabe_status_transition(
 
     if rbac_fulfill {
         if nxt != "IN_BEARBEITUNG" && nxt != "ERLEDIGT_REZEPTION" {
-            return Err(AppError::Unauthorized);
+            return finish_transition("praxis_aufgabe", &cur, &nxt, Err(AppError::Unauthorized));
         }
         return praxis_aufgabe_fulfill_status_transition(current, next);
     }
 
     if is_validator {
         return match cur.as_str() {
-            "ERLEDIGT_REZEPTION" => allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]),
-            _ => Err(AppError::validation_code(
-                "error.workflow.aufgabe_validate_only_done",
-            )),
+            "ERLEDIGT_REZEPTION" => {
+                allowed_transition("praxis_aufgabe", &cur, &nxt, &["VALIDIERT", "ZURUECK"])
+            }
+            _ => finish_transition(
+                "praxis_aufgabe",
+                &cur,
+                &nxt,
+                Err(AppError::validation_code(
+                    "error.workflow.aufgabe_validate_only_done",
+                )),
+            ),
         };
     }
 
-    Err(AppError::Unauthorized)
+    finish_transition("praxis_aufgabe", &cur, &nxt, Err(AppError::Unauthorized))
 }
 
 /// Bestellung lifecycle: `OFFEN` → `UNTERWEGS` → `GELIEFERT` (or `STORNIERT`).
 pub fn bestellung_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
+    let cur = normalized_status(current);
     let allowed: &[&str] = match cur.as_str() {
         "OFFEN" => &["UNTERWEGS", "GELIEFERT", "STORNIERT"],
         "UNTERWEGS" => &["GELIEFERT", "STORNIERT"],
         "GELIEFERT" | "STORNIERT" => &[],
         _ => {
-            return Err(AppError::validation_code_params(
-                "error.workflow.bestellung_unknown_status",
-                &[("status", &cur)],
-            ))
+            return finish_transition(
+                "bestellung",
+                &cur,
+                &normalized_status(next),
+                Err(AppError::validation_code_params(
+                    "error.workflow.bestellung_unknown_status",
+                    &[("status", &cur)],
+                )),
+            )
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("bestellung", &cur, next, allowed)
 }

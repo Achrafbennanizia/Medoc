@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>UI quality audit fixture</title>
+        <link rel="stylesheet" href="/src/index.css" />
+    </head>
+    <body>
+        <main class="workspace-page stack" style="padding: 16px">
+            <h1 class="page-title">UI quality fixture</h1>
+            <p class="page-sub">Used by Playwright for spacing and a11y audits.</p>
+
+            <section class="card card-pad stack" data-testid="component-card">
+                <div class="card-head">
+                    <div class="card-head-text">
+                        <div class="card-title">Controls</div>
+                        <div class="card-subtitle">Buttons, icon controls, and form input</div>
+                    </div>
+                </div>
+                <div class="row" style="gap: 12px; align-items: center">
+                    <button type="button" class="btn btn-accent" data-testid="component-button">
+                        Primary action
+                    </button>
+                    <button type="button" class="icon-btn focus-ring" aria-label="Close panel" data-testid="component-icon-button">
+                        ×
+                    </button>
+                </div>
+                <div class="ui-field-wrap" data-testid="component-field-wrap">
+                    <label for="fixture-input" class="ui-field-label">Email</label>
+                    <input id="fixture-input" class="input-edit" type="email" placeholder="name@example.com" />
+                </div>
+            </section>
+
+            <section class="empty-state-root" data-testid="component-empty-state">
+                <div class="empty-state-graphic-wrap">
+                    <span class="empty-state-emoji" aria-hidden="true">🧭</span>
+                </div>
+                <h2 class="empty-state-title">No data yet</h2>
+                <p class="empty-state-sub">Create your first record to continue.</p>
+            </section>
+
+            <section class="modal-backdrop" data-testid="component-dialog" style="position: static; inset: auto; min-height: 0; margin-top: 0; padding: 0; width: 100%; box-sizing: border-box">
+                <div class="modal modal--ios-confirm" role="dialog" aria-modal="true" aria-labelledby="fixture-dialog-title" style="margin: 0">
+                    <div class="modal-body-pad">
+                        <h2 id="fixture-dialog-title" class="confirm-title">Confirm action</h2>
+                        <p class="confirm-msg">Dialog keyboard/focus behavior is tested in Vitest.</p>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-ghost">Cancel</button>
+                        <button type="button" class="btn btn-accent">Confirm</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="toast-stack" data-testid="component-toast-stack">
+                <div class="toast-item success" role="status" aria-live="polite">
+                    <div class="toast-item-inner">
+                        <span class="toast-message">Saved successfully</span>
+                        <button type="button" class="toast-dismiss" aria-label="Dismiss notification">×</button>
+                    </div>
+                    <div class="toast-progress-track" aria-hidden="true">
+                        <div class="toast-progress-bar"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </body>
+</html>

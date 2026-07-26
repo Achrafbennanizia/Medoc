@@ -25,6 +25,18 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn patient_id_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"(?i)(patient(?:en)?(?:_?id)?)\s*[:=]\s*\S+").ok())
+        .as_ref()
+}
+
+fn email_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b").ok())
+        .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
@@ -32,6 +44,14 @@ pub fn sanitize(input: &str) -> String {
     let masked = match token_re() {
         Some(re) => re.replace_all(input, "$1=***").into_owned(),
         None => input.to_string(),
+    };
+    let masked = match patient_id_re() {
+        Some(re) => re.replace_all(&masked, "$1=***").into_owned(),
+        None => masked,
+    };
+    let masked = match email_re() {
+        Some(re) => re.replace_all(&masked, "[REDACTED_EMAIL]").into_owned(),
+        None => masked,
     };
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
@@ -142,5 +162,20 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn masks_patient_ids() {
+        let s = sanitize("patient_id=12345 patientId=abc-123");
+        assert!(s.contains("patient_id=***"));
+        assert!(s.contains("patientId=***"));
+        assert!(!s.contains("abc-123"));
+    }
+
+    #[test]
+    fn masks_email_addresses() {
+        let s = sanitize("contact=alice@example.com");
+        assert!(s.contains("[REDACTED_EMAIL]"));
+        assert!(!s.contains("alice@example.com"));
     }
 }

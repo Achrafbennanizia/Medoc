@@ -20,6 +20,31 @@ use medoc_core::infrastructure::database::{
 };
 use sqlx::SqlitePool;
 
+async fn insert_personal(pool: &SqlitePool, id: &str, name: &str, email: &str, rolle: &str) {
+    sqlx::query(
+        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(email)
+    .bind("x")
+    .bind(rolle)
+    .execute(pool)
+    .await
+    .expect("seed personal");
+}
+
+async fn first_personal_id_by_role(pool: &SqlitePool, rolle: &str) -> String {
+    sqlx::query_scalar::<_, String>(
+        "SELECT id FROM personal WHERE UPPER(rolle) = UPPER(?1) ORDER BY created_at ASC LIMIT 1",
+    )
+    .bind(rolle)
+    .fetch_one(pool)
+    .await
+    .expect("existing personal by role")
+}
+
 async fn fresh_pool() -> SqlitePool {
     let pool = connection::test_memory_pool().await.expect("memory pool");
     connection::run_migrations(&pool).await.expect("migrations");
@@ -128,14 +153,8 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         .await
         .expect("create patient");
 
-    // Seed a `personal` row so the `arzt_id` FK resolves.
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-1', 'Dr. Test', 'arzt@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    // Reuse seeded ARZT to avoid strict quota trigger rejections.
+    let arzt_id = first_personal_id_by_role(&pool, "ARZT").await;
 
     let create = CreateTermin {
         patient_id: p.id.clone(),
@@ -144,7 +163,7 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         art: TerminArt::Kontrolle,
         notizen: None,
         beschwerden: None,
-        arzt_id: "arzt-1".into(),
+        arzt_id,
     };
     let t = termin_repo::create(&pool, &create).await.expect("create");
 
@@ -292,19 +311,13 @@ async fn rezept_create_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-rezept', 'Dr. Rezept', 'rezept@test', 'x', 'ARZT')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    let arzt_id = first_personal_id_by_role(&pool, "ARZT").await;
 
     rezept_repo::create(
         &pool,
         &CreateRezept {
             patient_id: p.id.clone(),
-            arzt_id: "arzt-rezept".into(),
+            arzt_id,
             medikament: "Ibuprofen 600mg".into(),
             wirkstoff: Some("Ibuprofen".into()),
             dosierung: "1-0-1".into(),
@@ -335,20 +348,30 @@ async fn praxis_ticket_insert_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-ticket', 'Frau Rezeption', 'rez@test', 'x', 'REZEPTION'),
-               ('arzt-ticket', 'Dr. Ticket', 'arzt@test', 'x', 'ARZT')",
+    let rez_sender = sqlx::query_scalar::<_, String>(
+        "SELECT id FROM personal WHERE UPPER(rolle) = 'REZEPTION' ORDER BY created_at ASC LIMIT 1",
     )
-    .execute(&pool)
+    .fetch_optional(&pool)
     .await
-    .ok();
+    .expect("lookup rezeption id")
+    .unwrap_or_else(|| "hook-rez-ticket".to_string());
+    if rez_sender == "hook-rez-ticket" {
+        insert_personal(
+            &pool,
+            &rez_sender,
+            "Frau Hook Rezeption",
+            "hook-rez-ticket@medoc.test",
+            "REZEPTION",
+        )
+        .await;
+    }
+    let arzt_recipient = first_personal_id_by_role(&pool, "ARZT").await;
 
     praxis_ticket_repo::insert(
         &pool,
         &p.id,
-        "rez-ticket",
-        "arzt-ticket",
+        &rez_sender,
+        &arzt_recipient,
         "Port hook ticket",
     )
     .await

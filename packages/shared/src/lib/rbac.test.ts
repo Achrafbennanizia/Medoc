@@ -86,15 +86,15 @@ const VERWALTUNG_ROUTE_EXPECTED: Record<Role, Record<(typeof VERWALTUNG_ROUTE_KE
         "verwaltung/vorlagen": false,
         "verwaltung/vorlagen/editor": false,
         "verwaltung/behandlungs-katalog": false,
-        "verwaltung/bestellstamm": false,
+        "verwaltung/bestellstamm": true,
         "verwaltung/finanzen-werkzeuge": false,
         "verwaltung/tagesabschluss": false,
         "verwaltung/finanzen-berichte": false,
         "verwaltung/finanzen-berichte/tagesabschluss": false,
         "verwaltung/finanzen-berichte/rechnung": false,
-        "verwaltung/lager-und-bestellwesen": false,
-        "verwaltung/vertraege": false,
-        "verwaltung/leistungen-kataloge-vorlagen": false,
+        "verwaltung/lager-und-bestellwesen": true,
+        "verwaltung/vertraege": true,
+        "verwaltung/leistungen-kataloge-vorlagen": true,
     },
     // TODO(deferred-roles): STEUERBERATER / PHARMABERATER — see docs/coordination/todos-deferred-roles.md
 };
@@ -320,7 +320,7 @@ describe("navItemVisible", () => {
         expect(navItemVisible("REZEPTION", NAV_ITEM_DEFINITIONS.find((i) => i.to === "/finanzen")!)).toBe(false);
     });
 
-    it("N6: REZEPTION has no Verwaltung routes", () => {
+    it("N6: REZEPTION has only allowed Verwaltung routes", () => {
         expect(routeChildPathAllowed("verwaltung/praxisplanung", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/arbeitszeiten", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/team", "REZEPTION")).toBe(false);
@@ -328,5 +328,8 @@ describe("navItemVisible", () => {
         expect(routeChildPathAllowed("personal", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/behandlungs-katalog", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("verwaltung/finanzen-berichte/tagesabschluss", "REZEPTION")).toBe(false);
+        expect(routeChildPathAllowed("verwaltung/lager-und-bestellwesen", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/vertraege", "REZEPTION")).toBe(true);
+        expect(routeChildPathAllowed("verwaltung/leistungen-kataloge-vorlagen", "REZEPTION")).toBe(true);
     });
 });

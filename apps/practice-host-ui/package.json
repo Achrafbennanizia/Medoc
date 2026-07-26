@@ -6,7 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
-        "lint": "eslint src --max-warnings 0 --no-cache",
+        "lint": "npm run lint:tailwind-spacing && eslint src --max-warnings 0 --no-cache",
+        "lint:tailwind-spacing": "node ../../scripts/lint-tailwind-arbitrary-spacing.mjs src ../../packages/ui/src",
         "check": "npm run lint && npm run build && npm test",
         "test": "vitest run",
         "test:mvp-coverage": "vitest run --project mvp-unit --coverage",
@@ -29,8 +30,9 @@
         "zustand": "^5.0.5"
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.12.1",
         "@eslint/js": "^9.39.2",
-        "@playwright/test": "^1.60.0",
+        "@playwright/test": "^1.62.0",
         "@tauri-apps/cli": "^2.5.0",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.3.2",

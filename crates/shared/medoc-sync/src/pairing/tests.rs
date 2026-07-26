@@ -151,7 +151,10 @@ async fn wrong_pin_rejected_before_accept() {
     )
     .await
     .expect_err("wrong pin");
-    assert!(matches!(err, AppError::Validation(_)));
+    assert!(matches!(
+        err,
+        AppError::Validation(_) | AppError::ValidationCode(_)
+    ));
 
     let still = load_by_device(&pool, "slave-pin").await.unwrap().unwrap();
     assert_eq!(still.status, "PENDING");
