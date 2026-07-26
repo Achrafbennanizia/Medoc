@@ -43,6 +43,14 @@ export default defineConfig(async () => ({
     define: {
         "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
     },
+    build: {
+        rollupOptions: {
+            input: {
+                main: path.resolve(root, "index.html"),
+                geometryFixture: path.resolve(root, "geometry-fixture.html"),
+            },
+        },
+    },
     test: {
         setupFiles: ["./src/vitest-setup.ts"],
         passWithNoTests: false,

@@ -1,5 +1,38 @@
 # Phase handoff
 
+**Last phase label:** Application quality run — logger/workflow/tests/geometry (2026-07-26)  
+**Last closed:** STEP 1 instrumentation committed; STEP 3/4 harness added; STEP 6 frontend fixes + revalidation.
+
+### Verified (2026-07-26 — application quality run)
+
+- **STEP 1 logger path shipped:** dedicated `workflow.log` channel, sanitized frontend→backend bridge command, route/action/success/cancel/error emitters, retention rule for workflow logs.
+- **Frontend quality gates (requested stack) now green:** `npm test`, `npm run build`, `npm run lint:spacing`, Playwright geometry fixture audit.
+- **Workflow regression fix:** smoke suites now mock `onboarding_subscription_status`; previously failing critical flows/g21 routing now pass.
+- **Spacing audit control:** static detector rejects arbitrary spacing tokens (`scripts/lint-tailwind-spacing.mjs`); known `min-h-[72px]` violation removed (`min-h-20`).
+- **Geometry artifacts captured:** `apps/practice-host-ui/test-results/geometry-{mobile-375,tablet-768,desktop-1259}.png`.
+
+### Remains unverified / open
+
+- **Rust global gate is still red:** `cargo fmt --check`, `cargo clippy -D warnings`, and `cargo test --workspace --tests` fail on pre-existing issues (`mvp_security_gates_tests`, `auth_session_audit_tests`, additional clippy warnings in `medoc-practice`).
+- **Axe-core critical scan:** **NOT RUN** in this session due workspace package resolution instability for axe tooling; manual/static a11y checks plus keyboard/focus assertions were run via Playwright fixture.
+- **Toast policy conformance (criteria vs implementation):** unresolved (`C9`).
+- **Gate timeout/terminability hardening:** unresolved (`C10`).
+
+### Understanding delta
+
+- A root-cause of earlier smoke instability was test harness incompleteness, not production routing logic (`onboarding_subscription_status` was required by `VerbundOnboardingGate`).
+- The app’s effective spacing token pixels are anchored to a 14px root scale in runtime CSS; geometry assertions must validate tokenized rem output rather than hard-coded 16/24/32 assumptions.
+- Rust validation blockers are concentrated in restricted security-related areas; they should be treated as escalation items rather than opportunistic autonomous edits.
+
+### Must happen next (ordered)
+
+1. Resolve **C9** toast-policy mismatch (position, durations, persistent action-required semantics) with product sign-off.
+2. Resolve **C10** by introducing explicit timeout/fallback branches in pre-app async gates.
+3. Escalate **C11** and execute human-reviewed remediation for security-surface Rust gates, then rerun full workspace matrix.
+4. If required for strict STEP 5 acceptance, add stable axe-core execution path in CI/dev environment and record critical-violation count.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

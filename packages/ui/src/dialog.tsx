@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { emitWorkflowEvent } from "@/services/workflow-log";
 
 interface DialogProps {
     open: boolean;
@@ -32,6 +33,17 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const t = useT();
+    const titleTrimmed = title.trim();
+
+    const closeWithWorkflow = useCallback((reason: string) => {
+        void emitWorkflowEvent({
+            step: "cancel",
+            action: "dialog_close",
+            outcome: reason,
+            detail: titleTrimmed || "dialog",
+        });
+        onCloseRef.current();
+    }, [titleTrimmed]);
 
     useEffect(() => {
         if (!open) return;
@@ -47,7 +59,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
-                onCloseRef.current();
+                closeWithWorkflow("escape");
                 return;
             }
             if (e.key !== "Tab") return;
@@ -102,12 +114,11 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             document.body.style.overflow = prevOverflow;
             prevActive?.focus?.({ preventScroll: true });
         };
-    }, [open]);
+    }, [open, closeWithWorkflow]);
 
     if (!open) return null;
 
     const closeLabel = t("a11y.close_dialog");
-    const titleTrimmed = title.trim();
     const showDefaultHeader = !isCentered && (titleTrimmed.length > 0 || headerExtra != null);
 
     const ariaLabelledBy = (() => {
@@ -123,7 +134,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div className="modal-backdrop" onClick={() => closeWithWorkflow("backdrop")} role="presentation">
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +148,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => closeWithWorkflow("close_button")}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +168,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => closeWithWorkflow("close_button")}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >

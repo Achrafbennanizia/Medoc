@@ -16,6 +16,8 @@ fn retention_for(filename: &str) -> Option<Duration> {
     if filename.starts_with("audit") {
         // 10 years for audit, never auto-delete from here
         None
+    } else if filename.starts_with("workflow") {
+        Some(Duration::from_secs(30 * 24 * 3600))
     } else if filename.starts_with("security") {
         Some(Duration::from_secs(90 * 24 * 3600))
     } else if filename.starts_with("device")
