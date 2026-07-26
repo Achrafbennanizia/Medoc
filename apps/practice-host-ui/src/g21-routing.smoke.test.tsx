@@ -78,6 +78,16 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return { valid: true, format: "v2" };
             case "verbund_status_cmd":
                 return VERBUND_STATUS_READY;
+            case "onboarding_subscription_status":
+                return {
+                    registered: true,
+                    practiceSlug: "smoke",
+                    setupComplete: true,
+                    needsAdminAccount: false,
+                    personalCount: 2,
+                    needsPracticeSetup: false,
+                    needsMemberAccount: false,
+                };
             case "get_dashboard_stats":
                 return {
                     patienten_gesamt: 0,

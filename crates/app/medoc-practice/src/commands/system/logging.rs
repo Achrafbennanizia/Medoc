@@ -1,5 +1,7 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
+use serde_json::Value;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +11,25 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowLogEventInput {
+    pub workflow: String,
+    pub stage: logging::workflow::WorkflowStage,
+    #[serde(default)]
+    pub step: Option<String>,
+    #[serde(default)]
+    pub route: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<Value>,
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -56,6 +77,34 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state, event))]
+pub fn log_workflow_event(
+    session_state: State<'_, SessionState>,
+    event: WorkflowLogEventInput,
+) -> Result<(), AppError> {
+    let (user_id, role) = {
+        let guard = session_state.lock_session();
+        guard
+            .as_ref()
+            .map(|(session, _)| (Some(session.user_id.clone()), Some(session.rolle.clone())))
+            .unwrap_or((None, None))
+    };
+    logging::workflow::emit(logging::workflow::WorkflowEvent {
+        workflow: event.workflow,
+        stage: event.stage,
+        step: event.step,
+        route: event.route,
+        action: event.action,
+        status: event.status,
+        error: event.error,
+        user_id,
+        role,
+        metadata: event.metadata,
+    });
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +114,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }

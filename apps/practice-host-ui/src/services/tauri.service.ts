@@ -50,12 +50,132 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+export type WorkflowStage = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+export type WorkflowLogEvent = {
+    workflow: string;
+    stage: WorkflowStage;
+    step?: string;
+    route?: string;
+    action?: string;
+    status?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+};
+
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+const SECRET_RE = /(password|passwort|token|secret|api[_-]?key|license|lizenz)\s*[:=]\s*[^\s,;]+/gi;
+const JWT_RE = /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+
+function sanitizeWorkflowString(value: string): string {
+    return value.replace(SECRET_RE, "$1=***").replace(JWT_RE, "eyJ***");
+}
+
+function sanitizeWorkflowValue(value: unknown): unknown {
+    if (typeof value === "string") {
+        return sanitizeWorkflowString(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map((entry) => sanitizeWorkflowValue(entry));
+    }
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitizeWorkflowValue(v)]),
+        );
+    }
+    return value;
+}
+
+function sanitizeWorkflowEvent(event: WorkflowLogEvent): WorkflowLogEvent {
+    return {
+        workflow: sanitizeWorkflowString(event.workflow),
+        stage: event.stage,
+        step: event.step ? sanitizeWorkflowString(event.step) : undefined,
+        route: event.route ? sanitizeWorkflowString(event.route) : undefined,
+        action: event.action ? sanitizeWorkflowString(event.action) : undefined,
+        status: event.status ? sanitizeWorkflowString(event.status) : undefined,
+        error: event.error ? sanitizeWorkflowString(event.error) : undefined,
+        metadata: event.metadata
+            ? (sanitizeWorkflowValue(event.metadata) as Record<string, unknown>)
+            : undefined,
+    };
+}
+
+function currentRoute(): string | undefined {
+    if (typeof window === "undefined") {
+        return undefined;
+    }
+    return `${window.location.pathname}${window.location.search}`;
+}
+
+function classifyFailureStage(error: unknown): WorkflowStage {
+    const msg = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+    return /abort|cancel/i.test(msg) ? "cancel" : "error";
+}
+
+export async function logWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    const sanitized = sanitizeWorkflowEvent(event);
+    await invoke(WORKFLOW_LOG_COMMAND, { event: sanitized });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        const cleaned = omitUndefinedValues(args ?? {});
+        const expanded = expandDualCaseInvokeArgs(cleaned);
+        return invoke<T>(cmd, expanded);
     }
-    const cleaned = omitUndefinedValues(args);
+
+    const cleaned = omitUndefinedValues(args ?? {});
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    const startedAt = Date.now();
+
+    void logWorkflowEvent({
+        workflow: "ui_tauri_invoke",
+        stage: "primary_action",
+        step: cmd,
+        route: currentRoute(),
+        action: cmd,
+        status: "started",
+        metadata: {
+            argKeys: Object.keys(cleaned),
+        },
+    }).catch(() => {
+        /* best-effort telemetry only */
+    });
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        void logWorkflowEvent({
+            workflow: "ui_tauri_invoke",
+            stage: "success",
+            step: cmd,
+            route: currentRoute(),
+            action: cmd,
+            status: "ok",
+            metadata: {
+                durationMs: Date.now() - startedAt,
+            },
+        }).catch(() => {
+            /* best-effort telemetry only */
+        });
+        return result;
+    } catch (error) {
+        const stage = classifyFailureStage(error);
+        void logWorkflowEvent({
+            workflow: "ui_tauri_invoke",
+            stage,
+            step: cmd,
+            route: currentRoute(),
+            action: cmd,
+            status: stage === "cancel" ? "cancelled" : "failed",
+            error: stage === "error" ? "invoke_failed" : "invoke_cancelled",
+            metadata: {
+                durationMs: Date.now() - startedAt,
+            },
+        }).catch(() => {
+            /* best-effort telemetry only */
+        });
+        throw error;
+    }
 }
