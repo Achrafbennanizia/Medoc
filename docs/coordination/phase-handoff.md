@@ -1,7 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-07-26)
+**Last closed:** Four-tier workflows (`verify`, `autofix`, `fix-proposal`, `release`) + stale CI retirement.
+
+### Verified (2026-07-26 — CI/CD tier migration)
+
+- **Tiered workflow set is now in-repo:** `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, `.github/workflows/release.yml`.
+- **Legacy CI removed:** `.github/workflows/ci.yml` retired.
+- **Verify guardrails:** no mutation checks (`cargo fmt --check`, clippy `-D warnings`, tests, `cargo audit`), JS package manager lockfile detection, explicit a11y gate (axe-based critical WCAG 2.1 A/AA fail policy).
+- **Autofix guardrails:** `pull_request` only, loop guard (`github.actor != github-actions[bot]`), deterministic `cargo fmt` + lint fix, commit only when diff exists.
+- **Fix proposal guardrails:** manual or failed-main trigger, new branch + draft PR evidence, sensitive path check (`security|audit|crypto|rbac`) labeled `needs-human-review` then stop.
+- **Release guardrails:** Tier-1 verify re-run via reusable workflow call, protected `release` environment approval, signed Tauri bundle matrix build, no source edits.
+- **Coordination state persisted:** `docs/coordination/ci-cd-plan.md` created; `project-truth.md`, `contradictions.md`, `actions.md`, `validation.md` updated.
+
+### Remains unverified
+
+- Live GitHub Actions execution of the new workflows on real PR/tag events (**NOT OBSERVED** in this local session).
+- Branch protection wiring to require `verify.yml` checks on protected branches (**NOT OBSERVED**).
+- End-to-end Tier-3 draft PR path in GitHub (`workflow_run` failure trigger + label workflow) (**NOT OBSERVED**).
+
+### Next
+
+1. Trigger `verify.yml` on a PR and confirm all three jobs (`rust`, `web`, `a11y`) report expected statuses.
+2. Trigger `autofix.yml` on a lint/format-only PR and confirm single-pass bot commit behavior.
+3. Dry-run `fix-proposal.yml` with `workflow_dispatch` and verify draft PR body + artifact logs + sensitive-path stop.
+4. Tag-dispatch `release.yml` in a controlled test tag and validate protected environment approval + signed artifact upload.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

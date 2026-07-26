@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Branch/workspace state | `pwd && ls && git rev-parse --is-inside-work-tree && git branch --show-current` | **PASS** — repo root `/workspace`, branch `cursor/medoc-ci-cd-pipeline-43dc` |
+| Existing workflow inventory | `Glob(.github/workflows/*.yml)` + `ReadFile(.github/workflows/{ci,release}.yml)` | **PASS** — identified stale single-tier layout and replaced with four-tier plan |
+| Axe CLI capability probe | `npx --yes @axe-core/cli --help` | **PASS** — confirmed WCAG tag and JSON output options for Tier-1 a11y gate |
+| Axe browser driver compatibility probe | `npx --yes browser-driver-manager install chrome` + `npx --yes @axe-core/cli https://example.com ...` | **PASS** — validated managed Chrome/driver invocation path for CI |
+| Workflow YAML syntax parse | `python3 - <<'PY' ... yaml.safe_load(...)` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` parse cleanly |
+| Legacy CI retirement | Delete `.github/workflows/ci.yml` | **PASS** — replaced by `verify.yml` + tiered workflows |
+| Coordination docs update | `docs/coordination/ci-cd-plan.md` + `docs/coordination/validation.md` | **PASS** — plan + validation evidence recorded |
+
+**Delivered:** four-tier pipeline (`verify`, `autofix`, `fix-proposal`, `release`) with non-mutation verify/release paths, PR-only deterministic autofix loop guard, draft-PR fix proposal flow, protected release environment gating, and workspace-aware package-manager detection.
+
+**NOT RUN:** full repository `cargo test --workspace --tests`, `npm test`, and live GitHub Actions execution in this local session (workflow behavior validated by static YAML parse and command-path probes only).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
