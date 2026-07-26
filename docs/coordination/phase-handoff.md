@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline migration (2026-07-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow wiring + coordination docs update.
+
+### Verified (2026-07-26 — CI/CD tier migration)
+
+- **Tiered workflows added:** `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`; **release gate updated** in `.github/workflows/release.yml`.
+- **Legacy CI migration:** `.github/workflows/ci.yml` is now a manual legacy wrapper that delegates to `verify.yml`.
+- **Script wiring:** root and `apps/practice-host-ui` `package.json` scripts now expose `typecheck`, `lint:fix`, `format`, `test:a11y`; accessibility runner at `scripts/ci/a11y-critical.mjs`.
+- **Plan + evidence ledger:** `docs/coordination/ci-cd-plan.md` added; validation evidence appended in `docs/coordination/validation.md` (2026-07-26 section).
+- **Git state:** commit `37b6b5b` pushed on branch `cursor/medoc-ci-cd-pipeline-dd54`.
+
+### Remains unverified
+
+- GitHub-hosted runtime execution of new workflows (`verify`, `autofix`, `fix-proposal`, `release`) is **NOT OBSERVED** in this session.
+- Accessibility gate end-to-end (`npm run test:a11y`) is **NOT RUN** locally because baseline frontend build is currently red.
+
+### Understanding delta
+
+- Pipeline ownership is now explicitly tiered and split by mutation policy: verify/release are non-mutating, autofix is deterministic PR-branch-only, fix-proposal is draft-PR-only.
+- Existing repository baseline currently fails TS/lint/rustfmt checks; this is now documented as a gate precondition rather than hidden debt.
+
+### Next
+
+1. Stabilize existing red baseline (`npm run typecheck`, `npm run lint`, `npm run build`, `cargo fmt --check`) so Tier 1 can go green.
+2. Run each workflow in GitHub and capture first-run outcomes in `validation.md`.
+3. Confirm release environment protection/approvals are enforced for Tier 4 in repository settings.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

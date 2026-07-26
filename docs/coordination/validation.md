@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tiered workflow migration)
+
+## CI/CD tiered workflow migration — validation (2026-07-26)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Async setup status | `if [ -f /tmp/cursor/async-install/install-user.status ] ...` | **PASS** | `no_async_install` (no background setup gate pending) |
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load(...)` | **PASS** | Parsed: `autofix.yml`, `ci.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` |
+| JS type-check baseline | `npm run typecheck` | **FAIL** | Existing TS errors in `apps/practice-host-ui` and `packages/shared` (`i18next`/`react-i18next` resolution + unused locals) |
+| JS build baseline | `npm run build` | **FAIL** | Same pre-existing TS errors as typecheck |
+| JS lint baseline | `npm run lint` | **FAIL** | Existing lint debt: 58 problems (20 errors, 38 warnings), dominated by React hooks/memoization rules |
+| Rust fmt baseline | `cargo fmt --all -- --check` | **FAIL** | Existing formatting drift across many Rust files (command emitted wide diff list) |
+| actionlint check | `npx --yes actionlint` | **FAIL** | `npm error could not determine executable to run` (tool unavailable via this invocation) |
+
+**Delivered in this pass:** tiered CI/CD workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), CI legacy wrapper migration (`ci.yml`), root/medoc script wiring for lint-fix/format/typecheck/a11y, and `docs/coordination/ci-cd-plan.md`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
