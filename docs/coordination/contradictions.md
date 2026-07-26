@@ -11,6 +11,19 @@
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
 
+## Workflow quality register (2026-07-26)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WQ-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | No dedicated workflow log channel for frontend route/action lifecycle. | Added `workflow.log` appender + `medoc::workflow` filter + `log_workflow!` macro in commit `c64434c`. | P1 | **Fixed** (instrumentation commit). |
+| WQ-LOG-002 | `apps/practice-host-ui/src/services/tauri.service.ts` + `crates/app/medoc-practice/src/commands/system/logging.rs` | No sanitized frontend→backend workflow bridge for route enter / primary action / success / error/cancel. | Added `recordWorkflowRouteEnter`, invoke lifecycle workflow events, and new `log_workflow_event` command (commit `c64434c`; tests `afe560a`). | P1 | **Fixed** (instrumentation + tests). |
+| WQ-UI-001 | `packages/ui/src/toast-store.ts` | Error toast default duration was **6000ms**, violating 5s policy. | Failing test before fix: `../../packages/ui/src/toast-store.test.ts` expected 5000 but got 6000. | P2 | **Fixed** in commit `4d7aa62` (error duration 5000ms). |
+| WQ-TEST-001 | `apps/practice-host-ui/src/*smoke.test.tsx` and `packages/shared/src/lib/billing-release-flow.test.ts` | Smoke mocks diverged after onboarding gate + route logger export; tests errored on missing mock exports/IPC. | `npm test` failed with missing `recordWorkflowRouteEnter` + `onboarding_subscription_status`; fixed by mock updates in commit `df0c621`. | P2 | **Fixed** (tests green). |
+| WQ-BUILD-001 | `apps/practice-host-ui/src/lib/termin-availability.ts`, `termin-calendar-layout.ts`, `views/components/termin-week-day-grid.tsx` (+ mirrored package files) | Frontend production build fails due unused symbol diagnostics (`TS6133`). | `npm run build` fails with 5 TS6133 errors (latest run in `validation.md`). | P1 | **Open** — requires scoped cleanup in affected modules. |
+| WQ-RUST-001 | workspace-wide | Rust fmt gate not green in current branch snapshot. | `cargo fmt --all -- --check` fails with many pre-existing diffs (`f26392ff-...txt`). | P2 | **Open** — baseline drift; not modified in this run. |
+| WQ-RUST-002 | `crates/shared/medoc-core/tests/mvp_security_gates_tests.rs` | Clippy fails on constant assertions with newer toolchain. | `cargo clippy --workspace --all-targets -- -D warnings` errors on `assertions_on_constants`. | P2 | **Open** — test/lint hygiene follow-up. |
+| WQ-RUST-003 | `apps/practice-host/tests/auth_session_audit_tests.rs` | Rust workspace tests fail at `authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` due seat-cap DB constraint. | `cargo test --workspace --tests` failure: `Maximal 1 Arzt-Konto erlaubt`. | P1 | **Open** — needs fixture/setup alignment. |
+
 ## Resolved (recent)
 
 | ID | Resolution | Evidence | Date closed |
