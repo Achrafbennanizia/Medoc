@@ -15,7 +15,7 @@ export interface Toast {
 
 const DURATION: Record<ToastType, number> = {
     success: 3000,
-    error: 6000,
+    error: 5000,
     info: 4000,
     warning: 5000,
 };
