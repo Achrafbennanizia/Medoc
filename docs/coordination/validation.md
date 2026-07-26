@@ -1,6 +1,6 @@
 # Validation ledger
 
-**Last updated:** 2026-07-26 (Application quality run)
+**Last updated:** 2026-07-26 (Application quality run — C9 route-guard fix)
 
 ## Application quality run — workflow + UI audit (2026-07-26)
 
@@ -8,7 +8,7 @@
 
 | ID | Location | Finding | Evidence | Severity | Action |
 |----|----------|---------|----------|----------|--------|
-| WF-2026-07-26-01 | `config/rbac.yaml`, `packages/shared/src/lib/rbac.ts` | Role-gated workflow mismatch: `REZEPTION` is granted `verwaltung.lager.read` / `verwaltung.vertraege.read` / `verwaltung.kataloge.read` in RBAC config, but UI route guard blocks every `verwaltung*` path for `REZEPTION`. | `rg` on `config/rbac.yaml` shows those actions include REZEPTION; `rbac.ts` contains `if (role === "REZEPTION" && routePath.startsWith("verwaltung")) return false;` | **P1** | Resolve contradiction C9 by choosing canonical policy (tighten RBAC matrix or relax route guard) and add explicit route-visibility tests for affected Verwaltung routes. |
+| WF-2026-07-26-01 | `config/rbac.yaml`, `packages/shared/src/lib/rbac.ts` | Role-gated workflow mismatch: `REZEPTION` is granted `verwaltung.lager.read` / `verwaltung.vertraege.read` / `verwaltung.kataloge.read` in RBAC config, but UI route guard blocks every `verwaltung*` path for `REZEPTION`. | `rg` on `config/rbac.yaml` shows those actions include REZEPTION; `rbac.ts` contained `if (role === "REZEPTION" && routePath.startsWith("verwaltung")) return false;` before fix. | **P1** | **Resolved 2026-07-26:** removed hardcoded `verwaltung*` block; route access now policy-driven via `ROUTE_VISIBILITY` + generated RBAC matrix. Regression assertions added for REZEPTION access to `verwaltung/lager-und-bestellwesen`, `verwaltung/vertraege`, `verwaltung/leistungen-kataloge-vorlagen` (and `verwaltung/bestellstamm`). |
 | WF-2026-07-26-02 | `apps/practice-host-ui/src/index.css`, `apps/practice-host-ui/e2e-playwright/ui-quality-audit.spec.ts` | Mobile/tablet overflow (<1024px) is expected under current desktop viewport contract, not a random regression. | Debug run at 375px returned `scrollWidth: 1024`; CSS sets `--app-viewport-min-width: 1024px` and applies it to `html/body/#root` and `.app`. | **P2** | Keep as explicit policy for desktop-only UX; Playwright now asserts overflow expectation below `min-width` and no mismatch at audited breakpoints. |
 | WF-2026-07-26-03 | `apps/practice-host-ui/src/**` | Frontend lint gate remains red with pre-existing hook/compiler violations. | `npm run lint -w medoc` → 19 errors / 38 warnings (`react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, `react-hooks/refs`). | **P1** | Separate fix PR for lint baseline (no speculative refactor): fix hook ordering/memo dependencies/ref writes during render. |
 
@@ -16,6 +16,8 @@
 
 | Check | Command | Result |
 |-------|---------|--------|
+| Failing-before regression proof (C9) | `npm run test -w medoc -- src/lib/rbac.test.ts` (after updating expectations, before guard fix) | **FAIL** — expected `true` but got `false` for REZEPTION Verwaltung subroutes (`verwaltung/bestellstamm`, `verwaltung/lager-und-bestellwesen`). |
+| Passing-after regression proof (C9) | `npm run test -w medoc -- src/lib/rbac.test.ts` (after guard fix) | **PASS** — 35/35 tests. |
 | Tailwind arbitrary spacing lint | `npm run lint:tailwind-spacing -w medoc` (via `npm run lint -w medoc`) | **PASS** — `tailwind-spacing-lint: no arbitrary spacing utilities found` |
 | Frontend lint | `npm run lint -w medoc` | **FAIL** — pre-existing lint baseline (19 errors, 38 warnings) |
 | Frontend tests | `npm run test -w medoc` | **PASS** — 291 passed, 3 skipped |

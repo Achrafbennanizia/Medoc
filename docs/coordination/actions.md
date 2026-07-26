@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-26 (application quality run)
+**Last updated:** 2026-07-26 (application quality run — C9 fix slice)
 
 ## Done (2026-07-26 — workflow + UI quality audit slice)
 
@@ -12,10 +12,13 @@
   - `apps/practice-host-ui/e2e-playwright/ui-quality-audit.fixture.html` static modal audit block now keeps `padding: 0; width: 100%; box-sizing: border-box`.
   - `apps/practice-host-ui/e2e-playwright/ui-quality-audit.spec.ts` now compares overflow against configured `min-width` contract.
 - Logged Step-2 findings register into `validation.md` and contradictions `C9` / `C10`.
+- Resolved contradiction **C9** in code:
+  - Removed hardcoded REZEPTION `verwaltung*` deny branch in `packages/shared/src/lib/rbac.ts`.
+  - Added route-level regression expectations in `packages/shared/src/lib/rbac.test.ts`.
+  - Captured failing-before/passing-after proof with `npm run test -w medoc -- src/lib/rbac.test.ts`.
 
-## Immediate next (this run)
+## Immediate next
 
-- Resolve contradiction **C9** (REZEPTION RBAC permissions vs `verwaltung*` route hard-block) with one policy source of truth.
 - Triage and fix frontend lint baseline (`npm run lint -w medoc`: 19 errors, 38 warnings) in a dedicated PR.
 - Maintain Rust full-workspace validation blocker note (`gdk-3.0` missing on this host) while keeping non-Tauri validation green.
 
