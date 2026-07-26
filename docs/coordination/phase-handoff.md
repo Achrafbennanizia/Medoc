@@ -1,7 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-07-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split + CI path migration.
+
+### Verified (2026-07-26 — CI/CD tier migration)
+
+- Added tiered workflows: `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- Removed legacy monolithic `.github/workflows/ci.yml`.
+- Added CI/CD design record: [`ci-cd-plan.md`](ci-cd-plan.md).
+- Added a11y critical scanner: `scripts/ci/run-axe-critical.mjs` with `@axe-core/playwright`.
+- Added tier-3 proposal helper: `scripts/ci/fix-proposal-default.sh`.
+- Local validation **PASS**: workflow YAML parse (`python3` + `yaml.safe_load`), shell script syntax, axe runner syntax.
+
+### Remains unverified
+
+- Live GitHub runner execution of the four new workflows (not executed from this local session).
+- Release environment policy + signing-secret availability (`TAURI_SIGNING_PRIVATE_KEY*`) on GitHub.
+- Runtime a11y gate execution (`test:a11y`) is blocked by current frontend TypeScript baseline failures.
+
+### Understanding delta
+
+- Tiered pipeline is now explicitly verify-first and mutation-scoped: only PR-branch autofix and draft PR proposals can write.
+- Branch-gate readiness is currently limited by pre-existing frontend TypeScript debt (`TS6133` unused-symbol errors) that breaks both `typecheck` and `build`.
+
+### Must happen next (ordered)
+
+1. Resolve TS6133 frontend baseline failures (`termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`) or deliberately scope typecheck/build gates.
+2. Run `verify.yml` once on a PR and once on `main`; confirm `autofix.yml` loop guard behavior with a formatting-only PR.
+3. Trigger `fix-proposal.yml` manually and verify draft-PR flow + sensitive-path label stop.
+4. Trigger `release.yml` on a test tag in a protected `release` environment and verify signed artifact production.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
