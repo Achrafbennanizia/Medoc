@@ -1,6 +1,24 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (workflow logging + geometry baseline)
+
+## Done (2026-07-26 — bounded workflow-quality run)
+
+- Added dedicated `workflow.log` channel in shared tracing infrastructure and excluded it from `app.log`.
+- Added sanitized `log_workflow_event` Tauri command and frontend bridge (`workflow-log.ts`) with recursion-safe adapter instrumentation (`primary_action`/`success`/`error`).
+- Added route-enter workflow logging (`WorkflowRouteLogger`) and integrated it into `App.tsx`.
+- Added domain state-transition workflow traces in `workflow_transitions.rs` (`allowed`/`denied`/`no_change`/`ignored` outcomes).
+- Added tests for workflow instrumentation (`tauri-practice.adapter.test.ts`, `workflow-route-logger.test.tsx`) and updated smoke IPC mocks.
+- Added Playwright geometry/spacing audit (`ui-geometry.spec.ts`), generated snapshot baselines (375/768/1259), and wired Tailwind arbitrary-value lint (`lint-tailwind-token-scale.mjs`).
+- Fixed token-scale finding in `behandlung-akte-composer-panel.tsx` (`min-h-[72px]` → `min-h-20`) and cleaned TS unused imports causing build/lint noise.
+- Committed and pushed separate commits for instrumentation, tests, fixes, and snapshot baselines on branch `cursor/medoc-application-quality-1bc7`.
+
+## Now (2026-07-26 follow-up)
+
+1. Unblock Rust validation gates by upgrading Cargo/toolchain to support dependencies requiring `edition2024`.
+2. Resolve frontend lint hard errors (react-hooks compiler/dependency issues, especially in `termine.tsx`, `leistungen.tsx`, `praxis-aufgabe-*` pages).
+3. Add dedicated `axe-core` accessibility suite and keyboard/dialog/toast compliance checks; register every violation.
+4. Expand Step-3 component/page event-matrix coverage from targeted workflow tests to full inventory coverage.
 
 ## Now
 

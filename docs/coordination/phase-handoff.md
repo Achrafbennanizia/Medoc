@@ -1,5 +1,40 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging + geometry quality baseline (2026-07-26)  
+**Last closed:** Dedicated workflow log channel/bridge, targeted workflow tests, Playwright geometry snapshots, token-scale lint.
+
+### Verified (2026-07-26 — workflow quality baseline)
+
+- **Logging extension complete:** `workflow.log` channel added in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` with filter isolation in `config.rs`.
+- **Sanitized UI→backend bridge:** `log_workflow_event` command implemented in `crates/app/medoc-practice/src/commands/system/logging.rs`; sanitizer-based field scrubbing + length caps.
+- **Frontend instrumentation:** route enter (`WorkflowRouteLogger`), IPC primary/success/error (`tauri-practice.adapter.ts`), safe bridge wrapper (`workflow-log.ts`) all wired.
+- **Domain transition traces:** state-machine transitions now emit structured workflow events in `workflow_transitions.rs`.
+- **Workflow test coverage increment:** `npm run test` **PASS** (289 pass / 3 skip), including new adapter/route logger tests and updated smoke mocks.
+- **Geometry baseline:** Playwright `ui-geometry.spec.ts` **PASS** at 375/768/1259 with committed snapshots in `e2e-playwright/ui-geometry.spec.ts-snapshots/`.
+- **Tailwind token lint:** `npm run lint:tailwind-scale` **PASS** after fixing `min-h-[72px]` → `min-h-20`.
+
+### Remains unverified
+
+- Full Rust validation matrix (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`) is blocked in this environment by Cargo 1.83 vs `edition2024` dependency parsing (`home v0.5.12`).
+- Full frontend lint gate remains red due pre-existing react-hooks compiler/dependency errors (`npm run lint` fails with 19 errors).
+- Full Step-3 matrix (every UI component/page event reactions) is not yet complete; only targeted workflow seams are covered.
+- Full Step-5 compliance (`axe-core` critical=0 + full keyboard/dialog/toast/error-object checklist) is still **NOT RUN** end-to-end.
+
+### Understanding delta
+
+- Workflow observability is now anchored at three seams (router, IPC adapter, domain transition service) without introducing a parallel logger.
+- Geometry and spacing checks are now executable in CI-like mode via Playwright + snapshot baselines, but accessibility conformance still lacks an automated gate.
+- The dominant blocker for backend validation is environment/toolchain mismatch, not application compile/test logic in this change set.
+
+### Required next steps (ordered)
+
+1. Upgrade agent/CI Cargo toolchain and rerun full Rust quality gates.
+2. Resolve frontend lint hard errors in `termine`, `leistungen`, and `praxis-aufgabe` pages.
+3. Add dedicated `axe-core` automated suite and register violations in coordination ledgers.
+4. Expand component/page event-matrix tests to close Step-3 completeness gap.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
