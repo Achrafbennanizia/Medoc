@@ -1,0 +1,178 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: System deps for Tauri-linked workspace crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+      - run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=pnpm --filter medoc lint" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=pnpm --filter medoc test" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=pnpm --filter medoc build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=yarn workspace medoc lint" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=yarn workspace medoc test" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=yarn workspace medoc build" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lint_cmd=npm run lint -w medoc" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=npm run test -w medoc" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - run: ${{ steps.pm.outputs.lint_cmd }}
+      - name: Type-check active web apps
+        run: |
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+          if [ -f apps/lan-web-client/tsconfig.json ]; then
+            npx tsc --noEmit -p apps/lan-web-client/tsconfig.json
+          fi
+      - run: ${{ steps.pm.outputs.test_cmd }}
+      - run: ${{ steps.pm.outputs.build_cmd }}
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=pnpm --filter medoc build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=yarn workspace medoc build" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "build_cmd=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - run: ${{ steps.pm.outputs.build_cmd }}
+      - name: Run axe-core against built UI (critical WCAG 2.1 AA gate)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory apps/practice-host-ui/dist >/tmp/medoc-a11y-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          npx --yes browser-driver-manager install chrome
+          eval "$(npx --yes browser-driver-manager which)"
+          npx --yes @axe-core/cli \
+            http://127.0.0.1:4173 \
+            --tags wcag2a,wcag2aa \
+            --save axe-report.json \
+            --chrome-path "$CHROME_TEST_PATH" \
+            --chromedriver-path "$CHROMEDRIVER_TEST_PATH"
+
+          node <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('axe-report.json', 'utf8'));
+          const critical = [];
+          for (const page of report) {
+            for (const violation of page.violations || []) {
+              if (violation.impact === 'critical') {
+                critical.push({
+                  url: page.url,
+                  id: violation.id,
+                  help: violation.help,
+                  nodeCount: (violation.nodes || []).length,
+                });
+              }
+            }
+          }
+          if (critical.length > 0) {
+            console.error('Critical WCAG 2.1 A/AA violations found:');
+            console.error(JSON.stringify(critical, null, 2));
+            process.exit(1);
+          }
+          console.log('No critical WCAG 2.1 A/AA violations found.');
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axe-report
+          path: axe-report.json
