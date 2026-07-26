@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { emitWorkflowEvent } from "@/services/workflow-log";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +51,53 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function isWorkflowBridgeCommand(cmd: string): boolean {
+    return cmd === "log_workflow_event";
+}
+
+function mapErrorDetail(err: unknown): string {
+    if (err instanceof Error) {
+        return err.name || "invoke_error";
+    }
+    return "invoke_error";
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const startedAt = Date.now();
+    const payload = args == null
+        ? {}
+        : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+
+    if (!isWorkflowBridgeCommand(cmd)) {
+        void emitWorkflowEvent({
+            step: "primary_action",
+            action: cmd,
+            detail: "invoke",
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    try {
+        const result = await invoke<T>(cmd, payload);
+        if (!isWorkflowBridgeCommand(cmd)) {
+            void emitWorkflowEvent({
+                step: "success",
+                action: cmd,
+                outcome: "ok",
+                durationMs: Date.now() - startedAt,
+            });
+        }
+        return result;
+    } catch (err) {
+        if (!isWorkflowBridgeCommand(cmd)) {
+            void emitWorkflowEvent({
+                step: "error",
+                action: cmd,
+                outcome: "failed",
+                detail: mapErrorDetail(err),
+                durationMs: Date.now() - startedAt,
+            });
+        }
+        throw err;
+    }
 }
