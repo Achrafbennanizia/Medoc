@@ -6,7 +6,7 @@ export function WorkflowRouteLogger(): null {
     const location = useLocation();
 
     useEffect(() => {
-        void tauriInvoke<void>("log_workflow_event", {
+        const telemetryCall = tauriInvoke<void>("log_workflow_event", {
             event: {
                 workflow: "ui_navigation",
                 stage: "route_enter",
@@ -15,7 +15,8 @@ export function WorkflowRouteLogger(): null {
                 action: "navigate",
                 status: "entered",
             },
-        }).catch(() => {
+        });
+        void Promise.resolve(telemetryCall).catch(() => {
             /* telemetry must never break navigation */
         });
     }, [location.pathname, location.search]);
