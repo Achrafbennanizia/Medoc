@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt gate replay | `cargo fmt --all --check` | **FAIL** — existing workspace formatting drift across many Rust files (for example `apps/practice-host/tests/akte_workflow_tests.rs`, `crates/app/medoc-practice/src/commands/admin/mod.rs`, `crates/shared/medoc-sync/tests/merge_apply_tests.rs`) |
+| JS dependency install | `npm ci` | **PASS** |
+| JS typecheck gate replay | `npm run typecheck` | **FAIL** — existing TS6133 unused-symbol errors in `apps/practice-host-ui/src/lib/termin-availability.ts`, `apps/practice-host-ui/src/lib/termin-calendar-layout.ts`, `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`, mirrored in `packages/shared/src/lib/*` |
+| JS lint gate replay | `npm run lint` | **FAIL** — existing lint debt (58 findings: 20 errors, 38 warnings), including `react-hooks/preserve-manual-memoization` and `react-hooks/refs` errors |
+| JS build gate replay | `npm run build` | **FAIL** — blocked by same TypeScript errors as `typecheck` |
+| A11y gate replay | `npm run test:a11y` | **FAIL** — Playwright web server could not start because `npm run build` failed first |
+
+**Delivered in this phase:** `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, `.github/workflows/release.yml`; removed legacy `.github/workflows/ci.yml`; added workspace scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and Playwright axe-core check (`apps/practice-host-ui/e2e-playwright/a11y.critical.spec.ts`, `playwright.a11y.config.ts`); authored `docs/coordination/ci-cd-plan.md`.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

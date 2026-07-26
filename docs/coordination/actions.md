@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD tier migration)
 
 ## Now
 
+- **Stabilize verify gate baseline:** fix pre-existing Rust fmt drift + TypeScript/lint failures so Tier 1 (`verify.yml`) can pass end-to-end.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -25,6 +26,14 @@ Active cost-priority delivery plan and test allow-list:
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
+
+## Done (2026-07-26 — CI/CD tier migration)
+
+- Added Tier 1–4 workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Removed legacy `.github/workflows/ci.yml` and migrated pipeline control to the live `apps/*`, `crates/*`, `packages/*` workspace model.
+- Added deterministic JS workflow commands: root/app `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Added axe-core Playwright critical WCAG check: `apps/practice-host-ui/e2e-playwright/a11y.critical.spec.ts`.
+- Validation ledger updated with current baseline failures (fmt/lint/typecheck/build/a11y).
 
 - `akte-anlagen` pure domain → `packages/shared/src/lib/akte-anlagen.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-anlagen.ts`.
 - `desktop-window-frame` Tauri calls → `src/platform/desktop-window-controls.ts`.
