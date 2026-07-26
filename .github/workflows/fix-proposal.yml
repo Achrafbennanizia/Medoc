@@ -201,7 +201,7 @@ jobs:
         name: Detect sensitive-code touches
         shell: bash
         run: |
-          if git diff --name-only | rg '^(apps|crates|packages)/.*(security|audit|crypto|rbac)' > sensitive-files.txt; then
+          if git diff --name-only | grep -E '^(apps|crates|packages)/.*(security|audit|crypto|rbac)' > sensitive-files.txt; then
             echo "touched=true" >> "$GITHUB_OUTPUT"
           else
             echo "touched=false" >> "$GITHUB_OUTPUT"
