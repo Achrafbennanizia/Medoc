@@ -1,6 +1,16 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD pipeline tiering)
+
+## Done (2026-07-26 — CI/CD tiering + stale path migration)
+
+- Replaced stale `.github/workflows/ci.yml` path assumptions with tiered workflows:
+  - `verify.yml` (push/PR/workflow_call, zero-mutation gate)
+  - `autofix.yml` (PR-only deterministic formatting/lint fixes + loop guard)
+  - `fix-proposal.yml` (manual or failed-main draft PR proposals)
+  - `release.yml` (tag/dispatch, verify-gated, protected `release` environment, signed build only)
+- Added coordination spec at `docs/coordination/ci-cd-plan.md`.
+- Synced process doc reference: `docs/process/freigabeprozess.md` now points CI gate to `verify.yml`.
 
 ## Now
 

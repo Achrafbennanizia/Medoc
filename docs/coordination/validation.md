@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD pipeline tiering + stale path migration)
+
+## CI/CD pipeline tiering + stale path migration — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `npx --yes js-yaml .github/workflows/verify.yml` + `autofix.yml` + `fix-proposal.yml` + `release.yml` | **PASS** — all four parsed successfully |
+| Workflow inventory | `ls .github/workflows` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` |
+| actionlint availability | `actionlint -version` | **NOT RUN** — binary unavailable (`actionlint: command not found`) |
+| Ruby YAML parser availability | `ruby -e 'require "yaml"; ...'` | **NOT RUN** — runtime unavailable (`ruby: command not found`) |
+| Full remote CI execution | GitHub Actions live run | **NOT RUN** — wiring completed locally only; no remote run observed in this session |
+
+**Delivered:** retired `.github/workflows/ci.yml`; introduced tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`) with concurrency cancellation, per-job timeouts, PR-only autofix loop guard, and protected-environment release gate.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
