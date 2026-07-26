@@ -1,6 +1,31 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "import glob,yaml; [yaml.safe_load(open(path, 'r', encoding='utf-8')) for path in glob.glob('.github/workflows/*.yml')]; print('workflow-yaml-ok')"` | **PASS** (`workflow-yaml-ok`) |
+| A11y runner syntax | `node --check scripts/run-axe-a11y.mjs` | **PASS** |
+| Frontend typecheck | `npm run typecheck` | **FAIL** — pre-existing TS6133 unused symbols (`resolveEffectiveArbeitszeitenForArzt`, `fallback`, `deriveTerminTimelineBounds`) in `apps/practice-host-ui/src/lib/*` and mirrored `packages/shared/src/lib/*` |
+| Frontend build | `npm run build` | **FAIL** — same pre-existing TS6133 failures during `tsc` phase |
+| Dependency hydration | `npm ci` | **PASS** — full workspace dependencies reinstalled from lockfile |
+
+**Delivered CI/CD artifacts:**
+
+- Tier 1 verify gate: `.github/workflows/verify.yml`
+- Tier 2 deterministic PR autofix: `.github/workflows/autofix.yml`
+- Tier 3 draft fix proposal automation: `.github/workflows/fix-proposal.yml`
+- Tier 4 gated release pipeline: `.github/workflows/release.yml`
+- Legacy monolith retired: removed `.github/workflows/ci.yml`
+- CI plan documentation: `docs/coordination/ci-cd-plan.md`
+- A11y runner script: `scripts/run-axe-a11y.mjs`
+
+**NOT RUN (this session):**
+
+- GitHub-hosted execution of new workflows (only local YAML parsing was executed).
+- End-to-end `test:a11y` runtime against built preview (script syntax verified; runtime gate deferred to CI runners).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
