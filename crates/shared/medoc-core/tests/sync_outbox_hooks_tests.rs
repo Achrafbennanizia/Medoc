@@ -20,6 +20,21 @@ use medoc_core::infrastructure::database::{
 };
 use sqlx::SqlitePool;
 
+async fn insert_personal(pool: &SqlitePool, id: &str, name: &str, email: &str, rolle: &str) {
+    sqlx::query(
+        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(email)
+    .bind("x")
+    .bind(rolle)
+    .execute(pool)
+    .await
+    .expect("seed personal");
+}
+
 async fn fresh_pool() -> SqlitePool {
     let pool = connection::test_memory_pool().await.expect("memory pool");
     connection::run_migrations(&pool).await.expect("migrations");
@@ -129,13 +144,14 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         .expect("create patient");
 
     // Seed a `personal` row so the `arzt_id` FK resolves.
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-1', 'Dr. Test', 'arzt@test', 'x', 'ARZT')",
+    insert_personal(
+        &pool,
+        "hook-arzt-termin",
+        "Dr. Hook Termin",
+        "hook-termin@medoc.test",
+        "ARZT",
     )
-    .execute(&pool)
-    .await
-    .ok();
+    .await;
 
     let create = CreateTermin {
         patient_id: p.id.clone(),
@@ -144,7 +160,7 @@ async fn termin_lifecycle_emits_three_outbox_rows() {
         art: TerminArt::Kontrolle,
         notizen: None,
         beschwerden: None,
-        arzt_id: "arzt-1".into(),
+        arzt_id: "hook-arzt-termin".into(),
     };
     let t = termin_repo::create(&pool, &create).await.expect("create");
 
@@ -292,19 +308,20 @@ async fn rezept_create_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-rezept', 'Dr. Rezept', 'rezept@test', 'x', 'ARZT')",
+    insert_personal(
+        &pool,
+        "hook-arzt-rezept",
+        "Dr. Hook Rezept",
+        "hook-rezept@medoc.test",
+        "ARZT",
     )
-    .execute(&pool)
-    .await
-    .ok();
+    .await;
 
     rezept_repo::create(
         &pool,
         &CreateRezept {
             patient_id: p.id.clone(),
-            arzt_id: "arzt-rezept".into(),
+            arzt_id: "hook-arzt-rezept".into(),
             medikament: "Ibuprofen 600mg".into(),
             wirkstoff: Some("Ibuprofen".into()),
             dosierung: "1-0-1".into(),
@@ -335,20 +352,28 @@ async fn praxis_ticket_insert_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-ticket', 'Frau Rezeption', 'rez@test', 'x', 'REZEPTION'),
-               ('arzt-ticket', 'Dr. Ticket', 'arzt@test', 'x', 'ARZT')",
+    insert_personal(
+        &pool,
+        "hook-rez-ticket",
+        "Frau Hook Rezeption",
+        "hook-rez-ticket@medoc.test",
+        "REZEPTION",
     )
-    .execute(&pool)
-    .await
-    .ok();
+    .await;
+    insert_personal(
+        &pool,
+        "hook-arzt-ticket",
+        "Dr. Hook Ticket",
+        "hook-arzt-ticket@medoc.test",
+        "ARZT",
+    )
+    .await;
 
     praxis_ticket_repo::insert(
         &pool,
         &p.id,
-        "rez-ticket",
-        "arzt-ticket",
+        "hook-rez-ticket",
+        "hook-arzt-ticket",
         "Port hook ticket",
     )
     .await
