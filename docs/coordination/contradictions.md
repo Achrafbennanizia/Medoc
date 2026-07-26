@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,7 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | New verify gate vs current repo baseline | Tier-1 workflow requires lint/typecheck/rustfmt green on every push/PR | Current branch baseline fails `npm run lint -w medoc`, both typecheck commands, and `cargo fmt --all --check` (2026-07-26 validation snapshot) | Verify workflow will fail until baseline debt is remediated; merge gate currently stricter than codebase state. | Track as follow-up remediation before enforcing required checks in branch protection. |
 
 ## Resolved (recent)
 

@@ -1,5 +1,35 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-07-26)  
+**Last closed:** tiered workflows wired (`verify`, `autofix`, `fix-proposal`, `release`), legacy `ci.yml` retired, coordination CI/CD plan and validation snapshot recorded.
+
+### Verified (2026-07-26 — CI/CD tier migration)
+
+- **Tier 1 (`verify.yml`):** push/PR/workflow_call gate with Rust checks (`fmt --check`, clippy `-D warnings`, tests, audit), JS lockfile-based package-manager detection, lint/typecheck/test/build, and axe-core critical WCAG A/AA gate via `scripts/assert-axe-critical.mjs`.
+- **Tier 2 (`autofix.yml`):** PR-only deterministic fixes (`cargo fmt`, `lint:fix`, `format`) with loop guard `github.actor != 'github-actions[bot]'`, commit-back to PR head only.
+- **Tier 3 (`fix-proposal.yml`):** manual dispatch or failed `verify` on `main`; creates a new proposal branch, captures before/after evidence logs, opens a **draft** PR, and labels `needs-human-review` when diff touches `security|audit|crypto|rbac` code paths.
+- **Tier 4 (`release.yml`):** tag/dispatch release gate that reuses tier-1 verify via `workflow_call`, then builds signed multi-OS artifacts in protected `release` environment without mutating source.
+- **Coordination doc:** `docs/coordination/ci-cd-plan.md` created to document guardrails and workflow responsibilities.
+
+### Remains unverified
+
+- First live GitHub Actions execution of the new workflow set (**NOT OBSERVED** in this session).
+- `actionlint` static workflow lint (**NOT RUN**, tool missing on runner).
+- Repository baseline is currently red for new tier-1 criteria: frontend lint/typecheck and rustfmt checks fail (see `validation.md` 2026-07-26 block).
+
+### Understanding delta
+
+- Previous ledger snapshots reported many green validations, but current branch baseline now fails stricter lint/typecheck/rustfmt gates. The new verify workflow correctly surfaces this debt rather than masking it.
+- CI is now explicitly split by mutation level (verify vs autofix vs proposal vs release), improving auditability and release reproducibility.
+
+### Required next steps (ordered)
+
+1. Resolve current lint/typecheck/rustfmt baseline failures so `verify.yml` can become reliably green.
+2. Run a live PR through tier-2 autofix and tier-1 verify to confirm loop guard + re-run behavior on GitHub.
+3. Execute one controlled tag or `workflow_dispatch` release dry run through protected `release` environment.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
