@@ -20,7 +20,7 @@ base64 = "0.22"
 regex = "1"
 
 # SQLx for the database/* layer + sqlite-cipher. Practice/LAN/Company crates
-# also depend on sqlx (and on `libsqlite3-sys = { features = ["bundled-sqlcipher"] }`)
+# also depend on sqlx (and on `libsqlite3-sys = { features = ["bundled-sqlcipher-vendored-openssl"] }`)
 # so cargo unifies the build into a single SQLCipher-enabled sqlite.
 sqlx = { version = "0.8", default-features = false, features = [
     "macros",
