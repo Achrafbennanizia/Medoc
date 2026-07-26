@@ -1,37 +1,34 @@
 # Phase handoff
 
-**Last phase label:** Workflow logging instrumentation + toast timing policy (2026-07-26)  
-**Last closed:** Dedicated workflow log channel, sanitized FE→BE workflow bridge, toast timing test/fix loop, smoke mock realignment.
+**Last phase label:** Workflow build-gate follow-up (2026-07-26)  
+**Last closed:** WQ-BUILD-001 TypeScript `TS6133` cleanup in termin scheduling/layout modules.
 
-### Verified (2026-07-26 — workflow logging + quality sweep)
+### Verified (2026-07-26 — build blocker repair)
 
-- **Logger extension:** `workflow.log` channel added to existing tracing subsystem (daily rotation, non-blocking writer, `medoc::workflow` target filter).
-- **Sanitized bridge:** frontend route-enter + invoke lifecycle events flow through `recordWorkflowRouteEnter` / `tauriInvoke` into backend `log_workflow_event`; backend sanitizes/normalizes fields before logging.
-- **Tests (new):**
-  - `src/services/tauri.service.test.ts` **PASS** (4)
-  - Rust workflow helper tests in `commands/system/logging.rs` **PASS** (2 via `cargo test -p medoc-practice workflow_`)
-  - `packages/ui/src/toast-store.test.ts` failing-before/passing-after evidence captured.
-- **UI policy fix:** error toast duration aligned to 5s (`packages/ui/src/toast-store.ts`).
-- **Smoke compatibility:** onboarding gate and route logger mock expectations updated; `critical-flows.smoke` + `g21-routing.smoke` **PASS**.
-- **Frontend suite:** `npm test` **PASS** (291 pass, 3 skip).
+- **Failure reproduction:** `npm run build` failed with 5 `TS6133` unused-symbol diagnostics across termin helpers.
+- **Scoped fix:** commit `ee525d2` removed only unused symbols in:
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- **Post-fix validation:** `npm run build` **PASS**; `npm test` **PASS** (291 passed, 3 skipped).
+- **No sensitive-surface edits:** no security/audit/RBAC/crypto production logic changed in this phase.
 
 ### Remains unverified / failing
 
-- `cargo fmt --all -- --check` **FAIL** (pre-existing workspace drift).
-- `cargo clippy --workspace --all-targets -- -D warnings` **FAIL** (constant assertion lint in `mvp_security_gates_tests.rs`).
+- `cargo fmt --all -- --check` **FAIL** (pre-existing workspace formatting drift).
+- `cargo clippy --workspace --all-targets -- -D warnings` **FAIL** (`clippy::assertions_on_constants` in `mvp_security_gates_tests.rs`).
 - `cargo test --workspace --tests` **FAIL** (`auth_session_audit_tests` seat-cap fixture failure).
-- `npm run build` **FAIL** (TS6133 unused symbols in termin helper modules).
 - Playwright geometry/spacing audit + axe pass + full workflow state-machine enumeration are **NOT RUN** this cycle.
 
 ### Understanding delta
 
-- The repo now has first-class workflow telemetry plumbing without introducing a parallel logger.
-- Existing smoke failures were not login-screen regressions; they were onboarding-gate mock drift (`onboarding_subscription_status`) and missing mocked export (`recordWorkflowRouteEnter`).
-- Rust validation blockers are currently dominated by baseline/toolchain-sensitive quality debt, not this run’s instrumentation changes.
+- `WQ-BUILD-001` was a pure TypeScript hygiene blocker and is now closed without behavior changes.
+- The remaining CI blockers are Rust quality/fixture issues and currently include security/auth test surfaces; they should be handled with explicit human review.
+- Step 4/5 instrumentation-driven audits (Playwright geometry + accessibility sweep) remain outstanding despite the build gate now being green.
 
 ### Must happen next
 
-1. Resolve open blockers from `contradictions.md`: `WQ-BUILD-001`, `WQ-RUST-001`, `WQ-RUST-002`, `WQ-RUST-003`.
+1. Resolve open Rust blockers from `contradictions.md`: `WQ-RUST-001`, `WQ-RUST-002`, `WQ-RUST-003` (human-reviewed for security/auth-adjacent tests).
 2. Add Playwright geometry/spacing checks and static arbitrary-Tailwind lint gate (Step 4 backlog).
 3. Expand workflow-state findings register with component/page event-coverage gaps and a11y rule violations (Steps 2–5 backlog).
 

@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (workflow build-gate follow-up)
 
 ## Now
 
@@ -11,7 +11,7 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
-- **Workflow quality follow-up (2026-07-26):** resolve open blockers from register `WQ-BUILD-001`, `WQ-RUST-001`, `WQ-RUST-002`, `WQ-RUST-003` in `contradictions.md`.
+- **Workflow quality follow-up (2026-07-26):** resolve remaining Rust blockers from register `WQ-RUST-001`, `WQ-RUST-002`, `WQ-RUST-003` in `contradictions.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
@@ -43,6 +43,11 @@ Active cost-priority delivery plan and test allow-list:
 - Added workflow bridge unit coverage (`tauri.service.test.ts`) and backend workflow sanitizer tests (`workflow_`).
 - Added/updated smoke mocks for new onboarding + route logger flows so suite runs green.
 - Fixed toast policy drift: error toast default now **5000ms** (was 6000ms), with failing-before/passing-after test evidence.
+- Closed **WQ-BUILD-001** with minimal TS6133 cleanup (`ee525d2`) in:
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- Revalidated after fix: `npm run build` **PASS**, `npm test` **PASS**; Rust blockers unchanged (`WQ-RUST-001/002/003`).
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

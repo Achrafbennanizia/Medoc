@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (workflow build-gate follow-up)
+
+## Workflow quality follow-up — build gate repair (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend build (pre-fix) | `npm run build` | **FAIL** — `TS6133` unused symbols (`resolveEffectiveArbeitszeitenForArzt`, `fallback`, `deriveTerminTimelineBounds`). |
+| Frontend build (post-fix commit `ee525d2`) | `npm run build` | **PASS** — `tsc && vite build` completed; artifacts emitted to `dist/`. |
+| Frontend regression suite | `npm test` | **PASS** — 291 passed, 3 skipped. |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — pre-existing formatting drift across many workspace files. |
+| Rust clippy gate | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `clippy::assertions_on_constants` in `crates/shared/medoc-core/tests/mvp_security_gates_tests.rs`. |
+| Rust workspace tests | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test --workspace --tests` | **FAIL** — `auth_session_audit_tests` seat-cap constraint (`Maximal 1 Arzt-Konto erlaubt`). |
+
+**Scope note:** This run only touched UI scheduling/layout TypeScript hygiene; no security/audit/RBAC/crypto production logic was modified.
 
 ## Workflow logging + UI timing sweep — verified (2026-07-26)
 
