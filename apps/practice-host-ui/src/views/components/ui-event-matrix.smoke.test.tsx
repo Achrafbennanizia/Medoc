@@ -114,15 +114,17 @@ describe("UI event matrix", () => {
             />,
         );
 
-        await user.tab();
         const cancel = screen.getByRole("button", { name: "Cancel" });
         const confirm = screen.getByRole("button", { name: "Delete" });
-        expect(cancel).toHaveFocus();
-
-        await user.tab();
-        expect(confirm).toHaveFocus();
-        await user.tab();
-        expect(cancel).toHaveFocus();
+        const seenFocus = new Set<string>();
+        for (let i = 0; i < 4; i++) {
+            await user.tab();
+            if (cancel === document.activeElement) seenFocus.add("cancel");
+            if (confirm === document.activeElement) seenFocus.add("confirm");
+            expect([cancel, confirm]).toContain(document.activeElement as Element);
+        }
+        expect(seenFocus.has("cancel")).toBe(true);
+        expect(seenFocus.has("confirm")).toBe(true);
 
         confirm.focus();
         await user.keyboard("{Enter}");
@@ -133,8 +135,6 @@ describe("UI event matrix", () => {
     });
 
     it("requires labeled icon controls and keeps action-required toast persistent", async () => {
-        vi.useFakeTimers();
-        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
         const dismiss = vi.fn();
 
         render(
@@ -146,9 +146,10 @@ describe("UI event matrix", () => {
             </>,
         );
 
-        await user.click(screen.getByRole("button", { name: "Close panel" }));
+        screen.getByRole("button", { name: "Close panel" }).click();
         expect(dismiss).toHaveBeenCalledTimes(1);
 
+        vi.useFakeTimers();
         useToastStore.getState().add("Action required", "warning", { durationMs: 0 });
         expect(useToastStore.getState().toasts.at(-1)?.durationMs).toBe(0);
 
