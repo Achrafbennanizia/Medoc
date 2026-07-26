@@ -49,9 +49,8 @@ fn allowed_transition(
 ) -> Result<(), AppError> {
     let cur = normalized_status(current);
     let nxt = normalized_status(next);
-    let result = if cur == nxt {
-        Ok(())
-    } else if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+    let allowed_next = cur == nxt || allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt));
+    let result = if allowed_next {
         Ok(())
     } else {
         Err(status_transition_denied(&cur, &nxt))
