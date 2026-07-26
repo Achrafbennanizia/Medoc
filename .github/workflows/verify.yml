@@ -1,0 +1,183 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: Web verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.name }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            yarn)
+              yarn install --immutable
+              ;;
+            npm)
+              npm ci
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.name }}"
+              exit 1
+              ;;
+          esac
+      - name: Lint, typecheck, test, build
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm run lint
+              pnpm run typecheck
+              pnpm run test
+              pnpm run build
+              ;;
+            yarn)
+              yarn run lint
+              yarn run typecheck
+              yarn run test
+              yarn run build
+              ;;
+            npm)
+              npm run lint
+              npm run typecheck
+              npm run test
+              npm run build
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.name }}"
+              exit 1
+              ;;
+          esac
+
+  a11y:
+    name: Accessibility verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.name }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            yarn)
+              yarn install --immutable
+              ;;
+            npm)
+              npm ci
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.name }}"
+              exit 1
+              ;;
+          esac
+      - name: Install Playwright Chromium
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm exec playwright install --with-deps chromium
+              ;;
+            yarn)
+              yarn playwright install --with-deps chromium
+              ;;
+            npm)
+              npx playwright install --with-deps chromium
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.name }}"
+              exit 1
+              ;;
+          esac
+      - name: Build UI and run axe-core
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm run build
+              pnpm run test:a11y
+              ;;
+            yarn)
+              yarn run build
+              yarn run test:a11y
+              ;;
+            npm)
+              npm run build
+              npm run test:a11y
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.name }}"
+              exit 1
+              ;;
+          esac
