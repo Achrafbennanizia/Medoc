@@ -246,12 +246,10 @@ export function routeChildPathAllowed(
     if (!PRODUKTE_MENU_ENABLED && routePath === "produkte") {
         return false;
     }
-    const role = parseRole(rolle);
-    if (role === "REZEPTION" && routePath.startsWith("verwaltung")) {
-        return false;
-    }
     const visibility = ROUTE_VISIBILITY[routePath];
     if (!visibility) return false;
+    // Keep route authorization policy-driven via ROUTE_VISIBILITY + generated RBAC action matrix.
+    // This prevents hardcoded role path blocks from drifting away from config/rbac.yaml.
     return navVisibilitySatisfied(visibility, rolle, overrides);
 }
 
