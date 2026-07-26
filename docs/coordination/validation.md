@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (logger follow-up + UI build gate fix)
+
+## Logger quality follow-up — UI build gate fix (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend build (baseline) | `npm run build` | **FAIL** — TS6133 unused `fallback` / `deriveTerminTimelineBounds` / `resolveEffectiveArbeitszeitenForArzt` (`termin-calendar-layout.ts`, `termin-week-day-grid.tsx`, `termin-availability.ts`) |
+| Fix commit | `git commit -m "fix(ui): remove unused termin calendar symbols"` | **PASS** — commit `0344359` on `cursor/medoc-application-quality-2104` |
+| Frontend build (post-fix) | `npm run build` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 288 passed, 3 skipped |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — existing formatting drift across many Rust files (no Rust files edited this run) |
+| Rust tests (default toolchain) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace --tests` | **FAIL** — Cargo 1.83 cannot parse dependency requiring `edition2024` (`toml_edit`) |
+| Rust tests (stable retry) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo +stable test --workspace --tests` | **FAIL** — `libsqlite3-sys` build error: missing `openssl/crypto.h` |
+| Rust clippy strict (default toolchain) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — same `edition2024` Cargo gate |
+| Rust clippy strict (stable retry) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL** — same `openssl/crypto.h` missing |
+
+**Notes:** Vitest emitted a pre-existing warning in `packages/shared/src/lib/http-practice.adapter.test.ts` for a non-awaited `expect(...).rejects`; tests still passed in v3 but should be fixed before Vitest 4 hardens this behavior.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

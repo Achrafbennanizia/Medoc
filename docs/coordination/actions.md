@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (logger follow-up + UI build gate fix)
 
 ## Now
 
@@ -11,6 +11,17 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **Rust validation unblock:** run gates (`cargo test`, `cargo clippy -D warnings`, `cargo fmt --check`) on runner image with Cargo edition2024 support plus OpenSSL headers for SQLCipher.
+- **Workflow audit continuation (Step 2+):** enumerate all UI route/action state machines from `apps/practice-host-ui` and log non-terminable flows into `validation.md` + `contradictions.md`.
+
+## Done (2026-07-26 — UI build gate repair)
+
+- Fixed TypeScript build blockers from unused calendar symbols in:
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- Validation: `npm run build` **PASS**, `npm run test` **PASS** (288 passed / 3 skipped).
+- Commit + push: `0344359` on `cursor/medoc-application-quality-2104`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

@@ -1,7 +1,34 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Logger follow-up + UI build gate repair (2026-07-26)  
+**Last closed:** Cleared TypeScript build blockers in calendar modules; revalidated frontend build/tests; documented Rust validation blockers in current runner environment.
+
+### Verified (2026-07-26 — logger follow-up)
+
+- **Fix shipped:** commit `0344359` on `cursor/medoc-application-quality-2104` removes unused-symbol build blockers in:
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- **Frontend validation:** `npm run build` **PASS**; `npm run test` **PASS** (288 passed, 3 skipped).
+- **Ledgers synced:** `validation.md`, `contradictions.md`, and `actions.md` updated with command evidence and current blockers.
+
+### Remains unverified
+
+- **Rust gate matrix in this runner:** blocked by toolchain/dependency environment:
+  - Cargo 1.83 cannot parse `edition2024` transitive dependency (`toml_edit`) for `cargo test` / `cargo clippy`.
+  - `cargo +stable` reaches build but fails SQLCipher compile because `openssl/crypto.h` is missing.
+  - `cargo fmt --check` currently reports widespread formatting drift across many Rust files.
+- **Workflow audit Steps 2–5:** full route/action state-machine register, Playwright geometry audit, and WCAG/toast/error-shape sweep were **NOT RUN** this phase.
+
+### Next
+
+1. Run Rust gates in a compatible image (Cargo edition2024-capable + OpenSSL headers) and capture fresh `cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`.
+2. Continue Step 2 workflow-map/detection pass and record non-terminable paths in `validation.md` + `contradictions.md`.
+3. Address the Vitest warning (`http-practice.adapter.test.ts` non-awaited `expect(...).rejects`) before Vitest major upgrade.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
