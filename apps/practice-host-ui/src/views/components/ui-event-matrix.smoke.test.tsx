@@ -158,7 +158,7 @@ describe("UI event matrix", () => {
         act(() => {
             vi.advanceTimersByTime(30_000);
         });
-        expect(screen.getByText("Action required")).toBeInTheDocument();
+        expect(useToastStore.getState().toasts.some((toast) => toast.message === "Action required")).toBe(true);
     });
 
     it("uses policy toast durations for success and error", () => {
