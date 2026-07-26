@@ -142,3 +142,37 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        normalize_workflow_outcome, normalize_workflow_step, sanitize_workflow_field,
+        WORKFLOW_FIELD_MAX_LEN,
+    };
+
+    #[test]
+    fn sanitize_workflow_field_masks_secrets() {
+        let got = sanitize_workflow_field(Some("token=abcd1234"));
+        assert_eq!(got.as_deref(), Some("token=***"));
+    }
+
+    #[test]
+    fn sanitize_workflow_field_truncates_long_values() {
+        let input = "x".repeat(WORKFLOW_FIELD_MAX_LEN + 20);
+        let got = sanitize_workflow_field(Some(&input)).expect("value");
+        assert_eq!(got.len(), WORKFLOW_FIELD_MAX_LEN);
+    }
+
+    #[test]
+    fn normalize_step_rejects_unknown_values() {
+        assert_eq!(normalize_workflow_step("route_enter"), "route_enter");
+        assert_eq!(normalize_workflow_step("anything_else"), "unknown");
+    }
+
+    #[test]
+    fn normalize_outcome_rejects_unknown_values() {
+        assert_eq!(normalize_workflow_outcome(Some("success")), "success");
+        assert_eq!(normalize_workflow_outcome(Some("bad")), "unknown");
+        assert_eq!(normalize_workflow_outcome(None), "unknown");
+    }
+}
