@@ -1,0 +1,239 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch for the draft PR"
+        required: false
+        default: "main"
+      failure_context:
+        description: "Optional failing signal summary"
+        required: false
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve source refs
+        id: refs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "checkout_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "failure_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+            echo "failure_context=verify workflow_run failure on main" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "failure_url=manual-dispatch" >> "$GITHUB_OUTPUT"
+            echo "failure_context=${{ inputs.failure_context }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.checkout_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=pnpm run" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=npm run" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            npm ci
+          fi
+
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          set +e
+          RUN_CMD="${{ steps.pm.outputs.run_cmd }}"
+          $RUN_CMD typecheck > /tmp/fix-proposal-before.log 2>&1
+          typecheck_status=$?
+          cargo test --workspace >> /tmp/fix-proposal-before.log 2>&1
+          cargo_status=$?
+          set -e
+
+          if [ "$typecheck_status" -eq 0 ] && [ "$cargo_status" -eq 0 ]; then
+            echo "status=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=1" >> "$GITHUB_OUTPUT"
+          fi
+          echo "typecheck_status=$typecheck_status" >> "$GITHUB_OUTPUT"
+          echo "cargo_status=$cargo_status" >> "$GITHUB_OUTPUT"
+
+      - name: Fail early when no Codex API key is configured
+        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        run: |
+          echo "OPENAI_API_KEY secret is required for Tier 3 fix proposals."
+          exit 1
+
+      - name: Attempt an agent fix
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        uses: openai/codex-action@main
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            You are creating a CI fix proposal for the MeDoc repository.
+            Failure context: ${{ steps.refs.outputs.failure_context }}
+            Failure run URL: ${{ steps.refs.outputs.failure_url }}
+
+            Requirements:
+            - Apply only minimal, high-confidence changes needed to address failing test, advisory, or type errors.
+            - Never modify release or merge state.
+            - Never modify security/audit/crypto/RBAC code unless absolutely required; if touched, leave an explicit note in the commit message body.
+            - Keep changes auditable and deterministic.
+            - Run `npm run typecheck` and `cargo test --workspace` after edits.
+            - Stop after preparing a clean fix proposal branch state.
+          codex_args: '["--config","sandbox_mode=\"workspace-write\""]'
+
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          set +e
+          RUN_CMD="${{ steps.pm.outputs.run_cmd }}"
+          $RUN_CMD typecheck > /tmp/fix-proposal-after.log 2>&1
+          typecheck_status=$?
+          cargo test --workspace >> /tmp/fix-proposal-after.log 2>&1
+          cargo_status=$?
+          set -e
+
+          if [ "$typecheck_status" -eq 0 ] && [ "$cargo_status" -eq 0 ]; then
+            echo "status=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=1" >> "$GITHUB_OUTPUT"
+          fi
+          echo "typecheck_status=$typecheck_status" >> "$GITHUB_OUTPUT"
+          echo "cargo_status=$cargo_status" >> "$GITHUB_OUTPUT"
+
+      - name: Scan changed files for restricted areas
+        id: changed
+        run: |
+          git diff --name-only > /tmp/fix-proposal-changed-files.txt
+          if [ -s /tmp/fix-proposal-changed-files.txt ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -Eiq '(security|audit|crypto|rbac)' /tmp/fix-proposal-changed-files.txt; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop when no candidate fix was produced
+        if: steps.changed.outputs.has_changes == 'false'
+        run: |
+          echo "No code changes were produced by the fix proposal run."
+          exit 1
+
+      - name: Build draft PR body
+        run: |
+          cat > /tmp/fix-proposal-pr-body.md <<'EOF'
+          ## CI fix proposal
+
+          This draft PR was generated by the Tier 3 fix-proposal workflow.
+
+          ### Failure source
+          - Trigger: `${{ github.event_name }}`
+          - Failure context: `${{ steps.refs.outputs.failure_context }}`
+          - Failure run URL: ${{ steps.refs.outputs.failure_url }}
+
+          ### Before (failing signal replay)
+          - `npm run typecheck` exit code: `${{ steps.before.outputs.typecheck_status }}`
+          - `cargo test --workspace` exit code: `${{ steps.before.outputs.cargo_status }}`
+          - Combined status: `${{ steps.before.outputs.status }}`
+
+          ```text
+          EOF
+          tail -n 200 /tmp/fix-proposal-before.log >> /tmp/fix-proposal-pr-body.md
+          cat >> /tmp/fix-proposal-pr-body.md <<'EOF'
+          ```
+
+          ### After (post-fix replay)
+          - `npm run typecheck` exit code: `${{ steps.after.outputs.typecheck_status }}`
+          - `cargo test --workspace` exit code: `${{ steps.after.outputs.cargo_status }}`
+          - Combined status: `${{ steps.after.outputs.status }}`
+
+          ```text
+          EOF
+          tail -n 200 /tmp/fix-proposal-after.log >> /tmp/fix-proposal-pr-body.md
+          cat >> /tmp/fix-proposal-pr-body.md <<'EOF'
+          ```
+          EOF
+
+      - name: Open draft PR (standard)
+        if: steps.changed.outputs.has_changes == 'true' && steps.changed.outputs.restricted != 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: ${{ steps.refs.outputs.base_ref }}
+          commit-message: "ci: propose fix for failing verify gate"
+          title: "ci: draft fix proposal for failing verify gate"
+          body-path: /tmp/fix-proposal-pr-body.md
+          draft: true
+          labels: |
+            ci-fix-proposal
+
+      - name: Open draft PR (restricted paths touched)
+        if: steps.changed.outputs.has_changes == 'true' && steps.changed.outputs.restricted == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: ${{ steps.refs.outputs.base_ref }}
+          commit-message: "ci: propose fix requiring human security review"
+          title: "ci: draft fix proposal (needs human review)"
+          body-path: /tmp/fix-proposal-pr-body.md
+          draft: true
+          labels: |
+            ci-fix-proposal
+            needs-human-review
