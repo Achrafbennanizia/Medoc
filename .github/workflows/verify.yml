@@ -1,0 +1,192 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo install cargo-audit --locked || true
+      - run: cargo audit
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            npm ci
+          fi
+      - name: Lint (no --fix)
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run lint
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run lint
+          else
+            npm run lint -w medoc
+          fi
+      - name: Type check workspace apps
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run typecheck
+            pnpm --filter medoc-lan-web-client run typecheck
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run typecheck
+            yarn workspace medoc-lan-web-client run typecheck
+          else
+            npm run typecheck -w medoc
+            npm run typecheck -w medoc-lan-web-client
+          fi
+      - name: Run tests
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run test
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run test
+          else
+            npm run test -w medoc
+          fi
+      - name: Build workspace apps
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run build
+            pnpm --filter medoc-lan-web-client run build
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run build
+            yarn workspace medoc-lan-web-client run build
+          else
+            npm run build -w medoc
+            npm run build -w medoc-lan-web-client
+          fi
+
+  a11y:
+    name: a11y
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            npm ci
+          fi
+      - name: Build web UI
+        shell: bash
+        run: |
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run build
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run build
+          else
+            npm run build -w medoc
+          fi
+      - name: Run axe-core against built UI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+            pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+          elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+            yarn workspace medoc run preview --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+          else
+            npm run preview -w medoc -- --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+          fi
+          PREVIEW_PID=$!
+          trap 'kill "${PREVIEW_PID}" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:4173" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -fsS "http://127.0.0.1:4173" >/dev/null; then
+            echo "Preview server did not become ready."
+            cat /tmp/medoc-preview.log
+            exit 1
+          fi
+
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" --tags "wcag2a,wcag2aa,wcag21aa" --save "axe-results.json" || true
+          node scripts/assert-axe-critical.mjs "axe-results.json"
