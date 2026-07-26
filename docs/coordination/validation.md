@@ -1,6 +1,32 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (Application quality run)
+
+## Application quality run — workflow + UI audit (2026-07-26)
+
+### Findings register (Step 2 / Step 4 / Step 5)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| WF-2026-07-26-01 | `config/rbac.yaml`, `packages/shared/src/lib/rbac.ts` | Role-gated workflow mismatch: `REZEPTION` is granted `verwaltung.lager.read` / `verwaltung.vertraege.read` / `verwaltung.kataloge.read` in RBAC config, but UI route guard blocks every `verwaltung*` path for `REZEPTION`. | `rg` on `config/rbac.yaml` shows those actions include REZEPTION; `rbac.ts` contains `if (role === "REZEPTION" && routePath.startsWith("verwaltung")) return false;` | **P1** | Resolve contradiction C9 by choosing canonical policy (tighten RBAC matrix or relax route guard) and add explicit route-visibility tests for affected Verwaltung routes. |
+| WF-2026-07-26-02 | `apps/practice-host-ui/src/index.css`, `apps/practice-host-ui/e2e-playwright/ui-quality-audit.spec.ts` | Mobile/tablet overflow (<1024px) is expected under current desktop viewport contract, not a random regression. | Debug run at 375px returned `scrollWidth: 1024`; CSS sets `--app-viewport-min-width: 1024px` and applies it to `html/body/#root` and `.app`. | **P2** | Keep as explicit policy for desktop-only UX; Playwright now asserts overflow expectation below `min-width` and no mismatch at audited breakpoints. |
+| WF-2026-07-26-03 | `apps/practice-host-ui/src/**` | Frontend lint gate remains red with pre-existing hook/compiler violations. | `npm run lint -w medoc` → 19 errors / 38 warnings (`react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, `react-hooks/refs`). | **P1** | Separate fix PR for lint baseline (no speculative refactor): fix hook ordering/memo dependencies/ref writes during render. |
+
+### Validation commands (this run)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Tailwind arbitrary spacing lint | `npm run lint:tailwind-spacing -w medoc` (via `npm run lint -w medoc`) | **PASS** — `tailwind-spacing-lint: no arbitrary spacing utilities found` |
+| Frontend lint | `npm run lint -w medoc` | **FAIL** — pre-existing lint baseline (19 errors, 38 warnings) |
+| Frontend tests | `npm run test -w medoc` | **PASS** — 291 passed, 3 skipped |
+| Frontend build | `npm run build -w medoc` | **PASS** |
+| Playwright geometry/spacing/a11y audit | `npm run test:playwright -w medoc` | **PASS** — 3 passed, 3 skipped (`lan-server.spec.ts` skipped in this environment) |
+| Playwright browser install | `npx playwright install chromium` | **PASS** |
+| Rust fmt (full workspace) | `cargo fmt --all -- --check` | **FAIL** — pre-existing widespread formatting drift outside this change set |
+| Rust clippy (full workspace) | `MEDOC_VENDOR_PUBKEY=… cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL** — environment blocker: missing system `gdk-3.0` (`gdk-sys` pkg-config error) |
+| Rust tests (full workspace) | `MEDOC_VENDOR_PUBKEY=… cargo +stable test --workspace --tests` | **FAIL** — same `gdk-3.0` environment blocker |
+| Rust clippy (non-Tauri scope) | `MEDOC_VENDOR_PUBKEY=… cargo +stable clippy -p medoc-core -p medoc-sync -p medoc-lan -p medoc-company -p medoc-lan-server -p medoc-company-server --all-targets -- -D warnings` | **PASS** |
+| Rust tests (non-Tauri scope) | `MEDOC_VENDOR_PUBKEY=… cargo +stable test -p medoc-core -p medoc-sync -p medoc-lan -p medoc-company -p medoc-lan-server -p medoc-company-server --tests` | **PASS** |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,8 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | REZEPTION route gating vs RBAC action matrix | `config/rbac.yaml` grants `REZEPTION` access to `verwaltung.lager.read`, `verwaltung.vertraege.read`, `verwaltung.kataloge.read` | `packages/shared/src/lib/rbac.ts` hard-blocks all `verwaltung*` routes for `REZEPTION` (`if (role === "REZEPTION" && routePath.startsWith("verwaltung")) return false`) | **Open contradiction / workflow blocker** — permitted role cannot complete those routes in UI. Decide canonical policy (tighten YAML or relax route guard) and align tests. |
+| C10 | Responsive audit breakpoint policy vs desktop viewport contract | Step-4 audit requires snapshots at 375/768/1259 and checks overflow | CSS contract enforces `--app-viewport-min-width: 1024px`; `html, body, #root` and `.app` use that min-width (`apps/practice-host-ui/src/index.css`) causing expected overflow below 1024px | **Documented divergence** — Playwright audit now asserts overflow for viewports below configured min-width; product decision needed if true mobile support is required. |
 
 ## Resolved (recent)
 

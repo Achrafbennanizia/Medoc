@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Application quality run — workflow + UI audit (2026-07-26)  
+**Last closed:** Step-2 findings register, Playwright geometry/a11y execution, ledger synchronization.
+
+### Verified (2026-07-26 — workflow + UI audit)
+
+- **Workflow bridge/logging surfaces present:** `WorkflowRouteObserver` calls `logWorkflowRouteEnter`; backend command `log_workflow_step` records into `medoc::workflow` channel; Tauri invoke handler logs command receive/dispatch.
+- **Domain workflow state machines covered in code + tests:** `workflow_transitions.rs` and `apps/practice-host/tests/domain_services_tests.rs` validate transitions for `termin`, `patientenakte`, `praxis_aufgabe`, `praxis_ticket`, `bestellung`.
+- **Playwright quality suite runs in this environment:** `npm run test:playwright -w medoc` now passes (3 passed, 3 skipped) after Chromium install and overflow assertion alignment to configured `min-width`.
+- **Frontend core validation:** `npm run test -w medoc` PASS (291/294 with 3 skipped); `npm run build -w medoc` PASS.
+- **Findings register updated:** new findings recorded in `validation.md`; contradictions `C9` and `C10` opened/updated.
+
+### Remains unverified
+
+- Full Rust workspace gates (`cargo +stable clippy/test --workspace`) remain blocked by missing host package `gdk-3.0` (`gdk-sys` pkg-config failure).
+- Full workspace rustfmt gate is still red due widespread pre-existing formatting drift (`cargo fmt --all -- --check`).
+- Live Tauri UI workflow execution to observe emitted `workflow.log` lines is **NOT OBSERVED** in this run.
+
+### Understanding delta
+
+- Route/action mismatch is now explicit: RBAC matrix allows some `verwaltung.*` actions for `REZEPTION`, but route guard currently blocks all `verwaltung*` paths for that role (C9).
+- The 375/768 breakpoint overflow is currently policy-driven (desktop `min-width: 1024px`), not random layout breakage; test harness now encodes that policy while preserving screenshot/geometry/a11y coverage (C10).
+
+### Next
+
+1. Resolve contradiction C9 (align UI route guard with RBAC policy or tighten RBAC matrix) in a dedicated fix PR with failing-before/passing-after route test.
+2. Address frontend lint baseline errors in a dedicated PR (`react-hooks`/memoization/ref constraints).
+3. Re-run full Rust workspace checks once `gdk-3.0` system dependency is available on host.
+4. Optionally execute a live Tauri smoke to capture real `workflow.log` evidence end-to-end.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
