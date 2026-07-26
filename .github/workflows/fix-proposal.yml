@@ -1,0 +1,252 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_class:
+        description: "Failure class that should be fixed"
+        type: choice
+        options:
+          - test
+          - advisory
+          - typecheck
+          - other
+        default: other
+        required: true
+      failing_command:
+        description: "Command that currently fails (optional override)"
+        type: string
+        required: false
+        default: ""
+      fix_command:
+        description: "Command that should attempt a fix (optional override)"
+        type: string
+        required: false
+        default: ""
+      passing_command:
+        description: "Command expected to pass after fix (optional override)"
+        type: string
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+
+      - name: Create proposal branch
+        id: branch
+        run: |
+          BRANCH="ci/fix-proposal/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+
+      - name: Resolve proposal commands
+        id: cmd
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FAILURE_CLASS="${{ github.event.inputs.failure_class }}"
+            BEFORE_CMD="${{ github.event.inputs.failing_command }}"
+            FIX_CMD="${{ github.event.inputs.fix_command }}"
+            AFTER_CMD="${{ github.event.inputs.passing_command }}"
+          else
+            FAILURE_CLASS="other"
+            BEFORE_CMD=""
+            FIX_CMD=""
+            AFTER_CMD=""
+          fi
+
+          case "$FAILURE_CLASS" in
+            advisory)
+              BEFORE_DEFAULT="cargo audit"
+              FIX_DEFAULT="bash scripts/ci/fix-proposal-default.sh advisory"
+              AFTER_DEFAULT="cargo audit"
+              ;;
+            typecheck)
+              BEFORE_DEFAULT="npm run typecheck -w medoc"
+              FIX_DEFAULT="bash scripts/ci/fix-proposal-default.sh typecheck"
+              AFTER_DEFAULT="npm run typecheck -w medoc"
+              ;;
+            test)
+              BEFORE_DEFAULT="cargo test --workspace --tests && npm run test -w medoc"
+              FIX_DEFAULT="bash scripts/ci/fix-proposal-default.sh test"
+              AFTER_DEFAULT="cargo test --workspace --tests && npm run test -w medoc"
+              ;;
+            *)
+              BEFORE_DEFAULT="cargo test --workspace --tests"
+              FIX_DEFAULT="bash scripts/ci/fix-proposal-default.sh other"
+              AFTER_DEFAULT="cargo test --workspace --tests"
+              ;;
+          esac
+
+          if [ -z "$BEFORE_CMD" ]; then BEFORE_CMD="$BEFORE_DEFAULT"; fi
+          if [ -z "$FIX_CMD" ]; then FIX_CMD="$FIX_DEFAULT"; fi
+          if [ -z "$AFTER_CMD" ]; then AFTER_CMD="$AFTER_DEFAULT"; fi
+
+          echo "failure_class=$FAILURE_CLASS" >> "$GITHUB_OUTPUT"
+          echo "before_cmd=$BEFORE_CMD" >> "$GITHUB_OUTPUT"
+          echo "fix_cmd=$FIX_CMD" >> "$GITHUB_OUTPUT"
+          echo "after_cmd=$AFTER_CMD" >> "$GITHUB_OUTPUT"
+
+      - name: Execute before/fix/after commands
+        id: runbook
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/fix-proposal
+
+          set +e
+          bash -lc '${{ steps.cmd.outputs.before_cmd }}' > .ci/fix-proposal/before.log 2>&1
+          BEFORE_EXIT=$?
+
+          bash -lc '${{ steps.cmd.outputs.fix_cmd }}' > .ci/fix-proposal/fix.log 2>&1
+          FIX_EXIT=$?
+
+          bash -lc '${{ steps.cmd.outputs.after_cmd }}' > .ci/fix-proposal/after.log 2>&1
+          AFTER_EXIT=$?
+          set -e
+
+          echo "before_exit=$BEFORE_EXIT" >> "$GITHUB_OUTPUT"
+          echo "fix_exit=$FIX_EXIT" >> "$GITHUB_OUTPUT"
+          echo "after_exit=$AFTER_EXIT" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether a diff was produced
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect sensitive path changes
+        id: sensitive
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          if git diff --name-only | grep -E "(^|/)(security|audit|crypto|rbac)(/|_|\\.)" >/dev/null; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build draft PR body
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cat > .ci/fix-proposal/pr-body.md <<'BODY'
+          ## Automated fix proposal (draft)
+
+          This draft PR was generated by the tier-3 `fix-proposal` workflow on an isolated branch.
+
+          ### Scope
+
+          - Failure class: `${{ steps.cmd.outputs.failure_class }}`
+          - Before command: `${{ steps.cmd.outputs.before_cmd }}`
+          - Fix command: `${{ steps.cmd.outputs.fix_cmd }}`
+          - After command: `${{ steps.cmd.outputs.after_cmd }}`
+
+          ### Evidence
+
+          - Before exit code: `${{ steps.runbook.outputs.before_exit }}`
+          - Fix exit code: `${{ steps.runbook.outputs.fix_exit }}`
+          - After exit code: `${{ steps.runbook.outputs.after_exit }}`
+          - Full logs are attached as workflow artifacts (`fix-proposal-logs`).
+
+          ### Human review checklist
+
+          - [ ] Confirm rationale and safety of every changed file.
+          - [ ] Re-run verify checks on this branch.
+          - [ ] Confirm no release/protected branch mutation happened.
+          - [ ] Merge manually if and only if all checks are green.
+          BODY
+
+      - name: Open draft PR
+        id: cpr
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: main
+          branch: ${{ steps.branch.outputs.name }}
+          commit-message: "ci: fix proposal for ${{ steps.cmd.outputs.failure_class }}"
+          title: "ci(fix-proposal): attempt fix for ${{ steps.cmd.outputs.failure_class }}"
+          body-path: .ci/fix-proposal/pr-body.md
+          draft: true
+
+      - name: Label sensitive proposals
+        if: steps.cpr.outputs.pull-request-number != '' && steps.sensitive.outputs.touched == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+
+      - name: Stop on sensitive surfaces
+        if: steps.cpr.outputs.pull-request-number != '' && steps.sensitive.outputs.touched == 'true'
+        run: |
+          echo "Sensitive code path touched (security/audit/crypto/RBAC)."
+          echo "Draft PR labeled needs-human-review; stopping automation."
+          exit 1
+
+      - name: Upload proposal logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs
+          path: .ci/fix-proposal/*.log
+
+      - name: No changes produced
+        if: steps.changes.outputs.has_changes != 'true'
+        run: |
+          echo "Fix proposal did not produce a diff. No PR opened."

@@ -1,0 +1,90 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main' && !startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Guard protected/release-like branch names
+        run: |
+          case "${{ github.event.pull_request.head.ref }}" in
+            main|release/*|v*)
+              echo "Autofix is disabled on protected/release-like branches."
+              exit 1
+              ;;
+          esac
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+
+      - name: Apply deterministic fixes
+        run: |
+          cargo fmt --all
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm --filter medoc lint -- --fix || true
+              pnpm --filter medoc format || true
+              ;;
+            yarn)
+              yarn workspace medoc lint -- --fix || true
+              yarn workspace medoc format || true
+              ;;
+            npm)
+              npm run lint -w medoc -- --fix || true
+              npm run format -w medoc || true
+              ;;
+          esac
+
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then
+            echo "No deterministic fixes were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply automated formatting and lint fixes"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
