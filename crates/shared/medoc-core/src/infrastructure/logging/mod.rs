@@ -1,11 +1,12 @@
 // Logging & Observability infrastructure (NFA-LOG-01..10)
 //
-// 7 log channels:
+// 8 log channels:
 //   - app.log        : structured application log (JSON)
 //   - security.log   : auth events, brute-force lockouts
 //   - system.log     : start/stop, config, migrations, updates
 //   - device.log     : DICOM/GDT/TWAIN/USB events
 //   - migration.log  : import operations
+//   - workflow.log   : frontend workflow route/action lifecycle events
 //   - perf.log       : slow requests / queries
 //   - audit_log (DB) : user actions (handled separately by audit_repo)
 
@@ -33,6 +34,7 @@ pub struct LogGuards {
     _system: WorkerGuard,
     _device: WorkerGuard,
     _migration: WorkerGuard,
+    _workflow: WorkerGuard,
     _perf: WorkerGuard,
 }
 
@@ -58,6 +60,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let system_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "system.log");
     let device_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "device.log");
     let migration_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "migration.log");
+    let workflow_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "workflow.log");
     let perf_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "perf.log");
 
     let (app_w, app_g) = tracing_appender::non_blocking(app_appender);
@@ -65,6 +68,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let (sys_w, sys_g) = tracing_appender::non_blocking(system_appender);
     let (dev_w, dev_g) = tracing_appender::non_blocking(device_appender);
     let (mig_w, mig_g) = tracing_appender::non_blocking(migration_appender);
+    let (workflow_w, workflow_g) = tracing_appender::non_blocking(workflow_appender);
     let (perf_w, perf_g) = tracing_appender::non_blocking(perf_appender);
 
     let json = |writer| {
@@ -102,6 +106,9 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         json(mig_w)
             .with_filter(EnvFilter::new("medoc::migration=info"))
             .boxed(),
+        json(workflow_w)
+            .with_filter(EnvFilter::new("medoc::workflow=info"))
+            .boxed(),
         json(perf_w)
             .with_filter(EnvFilter::new("medoc::perf=info"))
             .boxed(),
@@ -115,6 +122,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         _system: sys_g,
         _device: dev_g,
         _migration: mig_g,
+        _workflow: workflow_g,
         _perf: perf_g,
     })
 }
@@ -154,5 +162,12 @@ macro_rules! log_migration {
 macro_rules! log_perf {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::perf", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }

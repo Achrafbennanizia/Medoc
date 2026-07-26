@@ -1,5 +1,39 @@
 # Phase handoff
 
+**Last phase label:** Workflow build-gate follow-up (2026-07-26)  
+**Last closed:** WQ-BUILD-001 TypeScript `TS6133` cleanup in termin scheduling/layout modules.
+
+### Verified (2026-07-26 — build blocker repair)
+
+- **Failure reproduction:** `npm run build` failed with 5 `TS6133` unused-symbol diagnostics across termin helpers.
+- **Scoped fix:** commit `ee525d2` removed only unused symbols in:
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- **Post-fix validation:** `npm run build` **PASS**; `npm test` **PASS** (291 passed, 3 skipped).
+- **No sensitive-surface edits:** no security/audit/RBAC/crypto production logic changed in this phase.
+
+### Remains unverified / failing
+
+- `cargo fmt --all -- --check` **FAIL** (pre-existing workspace formatting drift).
+- `cargo clippy --workspace --all-targets -- -D warnings` **FAIL** (`clippy::assertions_on_constants` in `mvp_security_gates_tests.rs`).
+- `cargo test --workspace --tests` **FAIL** (`auth_session_audit_tests` seat-cap fixture failure).
+- Playwright geometry/spacing audit + axe pass + full workflow state-machine enumeration are **NOT RUN** this cycle.
+
+### Understanding delta
+
+- `WQ-BUILD-001` was a pure TypeScript hygiene blocker and is now closed without behavior changes.
+- The remaining CI blockers are Rust quality/fixture issues and currently include security/auth test surfaces; they should be handled with explicit human review.
+- Step 4/5 instrumentation-driven audits (Playwright geometry + accessibility sweep) remain outstanding despite the build gate now being green.
+
+### Must happen next
+
+1. Resolve open Rust blockers from `contradictions.md`: `WQ-RUST-001`, `WQ-RUST-002`, `WQ-RUST-003` (human-reviewed for security/auth-adjacent tests).
+2. Add Playwright geometry/spacing checks and static arbitrary-Tailwind lint gate (Step 4 backlog).
+3. Expand workflow-state findings register with component/page event-coverage gaps and a11y rule violations (Steps 2–5 backlog).
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

@@ -1,6 +1,39 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (workflow build-gate follow-up)
+
+## Workflow quality follow-up — build gate repair (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend build (pre-fix) | `npm run build` | **FAIL** — `TS6133` unused symbols (`resolveEffectiveArbeitszeitenForArzt`, `fallback`, `deriveTerminTimelineBounds`). |
+| Frontend build (post-fix commit `ee525d2`) | `npm run build` | **PASS** — `tsc && vite build` completed; artifacts emitted to `dist/`. |
+| Frontend regression suite | `npm test` | **PASS** — 291 passed, 3 skipped. |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — pre-existing formatting drift across many workspace files. |
+| Rust clippy gate | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `clippy::assertions_on_constants` in `crates/shared/medoc-core/tests/mvp_security_gates_tests.rs`. |
+| Rust workspace tests | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test --workspace --tests` | **FAIL** — `auth_session_audit_tests` seat-cap constraint (`Maximal 1 Arzt-Konto erlaubt`). |
+
+**Scope note:** This run only touched UI scheduling/layout TypeScript hygiene; no security/audit/RBAC/crypto production logic was modified.
+
+## Workflow logging + UI timing sweep — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| FE workflow bridge unit tests | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (4/4) |
+| Rust workflow helper tests | `cargo test -p medoc-practice workflow_` | **PASS** (2 tests in `commands::system::logging::tests`) |
+| Toast timing failing-before | `npm run test -w medoc -- ../../packages/ui/src/toast-store.test.ts` (before fix commit `4d7aa62`) | **FAIL** — expected error toast 5000ms, got 6000ms |
+| Toast timing passing-after | same command after fix commit `4d7aa62` | **PASS** (1/1) |
+| Smoke regression fix (route logger/onboarding mocks) | `npm run test -w medoc -- src/critical-flows.smoke.test.tsx src/g21-routing.smoke.test.tsx` | **PASS** (7 passed, 1 skipped + 1 passed) |
+| Full frontend tests | `npm test` | **PASS** — 291 passed, 3 skipped |
+| Frontend build | `npm run build` | **FAIL** — TS6133 unused symbol errors in termin helper files |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — pre-existing formatting drift across many files |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — constant assertion lint in `mvp_security_gates_tests.rs` |
+| Rust workspace tests | `cargo test --workspace --tests` | **FAIL** — `auth_session_audit_tests` seat-cap constraint (`Maximal 1 Arzt-Konto erlaubt`) |
+
+**Environment remediations applied this run (for reproducibility):**
+
+- Upgraded Rust toolchain to `rustc/cargo 1.97.1`.
+- Installed Linux build dependencies used by Tauri/sqlcipher checks: `libssl-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
