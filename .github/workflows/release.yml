@@ -25,6 +25,9 @@ jobs:
   build:
     needs: gate
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
