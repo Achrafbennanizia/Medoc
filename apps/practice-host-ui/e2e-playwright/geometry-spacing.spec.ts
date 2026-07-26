@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 const BREAKPOINTS = [
-    { name: "mobile-375", width: 375, height: 900, expectedShellPadding: "16px", expectedShellGap: "16px" },
-    { name: "tablet-768", width: 768, height: 1024, expectedShellPadding: "24px", expectedShellGap: "24px" },
-    { name: "desktop-1259", width: 1259, height: 900, expectedShellPadding: "32px", expectedShellGap: "32px" },
+    { name: "mobile-375", width: 375, height: 900, expectedShellPadding: "14px", expectedShellGap: "14px" },
+    { name: "tablet-768", width: 768, height: 1024, expectedShellPadding: "21px", expectedShellGap: "21px" },
+    { name: "desktop-1259", width: 1259, height: 900, expectedShellPadding: "28px", expectedShellGap: "28px" },
 ] as const;
 
 test.describe("geometry + spacing audit fixture", () => {
@@ -33,7 +33,7 @@ test.describe("geometry + spacing audit fixture", () => {
             expect(shellStyle.gap).toBe(bp.expectedShellGap);
 
             const buttonRowGap = await page.getByTestId("button-row").evaluate((el) => getComputedStyle(el).gap);
-            expect(buttonRowGap).toBe("16px");
+            expect(buttonRowGap).toBe("14px");
 
             // Capture deterministic snapshots per required responsive breakpoint.
             await page.screenshot({
