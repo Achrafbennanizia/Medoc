@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +10,26 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::log_system;
+
+const WORKFLOW_FIELD_MAX: usize = 256;
+
+fn sanitize_workflow_value(raw: &str) -> String {
+    let cleaned = logging::sanitizer::sanitize(raw.trim());
+    if cleaned.chars().count() <= WORKFLOW_FIELD_MAX {
+        return cleaned;
+    }
+    cleaned.chars().take(WORKFLOW_FIELD_MAX).collect()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowLogEvent {
+    pub step: String,
+    pub route: String,
+    pub action: Option<String>,
+    pub command: Option<String>,
+    pub detail: Option<String>,
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -56,6 +77,46 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+/// Sanitized frontend workflow bridge: route + action lifecycle into `workflow.log`.
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event))]
+pub fn log_workflow_event(event: WorkflowLogEvent) -> Result<(), AppError> {
+    let step = sanitize_workflow_value(&event.step);
+    if step.is_empty() {
+        return Err(AppError::Validation("workflow step fehlt".into()));
+    }
+    let route = sanitize_workflow_value(&event.route);
+    if route.is_empty() {
+        return Err(AppError::Validation("workflow route fehlt".into()));
+    }
+    let action = event
+        .action
+        .as_deref()
+        .map(sanitize_workflow_value)
+        .unwrap_or_default();
+    let command = event
+        .command
+        .as_deref()
+        .map(sanitize_workflow_value)
+        .unwrap_or_default();
+    let detail = event
+        .detail
+        .as_deref()
+        .map(sanitize_workflow_value)
+        .unwrap_or_default();
+
+    crate::log_workflow!(
+        info,
+        event = "UI_WORKFLOW_STEP",
+        step = %step,
+        route = %route,
+        action = %action,
+        command = %command,
+        detail = %detail,
+    );
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +126,26 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_workflow_value;
+
+    #[test]
+    fn workflow_sanitizer_masks_secrets() {
+        let redacted = sanitize_workflow_value("password=clear-text token=abc");
+        assert!(redacted.contains("password=***"));
+        assert!(redacted.contains("token=***"));
+        assert!(!redacted.contains("clear-text"));
+    }
+
+    #[test]
+    fn workflow_sanitizer_truncates_very_long_values() {
+        let raw = "a".repeat(400);
+        let cleaned = sanitize_workflow_value(&raw);
+        assert_eq!(cleaned.chars().count(), 256);
+    }
 }
