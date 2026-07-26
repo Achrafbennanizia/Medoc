@@ -1,6 +1,40 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (application quality run)
+
+## Application quality run — verification (2026-07-26)
+
+### Commits produced in this run
+
+- `27e728d` — STEP 1 workflow log channel + sanitized frontend/backend bridge.
+- `953a3af` — STEP 3/4/5 audit harness (workflow/dialog tests, spacing lint, Playwright fixture/spec).
+- `6257367` — STEP 6 fix: smoke workflow mock gap (`onboarding_subscription_status`).
+- `fa1df6d` — STEP 6 fix: TS6133 build blockers + arbitrary spacing token replacement.
+- `806c6f9` — STEP 4 fix: fixture bundled in Vite build + breakpoint snapshot artifacts.
+
+### Command evidence
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo +stable fmt --all -- --check` | **FAIL (baseline)** — widespread pre-existing formatting drift (see `agent-tools/17164706-c64c-46b5-8eec-08804e14a0d1.txt`). |
+| Rust clippy | `cargo +stable clippy --workspace --all-targets -- -D warnings` (with `MEDOC_VENDOR_PUBKEY`, `MEDOC_DB_KEY`, `MEDOC_AUDIT_KEY`) | **FAIL (baseline)** — `mvp_security_gates_tests` constant-assert lints + pre-existing `medoc-practice` clippy findings (`type_complexity`, `if_same_then_else`, `collapsible_if`, `for_kv_map`). |
+| Rust tests | `cargo +stable test --workspace --tests` (same env) | **FAIL (baseline)** — `auth_session_audit_tests::authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` fails with SQLite code 1811 (“Maximal 1 Arzt-Konto erlaubt”). |
+| Frontend tests | `npm test` | **PASS** — 64 files passed, 294 tests passed, 3 skipped. |
+| Frontend build | `npm run build` | **PASS** — `tsc && vite build` completed, bundle produced. |
+| Spacing lint | `npm run lint:spacing -w medoc` | **PASS** — no arbitrary spacing tokens after fix. |
+| Geometry + keyboard audit | `npm run test:playwright -w medoc -- e2e-playwright/geometry-spacing.spec.ts` | **PASS** — 4/4 tests at 375/768/1259 breakpoints; snapshots written to `apps/practice-host-ui/test-results/geometry-*.png`. |
+| Targeted smoke regression proof | `npm run test -w medoc -- src/critical-flows.smoke.test.tsx src/g21-routing.smoke.test.tsx` | **PASS** — 7 passed, 1 skipped after onboarding mock fix. |
+
+### Findings register (STEP 2/4/5 + STEP 6 actions)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| AQ-2026-07-26-01 | `src/g21-routing.smoke.test.tsx`, `src/critical-flows.smoke.test.tsx` | Workflow tests were non-terminable in harness due missing `onboarding_subscription_status` mock (threw unmocked IPC). | Prior failing `npm test` logs showed 3 failures; fixed in `6257367`; targeted rerun passed. | P0 | **Fixed** (mock added in both suites). |
+| AQ-2026-07-26-02 | `packages/shared/src/lib/termin-availability.ts`, `packages/shared/src/lib/termin-calendar-layout.ts`, `termin-week-day-grid.tsx` | Build blocked by TS6133 unused symbols. | `npm run build` previously failed; now passes after `fa1df6d`. | P0 | **Fixed** (unused imports/parameter removed). |
+| AQ-2026-07-26-03 | `behandlung-akte-composer-panel.tsx` | Off-scale arbitrary Tailwind spacing token `min-h-[72px]`. | `npm run lint:spacing -w medoc` failure before fix. | P1 | **Fixed** (`min-h-20`). |
+| AQ-2026-07-26-04 | `packages/ui/src/toast-store.ts`, `src/index.css` | Toast policy mismatch vs run criteria (top-right, 6s error, no explicit persistent action-required contract). | Static code inspection in this run; tracked in contradictions **C9**. | P1 | **Open** — requires product-aligned UI change. |
+| AQ-2026-07-26-05 | `verbund-onboarding-gate.tsx`, `license-and-pairing-gate.tsx` | Async gate loading paths have no timeout branch; hung promise can keep loading state indefinitely. | Direct code inspection; tracked in contradictions **C10**. | P1 | **Open** — add bounded timeout/fallback. |
+| AQ-2026-07-26-06 | `mvp_security_gates_tests.rs`, auth quota path | Rust red gates persist in restricted security surface. | Clippy/test failures unchanged; tracked in contradictions **C11**. | P0 (release gate) | **Open / Escalate** — human-reviewed security-area remediation needed. |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

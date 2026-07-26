@@ -1,7 +1,15 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-07-26  
 **Scope:** Canonical statements supported by repository evidence.
+
+## Application quality run (2026-07-26) — stable truth
+
+- Workflow telemetry now has a dedicated backend log channel `workflow.log` plus frontend bridge events (`route_enter`, `primary_action`, `success`, `cancel`, `error`), all routed through sanitizer paths (`crates/shared/medoc-core/src/infrastructure/logging/*`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `apps/practice-host-ui/src/services/*`).
+- Frontend workflow smokes that previously failed on missing onboarding IPC mocks now pass after explicit `onboarding_subscription_status` mocking (`critical-flows.smoke.test.tsx`, `g21-routing.smoke.test.tsx`).
+- A static Tailwind spacing guard now exists at `scripts/lint-tailwind-spacing.mjs` with app script `npm run lint:spacing -w medoc`.
+- Playwright geometry audit harness exists at `apps/practice-host-ui/e2e-playwright/geometry-spacing.spec.ts` with fixture entry `geometry-fixture.html`; breakpoint snapshots are tracked under `apps/practice-host-ui/test-results/geometry-*.png`.
+- Frontend validation is green on this branch (`npm test`, `npm run build`, `npm run lint:spacing`, geometry Playwright spec). Rust global gates remain red on pre-existing security-surface issues (see `validation.md`, contradictions `C11`).
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 

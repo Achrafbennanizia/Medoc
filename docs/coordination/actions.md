@@ -1,6 +1,29 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (application quality run)
+
+## Now
+
+1. Resolve **C9** toast policy mismatch (position + duration + persistent action-required semantics).
+2. Resolve **C10** unbounded gate-loading branches (`VerbundOnboardingGate`, `LicenseAndPairingGate`) with explicit timeout/fallback.
+3. Escalate **C11** Rust security-area validation blockers for human-reviewed handling.
+
+## Done (2026-07-26 — application quality run)
+
+- STEP 1 instrumentation previously completed and now committed/pushed in dedicated slice (`27e728d`).
+- STEP 3 test harness added:
+  - `src/services/tauri.service.test.ts` (workflow event emission around invoke)
+  - `packages/ui/src/dialog.test.tsx` (cancel + keyboard close behavior)
+- STEP 4 geometry/spacings audit tooling added:
+  - static linter `scripts/lint-tailwind-spacing.mjs`
+  - Playwright fixture/spec (`geometry-fixture.html`, `geometry-fixture.ts`, `geometry-spacing.spec.ts`)
+  - breakpoint snapshots at 375 / 768 / 1259 (`apps/practice-host-ui/test-results/geometry-*.png`)
+- STEP 6 fixes delivered in isolated commits:
+  - smoke-flow mock repair for `onboarding_subscription_status` (`6257367`)
+  - TS build + spacing-token fixes (`fa1df6d`)
+  - Playwright fixture build-input stabilization (`806c6f9`)
+- Frontend matrix now green: `npm test`, `npm run build`, `npm run lint:spacing`, Playwright geometry spec.
+- Rust red gates remain unchanged from baseline and are logged as **C11**.
 
 ## Now
 

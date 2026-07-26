@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,9 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Toast UX policy mismatch | STEP 5 acceptance criteria (bottom-right, 3s success / 5s error / persistent action-required) | `packages/ui/src/toast-store.ts` defaults `error: 6000`; `apps/practice-host-ui/src/index.css` `.toast-stack` uses `top/right`; no explicit persistent action-required policy | **Open** — needs product/UI decision + implementation pass. |
+| C10 | Terminability timeout gap | STEP 2 requirement: no unbounded spinner path | `verbund-onboarding-gate.tsx` and `license-and-pairing-gate.tsx` async checks have retry on explicit error but no timeout/abort branch on hung promise | **Open** — add bounded timeout + fallback branch in both gates. |
+| C11 | Rust validation gate vs restricted edit zones | Ground rule: do not autonomously edit security/audit/crypto/RBAC/compliance code | Remaining red gates are concentrated in `mvp_security_gates_tests` and auth quota path (`auth_session_audit_tests`) | **Open / Escalate** — requires human-reviewed security-area changes or explicit exemption. |
 
 ## Resolved (recent)
 
