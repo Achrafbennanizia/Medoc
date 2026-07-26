@@ -81,6 +81,7 @@ describe("critical flow (a) login → dashboard → logout", () => {
         sessionHold = null;
         resetAuthStore();
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+            if (cmd === "log_workflow_event") return undefined;
             switch (cmd) {
                 case "get_db_setup_status":
                     return { needsPassphraseSetup: false, needsUnlock: false };
@@ -131,6 +132,16 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     return { valid: true, format: "v1" };
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-praxis",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 1,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 case "get_dashboard_stats":
                     return {
                         patienten_gesamt: 0,
@@ -185,6 +196,7 @@ describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm",
     beforeEach(() => {
         calls.length = 0;
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+            if (cmd === "log_workflow_event") return undefined;
             calls.push(cmd);
             if (cmd === "create_patient") return MOCK_PATIENT;
             if (cmd === "get_akte") return MOCK_AKTE;
@@ -255,6 +267,7 @@ describe("critical flow (c) termin → durchgeführt → zahlung → bezahlt", (
     beforeEach(() => {
         calls.length = 0;
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+            if (cmd === "log_workflow_event") return undefined;
             calls.push(cmd);
             if (cmd === "create_termin") return termin1;
             if (cmd === "update_termin") return { ...termin1, status: "DURCHGEFUEHRT" as const };
@@ -306,6 +319,7 @@ describe("critical flow (d) Tagesabschluss mismatch → Notiz → protokollieren
 
     beforeEach(() => {
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+            if (cmd === "log_workflow_event") return undefined;
             if (cmd === "list_zahlungen") return [zahlungTag];
             throw new Error(`unmocked IPC in flow (d): ${cmd}`);
         });
@@ -351,6 +365,7 @@ describe("critical flow (f) login rejection on wrong password", () => {
     beforeEach(() => {
         resetAuthStore();
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+            if (cmd === "log_workflow_event") return undefined;
             switch (cmd) {
                 case "get_db_setup_status":
                     return { needsPassphraseSetup: false, needsUnlock: false };
@@ -366,6 +381,16 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return null;
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-praxis",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 1,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 default:
                     throw new Error(`unmocked IPC in flow (f): ${cmd}`);
             }
@@ -400,6 +425,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
     beforeEach(() => {
         firstStatusServed = false;
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+            if (cmd === "log_workflow_event") return undefined;
             switch (cmd) {
                 case "current_license_status": {
                     if (!firstStatusServed) {
@@ -473,6 +499,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
 describe.skipIf(!DATENSCHUTZ_UI_ENABLED)("critical flow (e) DSGVO export → erase → browser storage clean", () => {
     beforeEach(() => {
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+            if (cmd === "log_workflow_event") return undefined;
             if (cmd === "list_patienten") return [MOCK_PATIENT];
             if (cmd === "dsgvo_export_patient") {
                 return { patient_id: MOCK_PATIENT.id, stub: true };

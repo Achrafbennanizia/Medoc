@@ -48,6 +48,7 @@ function resetAuthStore() {
 
 function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
     vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "log_workflow_event") return undefined;
         switch (cmd) {
             case "get_db_setup_status":
                 return { needsPassphraseSetup: false, needsUnlock: false };
@@ -78,6 +79,16 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return { valid: true, format: "v2" };
             case "verbund_status_cmd":
                 return VERBUND_STATUS_READY;
+            case "onboarding_subscription_status":
+                return {
+                    registered: true,
+                    practiceSlug: "smoke-praxis",
+                    setupComplete: true,
+                    needsAdminAccount: false,
+                    personalCount: 1,
+                    needsPracticeSetup: false,
+                    needsMemberAccount: false,
+                };
             case "get_dashboard_stats":
                 return {
                     patienten_gesamt: 0,
