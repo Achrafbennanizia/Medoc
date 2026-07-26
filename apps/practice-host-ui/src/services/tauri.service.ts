@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { logWorkflowEvent } from "@/systems/practice-host/lib/workflow-logger";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +51,39 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function workflowErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return String(error);
+}
+
+function isCancelLikeWorkflowError(message: string): boolean {
+    const m = message.toLowerCase();
+    return m.includes("cancel") || m.includes("aborted") || m.includes("abgebrochen");
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const shouldLogWorkflow = cmd !== "log_workflow_event";
+    if (shouldLogWorkflow) {
+        void logWorkflowEvent({ eventType: "primary_action", command: cmd });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        const response = args == null
+            ? await invoke<T>(cmd, {})
+            : await invoke<T>(cmd, expandDualCaseInvokeArgs(omitUndefinedValues(args)));
+        if (shouldLogWorkflow) {
+            void logWorkflowEvent({ eventType: "success", command: cmd });
+        }
+        return response;
+    } catch (error) {
+        if (shouldLogWorkflow) {
+            const detail = workflowErrorMessage(error);
+            void logWorkflowEvent({
+                eventType: isCancelLikeWorkflowError(detail) ? "cancel" : "error",
+                command: cmd,
+                detail,
+            });
+        }
+        throw error;
+    }
 }
