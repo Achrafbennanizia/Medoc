@@ -1,9 +1,12 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (workflow logging bridge step 1)
 
 ## Now
 
+- **STEP 1 delivered (logging):** `workflow.log` channel + `log_workflow_event` Tauri command + frontend lifecycle bridge (`tauriInvoke` + route-enter logger in `App.tsx`) are committed on `cursor/medoc-application-quality-834d`.
+- **Validation blockers (pre-existing):** `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, and `npm run build` are currently red; details captured in [`validation.md`](validation.md) and contradiction **C9**.
+- **Next execution slice:** run STEP 2 workflow map/detection against the new workflow logs (state-machine inventory + non-terminable flow register entries in `contradictions.md` / `validation.md`).
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.

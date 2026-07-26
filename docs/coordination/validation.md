@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (Workflow logging bridge step 1)
+
+## Workflow logging bridge (STEP 1) — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Focused workflow frontend suites | `npm run test -w medoc -- src/services/tauri.service.test.ts src/g21-routing.smoke.test.tsx src/critical-flows.smoke.test.tsx src/lib/billing-release-flow.test.ts` | **PASS** — 13 passed, 1 skipped |
+| Workflow sanitizer unit tests | `MEDOC_* cargo +1.88.0-x86_64-unknown-linux-gnu test -p medoc-practice workflow_sanitizer` | **PASS** (2 tests) |
+| Invoke registry guard | `MEDOC_* cargo +1.88.0-x86_64-unknown-linux-gnu test -p medoc --test invoke_registration_tests` | **PASS** (2 tests; 305 handlers documented) |
+| Rust format gate | `cargo +1.88.0-x86_64-unknown-linux-gnu fmt --all -- --check` | **FAIL (pre-existing)** — widespread style drift outside changed files (e.g. `apps/practice-host/tests/akte_workflow_tests.rs`, `crates/app/medoc-practice/src/commands/admin/*`) |
+| Rust lint gate | `MEDOC_* cargo +1.88.0-x86_64-unknown-linux-gnu clippy --workspace --all-targets -- -D warnings` | **FAIL (pre-existing)** — `clippy::uninlined_format_args` across `crates/shared/medoc-core` (`application/akte/pdf_export.rs`, `infrastructure/pdf/core.rs`, `infrastructure/payment.rs`, etc.) |
+| Rust test gate | `MEDOC_* cargo +1.88.0-x86_64-unknown-linux-gnu test --workspace --tests` | **FAIL (pre-existing)** — `auth_session_audit_tests::authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` (`Maximal 1 Arzt-Konto erlaubt`) |
+| Frontend test gate | `npm run test` | **PASS** — 289 passed, 3 skipped |
+| Frontend build gate | `npm run build` | **FAIL (pre-existing)** — TS6133 unused symbols in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` (including mirrored `packages/shared` paths) |
+
+**Delivered in this step:** dedicated `workflow.log` channel (daily rotation via `RollingFileAppender::new(Rotation::DAILY, ..., "workflow.log")`), sanitized Tauri command `log_workflow_event`, sanitized frontend bridge (`tauriInvoke` lifecycle + `route_enter` emitter), and updated smoke/unit tests.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

@@ -9,9 +9,13 @@ import { setDeploymentModeCache } from "@/systems/practice-host/adapters/practic
 import { tauriInvoke } from "@/services/tauri.service";
 import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
-vi.mock("@/services/tauri.service", () => ({
-    tauriInvoke: vi.fn(),
-}));
+vi.mock("@/services/tauri.service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/services/tauri.service")>();
+    return {
+        ...actual,
+        tauriInvoke: vi.fn(),
+    };
+});
 
 const REZ_SESSION: Session = {
     user_id: "u-rez-g21",
@@ -70,6 +74,16 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 };
             case "get_app_kv":
                 return null;
+            case "onboarding_subscription_status":
+                return {
+                    registered: true,
+                    practiceSlug: "smoke-praxis",
+                    setupComplete: true,
+                    needsAdminAccount: false,
+                    personalCount: 2,
+                    needsPracticeSetup: false,
+                    needsMemberAccount: false,
+                };
             case "sync_native_menu":
                 return undefined;
             case "sync_get_status":

@@ -1,28 +1,27 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Workflow logging bridge step 1 (2026-07-26)  
+**Last closed:** Dedicated workflow log channel + sanitized FE→BE workflow telemetry + regression tests.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-07-26 — workflow logging bridge)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Backend logging channel:** `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` now wires `workflow.log` with `RollingFileAppender::new(Rotation::DAILY, ...)` and dedicated target `medoc::workflow`.
+- **Backend sanitizer bridge:** `crates/app/medoc-practice/src/commands/system/logging.rs` adds `log_workflow_event` and `sanitize_workflow_value`; tests `workflow_sanitizer_masks_secrets` + `workflow_sanitizer_truncates_very_long_values` are **PASS**.
+- **Frontend telemetry bridge:** `apps/practice-host-ui/src/services/tauri.service.ts` emits `primary_action`, `success`, `cancel/error`; `apps/practice-host-ui/src/App.tsx` emits `route_enter`.
+- **Regression tests:** `apps/practice-host-ui/src/services/tauri.service.test.ts` added; smoke mocks updated in `g21-routing.smoke.test.tsx`, `critical-flows.smoke.test.tsx`, `packages/shared/src/lib/billing-release-flow.test.ts`; focused suites **PASS**.
+- **Validation matrix snapshot:** `npm test` **PASS** (289/292), while `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, and `npm run build` are **FAIL (pre-existing baseline blockers)**.
 
 ### Remains unverified
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- STEP 2 workflow map/state-machine inventory and non-terminable-flow register entries.
+- STEP 3 component-event expansion, STEP 4 Playwright geometry audit, STEP 5 UI-rules compliance sweep.
+- Runtime observation of on-disk `workflow.log` content in a live Tauri session (**NOT OBSERVED** in this run).
 
 ### Next
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+1. Decide remediation or quarantine plan for contradiction **C9** baseline blockers (fmt/clippy/workspace-test/build).
+2. Execute STEP 2 read-only workflow map + non-terminable-flow detection, writing findings into `contradictions.md` and `validation.md`.
+3. Start STEP 3–5 test expansion (Vitest behavior coverage + Playwright spacing/a11y pipeline) once baseline policy is settled.
 
 ---
 
