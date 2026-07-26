@@ -18,9 +18,13 @@ import type { Zahlung } from "@/models/types";
 import { tauriInvoke } from "@/services/tauri.service";
 import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
-vi.mock("@/services/tauri.service", () => ({
-    tauriInvoke: vi.fn(),
-}));
+vi.mock("@/services/tauri.service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/services/tauri.service")>();
+    return {
+        ...actual,
+        tauriInvoke: vi.fn(),
+    };
+});
 
 const ARZT_SESSION: Session = {
     user_id: "u-smoke",
@@ -103,6 +107,16 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     };
                 case "get_app_kv":
                     return null;
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-praxis",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 2,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 case "sync_native_menu":
                     return undefined;
                 case "sync_get_status":
@@ -364,6 +378,16 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return undefined;
                 case "get_app_kv":
                     return null;
+                case "onboarding_subscription_status":
+                    return {
+                        registered: true,
+                        practiceSlug: "smoke-praxis",
+                        setupComplete: true,
+                        needsAdminAccount: false,
+                        personalCount: 2,
+                        needsPracticeSetup: false,
+                        needsMemberAccount: false,
+                    };
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
                 default:

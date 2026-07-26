@@ -3,9 +3,13 @@ import { createZahlung } from "@/systems/practice-host/controllers/zahlung.contr
 import { billingReleaseErrorDe } from "@/lib/billing-release";
 import { tauriInvoke } from "@/services/tauri.service";
 
-vi.mock("@/services/tauri.service", () => ({
-    tauriInvoke: vi.fn(),
-}));
+vi.mock("@/services/tauri.service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/services/tauri.service")>();
+    return {
+        ...actual,
+        tauriInvoke: vi.fn(),
+    };
+});
 
 describe("N3 FA-LEIST-05 release → Zahlung (IPC contract)", () => {
     beforeEach(() => {
