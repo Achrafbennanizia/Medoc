@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,17 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+
+## Findings register (2026-07-26 workflow logging run)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `packages/app/practice-host/src/lib/workflow-logger.ts` | Missing dedicated workflow log channel and sanitized FE→BE telemetry bridge | New `workflow.log` target + `log_workflow_event` command + route/invoke telemetry bridge added and covered by tests | P1 | **Implemented in this run** |
+| WF-VAL-001 | `cargo fmt --all -- --check` | Workspace formatting gate is red before/after this run | rustfmt diff spans many unrelated files | P2 | Separate formatting cleanup wave required (do not couple to instrumentation PR) |
+| WF-VAL-002 | `cargo clippy --workspace --all-targets -- -D warnings` | Workspace clippy gate is red before/after this run | Existing clippy errors in `commands/network/company_portal.rs` and `infrastructure/app_menu.rs` | P1 | Open follow-up PR focused on clippy debt only |
+| WF-VAL-003 | `cargo test --workspace --tests` | Workspace Rust tests are red before/after this run | `auth_session_audit_tests` fails on `Maximal 1 Arzt-Konto erlaubt` constraint | P1 | Isolate quota/test-fixture mismatch in dedicated bugfix PR |
+| WF-VAL-004 | `npm test` | Frontend suite remains red before/after this run | 3 failures in `g21-routing.smoke.test.tsx` due unmocked `onboarding_subscription_status` | P1 | Update smoke mocks in dedicated test-fix PR |
+| WF-VAL-005 | `npm run build` | Frontend build remains red before/after this run | TS6133 unused symbol errors in existing `termin-*` files | P1 | Separate lint/type cleanup PR |
 
 ## Resolved (recent)
 
