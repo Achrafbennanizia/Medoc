@@ -150,7 +150,9 @@ describe("UI event matrix", () => {
         expect(dismiss).toHaveBeenCalledTimes(1);
 
         vi.useFakeTimers();
-        useToastStore.getState().add("Action required", "warning", { durationMs: 0 });
+        act(() => {
+            useToastStore.getState().add("Action required", "warning", { durationMs: 0 });
+        });
         expect(useToastStore.getState().toasts.at(-1)?.durationMs).toBe(0);
 
         act(() => {
