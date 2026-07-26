@@ -1,0 +1,141 @@
+name: verify
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: System deps for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --tests
+      - run: cargo install cargo-audit --locked || true
+      - run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Lint (no mutation)
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run lint ;;
+            yarn) yarn run lint ;;
+            npm) npm run lint ;;
+          esac
+      - name: Type-check
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run typecheck ;;
+            yarn) yarn run typecheck ;;
+            npm) npm run typecheck ;;
+          esac
+      - name: Tests
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run test ;;
+            yarn) yarn run test ;;
+            npm) npm run test ;;
+          esac
+      - name: Build
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+
+  a11y:
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Build UI for accessibility scan
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: axe-core critical WCAG 2.1 AA scan
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run test:a11y ;;
+            yarn) yarn run test:a11y ;;
+            npm) npm run test:a11y ;;
+          esac
