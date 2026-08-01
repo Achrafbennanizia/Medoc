@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.controller";
-import { BREAK_GLASS_ENABLED, TOTP_2FA_ENABLED } from "@/lib/mvp-security-config";
-import {
-    confirmTotpEnrollmentLogin,
-    startTotpEnrollmentLogin,
-    type TotpEnrollment,
-} from "@/systems/practice-host/controllers/totp.controller";
-import { isTotpEnrollError, isTotpVerifyError } from "@/lib/login-totp-errors";
+import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "../components/locale-switcher";
@@ -85,10 +79,6 @@ export function LoginPage() {
     const [capsOn, setCapsOn] = useState(false);
     const navigate = useNavigate();
     const [showPw, setShowPw] = useState(false);
-    const [step, setStep] = useState<"credentials" | "totp" | "enroll">("credentials");
-    const [totpCode, setTotpCode] = useState("");
-    const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
-    const [enrollCode, setEnrollCode] = useState("");
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
     const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
@@ -98,58 +88,15 @@ export function LoginPage() {
         user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
-    const finishLogin = async (totp?: string) => {
-        const session = await login(email, passwort, { ...deviceOpts, totp_code: totp });
-        persistRememberMe(rememberMe, email);
-        navigate(await postLoginPath(session));
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setHelperMsg("");
         setLoading(true);
         try {
-            if (TOTP_2FA_ENABLED && step === "totp") {
-                await finishLogin(totpCode.trim());
-                return;
-            }
-            if (TOTP_2FA_ENABLED && step === "enroll") {
-                await confirmTotpEnrollmentLogin(email, passwort, enrollCode.trim());
-                await finishLogin(enrollCode.trim());
-                return;
-            }
-            try {
-                await finishLogin();
-            } catch (err) {
-                if (!TOTP_2FA_ENABLED) throw err;
-                if (isTotpEnrollError(err)) {
-                    const dto = await startTotpEnrollmentLogin(email, passwort);
-                    setEnrollment(dto);
-                    setStep("enroll");
-                    setError("");
-                    return;
-                }
-                if (isTotpVerifyError(err)) {
-                    setStep("totp");
-                    setError("");
-                    return;
-                }
-                throw err;
-            }
-        } catch (err) {
-            setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleStartEnroll = async () => {
-        setError("");
-        setLoading(true);
-        try {
-            const dto = await startTotpEnrollmentLogin(email, passwort);
-            setEnrollment(dto);
+            const session = await login(email, passwort, deviceOpts);
+            persistRememberMe(rememberMe, email);
+            navigate(await postLoginPath(session));
         } catch (err) {
             setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
         } finally {
@@ -241,92 +188,6 @@ export function LoginPage() {
                             {error}
                         </div>
                     )}
-                    {TOTP_2FA_ENABLED && step === "enroll" ? (
-                        <>
-                            <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
-                                {t("login.totp_enroll_body")}
-                            </p>
-                            {!enrollment ? (
-                                <button type="button" className="btn btn-secondary" disabled={loading} onClick={() => void handleStartEnroll()}>
-                                    {t("login.totp_start_setup")}
-                                </button>
-                            ) : (
-                                <>
-                                    <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
-                                        {t("login.totp_manual_key")} <code>{enrollment.secret_base32}</code>
-                                    </p>
-                                    <p style={{ fontSize: 12, color: "var(--fg-3)", wordBreak: "break-all" }}>
-                                        <a href={enrollment.provisioning_uri}>{t("login.totp_otpauth_link")}</a>
-                                    </p>
-                                    <label htmlFor="enroll-code" className="form-label">{t("login.totp_confirm_code")}</label>
-                                    {import.meta.env.DEV ? (
-                                        <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
-                                            {t("login.dev_totp_hint").replace("{code}", "1234")}
-                                        </p>
-                                    ) : null}
-                                    <input
-                                        id="enroll-code"
-                                        className="input-edit"
-                                        inputMode="numeric"
-                                        pattern={import.meta.env.DEV ? "[0-9]{4,6}" : "[0-9]{6}"}
-                                        maxLength={6}
-                                        value={enrollCode}
-                                        onChange={(e) => setEnrollCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                        required
-                                        style={{ marginBottom: 16 }}
-                                    />
-                                </>
-                            )}
-                            <button
-                                type="button"
-                                className="btn btn-ghost"
-                                style={{ marginBottom: 12 }}
-                                onClick={() => {
-                                    setStep("credentials");
-                                    setEnrollment(null);
-                                    setEnrollCode("");
-                                }}
-                            >
-                                {t("common.back")}
-                            </button>
-                        </>
-                    ) : null}
-                    {TOTP_2FA_ENABLED && step === "totp" ? (
-                        <>
-                            <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 16 }}>
-                                {t("login.totp_verify_body")}
-                                {import.meta.env.DEV ? (
-                                    <> {t("login.dev_totp_alt").replace("{code}", "1234")}</>
-                                ) : null}
-                            </p>
-                            <label htmlFor="totp-code" className="form-label">{t("login.totp_code_label")}</label>
-                            <input
-                                id="totp-code"
-                                className="input-edit"
-                                inputMode="numeric"
-                                autoComplete="one-time-code"
-                                pattern={import.meta.env.DEV ? "[0-9]{4,6}" : "[0-9]{6}"}
-                                maxLength={6}
-                                value={totpCode}
-                                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                required
-                                style={{ marginBottom: 16, letterSpacing: "0.2em", fontSize: 18 }}
-                            />
-                            <button
-                                type="button"
-                                className="btn btn-ghost"
-                                style={{ marginBottom: 12 }}
-                                onClick={() => {
-                                    setStep("credentials");
-                                    setTotpCode("");
-                                }}
-                            >
-                                {t("common.back")}
-                            </button>
-                        </>
-                    ) : null}
-                    {step === "credentials" ? (
-                    <>
                     <label htmlFor="email" className="form-label">{t("auth.email")}</label>
                     <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
@@ -384,17 +245,11 @@ export function LoginPage() {
                             {t("login.remember_email")}
                         </label>
                     </div>
-                    </>
-                    ) : null}
                     <div style={{ marginBottom: 16 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 8 }}>{t("login.language_label")}</div>
                         <LocaleSwitcher />
                     </div>
-                    <button
-                        type="submit"
-                        className="login-submit"
-                        disabled={loading || (TOTP_2FA_ENABLED && step === "enroll" && !enrollment)}
-                    >
+                    <button type="submit" className="login-submit" disabled={loading}>
                         {loading ? (
                             <span
                                 className="animate-spin"
@@ -407,11 +262,7 @@ export function LoginPage() {
                                 }}
                             />
                         ) : null}
-                        {TOTP_2FA_ENABLED && step === "totp"
-                            ? t("login.submit_verify_code")
-                            : TOTP_2FA_ENABLED && step === "enroll"
-                              ? t("login.submit_complete_setup")
-                              : t("auth.login")}
+                        {t("auth.login")}
                     </button>
                     <p id="login-password-help" className="sr-only">
                         {t("login.cert_hint_sr")}
@@ -436,3 +287,8 @@ export function LoginPage() {
         </div>
     );
 }
+
+/*
+ * TODO(deferred-security): 2FA login flow unwired — re-enable with TOTP_2FA_ENABLED.
+ * See docs/coordination/todos-deferred-security-features.md and totp.controller.ts.
+ */

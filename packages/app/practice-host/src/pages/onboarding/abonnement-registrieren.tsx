@@ -1,11 +1,13 @@
 import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import {
+    onboardingSkipPracticeSetup,
     onboardingSubscriptionStatus,
     registerOnboardingSubscription,
     type OnboardingSubscriptionRequest,
+    type OnboardingSubscriptionResult,
 } from "@/systems/practice-host/controllers/verbund.controller";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
 import { Button } from "@/views/components/ui/button";
@@ -15,51 +17,52 @@ import { useToastStore } from "@/views/components/ui/toast-store";
 /** Default until plan-tier UI is restored — see docs/coordination/geplant.md */
 const DEFAULT_SUBSCRIPTION_PLAN = "PRO" as const;
 
-function slugFromName(name: string): string {
-    return name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 48);
-}
-
 export function AbonnementRegistrierenOnboardingPage() {
     const t = useT();
     const tp = useTParams();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const [busy, setBusy] = useState(false);
-    const [setupComplete, setSetupComplete] = useState(false);
+    const [skipBusy, setSkipBusy] = useState(false);
+    const [statusLoaded, setStatusLoaded] = useState(false);
+    const [needsPracticeSetup, setNeedsPracticeSetup] = useState(true);
     const [needsAdminAccount, setNeedsAdminAccount] = useState(true);
-    const [displayName, setDisplayName] = useState("");
-    const [practiceSlug, setPracticeSlug] = useState("");
-    const [slugTouched, setSlugTouched] = useState(false);
+    const [canSkipToLogin, setCanSkipToLogin] = useState(false);
+    const [existingAccountEmails, setExistingAccountEmails] = useState<string[]>([]);
+    const [loginReadyEmails, setLoginReadyEmails] = useState<string[]>([]);
+    const [doneResult, setDoneResult] = useState<OnboardingSubscriptionResult | null>(null);
     const [adminName, setAdminName] = useState("");
     const [adminEmail, setAdminEmail] = useState("");
     const [adminPassword, setAdminPassword] = useState("");
     const [adminPasswordConfirm, setAdminPasswordConfirm] = useState("");
-    const [street, setStreet] = useState("");
-    const [postalCode, setPostalCode] = useState("");
-    const [city, setCity] = useState("");
     const [acceptTerms, setAcceptTerms] = useState(false);
 
     useEffect(() => {
         void onboardingSubscriptionStatus()
             .then((s) => {
-                setSetupComplete(s.setupComplete);
+                setNeedsPracticeSetup(s.needsPracticeSetup);
                 setNeedsAdminAccount(s.needsAdminAccount);
+                setCanSkipToLogin(s.canSkipToLogin);
+                setExistingAccountEmails(s.existingAccountEmails ?? []);
+                setLoginReadyEmails(s.loginReadyEmails ?? []);
+                setStatusLoaded(true);
             })
             .catch(() => {
                 /* gate will retry */
             });
     }, []);
 
-    useEffect(() => {
-        if (!slugTouched && displayName.trim()) {
-            setPracticeSlug(slugFromName(displayName));
+    const skipToLogin = async () => {
+        setSkipBusy(true);
+        try {
+            await onboardingSkipPracticeSetup();
+            navigate("/login", { replace: true });
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setSkipBusy(false);
         }
-    }, [displayName, slugTouched]);
+    };
 
     const submit = async () => {
         if (!acceptTerms) {
@@ -77,21 +80,18 @@ export function AbonnementRegistrierenOnboardingPage() {
             }
         }
         const payload: OnboardingSubscriptionRequest = {
-            displayName: displayName.trim(),
-            practiceSlug: practiceSlug.trim(),
+            displayName: "",
+            practiceSlug: "",
             adminName: adminName.trim(),
             adminEmail: adminEmail.trim(),
             adminPassword: needsAdminAccount ? adminPassword : undefined,
-            street: street.trim() || undefined,
-            postalCode: postalCode.trim() || undefined,
-            city: city.trim() || undefined,
             plan: DEFAULT_SUBSCRIPTION_PLAN,
         };
         setBusy(true);
         try {
-            await registerOnboardingSubscription(payload);
+            const result = await registerOnboardingSubscription(payload);
+            setDoneResult(result);
             toast(t("onboarding.subscription.success"), "success");
-            navigate("/login", { replace: true });
         } catch (e) {
             toast(tp("onboarding.subscription.error", { message: errorMessage(e) }), "error");
         } finally {
@@ -99,18 +99,43 @@ export function AbonnementRegistrierenOnboardingPage() {
         }
     };
 
-    if (setupComplete) {
+    if (!statusLoaded) {
+        return (
+            <OnboardingShell wide scrollable>
+                <p className="card-sub" role="status">
+                    {t("onboarding.gate.loading")}
+                </p>
+            </OnboardingShell>
+        );
+    }
+
+    if (!needsPracticeSetup) {
+        return <Navigate to="/login" replace />;
+    }
+
+    if (doneResult) {
         return (
             <OnboardingShell wide scrollable>
                 <div className="onboarding-card__scroll">
-                    <h1>{t("onboarding.practice.title")}</h1>
-                    <p className="card-sub">{t("onboarding.subscription.already_registered")}</p>
+                    <h1>{t("onboarding.subscription.done_title")}</h1>
+                    <p className="card-sub">{t("onboarding.subscription.done_intro")}</p>
+                    <div className="onboarding-fieldset" style={{ marginTop: 16 }}>
+                        <p className="onboarding-field">
+                            <strong>{t("onboarding.subscription.admin_email")}</strong>
+                            <code>{doneResult.adminEmail}</code>
+                        </p>
+                        {doneResult.adminAccountCreated ? (
+                            <p className="card-sub">{t("onboarding.subscription.done_password_hint")}</p>
+                        ) : (
+                            <p className="card-sub">{t("onboarding.subscription.done_existing_hint")}</p>
+                        )}
+                    </div>
                 </div>
                 <div className="onboarding-card__footer">
                     <div className="onboarding-actions">
-                        <Button type="button" onClick={() => navigate("/login", { replace: true })}>
+                        <Link to="/login" className="btn btn-primary">
                             {t("onboarding.subscription.continue_login")}
-                        </Button>
+                        </Link>
                     </div>
                 </div>
             </OnboardingShell>
@@ -120,40 +145,32 @@ export function AbonnementRegistrierenOnboardingPage() {
     return (
         <OnboardingShell wide scrollable>
             <div className="onboarding-card__scroll">
-                <h1>{t("onboarding.practice.title")}</h1>
+                <h1>{t("onboarding.subscription.title")}</h1>
                 <p className="card-sub">
                     {needsAdminAccount
-                        ? t("onboarding.practice.intro_new_network")
-                        : t("onboarding.practice.intro_existing_users")}
+                        ? t("onboarding.subscription.intro_post_license_new_account")
+                        : t("onboarding.subscription.intro_post_license")}
                 </p>
 
-                <fieldset className="onboarding-fieldset">
-                    <legend>{t("onboarding.subscription.section_practice")}</legend>
-                    <label className="onboarding-field">
-                        {t("onboarding.subscription.display_name")}
-                        <input
-                            type="text"
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            autoComplete="organization"
-                            required
-                        />
-                    </label>
-                    <label className="onboarding-field">
-                        {t("onboarding.subscription.slug")}
-                        <input
-                            type="text"
-                            value={practiceSlug}
-                            onChange={(e) => {
-                                setSlugTouched(true);
-                                setPracticeSlug(e.target.value);
-                            }}
-                            spellCheck={false}
-                            required
-                        />
-                        <span className="card-sub">{t("onboarding.subscription.slug_hint")}</span>
-                    </label>
-                </fieldset>
+                {canSkipToLogin ? (
+                    <div className="onboarding-fieldset" style={{ marginBottom: 16 }}>
+                        <p className="card-sub">{t("onboarding.subscription.skip_to_login_hint")}</p>
+                        {loginReadyEmails.length > 0 ? (
+                            <ul className="card-sub" style={{ marginTop: 8 }}>
+                                {loginReadyEmails.map((email) => (
+                                    <li key={email}>
+                                        <code>{email}</code>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : null}
+                        {import.meta.env.DEV ? (
+                            <p className="card-sub" style={{ fontSize: 12, marginTop: 8 }}>
+                                {t("onboarding.subscription.skip_dev_password_hint")}
+                            </p>
+                        ) : null}
+                    </div>
+                ) : null}
 
                 <fieldset className="onboarding-fieldset">
                     <legend>{t("onboarding.subscription.section_admin")}</legend>
@@ -201,41 +218,19 @@ export function AbonnementRegistrierenOnboardingPage() {
                             </label>
                         </>
                     ) : (
-                        <p className="card-sub">{t("onboarding.subscription.existing_accounts_hint")}</p>
+                        <>
+                            <p className="card-sub">{t("onboarding.subscription.existing_accounts_hint")}</p>
+                            {existingAccountEmails.length > 0 ? (
+                                <ul className="card-sub" style={{ marginTop: 8 }}>
+                                    {existingAccountEmails.map((email) => (
+                                        <li key={email}>
+                                            <code>{email}</code>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : null}
+                        </>
                     )}
-                </fieldset>
-
-                <fieldset className="onboarding-fieldset">
-                    <legend>{t("onboarding.subscription.section_address")}</legend>
-                    <label className="onboarding-field">
-                        {t("onboarding.subscription.street")}
-                        <input
-                            type="text"
-                            value={street}
-                            onChange={(e) => setStreet(e.target.value)}
-                            autoComplete="street-address"
-                        />
-                    </label>
-                    <div className="onboarding-path-row">
-                        <label className="onboarding-field onboarding-field--inline">
-                            {t("onboarding.subscription.postal_code")}
-                            <input
-                                type="text"
-                                value={postalCode}
-                                onChange={(e) => setPostalCode(e.target.value)}
-                                autoComplete="postal-code"
-                            />
-                        </label>
-                        <label className="onboarding-field onboarding-field--inline">
-                            {t("onboarding.subscription.city")}
-                            <input
-                                type="text"
-                                value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                autoComplete="address-level2"
-                            />
-                        </label>
-                    </div>
                 </fieldset>
 
                 {/* TODO(later): Plan tier picker — BASIC / PRO / ENTERPRISE cards (see geplant.md) */}
@@ -247,25 +242,25 @@ export function AbonnementRegistrierenOnboardingPage() {
             </div>
 
             <div className="onboarding-card__footer">
-                <div className="onboarding-actions">
+                <div className="onboarding-actions onboarding-actions--row">
                     <Button type="button" disabled={busy} loading={busy} onClick={() => void submit()}>
                         {needsAdminAccount
                             ? t("onboarding.subscription.submit_btn_create_account")
                             : t("onboarding.subscription.submit_btn")}
                     </Button>
+                    {canSkipToLogin ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={busy || skipBusy}
+                            loading={skipBusy}
+                            onClick={() => void skipToLogin()}
+                        >
+                            {t("onboarding.subscription.skip_to_login_btn")}
+                        </Button>
+                    ) : null}
                 </div>
             </div>
         </OnboardingShell>
     );
 }
-
-/*
- * Deferred — plan tier UI (restore from git history / license-device-role-card pattern):
- *
- * <fieldset className="onboarding-fieldset">
- *   <legend>{t("onboarding.subscription.section_plan")}</legend>
- *   <div className="license-device-role-grid__cards" role="radiogroup" ...>
- *     {planOptions.map(...)}
- *   </div>
- * </fieldset>
- */

@@ -8,9 +8,10 @@ use crate::infrastructure::license::{self, LicenseStatus};
 use crate::infrastructure::license_repo;
 use crate::infrastructure::perf;
 use crate::log_system;
+use medoc_sync::verbund::services::ClusterResetMode;
 use serde::Serialize;
 use sqlx::SqlitePool;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, token))]
@@ -81,14 +82,35 @@ pub async fn current_license_status(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
+#[tracing::instrument(level = "info", skip(app, pool, session_state))]
 pub async fn clear_license(
+    app: AppHandle,
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
-    license_repo::clear(&pool).await?;
+
+    crate::commands::app_lifecycle::stop_network_services(&app).await;
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+
+    medoc_sync::verbund::services::wipe_desktop_network_state(
+        &pool,
+        &app_data_dir,
+        ClusterResetMode::NetworkOnly,
+    )
+    .await?;
+
+    {
+        let mut guard = session_state.lock_session();
+        *guard = None;
+    }
+
     log_system!(info, event = "LICENSE_CLEARED");
+    crate::commands::app_lifecycle::schedule_app_restart(app);
     Ok(())
 }
 

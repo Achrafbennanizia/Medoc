@@ -15,11 +15,13 @@
 
 ## Re-enable 2FA / TOTP
 
+**Current state (2026-07-12):** Fully unwired — IPC commands commented out of `register.rs` (300 handlers), UI removed from login/settings/network-reset, `totp.controller.ts` stubbed. Implementation preserved in block comments.
+
 1. Set `TOTP_2FA_ENABLED = true` in `mvp_security.rs` and `mvp-security-config.ts`.
-2. **`auth_service.rs`** — TOTP branch active when flag true (already structured).
-3. **`personal.rs` TOTP IPC** — commands return when flag true.
-4. **`apps/practice-host-ui/src/views/pages/login.tsx`** — enroll + verify steps.
-5. **`einstellungen-sicherheit-section.tsx`** — 2FA status panel.
+2. Uncomment 6 IPC registrations in `register.rs` (+ update `EXPECTED_INVOKE_COMMAND_COUNT` to 306).
+3. Uncomment `auth_service.rs` TOTP branch, `auth.rs` / `personal.rs` command fns + register macros.
+4. Restore `totp.controller.ts`, `login.tsx` enroll/verify steps, `einstellungen-sicherheit-section.tsx` panel.
+5. Restore network-reset TOTP reauth in `verbund.rs` + confirm dialog field.
 6. **E2E** — restore `enroll_seed_arzt_totp` usage; Playwright `totp_code` if needed.
 7. **Tests** — remove `#[ignore]` from `apps/practice-host/tests/totp_tests.rs`.
 

@@ -54,8 +54,8 @@ export const ONBOARDING_LICENSE_PENDING_KEY = "medoc.onboarding.pending_license"
 export const ONBOARDING_LICENSE_TOKEN_KEY = "medoc.onboarding.license_token";
 
 export type OnboardingSubscriptionRequest = {
-    displayName: string;
-    practiceSlug: string;
+    displayName?: string;
+    practiceSlug?: string;
     adminName: string;
     adminEmail: string;
     adminPassword?: string;
@@ -70,6 +70,8 @@ export type OnboardingSubscriptionResult = {
     practiceSlug: string;
     planName: string;
     licenseToken?: string;
+    adminEmail: string;
+    adminAccountCreated: boolean;
 };
 
 export async function onboardingSubscriptionStatus(): Promise<{
@@ -77,11 +79,18 @@ export async function onboardingSubscriptionStatus(): Promise<{
     practiceSlug?: string;
     setupComplete: boolean;
     needsAdminAccount: boolean;
+    existingAccountEmails: string[];
     personalCount: number;
     needsPracticeSetup: boolean;
     needsMemberAccount: boolean;
+    canSkipToLogin: boolean;
+    loginReadyEmails: string[];
 }> {
     return tauriInvoke("onboarding_subscription_status");
+}
+
+export async function onboardingSkipPracticeSetup(): Promise<{ loginEmails: string[] }> {
+    return tauriInvoke("onboarding_skip_practice_setup");
 }
 
 export type OnboardingMemberAccountRequest = {
@@ -197,4 +206,36 @@ export async function verbundBlockDevice(fingerprint: string, reason: string): P
 
 export async function verbundUnblockDevice(fingerprint: string): Promise<void> {
     return tauriInvoke("verbund_unblock_device", { fingerprint });
+}
+
+export type ClusterResetMode = "network_only" | "full_wipe";
+
+export type ClusterResetPreview = {
+    clusterId?: string;
+    memberDeviceCount: number;
+    confirmPhraseHint: string;
+    practiceSlug?: string;
+};
+
+export type ClusterResetReport = {
+    mode: string;
+    membersNotified: number;
+    membersUnreachable: string[];
+    requiresAppRestart: boolean;
+};
+
+export async function verbundClusterResetPreview(): Promise<ClusterResetPreview> {
+    return tauriInvoke("verbund_cluster_reset_preview");
+}
+
+export type ClusterResetExecuteRequest = {
+    mode: ClusterResetMode;
+    password: string;
+    confirmPhrase: string;
+};
+
+export async function verbundClusterResetExecute(
+    request: ClusterResetExecuteRequest,
+): Promise<ClusterResetReport> {
+    return tauriInvoke("verbund_execute_cluster_reset", { request });
 }

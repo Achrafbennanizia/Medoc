@@ -35,7 +35,7 @@ pub fn is_login_role_allowed(s: &str) -> bool {
 
 impl Role {
     pub fn parse(s: &str) -> Option<Self> {
-        match s {
+        match s.trim().to_uppercase().as_str() {
             "ARZT" => Some(Role::Arzt),
             "REZEPTION" => Some(Role::Rezeption),
             "STEUERBERATER" => Some(Role::Steuerberater),

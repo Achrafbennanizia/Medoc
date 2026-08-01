@@ -6,7 +6,7 @@
 /** Break-Glass (Notfallzugriff) — disabled for MVP. */
 export const BREAK_GLASS_ENABLED = false;
 
-/** TOTP two-factor authentication — disabled for MVP. */
+/** TOTP two-factor authentication — disabled and unwired for MVP. */
 export const TOTP_2FA_ENABLED = false;
 
 /** Max ARZT accounts (admin slot). */

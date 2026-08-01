@@ -2,7 +2,7 @@ import { useT } from "@/lib/i18n";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { verbundActivateLicense } from "@/systems/practice-host/controllers/verbund.controller";
+import { onboardingSubscriptionStatus, verbundActivateLicense } from "@/systems/practice-host/controllers/verbund.controller";
 import { useVerbundStore } from "@/models/store/verbund-store";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
 import { Button } from "@/views/components/ui/button";
@@ -29,8 +29,14 @@ export function LizenzAktivierenOnboardingPage() {
             const status = await verbundActivateLicense(trimmed);
             setStatus(status);
             if (status.licensed) {
-                toast(t("onboarding.license.success_setup"), "success");
-                navigate("/onboarding/abonnement", { replace: true });
+                const sub = await onboardingSubscriptionStatus();
+                if (sub.needsPracticeSetup) {
+                    toast(t("onboarding.license.success_setup"), "success");
+                    navigate("/onboarding/abonnement", { replace: true });
+                } else {
+                    toast(t("onboarding.license.success"), "success");
+                    navigate("/login", { replace: true });
+                }
             } else {
                 toast(t("onboarding.license.invalid"), "error");
             }

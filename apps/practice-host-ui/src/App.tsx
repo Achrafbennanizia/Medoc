@@ -6,6 +6,7 @@ import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
 import { LicenseAndPairingGate } from "./views/components/license-and-pairing-gate";
 import { VerbundOnboardingGate } from "./views/components/verbund-onboarding-gate";
+import { ClusterResetListener } from "./views/components/cluster-reset-listener";
 import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
 import { PraxisArbeitszeitenBackground } from "./views/components/praxis-arbeitszeiten-background";
 import { SessionGate } from "./views/components/session-gate";
@@ -138,6 +139,7 @@ export default function App() {
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <ClusterResetListener />
         <VerbundOnboardingGate>
             <Routes>
                 <Route

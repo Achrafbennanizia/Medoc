@@ -17,7 +17,7 @@ use crate::infrastructure::company_portal::register_practice_onboarding;
 use crate::infrastructure::database::app_kv_repo;
 use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::enums::Rolle;
-use medoc_sync::verbund::services::verbund_status;
+use medoc_sync::verbund::services::{sync_staff_from_stored_admin_endpoint, sync_staff_from_stored_admin_endpoint_required, verbund_status};
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
@@ -149,11 +149,23 @@ pub struct OnboardingSubscriptionStatus {
     pub practice_slug: Option<String>,
     pub setup_complete: bool,
     pub needs_admin_account: bool,
+    /// Login emails when `needs_admin_account` is false (reuse existing staff).
+    pub existing_account_emails: Vec<String>,
     pub personal_count: i64,
     /// Licensed owner device still needs full practice initialization.
     pub needs_practice_setup: bool,
     /// Joined member device still needs account choice (create or sign in).
     pub needs_member_account: bool,
+    /// Licensed owner may skip practice form and sign in with an existing account.
+    pub can_skip_to_login: bool,
+    /// All staff emails available for sign-in (includes demo seed in dev).
+    pub login_ready_emails: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingSkipResult {
+    pub login_emails: Vec<String>,
 }
 
 const ONBOARDING_SETUP_KV_KEY: &str = "onboarding.setup_complete.v1";
@@ -172,6 +184,32 @@ async fn mark_onboarding_setup_complete(pool: &SqlitePool) -> Result<(), AppErro
     app_kv_repo::set(pool, ONBOARDING_SETUP_KV_KEY, "1").await
 }
 
+async fn compute_needs_practice_setup(
+    pool: &SqlitePool,
+    vs: &medoc_sync::verbund::services::lizenz_service::VerbundStatus,
+) -> Result<bool, AppError> {
+    if !vs.licensed || !vs.is_owner {
+        return Ok(false);
+    }
+    Ok(!onboarding_setup_complete(pool).await?)
+}
+
+/// Owner license activation before portal registration — drop stale setup flag
+/// (e.g. prior member "use existing account" or interrupted onboarding).
+pub async fn reset_onboarding_after_owner_license_activation(
+    pool: &SqlitePool,
+) -> Result<(), AppError> {
+    let vs = verbund_status(pool).await?;
+    if !vs.licensed || !vs.is_owner {
+        return Ok(());
+    }
+    let cfg = load_company_portal_config(pool).await;
+    if !is_portal_configured(&cfg) {
+        app_kv_repo::delete(pool, ONBOARDING_SETUP_KV_KEY).await?;
+    }
+    Ok(())
+}
+
 async fn count_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
     let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM personal")
         .fetch_one(pool)
@@ -180,10 +218,73 @@ async fn count_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
     Ok(n)
 }
 
+/// Demo seed rows (`seed-*`) must not suppress the admin password form after license reset.
+async fn count_non_seed_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
+    let (n,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM personal WHERE id NOT LIKE 'seed-%'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n)
+}
+
+async fn list_existing_login_emails(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT email FROM personal WHERE id NOT LIKE 'seed-%' ORDER BY email COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(rows.into_iter().map(|(e,)| e).collect())
+}
+
+async fn list_login_ready_emails(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT email FROM personal ORDER BY email COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(rows.into_iter().map(|(e,)| e).collect())
+}
+
+async fn find_seed_arzt_id(pool: &SqlitePool) -> Result<Option<String>, AppError> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM personal WHERE id LIKE 'seed-%' AND rolle = 'ARZT' LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(row.map(|(id,)| id))
+}
+
+async fn needs_onboarding_admin_account(pool: &SqlitePool) -> Result<bool, AppError> {
+    Ok(count_non_seed_personal_rows(pool).await? == 0)
+}
+
+async fn ensure_portal_config_for_onboarding_skip(pool: &SqlitePool) -> Result<(), AppError> {
+    let cfg = load_company_portal_config(pool).await;
+    if is_portal_configured(&cfg) {
+        return Ok(());
+    }
+    let dev_seed = std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1");
+    if dev_seed {
+        let base = default_onboarding_base_url();
+        let api_key = format!("dev-local-{}", uuid::Uuid::new_v4());
+        return persist_portal_config(pool, base, "dev-praxis".into(), api_key).await;
+    }
+    Err(AppError::Validation(
+        "Bitte Praxisdaten ausfüllen oder ein bestehendes Abonnement verknüpfen.".into(),
+    ))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OnboardingSubscriptionRequest {
+    #[serde(default)]
     pub display_name: String,
+    #[serde(default)]
     pub practice_slug: String,
     pub admin_name: String,
     pub admin_email: String,
@@ -206,6 +307,8 @@ pub struct OnboardingSubscriptionResult {
     pub practice_slug: String,
     pub plan_name: String,
     pub license_token: Option<String>,
+    pub admin_email: String,
+    pub admin_account_created: bool,
 }
 
 fn normalize_slug(raw: &str) -> String {
@@ -404,51 +507,77 @@ async fn create_onboarding_admin_account(
     .await
 }
 
-/// After license activation: derive portal subscription from license metadata (best-effort).
-pub async fn auto_register_subscription_from_license(pool: &SqlitePool) -> Result<(), AppError> {
-    if is_portal_configured(&load_company_portal_config(pool).await) {
+async fn ensure_dev_demo_rezeption_account(pool: &SqlitePool) -> Result<(), AppError> {
+    if std::env::var("MEDOC_DEV_SEED").ok().as_deref() != Some("1") {
         return Ok(());
     }
-    let lic = license_repo::current_status(pool).await?;
-    if !lic.valid {
-        return Ok(());
-    }
-
-    let customer_id = lic
-        .license_v2
-        .as_ref()
-        .map(|l| l.customer_id.clone())
-        .or_else(|| lic.license.as_ref().map(|l| l.customer_id.clone()))
-        .unwrap_or_else(|| "medoc-praxis".into());
-    let edition = lic
-        .license_v2
-        .as_ref()
-        .map(|l| l.edition.clone())
-        .or_else(|| lic.license.as_ref().map(|l| l.edition.clone()))
-        .unwrap_or_else(|| "PRO".into());
-
-    let slug = normalize_slug(&customer_id);
-    if slug.len() < 3 {
-        return Ok(());
-    }
-    let display_name = if customer_id.contains('-') || customer_id.contains('_') {
-        customer_id.replace(['-', '_'], " ")
-    } else {
-        customer_id.clone()
-    };
-    let plan = plan_from_edition(&edition);
-    let admin_email = format!("admin@{slug}.medoc.local");
-
-    register_portal_subscription(
-        pool,
-        &display_name,
-        &slug,
-        "Praxis Administrator",
-        &admin_email,
-        plan,
-        None,
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'REZEPTION'",
     )
+    .fetch_one(pool)
     .await
+    .map_err(AppError::Database)?;
+    if count.0 > 0 {
+        return Ok(());
+    }
+    let hash = crate::infrastructure::crypto::hash_password("passwort123")
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    sqlx::query(
+        "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, verfuegbar)
+         VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION', 1)",
+    )
+    .bind(&hash)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+/// Create admin or reuse the demo `seed-arzt-001` slot when staff quota is already taken.
+async fn assign_onboarding_admin_account(
+    pool: &SqlitePool,
+    admin_name: &str,
+    admin_email: &str,
+    admin_password: &str,
+) -> Result<(), AppError> {
+    if let Some(existing) =
+        medoc_core::infrastructure::database::personal_repo::find_by_email(pool, admin_email).await?
+    {
+        if !existing.id.starts_with("seed-") {
+            return Err(AppError::validation_code("error.personal.email_taken"));
+        }
+    }
+
+    crate::infrastructure::crypto::validate_password_policy(admin_password)?;
+    let hash = crate::infrastructure::crypto::hash_password(admin_password)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if let Some(seed_id) = find_seed_arzt_id(pool).await? {
+        use medoc_core::domain::entities::personal::UpdatePersonal;
+        medoc_core::infrastructure::database::personal_repo::update(
+            pool,
+            &seed_id,
+            &UpdatePersonal {
+                name: Some(admin_name.to_string()),
+                email: Some(admin_email.to_string()),
+                rolle: None,
+                taetigkeitsbereich: None,
+                fachrichtung: None,
+                telefon: None,
+                verfuegbar: None,
+            },
+        )
+        .await?;
+        medoc_core::infrastructure::database::personal_repo::update_password_hash(
+            pool, &seed_id, &hash,
+        )
+        .await?;
+        ensure_dev_demo_rezeption_account(pool).await?;
+        return Ok(());
+    }
+
+    create_onboarding_admin_account(pool, admin_name, admin_email, admin_password).await?;
+    ensure_dev_demo_rezeption_account(pool).await
 }
 
 /// Pre-login onboarding: whether Hersteller-Portal credentials were stored.
@@ -456,12 +585,24 @@ pub async fn auto_register_subscription_from_license(pool: &SqlitePool) -> Resul
 pub async fn onboarding_subscription_status(
     pool: State<'_, SqlitePool>,
 ) -> Result<OnboardingSubscriptionStatus, AppError> {
+    if std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1") {
+        let _ = ensure_dev_demo_rezeption_account(&pool).await;
+    }
     let cfg = load_company_portal_config(&pool).await;
     let personal_count = count_personal_rows(&pool).await?;
-    let setup_complete = onboarding_setup_complete(&pool).await?;
+    let needs_admin_account = needs_onboarding_admin_account(&pool).await?;
+    let login_ready_emails = list_login_ready_emails(&pool).await?;
+    let existing_account_emails = if needs_admin_account {
+        vec![]
+    } else {
+        list_existing_login_emails(&pool).await?
+    };
     let vs = verbund_status(&pool).await?;
-    let needs_practice_setup = vs.licensed && vs.is_owner && !setup_complete;
-    let needs_member_account = vs.provisioned && !vs.is_owner && !setup_complete;
+    let needs_practice_setup = compute_needs_practice_setup(&pool, &vs).await?;
+    let needs_member_account = vs.provisioned && !vs.is_owner
+        && !onboarding_setup_complete(&pool).await?;
+    let can_skip_to_login =
+        needs_practice_setup && vs.licensed && vs.is_owner && personal_count > 0;
     Ok(OnboardingSubscriptionStatus {
         registered: is_portal_configured(&cfg),
         practice_slug: if cfg.practice_slug.trim().is_empty() {
@@ -469,11 +610,42 @@ pub async fn onboarding_subscription_status(
         } else {
             Some(cfg.practice_slug.trim().to_string())
         },
-        setup_complete,
-        needs_admin_account: personal_count == 0,
+        setup_complete: onboarding_setup_complete(&pool).await?,
+        needs_admin_account,
+        existing_account_emails,
         personal_count,
         needs_practice_setup,
         needs_member_account,
+        can_skip_to_login,
+        login_ready_emails,
+    })
+}
+
+/// Pre-login: skip practice subscription form and sign in with an existing account.
+#[tauri::command]
+pub async fn onboarding_skip_practice_setup(
+    pool: State<'_, SqlitePool>,
+) -> Result<OnboardingSkipResult, AppError> {
+    let vs = verbund_status(&pool).await?;
+    if !vs.licensed || !vs.is_owner {
+        return Err(AppError::Validation(
+            "Überspringen nur auf dem lizenzierten Hauptgerät.".into(),
+        ));
+    }
+    if onboarding_setup_complete(&pool).await? {
+        let emails = list_login_ready_emails(&pool).await?;
+        return Ok(OnboardingSkipResult { login_emails: emails });
+    }
+    let emails = list_login_ready_emails(&pool).await?;
+    if emails.is_empty() {
+        return Err(AppError::Validation(
+            "Kein Benutzerkonto vorhanden — bitte Administrator anlegen.".into(),
+        ));
+    }
+    ensure_portal_config_for_onboarding_skip(&pool).await?;
+    mark_onboarding_setup_complete(&pool).await?;
+    Ok(OnboardingSkipResult {
+        login_emails: emails,
     })
 }
 
@@ -542,7 +714,34 @@ pub async fn onboarding_use_existing_account(pool: State<'_, SqlitePool>) -> Res
             "Nur Mitgliedergeräte nach Verbund-Beitritt.".into(),
         ));
     }
+    sync_staff_from_stored_admin_endpoint_required(&pool).await?;
     mark_onboarding_setup_complete(&pool).await
+}
+
+fn resolve_onboarding_practice_defaults(
+    display_name: &str,
+    practice_slug: &str,
+    admin_name: &str,
+    admin_email: &str,
+) -> (String, String) {
+    let name = if display_name.trim().len() >= 2 {
+        display_name.trim().to_string()
+    } else if admin_name.trim().len() >= 2 {
+        admin_name.trim().to_string()
+    } else {
+        "MeDoc Praxis".to_string()
+    };
+    let mut slug = normalize_slug(practice_slug);
+    if slug.len() < 3 {
+        slug = normalize_slug(&name);
+    }
+    if slug.len() < 3 {
+        slug = normalize_slug(admin_email.split('@').next().unwrap_or("praxis"));
+    }
+    if slug.len() < 3 {
+        slug = "praxis".into();
+    }
+    (name, slug)
 }
 
 /// Pre-login onboarding: register practice subscription at vendor portal and persist config.
@@ -552,18 +751,16 @@ pub async fn register_onboarding_subscription(
     pool: State<'_, SqlitePool>,
     request: OnboardingSubscriptionRequest,
 ) -> Result<OnboardingSubscriptionResult, AppError> {
-    let display_name = request.display_name.trim();
-    let slug = normalize_slug(&request.practice_slug);
     let admin_name = request.admin_name.trim();
     let admin_email = request.admin_email.trim();
     let plan = request.plan.trim().to_uppercase();
+    let (display_name, slug) = resolve_onboarding_practice_defaults(
+        &request.display_name,
+        &request.practice_slug,
+        admin_name,
+        admin_email,
+    );
 
-    if display_name.len() < 2 {
-        return Err(AppError::Validation("Praxisname zu kurz.".into()));
-    }
-    if slug.len() < 3 {
-        return Err(AppError::Validation("Praxis-Slug zu kurz.".into()));
-    }
     if admin_name.len() < 2 {
         return Err(AppError::Validation("Administrator-Name zu kurz.".into()));
     }
@@ -583,8 +780,7 @@ pub async fn register_onboarding_subscription(
         ));
     }
 
-    let personal_count = count_personal_rows(&pool).await?;
-    let needs_admin = personal_count == 0;
+    let needs_admin = needs_onboarding_admin_account(&pool).await?;
     let admin_password = request
         .admin_password
         .as_deref()
@@ -600,7 +796,7 @@ pub async fn register_onboarding_subscription(
 
     register_portal_subscription(
         &pool,
-        display_name,
+        &display_name,
         &slug,
         admin_name,
         admin_email,
@@ -610,7 +806,7 @@ pub async fn register_onboarding_subscription(
     .await?;
 
     if needs_admin {
-        create_onboarding_admin_account(&pool, admin_name, admin_email, admin_password).await?;
+        assign_onboarding_admin_account(&pool, admin_name, admin_email, admin_password).await?;
     }
 
     mark_onboarding_setup_complete(&pool).await?;
@@ -628,6 +824,8 @@ pub async fn register_onboarding_subscription(
         practice_slug,
         plan_name,
         license_token: None,
+        admin_email: admin_email.to_string(),
+        admin_account_created: needs_admin,
     })
 }
 
@@ -648,5 +846,6 @@ macro_rules! register_company_portal_commands {
         $crate::commands::company_portal_commands::register_onboarding_subscription,
         $crate::commands::company_portal_commands::register_onboarding_member_account,
         $crate::commands::company_portal_commands::onboarding_use_existing_account,
+        $crate::commands::company_portal_commands::onboarding_skip_practice_setup,
     };
 }

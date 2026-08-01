@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 
 use super::transport::{generate_keypair, NoiseHandshake, NoiseTransport};
 
-const HS_BUF: usize = 65_535;
+const HS_BUF: usize = 2048;
 
 async fn write_hs_message(stream: &mut TcpStream, data: &[u8]) -> Result<(), AppError> {
     let len = u16::try_from(data.len())
@@ -53,8 +53,8 @@ pub async fn run_xx_initiator_with_keypair(
     stream: &mut TcpStream,
     local: &Keypair,
 ) -> Result<(NoiseTransport, Vec<u8>), AppError> {
-    let mut buf_out = [0u8; HS_BUF];
-    let mut payload = [0u8; HS_BUF];
+    let mut buf_out = vec![0u8; HS_BUF];
+    let mut payload = vec![0u8; HS_BUF];
 
     let mut ini = NoiseHandshake::new_xx_initiator(local)?;
 
@@ -86,8 +86,8 @@ pub async fn run_xx_responder_with_keypair(
     stream: &mut TcpStream,
     local: &Keypair,
 ) -> Result<(NoiseTransport, Vec<u8>), AppError> {
-    let mut buf_out = [0u8; HS_BUF];
-    let mut payload = [0u8; HS_BUF];
+    let mut buf_out = vec![0u8; HS_BUF];
+    let mut payload = vec![0u8; HS_BUF];
 
     let mut res = NoiseHandshake::new_xx_responder(local)?;
 

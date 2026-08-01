@@ -13,6 +13,7 @@ import { EinstellungenLanHostSection } from "@/systems/lan/pages/einstellungen-l
 import { EinstellungenDeploymentSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-deployment-section";
 import { EinstellungenPairingInbox } from "@/systems/practice-host/pages/einstellungen/einstellungen-pairing-inbox";
 import { GeraeteverbundPanel } from "@/systems/practice-host/pages/einstellungen/geraeteverbund-panel";
+import { EinstellungenNetworkResetSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-network-reset-section";
 
 export type EinstellungenSystemSectionProps = {
     canOpsSystem: boolean;
@@ -33,6 +34,7 @@ export function EinstellungenSystemSection({ canOpsSystem }: EinstellungenSystem
                 <div className="settings-system-stack settings-system-stack--flush">
                     <GeraeteverbundPanel embedded />
                     <EinstellungenDeploymentSection embedded showPairingInbox={canOpsSystem} />
+                    <EinstellungenNetworkResetSection canOpsSystem={canOpsSystem} />
                 </div>
             </section>
         );

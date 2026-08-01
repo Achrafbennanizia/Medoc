@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { passwordPolicyError } from "@/lib/password-policy";
+import { clearDesktopLicenseClientState } from "@/systems/practice-host/lib/clear-desktop-license-client-state";
 import { useAuthStore } from "../../models/store/auth-store";
+import { useVerbundStore } from "@/models/store/verbund-store";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import { WorkspacePageHeader } from "../components/verwaltung-page-header";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
@@ -84,6 +86,8 @@ export function EinstellungenPage() {
     const locale = useLocale((s) => s.locale);
     const setLocale = useLocale((s) => s.setLocale);
     const toast = useToastStore((s) => s.add);
+    const clearAuth = useAuthStore((s) => s.clear);
+    const setVerbundStatus = useVerbundStore((s) => s.setStatus);
     const canMigration = can("ops.migration");
     const canLanHost = can("ops.system");
     const canClearLicense = can("ops.system");
@@ -265,11 +269,11 @@ export function EinstellungenPage() {
         }
         setLicBusy(true);
         try {
+            clearDesktopLicenseClientState();
             await clearLicense();
-            const st = await currentLicenseStatus();
-            setLicenseStatus(st);
-            setLicenseToken("");
-            toast(t("settings.license.cleared"), "success");
+            clearAuth();
+            setVerbundStatus(null);
+            toast(t("settings.network_reset.restarting"), "info");
         } catch (e) {
             toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
         } finally {

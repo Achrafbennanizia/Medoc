@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Reset local MeDoc onboarding state for a clean owner activation test (macOS).
+# For network-only or in-app multi-device reset, use Settings → System → Reset network.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

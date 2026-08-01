@@ -16,6 +16,8 @@ pub struct AdminEndpoint {
     pub host: String,
     pub port: u16,
     pub instance_name: String,
+    #[serde(default)]
+    pub cluster_id: Option<String>,
 }
 
 pub struct MdnsResponder {
@@ -23,15 +25,25 @@ pub struct MdnsResponder {
 }
 
 impl MdnsResponder {
-    pub fn advertise(host: &str, port: u16, cluster_id: &str) -> Result<Self, AppError> {
+    pub fn advertise(host_ip: &str, port: u16, cluster_id: &str) -> Result<Self, AppError> {
         let daemon = ServiceDaemon::new().map_err(map_mdns)?;
         let props = HashMap::from([("cluster_id".into(), cluster_id.into())]);
-        let my_addr = format!("{host}:{port}");
+        let slug = cluster_id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .take(12)
+            .collect::<String>();
+        let slug = if slug.is_empty() {
+            "verbund".into()
+        } else {
+            slug
+        };
+        let hostname = format!("medoc-{slug}.local.");
         let service = ServiceInfo::new(
             SERVICE_TYPE,
             SERVICE_NAME,
-            &my_addr,
-            host,
+            &hostname,
+            host_ip,
             port,
             Some(props),
         )
@@ -56,11 +68,16 @@ pub fn scan_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
                     .map(|a| a.to_string())
                     .unwrap_or_default();
                 let port = info.get_port();
+                let cluster_id = info
+                    .get_properties()
+                    .get("cluster_id")
+                    .map(|v| v.val_str().to_string());
                 if let Ok(mut list) = found2.lock() {
                     list.push(AdminEndpoint {
                         host,
                         port,
                         instance_name: info.get_fullname().to_string(),
+                        cluster_id,
                     });
                 }
             }

@@ -8,7 +8,8 @@ use crate::infrastructure::database::{audit_repo, device_session_repo, personal_
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
-use crate::infrastructure::totp::{self, TotpEnrollmentDto};
+// TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
+// use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use crate::log_security;
 use sqlx::SqlitePool;
 use std::sync::Mutex;
@@ -57,6 +58,7 @@ pub async fn login(
     brute_force: State<'_, BruteForceState>,
     email: String,
     passwort: String,
+    #[allow(unused_variables)]
     totp_code: Option<String>,
     device_label: Option<String>,
     user_agent: Option<String>,
@@ -78,7 +80,7 @@ pub async fn login(
     let req = LoginRequest {
         email: email.clone(),
         passwort,
-        totp_code,
+        totp_code: None, // TODO(deferred-security): 2FA unwired
     };
     let mut session = match auth_service::authenticate(&pool, &req).await {
         Ok(s) => s,
@@ -368,6 +370,9 @@ pub async fn set_my_device_session_trusted(
     .await
 }
 
+/*
+// TODO(deferred-security): 2FA login enrollment IPC — re-enable with TOTP_2FA_ENABLED.
+
 /// Start TOTP enrollment before a session exists (ARZT first login).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, passwort), fields(email = %redact_login_identifier(&email)))]
@@ -416,6 +421,7 @@ pub async fn confirm_totp_enrollment_login(
     personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())
 }
+*/
 
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
@@ -430,7 +436,8 @@ macro_rules! register_auth_commands {
         $crate::commands::auth_commands::investigate_my_device_session,
         $crate::commands::auth_commands::revoke_my_device_session,
         $crate::commands::auth_commands::set_my_device_session_trusted,
-        $crate::commands::auth_commands::start_totp_enrollment_login,
-        $crate::commands::auth_commands::confirm_totp_enrollment_login,
+        // TODO(deferred-security): 2FA IPC unwired
+        // $crate::commands::auth_commands::start_totp_enrollment_login,
+        // $crate::commands::auth_commands::confirm_totp_enrollment_login,
     };
 }

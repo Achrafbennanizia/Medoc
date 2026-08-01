@@ -1,8 +1,10 @@
 use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::personal_repo;
-use crate::infrastructure::totp;
-use crate::mvp_security;
+// TODO(deferred-security): 2FA unwired
+// use crate::infrastructure::totp;
+// TODO(deferred-security): 2FA unwired
+// use crate::mvp_security;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -34,7 +36,8 @@ pub struct Session {
 }
 
 pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Session, AppError> {
-    let user = personal_repo::find_by_email(pool, &req.email)
+    let email = req.email.trim();
+    let user = personal_repo::find_by_email(pool, email)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
@@ -51,45 +54,7 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         personal_repo::update_password_hash(pool, &user.id, &new_hash).await?;
     }
 
-    // TODO(deferred-security): re-enable TOTP when `mvp_security::TOTP_2FA_ENABLED` is true.
-    if !mvp_security::TOTP_2FA_ENABLED {
-        return Ok(Session {
-            user_id: user.id,
-            name: user.name,
-            email: user.email,
-            rolle: user.rolle,
-            permission_overrides: Vec::new(),
-            device_session_id: None,
-        });
-    }
-
-    let enrolled = personal_repo::is_totp_enrolled(&user);
-    let mandatory = personal_repo::totp_required_for_role(&user.rolle);
-
-    if mandatory && !enrolled {
-        return Err(AppError::TotpEnrollmentRequired);
-    }
-
-    if enrolled {
-        let secret = user
-            .totp_secret
-            .as_deref()
-            .ok_or(AppError::Internal("TOTP secret missing".into()))?;
-        let code = req
-            .totp_code
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty());
-        match code {
-            None => return Err(AppError::TotpRequired),
-            Some(c) => {
-                if !totp::verify_code(secret, c)? {
-                    return Err(AppError::Unauthorized);
-                }
-            }
-        }
-    }
-
+    // TODO(deferred-security): 2FA unwired — password-only login.
     Ok(Session {
         user_id: user.id,
         name: user.name,
@@ -98,6 +63,14 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         permission_overrides: Vec::new(),
         device_session_id: None,
     })
+
+    /*
+    if !mvp_security::TOTP_2FA_ENABLED {
+        return Ok(Session { ... });
+    }
+    let enrolled = personal_repo::is_totp_enrolled(&user);
+    ...
+    */
 }
 
 /// Password check without issuing a session (enrollment bootstrap).
@@ -106,7 +79,7 @@ pub async fn verify_credentials(
     email: &str,
     passwort: &str,
 ) -> Result<(), AppError> {
-    let user = personal_repo::find_by_email(pool, email)
+    let user = personal_repo::find_by_email(pool, email.trim())
         .await?
         .ok_or(AppError::Unauthorized)?;
     let valid = crypto::verify_password(passwort, &user.passwort_hash)

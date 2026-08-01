@@ -68,6 +68,20 @@ pub fn store_bytes_replace(account: &str, raw: &[u8]) -> Result<(), AppError> {
     store_in_keyring(&entry, raw, account)
 }
 
+/// Remove a keyring entry (no-op when env override is active for that account).
+pub fn delete_account(account: &str) -> Result<(), AppError> {
+    if env_override_bytes(account).is_some() {
+        return Ok(());
+    }
+    let entry = Entry::new(SERVICE, account)
+        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+    match entry.delete_credential() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(AppError::Internal(format!("Keyring löschen {account}: {e}"))),
+    }
+}
+
 /// Load key material when present; does not create a new key.
 pub fn load_bytes_if_exists(account: &str) -> Result<Option<Vec<u8>>, AppError> {
     if let Some(bytes) = env_override_bytes(account) {

@@ -9,7 +9,8 @@ use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::{audit_repo, personal_permission_repo, personal_repo};
 use crate::infrastructure::logging::brute_force;
-use crate::infrastructure::totp::{self, TotpEnrollmentDto};
+// TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
+// use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -387,6 +388,9 @@ pub async fn get_staff_quota(
     mvp_security::staff_quota(&pool).await
 }
 
+/*
+// TODO(deferred-security): 2FA settings IPC — re-enable with TOTP_2FA_ENABLED.
+
 #[derive(Debug, serde::Serialize)]
 pub struct TotpStatusDto {
     pub required: bool,
@@ -400,103 +404,11 @@ pub async fn get_totp_status(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<TotpStatusDto, AppError> {
-    mvp_security::require_totp_enabled()?;
-    let session = rbac::require_authenticated(&session_state)?;
-    let user = personal_repo::find_by_id(&pool, &session.user_id)
-        .await?
-        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
-    let enrolled = personal_repo::is_totp_enrolled(&user);
-    let pending = user.totp_secret.is_some() && !enrolled;
-    Ok(TotpStatusDto {
-        required: personal_repo::totp_required_for_role(&user.rolle),
-        enrolled,
-        pending,
-    })
+    ...
 }
 
-#[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn start_totp_enrollment(
-    pool: State<'_, SqlitePool>,
-    session_state: State<'_, SessionState>,
-) -> Result<TotpEnrollmentDto, AppError> {
-    mvp_security::require_totp_enabled()?;
-    let session = rbac::require_authenticated(&session_state)?;
-    let user = personal_repo::find_by_id(&pool, &session.user_id)
-        .await?
-        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
-    if personal_repo::is_totp_enrolled(&user) {
-        return Err(AppError::validation_code("error.personal.totp_already_active"));
-    }
-    let (secret, dto) = totp::generate_enrollment(&user.email)?;
-    personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
-    Ok(dto)
-}
-
-#[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn confirm_totp_enrollment(
-    pool: State<'_, SqlitePool>,
-    session_state: State<'_, SessionState>,
-    code: String,
-) -> Result<(), AppError> {
-    mvp_security::require_totp_enabled()?;
-    let session = rbac::require_authenticated(&session_state)?;
-    let user = personal_repo::find_by_id(&pool, &session.user_id)
-        .await?
-        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
-    let secret = user
-        .totp_secret
-        .as_deref()
-        .ok_or_else(|| AppError::validation_code("error.auth.totp_setup_not_started"))?;
-    if !totp::verify_code(secret, &code)? {
-        return Err(AppError::validation_code("error.personal.totp_invalid_code"));
-    }
-    personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
-    audit_repo::create(
-        &pool,
-        &session.user_id,
-        "TOTP_ENROLL",
-        "Personal",
-        Some(&session.user_id),
-        None,
-    )
-    .await
-    .ok();
-    Ok(())
-}
-
-/// Disables enrolled 2FA (requires TOTP code) or cancels a pending enrollment.
-#[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn deactivate_totp(
-    pool: State<'_, SqlitePool>,
-    session_state: State<'_, SessionState>,
-    code: Option<String>,
-) -> Result<(), AppError> {
-    mvp_security::require_totp_enabled()?;
-    let session = rbac::require_authenticated(&session_state)?;
-    let outcome =
-        crate::application::totp_service::deactivate_totp(&pool, &session.user_id, code.as_deref())
-            .await?;
-    let event = match outcome {
-        crate::application::totp_service::TotpDeactivateResult::Deactivated => "TOTP_DEACTIVATE",
-        crate::application::totp_service::TotpDeactivateResult::CancelledPending => {
-            "TOTP_ENROLL_CANCEL"
-        }
-    };
-    audit_repo::create(
-        &pool,
-        &session.user_id,
-        event,
-        "Personal",
-        Some(&session.user_id),
-        None,
-    )
-    .await
-    .ok();
-    Ok(())
-}
+... start_totp_enrollment, confirm_totp_enrollment, deactivate_totp ...
+*/
 
 /// Clears brute-force lockouts for `target_email` (all peer IPs). Requires `personal.write`.
 #[tauri::command]
@@ -546,9 +458,10 @@ macro_rules! register_personal_commands {
         $crate::commands::personal_commands::admin_unlock_brute_force,
         $crate::commands::personal_commands::evaluate_password_policy,
         $crate::commands::personal_commands::get_staff_quota,
-        $crate::commands::personal_commands::get_totp_status,
-        $crate::commands::personal_commands::start_totp_enrollment,
-        $crate::commands::personal_commands::confirm_totp_enrollment,
-        $crate::commands::personal_commands::deactivate_totp,
+        // TODO(deferred-security): 2FA IPC unwired
+        // $crate::commands::personal_commands::get_totp_status,
+        // $crate::commands::personal_commands::start_totp_enrollment,
+        // $crate::commands::personal_commands::confirm_totp_enrollment,
+        // $crate::commands::personal_commands::deactivate_totp,
     };
 }
