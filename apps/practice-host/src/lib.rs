@@ -203,6 +203,10 @@ pub fn run() {
                             )
                             .await;
                         }
+                        commands::network::verbund::spawn_member_cluster_watch_task(
+                            auto_app.clone(),
+                            auto_pool.clone(),
+                        );
                     });
 
                     // NFA-SEC-05: daily automatic backup scheduler (24h interval).

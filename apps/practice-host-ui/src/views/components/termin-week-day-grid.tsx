@@ -257,6 +257,7 @@ function TerminTimeColumnBody({
     praxisCfg: PraxisArbeitszeitenConfig;
 }) {
     const t = useT();
+    const tp = useTParams();
     const dateFnsLocale = useDateFnsLocale();
     const dayStartMin = timelineBounds.startMin;
     const dayEndMin = timelineBounds.endMin;
@@ -327,7 +328,7 @@ function TerminTimeColumnBody({
                     <span className="termin-now-dot" />
                     {!singleDay ? null : (
                         <span className="termin-now-pill">
-                            {minutesToUhrzeit(nMin)} jetzt
+                            {tp("termin.calendar.now_pill", { time: minutesToUhrzeit(nMin) })}
                         </span>
                     )}
                 </div>

@@ -64,7 +64,7 @@ export function VerbundOnboardingGate({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         refresh();
-    }, [refresh]);
+    }, [refresh, status?.licensed, status?.provisioned, status?.isOwner, location.pathname]);
 
     if (status === null && loadError) {
         return (

@@ -4,16 +4,17 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use medoc_sync::net::{
-    bind_verbund_listener, handle_join_connection, join_admin_endpoint, scan_admins,
+    bind_verbund_listener, join_admin_endpoint, scan_admins, spawn_verbund_connection_handler,
     AdminEndpoint, DEFAULT_VERBUND_PORT, MdnsResponder,
 };
 use medoc_sync::verbund::crypto::DeviceIdentity;
 use medoc_sync::verbund::services::{
     accept_join_request, activate_cluster_license, block_device,
     import_owner_activation, list_devices, list_pending_requests, mirror_join_session,
-    reclaim_stale_seat, reject_join_request, require_owner_admin, revoke_device, submit_sas,
-    unblock_device, verbund_network_ready, verbund_status, GeraetView, ImportActivationResult,
-    JoinRequestResult, KopplungHandle, PendingRequest, ProvisionResult, SasCode, VerbundStatus,
+    reclaim_stale_seat, reject_join_request, require_owner_admin, revoke_device, store_join_admin_endpoint,
+    submit_sas, sync_staff_from_stored_admin_endpoint, unblock_device, verbund_network_ready,
+    verbund_status, GeraetView, ImportActivationResult, JoinRequestResult, KopplungHandle,
+    PendingRequest, ProvisionResult, SasCode, VerbundStatus,
 };
 use medoc_sync::verbund::SeatRolle;
 use serde::Deserialize;
@@ -31,6 +32,10 @@ pub struct VerbundListenerControl {
 }
 
 impl VerbundListenerControl {
+    pub async fn is_running(&self) -> bool {
+        self.inner.lock().await.is_some()
+    }
+
     pub async fn stop(&self) {
         if let Some(handle) = self.inner.lock().await.take() {
             handle.abort();
@@ -65,6 +70,12 @@ pub async fn lizenz_activate(
         crate::commands::company_portal_commands::resolve_onboarding_license_key(&pool, &license_key)
             .await?;
     let status = activate_cluster_license(&pool, &uid, &resolved).await?;
+    if status.licensed {
+        crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
+            &pool,
+        )
+        .await?;
+    }
     Ok(status)
 }
 
@@ -155,6 +166,7 @@ pub async fn verbund_send_join_request(
         &outcome.handshake_transcript,
     )
     .await?;
+    store_join_admin_endpoint(&pool, payload.admin_host.trim(), payload.admin_port).await?;
     let transcript_b64 = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         &outcome.handshake_transcript,
@@ -193,7 +205,24 @@ pub async fn verbund_submit_sas(
         )
         .map_err(|e| AppError::Validation(format!("handshake transcript base64: {e}")))?
     };
-    submit_sas(&pool, &uid, &payload.handle, &payload.digits, &transcript).await
+    let result = submit_sas(&pool, &uid, &payload.handle, &payload.digits, &transcript).await?;
+    if result.success {
+        if let Err(e) = sync_staff_from_stored_admin_endpoint(&pool).await {
+            tracing::warn!(
+                target: "medoc::verbund",
+                event = "STAFF_DIRECTORY_SYNC_FAILED",
+                error = %e
+            );
+        }
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn verbund_sync_staff_directory(
+    pool: State<'_, SqlitePool>,
+) -> Result<u32, AppError> {
+    sync_staff_from_stored_admin_endpoint(&pool).await
 }
 
 /// Spawn TCP+mDNS receive port when licensed (owners) or licensed/provisioned (members).
@@ -217,6 +246,9 @@ async fn start_verbund_listener_task(
     pool: SqlitePool,
     listener: &VerbundListenerControl,
 ) -> Result<(), AppError> {
+    if listener.is_running().await {
+        return Ok(());
+    }
     listener.stop().await;
     let addr = pick_private_bind_addr()?;
     let host = addr.to_string();
@@ -251,9 +283,7 @@ async fn start_verbund_listener_task(
                             peer = %peer
                         );
                         let pool = pool.clone();
-                        tokio::spawn(async move {
-                            handle_join_connection(stream, pool).await;
-                        });
+                        spawn_verbund_connection_handler(stream, pool);
                     }
                     Err(e) => {
                         tracing::warn!(
@@ -405,4 +435,136 @@ pub async fn verbund_unblock_device(
     require(&session_state, "ops.system")?;
     require_admin_seat(&pool).await?;
     unblock_device(&pool, &uid, &fingerprint).await
+}
+
+/// Background poll for member devices to detect owner-initiated cluster reset.
+pub fn spawn_member_cluster_watch_task(app: tauri::AppHandle, pool: SqlitePool) {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| {
+            dirs::home_dir()
+                .map(|h| h.join("Library/Application Support/de.medoc.app"))
+                .unwrap_or_else(|| std::path::PathBuf::from("./medoc-data"))
+        });
+    let emit_app = app.clone();
+    medoc_sync::net::member_cluster_watch::spawn_member_cluster_watch(
+        pool,
+        app_data_dir,
+        move || {
+            let restart_app = emit_app.clone();
+            crate::commands::app_lifecycle::schedule_app_restart(restart_app);
+        },
+    );
+}
+
+#[tauri::command]
+pub async fn verbund_cluster_reset_preview(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<medoc_sync::verbund::services::ClusterResetPreview, AppError> {
+    require(&session_state, "ops.system")?;
+    require_admin_seat(&pool).await?;
+    medoc_sync::verbund::services::cluster_reset_preview(&pool).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClusterResetExecuteRequest {
+    pub mode: String,
+    pub password: String,
+    // TODO(deferred-security): 2FA unwired
+    // #[serde(default)]
+    // pub totp_code: Option<String>,
+    pub confirm_phrase: String,
+}
+
+async fn validate_cluster_reset_reauth(
+    pool: &SqlitePool,
+    session_state: &State<'_, SessionState>,
+    password: &str,
+    confirm_phrase: &str,
+) -> Result<String, AppError> {
+    let session = require(session_state, "ops.system")?;
+
+    let user = crate::infrastructure::database::personal_repo::find_by_id(pool, &session.user_id)
+        .await?
+        .ok_or(AppError::NotFound("error.entity.personal".into()))?;
+    let ok = medoc_core::infrastructure::crypto::verify_password(password, &user.passwort_hash)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    if !ok {
+        return Err(AppError::Unauthorized);
+    }
+
+    /*
+    // TODO(deferred-security): 2FA cluster-reset reauth unwired
+    if crate::infrastructure::database::personal_repo::is_totp_enrolled(&user) {
+        let code = totp_code
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or(AppError::TotpRequired)?;
+        let secret = user
+            .totp_secret
+            .as_deref()
+            .ok_or_else(|| AppError::Internal("TOTP secret missing".into()))?;
+        if !crate::infrastructure::totp::verify_code(secret, code)? {
+            return Err(AppError::Unauthorized);
+        }
+    }
+    */
+
+    let preview = medoc_sync::verbund::services::cluster_reset_preview(pool).await?;
+    let phrase = confirm_phrase.trim();
+    let slug_ok = preview
+        .practice_slug
+        .as_ref()
+        .is_some_and(|s| s.eq_ignore_ascii_case(phrase));
+    let reset_ok = phrase.eq_ignore_ascii_case(&preview.confirm_phrase_hint);
+    if !slug_ok && !reset_ok {
+        return Err(AppError::Validation(
+            "Bestätigungstext stimmt nicht.".into(),
+        ));
+    }
+
+    Ok(session.user_id)
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "warn", skip(app, pool, session_state, _listener, request))]
+pub async fn verbund_execute_cluster_reset(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    _listener: State<'_, VerbundListenerControl>,
+    request: ClusterResetExecuteRequest,
+) -> Result<medoc_sync::verbund::services::ClusterResetReport, AppError> {
+    let uid = validate_cluster_reset_reauth(
+        &pool,
+        &session_state,
+        &request.password,
+        &request.confirm_phrase,
+    )
+    .await?;
+    require_admin_seat(&pool).await?;
+
+    crate::commands::app_lifecycle::stop_network_services(&app).await;
+
+    let mode = medoc_sync::verbund::services::ClusterResetMode::parse(&request.mode)?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+
+    let report =
+        medoc_sync::verbund::services::execute_owner_cluster_reset(&pool, &app_data_dir, &uid, mode)
+            .await?;
+
+    {
+        let mut guard = session_state.lock_session();
+        *guard = None;
+    }
+
+    crate::commands::app_lifecycle::schedule_app_restart(app);
+
+    Ok(report)
 }

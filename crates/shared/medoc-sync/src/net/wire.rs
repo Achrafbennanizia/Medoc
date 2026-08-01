@@ -45,6 +45,27 @@ pub enum WireMessage {
     Revoke {
         fingerprint: String,
     },
+    ClusterReset {
+        token_json: String,
+        signature_b64: String,
+    },
+    StaffDirectoryRequest {
+        fingerprint: String,
+    },
+    StaffDirectoryResponse {
+        directory_json: String,
+    },
+    ClusterStatusRequest {
+        fingerprint: String,
+        cluster_id: String,
+    },
+    ClusterStatusResponse {
+        reset_pending: bool,
+        #[serde(default)]
+        token_json: Option<String>,
+        #[serde(default)]
+        signature_b64: Option<String>,
+    },
     Error {
         code: String,
         message: String,

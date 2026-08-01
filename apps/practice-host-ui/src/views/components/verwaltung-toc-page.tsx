@@ -1,4 +1,5 @@
 import { useT, useTParams } from "@/lib/i18n";
+import type { VerwaltungTocLink } from "@/lib/verwaltung-toc";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { NAV_ICONS, ICON_SIZE_LG } from "@/lib/icons";
@@ -6,19 +7,14 @@ import { routeChildPathAllowed } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { VerwaltungPageHeader } from "./verwaltung-page-header";
 
-export type VerwaltungTocLink = {
-    title: string;
-    desc: string;
-    href: string;
-    iconKey?: string;
-    /** RoleRoute / `ROUTE_VISIBILITY` key; omit when the row is not gated on this hub. */
-    requires?: string;
-};
+export type { VerwaltungTocLink };
 
 type Props = {
     title: string;
     subtitle: string;
     links: readonly VerwaltungTocLink[];
+    /** When true, links were already RBAC-filtered by {@link useVerwaltungTocHub}. */
+    rbacFiltered?: boolean;
 };
 
 function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
@@ -29,15 +25,17 @@ function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
 }
 
 /** Shared admin TOC: real `<a href>` rows, RBAC-filtered, keyboard-safe (Enter + Space). */
-export function VerwaltungTocPage({ title, subtitle, links }: Props) {
+export function VerwaltungTocPage({ title, subtitle, links, rbacFiltered = false }: Props) {
     const t = useT();
     const tp = useTParams();
     const session = useAuthStore((s) => s.session);
-    const visible = links.filter((l) =>
-        l.requires != null && l.requires !== ""
-            ? routeChildPathAllowed(l.requires, session?.rolle, session?.permission_overrides)
-            : true,
-    );
+    const visible = rbacFiltered
+        ? links
+        : links.filter((l) =>
+              l.requires != null && l.requires !== ""
+                  ? routeChildPathAllowed(l.requires, session?.rolle, session?.permission_overrides)
+                  : true,
+          );
     const useIcons = visible.some((l) => Boolean(l.iconKey));
 
     return (

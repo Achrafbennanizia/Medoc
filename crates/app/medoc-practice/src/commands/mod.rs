@@ -1,5 +1,6 @@
 //! Tauri IPC command surface — grouped by domain (R6).
 pub mod admin;
+pub mod app_lifecycle;
 pub mod billing;
 pub mod clinical;
 pub mod list_params;

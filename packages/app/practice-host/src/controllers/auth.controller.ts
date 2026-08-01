@@ -5,7 +5,7 @@ import type { Session } from "@/models/types";
 export type LoginOpts = {
     device_label?: string;
     user_agent?: string;
-    totp_code?: string;
+    /** TODO(deferred-security): 2FA unwired — IPC still accepts null. */
 };
 
 export async function login(
@@ -16,7 +16,7 @@ export async function login(
     const session = await practiceSystem.invoke<Session>("login", {
         email,
         passwort,
-        totp_code: opts?.totp_code ?? null,
+        totp_code: null,
         device_label: opts?.device_label ?? null,
         user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
     });

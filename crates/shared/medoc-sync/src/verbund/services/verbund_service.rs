@@ -20,6 +20,7 @@ use crate::verbund::ports::{
 use super::audit;
 use super::lizenz_service::require_owner_admin;
 use super::provisioning_service::{apply_provisioning, ProvisionResult};
+use super::staff_directory::fetch_provisioning_settings_json;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,7 +259,17 @@ pub async fn submit_sas(
             .await?;
 
         let seat_token = format!("join-provision:{}", handle.session_id);
-        let settings_json = "{}".to_string();
+        let settings_json = match fetch_provisioning_settings_json(pool).await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!(
+                    target: "medoc::verbund",
+                    event = "STAFF_DIRECTORY_PROVISION_FETCH_FAILED",
+                    error = %e
+                );
+                "{}".to_string()
+            }
+        };
         let wrapped_secrets = vec![];
 
         let result = apply_provisioning(

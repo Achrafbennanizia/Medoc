@@ -52,10 +52,12 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Personal>,
 }
 
 pub async fn find_by_email(pool: &SqlitePool, email: &str) -> Result<Option<Personal>, AppError> {
-    let row = sqlx::query_as::<_, Personal>("SELECT * FROM personal WHERE email = ?1")
-        .bind(email)
-        .fetch_optional(pool)
-        .await?;
+    let row = sqlx::query_as::<_, Personal>(
+        "SELECT * FROM personal WHERE LOWER(email) = LOWER(?1) LIMIT 1",
+    )
+    .bind(email.trim())
+    .fetch_optional(pool)
+    .await?;
     Ok(row)
 }
 

@@ -62,9 +62,14 @@ export function GeraeteverbundPanel({ embedded }: { embedded?: boolean }) {
     }, [allowed, toast]);
 
     useEffect(() => {
+        if (!allowed) return;
         void reload();
+    }, [allowed, reload]);
+
+    useEffect(() => {
+        if (!allowed) return;
         void verbundStartListener().catch(() => undefined);
-    }, [reload]);
+    }, [allowed]);
 
     if (isMemberDevice) {
         return (

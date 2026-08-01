@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cluster_id": "d/jUqa1kQyyJTBVNDcWbig==",
+  "device_pubkey": "URQljNcN2xNLT8GTN7fdVicIrW4IUkgq79m82/6nDTs=",
+  "device_fingerprint": "K7CG376VKNCWB2NBDZZCVAO6E4TRSY6KOSJEQ2W43ZCAJE2TGLNQ",
+  "cluster_ca_pubkey": "PtztjdD1MC/wyPaWClMHPw67tPzITRfpA2SUD1KOr9g=",
+  "created_at": "2026-07-13T08:11:40Z",
+  "kdf": { "alg": "argon2id13", "salt": "UlBiZdRS8uKgZdoqdIrWbw==", "ops": 3, "mem": 268435456 },
+  "sealed": { "nonce": "Ad/bLDDaQngOpD+PChEdVvNHPvytJGz3", "ciphertext": "KLhlwVhM7PBszkatWEb7NprAfLhirU/Z3uB1f2rDbgm8LM8J0dvIp0IQ46InENRl1dKALcTYnsF6E2z78NAHP5+aVHNctD/olgzI4wGzuhZPBOn9CajTUzdDw11gfIzR+TzKpJyX4vJD4xkBjK66bEkKvsMAtNH2z1xo2//6ilHdTl3JcNpdgonpQv9PsE7L9m6FnB+/1w0cR7zubNUjh+jUDxaVOx2wv0mQMmO9f6I=" }
+}

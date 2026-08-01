@@ -5,6 +5,7 @@ use snow::{Builder, HandshakeState, Keypair, TransportState};
 
 pub const NOISE_XX: &str = "Noise_XX_25519_ChaChaPoly_SHA256";
 pub const NOISE_KK: &str = "Noise_KK_25519_ChaChaPoly_SHA256";
+const HS_BUF: usize = 2048;
 
 pub struct NoiseHandshake {
     state: HandshakeState,
@@ -116,9 +117,9 @@ pub fn complete_xx_handshake(
     initiator_kp: &Keypair,
     responder_kp: &Keypair,
 ) -> Result<(NoiseTransport, NoiseTransport, Vec<u8>), AppError> {
-    let mut buf1 = [0u8; 65535];
-    let mut buf2 = [0u8; 65535];
-    let mut payload = [0u8; 65535];
+    let mut buf1 = vec![0u8; HS_BUF];
+    let mut buf2 = vec![0u8; HS_BUF];
+    let mut payload = vec![0u8; HS_BUF];
 
     let mut ini = NoiseHandshake::new_xx_initiator(initiator_kp)?;
     let mut res = NoiseHandshake::new_xx_responder(responder_kp)?;

@@ -4599,6 +4599,171 @@ html[data-theme="dark"] {
   .ios-confirm-btn:active:not(:disabled) {
     background: color-mix(in oklab, var(--fg) 9%, transparent);
   }
+
+  /* Network reset — settings danger card + confirm dialog */
+  .settings-subcard--danger {
+    border-color: color-mix(in oklab, var(--red) 28%, var(--line));
+    background: color-mix(in oklab, var(--red-soft) 12%, var(--bg-elev));
+  }
+  .settings-subcard--danger .card-head {
+    border-bottom-color: color-mix(in oklab, var(--red) 16%, var(--line));
+  }
+  .settings-subcard--danger .card-title {
+    color: var(--red);
+  }
+  .network-reset-section__intro,
+  .network-reset-section__meta,
+  .network-reset-section__backup-link {
+    padding-inline: var(--card-pad-x);
+  }
+  .network-reset-section__intro {
+    padding-block: 0 var(--space-2);
+  }
+  .network-reset-section__meta {
+    padding-block: 0 var(--space-3);
+  }
+  .network-reset-section__backup-link {
+    padding-block: 0 var(--space-3);
+  }
+  .network-reset-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: 0 var(--card-pad-x) var(--space-3);
+  }
+  @media (max-width: 640px) {
+    .network-reset-mode-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .network-reset-mode-card {
+    position: relative;
+    min-height: 100%;
+  }
+  .network-reset-section__actions {
+    padding: var(--space-3) var(--card-pad-x) var(--space-4);
+    border-top: 1px solid color-mix(in oklab, var(--red) 12%, var(--line));
+  }
+
+  .modal--network-reset-confirm {
+    width: min(420px, 92vw);
+    max-width: min(420px, 92vw);
+    border-radius: 16px;
+    border: 1px solid color-mix(in oklab, var(--line-strong) 72%, #fff);
+    box-shadow:
+      0 0 0 0.5px rgba(10, 12, 16, 0.06),
+      0 24px 80px rgba(10, 12, 16, 0.28);
+  }
+  .modal--network-reset-confirm .modal-body-pad {
+    padding: 0;
+  }
+  .modal--network-reset-confirm .modal-close-corner {
+    top: 14px;
+    right: 14px;
+  }
+  .network-reset-confirm {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .network-reset-confirm__banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 52px 16px 20px;
+    background: color-mix(in oklab, var(--red-soft) 75%, var(--bg-elev));
+    border-bottom: 1px solid color-mix(in oklab, var(--red) 16%, var(--line));
+  }
+  .network-reset-confirm__icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    color: var(--red);
+    background: color-mix(in oklab, var(--red-soft) 90%, #fff);
+  }
+  .network-reset-confirm__banner-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: 500;
+    color: color-mix(in oklab, var(--red) 72%, var(--fg));
+  }
+  .network-reset-confirm__body {
+    padding: 20px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .network-reset-confirm__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--fg);
+  }
+  .network-reset-confirm__mode {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg-2);
+  }
+  .network-reset-confirm__phrase-block {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+  }
+  .network-reset-confirm__phrase-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .network-reset-confirm__phrase {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fg);
+    word-break: break-all;
+  }
+  .network-reset-confirm__fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .network-reset-confirm__ack {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 12px;
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--red-soft) 35%, var(--surface-2));
+    border: 1px solid color-mix(in oklab, var(--red) 14%, var(--line));
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg-2);
+    cursor: pointer;
+  }
+  .network-reset-confirm__ack input {
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--red);
+  }
+  .network-reset-confirm .ios-confirm-actions {
+    border-top: 1px solid var(--line);
+  }
+
   .akte-inline-panel-actions--ios {
     padding: 0;
     border-top: none;

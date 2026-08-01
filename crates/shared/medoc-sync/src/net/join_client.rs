@@ -66,3 +66,36 @@ pub async fn join_admin_endpoint(
         ))),
     }
 }
+
+/// Fetch owner staff directory after verbund join (for local login on member devices).
+pub async fn fetch_staff_directory(
+    host: &str,
+    port: u16,
+    identity: &DeviceIdentity,
+) -> Result<String, AppError> {
+    let addr = format!("{host}:{port}");
+    let mut stream = TcpStream::connect(&addr)
+        .await
+        .map_err(|e| AppError::Internal(format!("verbund connect {addr}: {e}")))?;
+
+    let (mut transport, _transcript) = run_xx_initiator(&mut stream).await?;
+
+    send_wire_message(
+        &mut stream,
+        &mut transport,
+        &WireMessage::StaffDirectoryRequest {
+            fingerprint: identity.fingerprint.clone(),
+        },
+    )
+    .await?;
+
+    match recv_wire_message(&mut stream, &mut transport).await? {
+        WireMessage::StaffDirectoryResponse { directory_json } => Ok(directory_json),
+        WireMessage::Error { code, message } => Err(AppError::Validation(format!(
+            "staff directory rejected ({code}): {message}"
+        ))),
+        other => Err(AppError::Internal(format!(
+            "unexpected staff directory response: {other:?}"
+        ))),
+    }
+}

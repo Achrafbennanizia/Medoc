@@ -4,6 +4,26 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
 use crate::verbund::ports::{is_provisioned, mark_provisioned, provisioning_counter};
+use crate::verbund::services::staff_directory::import_staff_directory_json;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProvisioningSettings {
+    #[serde(default)]
+    staff_directory_json: Option<String>,
+}
+
+async fn apply_provisioning_settings(pool: &SqlitePool, settings_json: &str) -> Result<(), AppError> {
+    if settings_json.trim().is_empty() || settings_json.trim() == "{}" {
+        return Ok(());
+    }
+    let settings: ProvisioningSettings = serde_json::from_str(settings_json)
+        .map_err(|e| AppError::Validation(format!("Provisioning-Settings: {e}")))?;
+    if let Some(staff_json) = settings.staff_directory_json.filter(|s| !s.trim().is_empty()) {
+        import_staff_directory_json(pool, &staff_json).await?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +57,7 @@ pub async fn apply_provisioning(
         });
     }
     mark_provisioned(pool, fingerprint).await?;
+    apply_provisioning_settings(pool, &settings_json).await?;
     Ok(ProvisionResult {
         success: true,
         already_provisioned: false,
