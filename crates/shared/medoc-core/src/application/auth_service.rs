@@ -42,7 +42,7 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         .ok_or(AppError::Unauthorized)?;
 
     let valid = crypto::verify_password(&req.passwort, &user.passwort_hash)
-        .map_err(|_| AppError::Internal("Hash-Fehler".into()))?;
+        .map_err(|_| AppError::Internal("Hash error".into()))?;
 
     if !valid {
         return Err(AppError::Unauthorized);
@@ -83,7 +83,7 @@ pub async fn verify_credentials(
         .await?
         .ok_or(AppError::Unauthorized)?;
     let valid = crypto::verify_password(passwort, &user.passwort_hash)
-        .map_err(|_| AppError::Internal("Hash-Fehler".into()))?;
+        .map_err(|_| AppError::Internal("Hash error".into()))?;
     if valid {
         Ok(())
     } else {

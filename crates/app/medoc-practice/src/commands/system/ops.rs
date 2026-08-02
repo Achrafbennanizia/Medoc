@@ -81,7 +81,7 @@ pub async fn restore_backup(
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     let report = backup::restore_from_backup(&pool, &app_dir, &PathBuf::from(path)).await?;
     Ok(RestoreBackupResult {
         requires_app_restart: report.requires_app_restart,
@@ -113,7 +113,7 @@ pub async fn dsgvo_erase_patient(
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     dsgvo::erase_patient(&pool, &patient_id, &app_dir).await
 }
 

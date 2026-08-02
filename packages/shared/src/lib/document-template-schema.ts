@@ -66,35 +66,36 @@ export interface DocumentTemplatePayloadV1 {
 }
 
 export const EXPORT_TABLE_COLUMN_OPTIONS: { id: ExportTableColumnId; label: string }[] = [
-    { id: "pos", label: "Pos.-Nr." },
-    { id: "datum", label: "Datum" },
-    { id: "leistung", label: "Leistung" },
-    { id: "bNr", label: "B-Nr." },
-    { id: "menge", label: "Menge" },
-    { id: "einzelpreis", label: "Einzelpreis" },
-    { id: "gesamt", label: "Gesamt" },
-    { id: "ust", label: "USt" },
+    { id: "pos", label: "Item no." },
+    { id: "datum", label: "Date" },
+    { id: "leistung", label: "Service" },
+    { id: "bNr", label: "Invoice no." },
+    { id: "menge", label: "Quantity" },
+    { id: "einzelpreis", label: "Unit price" },
+    { id: "gesamt", label: "Total" },
+    { id: "ust", label: "VAT" },
 ];
 
+/** English fallback labels — UI should prefer `praxisFieldLabel(t, id)` from `document-template-i18n`. */
 export const PRAXIS_FIELD_OPTIONS: { id: PraxisFieldKey; label: string }[] = [
     { id: "name", label: "Name" },
-    { id: "address", label: "Adresse" },
-    { id: "phone", label: "Telefon" },
+    { id: "address", label: "Address" },
+    { id: "phone", label: "Phone" },
     { id: "fax", label: "Fax" },
     { id: "web", label: "Web" },
-    { id: "email", label: "E-Mail" },
-    { id: "kv", label: "KV-Nr." },
-    { id: "tax", label: "Steuer-Nr." },
-    { id: "hours", label: "Öffnungszeiten" },
-    { id: "behandler", label: "Behandler" },
-    { id: "zanr", label: "ZANR" },
-    { id: "bsnr", label: "BSNR" },
-    { id: "bank", label: "Bankverbindung" },
-    { id: "kammer", label: "Kammer" },
-    { id: "kzv", label: "KZV" },
-    { id: "zahlungsziel", label: "Zahlungsziel" },
-    { id: "ust_hinweis", label: "USt-Hinweis" },
-    { id: "notfall_tel", label: "Notfall-Tel." },
+    { id: "email", label: "Email" },
+    { id: "kv", label: "Health insurer no." },
+    { id: "tax", label: "Tax no." },
+    { id: "hours", label: "Opening hours" },
+    { id: "behandler", label: "Treating clinician" },
+    { id: "zanr", label: "Dental license no." },
+    { id: "bsnr", label: "Practice site no." },
+    { id: "bank", label: "Bank details" },
+    { id: "kammer", label: "Chamber" },
+    { id: "kzv", label: "Regional dental association" },
+    { id: "zahlungsziel", label: "Payment terms" },
+    { id: "ust_hinweis", label: "VAT notice" },
+    { id: "notfall_tel", label: "Emergency phone" },
 ];
 
 export function emptyDocumentTemplatePayloadV1(): DocumentTemplatePayloadV1 {
@@ -125,18 +126,16 @@ export type DocumentKind =
     | "akte"
     | "audit_list";
 
+/** English fallback labels — UI should prefer `documentKindLabel(t, kind)` from `document-template-i18n`. */
 export const DOCUMENT_KIND_LABEL: Record<DocumentKind, string> = {
-    quittung: "Quittung",
-    rezept: "Rezept",
-    attest: "Attest",
-    rechnung: "Rechnung",
-    tagesbericht: "Tagesbericht",
-    akte: "Patientenakte",
-    audit_list: "Audit / Listen",
+    quittung: "Receipt",
+    rezept: "Prescription",
+    attest: "Certificate",
+    rechnung: "Invoice",
+    tagesbericht: "Daily report",
+    akte: "Patient chart",
+    audit_list: "Audit / lists",
 };
-
-/** @deprecated Use `documentKindLabel(t, kind)` from `document-template-i18n` in UI. */
-export const DOCUMENT_KIND_LABEL_LEGACY = DOCUMENT_KIND_LABEL;
 
 export type BuiltinTemplateId = "sachlich" | "praxis_logo" | "behoerdlich";
 
@@ -157,14 +156,14 @@ export const BUILTIN_TEMPLATES_BY_KIND: Record<DocumentKind, BuiltinTemplateMeta
     quittung: [
         {
             id: "sachlich",
-            name: "Standard sachlich",
-            description: "Minimal, schwarzweiß",
-            payload: payloadVariant(base, { fusszeile: "Zahlungseingang bestätigt.", dichte: "kompakt" }),
+            name: "Plain standard",
+            description: "Minimal, black and white",
+            payload: payloadVariant(base, { fusszeile: "Payment received.", dichte: "kompakt" }),
         },
         {
             id: "praxis_logo",
-            name: "Praxis mit Logo",
-            description: "Kopf mit Logo + Adresse",
+            name: "Practice with logo",
+            description: "Header with logo + address",
             payload: payloadVariant(base, {
                 kopf: { ...base.kopf, showLogo: true, fieldsToShow: ["name", "address", "phone", "email", "kv"] },
                 dichte: "normal",
@@ -172,11 +171,11 @@ export const BUILTIN_TEMPLATES_BY_KIND: Record<DocumentKind, BuiltinTemplateMeta
         },
         {
             id: "behoerdlich",
-            name: "Behördlich",
-            description: "Formell, GoBD-orientiert",
+            name: "Formal / official",
+            description: "Formal, GoBD-oriented",
             payload: payloadVariant(base, {
                 signatur: { show: true, labelArt: "both" },
-                fusszeile: "GoBD-konformer Belegausdruck — Unterschrift/Stempel erforderlich.",
+                fusszeile: "GoBD-compliant receipt printout — signature/stamp required.",
                 dichte: "weit",
             }),
         },

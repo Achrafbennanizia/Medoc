@@ -48,7 +48,7 @@ export async function downloadTagesabschlussBerichtPdf(
         }
         const part = buildTagesberichtLines(stichtag, pid, zahlungen, beh, unters);
         for (const l of part) {
-            const isLeerHinweis = l.description.includes("keine zugeordneten B-/U");
+            const isLeerHinweis = l.description.includes("no linked treatment/examination payments");
             if (isLeerHinweis && pids.length > 1) {
                 continue;
             }
@@ -62,7 +62,7 @@ export async function downloadTagesabschlussBerichtPdf(
 
     if (aggregated.length === 0) {
         aggregated.push({
-            description: `Tagesbericht ${stichtag} — am Stichtag keine nutzbaren B-/U-Daten (Patienten: ${pids.length}).`,
+            description: `Daily report ${stichtag} — no usable treatment/examination data on the report date (patients: ${pids.length}).`,
             amount_cents: 1,
         });
     }
@@ -84,14 +84,14 @@ export async function downloadTagesabschlussBerichtPdf(
         const bic = (praxis.bankverbindung_bic ?? "").trim();
         const bankName = (praxis.bankverbindung_bank ?? "").trim();
         bankLines.push(
-            `Bankverbindung: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
+            `Bank details: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
         );
     }
     const note = [
-        `Gesamttagesbericht zu Tagesabschluss ${stichtag} · nicht an eine Einzelperson adressiert`,
-        `Bargeld laut System: ${row.bar_laut_system_eur} €`,
-        row.gezaehlt_eur != null ? `Gezählt: ${row.gezaehlt_eur} €` : null,
-        row.notiz?.trim() ? `Hinweis: ${row.notiz.trim()}` : null,
+        `Combined daily report for day-end closing ${stichtag} · not addressed to an individual`,
+        `Cash per system: ${row.bar_laut_system_eur} €`,
+        row.gezaehlt_eur != null ? `Counted: ${row.gezaehlt_eur} €` : null,
+        row.notiz?.trim() ? `Note: ${row.notiz.trim()}` : null,
     ]
         .filter(Boolean)
         .join(" · ");
@@ -99,8 +99,8 @@ export async function downloadTagesabschlussBerichtPdf(
     const bytes = await renderInvoicePdf({
         number: num,
         date: stichtag,
-        recipient_name: "Tagesbericht (Gesamtdokumentation)",
-        recipient_address: [stichtag, "Beleg-Überblick je Patient mit Tagesvorgang"],
+        recipient_name: "Daily report (combined documentation)",
+        recipient_address: [stichtag, "Receipt overview per patient with day activity"],
         practice_name: praxis.name,
         practice_address: buildInvoiceHeaderAddressLinesForExport(praxis),
         lines: aggregated,
@@ -114,8 +114,8 @@ export async function downloadTagesabschlussBerichtPdf(
     });
     openExportPreview({
         format: "pdf",
-        title: "Tagesbericht (PDF)",
-        hint: `Stichtag ${stichtag} · Gesamtdokumentation · Drucken oder speichern.`,
+        title: "Daily report (PDF)",
+        hint: `Report date ${stichtag} · Combined documentation · Print or save.`,
         suggestedFilename: `tagesbericht-${stichtag.replace(/[^\d-]/g, "")}-gesamt.pdf`,
         binaryBody: new Uint8Array(bytes),
     });

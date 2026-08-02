@@ -185,7 +185,7 @@ export function TerminCreatePage() {
     const [statusWunsch, setStatusWunsch] = useState("GEPLANT");
     const [patientError, setPatientError] = useState("");
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
-    /** Structured plan from Akte (plan-next-Termin workflow). */
+    /** Structured plan from the patient record (plan-next-appointment workflow). */
     const [doctorPlan, setDoctorPlan] = useState<PlanNextTerminV2 | null>(null);
     const [praxisCfg, setPraxisCfg] = useState<PraxisArbeitszeitenConfig>(() => readPraxisArbeitszeitenConfig());
     const storePraxisCfg = usePraxisArbeitszeitenStore((s) => s.config);
@@ -298,10 +298,10 @@ export function TerminCreatePage() {
         const parts: string[] = [];
         const summary = planNextTerminSummary(p);
         if (summary) parts.push(summary);
-        if (p.terminArtHint.trim()) parts.push(`Terminart (Vorschlag): ${p.terminArtHint}`);
-        if (p.durationMin.trim()) parts.push(`Dauer ca. ${p.durationMin} Min.`);
-        if (p.preferredWeekdays.trim()) parts.push(`Wunsch-Tage: ${p.preferredWeekdays}`);
-        if (p.internalNote.trim()) parts.push(`Intern: ${p.internalNote}`);
+        if (p.terminArtHint.trim()) parts.push(tp("termin.create.plan_note.art", { art: p.terminArtHint }));
+        if (p.durationMin.trim()) parts.push(tp("termin.create.plan_note.duration", { min: p.durationMin }));
+        if (p.preferredWeekdays.trim()) parts.push(tp("termin.create.plan_note.weekdays", { days: p.preferredWeekdays }));
+        if (p.internalNote.trim()) parts.push(tp("termin.create.plan_note.internal", { note: p.internalNote }));
         return parts.join("\n");
     }
 

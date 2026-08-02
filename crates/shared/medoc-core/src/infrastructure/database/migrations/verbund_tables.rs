@@ -1,10 +1,10 @@
-//! Geräteverbund DDL — cluster license, device registry extensions, blocklist, provisioning.
+//! Device-cluster (Geräteverbund) DDL — cluster license, device registry extensions, blocklist, provisioning.
 
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-/// Idempotent schema for Geräteverbund (evolution of sync/pairing tables).
+/// Idempotent schema for the device cluster / Geräteverbund (evolution of sync/pairing tables).
 pub async fn ensure_verbund_tables(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS lizenz (

@@ -46,10 +46,10 @@ pub fn validate_sas_match(
     key: &[u8],
 ) -> Result<(), AppError> {
     let Some(sas) = normalise_sas_input(entered) else {
-        return Err(AppError::Validation("SAS muss 4 Ziffern sein".into()));
+        return Err(AppError::Validation("SAS must be 4 digits".into()));
     };
     if !verify_sas(session_id, &sas, expected_hash, key) {
-        return Err(AppError::Validation("SAS stimmt nicht überein".into()));
+        return Err(AppError::Validation("SAS does not match".into()));
     }
     Ok(())
 }

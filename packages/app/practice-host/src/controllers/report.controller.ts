@@ -20,7 +20,7 @@ export interface ReportPdfInput {
     sections: ReportPdfSection[];
 }
 
-/** Practice report PDF — same Rust renderer as Akte / Merkblatt (`render_akte_blocks`). */
+/** Practice report PDF — same Rust renderer as record / discharge leaflet (`render_akte_blocks`). */
 export async function renderReportPdf(input: ReportPdfInput): Promise<Uint8Array> {
     const raw = await practiceSystem.invoke<number[]>("render_report_pdf_command", { input });
     return new Uint8Array(raw);

@@ -244,7 +244,7 @@ function DeviceFilePanel() {
             <div style={{ padding: 16, paddingTop: 14 }}>
                 <CardHeader title={t("migration.device.import_title")} />
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
-                    FA-DEV-01..04 · Geräte-Stubs zur lokalen Validierung
+                    {t("migration.device.stubs_hint")}
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
                     <div>

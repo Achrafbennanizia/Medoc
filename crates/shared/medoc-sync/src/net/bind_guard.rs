@@ -4,7 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use medoc_core::error::AppError;
 
-/// Returns true when `addr` is safe for Geräteverbund listener binding.
+/// Returns true when `addr` is safe for device-cluster listener binding.
 pub fn is_private_lan_address(addr: IpAddr) -> bool {
     match addr {
         IpAddr::V4(v4) => is_private_v4(v4),
@@ -39,7 +39,7 @@ pub fn assert_private_bind(addr: IpAddr) -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::Validation(format!(
-            "Geräteverbund listener darf nur private LAN-Adressen binden (abgelehnt: {addr})"
+            "Device-cluster listener may only bind private LAN addresses (rejected: {addr})"
         )))
     }
 }

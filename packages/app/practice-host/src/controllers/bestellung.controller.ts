@@ -16,7 +16,7 @@ export interface Bestellung {
     menge: number;
     einheit: string | null;
     bemerkung: string | null;
-    /** Order total on capture (inventory price × quantity), for Finanzen. */
+    /** Order total on capture (inventory price × quantity), for finance. */
     gesamtbetrag?: number | null;
     created_by: string;
     created_at: string;

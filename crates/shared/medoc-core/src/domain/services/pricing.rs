@@ -19,7 +19,7 @@ pub fn money_to_invoice_cents(bruto: f64) -> i64 {
     cents
 }
 
-/// FA-LEIST-06: abrechnungsrelevante Behandlung (Leistungsname und/oder Soll > 0).
+/// FA-LEIST-06: billable treatment (service name and/or amount due > 0).
 pub fn behandlung_has_billable_leistung(
     leistungsname: Option<&str>,
     gesamtkosten: Option<f64>,
@@ -71,7 +71,7 @@ pub fn invoice_amount_cents_behandlung(gesamtkosten: Option<f64>, paid_sum_eur: 
     money_to_invoice_cents(bruto).max(1)
 }
 
-/// Invoice line amount for an Untersuchung (FA-LEIST-07: `gesamtkosten` wie Behandlung).
+/// Invoice line amount for an examination (FA-LEIST-07: `gesamtkosten` like treatment).
 pub fn invoice_amount_cents_untersuchung(gesamtkosten: Option<f64>, paid_sum_eur: f64) -> i64 {
     invoice_amount_cents_behandlung(gesamtkosten, paid_sum_eur)
 }

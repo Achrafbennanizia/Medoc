@@ -295,7 +295,7 @@ pub async fn delete_dokument_vorlage(pool: &SqlitePool, id: &str) -> Result<(), 
     Ok(())
 }
 
-// --- Behandlungs-Katalog (Verwaltung → vordefinierte Leistungen) ---
+// --- Treatment catalog (admin → predefined services) ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct BehandlungsKatalogItem {
@@ -404,7 +404,7 @@ pub async fn delete_behandlungs_katalog_item(pool: &SqlitePool, id: &str) -> Res
     Ok(())
 }
 
-// --- Bestellstamm: Lieferant / Pharmaberater (Verwaltung) + Kombi für „Neue Bestellung“ ---
+// --- Order master data: supplier / pharma rep (admin) + combo for "New order" ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct LieferantStammRow {

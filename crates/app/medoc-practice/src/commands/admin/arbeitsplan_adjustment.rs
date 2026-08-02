@@ -1,4 +1,4 @@
-//! Server-synced Arbeitsplan compose adjustments (cut_range from Krankenbescheinigung).
+//! Server-synced work-plan compose adjustments (cut_range from sick-leave certificate).
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};

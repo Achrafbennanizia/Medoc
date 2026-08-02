@@ -1,4 +1,4 @@
-//! Repository ports for Geräteverbund (DIP).
+//! Repository ports for the device cluster (DIP).
 
 use std::future::Future;
 

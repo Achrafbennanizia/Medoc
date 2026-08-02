@@ -1,7 +1,7 @@
 /**
  * NFA-USE-10 / A13 — autocomplete toggle also in SQLite `praxis.preferences.v1`
  * (practice-wide). Local `client-settings` remains UI source; KV on login
- * merged and written to Einstellungen when toggled.
+ * merged and written to Settings when toggled.
  */
 
 import {

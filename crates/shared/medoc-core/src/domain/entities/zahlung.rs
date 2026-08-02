@@ -13,14 +13,14 @@ pub struct Zahlung {
     pub beschreibung: Option<String>,
     pub behandlung_id: Option<String>,
     pub untersuchung_id: Option<String>,
-    /// Erwarteter Gesamtbetrag (z. B. aus Behandlung.gesamtkosten), für TEILBEZAHLT/BEZAHLT.
+    /// Expected total (e.g. from Behandlung.gesamtkosten), for TEILBEZAHLT/BEZAHLT.
     pub betrag_erwartet: Option<f64>,
-    /// Tagesabschluss / Kassensturz: manuell bestätigt (0/1).
+    /// Day-close / cash check: manually confirmed (0/1).
     pub kasse_geprueft: i64,
     pub created_at: NaiveDateTime,
 }
 
-/// Nur ausstehende / teilbezahlte Zahlungen dürfen inhaltlich geändert werden.
+/// Only outstanding / partially paid payments may be edited.
 #[derive(Debug, Deserialize)]
 pub struct UpdateZahlung {
     pub id: String,

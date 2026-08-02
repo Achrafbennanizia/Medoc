@@ -72,7 +72,7 @@ const CRUMB_KEYS: Record<string, string[]> = {
     "/statistik": [APP, "nav.statistik"],
     "/audit": [APP, "nav.audit"],
     "/datenschutz": [APP, "nav.datenschutz"],
-    "/einstellungen": [APP, "nav.einstellungen"],
+    "/einstellungen": [APP, "nav.settings"],
     "/logs": [APP, "nav.logs"],
     "/ops": [APP, "nav.ops"],
     "/compliance": [APP, "nav.compliance"],

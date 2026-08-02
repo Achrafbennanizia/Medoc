@@ -53,7 +53,7 @@ fn invalid_signature_returns_error() {
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
             .into();
     match update::evaluate(info) {
-        UpdateStatus::Error { message } => assert_eq!(message, "Signatur ungültig"),
+        UpdateStatus::Error { message } => assert_eq!(message, "Invalid signature"),
         other => panic!("expected Error, got {other:?}"),
     }
 }
@@ -62,7 +62,7 @@ fn invalid_signature_returns_error() {
 fn missing_signature_returns_error() {
     let info = sample_info();
     match update::evaluate(info) {
-        UpdateStatus::Error { message } => assert_eq!(message, "Signatur ungültig"),
+        UpdateStatus::Error { message } => assert_eq!(message, "Invalid signature"),
         other => panic!("expected Error, got {other:?}"),
     }
 }
@@ -73,7 +73,7 @@ fn tampered_payload_rejects_signature() {
     info.signature = sign_update(&info);
     info.url = "https://evil.example/trojan.pkg".into();
     match update::evaluate(info) {
-        UpdateStatus::Error { message } => assert_eq!(message, "Signatur ungültig"),
+        UpdateStatus::Error { message } => assert_eq!(message, "Invalid signature"),
         other => panic!("expected Error, got {other:?}"),
     }
 }

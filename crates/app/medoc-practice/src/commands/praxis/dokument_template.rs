@@ -1,4 +1,4 @@
-//! User-defined document print templates (Quittung, Rezept, …).
+//! User-defined document print templates (receipt, prescription, …).
 
 use sqlx::SqlitePool;
 use tauri::State;

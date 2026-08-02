@@ -40,7 +40,7 @@ fn audit_key_fallback() -> Result<Vec<u8>, AppError> {
 #[cfg(not(test))]
 fn audit_key_fallback() -> Result<Vec<u8>, AppError> {
     Err(AppError::Internal(
-        "Audit-Key wurde nicht initialisiert (init_audit_hmac_key)".into(),
+        "Audit key was not initialised (init_audit_hmac_key)".into(),
     ))
 }
 
@@ -146,7 +146,7 @@ pub async fn find_recent_for_user_actions(
     Ok(q.fetch_all(pool).await?)
 }
 
-/// Auditzeilen, die sich auf eine Patienten-ID beziehen (`entity_id` im Log).
+/// Audit rows that reference a patient id (`entity_id` in the log).
 pub async fn find_for_patient_entity(
     pool: &SqlitePool,
     patient_id: &str,

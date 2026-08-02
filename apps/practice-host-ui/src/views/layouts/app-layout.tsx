@@ -557,7 +557,7 @@ export function AppLayout() {
             const el = userMenuRef.current;
             if (!el) return;
             const r = el.getBoundingClientRect();
-            const labels = [t("nav.einstellungen")];
+            const labels = [t("nav.settings")];
             if (BREAK_GLASS_ENABLED && session?.rolle === "ARZT") labels.push(t("app.layout.break_glass.emergency_access"));
             labels.push(t("auth.logout"));
             const widthPx = measureSidebarAccountMenuWidthPx(labels);
@@ -594,7 +594,7 @@ export function AppLayout() {
                     navigate("/einstellungen");
                 }}
             >
-                {t("nav.einstellungen")}
+                {t("nav.settings")}
             </button>
             {BREAK_GLASS_ENABLED && session?.rolle === "ARZT" ? (
                 <button

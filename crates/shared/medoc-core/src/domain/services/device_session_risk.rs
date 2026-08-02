@@ -1,4 +1,4 @@
-//! Heuristics for suspicious device sessions (Einstellungen → Gerätesitzungen).
+//! Heuristics for suspicious device sessions (Settings → Device sessions).
 use chrono::{NaiveDateTime, Utc};
 use serde::Serialize;
 
@@ -52,7 +52,7 @@ pub fn assess_session(
     if let Some(hours) = hours_since_last_seen(&row.last_seen_at, now) {
         if hours >= STALE_INACTIVE_HOURS {
             reasons.push(format!(
-                "Seit {hours} Stunden ohne Aktivität (Schwelle: {STALE_INACTIVE_HOURS} h)"
+                "No activity for {hours} hours (threshold: {STALE_INACTIVE_HOURS} h)"
             ));
         }
     }
@@ -65,19 +65,19 @@ pub fn assess_session(
             .count();
         if same_label > 1 {
             reasons.push(format!(
-                "{same_label} aktive Sitzungen mit gleichem Gerätenamen „{label}“"
+                "{same_label} active sessions with the same device name \"{label}\""
             ));
         }
     }
 
     let ua = row.user_agent.as_deref().unwrap_or("").trim();
     if ua.is_empty() {
-        reasons.push("Kein User-Agent — Herkunft nicht eindeutig".into());
+        reasons.push("No user-agent — origin unclear".into());
     }
 
     if peers.len() > HIGH_ACTIVE_SESSION_COUNT {
         reasons.push(format!(
-            "Ungewöhnlich viele aktive Sitzungen ({})",
+            "Unusually many active sessions ({})",
             peers.len()
         ));
     }
@@ -148,7 +148,7 @@ mod tests {
         let peers = vec![current.clone(), other.clone()];
         let a = assess_session(&other, &peers, now);
         assert!(a.is_suspected);
-        assert!(a.suspected_reasons.iter().any(|s| s.contains("Stunden")));
+        assert!(a.suspected_reasons.iter().any(|s| s.contains("hours")));
     }
 
     #[test]

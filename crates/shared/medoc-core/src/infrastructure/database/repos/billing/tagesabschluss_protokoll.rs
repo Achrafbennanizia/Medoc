@@ -1,4 +1,4 @@
-//! Tagesabschluss-Protokolle (Finanzen / Kasse).
+//! Day-close protocols (finance / cash drawer).
 use crate::domain::entities::tagesabschluss_protokoll::{
     CreateTagesabschlussProtokoll, TagesabschlussProtokoll,
 };
@@ -9,10 +9,10 @@ use sqlx::SqlitePool;
 fn validate_stichtag(s: &str) -> Result<(), AppError> {
     let t = s.trim();
     if t.is_empty() {
-        return Err(AppError::Validation("Stichtag erforderlich".into()));
+        return Err(AppError::Validation("Cut-off date required".into()));
     }
     NaiveDate::parse_from_str(t, "%Y-%m-%d")
-        .map_err(|_| AppError::Validation("Stichtag muss YYYY-MM-DD sein".into()))?;
+        .map_err(|_| AppError::Validation("Cut-off date must be YYYY-MM-DD".into()))?;
     Ok(())
 }
 
@@ -47,16 +47,16 @@ pub async fn create(
 ) -> Result<TagesabschlussProtokoll, AppError> {
     validate_stichtag(&data.stichtag)?;
     if !data.bar_laut_system_eur.is_finite() || !data.einnahmen_laut_system_eur.is_finite() {
-        return Err(AppError::Validation("Beträge ungültig".into()));
+        return Err(AppError::Validation("Invalid amounts".into()));
     }
     if let Some(g) = data.gezaehlt_eur {
         if !g.is_finite() {
-            return Err(AppError::Validation("Gezählter Betrag ungültig".into()));
+            return Err(AppError::Validation("Invalid counted amount".into()));
         }
     }
     if let Some(a) = data.abweichung_eur {
         if !a.is_finite() {
-            return Err(AppError::Validation("Abweichung ungültig".into()));
+            return Err(AppError::Validation("Invalid variance".into()));
         }
     }
     if data.anzahl_zahlungen_tag < 0
@@ -64,7 +64,7 @@ pub async fn create(
         || (data.bar_stimmt != 0 && data.bar_stimmt != 1)
         || (data.alle_zahlungen_geprueft != 0 && data.alle_zahlungen_geprueft != 1)
     {
-        return Err(AppError::Validation("Kennzahlen ungültig".into()));
+        return Err(AppError::Validation("Invalid metrics".into()));
     }
 
     let id = uuid::Uuid::new_v4().to_string();

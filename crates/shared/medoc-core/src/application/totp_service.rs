@@ -33,14 +33,14 @@ pub async fn deactivate_totp(
         let c = code
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .ok_or_else(|| AppError::Validation("Authenticator-Code erforderlich".into()))?;
+            .ok_or_else(|| AppError::Validation("Authenticator code required".into()))?;
         let secret = user
             .totp_secret
             .as_deref()
             .ok_or_else(|| AppError::Internal("TOTP secret missing".into()))?;
         if !totp::verify_code(secret, c)? {
             return Err(AppError::Validation(
-                "Ungültiger Code — bitte erneut versuchen".into(),
+                "Invalid code — please try again".into(),
             ));
         }
         personal_repo::clear_totp(pool, user_id).await?;
@@ -52,5 +52,5 @@ pub async fn deactivate_totp(
         return Ok(TotpDeactivateResult::CancelledPending);
     }
 
-    Err(AppError::Conflict("Zwei-Faktor ist nicht aktiv".into()))
+    Err(AppError::Conflict("Two-factor authentication is not active".into()))
 }

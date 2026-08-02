@@ -1,12 +1,12 @@
 /**
- * Physician → Rezeption: structured hint for next Termin planning.
- * Persistenz: SQLite `akte_next_termin_hint` via `plan-next-termin.controller.ts`.
+ * Physician → reception: structured hint for next appointment planning.
+ * Persistence: SQLite `akte_next_termin_hint` via `plan-next-termin.controller.ts`.
  */
 
 export type PlanUrgency = "routine" | "bald" | "dringend";
 
 export interface PlanNextTerminV2 {
-    /** Freitext (Kernbotschaft). */
+    /** Free text (core message). */
     freeText: string;
     urgency: PlanUrgency;
     /** e.g. "2", "4", "6", "12", "" when open-ended */
@@ -15,7 +15,7 @@ export interface PlanNextTerminV2 {
     terminArtHint: string;
     /** Estimated duration in minutes, free-form */
     durationMin: string;
-    /** Bevorzugte Wochentage, z. B. "Mo, Do" */
+    /** Preferred weekdays, e.g. "Mon, Thu" */
     preferredWeekdays: string;
     /** Note for internal coordination */
     internalNote: string;

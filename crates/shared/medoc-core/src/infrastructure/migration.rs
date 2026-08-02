@@ -46,7 +46,7 @@ pub async fn import_patients(
     let cols: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
     if !cols.contains(&"name") || !cols.contains(&"geburtsdatum") {
         return Err(AppError::Validation(
-            "CSV-Header muss mindestens 'name' und 'geburtsdatum' enthalten".into(),
+            "CSV header must contain at least 'name' and 'geburtsdatum'".into(),
         ));
     }
     let idx = |key: &str| cols.iter().position(|c| *c == key);
@@ -69,7 +69,7 @@ pub async fn import_patients(
             Some(n) => n,
             None => {
                 report.failed += 1;
-                report.errors.push(format!("Zeile {lineno}: name fehlt"));
+                report.errors.push(format!("Row {lineno}: name missing"));
                 continue;
             }
         };
@@ -79,7 +79,7 @@ pub async fn import_patients(
                 report.failed += 1;
                 report
                     .errors
-                    .push(format!("Zeile {lineno}: geburtsdatum fehlt"));
+                    .push(format!("Row {lineno}: geburtsdatum missing"));
                 continue;
             }
         };
@@ -90,7 +90,7 @@ pub async fn import_patients(
                 report.failed += 1;
                 report
                     .errors
-                    .push(format!("Zeile {lineno}: ungültiges Datum '{gebstr}'"));
+                    .push(format!("Row {lineno}: invalid date '{gebstr}'"));
                 continue;
             }
         };
@@ -132,7 +132,7 @@ pub async fn import_patients(
                 report.failed += 1;
                 report
                     .errors
-                    .push(format!("Zeile {lineno}: DB-Fehler: {e}"));
+                    .push(format!("Row {lineno}: DB error: {e}"));
             }
         }
     }

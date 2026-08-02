@@ -19,7 +19,7 @@ describe("buildNativeGoMenuItems", () => {
         expect(g.bilanz).toBe(false);
     });
 
-    it("buildNativeFileNewGate: Arzt hat Neu-Menü für Termin und Patient", () => {
+    it("buildNativeFileNewGate: physician has New menu for appointment and patient", () => {
         const g = buildNativeFileNewGate("ARZT");
         expect(g.termin).toBe(true);
         expect(g.patient).toBe(true);
@@ -27,7 +27,7 @@ describe("buildNativeGoMenuItems", () => {
         expect(g.bilanz).toBe(true);
     });
 
-    it("Arzt: enthält Audit und Ops", () => {
+    it("Physician: includes Audit and Ops", () => {
         const items = buildNativeGoMenuItems("ARZT", id);
         const paths = items.filter((i) => i.path !== NATIVE_GO_MENU_SEP).map((i) => i.path);
         expect(paths).toContain("/audit");

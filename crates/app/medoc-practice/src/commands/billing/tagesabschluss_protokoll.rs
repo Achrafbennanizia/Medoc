@@ -1,4 +1,4 @@
-//! Tagesabschluss (Kasse / Abgleich) — protokollierte Läufe.
+//! Day-end closing (cash / reconciliation) — logged runs.
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::tagesabschluss_protokoll::{

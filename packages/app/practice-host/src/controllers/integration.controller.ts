@@ -22,14 +22,14 @@ export function listUpcomingAppointments(leadMinutes: number) {
 /** Matches Rust `infrastructure::telematik::EPrescription`. */
 export interface EPrescription {
     patient_id: string;
-    /** 10-char Krankenversichertennummer. */
+    /** 10-char insured-person number (KVNR). */
     kvnr: string;
-    /** 8-digit Pharmazentralnummer with check digit. */
+    /** 8-digit central pharmaceutical number (PZN) with check digit. */
     pzn: string;
     medication_name: string;
     dosage: string;
     quantity: number;
-    /** 9-digit Lebenslange Arztnummer. */
+    /** 9-digit lifelong physician number (LANR). */
     doctor_lanr: string;
     /** ISO date the prescription was issued. */
     issued_at: string;

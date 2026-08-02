@@ -51,7 +51,7 @@ pub fn acknowledge_audit_chain_break(
     let g = guard_ref(&guard);
     if g.broken_at().is_none() {
         return Err(AppError::Validation(
-            "Audit-Kette ist intakt — keine Freigabe nötig".into(),
+            "Audit chain is intact — no acknowledgement needed".into(),
         ));
     }
     g.acknowledge();

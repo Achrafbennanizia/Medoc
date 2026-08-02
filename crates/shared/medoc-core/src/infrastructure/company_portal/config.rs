@@ -8,13 +8,13 @@ pub const COMPANY_PORTAL_KV_KEY: &str = "company.portal.config.v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CompanyPortalConfig {
-    /// Basis-URL ohne abschließenden Slash, z. B. `https://portal.medoc.example`
+    /// Base URL without trailing slash, e.g. `https://portal.medoc.example`
     #[serde(default)]
     pub base_url: String,
-    /// Praxis-/Mandanten-Slug beim Hersteller
+    /// Practice/tenant slug at the vendor
     #[serde(default)]
     pub practice_slug: String,
-    /// Bearer-Token oder API-Key (nur Praxis-seitig gespeichert — TLS erzwingen)
+    /// Bearer token or API key (stored on the practice side only — enforce TLS)
     #[serde(default)]
     pub api_key: String,
 }
@@ -28,7 +28,7 @@ pub async fn load_company_portal_config(pool: &SqlitePool) -> CompanyPortalConfi
     CompanyPortalConfig::default()
 }
 
-/// Effektive Basis-URL: `MEDOC_COMPANY_API_BASE` überschreibt app_kv (Betrieb / CI).
+/// Effective base URL: `MEDOC_COMPANY_API_BASE` overrides app_kv (ops / CI).
 pub fn effective_base_url(cfg: &CompanyPortalConfig) -> Option<String> {
     let env = std::env::var("MEDOC_COMPANY_API_BASE")
         .unwrap_or_default()
@@ -50,19 +50,19 @@ pub fn require_callable(
 ) -> Result<(String, CompanyPortalConfig), AppError> {
     let base = effective_base_url(cfg).ok_or_else(|| {
         AppError::Validation(
-            "Hersteller-Portal nicht konfiguriert — Basis-URL in Einstellungen oder MEDOC_COMPANY_API_BASE setzen."
+            "Vendor portal not configured — set base URL in settings or MEDOC_COMPANY_API_BASE."
                 .into(),
         )
     })?;
     if effective_api_key(cfg).trim().is_empty() {
         return Err(AppError::Validation(
-            "Hersteller-Portal: API-Schlüssel fehlt (Konfiguration oder MEDOC_COMPANY_API_KEY)."
+            "Vendor portal: API key missing (configuration or MEDOC_COMPANY_API_KEY)."
                 .into(),
         ));
     }
     if cfg.practice_slug.trim().is_empty() {
         return Err(AppError::Validation(
-            "Hersteller-Portal: practice_slug (Mandanten-ID) fehlt.".into(),
+            "Vendor portal: practice_slug (tenant id) is missing.".into(),
         ));
     }
     Ok((base, cfg.clone()))

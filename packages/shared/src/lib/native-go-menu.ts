@@ -33,7 +33,7 @@ const PATH_LABEL_KEYS: Record<string, string> = {
     "/leistungen": "nav.leistungen",
     "/produkte": "nav.produkte",
     "/verwaltung": "nav.verwaltung",
-    "/einstellungen": "nav.einstellungen",
+    "/einstellungen": "nav.settings",
     "/audit": "nav.audit",
     "/ops": "nav.ops",
     "/logs": "nav.logs",
@@ -82,7 +82,7 @@ export type SyncNativeMenuPayload = {
     viewShowCalendar: boolean;
 };
 
-/** Menu "Datei → Neu …" — same logic as routes (`termin.write`, `finanzen.write`, …). */
+/** Menu "File → New …" — same logic as routes (`termin.write`, `finanzen.write`, …). */
 export function buildNativeFileNewGate(rolle: string | undefined): NativeFileNewGate {
     return {
         termin: navVisibilitySatisfied({ kind: "action", action: "termin.write" }, rolle),

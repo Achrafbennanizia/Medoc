@@ -126,7 +126,7 @@ pub async fn create_join_request(
     })
 }
 
-/// Mirror an admin-issued kopplung session on the joiner device.
+/// Mirror an admin-issued pairing session on the joiner device.
 pub async fn mirror_join_session(
     pool: &SqlitePool,
     session_id: &str,
@@ -180,7 +180,7 @@ pub async fn accept_join_request(
     require_owner_admin(pool).await?;
     let repos = SqliteVerbundRepos { pool };
     let Some(lizenz) = repos.load().await? else {
-        return Err(AppError::Validation("Kein Verbund aktiviert".into()));
+        return Err(AppError::Validation("No cluster activated".into()));
     };
 
     let Some(mut session) = repos.load_session(session_id).await? else {
@@ -194,7 +194,7 @@ pub async fn accept_join_request(
     if let Some(old_fp) = replace_fingerprint {
         if old_fp == session.fingerprint {
             return Err(AppError::Validation(
-                "Ersetzen: alter und neuer Fingerprint sind identisch".into(),
+                "Replace: old and new fingerprint are identical".into(),
             ));
         }
         reclaim_stale_seat(pool, user_id, old_fp).await?;
@@ -247,11 +247,11 @@ pub async fn submit_sas(
 
     if transcript_join {
         let Some(sas) = normalise_sas_input(digits) else {
-            return Err(AppError::Validation("SAS muss 4 Ziffern sein".into()));
+            return Err(AppError::Validation("SAS must be 4 digits".into()));
         };
         let expected = derive_sas_from_transcript(handshake_transcript);
         if sas != expected {
-            return Err(AppError::Validation("SAS stimmt nicht überein".into()));
+            return Err(AppError::Validation("SAS does not match".into()));
         }
 
         repos
@@ -300,17 +300,17 @@ pub async fn submit_sas(
     }
 
     let Some(lizenz) = repos.load().await? else {
-        return Err(AppError::Validation("Kein Verbund".into()));
+        return Err(AppError::Validation("No cluster".into()));
     };
 
     if session.state != KopplungStatus::AwaitingSas {
-        return Err(AppError::Validation("Sitzung nicht bereit für SAS".into()));
+        return Err(AppError::Validation("Session not ready for SAS".into()));
     }
 
     let expected_hash = session
         .sas_hash
         .as_deref()
-        .ok_or_else(|| AppError::Internal("SAS-Hash fehlt in Kopplungssitzung".into()))?;
+        .ok_or_else(|| AppError::Internal("SAS hash missing from pairing session".into()))?;
     validate_sas_match(
         &handle.session_id,
         digits,

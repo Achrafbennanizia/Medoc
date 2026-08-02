@@ -29,16 +29,16 @@ export type ConfirmationPrefs = {
 };
 
 export const CONFIRMATION_AREA_LABELS: Record<ConfirmationAreaKey, string> = {
-    patient_akte_patient_delete: "Patientenakte löschen",
-    patient_akte_patient_edit: "Patient bearbeiten (Akte)",
-    patient_akte_rezept_delete: "Rezept löschen (Akte)",
-    patient_akte_rezept_edit: "Rezept bearbeiten (Akte)",
-    patient_akte_attest_delete: "Attest löschen (Akte)",
-    patient_akte_behandlung_delete: "Behandlung löschen (Akte)",
-    patient_akte_untersuchung_delete: "Untersuchung löschen (Akte)",
-    patient_akte_untersuchung_edit: "Untersuchung bearbeiten (Akte)",
-    patient_akte_zahlung_delete: "Zahlung löschen (Akte)",
-    patient_akte_zahlung_edit: "Zahlung bearbeiten (Akte)",
+    patient_akte_patient_delete: "Delete patient record",
+    patient_akte_patient_edit: "Edit patient (record)",
+    patient_akte_rezept_delete: "Delete prescription (record)",
+    patient_akte_rezept_edit: "Edit prescription (record)",
+    patient_akte_attest_delete: "Delete certificate (record)",
+    patient_akte_behandlung_delete: "Delete treatment (record)",
+    patient_akte_untersuchung_delete: "Delete examination (record)",
+    patient_akte_untersuchung_edit: "Edit examination (record)",
+    patient_akte_zahlung_delete: "Delete payment (record)",
+    patient_akte_zahlung_edit: "Edit payment (record)",
 };
 
 export const DEFAULT_CONFIRMATION_PREFS: ConfirmationPrefs = {
@@ -62,7 +62,7 @@ export type PraxisPreferencesV1 = {
             defaultMode?: ConfirmationPresentMode;
             areas?: Partial<Record<ConfirmationAreaKey, AreaOverride>>;
         };
-        /** NFA-USE-10 — siehe `praxis-search-prefs-sync.ts` / client-settings `search`. */
+        /** NFA-USE-10 — see `praxis-search-prefs-sync.ts` / client-settings `search`. */
         search?: {
             autocompleteSuggestionsEnabled?: boolean;
         };

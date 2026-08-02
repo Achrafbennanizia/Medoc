@@ -1,4 +1,4 @@
-//! Eigenes SQLite für das **MeDoc Hersteller-Portal** (getrennt von Praxis-`medoc.db`).
+//! Dedicated SQLite for the **MeDoc vendor portal** (separate from practice `medoc.db`).
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::str::FromStr;

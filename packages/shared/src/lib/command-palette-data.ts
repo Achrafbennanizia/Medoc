@@ -62,7 +62,7 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     cmd("statistik", "statistik", "/statistik", ["kennzahlen", "report"]),
     cmd("audit", "audit", "/audit", ["protokoll", "nachvollziehbarkeit"]),
     cmd("datenschutz", "datenschutz", "/datenschutz", ["privacy", "dsgvo"]),
-    cmd("einstellungen", "einstellungen", "/einstellungen", ["konto", "profil"]),
+    cmd("settings", "einstellungen", "/einstellungen", ["konto", "profil"]),
     cmd("logs", "logs", "/logs", ["debug", "fehler"]),
     cmd("ops", "ops", "/ops", ["backup", "migration"]),
     cmd("compliance", "compliance", "/compliance", ["richtlinien"]),

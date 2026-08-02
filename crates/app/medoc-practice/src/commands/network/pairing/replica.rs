@@ -52,7 +52,7 @@ pub async fn pairing_submit_request(
         .to_string();
     if master_pubkey.is_empty() || master_device_id.is_empty() {
         return Err(into_tauri(AppError::Validation(
-            "Master Antwort unvollständig (pubkey/deviceId fehlt)".into(),
+            "Master response incomplete (pubkey/deviceId missing)".into(),
         )));
     }
 
@@ -123,7 +123,7 @@ pub async fn pairing_confirm_pin(
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(into_tauri(AppError::Validation(format!(
-            "PIN-Bestätigung fehlgeschlagen ({status}): {body}"
+            "PIN confirmation failed ({status}): {body}"
         ))));
     }
     resp.json::<PairingRequest>()
@@ -166,7 +166,7 @@ pub async fn pairing_persist_token(
     let token = payload.activation_token.trim();
     if !token.starts_with(ACTIVATION_TOKEN_PREFIX) {
         return Err(into_tauri(AppError::Validation(
-            "Aktivierungstoken: ungültiger Präfix".into(),
+            "Activation token: invalid prefix".into(),
         )));
     }
     let snap = SyncEngine::status(&pool).await.map_err(into_tauri)?;

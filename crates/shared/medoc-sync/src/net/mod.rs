@@ -1,4 +1,4 @@
-//! Geräteverbund network stack (L3–L7).
+//! Device-cluster network stack (L3–L7).
 
 pub mod bind_guard;
 pub mod channel;

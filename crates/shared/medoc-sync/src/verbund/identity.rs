@@ -2,7 +2,7 @@
 
 use super::entities::Geraet;
 
-/// True when fingerprint and 32-byte non-zero pubkey are present (Geräteverbund credential).
+/// True when fingerprint and 32-byte non-zero pubkey are present (device-cluster credential).
 pub fn is_identity_complete(fingerprint: &str, pubkey: &[u8]) -> bool {
     !fingerprint.trim().is_empty() && pubkey.len() == 32 && pubkey.iter().any(|&b| b != 0)
 }

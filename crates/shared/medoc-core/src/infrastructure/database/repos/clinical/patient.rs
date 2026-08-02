@@ -39,7 +39,7 @@ pub async fn search(
 pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let geschlecht = serde_json::to_string(&data.geschlecht)
-        .map_err(|e| AppError::Internal(format!("Geschlecht serialisieren: {e}")))?
+        .map_err(|e| AppError::Internal(format!("Serialize gender: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -108,7 +108,7 @@ pub async fn update(
     let name = data.name.as_deref().unwrap_or(&existing.name);
     let status = match data.status.as_ref() {
         Some(s) => serde_json::to_string(s)
-            .map_err(|e| AppError::Internal(format!("Status serialisieren: {e}")))?
+            .map_err(|e| AppError::Internal(format!("Serialize status: {e}")))?
             .trim_matches('"')
             .to_uppercase(),
         None => existing.status.clone(),

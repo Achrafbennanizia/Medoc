@@ -57,7 +57,7 @@ pub fn evaluate(payload: UpdateInfo) -> UpdateStatus {
     if let Err(e) = verify_signature(&payload) {
         return UpdateStatus::Error {
             message: if matches!(e, crate::error::AppError::Validation(_)) {
-                "Signatur ungültig".into()
+                "Invalid signature".into()
             } else {
                 e.to_string()
             },

@@ -1,4 +1,4 @@
-//! Application orchestration for Gerätesitzungen (list, investigate, revoke).
+//! Application orchestration for device sessions (list, investigate, revoke).
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::audit as audit_repo;

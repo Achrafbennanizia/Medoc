@@ -15,23 +15,23 @@ export type AnamneseV1 = {
 };
 
 export const ANAMNESE_SECTION_LABELS: Record<string, string> = {
-    versicherungsstatus: "Versicherungsstatus",
-    krankenkasse: "Krankenkasse / Versicherer",
-    chronisch: "Chronische Erkrankungen",
-    frueherDiagnosen: "Frühere Diagnosen",
-    operationen: "Operationen",
-    krankenhaus: "Krankenhausaufenthalte",
-    psychisch: "Psychische Vorgeschichte",
-    regelmaessig: "Regelmäßige Medikation",
-    einnahme: "Einnahmeschema",
-    selbst: "Selbstmedikation / Nahrungsergänzung",
-    vergessen: "Vergessene Einnahmen",
-    nebenwirkungen: "Nebenwirkungen",
-    medikamente: "Medikamentenallergien",
-    lebensmittel: "Lebensmittelallergien",
-    sonstige: "Sonstige Allergien",
-    material: "Materialunverträglichkeiten",
-    impfreaktionen: "Impfreaktionen",
+    versicherungsstatus: "Insurance status",
+    krankenkasse: "Health insurer",
+    chronisch: "Chronic conditions",
+    frueherDiagnosen: "Previous diagnoses",
+    operationen: "Surgeries",
+    krankenhaus: "Hospital stays",
+    psychisch: "Mental health history",
+    regelmaessig: "Regular medication",
+    einnahme: "Dosing schedule",
+    selbst: "Self-medication / supplements",
+    vergessen: "Missed doses",
+    nebenwirkungen: "Side effects",
+    medikamente: "Drug allergies",
+    lebensmittel: "Food allergies",
+    sonstige: "Other allergies",
+    material: "Material intolerances",
+    impfreaktionen: "Vaccine reactions",
 };
 
 export function anamneseLabelFor(key: string, t?: (key: string) => string): string {
@@ -43,7 +43,7 @@ export function anamneseLabelFor(key: string, t?: (key: string) => string): stri
     return ANAMNESE_SECTION_LABELS[key] ?? key.replace(/_/g, " ");
 }
 
-/** Merges Schnellerfassung fields into stored JSON before save. */
+/** Merges quick-capture fields into stored JSON before save. */
 export function mergeQuickIntoAnamneseJson(
     baseJson: string,
     q: { versicherungsstatus: string; krankenkasse: string; chronisch: string; allergienMed: string },

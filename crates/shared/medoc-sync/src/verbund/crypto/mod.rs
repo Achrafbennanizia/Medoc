@@ -1,4 +1,4 @@
-//! Geräteverbund cryptography — device identity, seat certs, SAS.
+//! Device-cluster cryptography — device identity, seat certs, SAS.
 
 pub mod device_identity;
 pub mod sas;

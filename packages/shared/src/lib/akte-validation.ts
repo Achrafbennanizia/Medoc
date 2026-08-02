@@ -1,17 +1,17 @@
 /**
- * Akte validation (physician confirms reception-captured data).
+ * Patient-record validation (physician confirms reception-captured data).
  *
- * Persistenz: SQLite `akte_validation` via `validation.controller.ts`.
+ * Persistence: SQLite `akte_validation` via `validation.controller.ts`.
  */
 
 export const VALIDATION_SECTIONS = ["stamm", "anam", "anlage", "zahl"] as const;
 export type ValidationSection = (typeof VALIDATION_SECTIONS)[number];
 
 export const SECTION_LABEL: Record<ValidationSection, string> = {
-    stamm: "Stammdaten",
-    anam: "Anamnese",
-    anlage: "Anlagen",
-    zahl: "Kundenleistungen & Abrechnung",
+    stamm: "Master data",
+    anam: "Medical history",
+    anlage: "Attachments",
+    zahl: "Customer services & billing",
 };
 
 export interface ValidationRecord {

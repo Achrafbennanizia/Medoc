@@ -1,4 +1,4 @@
-//! Geräteverbund — cluster licensing, seat registry, kopplung sessions.
+//! Device cluster (Geräteverbund) — cluster licensing, seat registry, pairing sessions.
 //!
 //! Evolves the existing master/replica pairing model with seat roles (ADMIN/MEMBER),
 //! atomic 3/7/10 caps, seat certificates, and provisioning guards.

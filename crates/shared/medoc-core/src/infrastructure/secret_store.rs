@@ -22,7 +22,7 @@ pub fn load_or_create_bytes(
     }
 
     let entry = Entry::new(SERVICE, account)
-        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
 
     if let Ok(encoded) = entry.get_password() {
         return decode_stored_bytes(&encoded, account);
@@ -47,7 +47,7 @@ pub fn load_or_create_bytes(
 /// Returns true when the keyring entry for `account` already has a value.
 pub fn account_exists(account: &str) -> Result<bool, AppError> {
     let entry = Entry::new(SERVICE, account)
-        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
     Ok(entry.get_password().is_ok())
 }
 
@@ -55,7 +55,7 @@ pub fn account_exists(account: &str) -> Result<bool, AppError> {
 pub fn store_bytes(account: &str, raw: &[u8]) -> Result<(), AppError> {
     if account_exists(account)? {
         return Err(AppError::Validation(format!(
-            "Keyring-Konto bereits belegt: {account}"
+            "Keyring account already in use: {account}"
         )));
     }
     store_bytes_replace(account, raw)
@@ -64,7 +64,7 @@ pub fn store_bytes(account: &str, raw: &[u8]) -> Result<(), AppError> {
 /// Store key material, replacing any existing entry (owner activation import).
 pub fn store_bytes_replace(account: &str, raw: &[u8]) -> Result<(), AppError> {
     let entry = Entry::new(SERVICE, account)
-        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
     store_in_keyring(&entry, raw, account)
 }
 
@@ -74,11 +74,11 @@ pub fn delete_account(account: &str) -> Result<(), AppError> {
         return Ok(());
     }
     let entry = Entry::new(SERVICE, account)
-        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(AppError::Internal(format!("Keyring löschen {account}: {e}"))),
+        Err(e) => Err(AppError::Internal(format!("Keyring delete {account}: {e}"))),
     }
 }
 
@@ -88,7 +88,7 @@ pub fn load_bytes_if_exists(account: &str) -> Result<Option<Vec<u8>>, AppError> 
         return Ok(Some(bytes));
     }
     let entry = Entry::new(SERVICE, account)
-        .map_err(|e| AppError::Internal(format!("Keyring-Eintrag {account}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
     match entry.get_password() {
         Ok(encoded) => decode_stored_bytes(&encoded, account).map(Some),
         Err(_) => Ok(None),
@@ -108,7 +108,7 @@ fn store_in_keyring(entry: &Entry, raw: &[u8], account: &str) -> Result<(), AppE
     let encoded = STANDARD.encode(raw);
     entry
         .set_password(&encoded)
-        .map_err(|e| AppError::Internal(format!("Keyring speichern {account}: {e}")))
+        .map_err(|e| AppError::Internal(format!("Keyring save {account}: {e}")))
 }
 
 fn decode_stored_bytes(encoded: &str, account: &str) -> Result<Vec<u8>, AppError> {

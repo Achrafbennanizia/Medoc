@@ -26,7 +26,7 @@ pub use crate::domain::rbac::{
 
 include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
 
-/// Finanzen-Lesezugriff: volle Finanzübersicht (Arzt/Steuerberater) oder Kassenbereich (Rezeption).
+/// Finance read access: full finance overview (physician/tax advisor) or cash-desk area (reception).
 pub const FINANZEN_READ_OR_RECEPTION: &[&str] = &["finanzen.read", "finanzen.reception.view"];
 
 /// Permission matrix from `config/rbac.yaml` (generated at build time).
@@ -34,7 +34,7 @@ pub fn allowed(action: &str, role: Role) -> bool {
     rbac_matrix_allowed(action, role)
 }
 
-/// FA-PERS-07: Rollenmatrix, überschrieben durch explizite ALLOW/DENY-Zeilen pro Benutzer.
+/// FA-PERS-07: Role matrix, overridden by explicit per-user ALLOW/DENY rows.
 pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverride]) -> bool {
     for o in overrides {
         if o.action == action {

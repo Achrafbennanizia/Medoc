@@ -61,7 +61,7 @@ export async function touchSession(): Promise<boolean> {
     return practiceSystem.invoke<boolean>("touch_session");
 }
 
-/** Post-login landing path: REZEPTION → Arbeitszeit; others → dashboard. */
+/** Post-login landing path: REZEPTION → work-time page; others → dashboard. */
 export async function postLoginPath(session: Session): Promise<string> {
     if (session.rolle === "REZEPTION") return "/personal/arbeitszeit";
     return "/";

@@ -1,4 +1,4 @@
-/** Small format helpers for Einstellungen / portal sections (Phase 3.7 split). */
+/** Small format helpers for Settings / portal sections (Phase 3.7 split). */
 
 export function formatEurFromCents(cents: unknown): string {
     const n = typeof cents === "number" ? cents : Number(cents);
@@ -20,7 +20,7 @@ export function formatDeDateShort(iso: unknown): string {
 
 export function portalIntegrationPill(status: string | undefined): { className: string; label: string } {
     const s = (status ?? "").toLowerCase();
-    if (s === "active" || s === "connected") return { className: "settings-pill-green", label: "Verbunden" };
+    if (s === "active" || s === "connected") return { className: "settings-pill-green", label: "Connected" };
     if (s === "beta") return { className: "settings-pill-blue", label: "Beta" };
-    return { className: "settings-pill-gray", label: "Nicht verbunden" };
+    return { className: "settings-pill-gray", label: "Not connected" };
 }

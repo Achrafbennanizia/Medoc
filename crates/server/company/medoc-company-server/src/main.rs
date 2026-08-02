@@ -1,12 +1,12 @@
-//! **MeDoc Company Server** — Hersteller-Backend für Abonnements, Lizenzen, Integrationsstatus, Update-Manifest.
+//! **MeDoc Company Server** — vendor backend for subscriptions, licenses, integration status, update manifest.
 //!
 //! ```text
 //! medoc-company-server --data-dir ./company-data [--http-bind 0.0.0.0] [--http-port 9797]
 //! ```
 //!
-//! Demo-Mandant: `X-Practice-Slug: demo-praxis` + `Authorization: Bearer sk_demo_company_practice_key`
+//! Demo tenant: `X-Practice-Slug: demo-praxis` + `Authorization: Bearer sk_demo_company_practice_key`
 //!
-//! Ausführliche Anleitung: `docs/medoc-company-server.md` im Repository-Root.
+//! Full guide: `docs/medoc-company-server.md` at the repository root.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ struct Args {
 
 fn usage() -> &'static str {
     "Usage:\n  medoc-company-server --data-dir <PATH> [--http-bind ADDR] [--http-port PORT]\n\n\
-     Default bind 0.0.0.0:9797. Erzeugt `company.db` unter dem Datenverzeichnis.\n"
+     Default bind 0.0.0.0:9797. Creates `company.db` under the data directory.\n"
 }
 
 fn parse_args() -> Result<Args, String> {

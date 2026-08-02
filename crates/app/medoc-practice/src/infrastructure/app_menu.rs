@@ -10,7 +10,7 @@ use tauri::menu::{
 };
 use tauri::{App, AppHandle, Emitter, Manager, PackageInfo, Runtime};
 
-/// Sentinel path in go-items: inserts a separator in „Gehe zu“.
+/// Sentinel path in go-items: inserts a separator in the "Go to" submenu.
 pub(crate) const GO_MENU_SEP_PATH: &str = "__sep__";
 
 #[derive(Debug, Clone, serde::Deserialize)]

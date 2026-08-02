@@ -74,7 +74,7 @@ export function defaultPresets(): ArbeitszeitPreset[] {
     return [
         { id: "p-vm", name: "Vormittag", startMin: 8 * 60, endMin: 12 * 60 },
         { id: "p-nm", name: "Nachmittag", startMin: 12 * 60, endMin: 17 * 60 },
-        { id: "p-day", name: "Büro 8–17", startMin: 8 * 60, endMin: 17 * 60 },
+        { id: "p-day", name: "Office 8–17", startMin: 8 * 60, endMin: 17 * 60 },
     ];
 }
 

@@ -216,7 +216,7 @@ proptest! {
         prop_assert!(!status.valid);
         let reason = status.reason.unwrap_or_default();
         prop_assert!(
-            reason.contains("anderes Gerät") || reason.contains("Lizenz konnte nicht entschlüsselt"),
+            reason.contains("another device") || reason.contains("Could not decrypt license"),
             "expected wrong-device reason, got: {reason}"
         );
     }

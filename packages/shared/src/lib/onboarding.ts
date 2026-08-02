@@ -30,7 +30,7 @@ const STEPS_BY_ROLE: Record<Rolle, OnboardingStep[]> = {
         step("atteste", "onboarding.arzt.atteste.title", "onboarding.arzt.atteste.body"),
         step("audit", "onboarding.arzt.audit.title", "onboarding.arzt.audit.body"),
         step("statistik", "onboarding.arzt.statistik.title", "onboarding.arzt.statistik.body"),
-        step("einstellungen", "onboarding.arzt.einstellungen.title", "onboarding.arzt.einstellungen.body"),
+        step("einstellungen", "onboarding.arzt.settings.title", "onboarding.arzt.settings.body"),
     ],
     REZEPTION: [
         step("", "onboarding.rezeption.home.title", "onboarding.rezeption.home.body"),
@@ -39,7 +39,7 @@ const STEPS_BY_ROLE: Record<Rolle, OnboardingStep[]> = {
         step("tickets", "onboarding.rezeption.tickets.title", "onboarding.rezeption.tickets.body"),
         step("bestellungen", "onboarding.rezeption.bestellungen.title", "onboarding.rezeption.bestellungen.body"),
         step("finanzen", "onboarding.rezeption.finanzen.title", "onboarding.rezeption.finanzen.body"),
-        step("einstellungen", "onboarding.rezeption.einstellungen.title", "onboarding.rezeption.einstellungen.body"),
+        step("einstellungen", "onboarding.rezeption.settings.title", "onboarding.rezeption.settings.body"),
     ],
     STEUERBERATER: [],
     PHARMABERATER: [],

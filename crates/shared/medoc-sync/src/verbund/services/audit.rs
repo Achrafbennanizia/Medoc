@@ -1,4 +1,4 @@
-//! Audit helpers for Geräteverbund events.
+//! Audit helpers for device-cluster events.
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::repos::admin::audit;

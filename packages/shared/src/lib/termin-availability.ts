@@ -146,7 +146,13 @@ export function hasArztSlotConflict(
 
 export function isTerminConflictErrorMessage(msg: string): boolean {
     const m = msg.toLowerCase();
-    return m.includes("terminkonflikt") || m.includes("bereits einen termin");
+    // English (current IPC) + legacy German phrases from older builds.
+    return (
+        m.includes("appointment conflict") ||
+        m.includes("already has an appointment") ||
+        m.includes("terminkonflikt") ||
+        m.includes("bereits einen termin")
+    );
 }
 
 /**

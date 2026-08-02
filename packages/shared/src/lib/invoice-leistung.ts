@@ -53,7 +53,7 @@ export type InvoicePraxis = {
     kzv?: string;
     /** Standard 14 Tage */
     zahlungsziel_tage?: number;
-    /** z. B. Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG */
+    /** e.g. VAT-exempt under § 4 No. 14 UStG (DE legal text may stay in value) */
     ust_befreiung_hinweis?: string;
     notfall_telefon?: string;
 };
@@ -62,7 +62,7 @@ const DEFAULT_UST_HINWEIS = "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
 
 const DEFAULTS: InvoicePraxis = {
     name: "Zahnarztpraxis",
-    addr: "Musterstraße 1\n12345 Ort",
+    addr: "Sample Street 1\n12345 City",
     zahlungsziel_tage: 14,
     ust_befreiung_hinweis: DEFAULT_UST_HINWEIS,
 };
@@ -141,7 +141,7 @@ function invoicePraxisToBlob(p: InvoicePraxis): Record<string, string | number> 
  * Lines for practice header in PDF (`practice_address`): address, then contact and mandatory fields.
  * Order follows typical invoice/letterhead layout.
  *
- * @param show — per field `true` = plaintext, `false` = masked (as in Einstellungen › Praxis).
+ * @param show — per field `true` = plaintext, `false` = masked (as in Settings › Practice).
  */
 export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHeaderPrivacyV1 = DEFAULT_PRAXIS_HEADER_PRIVACY): string[] {
     const lines: string[] = [];
@@ -167,7 +167,7 @@ export function buildInvoiceHeaderAddressLines(p: InvoicePraxis, show: PraxisHea
     const st = (p.steuernummer ?? "").trim();
     if (st) lines.push(`St.-Nr. ${show.steuer ? st : maskPraxisExportToken(st)}`);
     const oz = (p.oeffnungszeiten ?? "").trim();
-    if (oz) lines.push(`Öffn.: ${show.oz ? oz : maskPraxisExportToken(oz)}`);
+    if (oz) lines.push(`Hrs: ${show.oz ? oz : maskPraxisExportToken(oz)}`);
     return lines;
 }
 
@@ -255,7 +255,7 @@ export function getInvoicePraxisFromStorage(): InvoicePraxis {
     }
 }
 
-/** Persists practice master data (invoices, PDFs, Einstellungen). */
+/** Persists practice master data (invoices, PDFs, Settings). */
 export function saveInvoicePraxisToStorage(p: InvoicePraxis): void {
     localStorage.setItem(LS_INVOICE_PRAXIS, JSON.stringify(invoicePraxisToBlob(p)));
 }
@@ -336,11 +336,11 @@ export function lineFromLeistungWahl(
         if (!b) return null;
         const paidGes = roundMoney2(sumZahlungenForBehandlung(zahlungen, patientId, p.id));
         const cost = b.gesamtkosten != null && Number.isFinite(b.gesamtkosten) ? roundMoney2(b.gesamtkosten) : null;
-        const leist = (b.leistungsname || b.beschreibung || b.art || "Behandlung").trim();
+        const leist = (b.leistungsname || b.beschreibung || b.art || "Treatment").trim();
         const bn = (b.behandlungsnummer ?? "").trim() || "—";
         const desc = `B-Nr. ${bn} — ${leist}`;
         const kosten = cost != null ? formatCurrency(cost) : "—";
-        const detail = `Kosten (Soll): ${kosten} · Gezahlt (i. S.): ${formatCurrency(paidGes)}`;
+        const detail = `Cost (due): ${kosten} · Paid (in system): ${formatCurrency(paidGes)}`;
         const bruto = cost != null && cost > 0 ? cost : paidGes > 0 ? paidGes : 0.01;
         const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
         return { description: `${desc}\n${detail}`, amount_cents };
@@ -349,11 +349,11 @@ export function lineFromLeistungWahl(
     if (!u) return null;
     const paidGes = roundMoney2(sumZahlungenForUntersuchung(zahlungen, patientId, p.id));
     const un = (u.untersuchungsnummer ?? "").trim() || "—";
-    const leist = (u.diagnose || u.ergebnisse || u.beschwerden || "Untersuchung").trim().slice(0, 200);
+    const leist = (u.diagnose || u.ergebnisse || u.beschwerden || "Examination").trim().slice(0, 200);
     const desc = `U-Nr. ${un} — ${leist}`;
     const bruto = paidGes > 0 ? paidGes : 0.01;
     const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
-    const detail = `Gezahlt (i. S.): ${formatCurrency(paidGes)}`;
+    const detail = `Paid (in system): ${formatCurrency(paidGes)}`;
     return { description: `${desc}\n${detail}`, amount_cents };
 }
 
@@ -404,13 +404,13 @@ export function buildTagesberichtLines(
                     ? paidAmTag("behand", p.id)
                     : paidAmTag("unter", p.id)
                 : 0;
-            const withDay = `${row.description}\nAm Stichtag ${stichtag} verbucht: ${formatCurrency(tagEinnahme)}`;
+            const withDay = `${row.description}\nPosted on report date ${stichtag}: ${formatCurrency(tagEinnahme)}`;
             out.push({ description: withDay, amount_cents: row.amount_cents });
         }
     }
     if (out.length === 0) {
         out.push({
-            description: `Tagesbericht ${stichtag} — am Stichtag keine zugeordneten B-/U-Zahlungen für diesen Patienten.`,
+            description: `Daily report ${stichtag} — no linked treatment/examination payments for this patient on the report date.`,
             amount_cents: 1,
         });
     }

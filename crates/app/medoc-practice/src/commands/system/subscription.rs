@@ -1,5 +1,5 @@
-// Subscription / billing — primär **MeDoc Hersteller-Portal** (`company_portal` HTTP),
-// Fallback: lokale Stub-URL / Audit nur, wenn keine Portal-Konfiguration erreichbar ist.
+// Subscription / billing — primarily **MeDoc vendor portal** (`company_portal` HTTP),
+// Fallback: local stub URL / audit only when no portal configuration is available.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -55,14 +55,14 @@ pub async fn open_subscription_portal(
         let url = post_billing_portal_url(&cfg).await?;
         return Ok(SubscriptionPortal {
             url,
-            provider: "Hersteller-Portal".to_string(),
-            note: "Abrechnung über das MeDoc-Hersteller-Backend.".to_string(),
+            provider: "Vendor portal".to_string(),
+            note: "Billing via the MeDoc vendor backend.".to_string(),
         });
     }
     Ok(SubscriptionPortal {
         url: "https://portal.medoc.local/billing".to_string(),
         provider: "Stub".to_string(),
-        note: "Hersteller-Portal nicht konfiguriert — bitte in Einstellungen › System › Hersteller-Anbindung hinterlegen."
+        note: "Vendor portal not configured — set it under Settings › System › Vendor connection."
             .to_string(),
     })
 }
@@ -90,7 +90,7 @@ pub async fn attach_payment_method(
     let session = rbac::require(&session_state, "ops.system")?;
     if !is_valid_provider_token(&request.provider_token) {
         return Err(AppError::Validation(
-            "Ungültiges Provider-Token (erwartet pm_ oder tok_-Präfix)".into(),
+            "Invalid provider token (expected pm_ or tok_ prefix)".into(),
         ));
     }
     audit_repo::create(

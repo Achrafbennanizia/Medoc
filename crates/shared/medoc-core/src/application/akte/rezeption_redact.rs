@@ -1,4 +1,4 @@
-//! REZ need-to-know redaction for B/U lists (GAP-01 mitigation).
+//! Reception need-to-know redaction for treatment/examination lists (GAP-01 mitigation).
 
 use crate::application::rbac::Role;
 use crate::domain::entities::behandlung::{Behandlung, Untersuchung};

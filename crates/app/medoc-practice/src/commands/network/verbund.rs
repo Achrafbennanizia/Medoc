@@ -1,4 +1,4 @@
-//! Geräteverbund Tauri IPC commands.
+//! Practice-network (Verbund) Tauri IPC commands.
 
 use std::net::IpAddr;
 use std::time::Duration;
@@ -89,7 +89,7 @@ pub async fn import_activation_manifest(
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     let summary = import_owner_activation(
         &pool,
         &app_dir,
@@ -146,7 +146,7 @@ pub async fn verbund_send_join_request(
 ) -> Result<JoinRequestResult, AppError> {
     if payload.admin_host.trim().is_empty() || payload.admin_port == 0 {
         return Err(AppError::Validation(
-            "Admin-Host und Port erforderlich".into(),
+            "Admin host and port required".into(),
         ));
     }
     let role = SeatRolle::parse(&payload.requested_role).unwrap_or(SeatRolle::Member);
@@ -310,7 +310,7 @@ pub async fn verbund_start_listener(
     let status = verbund_status(&pool).await?;
     if !verbund_network_ready(&status) {
         return Err(AppError::Validation(
-            "Verbund-Listener nur bei aktiver Lizenz (Eigentümer) bzw. Lizenz/Provisioning (Mitglied)".into(),
+            "Practice-network listener requires an active license (owner) or license/provisioning (member)".into(),
         ));
     }
     start_verbund_listener_task(pool.inner().clone(), &listener).await
@@ -522,7 +522,7 @@ async fn validate_cluster_reset_reauth(
     let reset_ok = phrase.eq_ignore_ascii_case(&preview.confirm_phrase_hint);
     if !slug_ok && !reset_ok {
         return Err(AppError::Validation(
-            "Bestätigungstext stimmt nicht.".into(),
+            "Confirmation phrase does not match.".into(),
         ));
     }
 
@@ -553,7 +553,7 @@ pub async fn verbund_execute_cluster_reset(
     let app_data_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
 
     let report =
         medoc_sync::verbund::services::execute_owner_cluster_reset(&pool, &app_data_dir, &uid, mode)

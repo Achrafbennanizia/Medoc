@@ -24,7 +24,7 @@ pub async fn list_personal(
     personal_repo::find_all(&pool).await
 }
 
-/// Doctors only — for Termin «Behandler» (FA-TERM-14); allowed for Arzt + Rezeption.
+/// Doctors only — for appointment treating clinician (FA-TERM-14); allowed for Arzt + Rezeption.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_aerzte(
@@ -35,7 +35,7 @@ pub async fn list_aerzte(
     personal_repo::find_arzt_summaries(&pool).await
 }
 
-/// Arzt/Rezeption directory for Praxis-Aufgaben labels — `aufgabe.status.fulfill` (no HR read).
+/// Doctor/reception directory for practice-task labels — `aufgabe.status.fulfill` (no HR read).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_aufgabe_team_directory(
@@ -90,7 +90,7 @@ pub async fn create_personal(
     Ok(p)
 }
 
-/// Eigenes Profil lesen (ohne `personal.read` — jede Sitzung).
+/// Read own profile (no `personal.read` required — any authenticated session).
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
 pub async fn get_own_profile(
@@ -101,7 +101,7 @@ pub async fn get_own_profile(
     own_profile::get_own_profile(&pool, &session.user_id).await
 }
 
-/// Eigenes Profil aktualisieren (Name, E-Mail, Kontakt — keine Rollenänderung).
+/// Update own profile (name, email, contact — no role changes).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, data))]
 pub async fn update_own_profile(
@@ -145,7 +145,7 @@ pub async fn update_personal(
         .ok_or(AppError::NotFound("error.entity.personal".into()))?;
     let p = if let Some(ref new_rolle) = data.rolle {
         let rolle_str = serde_json::to_string(new_rolle)
-            .map_err(|e| AppError::Internal(format!("Rolle serialisieren: {e}")))?
+            .map_err(|e| AppError::Internal(format!("Serialize role: {e}")))?
             .trim_matches('"')
             .to_string();
         if !rolle_str.eq_ignore_ascii_case(&existing.rolle) {
@@ -231,7 +231,7 @@ pub async fn change_password(
     Ok(())
 }
 
-/// Setzt das Passwort für ein beliebiges Team-Mitglied (ohne altes Passwort) — z. B. Personalverwaltung.
+/// Set password for any team member (without old password) — e.g. staff admin.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, new_password))]
 pub async fn set_personal_password_by_admin(
@@ -261,7 +261,7 @@ pub async fn set_personal_password_by_admin(
     Ok(())
 }
 
-/// FA-PERS-07: Overrides für ein Team-Mitglied (Lesen — gleiche Policy wie Personal-Stamm).
+/// FA-PERS-07: Permission overrides for a team member (read — same policy as staff master data).
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
 pub async fn list_personal_permission_overrides(
@@ -320,7 +320,7 @@ pub async fn delete_personal_permission_override(
     Ok(())
 }
 
-/// Entfernt alle Berechtigungs-Overrides — Rolle gilt wieder unverändert.
+/// Remove all permission overrides — role defaults apply again.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn reset_personal_permission_overrides(
@@ -343,7 +343,7 @@ pub async fn reset_personal_permission_overrides(
     Ok(n)
 }
 
-/// Setzt ALLOW für jede in `config/rbac.yaml` deklarierte Aktion (Vollzugriff über Overrides).
+/// Set ALLOW for every action declared in `config/rbac.yaml` (full access via overrides).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn grant_personal_all_permissions(

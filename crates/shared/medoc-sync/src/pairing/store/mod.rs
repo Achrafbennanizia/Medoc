@@ -171,13 +171,13 @@ pub async fn decide(
         .ok_or_else(|| AppError::NotFound("pairing_request".into()))?;
     if request.status != "PENDING" {
         return Err(AppError::Conflict(format!(
-            "pairing_request bereits entschieden (status={})",
+            "pairing_request already decided (status={})",
             request.status
         )));
     }
     if request.awaiting_pin {
         return Err(AppError::Conflict(
-            "pairing_request wartet bereits auf PIN-Bestätigung".into(),
+            "pairing_request already awaiting PIN confirmation".into(),
         ));
     }
 
@@ -257,7 +257,7 @@ pub async fn confirm_pin(
         .ok_or_else(|| AppError::NotFound("pairing_request".into()))?;
     if request.status != "PENDING" || !request.awaiting_pin {
         return Err(AppError::Conflict(
-            "pairing_request erwartet keine PIN-Bestätigung".into(),
+            "pairing_request is not awaiting PIN confirmation".into(),
         ));
     }
 
@@ -270,7 +270,7 @@ pub async fn confirm_pin(
             .flatten();
 
     let pin_hash = pin_hash.ok_or_else(|| {
-        AppError::Internal("pairing_request awaiting_pin ohne confirm_pin_hash".into())
+        AppError::Internal("pairing_request awaiting_pin without confirm_pin_hash".into())
     })?;
 
     let expires_at: Option<String> =
@@ -306,7 +306,7 @@ pub async fn confirm_pin(
 
     if attempts >= CONFIRM_PIN_MAX_ATTEMPTS {
         return Err(AppError::Validation(
-            "Zu viele PIN-Versuche — Pairing-Anfrage erneut stellen".into(),
+            "Too many PIN attempts — submit a new pairing request".into(),
         ));
     }
 

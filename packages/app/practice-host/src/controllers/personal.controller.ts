@@ -22,7 +22,7 @@ export async function updateOwnProfile(data: Record<string, unknown>): Promise<O
     return practiceSystem.invoke<OwnProfileDto>("update_own_profile", { data: safe });
 }
 
-/** Doctors (role ARZT) for appointment assignment — visible to Arzt + Rezeption. */
+/** Doctors (role ARZT) for appointment assignment — visible to physician + reception roles. */
 export interface AerztSummary {
     id: string;
     name: string;
@@ -32,7 +32,7 @@ export async function listAerzte(): Promise<AerztSummary[]> {
     return practiceSystem.invoke<AerztSummary[]>("list_aerzte");
 }
 
-/** Arzt/Rezeption names for Praxis-Aufgaben — allowed with `aufgabe.status.fulfill` (no HR read). */
+/** Physician/reception names for practice tasks — allowed with `aufgabe.status.fulfill` (no HR read). */
 export interface AufgabeTeamMember {
     id: string;
     name: string;
@@ -99,7 +99,7 @@ export async function deletePersonalPermissionOverride(personalId: string, actio
     return practiceSystem.invoke("delete_personal_permission_override", { personal_id: personalId, action });
 }
 
-/** Entfernt alle Overrides — Rolle gilt wieder ohne Abweichungen. */
+/** Clears all overrides — the role applies again without deviations. */
 export async function resetPersonalPermissionOverrides(personalId: string): Promise<number> {
     return practiceSystem.invoke<number>("reset_personal_permission_overrides", { personal_id: personalId });
 }

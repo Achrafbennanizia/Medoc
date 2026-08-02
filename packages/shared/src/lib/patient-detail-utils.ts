@@ -174,7 +174,7 @@ export function behandlungContinueLabel(b: Behandlung): string {
     const sitz = b.sitzung != null ? String(b.sitzung) : "?";
     const titel = b.leistungsname || b.beschreibung || b.art;
     const d = b.behandlung_datum ? formatDate(b.behandlung_datum) : formatDateTime(b.created_at);
-    return `${bn} · Sitzung ${sitz} · ${titel} · ${d}`;
+    return `${bn} · Session ${sitz} · ${titel} · ${d}`;
 }
 
 export function alterAusGeburtsdatum(geburtsdatum: string): number | null {

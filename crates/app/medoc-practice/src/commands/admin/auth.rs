@@ -273,7 +273,7 @@ pub async fn list_my_device_sessions(
     .await
 }
 
-/// Beendet alle **anderen** Geräte-Sitzungen dieses Benutzers (nicht die aktuelle).
+/// Ends all **other** device sessions for this user (not the current one).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn revoke_my_other_device_sessions(
@@ -299,7 +299,7 @@ pub async fn revoke_my_other_device_sessions(
     Ok(n)
 }
 
-/// Forensische Details zu einer eigenen Gerätesitzung (Audit + Risikoindikatoren).
+/// Forensic details for one of the caller's own device sessions (audit + risk indicators).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id))]
 pub async fn investigate_my_device_session(
@@ -332,7 +332,7 @@ pub async fn investigate_my_device_session(
     Ok(report)
 }
 
-/// Beendet eine einzelne **andere** Gerätesitzung dieses Benutzers.
+/// Ends a single **other** device session for this user.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id))]
 pub async fn revoke_my_device_session(
@@ -350,7 +350,7 @@ pub async fn revoke_my_device_session(
     .await
 }
 
-/// Vertrauen setzen oder widerrufen für eine **andere** eigene Gerätesitzung.
+/// Set or revoke trust for another of the caller's own device sessions.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state), fields(session_id = %session_id, trusted))]
 pub async fn set_my_device_session_trusted(
@@ -390,7 +390,7 @@ pub async fn start_totp_enrollment_login(
         return Err(AppError::validation_code("error.auth.totp_optional_role"));
     }
     if personal_repo::is_totp_enrolled(&user) {
-        return Err(AppError::Conflict("Zwei-Faktor ist bereits aktiv".into()));
+        return Err(AppError::Conflict("Two-factor authentication is already active".into()));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
     personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;

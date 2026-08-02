@@ -1,4 +1,4 @@
-//! Geräteverbund seat cap invariants (3 ADMIN / 7 MEMBER / 10 total).
+//! Practice network seat cap invariants (3 ADMIN / 7 MEMBER / 10 total).
 
 use chrono::Utc;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};

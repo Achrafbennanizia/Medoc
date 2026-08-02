@@ -1,4 +1,4 @@
-//! Binär-Anlagen zur Patientenakte (Dateien unter `app_data_dir/akte_anlagen/{akte_id}/`).
+//! Binary attachments for the patient record (files under `app_data_dir/akte_anlagen/{akte_id}/`).
 
 use std::path::{Path, PathBuf};
 
@@ -16,9 +16,9 @@ pub struct AkteAnlageRow {
     pub display_name: String,
     pub mime_type: String,
     pub size_bytes: i64,
-    /// Relativ zu `app_data_dir`, z. B. `akte_anlagen/{akte_id}/{id}.pdf`
+    /// Relative to `app_data_dir`, e.g. `akte_anlagen/{akte_id}/{id}.pdf`
     pub rel_storage_path: String,
-    /// Vordefinierte Kategorie (z. B. MRT, LABOR); siehe Normalisierung in Commands.
+    /// Predefined category (e.g. MRT, LABOR); see normalization in commands.
     pub document_kind: String,
     pub created_at: String,
 }
@@ -55,7 +55,7 @@ pub fn absolute_path(app_data_dir: &Path, rel: &str) -> PathBuf {
     app_data_dir.join(rel)
 }
 
-/// Nach erfolgreichem Löschen der Akte(n) aus der DB: Ordner entfernen.
+/// After successfully deleting the record(s) from the DB: remove the folder.
 pub fn remove_storage_dir_best_effort(app_data_dir: &Path, akte_id: &str) {
     let dir = storage_dir_for_akte(app_data_dir, akte_id);
     if dir.is_dir() {
@@ -118,15 +118,15 @@ pub async fn create(
 
     let dir = storage_dir_for_akte(app_data_dir, akte_id);
     std::fs::create_dir_all(&dir).map_err(|e| {
-        AppError::Internal(format!("Anlagen-Ordner konnte nicht angelegt werden: {e}"))
+        AppError::Internal(format!("Could not create attachment folder: {e}"))
     })?;
 
     let disk_path = absolute_path(app_data_dir, &rel);
     std::fs::write(&disk_path, bytes)
-        .map_err(|e| AppError::Internal(format!("Datei konnte nicht gespeichert werden: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Could not save file: {e}")))?;
 
     let size_i64 = i64::try_from(bytes.len()).map_err(|_| {
-        AppError::Internal("Dateigröße außerhalb des unterstützten Bereichs".into())
+        AppError::Internal("File size outside supported range".into())
     })?;
 
     let created = chrono::Utc::now().to_rfc3339();
@@ -151,7 +151,7 @@ pub async fn create(
 
     find_by_id(pool, &id)
         .await?
-        .ok_or_else(|| AppError::Internal("Anlage nach Insert nicht lesbar".into()))
+        .ok_or_else(|| AppError::Internal("Attachment not readable after insert".into()))
 }
 
 pub async fn update_display_name(

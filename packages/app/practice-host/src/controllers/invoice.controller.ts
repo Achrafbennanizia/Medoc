@@ -42,7 +42,7 @@ export async function allocateQuittungNummer(ymd: string): Promise<string> {
     return allocateInvoiceDocumentNumber("QU", ymd);
 }
 
-/** Fortlaufende Nummer aus SQLite (`BEGIN IMMEDIATE`); Offline/Fehler → clientseitiger Fallback. */
+/** Sequential number from SQLite (`BEGIN IMMEDIATE`); offline/error → client-side fallback. */
 export async function allocateInvoiceDocumentNumber(kind: InvoiceDocKind, ymd: string): Promise<string> {
     return practiceSystem.invoke<string>("allocate_invoice_document_number", { kind, ymd });
 }

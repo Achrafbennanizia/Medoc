@@ -1,4 +1,4 @@
-//! Krankenbescheinigung — sick leave with document + Arbeitsplan cut_range sync.
+//! Sick-leave certificate (Krankenbescheinigung) — document + work-plan cut_range sync.
 
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,7 @@ pub async fn krankenbescheinigung_save(
     let session = rbac::require(&session_state, "verwaltung.team.read")?;
     let doc = request.document_ref.trim();
     if doc.is_empty() {
-        return Err(AppError::Validation("Dokument ist Pflicht.".into()));
+        return Err(AppError::Validation("Document is required.".into()));
     }
     NaiveDate::parse_from_str(&request.date_from, "%Y-%m-%d")
         .map_err(|_| AppError::Validation("date_from: YYYY-MM-DD".into()))?;

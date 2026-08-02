@@ -196,7 +196,7 @@ async fn handle_staff_directory_request(
             transport,
             &WireMessage::Error {
                 code: "STAFF_DENIED".into(),
-                message: "Gerät nicht berechtigt für Staff-Verzeichnis.".into(),
+                message: "Device not authorised for staff directory.".into(),
             },
         )
         .await?;

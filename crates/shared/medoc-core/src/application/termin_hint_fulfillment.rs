@@ -1,5 +1,5 @@
-//! When a new appointment is booked for a patient who still had a „nächster Termin“-Hinweis,
-//! clear that hint (removes the row from „Ausstehende Freigaben“) and notify the appointment’s clinician.
+//! When a new appointment is booked for a patient who still had a “next appointment” hint,
+//! clear that hint (removes the row from pending releases) and notify the appointment’s clinician.
 
 use crate::domain::entities::Termin;
 use crate::error::AppError;
@@ -56,9 +56,9 @@ async fn try_fulfill_plan_hint(
 
     let time_short = termin.uhrzeit.chars().take(5).collect::<String>();
 
-    let title = "Termin-Hinweis erfüllt";
+    let title = "Appointment hint fulfilled";
     let body = format!(
-        "{patient_name}: Termin am {} um {}",
+        "{patient_name}: appointment on {} at {}",
         termin.datum, time_short
     );
 

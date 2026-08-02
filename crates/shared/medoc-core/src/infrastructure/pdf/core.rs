@@ -1,63 +1,63 @@
-//! Shared PDF primitives for every MeDoc-Dokumenttyp (Rechnung, Akte, Attest,
-//! Rezept, Quittung, Tagesbericht, Merkblatt).
+//! Shared PDF primitives for every MeDoc document type (invoice, record, certificate,
+//! prescription, receipt, daily report, fact sheet).
 //!
-//! Was hier liegt:
-//! - **Konstanten** (DIN-5008-konforme Ränder, A4-MediaBox, Seitenpositionen).
-//! - **Zeichen-Encoding** WinAnsi mit UTF-16BE-Fallback (ohne Beschneidung
-//!   des Rests des Strings).
-//! - **PdfPage / PdfDoc** Bauernebenes Modell — schreibt PDF-1.4-Objekt-Strom.
-//! - **Primitive** für Text, Linien, Rechtecke, Tabellenköpfe.
+//! What lives here:
+//! - **Constants** (DIN-5008-compliant margins, A4 media box, page positions).
+//! - **Character encoding** WinAnsi with UTF-16BE fallback (without truncating
+//!   the rest of the string).
+//! - **PdfPage / PdfDoc** low-level builder model — writes a PDF-1.4 object stream.
+//! - **Primitives** for text, lines, rectangles, table headers.
 //!
-//! Alle weiteren Renderer (Rechnung, Akte, klinische Dokumente) bauen ihren
-//! Inhalt auf **einer** gemeinsamen [`PageBuilder`]-Instanz auf, damit Margins,
-//! Schriften und Encoding genau einmal definiert sind.
+//! All further renderers (invoice, record, clinical documents) build their
+//! content on **one** shared [`PageBuilder`] instance so margins,
+//! fonts, and encoding are defined exactly once.
 
 use crate::error::AppError;
 use std::fmt::Write;
 
 // ---------------------------------------------------------------------------
-// DIN-5008 / A4 Konstanten
+// DIN-5008 / A4 constants
 // ---------------------------------------------------------------------------
 
-/// A4 Breite in PDF-Punkten (1 pt = 1/72 inch).
+/// A4 width in PDF points (1 pt = 1/72 inch).
 pub const PAGE_WIDTH: i32 = 595;
-/// A4 Höhe in PDF-Punkten.
+/// A4 height in PDF points.
 pub const PAGE_HEIGHT: i32 = 842;
 
-/// Linker Inhaltsrand — DIN 5008: 25 mm = 71 pt; wir nutzen 50 pt für mehr
-/// Tabellenbreite, sind aber kompatibel zu Fensterumschlägen.
+/// Left content margin — DIN 5008: 25 mm = 71 pt; we use 50 pt for more
+/// table width, while remaining compatible with window envelopes.
 pub const M_LEFT: i32 = 50;
-/// Rechter Inhaltsrand — symmetrisch.
+/// Right content margin — symmetric.
 pub const M_RIGHT: i32 = 545;
-/// Oberer Inhaltsbeginn (PDF-Y-Achse: 0 unten, 842 oben).
+/// Top content start (PDF Y-axis: 0 at bottom, 842 at top).
 pub const M_TOP: i32 = 810;
-/// Unterer Rand (Inhalt endet hier; darunter nur Seitenzahl und ggf. Footer).
+/// Bottom margin (content ends here; below only page number and optional footer).
 pub const M_BOTTOM: i32 = 60;
 
-/// Inhaltsbreite = M_RIGHT − M_LEFT.
+/// Content width = M_RIGHT − M_LEFT.
 pub const CONTENT_WIDTH: i32 = M_RIGHT - M_LEFT;
 
-/// Y der Rücksender-Zeile im Fensterumschlag (DIN 5008 A: 50 mm vom oberen Rand).
+/// Y of the return-address line in the window envelope (DIN 5008 A: 50 mm from top).
 pub const SENDER_HINT_Y: i32 = 720;
-/// Y der ersten Zeile des Anschriftfelds (DIN 5008 A: ~55 mm).
+/// Y of the first address-field line (DIN 5008 A: ~55 mm).
 pub const ADDRESS_WINDOW_Y: i32 = 700;
-/// Höhe des Anschriftfelds (DIN 5008 A: 45 mm = ~128 pt).
+/// Height of the address field (DIN 5008 A: 45 mm = ~128 pt).
 pub const ADDRESS_WINDOW_HEIGHT: i32 = 128;
 
-/// Y, wo die Seitenzahl-Fußzeile gerendert wird.
+/// Y where the page-number footer is rendered.
 pub const PAGE_NUMBER_Y: i32 = 30;
-/// Y, wo der Unterschriften-Footer-Bereich beginnt.
+/// Y where the signature footer area begins.
 pub const SIGNATURE_FOOTER_Y: i32 = 90;
 
 // ---------------------------------------------------------------------------
 // Encoding
 // ---------------------------------------------------------------------------
 
-/// Mappe einen Unicode-Codepoint auf WinAnsi (Helvetica Type-1).
+/// Map a Unicode code point to WinAnsi (Helvetica Type-1).
 ///
-/// Deckt alle für deutsche Praxistexte relevanten Zeichen ab — wenn nicht
-/// gemappt, signalisiert `None` dem Aufrufer, dass für **den ganzen String**
-/// auf UTF-16BE-Hex umgeschaltet werden muss (PDF-Hex-Literal `<…>`).
+/// Covers all characters relevant for German practice text — when not
+/// mapped, `None` signals the caller to switch **the entire string**
+/// to UTF-16BE hex (PDF hex literal `<…>`).
 fn winansi_byte(ch: char) -> Option<u8> {
     if ch.is_ascii() {
         return Some(ch as u8);
@@ -171,23 +171,23 @@ fn pdf_escape_winansi_bytes(bytes: &[u8]) -> String {
     out
 }
 
-/// Encode ein Text-Literal für den PDF-Content-Stream.
+/// Encode a text literal for the PDF content stream.
 ///
-/// **Regel:** Wenn **jedes** Zeichen WinAnsi-mapbar ist, schreibe Literal
-/// `(…)`. Wenn **mind. ein** Zeichen es nicht ist, schreibe den **kompletten**
-/// String als UTF-16BE-Hex `<FEFF…>` (sonst gehen die unmappbaren Zeichen
-/// verloren oder werden zu `?`).
+/// **Rule:** If **every** character is WinAnsi-mappable, write a literal
+/// `(…)`. If **at least one** character is not, write the **complete**
+/// string as UTF-16BE hex `<FEFF…>` (otherwise unmappable characters
+/// are lost or become `?`).
 ///
-/// Achtung: Helvetica-Type-1-Schriften unterstützen nur WinAnsi-Glyphen.
-/// Reine Unicode-Hex-Strings rendern in den allermeisten Viewern als leere
-/// Boxen — aber besser als stillschweigendes Datenverlust.
+/// Note: Helvetica Type-1 fonts only support WinAnsi glyphs.
+/// Pure Unicode hex strings render as empty boxes in most viewers —
+/// but that is better than silent data loss.
 pub fn text_operand(s: &str) -> String {
     let mut bytes = Vec::with_capacity(s.len());
     for ch in s.chars() {
         match winansi_byte(ch) {
             Some(b) => bytes.push(b),
             None => {
-                // Mind. ein Zeichen nicht mapbar → kompletten String als
+                // At least one character not mappable → entire string as
                 // UTF-16BE-Hex schreiben.
                 let mut hex = String::from("<FEFF");
                 for unit in s.encode_utf16() {
@@ -201,10 +201,10 @@ pub fn text_operand(s: &str) -> String {
     format!("({})", pdf_escape_winansi_bytes(&bytes))
 }
 
-/// Grobe Textbreite einer Zeile in PDF-Punkten — für Rechts-/Mittel-Alignment.
+/// Rough text width of a line in PDF points — for right/center alignment.
 ///
-/// Helvetica-Mittelwert: ~0.50–0.55 × fontsize pro Zeichen. Wir nehmen 0.52
-/// und runden auf. Umlaute zählen wie ASCII-Buchstaben (WinAnsi-Byte = 1).
+/// Helvetica average: ~0.50–0.55 × fontsize per character. We use 0.52
+/// and round. Umlauts count like ASCII letters (WinAnsi byte = 1).
 pub fn approx_text_width(s: &str, font_size: i32) -> i32 {
     let cw = (font_size as f32 * 0.52).round() as i32;
     let n = s.chars().count() as i32;
@@ -212,23 +212,23 @@ pub fn approx_text_width(s: &str, font_size: i32) -> i32 {
 }
 
 // ---------------------------------------------------------------------------
-// PageBuilder — einheitliches Schreibmodell für jeden Dokumenttyp
+// PageBuilder — unified write model for every document type
 // ---------------------------------------------------------------------------
 
-/// Ein PageBuilder akkumuliert PDF-Content-Streams Seite für Seite.
+/// A PageBuilder accumulates PDF content streams page by page.
 ///
-/// **Verwendung:**
+/// **Usage:**
 /// ```ignore
 /// let mut pb = PageBuilder::new();
-/// pb.text(M_LEFT, pb.y, 10, false, "Hallo Welt");
+/// pb.text(M_LEFT, pb.y, 10, false, "Hello World");
 /// pb.advance(12);
 /// let pages = pb.finish();
-/// emit_multipage_pdf(&pages, "Mein Dokument")?;
+/// emit_multipage_pdf(&pages, "My Document")?;
 /// ```
 ///
-/// `y` zeigt immer auf die **Baseline** des nächsten Text-Outputs in
-/// PDF-Koordinaten (0 unten). `advance(n)` reduziert `y` um `n` und führt
-/// automatisch einen Seitenumbruch durch, wenn `y < M_BOTTOM`.
+/// `y` always points at the **baseline** of the next text output in
+/// PDF coordinates (0 at bottom). `advance(n)` reduces `y` by `n` and
+/// automatically page-breaks when `y < M_BOTTOM`.
 pub struct PageBuilder {
     pub pages: Vec<String>,
     pub cur: String,
@@ -252,15 +252,15 @@ impl PageBuilder {
         }
     }
 
-    /// Verwende einen abweichenden oberen Seitenanfang (z. B. nach Briefkopf).
+    /// Use a different top-of-page start (e.g. after letterhead).
     pub fn with_page_top(mut self, page_top: i32) -> Self {
         self.page_top = page_top;
         self.y = page_top;
         self
     }
 
-    /// Forciere einen Seitenumbruch — die nächste Schreiboperation beginnt
-    /// bei `y = self.page_top`.
+    /// Force a page break — the next write starts
+    /// at `y = self.page_top`.
     pub fn break_page(&mut self) {
         if !self.cur.is_empty() {
             self.pages.push(std::mem::take(&mut self.cur));
@@ -268,22 +268,21 @@ impl PageBuilder {
         self.y = self.page_top;
     }
 
-    /// Stelle sicher, dass mind. `min_y_remaining` Punkte verbleiben — sonst
-    /// Seitenumbruch.
+    /// Ensure at least `min_y_remaining` points remain — otherwise
+    /// page-break.
     pub fn ensure_space(&mut self, min_y_remaining: i32) {
         if self.y < M_BOTTOM + min_y_remaining {
             self.break_page();
         }
     }
 
-    /// Reduziere `y` um `dy` (line height).
+    /// Reduce `y` by `dy` (line height).
     pub fn advance(&mut self, dy: i32) {
         self.y -= dy;
     }
 
-    /// Schreibe Text. `bold = true` nutzt /F2 (Helvetica-Bold), sonst /F1.
-    /// **Cursor wird NICHT bewegt** — Aufrufer ist für `advance(line_height)`
-    /// verantwortlich.
+    /// Write text. `bold = true` uses /F2 (Helvetica-Bold), otherwise /F1.
+    /// **Cursor is NOT moved** — caller is responsible for `advance(line_height)`.
     pub fn text(&mut self, x: i32, size: i32, bold: bool, s: &str) {
         let font = if bold { "F2" } else { "F1" };
         let op = text_operand(s);
@@ -298,22 +297,22 @@ impl PageBuilder {
         );
     }
 
-    /// Text rechtsbündig zur Rechtsmarge `x_right`.
+    /// Text right-aligned to right margin `x_right`.
     pub fn text_right(&mut self, x_right: i32, size: i32, bold: bool, s: &str) {
         let w = approx_text_width(s, size);
         let x = (x_right - w).max(M_LEFT);
         self.text(x, size, bold, s);
     }
 
-    /// Text mittig zwischen `M_LEFT` und `M_RIGHT`.
+    /// Text centered between `M_LEFT` and `M_RIGHT`.
     pub fn text_center(&mut self, size: i32, bold: bool, s: &str) {
         let w = approx_text_width(s, size);
         let x = M_LEFT + (CONTENT_WIDTH - w) / 2;
         self.text(x.max(M_LEFT), size, bold, s);
     }
 
-    /// Mehrzeiliger Absatz mit weichem Umbruch (`wrap_soft`). Nutzt automatisch
-    /// `advance(size + 4)` pro Zeile und behandelt Seitenumbrüche selbst.
+    /// Multi-line paragraph with soft wrap (`wrap_soft`). Automatically uses
+    /// `advance(size + 4)` per line and handles page breaks itself.
     pub fn paragraph(&mut self, text: &str, size: i32, max_chars: usize, indent: i32) {
         for raw_line in text.split('\n') {
             if raw_line.trim().is_empty() {
@@ -328,18 +327,18 @@ impl PageBuilder {
         }
     }
 
-    /// Horizontale Linie auf aktueller `y`-Position.
+    /// Horizontal line at the current `y` position.
     pub fn hline(&mut self, x1: i32, x2: i32) {
         let _ = writeln!(self.cur, "{} {} m {} {} l S", x1, self.y, x2, self.y);
     }
 
-    /// Horizontale Linie auf beliebiger `y`-Position (Seitenelement, z. B.
-    /// Briefkopf-Trennlinie).
+    /// Horizontal line at an arbitrary `y` position (page element, e.g.
+    /// letterhead divider).
     pub fn hline_at(&mut self, x1: i32, y: i32, x2: i32) {
         let _ = writeln!(self.cur, "{} {} m {} {} l S", x1, y, x2, y);
     }
 
-    /// Gefülltes Rechteck (graustufig). `y_bottom` ist die untere Kante.
+    /// Filled rectangle (grayscale). `y_bottom` is the bottom edge.
     pub fn fill_rect(&mut self, x: i32, y_bottom: i32, w: i32, h: i32, gray: f64) {
         let _ = writeln!(
             self.cur,
@@ -352,7 +351,7 @@ impl PageBuilder {
         );
     }
 
-    /// Umrandetes Rechteck.
+    /// Outlined rectangle.
     pub fn stroke_rect(&mut self, x: i32, y_bottom: i32, w: i32, h: i32) {
         let _ = writeln!(
             self.cur,
@@ -364,15 +363,15 @@ impl PageBuilder {
         );
     }
 
-    /// Tabellen-Kopfband: heller Hintergrund hinter Tabellenkopfzeile.
+    /// Table header band: light background behind the table header row.
     pub fn table_header_band(&mut self, x: i32, y_text_baseline: i32, w: i32) {
-        // Etwa 2 pt über Baseline beginnen, 14 pt hoch — passt zu fs=8..10.
+        // Start ~2 pt above baseline, 14 pt tall — fits fs=8..10.
         self.fill_rect(x, y_text_baseline - 4, w, 16, 0.92);
     }
 
-    /// Schließt den aktuellen Stream ab und gibt alle Seiten zurück.
-    /// Garantiert mind. eine Seite (auch wenn leer), damit `emit_multipage_pdf`
-    /// nicht crasht.
+    /// Finish the current stream and return all pages.
+    /// Guarantees at least one page (even if empty) so `emit_multipage_pdf`
+    /// does not crash.
     pub fn finish(mut self) -> Vec<String> {
         if !self.cur.is_empty() {
             self.pages.push(self.cur);
@@ -388,10 +387,10 @@ impl PageBuilder {
 // PDF-Datei zusammenbauen
 // ---------------------------------------------------------------------------
 
-/// Schreibt n Seiten als PDF-1.4-Datei mit eingebetteter Helvetica + Helvetica-Bold
-/// und automatischer "Seite X von Y"-Fußzeile.
+/// Write n pages as a PDF-1.4 file with embedded Helvetica + Helvetica-Bold
+/// and an automatic "Seite X von Y" footer.
 ///
-/// Aufruf typischerweise nach `let pages = page_builder.finish();`.
+/// Typically called after `let pages = page_builder.finish();`.
 pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Vec<u8>, AppError> {
     let n = page_streams.len().max(1);
     let font_regular_id = 3 + n * 2;
@@ -422,7 +421,7 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
         .as_bytes(),
     );
 
-    // 3 0 obj .. — Page + Content pro Seite
+    // 3 0 obj .. — Page + Content per page
     for i in 0..n {
         let page_id = 3 + i * 2;
         let content_id = 4 + i * 2;
@@ -515,7 +514,7 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
 fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize) {
     let label = format!("Seite {} von {}", page_index + 1, page_total);
     let op = text_operand(&label);
-    // Mittig in der Fußzeile.
+    // Centered in the footer.
     let x = (PAGE_WIDTH - approx_text_width(&label, 9)) / 2;
     let _ = writeln!(
         stream,
@@ -557,8 +556,8 @@ fn is_vowel(c: char) -> bool {
     )
 }
 
-/// Weicher Umbruch — bricht NUR an Whitespace, nie mitten im Wort.
-/// Für Tabellenzellen und kurze Felder, wo Trennstriche stören.
+/// Soft wrap — breaks ONLY on whitespace, never mid-word.
+/// For table cells and short fields where hyphens would be distracting.
 pub fn wrap_soft(text: &str, max_chars: usize) -> Vec<String> {
     let width = max_chars.clamp(4, 200);
     let mut lines = Vec::new();
@@ -590,8 +589,8 @@ pub fn wrap_soft(text: &str, max_chars: usize) -> Vec<String> {
     lines
 }
 
-/// Deutscher Fließtext-Umbruch — bricht auch lange Komposita an Silbenstellen
-/// (Präfix/Suffix-Heuristik + Vokal-/Konsonantenwechsel) mit Trennstrich.
+/// German flowing-text wrap — also breaks long compounds at syllable points
+/// (prefix/suffix heuristic + vowel/consonant change) with a hyphen.
 pub fn wrap_de(text: &str, max_chars: usize) -> Vec<String> {
     let width = max_chars.clamp(12, 200);
     let mut lines = Vec::new();
@@ -766,7 +765,7 @@ fn pack_word_at_hyphen_points(word: &str, width: usize) -> Vec<String> {
 // Format-Helfer
 // ---------------------------------------------------------------------------
 
-/// ISO `YYYY-MM-DD` → DIN `DD.MM.YYYY`. Andere Eingaben unverändert zurück.
+/// ISO `YYYY-MM-DD` → DIN `DD.MM.YYYY`. Other inputs returned unchanged.
 pub fn format_date_de(iso: &str) -> String {
     let d = iso.trim();
     if d.len() >= 10 && d.as_bytes().get(4) == Some(&b'-') && d.as_bytes().get(7) == Some(&b'-') {
@@ -775,7 +774,7 @@ pub fn format_date_de(iso: &str) -> String {
     d.to_string()
 }
 
-/// Cent-Wert → "1.234,56 €" (DIN 5008 / deutsche Schreibweise).
+/// Cent value → "1.234,56 €" (DIN 5008 / German number format).
 pub fn format_eur_de(cents: i64) -> String {
     let neg = cents < 0;
     let v = cents.abs();
@@ -793,7 +792,7 @@ pub fn format_eur_de(cents: i64) -> String {
     format!("{}{},{:02} €", if neg { "-" } else { "" }, euros_de, frac)
 }
 
-/// Kürzt eine Zelle so, dass sie in ein Tabellen-Feld passt (mit `...`-Ellipsis).
+/// Truncate a cell so it fits a table field (with `...` ellipsis).
 pub fn truncate_cell(s: &str, max_chars: usize) -> String {
     let count = s.chars().count();
     if count <= max_chars {

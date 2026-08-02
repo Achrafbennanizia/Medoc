@@ -30,27 +30,27 @@ pub async fn pairing_scan_bluetooth(
 pub async fn scan_bluetooth_masters(seconds: u64) -> Result<Vec<DiscoveredMaster>, AppError> {
     let manager = Manager::new()
         .await
-        .map_err(|e| AppError::Internal(format!("Bluetooth nicht verfügbar: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Bluetooth unavailable: {e}")))?;
     let adapters = manager
         .adapters()
         .await
-        .map_err(|e| AppError::Internal(format!("Bluetooth-Adapter: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Bluetooth adapter: {e}")))?;
     let central = adapters
         .into_iter()
         .next()
-        .ok_or_else(|| AppError::Validation("Kein Bluetooth-Adapter gefunden".into()))?;
+        .ok_or_else(|| AppError::Validation("No Bluetooth adapter found".into()))?;
 
     central
         .start_scan(ScanFilter::default())
         .await
-        .map_err(|e| AppError::Internal(format!("BLE-Scan starten: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Failed to start BLE scan: {e}")))?;
 
     tokio::time::sleep(Duration::from_millis((seconds * 1000).max(500))).await;
 
     let peripherals = central
         .peripherals()
         .await
-        .map_err(|e| AppError::Internal(format!("BLE-Geräte lesen: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Failed to read BLE devices: {e}")))?;
 
     let _ = central.stop_scan().await;
 
@@ -61,7 +61,7 @@ pub async fn scan_bluetooth_masters(seconds: u64) -> Result<Vec<DiscoveredMaster
         let props = peripheral
             .properties()
             .await
-            .map_err(|e| AppError::Internal(format!("BLE-Eigenschaften: {e}")))?;
+            .map_err(|e| AppError::Internal(format!("BLE properties: {e}")))?;
         let Some(props) = props else { continue };
 
         let Some(payload) = props

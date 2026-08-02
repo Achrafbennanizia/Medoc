@@ -62,19 +62,19 @@ export function computeAkteCompleteness(args: ComputeAkteCompletenessArgs): Akte
     const gaps: AkteCompletenessGap[] = [];
 
     if (!args.patientVersicherungsnummer.trim()) {
-        gaps.push({ id: "kvnr", label: "Versicherungsnummer" });
+        gaps.push({ id: "kvnr", label: "Insurance number" });
     }
 
     if (args.includeClinicalGaps) {
         if (anamneseLooksEmpty(args.anamneseJson)) {
-            gaps.push({ id: "anam", label: "Anamnese", tab: "anam" });
+            gaps.push({ id: "anam", label: "Medical history", tab: "anam" });
         }
         if (args.zahnbefundeCount === 0) {
-            gaps.push({ id: "zahn", label: "Zahnbefund", tab: "unter" });
+            gaps.push({ id: "zahn", label: "Dental findings", tab: "unter" });
         }
         const expectUntersuchung = args.patientStatus !== "NEU";
         if (expectUntersuchung && args.untersuchungenCount === 0) {
-            gaps.push({ id: "unter", label: "Untersuchung", tab: "unter" });
+            gaps.push({ id: "unter", label: "Examination", tab: "unter" });
         }
     }
 

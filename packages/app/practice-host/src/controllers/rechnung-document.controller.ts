@@ -89,7 +89,7 @@ export async function appendRechnungDocument(entry: SavedInvoice): Promise<void>
     });
 }
 
-/** Import at most one batch from legacy localStorage (call from finanzen page on mount). */
+/** Import at most one batch from legacy localStorage (call from finance page on mount). */
 export async function migrateLegacyInvoiceHistoryFromLocalStorageOnce(): Promise<void> {
     if (typeof window === "undefined" || globalThis.localStorage == null) return;
     let raw: string | null = null;

@@ -63,7 +63,7 @@ pub async fn append_rechnung_document(
     let session = rbac::require(&session_state, "finanzen.write")?;
     if input.id.trim().is_empty() || input.patient_id.trim().is_empty() {
         return Err(AppError::Validation(
-            "id und patient_id erforderlich".into(),
+            "id and patient_id are required".into(),
         ));
     }
     let doc_id = input.id.clone();

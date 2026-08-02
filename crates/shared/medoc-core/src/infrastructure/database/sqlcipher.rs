@@ -44,7 +44,7 @@ pub async fn opens_with_sqlcipher_key(db_path: &Path, key: &[u8]) -> bool {
 pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Result<(), AppError> {
     let backup = db_path.with_extension("db.plain-backup");
     std::fs::copy(db_path, &backup)
-        .map_err(|e| AppError::Internal(format!("Backup vor SQLCipher-Migration: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Backup before SQLCipher migration: {e}")))?;
 
     let tmp = db_path.with_extension("db.enc-migrate-tmp");
     let _ = std::fs::remove_file(&tmp);
@@ -73,7 +73,7 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
     pool.close().await;
 
     std::fs::rename(&tmp, db_path)
-        .map_err(|e| AppError::Internal(format!("SQLCipher-Migration rename: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("SQLCipher migration rename: {e}")))?;
     Ok(())
 }
 
@@ -101,7 +101,7 @@ pub async fn open_encrypted_pool(
         .await
         .map_err(|_| {
             AppError::Validation(
-                "Datenbank konnte nicht mit SQLCipher geöffnet werden (Passphrase prüfen).".into(),
+                "Could not open database with SQLCipher (check passphrase).".into(),
             )
         })?;
 

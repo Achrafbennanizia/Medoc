@@ -1,4 +1,4 @@
-//! Hersteller-Portal-Konfiguration (nur `ops.system` — enthält API-Schlüssel).
+//! Vendor portal configuration (`ops.system` only — contains API keys).
 use medoc_core::infrastructure::license::mint_dev_v2_license_envelope;
 use medoc_core::infrastructure::license_repo;
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ pub async fn company_portal_attach_payment(
         .await
 }
 
-/// Für `check_for_updates` — liefert JSON wie `UpdateInfo` oder Fehler.
+/// For `check_for_updates` — returns JSON shaped like `UpdateInfo`, or an error.
 #[tauri::command]
 pub async fn company_portal_fetch_update_manifest(
     pool: State<'_, SqlitePool>,
@@ -108,7 +108,7 @@ pub async fn company_portal_fetch_update_manifest(
         .await
 }
 
-/// Verbindungsprobe (ohne sensible Daten im Fehlerfall außer HTTP-Status).
+/// Connectivity probe (no sensitive data in the failure path except HTTP status).
 #[tauri::command]
 pub async fn company_portal_ping(
     pool: State<'_, SqlitePool>,
@@ -275,7 +275,7 @@ async fn ensure_portal_config_for_onboarding_skip(pool: &SqlitePool) -> Result<(
         return persist_portal_config(pool, base, "dev-praxis".into(), api_key).await;
     }
     Err(AppError::Validation(
-        "Bitte Praxisdaten ausfüllen oder ein bestehendes Abonnement verknüpfen.".into(),
+        "Please complete practice details or link an existing subscription.".into(),
     ))
 }
 
@@ -372,7 +372,7 @@ pub async fn resolve_onboarding_license_key(
     let device_id = license_repo::ensure_device_id(pool).await?;
     let trimmed = license_key.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Validation("Lizenzcode fehlt.".into()));
+        return Err(AppError::Validation("License code missing.".into()));
     }
 
     let verified = medoc_core::infrastructure::license::verify(trimmed, &device_id);
@@ -432,12 +432,12 @@ async fn register_portal_subscription(
             let practice_slug = resp
                 .get("practice_slug")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| AppError::Internal("Registrierung ohne practice_slug.".into()))?
+                .ok_or_else(|| AppError::Internal("Registration missing practice_slug.".into()))?
                 .to_string();
             let api_key = resp
                 .get("api_key")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| AppError::Internal("Registrierung ohne api_key.".into()))?
+                .ok_or_else(|| AppError::Internal("Registration missing api_key.".into()))?
                 .to_string();
             persist_portal_config(pool, base, practice_slug, api_key).await
         }
@@ -580,7 +580,7 @@ async fn assign_onboarding_admin_account(
     ensure_dev_demo_rezeption_account(pool).await
 }
 
-/// Pre-login onboarding: whether Hersteller-Portal credentials were stored.
+/// Pre-login onboarding: whether vendor-portal credentials were stored.
 #[tauri::command]
 pub async fn onboarding_subscription_status(
     pool: State<'_, SqlitePool>,
@@ -629,7 +629,7 @@ pub async fn onboarding_skip_practice_setup(
     let vs = verbund_status(&pool).await?;
     if !vs.licensed || !vs.is_owner {
         return Err(AppError::Validation(
-            "Überspringen nur auf dem lizenzierten Hauptgerät.".into(),
+            "Skip is only allowed on the licensed primary device.".into(),
         ));
     }
     if onboarding_setup_complete(&pool).await? {
@@ -639,7 +639,7 @@ pub async fn onboarding_skip_practice_setup(
     let emails = list_login_ready_emails(&pool).await?;
     if emails.is_empty() {
         return Err(AppError::Validation(
-            "Kein Benutzerkonto vorhanden — bitte Administrator anlegen.".into(),
+            "No user account exists — please create an administrator.".into(),
         ));
     }
     ensure_portal_config_for_onboarding_skip(&pool).await?;
@@ -668,7 +668,7 @@ fn parse_member_rolle(raw: &str) -> Result<Rolle, AppError> {
         "ARZT" => Ok(Rolle::Arzt),
         "REZEPTION" => Ok(Rolle::Rezeption),
         _ => Err(AppError::Validation(
-            "Rolle muss ARZT oder REZEPTION sein.".into(),
+            "Role must be ARZT or REZEPTION.".into(),
         )),
     }
 }
@@ -683,21 +683,21 @@ pub async fn register_onboarding_member_account(
     let vs = verbund_status(&pool).await?;
     if !vs.provisioned || vs.is_owner {
         return Err(AppError::Validation(
-            "Neues Konto nur nach Beitritt zu bestehender Praxis.".into(),
+            "New account only after joining an existing practice.".into(),
         ));
     }
     let name = request.name.trim();
     let email = request.email.trim();
     let password = request.password.trim();
     if name.len() < 2 {
-        return Err(AppError::Validation("Name zu kurz.".into()));
+        return Err(AppError::Validation("Name too short.".into()));
     }
     if !email.contains('@') {
-        return Err(AppError::Validation("E-Mail ungültig.".into()));
+        return Err(AppError::Validation("Invalid email.".into()));
     }
     if password.len() < 8 {
         return Err(AppError::Validation(
-            "Passwort erforderlich (min. 8 Zeichen).".into(),
+            "Password required (min. 8 characters).".into(),
         ));
     }
     let rolle = parse_member_rolle(&request.rolle)?;
@@ -711,7 +711,7 @@ pub async fn onboarding_use_existing_account(pool: State<'_, SqlitePool>) -> Res
     let vs = verbund_status(&pool).await?;
     if !vs.provisioned || vs.is_owner {
         return Err(AppError::Validation(
-            "Nur Mitgliedergeräte nach Verbund-Beitritt.".into(),
+            "Member devices only after joining the practice network.".into(),
         ));
     }
     sync_staff_from_stored_admin_endpoint_required(&pool).await?;
@@ -762,21 +762,21 @@ pub async fn register_onboarding_subscription(
     );
 
     if admin_name.len() < 2 {
-        return Err(AppError::Validation("Administrator-Name zu kurz.".into()));
+        return Err(AppError::Validation("Administrator name too short.".into()));
     }
     if !admin_email.contains('@') {
-        return Err(AppError::Validation("E-Mail ungültig.".into()));
+        return Err(AppError::Validation("Invalid email.".into()));
     }
     if !matches!(plan.as_str(), "BASIC" | "PRO" | "ENTERPRISE") {
         return Err(AppError::Validation(
-            "Plan muss BASIC, PRO oder ENTERPRISE sein.".into(),
+            "Plan must be BASIC, PRO, or ENTERPRISE.".into(),
         ));
     }
 
     let vs = verbund_status(&pool).await?;
     if !vs.licensed || !vs.is_owner {
         return Err(AppError::Validation(
-            "Praxis-Einrichtung nur auf dem lizenzierten Hauptgerät.".into(),
+            "Practice setup only on the licensed primary device.".into(),
         ));
     }
 
@@ -789,7 +789,7 @@ pub async fn register_onboarding_subscription(
     if needs_admin {
         if admin_password.len() < 8 {
             return Err(AppError::Validation(
-                "Administrator-Passwort erforderlich (min. 8 Zeichen).".into(),
+                "Administrator password required (min. 8 characters).".into(),
             ));
         }
     }

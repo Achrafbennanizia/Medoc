@@ -67,7 +67,7 @@ pub struct ActivationSummary {
 fn cluster_id_from_bytes(bytes: &[u8]) -> Result<String, AppError> {
     if bytes.len() != 16 {
         return Err(AppError::Validation(format!(
-            "cluster_id Länge {} (erwartet 16)",
+            "cluster_id length {} (expected 16)",
             bytes.len()
         )));
     }
@@ -84,12 +84,12 @@ async fn activation_already_done(pool: &SqlitePool) -> Result<bool, AppError> {
 fn unwrap_manifest(m: &Manifest, passphrase: &str) -> Result<Zeroizing<Vec<u8>>, AppError> {
     if m.version != 1 {
         return Err(AppError::Validation(format!(
-            "Aktivierungsmanifest Version {} nicht unterstützt",
+            "Activation manifest version {} not supported",
             m.version
         )));
     }
     if m.kdf.alg != "argon2id13" {
-        return Err(AppError::Validation("Unerwarteter KDF-Algorithmus".into()));
+        return Err(AppError::Validation("Unexpected KDF algorithm".into()));
     }
 
     let salt = STANDARD
@@ -104,7 +104,7 @@ fn unwrap_manifest(m: &Manifest, passphrase: &str) -> Result<Zeroizing<Vec<u8>>,
 
     let m_cost_kib: u32 = (m.kdf.mem / 1024)
         .try_into()
-        .map_err(|_| AppError::Internal("KDF mem zu groß".into()))?;
+        .map_err(|_| AppError::Internal("KDF mem too large".into()))?;
     let params = Params::new(m_cost_kib, m.kdf.ops, 1, Some(32))
         .map_err(|e| AppError::Internal(format!("Argon2 params: {e}")))?;
     let kdf = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
@@ -119,14 +119,14 @@ fn unwrap_manifest(m: &Manifest, passphrase: &str) -> Result<Zeroizing<Vec<u8>>,
         .decrypt(XNonce::from_slice(&nonce), ct.as_ref())
         .map_err(|_| {
             AppError::Validation(
-                "Entschlüsselung fehlgeschlagen (falsche Passphrase oder manipuliertes Manifest)"
+                "Decryption failed (wrong passphrase or tampered manifest)"
                     .into(),
             )
         })?;
 
     if plain.len() != 160 {
         return Err(AppError::Validation(format!(
-            "Unerwartete Klartextlänge {} (erwartet 160)",
+            "Unexpected plaintext length {} (expected 160)",
             plain.len()
         )));
     }
@@ -138,7 +138,7 @@ fn verify_device_pubkey(device_pk: &[u8], plain: &[u8]) -> Result<(), AppError> 
     use ed25519_dalek::{Signer, Verifier, VerifyingKey};
 
     if device_pk.len() != 32 {
-        return Err(AppError::Validation("device_pubkey Länge ungültig".into()));
+        return Err(AppError::Validation("device_pubkey length invalid".into()));
     }
     let mut pk_arr = [0u8; 32];
     pk_arr.copy_from_slice(device_pk);
@@ -149,24 +149,24 @@ fn verify_device_pubkey(device_pk: &[u8], plain: &[u8]) -> Result<(), AppError> 
     let sk = SigningKey::from_bytes(&device_seed);
     if sk.verifying_key().to_bytes() != pk_arr {
         return Err(AppError::Validation(
-            "Geräteschlüssel passt nicht zum veröffentlichten Public Key".into(),
+            "Device key does not match the published public key".into(),
         ));
     }
 
     const MSG: &[u8] = b"medoc-activation-check";
     let sig = sk.sign(MSG);
     VerifyingKey::from_bytes(&pk_arr)
-        .map_err(|e| AppError::Validation(format!("device_pubkey ungültig: {e}")))?
+        .map_err(|e| AppError::Validation(format!("device_pubkey invalid: {e}")))?
         .verify(MSG, &sig)
         .map_err(|_| {
-            AppError::Validation("Geräteschlüssel-Signaturprüfung fehlgeschlagen".into())
+            AppError::Validation("Device key signature verification failed".into())
         })?;
     Ok(())
 }
 
 fn verify_ca_pubkey(ca_pk: &[u8], plain: &[u8]) -> Result<(), AppError> {
     if ca_pk.len() != 32 {
-        return Err(AppError::Validation("cluster_ca_pubkey Länge ungültig".into()));
+        return Err(AppError::Validation("cluster_ca_pubkey length invalid".into()));
     }
     let ca_seed: [u8; 32] = plain[64..96]
         .try_into()
@@ -176,7 +176,7 @@ fn verify_ca_pubkey(ca_pk: &[u8], plain: &[u8]) -> Result<(), AppError> {
     expected.copy_from_slice(ca_pk);
     if sk.verifying_key().to_bytes() != expected {
         return Err(AppError::Validation(
-            "Cluster-CA-Schlüssel passt nicht zum veröffentlichten Public Key".into(),
+            "Cluster CA key does not match the published public key".into(),
         ));
     }
     Ok(())
@@ -213,12 +213,12 @@ pub async fn import_owner_activation(
 
     let raw = std::fs::read_to_string(manifest_path).map_err(|e| {
         AppError::Validation(format!(
-            "Manifest {} nicht lesbar: {e}",
+            "Manifest {} not readable: {e}",
             manifest_path.display()
         ))
     })?;
     let m: Manifest = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Validation(format!("Manifest JSON ungültig: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Manifest JSON invalid: {e}")))?;
 
     let device_pk = STANDARD
         .decode(&m.device_pubkey)

@@ -47,7 +47,7 @@ for (const loc of LOCALES) {
 }
 
 const AR_CRITICAL = [
-    "nav.einstellungen",
+    "nav.settings",
     "nav.patienten",
     "auth.login",
     "auth.logout",

@@ -35,7 +35,7 @@ pub struct CreateFeedback {
 fn validate_kategorie(k: &str) -> Result<(), AppError> {
     match k {
         "feedback" | "vigilance" | "technical" => Ok(()),
-        _ => Err(AppError::Validation(format!("Unbekannte Kategorie: {k}"))),
+        _ => Err(AppError::Validation(format!("Unknown category: {k}"))),
     }
 }
 
@@ -52,12 +52,12 @@ pub async fn submit_feedback(
     let nachricht = data.nachricht.trim();
     if betreff.len() < 3 {
         return Err(AppError::Validation(
-            "Betreff zu kurz (min. 3 Zeichen)".into(),
+            "Subject too short (min. 3 characters)".into(),
         ));
     }
     if nachricht.len() < 10 {
         return Err(AppError::Validation(
-            "Nachricht zu kurz (min. 10 Zeichen)".into(),
+            "Message too short (min. 10 characters)".into(),
         ));
     }
     let id = uuid::Uuid::new_v4().to_string();

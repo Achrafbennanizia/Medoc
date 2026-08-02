@@ -58,6 +58,6 @@ pub fn c_store_request(ae_title: &str, host: &str, port: u16, path: &Path) -> Re
         path = %path.display(),
     );
     Err(AppError::Internal(
-        "DICOM C-STORE noch nicht implementiert".into(),
+        "DICOM C-STORE not implemented yet".into(),
     ))
 }

@@ -90,9 +90,9 @@ pub fn open_native_print_dialog(
     let win = app
         .get_webview_window("main")
         .or_else(|| app.webview_windows().into_values().next())
-        .ok_or_else(|| AppError::Internal("Kein Fenster für Druckdialog.".into()))?;
+        .ok_or_else(|| AppError::Internal("No window for print dialog.".into()))?;
     win.print()
-        .map_err(|e| AppError::Internal(format!("Druckdialog: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Print dialog: {e}")))?;
     log_system!(info, event = "NATIVE_PRINT_DIALOG_OPENED");
     Ok(())
 }

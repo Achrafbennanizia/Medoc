@@ -20,7 +20,7 @@ export type DensityId = "compact" | "cozy" | "spacious";
 /** Default Termin overview view (`/termine`). */
 export type TermineKalenderAnsicht = "tag" | "woche" | "monat";
 
-/** Erscheinungsbild: Hell / Dunkel / System (letzteres folgt `prefers-color-scheme`). */
+/** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
 
 export type ClientSettingsV1 = {
@@ -31,38 +31,38 @@ export type ClientSettingsV1 = {
         /** In light appearance: sidebar dark only. */
         darkSidebar: boolean;
         density: DensityId;
-        /** Schriftart — steuert `html[data-font-stack]`. */
+        /** Font stack — controls `html[data-font-stack]`. */
         fontStack?: FontStackId;
-        /** Marken-Akzent (CSS --accent / --accent-soft / --accent-ink). */
+        /** Brand accent (CSS --accent / --accent-soft / --accent-ink). */
         accentPreset?: AccentId;
         /** Topbar user avatar (circles with initials). */
         showHeaderAvatar?: boolean;
         /** Visible keyboard hints (e.g. ⌘K in rail). */
         showKeyboardHints?: boolean;
     };
-    /** Kalender, Termine, Tagesabschluss */
+    /** Calendar, appointments, day-end closing */
     workflows?: {
         /** Open `/termine` with this view */
         termineDefaultView?: TermineKalenderAnsicht;
-        /** Preset duration in "Neuer Termin" (minutes). */
+        /** Preset duration in "New appointment" (minutes). */
         defaultTerminDauerMin?: number;
         /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
         tagesabschlussReminderTime?: string;
-        /** CAL2: Pause/Notfall-Toolbar im Kalender (experimentell). */
+        /** CAL2: pause/emergency toolbar in calendar (experimental). */
         calendarEmergencyToolbarEnabled?: boolean;
     };
-    /** Suche */
+    /** Search */
     search?: {
         /** When false: patient name only (backend); when true: name or insurance number. */
         patientIncludeVersicherungsnummer?: boolean;
         /** NFA-USE-10: Levenshtein "did you mean" hints (patient list, quick access). Off when false. */
         autocompleteSuggestionsEnabled?: boolean;
     };
-    /** Clientseitige Sitzung */
+    /** Client-side session */
     security?: {
         /** Minutes without input until logout. 0 = off. */
         idleLogoutMinutes?: number;
-        /** UI: Zwei-Faktor — echte Anbindung separat; Vorgabe lokal gespeichert. */
+        /** UI: two-factor — real wiring separate; preference stored locally. */
         twoFactorEnabled?: boolean;
     };
     /** Push/email — delivery may be wired later; toggles act as preference. */
@@ -72,11 +72,11 @@ export type ClientSettingsV1 = {
         criticalWarnings?: boolean;
         patientSms?: boolean;
     };
-    /** Integrations-Flags (Anbindungen teils Platzhalter). */
+    /** Integration flags (some connectors are placeholders). */
     integrations?: {
         datev?: boolean;
     };
-    /** Akte → open attachments externally: empty = recommended first app; "__SYSTEM__" = OS default only. */
+    /** Patient record → open attachments externally: empty = recommended first app; "__SYSTEM__" = OS default only. */
     akte?: {
         openImagesWithApp?: string;
     };
@@ -194,7 +194,7 @@ export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
 }
 
-/** Wendet Erscheinungsbild, Sidebar-Ton, Dichte, Akzent, Avatar- & Kbd-Hinweise auf `<html>` an. */
+/** Applies appearance, sidebar tone, density, accent, avatar & keyboard hints to `<html>`. */
 export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     const pref = normalizeColorScheme(s.appearance?.colorScheme);
     document.documentElement.dataset.colorScheme = pref;

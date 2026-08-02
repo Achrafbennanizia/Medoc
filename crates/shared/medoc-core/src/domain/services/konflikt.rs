@@ -53,9 +53,9 @@ pub async fn has_arzt_slot_conflict(
 }
 
 pub fn arzt_slot_conflict_message(datum: &str, uhrzeit: &str) -> String {
-    format!("Arzt hat bereits einen Termin am {datum} um {uhrzeit}")
+    format!("Physician already has an appointment on {datum} at {uhrzeit}")
 }
 
-pub fn terminkonflikt_short_message() -> &'static str {
-    "Terminkonflikt"
+pub fn appointment_conflict_short_message() -> &'static str {
+    "Appointment conflict"
 }

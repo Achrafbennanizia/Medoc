@@ -1,4 +1,4 @@
-// Datenschutz-Folgenabschätzung (DSGVO Art. 35 — DSFA).
+// Data Protection Impact Assessment (GDPR Art. 35 — DPIA / DSFA).
 //
 // Provides a structured, machine-readable record of the impact assessment
 // for the highest-risk processing operations performed by MeDoc.

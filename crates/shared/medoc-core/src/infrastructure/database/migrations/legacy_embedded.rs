@@ -578,7 +578,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     .await?;
 
     // Upgrades: older DBs had UNIQUE(lieferant, pharmaberater) only; rebuild when produkt_id is missing
-    // (Schnellwahl-Kombinationen ohne Produkt mapping sind nicht portierbar; Tabelle ggf. leer).
+    // (Quick-pick combinations without product mapping are not portable; table may be empty).
     let produkt_id_col: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pragma_table_info('lieferant_pharma_vorlage') WHERE name = 'produkt_id'",
     )
@@ -824,7 +824,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
 
     if count.0 == 0 {
         let hash = bcrypt::hash("passwort123", 12)
-            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(
             "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, fachrichtung)
              VALUES ('seed-arzt-001', 'Dr. Ahmed R.', 'ahmed@praxis.de', ?1, 'ARZT', 'Zahnmedizin')"
@@ -834,7 +834,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
         .await?;
 
         let hash2 = bcrypt::hash("passwort123", 12)
-            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(
             "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle)
              VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION')",
@@ -844,7 +844,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
         .await?;
     }
 
-    // FA-LEIST-05: einmalige Legacy-Freigabe für Altbestände (`app_kv`-Schlüssel verhindert Überschreiben neuer Zeilen).
+    // FA-LEIST-05: one-time legacy billing release for existing stock (`app_kv` key prevents overwriting newer rows).
     let ins = sqlx::query(
         "INSERT OR IGNORE INTO app_kv (key, value) VALUES ('migration.billing_freigabe_legacy_v1', '1')",
     )

@@ -57,8 +57,8 @@ pub fn require(session_state: &State<'_, SessionState>, action: &str) -> Result<
     Ok(session.clone())
 }
 
-/// Session erlaubt, wenn mindestens eine der Aktionen für die Rolle erfüllt ist
-/// (z. B. Arzt `patient.read_medical` oder Rezeption `patient.read_documents`).
+/// Session allowed when at least one of the actions is granted for the role
+/// (e.g. doctor `patient.read_medical` or reception `patient.read_documents`).
 pub fn require_one_of(
     session_state: &State<'_, SessionState>,
     actions: &[&str],

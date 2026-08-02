@@ -48,18 +48,18 @@ pub fn verify_seat_certificate(
 ) -> Result<SeatCertificate, AppError> {
     let rest = token.strip_prefix(SEAT_CERT_PREFIX).ok_or_else(|| {
         AppError::Validation(format!(
-            "Seat-Zertifikat: erwartet Präfix `{SEAT_CERT_PREFIX}`"
+            "Seat certificate: expected prefix `{SEAT_CERT_PREFIX}`"
         ))
     })?;
     let (body_b64, sig_b64) = rest
         .split_once('.')
-        .ok_or_else(|| AppError::Validation("Seat-Zertifikat: Trennzeichen fehlt".into()))?;
+        .ok_or_else(|| AppError::Validation("Seat certificate: missing separator".into()))?;
     master_keys::verify(cluster_pubkey, body_b64.as_bytes(), sig_b64)?;
     let body_bytes = STANDARD_NO_PAD
         .decode(body_b64)
-        .map_err(|e| AppError::Validation(format!("Seat-Zertifikat decode: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Seat certificate decode: {e}")))?;
     serde_json::from_slice(&body_bytes)
-        .map_err(|e| AppError::Validation(format!("Seat-Zertifikat JSON: {e}")))
+        .map_err(|e| AppError::Validation(format!("Seat certificate JSON: {e}")))
 }
 
 #[cfg(test)]

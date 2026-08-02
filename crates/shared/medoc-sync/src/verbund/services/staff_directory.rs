@@ -71,10 +71,10 @@ pub async fn export_staff_directory_json(pool: &SqlitePool) -> Result<String, Ap
 /// Import staff rows from owner snapshot (update-first to respect quota triggers).
 pub async fn import_staff_directory_json(pool: &SqlitePool, raw: &str) -> Result<u32, AppError> {
     let directory: StaffDirectory = serde_json::from_str(raw.trim())
-        .map_err(|e| AppError::Validation(format!("Staff-Verzeichnis ungültig: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Staff directory invalid: {e}")))?;
     if directory.version != DIRECTORY_VERSION {
         return Err(AppError::Validation(
-            "Staff-Verzeichnis-Version nicht unterstützt.".into(),
+            "Staff directory version not supported.".into(),
         ));
     }
 
@@ -268,7 +268,7 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
     let Some(raw) = app_kv_repo::get(pool, VERBUND_ADMIN_ENDPOINT_KV).await? else {
         if require_import {
             return Err(AppError::Validation(
-                "Kein Hauptgerät gespeichert — bitte Netzwerk-Beitritt erneut durchführen.".into(),
+                "No main device stored — please join the network again.".into(),
             ));
         }
         return Ok(0);
@@ -278,7 +278,7 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
     if endpoint.host.is_empty() || endpoint.port == 0 {
         if require_import {
             return Err(AppError::Validation(
-                "Hauptgerät-Adresse ungültig — bitte Netzwerk-Beitritt erneut durchführen.".into(),
+                "Main device address invalid — please join the network again.".into(),
             ));
         }
         return Ok(0);
@@ -289,7 +289,7 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
     let imported = import_staff_directory_json(pool, &directory_json).await?;
     if require_import && imported == 0 {
         return Err(AppError::Validation(
-            "Keine Benutzerkonten vom Hauptgerät empfangen — Hauptgerät muss eingeloggt sein.".into(),
+            "No user accounts received from the main device — main device must be signed in.".into(),
         ));
     }
     Ok(imported)

@@ -10,11 +10,11 @@ pub struct Untersuchung {
     pub diagnose: Option<String>,
     pub untersuchungsnummer: Option<String>,
     pub created_at: NaiveDateTime,
-    /// FA-LEIST-07: Abrechnungsleistung (Parität zu `behandlung`).
+    /// FA-LEIST-07: billable service line (parity with `behandlung`).
     pub kategorie: Option<String>,
     pub leistungsname: Option<String>,
     pub gesamtkosten: Option<f64>,
-    /// FA-LEIST-05: vor Buchung einer Zahlung mit `untersuchung_id` gesetzt werden.
+    /// FA-LEIST-05: must be set before booking a payment linked via `untersuchung_id`.
     pub freigegeben_von_arzt_id: Option<String>,
     pub freigegeben_am: Option<String>,
 }
@@ -53,12 +53,12 @@ pub struct Behandlung {
     pub gesamtkosten: Option<f64>,
     pub termin_erforderlich: Option<i64>,
     pub behandlung_datum: Option<String>,
-    /// FA-LEIST-05: vor Buchung einer Zahlung mit `behandlung_id` gesetzt werden.
+    /// FA-LEIST-05: must be set before booking a payment linked via `behandlung_id`.
     pub freigegeben_von_arzt_id: Option<String>,
     pub freigegeben_am: Option<String>,
 }
 
-/// Vollständiges Update einer bestehenden Behandlungszeile (Aktenverlauf).
+/// Full update of an existing treatment line (chart history).
 #[derive(Debug, Deserialize)]
 pub struct UpdateBehandlung {
     pub id: String,

@@ -17,7 +17,7 @@ pub fn schedule_app_restart(app: AppHandle) {
     });
 }
 
-/// Stop verbund listener and LAN server before wiping network state.
+/// Stop cluster (Verbund) listener and LAN server before wiping network state.
 pub async fn stop_network_services(app: &AppHandle) {
     if let Some(listener) =
         app.try_state::<crate::commands::network::verbund::VerbundListenerControl>()

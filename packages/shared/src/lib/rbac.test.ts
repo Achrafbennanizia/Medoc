@@ -311,7 +311,7 @@ describe("navItemVisible", () => {
         expect(navItemVisible("ARZT", item!)).toBe(true);
     });
 
-    it("REZEPTION: Kasseneingänge statt Finanzen/Tagesabschluss", () => {
+    it("REZEPTION: cash receipts instead of finance/day-end", () => {
         expect(routeChildPathAllowed("finanzen", "REZEPTION")).toBe(false);
         expect(routeChildPathAllowed("finanzen/kasse", "REZEPTION")).toBe(true);
         expect(routeChildPathAllowed("finanzen/kasse/neu", "REZEPTION")).toBe(true);

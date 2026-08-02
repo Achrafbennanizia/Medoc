@@ -28,7 +28,7 @@ pub async fn list_zahlungen_for_patient(
     zahlung_repo::find_by_patient_id(&pool, &patient_id).await
 }
 
-/// Für Patientenliste: `patient_id` mit mindestens einer offenen/teilbezahlten Buchung.
+/// For patient list: `patient_id` values with at least one open/partially paid booking.
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
 pub async fn list_patient_ids_open_invoice(
@@ -138,7 +138,7 @@ pub async fn get_bilanz(
     zahlung_repo::get_bilanz(&pool).await
 }
 
-/// Tagesabschluss: alle ausgewählten Zahlungen als kassengeprüft markieren (oder zurücksetzen).
+/// Day-end closing: mark selected payments as cash-checked (or clear the flag).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, ids))]
 pub async fn set_zahlungen_kasse_geprueft(

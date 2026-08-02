@@ -24,13 +24,13 @@ use crate::infrastructure::database::sqlcipher;
 pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
     std::fs::create_dir_all(app_data_dir).map_err(|e| {
         AppError::Internal(format!(
-            "App-Datenverzeichnis konnte nicht angelegt werden: {e}"
+            "Could not create app data directory: {e}"
         ))
     })?;
 
     audit_repo::init_audit_hmac_key(app_data_dir).map_err(|e| {
         AppError::Internal(format!(
-            "Audit-HMAC-Schlüssel konnte nicht initialisiert werden: {e}"
+            "Could not initialise audit HMAC key: {e}"
         ))
     })?;
 
@@ -95,7 +95,7 @@ fn resolve_sqlcipher_key(
         && db_key::try_keyring_key().is_none()
     {
         return Err(AppError::Validation(
-            "Datenbank ist gesperrt — Passphrase zum Entsperren eingeben.".into(),
+            "Database is locked — enter passphrase to unlock.".into(),
         ));
     }
     db_key::ensure_sqlcipher_key(app_dir, true)
@@ -123,7 +123,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         sqlx::migrate!("./migrations")
             .run(pool)
             .await
-            .map_err(|e| AppError::Internal(format!("SQL-Migration: {e}")))?;
+            .map_err(|e| AppError::Internal(format!("SQL migration: {e}")))?;
         migrations::run_rust_only_migrations(pool).await?;
         migrations::run_post_migration_seed(pool).await?;
     }
