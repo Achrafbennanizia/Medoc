@@ -8,6 +8,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Produkt, Zahlung, ZahlungsStatus } from "../../models/types";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
+import { zahlStatusDisplay } from "@/lib/finance-order-labels";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
@@ -28,16 +29,22 @@ type VertragDemo = {
     status: "AKTIV" | "GEKUENDIGT";
 };
 
-const DEMO_VERTRAEGE: VertragDemo[] = [
-    { id: "demo-v1", name: "Praxisraum Bremen-Mitte", typ: "Mietvertrag", kosten: 2400, abrechnung: "Monatlich", dauer_von: "2024-01-01", dauer_bis: "2026-12-31", status: "AKTIV" },
-    { id: "demo-v2", name: "Röntgen-Wartungsvertrag", typ: "Service", kosten: 890, abrechnung: "Jährlich", dauer_von: "2025-01-01", dauer_bis: "2025-12-31", status: "GEKUENDIGT" },
-    { id: "demo-v3", name: "Softwarelizenz MeDoc", typ: "Lizenz", kosten: 120, abrechnung: "Monatlich", dauer_von: "2026-01-01", dauer_bis: "2026-12-31", status: "AKTIV" },
-];
+type TFn = (key: string) => string;
 
-const FALLBACK_PRODUKTE: Produkt[] = [
-    { id: "demo-p1", name: "Einmalhandschuhe (Karton)", beschreibung: null, kategorie: "Verbrauch", preis: 42, bestand: 20, mindestbestand: 5, aktiv: true, created_at: "", updated_at: "" },
-    { id: "demo-p2", name: "Desinfektionsmittel 5L", beschreibung: null, kategorie: "Hygiene", preis: 38.5, bestand: 8, mindestbestand: 2, aktiv: true, created_at: "", updated_at: "" },
-];
+function demoVertraege(t: TFn): VertragDemo[] {
+    return [
+        { id: "demo-v1", name: t("page.bilanz_neu.demo.contract_v1_name"), typ: t("page.bilanz_neu.demo.contract_v1_type"), kosten: 2400, abrechnung: "Monatlich", dauer_von: "2024-01-01", dauer_bis: "2026-12-31", status: "AKTIV" },
+        { id: "demo-v2", name: t("page.bilanz_neu.demo.contract_v2_name"), typ: t("page.bilanz_neu.demo.contract_v2_type"), kosten: 890, abrechnung: "Jährlich", dauer_von: "2025-01-01", dauer_bis: "2025-12-31", status: "GEKUENDIGT" },
+        { id: "demo-v3", name: t("page.bilanz_neu.demo.contract_v3_name"), typ: t("page.bilanz_neu.demo.contract_v3_type"), kosten: 120, abrechnung: "Monatlich", dauer_von: "2026-01-01", dauer_bis: "2026-12-31", status: "AKTIV" },
+    ];
+}
+
+function fallbackProdukte(t: TFn): Produkt[] {
+    return [
+        { id: "demo-p1", name: t("page.bilanz_neu.demo.product_p1_name"), beschreibung: null, kategorie: t("page.bilanz_neu.demo.product_p1_category"), preis: 42, bestand: 20, mindestbestand: 5, aktiv: true, created_at: "", updated_at: "" },
+        { id: "demo-p2", name: t("page.bilanz_neu.demo.product_p2_name"), beschreibung: null, kategorie: t("page.bilanz_neu.demo.product_p2_category"), preis: 38.5, bestand: 8, mindestbestand: 2, aktiv: true, created_at: "", updated_at: "" },
+    ];
+}
 
 function toggleSet<T>(set: Set<T>, key: T): Set<T> {
     const n = new Set(set);
@@ -73,7 +80,7 @@ export function BilanzNeuPage() {
 
     const [bilanzTyp, setBilanzTyp] = useState("QUARTAL");
     const [bilanzzeitraum, setBilanzzeitraum] = useState("");
-    const [org, setOrg] = useState("Praxis");
+    const [org, setOrg] = useState(() => t("page.bilanz_neu.default_org"));
     const [vorname, setVorname] = useState("");
     const [nachname, setNachname] = useState("");
     const [iban, setIban] = useState("");
@@ -96,13 +103,16 @@ export function BilanzNeuPage() {
     const [selVertrag, setSelVertrag] = useState<Set<string>>(new Set());
     const [selAusgabe, setSelAusgabe] = useState<Set<string>>(new Set());
 
+    const demoContracts = useMemo(() => demoVertraege(t), [t]);
+    const demoProducts = useMemo(() => fallbackProdukte(t), [t]);
+
     const patientName = useMemo(() => {
         const m = new Map<string, string>();
         for (const p of patienten) m.set(p.id, p.name);
-        return (id: string) => m.get(id) ?? `Patient ${id.slice(0, 8)}…`;
-    }, [patienten]);
+        return (id: string) => m.get(id) ?? tp("break_glass.banner.patient_fallback", { id: id.slice(0, 8) });
+    }, [patienten, tp]);
 
-    const ausgabeRows = useMemo(() => (produkte.length > 0 ? produkte : FALLBACK_PRODUKTE), [produkte]);
+    const ausgabeRows = useMemo(() => (produkte.length > 0 ? produkte : demoProducts), [produkte, demoProducts]);
 
     const reloadBase = useCallback(async () => {
         setDataError(null);
@@ -172,7 +182,7 @@ export function BilanzNeuPage() {
     if (dataStatus === "error" && dataError) return <PageLoadError message={dataError} onRetry={() => void reloadBase()} />;
 
     const selectedZahlungRows = zahlungen.filter((z) => selZahlung.has(z.id));
-    const selectedVertragRows = DEMO_VERTRAEGE.filter((v) => selVertrag.has(v.id));
+    const selectedVertragRows = demoContracts.filter((v) => selVertrag.has(v.id));
     const selectedAusgabeRows = ausgabeRows.filter((p) => selAusgabe.has(p.id));
 
     const bilanzTypLabel = bilanzTyp === "JAHR" ? t("common.year") : t("common.quarter");
@@ -286,7 +296,7 @@ export function BilanzNeuPage() {
                                                         <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{z.beschreibung || z.id}</div>
                                                     </td>
                                                     <td style={{ padding: 8 }}>{formatCurrency(z.betrag)}</td>
-                                                    <td style={{ padding: 8 }}>{z.status}</td>
+                                                    <td style={{ padding: 8 }}>{zahlStatusDisplay(z.status, t).label}</td>
                                                     <td style={{ padding: 8, whiteSpace: "nowrap" }}>{formatDateTime(z.created_at)}</td>
                                                 </tr>
                                             ))}
@@ -301,7 +311,7 @@ export function BilanzNeuPage() {
                             <FormSection title={t("page.bilanz_neu.contracts.title")}>
                                 <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.bilanz_neu.contracts.hint")}</p>
                                 <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-                                    <Button type="button" variant="secondary" size="sm" onClick={() => setSelVertrag(new Set(DEMO_VERTRAEGE.map((v) => v.id)))}>{t("common.select_all")}</Button>
+                                    <Button type="button" variant="secondary" size="sm" onClick={() => setSelVertrag(new Set(demoContracts.map((v) => v.id)))}>{t("common.select_all")}</Button>
                                     <Button type="button" variant="ghost" size="sm" onClick={() => setSelVertrag(new Set())}>{t("common.deselect_all")}</Button>
                                 </div>
                                 <div style={{ overflowX: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
@@ -316,7 +326,7 @@ export function BilanzNeuPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {DEMO_VERTRAEGE.map((v) => (
+                                            {demoContracts.map((v) => (
                                                 <tr key={v.id} style={{ borderBottom: "1px solid var(--line)" }}>
                                                     <td style={{ padding: 8 }}>
                                                         <input
@@ -407,7 +417,7 @@ export function BilanzNeuPage() {
                                             {selectedZahlungRows.slice(0, 12).map((z) => (
                                                 <div key={z.id} className="row" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", borderBottom: "1px dashed var(--line)" }}>
                                                     <span>{patientName(z.patient_id)}</span>
-                                                    <span>{formatCurrency(z.betrag)} · {z.status}</span>
+                                                    <span>{formatCurrency(z.betrag)} · {zahlStatusDisplay(z.status, t).label}</span>
                                                 </div>
                                             ))}
                                             {selectedZahlungRows.length > 12 ? <p style={{ fontSize: 12, color: "var(--fg-3)" }}>{tp("common.and_more", { count: selectedZahlungRows.length - 12 })}</p> : null}
@@ -446,7 +456,7 @@ export function BilanzNeuPage() {
                                         await createBilanzSnapshot({
                                             zeitraum: bilanzzeitraum,
                                             typ: bilanzTyp,
-                                            label: label || `Bilanz ${new Date().toISOString().slice(0, 10)}`,
+                                            label: label || tp("page.bilanz_neu.label_fallback", { date: new Date().toISOString().slice(0, 10) }),
                                             einnahmen_cents: einnahmenCents,
                                             ausgaben_cents: ausgabenCents,
                                             payload: {

@@ -1,7 +1,7 @@
 //! Axum HTTPS API — authenticated LAN access (JWT HS256, TLS via `lan_server::tls`).
 //!
-//! **Background / Betrieb:** Der eingebettete Host läuft in eigenen Tokio-Tasks (`lan_commands`), blockiert die
-//! Tauri-UI nicht. Headless: Binary `medoc-server`. **Timeouts** verhindern hängende LAN-Anfragen.
+//! **Background / ops:** The embedded host runs in its own Tokio tasks (`lan_commands`) and does not
+//! block the Tauri UI. Headless: `medoc-server` binary. **Timeouts** prevent hung LAN requests.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -312,7 +312,7 @@ async fn login(
     }))
 }
 
-/// Eigenes Profil — spiegelt Tauri `get_own_profile` (jede gültige JWT-Sitzung).
+/// Own profile — mirrors Tauri `get_own_profile` (any valid JWT session).
 async fn me_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
@@ -321,7 +321,7 @@ async fn me_get(
     Ok(Json(dto))
 }
 
-/// Eigenes Profil aktualisieren — spiegelt Tauri `update_own_profile`.
+/// Update own profile — mirrors Tauri `update_own_profile`.
 async fn me_patch(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
@@ -411,7 +411,7 @@ async fn app_kv_delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Hersteller-Portal — Abo-Zusammenfassung (nur `ops.system`, nutzt Praxis-KV + ggf. Env).
+/// Vendor portal — subscription summary (`ops.system` only; uses practice KV + optional env).
 async fn company_summary_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
@@ -449,5 +449,5 @@ async fn company_billing_portal_post(
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
     let url = COMPANY_PORTAL.post_billing_portal_url(&cfg).await?;
-    Ok(Json(json!({ "url": url, "provider": "Hersteller-Portal" })))
+    Ok(Json(json!({ "url": url, "provider": "Vendor portal" })))
 }

@@ -5,7 +5,7 @@ export type ExportFormat = "csv" | "html" | "json" | "pdf" | "xml" | "zip";
 export type ExportPreviewPayload = {
     format: ExportFormat;
     title: string;
-    /** Kurzer Kontext unter dem Titel (Dateityp, Hinweise). */
+    /** Short context under the title (file type, notes). */
     hint?: string;
     suggestedFilename: string;
     textBody?: string;

@@ -43,7 +43,7 @@ fn row_to_dto(r: vertrag_repo::VertragRow) -> VertragDto {
 fn dto_to_row(d: &VertragDto) -> Result<vertrag_repo::VertragRow, AppError> {
     let iv = d.intervall.to_uppercase();
     if iv != "TAG" && iv != "WOCHE" && iv != "MONAT" && iv != "JAHR" {
-        return Err(AppError::Validation("intervall ungültig".into()));
+        return Err(AppError::Validation("Invalid interval".into()));
     }
     Ok(vertrag_repo::VertragRow {
         id: d.id.clone(),
@@ -63,7 +63,7 @@ fn dto_to_row(d: &VertragDto) -> Result<vertrag_repo::VertragRow, AppError> {
 fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
     let p = path
         .to_str()
-        .ok_or_else(|| AppError::Internal("Ungültiger Dateipfad".into()))?;
+        .ok_or_else(|| AppError::Internal("Invalid file path".into()))?;
     if cfg!(target_os = "macos") {
         let st = std::process::Command::new("open")
             .arg(p)
@@ -71,7 +71,7 @@ fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
             .map_err(|e| AppError::Internal(format!("open: {e}")))?;
         if !st.success() {
             return Err(AppError::Internal(
-                "Datei konnte nicht mit der Standard-App geöffnet werden.".into(),
+                "Could not open file with the default application.".into(),
             ));
         }
         return Ok(());
@@ -83,7 +83,7 @@ fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
             .map_err(|e| AppError::Internal(format!("start: {e}")))?;
         if !st.success() {
             return Err(AppError::Internal(
-                "Datei konnte nicht geöffnet werden.".into(),
+                "Could not open file.".into(),
             ));
         }
         return Ok(());
@@ -94,7 +94,7 @@ fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(format!("xdg-open: {e}")))?;
     if !st.success() {
         return Err(AppError::Internal(
-            "Datei konnte nicht geöffnet werden.".into(),
+            "Could not open file.".into(),
         ));
     }
     Ok(())

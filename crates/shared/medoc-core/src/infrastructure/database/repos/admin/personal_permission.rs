@@ -1,4 +1,4 @@
-//! FA-PERS-07: granulare Berechtigungs-Overrides pro Personal-Zeile.
+//! FA-PERS-07: granular permission overrides per staff row.
 
 use crate::domain::rbac::PermissionOverride;
 use crate::error::AppError;
@@ -28,12 +28,12 @@ pub async fn upsert(
 ) -> Result<(), AppError> {
     let action = action.trim();
     if action.is_empty() {
-        return Err(AppError::Validation("Aktion darf nicht leer sein.".into()));
+        return Err(AppError::Validation("Action must not be empty.".into()));
     }
     let eff = effect.trim().to_ascii_uppercase();
     if eff != "ALLOW" && eff != "DENY" {
         return Err(AppError::Validation(
-            "effect muss ALLOW oder DENY sein.".into(),
+            "effect must be ALLOW or DENY.".into(),
         ));
     }
     sqlx::query(

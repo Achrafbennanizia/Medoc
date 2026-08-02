@@ -6,10 +6,10 @@ use crate::error::AppError;
 use crate::infrastructure::database::akte_repo;
 use sqlx::SqlitePool;
 
-/// Erlaubte Abweichung bei Soll/Offen-Prüfung (EUR) — Frontend `ZAHL_EUR_EPS` entspricht diesem Wert.
+/// Allowed tolerance for due/open checks (EUR) — frontend `ZAHL_EUR_EPS` matches this value.
 const OPEN_BOOKING_TOLERANCE_EUR: f64 = 0.005;
 
-/// Cent-Rundung wie Frontend `roundMoney2` (`zahlung-buchung.ts`).
+/// Cent rounding like frontend `roundMoney2` (`zahlung-buchung.ts`).
 #[inline]
 fn round_money2(n: f64) -> f64 {
     if !n.is_finite() {
@@ -20,11 +20,11 @@ fn round_money2(n: f64) -> f64 {
 
 fn compute_payment_status(betrag: f64, erwartet: Option<f64>) -> &'static str {
     const EPS: f64 = 1e-6;
-    // Positive erwartete Rest-/Sollsumme (> 0); Werte ≤ 0 werden ignoriert.
+    // Positive expected remaining/due amount (> 0); values ≤ 0 are ignored.
     let exp_positive = erwartet.filter(|e| e.is_finite() && *e > EPS);
 
     if betrag <= EPS {
-        // Offene Platzhalterbuchung oder noch kein Zahlbetrag verbucht.
+        // Open placeholder booking or no payment amount posted yet.
         match exp_positive {
             Some(_) => return "AUSSTEHEND",
             None => {
@@ -85,7 +85,7 @@ pub async fn find_by_patient_id(
     Ok(rows)
 }
 
-/// Patientenliste: Kennzeichnung „Rechnung offen“ ohne alle Buchungen zu laden.
+/// Patient list: flag “invoice open” without loading all bookings.
 pub async fn patient_ids_open_invoice(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
     let rows: Vec<(String,)> = sqlx::query_as(
         "SELECT DISTINCT patient_id FROM zahlung
@@ -100,7 +100,7 @@ pub async fn patient_ids_open_invoice(pool: &SqlitePool) -> Result<Vec<String>, 
 pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let zahlungsart = serde_json::to_string(&data.zahlungsart)
-        .map_err(|e| AppError::Internal(format!("Zahlungsart serialisieren: {e}")))?
+        .map_err(|e| AppError::Internal(format!("Serialize payment type: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -157,7 +157,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
         return Err(AppError::validation_code("error.zahlung.leistung_positive_required"));
     }
 
-    // Wenn positiver Betrag: optional Preis aus `leistung` übernehmen.
+    // When amount is positive: optionally take price from `leistung`.
     let betrag = if is_placeholder {
         0.0
     } else if data.betrag <= EPS {
@@ -194,7 +194,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                // Parität zum UI: `Math.max(0, roundMoney2(gesamt - paidSoFar))`
+                // Parity with UI: `Math.max(0, roundMoney2(gesamt - paidSoFar))`
                 let open = round_money2(g - sum_paid).max(0.0);
                 if betrag > open + OPEN_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
@@ -280,7 +280,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateZahlung) -> Result<Zahlung, 
     Ok(inserted)
 }
 
-/// FA-LEIST-06: implizite Freigabe + offene Buchung (`AUSSTEHEND`, 0 €) für abrechnungsrelevante Behandlung.
+/// FA-LEIST-06: implicit release + open booking (`AUSSTEHEND`, 0 €) for billable treatment.
 pub async fn ensure_open_booking_for_billable_behandlung(
     pool: &SqlitePool,
     behandlung_id: &str,
@@ -332,7 +332,7 @@ pub async fn ensure_open_booking_for_billable_behandlung(
             zahlungsart: ZahlungsArt::Rechnung,
             leistung_id: None,
             beschreibung: Some(
-                "Automatisch nach Leistungseingabe: offene Abrechnung (FA-LEIST-06).".into(),
+                "Created automatically after service entry: open billing (FA-LEIST-06).".into(),
             ),
             behandlung_id: Some(behandlung_id.to_string()),
             untersuchung_id: None,
@@ -343,7 +343,7 @@ pub async fn ensure_open_booking_for_billable_behandlung(
     Ok(())
 }
 
-/// FA-LEIST-06/07: implizite Freigabe + offene Buchung für abrechnungsrelevante Untersuchung.
+/// FA-LEIST-06/07: implicit release + open booking for billable examination.
 pub async fn ensure_open_booking_for_billable_untersuchung(
     pool: &SqlitePool,
     untersuchung_id: &str,
@@ -396,7 +396,7 @@ pub async fn ensure_open_booking_for_billable_untersuchung(
             zahlungsart: ZahlungsArt::Rechnung,
             leistung_id: None,
             beschreibung: Some(
-                "Automatisch nach Leistungseingabe: offene Abrechnung (FA-LEIST-06/07).".into(),
+                "Created automatically after service entry: open billing (FA-LEIST-06/07).".into(),
             ),
             behandlung_id: None,
             untersuchung_id: Some(untersuchung_id.to_string()),
@@ -407,7 +407,7 @@ pub async fn ensure_open_booking_for_billable_untersuchung(
     Ok(())
 }
 
-/// Erste offene Buchung (0 €), falls noch keine Zahlungen zu dieser Untersuchung existieren.
+/// First open booking (0 €) if no payments exist yet for this examination.
 pub async fn ensure_placeholder_for_untersuchung(
     pool: &SqlitePool,
     untersuchung_id: &str,
@@ -443,7 +443,7 @@ pub async fn ensure_placeholder_for_untersuchung(
             zahlungsart: ZahlungsArt::Rechnung,
             leistung_id: None,
             beschreibung: Some(
-                "Automatisch beim Anlegen: offene Abrechnung (Untersuchung).".into(),
+                "Created automatically on insert: open billing (examination).".into(),
             ),
             behandlung_id: None,
             untersuchung_id: Some(untersuchung_id.to_string()),
@@ -468,7 +468,7 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdateZahlung) -> Result<Za
         return Err(AppError::validation_code("error.zahlung.edit_locked_status"));
     }
     let zahlungsart = serde_json::to_string(&data.zahlungsart)
-        .map_err(|e| AppError::Internal(format!("Zahlungsart serialisieren: {e}")))?
+        .map_err(|e| AppError::Internal(format!("Serialize payment type: {e}")))?
         .trim_matches('"')
         .to_uppercase();
     if data.betrag <= 0.0 {
@@ -643,7 +643,7 @@ pub async fn get_bilanz(pool: &SqlitePool) -> Result<Bilanz, AppError> {
     })
 }
 
-/// Tagesabschluss: Kassenprüfung pro Zahlung (0/1).
+/// Day close: cash check per payment (0/1).
 pub async fn set_kasse_geprueft_for_ids(
     pool: &SqlitePool,
     ids: &[String],

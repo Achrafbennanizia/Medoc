@@ -29,6 +29,11 @@ describe("termin-availability (N4)", () => {
     const praxisCfg = readPraxisArbeitszeitenConfig();
 
     it("detects conflict messages", () => {
+        expect(isTerminConflictErrorMessage("Appointment conflict")).toBe(true);
+        expect(
+            isTerminConflictErrorMessage("Physician already has an appointment on 2026-05-21 at 10:00"),
+        ).toBe(true);
+        // Legacy German IPC phrases still recognized.
         expect(isTerminConflictErrorMessage("Terminkonflikt")).toBe(true);
         expect(isTerminConflictErrorMessage("Arzt hat bereits einen Termin am 2026-05-21 um 10:00")).toBe(true);
         expect(isTerminConflictErrorMessage("Netzwerkfehler")).toBe(false);

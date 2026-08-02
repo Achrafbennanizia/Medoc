@@ -266,7 +266,7 @@ export interface PaymentReceipt {
 export const processPayment = (request: PaymentRequest) =>
     practiceSystem.invoke<PaymentReceipt>("process_payment", { request });
 
-/** Installierte Bildbetrachter (Pfade), wie vom Backend gescannt. */
+/** Installed photo viewers (paths), as scanned by the backend. */
 export interface DetectedPhotoViewerApp {
     display_name: string;
     path: string;

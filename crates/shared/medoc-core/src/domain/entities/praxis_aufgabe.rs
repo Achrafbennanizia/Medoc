@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// FA-AUFG-01 — bidirektionale Praxis-Aufgaben (Evolution von `praxis_ticket`).
+/// FA-AUFG-01 — bidirectional practice tasks (evolved from `praxis_ticket`).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PraxisAufgabe {
     pub id: String,
@@ -8,7 +8,7 @@ pub struct PraxisAufgabe {
     pub typ: String,
     pub titel: String,
     pub body: Option<String>,
-    /// `REZEPTION` = Posteingang Rezeption (Pool); sonst Ziel-Arzt über `assignee_user_id`.
+    /// `REZEPTION` = reception inbox (pool); otherwise target physician via `assignee_user_id`.
     pub assignee_role: Option<String>,
     pub assignee_user_id: Option<String>,
     pub created_by: String,
@@ -50,10 +50,10 @@ pub struct CreatePraxisAufgabe {
     pub titel: String,
     #[serde(default)]
     pub body: Option<String>,
-    /// Ziel Rezeption (Arzt → REZ).
+    /// Target reception (physician → REZ).
     #[serde(default)]
     pub assignee_role: Option<String>,
-    /// Ziel-Arzt (REZ → ARZT).
+    /// Target physician (REZ → ARZT).
     #[serde(default)]
     pub assignee_user_id: Option<String>,
     #[serde(default)]
@@ -79,7 +79,7 @@ pub struct TransitionPraxisAufgabeArgs {
     pub zurueck_begruendung: Option<String>,
 }
 
-/// Verwaltung: Aufgabe bearbeiten (Titel, Zuweisung, Status).
+/// Admin: edit task (title, assignment, status).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdatePraxisAufgabeAdmin {

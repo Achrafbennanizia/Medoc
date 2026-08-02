@@ -1,4 +1,4 @@
-//! Practice-host use cases for patientenakte (clinical record).
+//! Practice-host use cases for the patient chart (`patientenakte`).
 
 pub mod billing_release;
 pub mod clinical_line_persistence;

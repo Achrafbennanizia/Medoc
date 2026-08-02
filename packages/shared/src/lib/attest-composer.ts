@@ -1,4 +1,4 @@
-/** Attest capture in Akte — aligned with Attest templates (`kind: "ATTEST"`). */
+/** Certificate capture in patient record — aligned with attest templates (`kind: "ATTEST"`). */
 
 type TFn = (key: string) => string;
 
@@ -118,11 +118,11 @@ export function buildAttestInhalt(fields: AttestComposerFormFields): string {
     const parts: string[] = [];
     if (Number.isFinite(n) && n > 0) {
         parts.push(
-            `Ausstellung für die Zeit vom ${von} bis ${bis} (${n} Kalendertag${n === 1 ? "" : "e"}, einschließlich).`,
+            `Issued for the period from ${von} to ${bis} (${n} calendar day${n === 1 ? "" : "s"}, inclusive).`,
         );
     }
-    if (k) parts.push(`Diagnose / Befund:\n${k}`);
-    if (e) parts.push(`Empfohlene Tätigkeitseinschränkung:\n${e}`);
+    if (k) parts.push(`Diagnosis / finding:\n${k}`);
+    if (e) parts.push(`Recommended activity restriction:\n${e}`);
     return parts.join("\n\n");
 }
 

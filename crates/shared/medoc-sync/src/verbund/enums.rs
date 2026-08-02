@@ -1,4 +1,4 @@
-//! Geräteverbund domain enums — orthogonal to application RBAC.
+//! Device-cluster domain enums — orthogonal to application RBAC.
 
 use serde::{Deserialize, Serialize};
 
@@ -62,7 +62,7 @@ impl GeraetStatus {
     }
 }
 
-/// Pairing / kopplung session lifecycle.
+/// Pairing session lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum KopplungStatus {
@@ -104,7 +104,7 @@ impl KopplungStatus {
         }
     }
 
-    /// Valid transitions for the kopplung state machine.
+    /// Valid transitions for the pairing state machine.
     pub fn can_transition_to(self, next: Self) -> bool {
         use KopplungStatus::*;
         matches!(

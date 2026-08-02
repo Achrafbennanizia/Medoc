@@ -24,11 +24,11 @@ import {
 
 const isoDate = z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Erwartetes Format: YYYY-MM-DD");
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected format: YYYY-MM-DD");
 const isoTime = z
     .string()
-    .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Erwartetes Format: HH:MM");
-const nonEmpty = (msg = "Pflichtfeld") =>
+    .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Expected format: HH:MM");
+const nonEmpty = (msg = "Required") =>
     z.string().min(1, msg);
 const optionalText = z
     .union([z.string(), z.null(), z.undefined()])
@@ -50,13 +50,13 @@ export {
 export const PatientGeschlechtSchema = GeschlechtSchema;
 
 export const CreatePatientSchema = z.object({
-    name: nonEmpty("Name ist erforderlich").max(120),
+    name: nonEmpty("Name is required").max(120),
     geburtsdatum: isoDate,
     geschlecht: GeschlechtSchema,
-    versicherungsnummer: nonEmpty("Versicherungsnummer fehlt").max(40),
+    versicherungsnummer: nonEmpty("Insurance number is required").max(40),
     telefon: optionalText,
     email: z
-        .union([z.string().email("Ungültige E-Mail"), z.literal(""), z.null(), z.undefined()])
+        .union([z.string().email("Invalid email"), z.literal(""), z.null(), z.undefined()])
         .optional()
         .transform((v) => (v == null || v === "" ? null : v)),
     adresse: optionalText,
@@ -77,8 +77,8 @@ export const CreateTerminSchema = z.object({
     datum: isoDate,
     uhrzeit: isoTime,
     art: TerminArtSchema,
-    patient_id: nonEmpty("Patient fehlt"),
-    arzt_id: nonEmpty("Behandler fehlt"),
+    patient_id: nonEmpty("Patient is required"),
+    arzt_id: nonEmpty("Provider is required"),
     notizen: optionalText,
     beschwerden: optionalText,
 });
@@ -98,8 +98,8 @@ export const UpdateTerminSchema = z
 
 export const CreatePersonalSchema = z.object({
     name: nonEmpty().max(120),
-    email: z.string().email("Ungültige E-Mail"),
-    passwort: z.string().min(8, "Mindestens 8 Zeichen"),
+    email: z.string().email("Invalid email"),
+    passwort: z.string().min(8, "At least 8 characters"),
     rolle: RolleSchema,
     taetigkeitsbereich: optionalText,
     fachrichtung: optionalText,
@@ -109,7 +109,7 @@ export const CreatePersonalSchema = z.object({
 export const UpdatePersonalSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
-        email: z.string().email("Ungültige E-Mail").optional(),
+        email: z.string().email("Invalid email").optional(),
         rolle: RolleSchema.optional(),
         taetigkeitsbereich: optionalText,
         fachrichtung: optionalText,
@@ -118,11 +118,11 @@ export const UpdatePersonalSchema = z
     })
     .strict();
 
-/** Own account (Einstellungen) — at least one field required. */
+/** Own account (Settings) — at least one field required. */
 export const UpdateOwnProfileSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
-        email: z.string().email("Ungültige E-Mail").optional(),
+        email: z.string().email("Invalid email").optional(),
         taetigkeitsbereich: optionalText,
         fachrichtung: optionalText,
         /** Empty string clears stored number (like backend). */
@@ -136,12 +136,12 @@ export const UpdateOwnProfileSchema = z
             d.taetigkeitsbereich != null ||
             d.fachrichtung != null ||
             d.telefon !== undefined,
-        { message: "Mindestens ein Feld zum Speichern ausfüllen" },
+        { message: "Fill in at least one field to save" },
     );
 
 export const CreateZahlungSchema = z.object({
     patient_id: nonEmpty(),
-    betrag: z.number().nonnegative("Betrag darf nicht negativ sein"),
+    betrag: z.number().nonnegative("Amount must not be negative"),
     zahlungsart: ZahlungsartSchema,
     leistung_id: optionalText,
     beschreibung: optionalText,
@@ -166,7 +166,7 @@ export const CreateBestellungSchema = z.object({
     erwartet_am: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
         .optional()
         .transform((v) => (v == null || v === "" ? null : v)),
-    menge: z.number().int().positive("Menge muss > 0 sein"),
+    menge: z.number().int().positive("Quantity must be > 0"),
     einheit: optionalText,
     bemerkung: optionalText,
     bestellnummer: optionalText,
@@ -178,7 +178,7 @@ export const UpdateBestellungSchema = z
     .object({
         lieferant: z.string().min(1).max(200).optional(),
         artikel: z.string().min(1).max(200).optional(),
-        menge: z.number().int().positive("Menge muss > 0 sein").optional(),
+        menge: z.number().int().positive("Quantity must be > 0").optional(),
         einheit: optionalText,
         erwartet_am: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
             .optional()
@@ -207,9 +207,9 @@ export const UpdateLeistungSchema = z
     .strict();
 
 export const CreateRezeptSchema = z.object({
-    patient_id: nonEmpty("Patient ist erforderlich"),
+    patient_id: nonEmpty("Patient is required"),
     arzt_id: nonEmpty(),
-    medikament: nonEmpty("Medikament ist erforderlich").max(200),
+    medikament: nonEmpty("Medication is required").max(200),
     wirkstoff: optionalText,
     dosierung: nonEmpty().max(200),
     dauer: nonEmpty().max(200),
@@ -328,8 +328,8 @@ export const CreateBilanzSnapshotSchema = z.object({
 
 export const CreateFeedbackSchema = z.object({
     kategorie: FeedbackKategorieSchema,
-    betreff: z.string().min(3, "Betreff zu kurz").max(200),
-    nachricht: z.string().min(10, "Nachricht zu kurz").max(4000),
+    betreff: z.string().min(3, "Subject too short").max(200),
+    nachricht: z.string().min(10, "Message too short").max(4000),
     referenz: optionalText,
 });
 
@@ -341,7 +341,7 @@ export type UpdateLeistungInput = z.infer<typeof UpdateLeistungSchema>;
  */
 export function zodErrorToMessage(err: unknown): string {
     if (err instanceof z.ZodError) {
-        if (!err.issues.length) return "Validierungsfehler";
+        if (!err.issues.length) return "Validation error";
         return err.issues
             .map((issue) => {
                 const path = issue.path.length ? `${issue.path.join(".")}: ` : "";

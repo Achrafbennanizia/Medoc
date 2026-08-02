@@ -48,7 +48,7 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .await?;
     if count.0 == 0 {
         let hash = bcrypt::hash("passwort123", 12)
-            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(
             "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, fachrichtung)
              VALUES ('seed-arzt-001', 'Dr. Ahmed R.', 'ahmed@praxis.de', ?1, 'ARZT', 'Zahnmedizin')",
@@ -57,7 +57,7 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .execute(pool)
         .await?;
         let hash2 = bcrypt::hash("passwort123", 12)
-            .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(
             "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle)
              VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION')",

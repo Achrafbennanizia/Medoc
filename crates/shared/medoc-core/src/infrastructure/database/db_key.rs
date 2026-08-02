@@ -81,13 +81,13 @@ pub fn import_raw_key(key: &[u8; 32]) -> Result<(), AppError> {
         tracing::warn!(
             target: "medoc::security",
             event = "ACTIVATION_DB_KEY_SKIP",
-            hint = "MEDOC_DB_KEY gesetzt — Manifest-DB-Schlüssel wird nicht importiert (Dev-Override aktiv)"
+            hint = "MEDOC_DB_KEY set — manifest DB key not imported (dev override active)"
         );
         return Ok(());
     }
     if try_keyring_key().is_some() {
         return Err(AppError::Validation(
-            "SQLCipher-Schlüssel bereits eingerichtet.".into(),
+            "SQLCipher key already provisioned.".into(),
         ));
     }
     keyring_store(key)
@@ -108,14 +108,14 @@ pub async fn apply_activation_sqlcipher_key(
         tracing::warn!(
             target: "medoc::security",
             event = "ACTIVATION_DB_KEY_SKIP",
-            hint = "MEDOC_DB_KEY gesetzt — Manifest-DB-Schlüssel wird nicht importiert (Dev-Override aktiv)"
+            hint = "MEDOC_DB_KEY set — manifest DB key not imported (dev override active)"
         );
         return Ok(false);
     }
     if wrap_path(app_dir).exists() {
         return Err(AppError::Validation(
-            "Aktivierungsimport nicht möglich: Datenbank-Passphrase ist bereits eingerichtet. \
-             Importieren Sie das Aktivierungsmanifest vor der DB-Passphrase."
+            "Activation import not possible: database passphrase is already set. \
+             Import the activation manifest before the DB passphrase."
                 .into(),
         ));
     }
@@ -127,7 +127,7 @@ pub async fn apply_activation_sqlcipher_key(
 
     let old_arr: [u8; 32] = old_key
         .try_into()
-        .map_err(|_| AppError::Internal("SQLCipher-Schlüssel ungültige Länge".into()))?;
+        .map_err(|_| AppError::Internal("SQLCipher key has invalid length".into()))?;
 
     if old_arr == *new_key {
         return Ok(false);
@@ -142,7 +142,7 @@ pub async fn apply_activation_sqlcipher_key(
         }
         std::fs::remove_file(db_path).map_err(|e| {
             AppError::Internal(format!(
-                "medoc.db konnte vor Aktivierungsimport nicht ersetzt werden: {e}"
+                "Could not replace medoc.db before activation import: {e}"
             ))
         })?;
     }
@@ -167,12 +167,12 @@ pub fn ensure_sqlcipher_key(
     }
     if wrap_path(app_dir).exists() {
         return Err(AppError::Validation(
-            "Datenbank-Passphrase erforderlich (Schlüssel nur in verschlüsselter Datei).".into(),
+            "Database passphrase required (key only in encrypted file).".into(),
         ));
     }
     if !auto_create {
         return Err(AppError::Validation(
-            "Datenbank-Passphrase noch nicht eingerichtet.".into(),
+            "Database passphrase not yet set.".into(),
         ));
     }
     let mut key = vec![0u8; 32];
@@ -185,7 +185,7 @@ pub fn ensure_sqlcipher_key(
 pub fn provision_user_passphrase(app_dir: &Path, passphrase: &str) -> Result<(), AppError> {
     if passphrase.len() < 12 {
         return Err(AppError::Validation(
-            "Passphrase mindestens 12 Zeichen.".into(),
+            "Passphrase must be at least 12 characters.".into(),
         ));
     }
     let salt = load_or_create_salt(app_dir)?;
@@ -222,7 +222,7 @@ fn keyring_load() -> Result<Vec<u8>, AppError> {
         .map_err(|e| AppError::Internal(format!("Keyring sqlcipher: {e}")))?;
     let encoded = entry
         .get_password()
-        .map_err(|_| AppError::Internal("Keyring leer".into()))?;
+        .map_err(|_| AppError::Internal("Keyring empty".into()))?;
     STANDARD
         .decode(encoded.trim())
         .map_err(|e| AppError::Internal(format!("Keyring decode sqlcipher: {e}")))
@@ -234,7 +234,7 @@ fn keyring_store(key: &[u8]) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(format!("Keyring sqlcipher: {e}")))?;
     entry
         .set_password(&STANDARD.encode(key))
-        .map_err(|e| AppError::Internal(format!("Keyring speichern sqlcipher: {e}")))
+        .map_err(|e| AppError::Internal(format!("Keyring store sqlcipher: {e}")))
 }
 
 pub fn wrap_path(app_dir: &Path) -> PathBuf {
@@ -249,7 +249,7 @@ fn load_or_create_salt(app_dir: &Path) -> Result<Vec<u8>, AppError> {
     let path = salt_path(app_dir);
     if path.exists() {
         return std::fs::read(&path)
-            .map_err(|e| AppError::Internal(format!("db-key.salt lesen: {e}")));
+            .map_err(|e| AppError::Internal(format!("db-key.salt read: {e}")));
     }
     let mut salt = vec![0u8; 16];
     rand::thread_rng().fill_bytes(&mut salt);
@@ -288,7 +288,7 @@ fn write_wrap_file(app_dir: &Path, key: &[u8], passphrase: &str) -> Result<(), A
     blob.extend(payload);
     let path = wrap_path(app_dir);
     std::fs::write(&path, STANDARD.encode(blob))
-        .map_err(|e| AppError::Internal(format!("db-key.wrap schreiben: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("db-key.wrap write: {e}")))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -300,12 +300,12 @@ fn write_wrap_file(app_dir: &Path, key: &[u8], passphrase: &str) -> Result<(), A
 fn read_wrap_file(app_dir: &Path, passphrase: &str) -> Result<Vec<u8>, AppError> {
     let path = wrap_path(app_dir);
     let encoded = std::fs::read_to_string(&path)
-        .map_err(|e| AppError::Internal(format!("db-key.wrap lesen: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("db-key.wrap read: {e}")))?;
     let blob = STANDARD
         .decode(encoded.trim())
         .map_err(|e| AppError::Internal(format!("db-key.wrap decode: {e}")))?;
     if blob.len() < 12 + 32 {
-        return Err(AppError::Internal("db-key.wrap ungültig".into()));
+        return Err(AppError::Internal("db-key.wrap invalid".into()));
     }
     let salt = load_or_create_salt(app_dir)?;
     let wrap_key = derive_key_from_passphrase(passphrase, &salt)?;

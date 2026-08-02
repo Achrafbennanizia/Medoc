@@ -1,9 +1,9 @@
-// DSGVO compliance helpers (NFA-EU-01).
+// GDPR (DSGVO) compliance helpers (NFA-EU-01).
 //
 // - export_patient: collects all data linked to a patient and serialises it
-//   as a single JSON document (Art. 20 — Recht auf Datenübertragbarkeit).
+//   as a single JSON document (Art. 20 — right to data portability).
 // - erase_patient: pseudonymises personal identifiers and deletes related
-//   medical records (Art. 17 — Recht auf Löschung) while preserving the
+//   medical records (Art. 17 — right to erasure) while preserving the
 //   audit trail for legal retention (10 years per § 630f BGB).
 
 use serde::Serialize;
@@ -215,7 +215,7 @@ pub async fn erase_patient_records(
     if n == 0 {
         tx.rollback().await?;
         return Err(AppError::Internal(
-            "Patient wurde nach Prüfung nicht aktualisiert".into(),
+            "Patient was not updated after check".into(),
         ));
     }
 

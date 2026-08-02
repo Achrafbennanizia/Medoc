@@ -1,6 +1,6 @@
 /**
  * G10 — Runtime truth for integrations (no false “live” affordances).
- * Hersteller-Portal may override display via `portalIntegrations`; these are local defaults.
+ * Manufacturer portal may override display via `portalIntegrations`; these are local defaults.
  */
 
 export type IntegrationCapability = {
@@ -8,51 +8,52 @@ export type IntegrationCapability = {
     label: string;
     /** When false, UI must not imply live connector behaviour. */
     available: boolean;
+    /** User-facing reason when unavailable (English source; i18n keys PROPOSED). */
     reasonDe: string;
 };
 
 export const LOCAL_INTEGRATION_CAPABILITIES: IntegrationCapability[] = [
     {
         id: "eprescription",
-        label: "E-Rezept (Gematik / TI)",
+        label: "E-prescription (Gematik / TI)",
         available: false,
-        reasonDe: "TI-Connector und HBA-Anbindung sind in dieser Version nicht produktiv — nur lokale Validierung.",
+        reasonDe: "TI connector and HBA binding are not production-ready in this version — local validation only.",
     },
     {
         id: "kim",
-        label: "KIM / TK-Direktabrechnung",
+        label: "KIM / TK direct billing",
         available: false,
-        reasonDe: "Sichere Nachrichtenübertragung (KIM) ist noch nicht angebunden.",
+        reasonDe: "Secure messaging (KIM) is not connected yet.",
     },
     {
         id: "card_payment",
-        label: "Kartenzahlung (Terminal)",
+        label: "Card payment (terminal)",
         available: false,
-        reasonDe: "Zahlungs-Terminal-Provider liefert Stub-Referenzen (kein Live-Acquiring).",
+        reasonDe: "Payment terminal provider returns stub references (no live acquiring).",
     },
     {
         id: "sepa_payment",
-        label: "SEPA-Lastschrift",
+        label: "SEPA direct debit",
         available: false,
-        reasonDe: "SEPA-Einzug ist als Stub implementiert — Status „ausstehend“ ohne Bank-Rückmeldung.",
+        reasonDe: "SEPA collection is implemented as a stub — status “pending” without bank feedback.",
     },
     {
         id: "dicom",
         label: "DICOM / PACS",
         available: false,
-        reasonDe: "C-STORE und PACS-Weiterleitung sind nur als Migrations-Stub verfügbar.",
+        reasonDe: "C-STORE and PACS forwarding are available only as a migration stub.",
     },
     {
         id: "gdt",
-        label: "GDT-Geräte",
+        label: "GDT devices",
         available: false,
-        reasonDe: "GDT-Import parst Dateien zur Verifikation — kein Live-Gerätebus.",
+        reasonDe: "GDT import parses files for verification — no live device bus.",
     },
     {
         id: "scanner",
-        label: "TWAIN-Scanner",
+        label: "TWAIN scanner",
         available: false,
-        reasonDe: "Scanner-Ordner-Import ohne TWAIN-Treiber-Anbindung in der Produktivversion.",
+        reasonDe: "Scanner folder import without TWAIN driver binding in the production build.",
     },
 ];
 

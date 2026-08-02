@@ -1,4 +1,4 @@
-//! Staff work-time sessions (Arbeitszeit) — distinct from practice Sprechzeiten.
+//! Staff work-time sessions — distinct from practice opening hours (Sprechzeiten).
 
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use serde::{Deserialize, Serialize};

@@ -93,7 +93,7 @@ pub async fn update_patient(
         match (cur_idx, new_idx) {
             (Some(c), Some(n)) if n < c => {
                 return Err(AppError::Validation(format!(
-                    "Patient-Status-Übergang {}→{} ist nicht erlaubt",
+                    "Patient status transition {}→{} is not allowed",
                     current.status, new_str
                 )));
             }
@@ -127,7 +127,7 @@ pub async fn delete_patient(
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     let akte_ids: Vec<(String,)> =
         sqlx::query_as("SELECT id FROM patientenakte WHERE patient_id = ?1")
             .bind(&id)

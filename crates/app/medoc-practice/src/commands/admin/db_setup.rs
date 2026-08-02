@@ -29,7 +29,7 @@ pub async fn init_db_from_app(app: &AppHandle) -> Result<SqlitePool, AppError> {
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis nicht verfügbar: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory unavailable: {e}")))?;
     init_db_headless(&app_dir).await
 }
 
@@ -38,7 +38,7 @@ pub async fn get_db_setup_status(app: AppHandle) -> Result<DbSetupStatusDto, App
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     let db_path = app_dir.join("medoc.db");
     let wrap = db_key::wrap_path(&app_dir);
     let keyring_ok = db_key::env_override_key().is_some() || db_key::try_keyring_key().is_some();
@@ -58,13 +58,13 @@ pub async fn provision_db_passphrase(
 ) -> Result<(), AppError> {
     if passphrase != confirm {
         return Err(AppError::Validation(
-            "Passphrasen stimmen nicht überein.".into(),
+            "Passphrases do not match.".into(),
         ));
     }
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     db_key::provision_user_passphrase(&app_dir, &passphrase)
 }
 
@@ -73,7 +73,7 @@ pub async fn unlock_db_passphrase(app: AppHandle, passphrase: String) -> Result<
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
     let _ = db_key::unlock_with_passphrase(&app_dir, &passphrase)?;
     Ok(())
 }

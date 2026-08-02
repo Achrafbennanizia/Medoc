@@ -235,7 +235,7 @@ pub fn run() {
                 }
                 Err(e) => {
                     tracing::error!(target: "medoc::system", event = "DB_INIT_FAILED", error = %e);
-                    return Err(format!("Datenbank-Initialisierung fehlgeschlagen: {e}").into());
+                    return Err(format!("Database initialisation failed: {e}").into());
                 }
             }
 

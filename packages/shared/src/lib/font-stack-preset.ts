@@ -13,7 +13,7 @@ export const FONT_STACK_LABELS: Record<FontStackId, string> = {
     "source-sans": "Source Sans",
 };
 
-/** Kurzbeschreibung unter der Einstellung. */
+/** Short description under the setting. */
 export const FONT_STACK_HINTS: Record<FontStackId, string> = {
     inter: "Modern & kompakt — Standard in MeDoc",
     system: "Native Schrift des Betriebssystems",

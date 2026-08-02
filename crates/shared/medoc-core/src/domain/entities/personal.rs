@@ -9,7 +9,7 @@ pub struct AerztSummary {
     pub name: String,
 }
 
-/// Minimal Arzt/Rezeption directory for Praxis-Aufgaben (no HR fields).
+/// Minimal physician/reception directory for practice tasks (no HR fields).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AufgabeTeamMember {
     pub id: String,
@@ -58,7 +58,7 @@ pub struct UpdatePersonal {
     pub verfuegbar: Option<bool>,
 }
 
-/// Selbstpflege (Einstellungen » Konto) — keine Rolle / kein `verfuegbar`.
+/// Self-service profile (Settings » Account) — no role / no `verfuegbar`.
 #[derive(Debug, Deserialize)]
 pub struct UpdateOwnProfile {
     pub name: Option<String>,

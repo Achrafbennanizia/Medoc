@@ -1,5 +1,5 @@
 /**
- * Akzentfarben (CSS-Variablen auf :root). Wird mit Darstellungseinstellungen synchron gehalten.
+ * Accent colors (CSS variables on :root). Kept in sync with appearance settings.
  */
 
 export type AccentId = "mint" | "ocean" | "plum" | "amber" | "rose";

@@ -1,5 +1,5 @@
-//! Erkennung installierter Bildbetrachter (Pfade), sortiert nach Popularität.
-//! Kuratierte Kandidatenliste pro Betriebssystem — es werden nur existierende Pfade zurückgegeben.
+//! Detect installed image viewers (paths), sorted by popularity.
+//! Curated candidate list per OS — only existing paths are returned.
 
 use serde::Serialize;
 use std::path::PathBuf;
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub struct DetectedPhotoViewerApp {
     pub display_name: String,
     pub path: String,
-    /// Niedriger = höhere Priorität (beliebter / typischer Standard).
+    /// Lower = higher priority (more popular / typical default).
     pub rank: u32,
 }
 
@@ -30,7 +30,7 @@ fn push_if_exists(
 #[cfg(target_os = "macos")]
 fn scan_macos() -> Vec<DetectedPhotoViewerApp> {
     let mut out = Vec::new();
-    // Reihenfolge = typische Popularität / sinnvoller Default (ca. 90 Einträge).
+    // Order = typical popularity / sensible default (~90 entries).
     const NAMES_PATHS: &[(&str, &str)] = &[
         ("Apple Preview", "/System/Applications/Preview.app"),
         ("Apple Fotos", "/System/Applications/Photos.app"),
@@ -536,7 +536,7 @@ fn scan_unix() -> Vec<DetectedPhotoViewerApp> {
     out
 }
 
-/// Nur installierte Apps, sortiert nach `rank` (beliebteste zuerst).
+/// Installed apps only, sorted by `rank` (most popular first).
 pub fn detect_photo_viewer_apps() -> Vec<DetectedPhotoViewerApp> {
     #[cfg(target_os = "macos")]
     {

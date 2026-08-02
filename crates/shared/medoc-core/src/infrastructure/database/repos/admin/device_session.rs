@@ -1,4 +1,4 @@
-//! Browser / Desktop-Geräte-Sitzungen pro Personal (Team-Ansicht in Einstellungen).
+//! Browser / desktop device sessions per staff member (team view in settings).
 use crate::error::AppError;
 use serde::Serialize;
 use sqlx::{Row, SqlitePool};

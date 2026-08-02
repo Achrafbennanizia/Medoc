@@ -53,7 +53,7 @@ describe("buildStatistikReportBundle", () => {
 describe("buildBilanzReportBundle", () => {
     it("maps monthly income rows", () => {
         const bundle = buildBilanzReportBundle(minimalBilanz, [["2026-05", { einnahmen: 8450, ausstehend: 0, storniert: 0 }]], []);
-        expect(bundle.summary[0]?.label).toBe("Einnahmen (bezahlt)");
+        expect(bundle.summary[0]?.label).toBe("Income (paid)");
         expect(bundle.sections[0]?.rows[0]?.[1]).toMatch(/8[,.]?450/);
     });
 });
@@ -64,10 +64,10 @@ describe("buildFinanzenReportBundle", () => {
             [],
             new Map(),
             { einnM: 100, einnDeltaPct: null, st: 0, offeneN: 0, offeneSum: 0, gew: 100 },
-            "Alle",
+            "All",
         );
-        expect(bundle.sections[0]?.title).toBe("Transaktionen");
-        expect(bundle.docTitle).toContain("Finanzen");
+        expect(bundle.sections[0]?.title).toBe("Transactions");
+        expect(bundle.docTitle).toContain("Finance");
     });
 });
 
@@ -75,7 +75,7 @@ describe("buildAuditReportBundleFromCsv", () => {
     it("parses backend CSV header row", () => {
         const csv = "id,created_at,user_id,action,entity,entity_id,details,under_break_glass,break_glass_reason,hmac\n";
         const bundle = buildAuditReportBundleFromCsv(csv, 0);
-        expect(bundle.sections[0]?.title).toBe("Audit-Einträge");
+        expect(bundle.sections[0]?.title).toBe("Audit entries");
         expect(bundle.summary[0]?.value).toBe("0");
     });
 });

@@ -29,7 +29,7 @@ impl CreateZahnbefund {
         let z = self.zahn_nummer % 10;
         if !(1..=4).contains(&q) || !(1..=8).contains(&z) {
             return Err(format!(
-                "Ungültige Zahnnummer {}. FDI: Quadrant 1-4, Zahn 1-8.",
+                "Invalid tooth number {}. FDI: quadrant 1-4, tooth 1-8.",
                 self.zahn_nummer
             ));
         }

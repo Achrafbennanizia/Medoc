@@ -1,4 +1,4 @@
-//! Geräteverbund value objects and aggregates.
+//! Device-cluster value objects and aggregates.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::enums::{GeraetStatus, KopplungStatus, SeatRolle};
 use medoc_core::error::AppError;
 
-/// Cluster license record (one per practice verbund).
+/// Cluster license record (one per practice cluster).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lizenz {
@@ -49,7 +49,7 @@ pub struct SeatCertificate {
     pub license_ref: String,
 }
 
-/// Active kopplung (pairing) session.
+/// Active pairing session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KopplungSession {
@@ -75,7 +75,7 @@ pub struct SeatUsage {
     pub max_total: u32,
 }
 
-/// Verbund aggregate — enforces tier-derived seat caps from `lizenz`.
+/// Cluster aggregate — enforces tier-derived seat caps from `lizenz`.
 #[derive(Debug, Clone)]
 pub struct Verbund {
     pub cluster_id: String,
@@ -101,20 +101,20 @@ impl Verbund {
         let u = &self.usage;
         if u.total_used >= self.max_total {
             return Err(AppError::Validation(format!(
-                "Verbund voll: maximal {} Geräte",
+                "Cluster full: maximum {} devices",
                 self.max_total
             )));
         }
         match role {
             SeatRolle::Admin if u.admin_used >= self.max_admin => {
                 return Err(AppError::Validation(format!(
-                    "Kein ADMIN-Sitz frei (max. {}). Als MEMBER erneut anfragen.",
+                    "No ADMIN seat available (max {}). Request again as MEMBER.",
                     self.max_admin
                 )));
             }
             SeatRolle::Member if u.member_used >= self.max_member => {
                 return Err(AppError::Validation(format!(
-                    "Kein MEMBER-Sitz frei (max. {})",
+                    "No MEMBER seat available (max {})",
                     self.max_member
                 )));
             }

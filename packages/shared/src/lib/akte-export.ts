@@ -80,17 +80,17 @@ export const AKTE_EXPORT_SECTION_META: {
     needsFinanzen?: boolean;
     needsAuditRead?: boolean;
 }[] = [
-    { key: "patient", label: "Stammdaten", needsMedical: false },
-    { key: "akteCore", label: "Patientenakte (Status, Diagnose, Befunde)", needsMedical: true },
-    { key: "anamnese", label: "Anamnese", needsMedical: true },
-    { key: "behandlungen", label: "Behandlungen", needsMedical: true },
-    { key: "untersuchungen", label: "Untersuchungen", needsMedical: true },
-    { key: "zahnbefunde", label: "Zahnbefunde", needsMedical: true },
-    { key: "rezepte", label: "Rezepte", needsMedical: false, needsDocuments: true },
-    { key: "attest", label: "Atteste", needsMedical: false, needsDocuments: true },
-    { key: "anlagen", label: "Anlagen", needsMedical: false },
-    { key: "zahlungen", label: "Zahlungen", needsMedical: false, needsFinanzen: true },
-    { key: "audit", label: "Audit-Auszug", needsMedical: false, needsAuditRead: true },
+    { key: "patient", label: "Master data", needsMedical: false },
+    { key: "akteCore", label: "Patient record (status, diagnosis, findings)", needsMedical: true },
+    { key: "anamnese", label: "Medical history", needsMedical: true },
+    { key: "behandlungen", label: "Treatments", needsMedical: true },
+    { key: "untersuchungen", label: "Examinations", needsMedical: true },
+    { key: "zahnbefunde", label: "Dental findings", needsMedical: true },
+    { key: "rezepte", label: "Prescriptions", needsMedical: false, needsDocuments: true },
+    { key: "attest", label: "Certificates", needsMedical: false, needsDocuments: true },
+    { key: "anlagen", label: "Attachments", needsMedical: false },
+    { key: "zahlungen", label: "Payments", needsMedical: false, needsFinanzen: true },
+    { key: "audit", label: "Audit extract", needsMedical: false, needsAuditRead: true },
 ];
 
 /** Localized label for export section checkbox (Akte export picker). */
@@ -390,10 +390,10 @@ export function buildDocumentManifest(
         language: bcp47ForLocale(useLocale.getState().locale),
         rbacFilteredSections: sec,
         conformanceDisclaimer:
-            "Mapping nach FHIR R4 und ISO-13606-orientiertem Extract-Muster ist informativ; dies ist kein zertifizierter HL7- oder EN-13606-Export.",
+            "Mapping to FHIR R4 and an ISO-13606-oriented extract pattern is informative; this is not a certified HL7 or EN-13606 export.",
         standardsAlignment: AKTE_EXPORT_STANDARDS_REFS,
         gdprNote:
-            "Maschinenlesbare JSON/XML/CSV-Unterformate unterstützen gängige Anforderungen aus DSGVO Art. 20 (strukturiert, verbreitet, maschinenlesbar). Umfang und Rechtsgrundlagen der bereitgestellten Daten sind weiterhin zu beachten.",
+            "Machine-readable JSON/XML/CSV sub-formats support common GDPR Art. 20 requirements (structured, commonly used, machine-readable). Scope and legal bases of the provided data must still be observed.",
     };
 }
 
@@ -468,7 +468,7 @@ export function buildAkteExportXmlInterop(interop: Record<string, unknown>): str
 /** CSV incl. meta lines (portability / norm notes) + flat domain section. */
 export function buildAkteExportCsvFromInterop(interop: Record<string, unknown>): string {
     const rows: string[][] = [
-        ["Bereich", "Schlüssel", "Wert"],
+        ["Area", "Key", "Value"],
         ["Meta", "exportProfile", String((interop.documentManifest as { exportProfile?: string })?.exportProfile ?? "")],
         ["Meta", "schemaVersion", String((interop.documentManifest as { schemaVersion?: string })?.schemaVersion ?? "")],
         ["Meta", "fhirBundleTypeHint", "Bundle.type=collection (HL7 FHIR R4 informative)"],
@@ -574,7 +574,7 @@ export function buildAkteExportXml(data: Record<string, unknown>): string {
 
 /** CSV with `;` and header — flat rows (Bereich / key / Wert columns). */
 export function buildAkteExportCsv(data: Record<string, unknown>): string {
-    const rows: string[][] = [["Bereich", "Schlüssel", "Wert"]];
+    const rows: string[][] = [["Area", "Key", "Value"]];
 
     const add = (bereich: string, key: string, val: unknown): void => {
         let s = "";

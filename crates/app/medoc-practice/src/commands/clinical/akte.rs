@@ -140,7 +140,7 @@ pub async fn list_untersuchungen(
     )
 }
 
-/// FA-LEIST-05: Behandlung zur Abrechnung freigeben (nur ärztliche Akte).
+/// FA-LEIST-05: Release treatment for billing (physician chart only).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn release_behandlung_for_billing(
@@ -317,7 +317,7 @@ pub async fn delete_untersuchung(
     .await
 }
 
-/// FA-AKTE-04 / Erweiterung: Patientenakte als PDF (Abschnitte wählbar).
+/// FA-AKTE-04 / extension: patient chart as PDF (selectable sections).
 /// Returns base64-encoded PDF bytes for safe transport across the Tauri bridge.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -330,7 +330,7 @@ pub async fn export_akte_pdf(
     crate::application::akte::pdf_export::export_akte_pdf(&pool, &session, args).await
 }
 
-/// FA-DOK-08: Entlassungs-Merkblatt / Nachsorge als PDF (kompakte Zusammenfassung).
+/// FA-DOK-08: Discharge information sheet / aftercare as PDF (compact summary).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn export_discharge_merkblatt_pdf(

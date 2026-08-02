@@ -62,7 +62,7 @@ impl ClusterResetMode {
             "network_only" => Ok(Self::NetworkOnly),
             "full_wipe" => Ok(Self::FullLocalWipe),
             _ => Err(AppError::Validation(
-                "Reset-Modus muss network_only oder full_wipe sein.".into(),
+                "Reset mode must be network_only or full_wipe.".into(),
             )),
         }
     }
@@ -130,7 +130,7 @@ pub fn verify_reset_token_with_pubkey(
     let pubkey = master_keys::parse_pubkey_b64(pinned_pubkey_b64)?;
     master_keys::verify(&pubkey, token_json.as_bytes(), signature_b64)?;
     serde_json::from_str(token_json)
-        .map_err(|e| AppError::Validation(format!("Reset-Token ungültig: {e}")))
+        .map_err(|e| AppError::Validation(format!("Reset token invalid: {e}")))
 }
 
 pub async fn verify_reset_token(
@@ -139,7 +139,7 @@ pub async fn verify_reset_token(
     signature_b64: &str,
 ) -> Result<ClusterResetToken, AppError> {
     let token: ClusterResetToken = serde_json::from_str(token_json)
-        .map_err(|e| AppError::Validation(format!("Reset-Token ungültig: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Reset token invalid: {e}")))?;
     if !token.cluster_ca_pubkey_b64.is_empty() {
         verify_reset_token_with_pubkey(token_json, signature_b64, &token.cluster_ca_pubkey_b64)?;
         return Ok(token);
@@ -346,7 +346,7 @@ fn wipe_full_database_files(app_data_dir: &Path) -> Result<(), AppError> {
     ] {
         if path.exists() {
             std::fs::remove_file(&path).map_err(|e| {
-                AppError::Internal(format!("Datei {} konnte nicht gelöscht werden: {e}", path.display()))
+                AppError::Internal(format!("Could not delete file {}: {e}", path.display()))
             })?;
         }
     }

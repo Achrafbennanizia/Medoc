@@ -3,19 +3,19 @@
  * Re-enable via `docs/coordination/todos-deferred-v1-surfaces.md`.
  */
 
-/** Einstellungen → Lizenz: Nutzung diesen Monat meters (Behandler/Speicher/eRezept). */
+/** Settings → License: usage-this-month meters (providers/storage/e-prescription). */
 export const LICENSE_USAGE_METERS_ENABLED = false;
 
-/** Einstellungen → Lizenz: Zahlungsmethode, Rechnungen, Plan wechseln. */
+/** Settings → License: payment method, invoices, change plan. */
 export const LICENSE_BILLING_CONNECTORS_ENABLED = false;
 
-/** Einstellungen → Lizenz: KBV-Zulassung marketing row. */
+/** Settings → License: KBV approval marketing row. */
 export const LICENSE_KBV_ROW_ENABLED = false;
 
-/** Einstellungen → Lizenz: Support-Vertrag marketing row. */
+/** Settings → License: support-contract marketing row. */
 export const LICENSE_SUPPORT_ROW_ENABLED = false;
 
-/** Export dialogs: Dokumentvorlage (PDF-Layout) template picker. */
+/** Export dialogs: document-template (PDF layout) template picker. */
 export const PDF_LAYOUT_TEMPLATE_PICKER_ENABLED = false;
 
 /** NFA-USE-09 route coachmarks (onboarding). */

@@ -1,4 +1,4 @@
-//! Persisted Tagesabschluss runs (Bargeldabgleich, Kennzahlen) — pro Protokollierung eine Zeile.
+//! Persisted day-close runs (cash reconciliation, metrics) — one row per close protocol.
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -10,13 +10,13 @@ pub struct TagesabschlussProtokoll {
     pub bar_laut_system_eur: f64,
     pub einnahmen_laut_system_eur: f64,
     pub abweichung_eur: Option<f64>,
-    /// 0/1: gezählter Betrag = Bar-Summe laut System (Toleranz im Client).
+    /// 0/1: counted amount equals system cash total (client tolerance).
     pub bar_stimmt: i64,
-    /// Anzahl der relevanten Tageszahlungen (bezahlt / teilbezahlt, nicht storniert).
+    /// Count of relevant day payments (paid / partial, not cancelled).
     pub anzahl_zahlungen_tag: i64,
-    /// Davon als kassengeprüft markiert.
+    /// Of those, marked cash-desk verified.
     pub anzahl_kasse_geprueft: i64,
-    /// 0/1: alle relevanten Tageszahlungen geprüft.
+    /// 0/1: all relevant day payments verified.
     pub alle_zahlungen_geprueft: i64,
     pub notiz: Option<String>,
     pub protokolliert_at: NaiveDateTime,

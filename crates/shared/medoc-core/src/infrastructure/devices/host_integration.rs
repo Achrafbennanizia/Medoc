@@ -12,10 +12,10 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
         let status = std::process::Command::new("open")
             .args(["-a", "Image Capture"])
             .status()
-            .map_err(|e| AppError::Internal(format!("Scanner-Programm starten: {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Start scanner program: {e}")))?;
         if !status.success() {
             return Err(AppError::Internal(
-                "„Image Capture“ konnte nicht gestartet werden.".into(),
+                "Could not start Image Capture.".into(),
             ));
         }
         log_device!(
@@ -33,7 +33,7 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
         std::process::Command::new("cmd")
             .args(["/C", "start", "", "ms-scan:"])
             .spawn()
-            .map_err(|e| AppError::Internal(format!("Scanner-Programm starten: {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Start scanner program: {e}")))?;
         log_device!(
             info,
             event = "HOST_SCAN_UI_OPENED",
@@ -61,14 +61,14 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
             }
         }
         Err(AppError::Validation(
-            "Kein kompatibles Scan-Programm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen.".into(),
+            "No compatible scan program found (e.g. simple-scan). Please install one or place files manually in the watch folder.".into(),
         ))
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         Err(AppError::Validation(
-            "System-Scanner wird auf dieser Plattform nicht unterstützt.".into(),
+            "System scanner is not supported on this platform.".into(),
         ))
     }
 }

@@ -69,17 +69,17 @@ pub fn pubkey_b64(sk: &SigningKey) -> String {
 pub fn parse_pubkey_b64(b64: &str) -> Result<VerifyingKey, AppError> {
     let bytes = STANDARD_NO_PAD
         .decode(b64.trim())
-        .map_err(|e| AppError::Validation(format!("Master pubkey nicht decodierbar: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Master pubkey not decodable: {e}")))?;
     if bytes.len() != 32 {
         return Err(AppError::Validation(format!(
-            "Master pubkey Länge {} (erwartet 32)",
+            "Master pubkey length {} (expected 32)",
             bytes.len()
         )));
     }
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&bytes);
     VerifyingKey::from_bytes(&arr)
-        .map_err(|e| AppError::Validation(format!("Master pubkey ungültig: {e}")))
+        .map_err(|e| AppError::Validation(format!("Master pubkey invalid: {e}")))
 }
 
 /// Sign `body` (canonical JSON bytes) with the loaded master key.
@@ -92,14 +92,14 @@ pub fn sign(sk: &SigningKey, body: &[u8]) -> String {
 pub fn verify(pubkey: &VerifyingKey, body: &[u8], sig_b64: &str) -> Result<(), AppError> {
     let sig_bytes = STANDARD_NO_PAD
         .decode(sig_b64.trim())
-        .map_err(|e| AppError::Validation(format!("Signatur nicht decodierbar: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Signature not decodable: {e}")))?;
     if sig_bytes.len() != 64 {
-        return Err(AppError::Validation("Signaturlänge ungültig".into()));
+        return Err(AppError::Validation("Invalid signature length".into()));
     }
     let mut arr = [0u8; 64];
     arr.copy_from_slice(&sig_bytes);
     let sig = ed25519_dalek::Signature::from_bytes(&arr);
     pubkey
         .verify(body, &sig)
-        .map_err(|_| AppError::Validation("Signatur ungültig".into()))
+        .map_err(|_| AppError::Validation("Invalid signature".into()))
 }

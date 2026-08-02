@@ -1,5 +1,5 @@
-//! Eigenes Profil (Einstellungen » Mein Konto) — jede eingeloggte Rolle darf lesen/schreiben,
-//! ohne `personal.write` (nur Arzt). LAN-API spiegelt dieselbe Logik unter `GET|PATCH /api/v1/me`.
+//! Own profile (Settings » My account) — any signed-in role may read/write,
+//! without `personal.write` (physician-only). The LAN API mirrors the same logic under `GET|PATCH /api/v1/me`.
 
 use crate::domain::entities::personal::{Personal, UpdateOwnProfile, UpdatePersonal};
 use crate::error::AppError;
@@ -39,7 +39,7 @@ pub async fn get_own_profile(pool: &SqlitePool, user_id: &str) -> Result<OwnProf
     Ok(OwnProfileDto::from(&p))
 }
 
-/// Wendet Profilfelder an (ohne Rolle / Verfügbarkeit). Prüft E-Mail-Kollision.
+/// Applies profile fields (excluding role / availability). Checks for email collisions.
 pub async fn apply_own_profile_update(
     pool: &SqlitePool,
     user_id: &str,

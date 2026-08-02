@@ -48,7 +48,7 @@ fn push_section_map(lines: &mut Vec<String>, title: &str, map: &serde_json::Map<
     lines.push(String::new());
 }
 
-/// Formatiert gespeichertes Anamnese-JSON (V1) für PDF/Akte — keine Roh-JSON-Zeilen.
+/// Format stored anamnesis JSON (V1) for PDF/record — no raw JSON lines.
 pub fn format_anamnese_antworten(json: &str) -> Vec<String> {
     let trimmed = json.trim();
     if trimmed.is_empty() {
@@ -126,7 +126,7 @@ fn is_untersuchung_v1(root: &serde_json::Map<String, Value>) -> bool {
         || root.contains_key("intraoral")
 }
 
-/// Alle Felder aus Untersuchung V1 (`ergebnisse`-JSON) als PDF-Zeilen.
+/// All fields from examination V1 (`ergebnisse` JSON) as PDF lines.
 fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     let trimmed = json.trim();
     if trimmed.is_empty() {
@@ -249,7 +249,7 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     lines
 }
 
-/// Vollständige Untersuchungsdaten für Akte-PDF (mehrzeilig, alle V1-Felder).
+/// Full examination data for record PDF (multiline, all V1 fields).
 pub fn format_untersuchung_detail_lines(
     beschwerden: Option<&str>,
     ergebnisse_json: Option<&str>,
@@ -291,7 +291,7 @@ pub fn format_untersuchung_detail_lines(
     lines
 }
 
-/// Mehrzeiliger Zelltext für die Akte-Tabelle (Zeilenumbrüche zwischen Abschnitten).
+/// Multiline cell text for the record table (line breaks between sections).
 pub fn format_untersuchung_for_akte_table(
     beschwerden: Option<&str>,
     ergebnisse_json: Option<&str>,
@@ -300,7 +300,7 @@ pub fn format_untersuchung_for_akte_table(
     format_untersuchung_detail_lines(beschwerden, ergebnisse_json, diagnose_spalte).join("\n")
 }
 
-/// Kurzfassung Untersuchung V1 (`ergebnisse`-JSON) für Tabellen und Fließtext.
+/// Short summary of examination V1 (`ergebnisse` JSON) for tables and prose.
 pub fn format_untersuchung_ergebnisse(json: &str) -> String {
     let lines = untersuchung_v1_lines_from_json(json);
     if lines.is_empty() {
@@ -317,7 +317,7 @@ pub fn format_untersuchung_ergebnisse(json: &str) -> String {
         .join(" · ")
 }
 
-/// Normalisiert Whitespace für PDF-Anzeige (Word-Smart-Quotes, NBSP, Leerzeilen).
+/// Normalize whitespace for PDF display (Word smart quotes, NBSP, blank lines).
 fn normalize_whitespace_for_pdf(input: &str) -> String {
     let cleaned: String = input
         .replace("\r\n", "\n")

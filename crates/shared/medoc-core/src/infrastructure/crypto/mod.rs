@@ -67,22 +67,22 @@ pub fn evaluate_password_policy(password: &str) -> PasswordPolicyStatus {
     let rules = vec![
         PasswordPolicyRule {
             id: "min_length",
-            label: "Mindestens 12 Zeichen",
+            label: "At least 12 characters",
             met: password.chars().count() >= 12,
         },
         PasswordPolicyRule {
             id: "uppercase",
-            label: "Mindestens ein Großbuchstabe (A–Z)",
+            label: "At least one uppercase letter (A–Z)",
             met: password.chars().any(char::is_uppercase),
         },
         PasswordPolicyRule {
             id: "lowercase",
-            label: "Mindestens ein Kleinbuchstabe (a–z)",
+            label: "At least one lowercase letter (a–z)",
             met: password.chars().any(char::is_lowercase),
         },
         PasswordPolicyRule {
             id: "digit",
-            label: "Mindestens eine Ziffer (0–9)",
+            label: "At least one digit (0–9)",
             met: password.chars().any(|c| c.is_ascii_digit()),
         },
     ];
@@ -102,7 +102,7 @@ pub fn validate_password_policy(password: &str) -> Result<(), AppError> {
         .map(|r| r.label)
         .collect::<Vec<_>>()
         .join("; ");
-    Err(AppError::Validation(format!("Passwortrichtlinie: {msg}")))
+    Err(AppError::Validation(format!("Password policy: {msg}")))
 }
 
 /// Compute a hex-encoded HMAC-SHA256 of `data` using the configured audit key.
@@ -118,7 +118,7 @@ pub fn audit_hmac(key: &[u8], data: &str) -> Result<String, String> {
 /// Streaming HMAC-SHA256 (hex) over arbitrary bytes — used for backup integrity tags.
 pub fn audit_hmac_bytes(key: &[u8], data: &[u8]) -> Result<String, String> {
     let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| format!("HMAC-Schlüssel ungültig: {e}"))?;
+        HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
     mac.update(data);
     Ok(hex_hmac(mac.finalize().into_bytes()))
 }
@@ -127,13 +127,13 @@ pub fn audit_hmac_bytes(key: &[u8], data: &[u8]) -> Result<String, String> {
 pub fn audit_hmac_file(key: &[u8], path: &std::path::Path) -> Result<String, String> {
     use std::io::Read;
     let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| format!("HMAC-Schlüssel ungültig: {e}"))?;
-    let mut file = std::fs::File::open(path).map_err(|e| format!("Datei öffnen: {e}"))?;
+        HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
+    let mut file = std::fs::File::open(path).map_err(|e| format!("Open file: {e}"))?;
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = file
             .read(&mut buf)
-            .map_err(|e| format!("Datei lesen: {e}"))?;
+            .map_err(|e| format!("Read file: {e}"))?;
         if n == 0 {
             break;
         }

@@ -1,4 +1,4 @@
-//! Tauri commands for purchase orders (Bestellungen).
+//! Tauri commands for purchase orders.
 //!
 //! - RBAC enforced via [`rbac::require`] with `bestellung.read`/`bestellung.write`.
 //! - Mutations are recorded in the audit log so the inventory trail is auditable.

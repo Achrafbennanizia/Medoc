@@ -80,7 +80,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     .await?;
 
     let hash = bcrypt::hash("passwort123", 12)
-        .map_err(|e| AppError::Internal(format!("Seed-Passwort (bcrypt): {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
     // TODO(deferred-security): seed-arzt-001 exceeds MVP 1-ARZT quota — re-enable with todos-deferred-security-features.md
     // sqlx::query(
     //     "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, taetigkeitsbereich, fachrichtung, telefon) VALUES
@@ -398,7 +398,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(pool)
     .await?;
 
-    // Demo-Termine an lokalem Kalender ausrichten (ältere Seeds nutzten date('now') = UTC → Tag-Ansicht wirkte „leer“).
+    // Align demo appointments to the local calendar (older seeds used date('now') = UTC → day view looked "empty").
     sqlx::query(
         "UPDATE termin SET datum = CASE id
             WHEN 'seed-ter-001' THEN date('now','localtime')

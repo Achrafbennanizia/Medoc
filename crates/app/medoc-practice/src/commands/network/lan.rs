@@ -67,7 +67,7 @@ async fn load_or_default_config(pool: &SqlitePool) -> Result<LanServerConfigV1, 
     let raw = app_kv_repo::get(pool, APP_KV_KEY).await?;
     match raw {
         Some(s) => {
-            serde_json::from_str(&s).map_err(|e| AppError::Validation(format!("LAN-Config: {e}")))
+            serde_json::from_str(&s).map_err(|e| AppError::Validation(format!("LAN config: {e}")))
         }
         None => Ok(LanServerConfigV1::default()),
     }
@@ -113,7 +113,7 @@ pub async fn lan_server_set_config(
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
     if config.http_port == 0 || config.udp_discovery_port == 0 {
-        return Err(AppError::Validation("Port muss > 0 sein.".into()));
+        return Err(AppError::Validation("Port must be > 0.".into()));
     }
     save_config(&pool, &config).await
 }
@@ -158,7 +158,7 @@ pub async fn start_lan_embedded(
     {
         let g = control.0.lock().unwrap_or_else(|e| e.into_inner());
         if g.runtime.is_some() {
-            return Err(AppError::Conflict("LAN-Server läuft bereits.".into()));
+            return Err(AppError::Conflict("LAN server already running.".into()));
         }
     }
 
@@ -166,7 +166,7 @@ pub async fn start_lan_embedded(
     let app_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
 
     let jwt_arr = secrets::ensure_jwt_secret_bytes(&app_dir)?;
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);
@@ -177,7 +177,7 @@ pub async fn start_lan_embedded(
     brute
         .hydrate_from_db(&pool)
         .await
-        .map_err(|e| AppError::Internal(format!("Brute-Force-Lockouts: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Brute-force lockouts: {e}")))?;
     let http_state = LanSystemFactory::build_state(
         pool,
         jwt_secret.clone(),
@@ -190,7 +190,7 @@ pub async fn start_lan_embedded(
 
     let addr: SocketAddr = format!("{}:{}", cfg.bind_addr.trim(), cfg.http_port)
         .parse()
-        .map_err(|_| AppError::Validation("Ungültige Kombination bind_addr/http_port.".into()))?;
+        .map_err(|_| AppError::Validation("Invalid bind_addr/http_port combination.".into()))?;
 
     let advertised_host = medoc_core::discovery::primary_local_ipv4().unwrap_or_default();
 
@@ -373,7 +373,7 @@ pub async fn lan_server_scan(
         label_contains.as_deref(),
     )
     .await
-    .map_err(|e| AppError::Internal(format!("LAN-Scan: {e}")))?;
+    .map_err(|e| AppError::Internal(format!("LAN scan: {e}")))?;
 
     Ok(hits
         .into_iter()

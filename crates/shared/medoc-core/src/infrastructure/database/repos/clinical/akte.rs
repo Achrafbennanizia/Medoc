@@ -8,7 +8,7 @@ use crate::domain::entities::{Anamnesebogen, Patientenakte, Zahnbefund};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
-/// Nächste `U-{Jahr}-{nnn}`-Nummer je Akte (Fortlaufend pro Jahr).
+/// Next `U-{year}-{nnn}` number per record (sequential per year).
 pub async fn next_untersuchungsnummer(
     pool: &SqlitePool,
     akte_id: &str,
@@ -515,7 +515,7 @@ pub async fn release_untersuchung_for_billing(
     }
     find_untersuchung_by_id(pool, untersuchung_id)
         .await?
-        .ok_or_else(|| AppError::Internal("Untersuchung nach Freigabe nicht lesbar".into()))
+        .ok_or_else(|| AppError::Internal("Untersuchung not readable after release".into()))
 }
 
 pub async fn release_behandlung_for_billing(
@@ -537,10 +537,10 @@ pub async fn release_behandlung_for_billing(
     }
     find_behandlung_by_id(pool, behandlung_id)
         .await?
-        .ok_or_else(|| AppError::Internal("Behandlung nach Freigabe nicht lesbar".into()))
+        .ok_or_else(|| AppError::Internal("Behandlung not readable after release".into()))
 }
 
-/// FA-AKTE-15: Akten mit Status ENTWURF oder IN_BEARBEITUNG (ärztliche Validierung ausstehend).
+/// FA-AKTE-15: records with status ENTWURF or IN_BEARBEITUNG (physician validation pending).
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct AkteZuValidierenRow {
     pub patient_id: String,
@@ -600,7 +600,7 @@ pub async fn mark_akte_for_physician_review(
     .await?;
     let updated = find_akte_by_patient(pool, patient_id)
         .await?
-        .ok_or_else(|| AppError::Internal("Akte nach Weiterleitung nicht lesbar".into()))?;
+        .ok_or_else(|| AppError::Internal("Akte not readable after handoff".into()))?;
     let body = serde_json::to_string(&updated)
         .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
     crate::infrastructure::database::sync_outbox::record_or_noop(
@@ -614,7 +614,7 @@ pub async fn mark_akte_for_physician_review(
     Ok(updated)
 }
 
-/// Setzt Akten-Status auf VALIDIERT (nur Vorwärts aus ENTWURF / IN_BEARBEITUNG).
+/// Set record status to VALIDIERT (forward-only from ENTWURF / IN_BEARBEITUNG).
 pub async fn validate_patientenakte_status(
     pool: &SqlitePool,
     patient_id: &str,
@@ -632,7 +632,7 @@ pub async fn validate_patientenakte_status(
     .await?;
     let updated = find_akte_by_patient(pool, patient_id)
         .await?
-        .ok_or_else(|| AppError::Internal("Akte nach Validierung nicht lesbar".into()))?;
+        .ok_or_else(|| AppError::Internal("Akte not readable after validation".into()))?;
     let body = serde_json::to_string(&updated)
         .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
     crate::infrastructure::database::sync_outbox::record_or_noop(

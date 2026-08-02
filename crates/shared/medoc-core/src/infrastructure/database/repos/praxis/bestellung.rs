@@ -57,17 +57,17 @@ pub async fn create(
     created_by: &str,
 ) -> Result<Bestellung, AppError> {
     if data.lieferant.trim().is_empty() {
-        return Err(AppError::Validation("Lieferant erforderlich".into()));
+        return Err(AppError::Validation("Supplier required".into()));
     }
     if data.artikel.trim().is_empty() {
-        return Err(AppError::Validation("Artikel erforderlich".into()));
+        return Err(AppError::Validation("Item required".into()));
     }
     if data.menge <= 0 {
-        return Err(AppError::Validation("Menge muss positiv sein".into()));
+        return Err(AppError::Validation("Quantity must be positive".into()));
     }
     if let Some(g) = data.gesamtbetrag {
         if !g.is_finite() || g < 0.0 {
-            return Err(AppError::Validation("Gesamtbetrag ungültig".into()));
+            return Err(AppError::Validation("Total amount invalid".into()));
         }
     }
     let bestellnummer = match data.bestellnummer.as_ref().map(|s| s.trim()) {
@@ -121,7 +121,7 @@ pub async fn update_status(
 ) -> Result<Bestellung, AppError> {
     if !is_valid_status(status) {
         return Err(AppError::Validation(format!(
-            "Unbekannter Status: {status}"
+            "Unknown status: {status}"
         )));
     }
     let cur = fetch_by_id(pool, id).await?;
@@ -160,17 +160,17 @@ pub async fn update(
     // Validate the patch before constructing dynamic SQL.
     if let Some(l) = &data.lieferant {
         if l.trim().is_empty() {
-            return Err(AppError::Validation("Lieferant erforderlich".into()));
+            return Err(AppError::Validation("Supplier required".into()));
         }
     }
     if let Some(a) = &data.artikel {
         if a.trim().is_empty() {
-            return Err(AppError::Validation("Artikel erforderlich".into()));
+            return Err(AppError::Validation("Item required".into()));
         }
     }
     if let Some(m) = data.menge {
         if m <= 0 {
-            return Err(AppError::Validation("Menge muss positiv sein".into()));
+            return Err(AppError::Validation("Quantity must be positive".into()));
         }
     }
 

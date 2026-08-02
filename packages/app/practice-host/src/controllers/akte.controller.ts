@@ -54,7 +54,7 @@ export async function exportAktePdf(patientId: string, sections?: AkteExportSect
     });
 }
 
-/** FA-DOK-08 — Entlassungs-Merkblatt / Nachsorge (PDF, base64). */
+/** FA-DOK-08 — discharge leaflet / aftercare (PDF, base64). */
 export async function exportDischargeMerkblattPdf(args: {
     patientId: string;
     zusatzHinweise?: string | null;

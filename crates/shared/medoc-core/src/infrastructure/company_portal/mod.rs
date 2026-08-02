@@ -1,5 +1,5 @@
-//! HTTP-Client zum **MeDoc Hersteller-Portal** (Abonnement, Lizenzmetriken, Feature-Flags).
-//! Konfiguration: `app_kv` Schlüssel `company.portal.config.v1` (JSON) oder Umgebungsvariable `MEDOC_COMPANY_API_BASE`.
+//! HTTP client for the **MeDoc vendor portal** (subscription, license metrics, feature flags).
+//! Config: `app_kv` key `company.portal.config.v1` (JSON) or env `MEDOC_COMPANY_API_BASE`.
 
 pub mod client;
 pub mod config;

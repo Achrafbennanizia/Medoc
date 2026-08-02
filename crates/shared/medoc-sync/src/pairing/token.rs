@@ -27,21 +27,21 @@ pub fn verify_activation_token(
 ) -> Result<ActivationTokenPayload, AppError> {
     let rest = token.strip_prefix(ACTIVATION_TOKEN_PREFIX).ok_or_else(|| {
         AppError::Validation(format!(
-            "Aktivierungstoken: erwartet Präfix `{ACTIVATION_TOKEN_PREFIX}`"
+            "Activation token: expected prefix `{ACTIVATION_TOKEN_PREFIX}`"
         ))
     })?;
     let (body_b64, sig_b64) = rest
         .split_once('.')
-        .ok_or_else(|| AppError::Validation("Aktivierungstoken: Trennzeichen fehlt".into()))?;
+        .ok_or_else(|| AppError::Validation("Activation token: missing separator".into()))?;
     master_keys::verify(master_pubkey, body_b64.as_bytes(), sig_b64)?;
     let body_bytes = STANDARD_NO_PAD
         .decode(body_b64)
-        .map_err(|e| AppError::Validation(format!("Aktivierungstoken decode: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Activation token decode: {e}")))?;
     let payload: ActivationTokenPayload = serde_json::from_slice(&body_bytes)
-        .map_err(|e| AppError::Validation(format!("Aktivierungstoken JSON: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Activation token JSON: {e}")))?;
     if payload.version != 2 {
         return Err(AppError::Validation(format!(
-            "Aktivierungstoken Version {} (erwartet 2)",
+            "Activation token version {} (expected 2)",
             payload.version
         )));
     }

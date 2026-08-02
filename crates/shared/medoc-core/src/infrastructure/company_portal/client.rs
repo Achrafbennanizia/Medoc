@@ -1,4 +1,4 @@
-//! JSON-REST zum Hersteller-Portal (`medoc-company-server` oder produktives Backend).
+//! JSON REST client for the vendor portal (`medoc-company-server` or production backend).
 
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde_json::{json, Value};
@@ -34,12 +34,12 @@ async fn get_json(base: &str, path: &str, cfg: &CompanyPortalConfig) -> Result<V
         .header("X-Practice-Slug", cfg.practice_slug.trim())
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Hersteller-Portal GET {path}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Vendor portal GET {path}: {e}")))?;
     let status = res.status();
     if !status.is_success() {
         let t = res.text().await.unwrap_or_default();
         return Err(AppError::Internal(format!(
-            "Hersteller-Portal {}: HTTP {} — {}",
+            "Vendor portal {}: HTTP {} — {}",
             path,
             status,
             t.chars().take(400).collect::<String>()
@@ -47,7 +47,7 @@ async fn get_json(base: &str, path: &str, cfg: &CompanyPortalConfig) -> Result<V
     }
     res.json::<Value>()
         .await
-        .map_err(|e| AppError::Internal(format!("Hersteller-Portal JSON {path}: {e}")))
+        .map_err(|e| AppError::Internal(format!("Vendor portal JSON {path}: {e}")))
 }
 
 async fn post_json(
@@ -65,12 +65,12 @@ async fn post_json(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Hersteller-Portal POST {path}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Vendor portal POST {path}: {e}")))?;
     let status = res.status();
     if !status.is_success() {
         let t = res.text().await.unwrap_or_default();
         return Err(AppError::Internal(format!(
-            "Hersteller-Portal {}: HTTP {} — {}",
+            "Vendor portal {}: HTTP {} — {}",
             path,
             status,
             t.chars().take(400).collect::<String>()
@@ -116,7 +116,7 @@ pub async fn post_billing_portal_url(cfg: &CompanyPortalConfig) -> Result<String
     v.get("url")
         .and_then(|x| x.as_str())
         .map(str::to_string)
-        .ok_or_else(|| AppError::Internal("Hersteller-Portal: Antwort ohne url".into()))
+        .ok_or_else(|| AppError::Internal("Vendor portal: response missing url".into()))
 }
 
 pub async fn attach_payment_method_remote(
@@ -139,7 +139,7 @@ pub async fn register_practice_onboarding(base: &str, body: Value) -> Result<Val
     let base = base.trim().trim_end_matches('/');
     if base.is_empty() {
         return Err(AppError::Validation(
-            "Hersteller-Portal Basis-URL fehlt.".into(),
+            "Vendor portal base URL is missing.".into(),
         ));
     }
     let url = format!("{base}/v1/register");
@@ -149,17 +149,17 @@ pub async fn register_practice_onboarding(base: &str, body: Value) -> Result<Val
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Hersteller-Portal POST /v1/register: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Vendor portal POST /v1/register: {e}")))?;
     let status = res.status();
     if !status.is_success() {
         let t = res.text().await.unwrap_or_default();
         return Err(AppError::Validation(format!(
-            "Registrierung fehlgeschlagen (HTTP {}): {}",
+            "Registration failed (HTTP {}): {}",
             status,
             t.chars().take(400).collect::<String>()
         )));
     }
     res.json::<Value>()
         .await
-        .map_err(|e| AppError::Internal(format!("Hersteller-Portal JSON /v1/register: {e}")))
+        .map_err(|e| AppError::Internal(format!("Vendor portal JSON /v1/register: {e}")))
 }

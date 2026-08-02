@@ -100,7 +100,7 @@ fn v2_rejects_when_inner_device_mismatch() {
     let envelope = encrypt_v2_for_device(&signed, "device-y").unwrap();
     let status = verify_v2_envelope(envelope.trim_start_matches("v2."), "device-y");
     assert!(!status.valid);
-    assert!(status.reason.unwrap().contains("anderes Gerät"));
+    assert!(status.reason.unwrap().contains("another device"));
 }
 
 #[test]

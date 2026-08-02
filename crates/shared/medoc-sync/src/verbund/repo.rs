@@ -1,4 +1,4 @@
-//! SQLite adapters for Geräteverbund repositories.
+//! SQLite adapters for device-cluster repositories.
 
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
@@ -634,7 +634,7 @@ pub async fn mark_provisioned(pool: &SqlitePool, fingerprint: &str) -> Result<()
     ensure(pool).await?;
     if is_provisioned(pool, fingerprint).await? {
         return Err(AppError::Validation(
-            "Gerät bereits provisioniert (einmalig)".into(),
+            "Device already provisioned (one-time only)".into(),
         ));
     }
     let now = Utc::now().to_rfc3339();

@@ -224,7 +224,7 @@ describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm",
     });
 });
 
-describe("critical flow (c) termin → durchgeführt → zahlung → bezahlt", () => {
+describe("critical flow (c) appointment → completed → payment → paid", () => {
     const calls: string[] = [];
 
     const termin1 = {
@@ -439,7 +439,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
                             },
                         };
                     }
-                    return { valid: false, reason: "Format ungültig", format: null };
+                    return { valid: false, reason: "Invalid format", format: null };
                 }
                 default:
                     throw new Error(`unmocked IPC in flow (g): ${cmd}`);

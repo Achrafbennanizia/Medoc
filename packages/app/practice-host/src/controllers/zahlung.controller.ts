@@ -11,7 +11,7 @@ export async function listZahlungenForPatient(patient_id: string): Promise<Zahlu
     return practiceSystem.invoke<Zahlung[]>("list_zahlungen_for_patient", { patient_id });
 }
 
-/** For patient list: IDs with at least one booking "ausstehend" or "teilbezahlt". */
+/** For patient list: IDs with at least one booking status `ausstehend` or `teilbezahlt` (wire values). */
 export async function listPatientIdsOpenInvoice(): Promise<string[]> {
     return practiceSystem.invoke<string[]>("list_patient_ids_open_invoice");
 }
@@ -53,7 +53,7 @@ export async function deleteZahlung(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_zahlung", { id });
 }
 
-/** Tagesabschluss: marks selected payments as cash-verified (or reverts). */
+/** Day-end close: marks selected payments as cash-verified (or reverts). */
 export async function setZahlungenKasseGeprueft(ids: string[], kasseGeprueft: boolean): Promise<number> {
     return practiceSystem.invoke<number>("set_zahlungen_kasse_geprueft", { ids, kasse_geprueft: kasseGeprueft });
 }

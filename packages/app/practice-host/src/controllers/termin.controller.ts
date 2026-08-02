@@ -24,7 +24,7 @@ export async function createTermin(data: {
     art: string;
     patient_id: string;
     arzt_id: string;
-    /** Freitext / Dauer / interne Hinweise (Rust `CreateTermin.notizen`). */
+    /** Free text / duration / internal notes (Rust `CreateTermin.notizen`). */
     notizen?: string | null;
     beschwerden?: string | null;
 }): Promise<Termin> {

@@ -56,7 +56,7 @@ pub async fn insert(
     Ok(inserted)
 }
 
-/// FA-AUFG-02 — automatische Abrechnungs-Aufgabe nach B/U+Leistung.
+/// FA-AUFG-02 — automatic billing task after B/U + service.
 pub struct AbrechnungAufgabeParams<'a> {
     pub patient_id: &'a str,
     pub created_by: &'a str,
@@ -160,7 +160,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<PraxisAufg
         .map_err(Into::into)
 }
 
-/// Posteingang for the current user — creator/assignee threads + optional REZ pool.
+/// Inbox for the current user — creator/assignee threads + optional REZ pool.
 pub async fn list_for_user(
     pool: &SqlitePool,
     user_id: &str,
@@ -212,7 +212,7 @@ pub async fn count_open_for_user(
     Ok(row.0)
 }
 
-/// Posteingang Rezeption: Pool-Aufgaben (OFFEN, IN_BEARBEITUNG, ZURUECK).
+/// Reception inbox: pool tasks (OFFEN, IN_BEARBEITUNG, ZURUECK).
 pub async fn list_posteingang_rezeption(
     pool: &SqlitePool,
     limit: i64,
@@ -232,7 +232,7 @@ pub async fn list_posteingang_rezeption(
     .map_err(Into::into)
 }
 
-/// Posteingang Arzt: direkt zugewiesene Aufgaben (REZ → ARZT).
+/// Doctor inbox: directly assigned tasks (REZ → ARZT).
 pub async fn list_posteingang_arzt(
     pool: &SqlitePool,
     arzt_id: &str,
@@ -254,7 +254,7 @@ pub async fn list_posteingang_arzt(
     .map_err(Into::into)
 }
 
-/// Posteingang Rezeption: von mir an einen Arzt gesendet (noch offen).
+/// Reception inbox: sent by me to a doctor (still open).
 pub async fn list_outgoing_rezeption(
     pool: &SqlitePool,
     created_by: &str,
@@ -278,7 +278,7 @@ pub async fn list_outgoing_rezeption(
     .map_err(Into::into)
 }
 
-/// Arzt/Rezeption: erledigte Aufgaben zur Validierung (von mir erstellt).
+/// Doctor/reception: completed tasks awaiting validation (created by me).
 pub async fn list_pending_validation(
     pool: &SqlitePool,
     created_by: &str,
@@ -387,7 +387,7 @@ pub async fn update_status(
     Ok(updated)
 }
 
-/// Verwaltung: alle Aufgaben (neueste zuerst).
+/// Admin: all tasks (newest first).
 pub async fn list_all_admin(pool: &SqlitePool, limit: i64) -> Result<Vec<PraxisAufgabe>, AppError> {
     sqlx::query_as::<_, PraxisAufgabe>(
         "SELECT * FROM praxis_aufgabe ORDER BY datetime(updated_at) DESC LIMIT ?1",
@@ -458,7 +458,7 @@ pub async fn update_admin(
         .unwrap_or_else(|| current.status.clone());
     if !AUFGABE_STATUSES.iter().any(|s| *s == status) {
         return Err(AppError::Validation(format!(
-            "Unbekannter Status: {status}"
+            "Unknown status: {status}"
         )));
     }
 
@@ -529,7 +529,7 @@ pub async fn insert_kommentar(
     let text = body.trim();
     if text.is_empty() {
         return Err(AppError::Validation(
-            "Kommentar darf nicht leer sein.".into(),
+            "Comment must not be empty.".into(),
         ));
     }
     let id = uuid::Uuid::new_v4().to_string();

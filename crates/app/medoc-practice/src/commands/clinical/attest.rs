@@ -43,7 +43,7 @@ pub async fn create_attest(
     let session = rbac::require(&session_state, "patient.write_medical")?;
     if data.gueltig_bis < data.gueltig_von {
         return Err(AppError::Validation(
-            "Gültig-bis-Datum darf nicht vor Gültig-von-Datum liegen".into(),
+            "Valid-to date must not be before valid-from date".into(),
         ));
     }
     let a = attest_repo::create(&pool, &data).await?;

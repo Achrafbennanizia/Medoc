@@ -15,7 +15,6 @@ import {
 } from "@/lib/client-settings";
 import {
     CONFIRMATION_AREA_KEYS,
-    CONFIRMATION_AREA_LABELS,
     resolveConfirmationPresentation,
     type AreaOverride,
     type ConfirmationAreaKey,
@@ -52,6 +51,10 @@ function modeDisplayLabel(prefs: ConfirmationPrefs, key: ConfirmationAreaKey, t:
         return resolved === "modal" ? t("settings.workflows.confirm_standard_modal") : t("settings.workflows.confirm_standard_inline");
     }
     return o === "modal" ? t("settings.workflows.confirm_modal") : t("settings.workflows.confirm_inline");
+}
+
+function confirmationAreaLabel(key: ConfirmationAreaKey, t: (key: string) => string): string {
+    return t(`settings.workflows.confirm_area.${key}`);
 }
 
 export type EinstellungenArbeitsablaeufeSectionProps = {
@@ -308,9 +311,7 @@ export function EinstellungenArbeitsablaeufeSection({
                     <div>
                         <b>{t("settings.workflows.autocomplete_title")}</b>
                         <div className="card-sub">
-                            „Meinten Sie …“ bei leerer Patientensuche und im Schnellzugriff (⌘K); nur lokale Schreibhilfe, keine
-                            Backend-Suche. Zustand wird in der Praxisdatenbank gespeichert und bei anderen Arbeitsplätzen nach Login
-                            übernommen.
+                            {t("settings.workflows.autocomplete_hint")}
                         </div>
                     </div>
                     <input
@@ -342,8 +343,10 @@ export function EinstellungenArbeitsablaeufeSection({
                         <div>
                             <b>{t("settings.workflows.onboarding_title")}</b>
                             <div className="card-sub">
-                                Coachmarks pro Route; Fortschritt in der Praxisdatenbank ({stepsForRole(rolle).length}{" "}
-                                Schritte für {rolle}).
+                                {tp("settings.workflows.onboarding_hint", {
+                                    steps: stepsForRole(rolle).length,
+                                    role: rolle,
+                                })}
                             </div>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
@@ -377,8 +380,7 @@ export function EinstellungenArbeitsablaeufeSection({
                     <div>
                         <b>{t("settings.workflows.emergency_toolbar_title")}</b>
                         <div className="card-sub">
-                            CAL2 — Wenn deaktiviert, bleiben die Toolbar-Schaltflächen ausgeblendet; der Notfall-Filter und ein Hinweis auf
-                            der Termin-Seite bleiben verfügbar.
+                            {t("settings.workflows.emergency_toolbar_hint")}
                         </div>
                     </div>
                     <input
@@ -456,15 +458,16 @@ export function EinstellungenArbeitsablaeufeSection({
                                     <tbody>
                                         {CONFIRMATION_AREA_KEYS.map((key: ConfirmationAreaKey) => {
                                             const override = confirmations.areas[key] ?? "inherit";
+                                            const areaLabel = confirmationAreaLabel(key, t);
                                             return (
                                                 <tr key={key}>
-                                                    <td>{CONFIRMATION_AREA_LABELS[key]}</td>
+                                                    <td>{areaLabel}</td>
                                                     <td>{modeDisplayLabel(confirmations, key, t)}</td>
                                                     <td className="settings-confirm-select-cell">
                                                         <Select
                                                             id={`confirm-mode-${key}`}
                                                             className="settings-confirm-select min-w-0"
-                                                            aria-label={tp("settings.workflows.confirm_area_aria", { area: CONFIRMATION_AREA_LABELS[key] })}
+                                                            aria-label={tp("settings.workflows.confirm_area_aria", { area: areaLabel })}
                                                             value={override}
                                                             onChange={(e) =>
                                                                 void persistConfirmationChange(
@@ -473,7 +476,7 @@ export function EinstellungenArbeitsablaeufeSection({
                                                                             key,
                                                                             e.target.value as AreaOverride,
                                                                         ),
-                                                                    `${CONFIRMATION_AREA_LABELS[key]}: ${
+                                                                    `${areaLabel}: ${
                                                                         e.target.value === "inherit"
                                                                             ? t("settings.workflows.override_inherit")
                                                                             : e.target.value === "modal"

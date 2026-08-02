@@ -66,7 +66,7 @@ permissions:
   ops.system: arzt_only
   ops.logs: arzt_only
   ops.audit_chain_ack: arzt_only
-  # Praxis-Aufgaben: Status ändern (FA-AUFG-06 + RBAC).
+  # Practice tasks: change status (FA-AUFG-06 + RBAC).
   aufgabe.status.fulfill: clinical_frontdesk
   # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
   aufgabe.status.admin: arzt_only

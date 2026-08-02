@@ -100,7 +100,7 @@ describe("G21 collaboration contracts", () => {
         expect(praxis?.items).not.toContain("/verwaltung/finanzen-berichte/tagesabschluss");
     });
 
-    it("verwaltung/aufgaben route für ARZT only (Verwaltung)", () => {
+    it("verwaltung/aufgaben route for ARZT only (administration)", () => {
         expect(routeChildPathAllowed("verwaltung/aufgaben", "ARZT")).toBe(true);
         expect(routeChildPathAllowed("verwaltung/aufgaben", "REZEPTION")).toBe(false);
     });

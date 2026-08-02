@@ -1,5 +1,5 @@
-//! Fortlaufende Belegnummern (RE-/BR-) in SQLite — eine gemeinsame Quelle für
-//! PDF-Rechnungen und Tagesberichte (GoBD-taugliche Tagesfolge, kein reiner Zufall).
+//! Sequential document numbers (RE-/BR-/QU-) in SQLite — shared source for
+//! PDF invoices and daily reports (GoBD-oriented daily sequence, not random).
 
 use std::collections::HashMap;
 
@@ -37,9 +37,9 @@ fn normalize_ymd(ymd: &str) -> Result<String, AppError> {
     let head = ymd
         .trim()
         .get(..10)
-        .ok_or_else(|| AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into()))?;
+        .ok_or_else(|| AppError::Validation("Date must be in yyyy-MM-dd format".into()))?;
     NaiveDate::parse_from_str(head, "%Y-%m-%d")
-        .map_err(|_| AppError::Validation("Datum muss im Format yyyy-MM-dd vorliegen".into()))?;
+        .map_err(|_| AppError::Validation("Date must be in yyyy-MM-dd format".into()))?;
     Ok(head.to_string())
 }
 
@@ -47,8 +47,8 @@ fn compact_day(day_yyyy_mm_dd: &str) -> String {
     day_yyyy_mm_dd.replace('-', "")
 }
 
-/// Vergibt die nächste RE- bzw. BR-Nummer für den Kalendertag `ymd` (yyyy-MM-dd).
-/// Persistiert in `app_kv` unter `finanzen.document_counters.v1`.
+/// Allocate the next RE / BR / QU number for calendar day `ymd` (yyyy-MM-dd).
+/// Persisted in `app_kv` under `finanzen.document_counters.v1`.
 /// Uses a dedicated `acquire()` + single `BEGIN IMMEDIATE` (not `pool.begin()` + nested BEGIN).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -65,7 +65,7 @@ pub async fn allocate_invoice_document_number(
     let k = kind.to_uppercase();
     if k != "RE" && k != "BR" && k != "QU" {
         return Err(AppError::Validation(
-            "kind muss „RE“, „BR“ oder „QU“ sein".into(),
+            "kind must be \"RE\", \"BR\", or \"QU\"".into(),
         ));
     }
 

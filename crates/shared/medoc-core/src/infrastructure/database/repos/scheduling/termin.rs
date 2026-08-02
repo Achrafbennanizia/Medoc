@@ -58,7 +58,7 @@ pub async fn create(pool: &SqlitePool, data: &CreateTermin) -> Result<Termin, Ap
 
     let id = uuid::Uuid::new_v4().to_string();
     let art = serde_json::to_string(&data.art)
-        .map_err(|e| AppError::Internal(format!("Termin-Art serialisieren: {e}")))?
+        .map_err(|e| AppError::Internal(format!("Serialize appointment type: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
@@ -102,20 +102,20 @@ pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateTermin) -> Result<
         && check_conflict(pool, datum, uhrzeit, arzt_id, Some(id)).await?
     {
         return Err(AppError::Conflict(
-            konflikt::terminkonflikt_short_message().into(),
+            konflikt::appointment_conflict_short_message().into(),
         ));
     }
 
     let art = match data.art.as_ref() {
         Some(a) => serde_json::to_string(a)
-            .map_err(|e| AppError::Internal(format!("Termin-Art serialisieren: {e}")))?
+            .map_err(|e| AppError::Internal(format!("Serialize appointment type: {e}")))?
             .trim_matches('"')
             .to_uppercase(),
         None => existing.art.clone(),
     };
     let status = match data.status.as_ref() {
         Some(s) => serde_json::to_string(s)
-            .map_err(|e| AppError::Internal(format!("Termin-Status serialisieren: {e}")))?
+            .map_err(|e| AppError::Internal(format!("Serialize appointment status: {e}")))?
             .trim_matches('"')
             .to_uppercase(),
         None => existing.status.clone(),
@@ -168,8 +168,8 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Nächster noch nicht liegender Termin für den Patienten (lokal nach Datum/Uhrzeit).
-/// Schließt abgesagte Termine aus.
+/// Next upcoming appointment for the patient (local by date/time).
+/// Excludes cancelled appointments.
 pub async fn find_next_for_patient(
     pool: &SqlitePool,
     patient_id: &str,

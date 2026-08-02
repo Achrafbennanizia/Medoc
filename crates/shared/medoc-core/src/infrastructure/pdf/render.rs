@@ -1,14 +1,14 @@
-//! Rechnung und Patientenakte als PDF.
+//! Invoice and patient record as PDF.
 //!
-//! Beide Dokumenttypen nutzen den gemeinsamen [`PageBuilder`] aus
-//! [`super::core`] und den DIN-5008-Briefkopf aus [`super::letterhead`].
-//! Damit sind Margins, Schriften, Encoding und Seitenzahlen einheitlich.
+//! Both document types use the shared [`PageBuilder`] from
+//! [`super::core`] and the DIN-5008 letterhead from [`super::letterhead`].
+//! Margins, fonts, encoding, and page numbers are therefore consistent.
 //!
-//! - **Rechnung** ([`render`]) — GOZ/GOÄ-konforme Tabelle mit Position, Datum,
-//!   Zahn, GOZ-Nr., Bezeichnung, Menge, Faktor und Gesamtpreis. Summenblock
-//!   rechts mit USt-Hinweis. Bankverbindung + Zahlungsziel im Fuß.
-//! - **Patientenakte** ([`render_akte_blocks`]) — modulare Blocklisten mit
-//!   Stammdaten, Diagnose, Befunden, Behandlungen, Anlagen-Metadaten etc.
+//! - **Invoice** ([`render`]) — GOZ/GOÄ-compliant table with position, date,
+//!   tooth, GOZ no., description, quantity, factor, and total. Totals block
+//!   on the right with VAT note. Bank details + payment terms in the footer.
+//! - **Patient record** ([`render_akte_blocks`]) — modular block lists with
+//!   master data, diagnosis, findings, treatments, attachment metadata, etc.
 
 use crate::error::AppError;
 
@@ -22,38 +22,38 @@ use super::letterhead::{
 };
 
 // ===========================================================================
-// RECHNUNG
+// INVOICE
 // ===========================================================================
 
-/// Eine Position in der Rechnungstabelle (GOZ / GOÄ).
+/// One line in the invoice table (GOZ / GOÄ).
 #[derive(Debug, Clone)]
 pub struct InvoiceLine {
-    /// Frei-Bezeichnung der Leistung (z. B. "Komposit dreiflächig").
+    /// Free-text service description (e.g. "Komposit dreiflächig").
     pub description: String,
-    /// Gesamtbetrag dieser Position in Cent (Menge × Einzelpreis × Faktor).
+    /// Line total in cents (quantity × unit price × factor).
     pub amount_cents: i64,
-    /// GOZ-/GOÄ-Gebührennummer (z. B. "2197" oder "Ä5000").
+    /// GOZ/GOÄ fee number (e.g. "2197" or "Ä5000").
     pub goz_nr: Option<String>,
-    /// Steigerungsfaktor (GOZ § 5: 1.0–3.5, Standard 2.3).
+    /// Increase factor (GOZ § 5: 1.0–3.5, default 2.3).
     pub faktor: Option<f64>,
-    /// Einzelpreis pro Einheit in Cent (vor Faktor).
+    /// Unit price in cents (before factor).
     pub einzelpreis_cents: Option<i64>,
-    /// Anzahl (default = 1).
+    /// Quantity (default = 1).
     pub menge: Option<i32>,
-    /// FDI-Zahnbezeichnung ("11", "47", "27 mes" …).
+    /// FDI tooth designation ("11", "47", "27 mes" …).
     pub zahn_nr: Option<String>,
-    /// Behandlungsdatum (ISO oder DE).
+    /// Treatment date (ISO or DE).
     pub behandlungsdatum: Option<String>,
-    /// Umsatzsteuersatz (0 = befreit, 19 = Material).
+    /// VAT rate (0 = exempt, 19 = materials).
     pub ust_prozent: Option<f64>,
-    /// Materialkosten / Fremdlabor (gem. § 9 GOZ).
+    /// Material costs / external lab (per GOZ § 9).
     pub material: Option<String>,
-    /// Begründung wenn Faktor > 2.3 (GOZ § 10 Abs. 3 — Pflicht).
+    /// Justification when factor > 2.3 (GOZ § 10 (3) — mandatory).
     pub diagnose_begruendung: Option<String>,
 }
 
 impl InvoiceLine {
-    /// Konstruiert eine minimale Zeile (alle GOZ-Felder leer).
+    /// Construct a minimal line (all GOZ fields empty).
     pub fn simple(description: impl Into<String>, amount_cents: i64) -> Self {
         Self {
             description: description.into(),
@@ -71,11 +71,11 @@ impl InvoiceLine {
     }
 }
 
-/// Komplette Rechnung (alle Pflicht- und Soll-Felder gem. § 14 UStG + GOZ § 10).
+/// Complete invoice (all required/recommended fields per UStG § 14 + GOZ § 10).
 #[derive(Debug, Clone, Default)]
 pub struct Invoice {
     pub number: String,
-    pub date: String, // ISO-Datum (wird intern in DE-Format konvertiert)
+    pub date: String, // ISO date (converted to DE format internally)
     pub recipient_name: String,
     pub recipient_address: Vec<String>,
     pub practice_name: String,
@@ -85,12 +85,12 @@ pub struct Invoice {
     pub behandler_name: Option<String>,
     pub behandler_zanr: Option<String>,
     pub praxis_bsnr: Option<String>,
-    /// Vollständige Bank-Zeilen (z. B. ["IBAN: DE12…", "BIC: COBADEFFXXX",
+    /// Full bank lines (e.g. ["IBAN: DE12…", "BIC: COBADEFFXXX",
     /// "Bank: Commerzbank", "Kontoinhaber: Dr. M. Mustermann"]).
     pub bankverbindung: Option<Vec<String>>,
-    /// Z. B. "Zahlbar innerhalb von 14 Tagen ohne Abzug."
+    /// E.g. "Zahlbar innerhalb von 14 Tagen ohne Abzug."
     pub zahlungsziel_text: Option<String>,
-    /// Z. B. "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"
+    /// E.g. "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"
     pub ust_hinweis: Option<String>,
 }
 
@@ -100,8 +100,8 @@ impl Invoice {
     }
 }
 
-/// Tabellenspalten — als Konstanten, damit Header und Zeilen exakt
-/// dieselben X-Positionen nutzen.
+/// Table columns — as constants so header and rows use
+/// exactly the same X positions.
 mod inv_cols {
     pub const POS: i32 = 50;
     pub const DATUM: i32 = 78;
@@ -110,18 +110,18 @@ mod inv_cols {
     pub const BEZEICHNUNG: i32 = 200;
     pub const MENGE: i32 = 410;
     pub const FAKTOR: i32 = 445;
-    /// Rechtsbündig — gegen diese X-Koordinate alignen.
+    /// Right-aligned — align against this X coordinate.
     pub const PREIS_RIGHT: i32 = 545;
     pub const HEADER_BAND_W: i32 = 495;
-    /// Breite der Bezeichnungs-Spalte in Zeichen (für Wrap).
+    /// Width of the description column in characters (for wrap).
     pub const BEZEICHNUNG_CHARS: usize = 36;
 }
 
-/// Hauptfunktion: rendert eine Rechnung als PDF-Bytes.
+/// Main entry: render an invoice as PDF bytes.
 pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     let mut pb = PageBuilder::new();
 
-    // ---------- Briefkopf (nur erste Seite) -------------------------------
+    // ---------- Letterhead (first page only) ------------------------------
     let mut meta = Vec::new();
     meta.push(MetaRow::new("Rechnung-Nr.", &invoice.number));
     meta.push(MetaRow::new(
@@ -136,7 +136,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         meta.push(MetaRow::new("Behandler:in", b));
     }
 
-    // Praxis-Zeilen + Standesangaben (BSNR/ZANR) in die Kopfzeile
+    // Practice lines + professional IDs (BSNR/ZANR) into the header
     let mut praxis_full = vec![invoice.practice_name.clone()];
     praxis_full.extend(invoice.practice_address.iter().cloned());
     if let (Some(bsnr), zanr) = (
@@ -172,10 +172,10 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(16);
 
-    // ---------- Tabellenkopf ----------------------------------------------
+    // ---------- Table header ----------------------------------------------
     emit_invoice_table_header(&mut pb);
 
-    // ---------- Tabellenzeilen --------------------------------------------
+    // ---------- Table rows ------------------------------------------------
     for (i, line) in invoice.lines.iter().enumerate() {
         if pb.y < M_BOTTOM + 120 {
             pb.break_page();
@@ -185,7 +185,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         emit_invoice_line(&mut pb, i, line);
     }
 
-    // ---------- Summenblock ------------------------------------------------
+    // ---------- Totals block ----------------------------------------------
     pb.advance(8);
     emit_invoice_totals(&mut pb, invoice);
 
@@ -207,7 +207,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         emit_bankverbindung(&mut pb, bank);
     }
 
-    // ---------- Unterschrift -----------------------------------------------
+    // ---------- Signature -------------------------------------------------
     emit_signature_block(
         &mut pb,
         invoice.behandler_name.as_deref(),
@@ -256,18 +256,18 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
         .unwrap_or_else(|| "—".into());
     let preis = format_eur_de(line.amount_cents);
 
-    // Bezeichnung kann mehrzeilig sein → wir wickeln sie um
+    // Description may be multi-line → wrap it
     let bez_lines = wrap_soft(bezeichnung, inv_cols::BEZEICHNUNG_CHARS);
     let row_height = (bez_lines.len() as i32).max(1) * 10 + 4;
 
-    // Falls nicht genug Platz: Umbruch (wird vor Aufruf bereits geprüft, aber
-    // bei sehr langen Bezeichnungen nochmals absichern)
+    // If not enough space: wrap (already checked before call, but
+    // re-guard for very long descriptions)
     if pb.y < M_BOTTOM + row_height + 20 {
-        // Caller hat eigentlich schon umgebrochen; falls trotzdem zu eng:
-        // Bezeichnung kürzen statt überlappen.
+        // Caller should already have wrapped; if still too tight:
+        // truncate description instead of overlapping.
     }
 
-    // Erste Zeile: alle Spalten
+    // First line: all columns
     pb.text(inv_cols::POS, 8, false, &pos);
     pb.text(inv_cols::DATUM, 8, false, &datum);
     pb.text(inv_cols::ZAHN, 8, false, zahn);
@@ -279,13 +279,13 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
     pb.text(inv_cols::FAKTOR, 8, false, &faktor);
     pb.text_right(inv_cols::PREIS_RIGHT, 8, false, &preis);
 
-    // Folgezeilen der Bezeichnung
+    // Continuation lines of the description
     for extra in bez_lines.iter().skip(1) {
         pb.advance(10);
         pb.text(inv_cols::BEZEICHNUNG, 8, false, extra);
     }
 
-    // Material-Subzeile (gem. GOZ § 9: separat ausweisen)
+    // Material sub-line (per GOZ § 9: list separately)
     if let Some(m) = line.material.as_deref().filter(|s| !s.trim().is_empty()) {
         pb.advance(10);
         pb.text(
@@ -296,7 +296,7 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
         );
     }
 
-    // Begründungs-Subzeile (GOZ § 10 Abs. 3: Pflicht bei Faktor > 2.3)
+    // Justification sub-line (GOZ § 10 (3): mandatory when factor > 2.3)
     if let Some(reason) = line
         .diagnose_begruendung
         .as_deref()
@@ -308,7 +308,7 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
         } else {
             "Hinweis"
         };
-        // Label nur in der ersten Zeile, Folgezeilen eingerückt.
+        // Label only on the first line; continuation lines indented.
         let body = format!("   {label}: {reason}");
         for (i, chunk) in wrap_soft(&body, inv_cols::BEZEICHNUNG_CHARS)
             .iter()
@@ -331,7 +331,7 @@ fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
     pb.ensure_space(80);
     let label_right_x = 380;
 
-    // Doppellinie über dem Summenbereich
+    // Double line above the totals area
     pb.hline(300, M_RIGHT);
     pb.advance(3);
     pb.hline(300, M_RIGHT);
@@ -355,16 +355,16 @@ fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
 }
 
 // ===========================================================================
-// PATIENTENAKTE  (modulare Blockliste)
+// PATIENT RECORD  (modular block list)
 // ===========================================================================
 
-/// Tabelle in einem Akte-Block.
+/// Table inside a record block.
 #[derive(Debug, Clone, Default)]
 pub struct AktePdfTable {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
-    /// Optionale Spaltenbreiten (z. B. `[2, 1, 10]` → schmal · schmal · breit).
-    /// Fehlt die Angabe: gleichmäßige Verteilung über [`CONTENT_WIDTH`].
+    /// Optional column weights (e.g. `[2, 1, 10]` → narrow · narrow · wide).
+    /// If omitted: even distribution across [`CONTENT_WIDTH`].
     pub column_weights: Option<Vec<i32>>,
 }
 
@@ -383,7 +383,7 @@ impl AktePdfTable {
     }
 }
 
-/// Ein Abschnitt in der Akte (Stammdaten, Diagnose, Behandlungen, …).
+/// One section in the record (master data, diagnosis, treatments, …).
 #[derive(Debug, Clone, Default)]
 pub struct AktePdfBlock {
     pub title: String,
@@ -421,7 +421,7 @@ impl AktePdfBlock {
     }
 }
 
-/// Alter Single-Document-Modus (für Rückwärtskompatibilität).
+/// Legacy single-document mode (for backward compatibility).
 pub struct AkteDocument {
     pub patient_name: String,
     pub patient_geburtsdatum: String,
@@ -433,8 +433,8 @@ pub struct AkteDocument {
     pub generated_at: String,
 }
 
-/// Praxiskopf-Daten für Akte / Merkblatt (optional — wenn `None` wird ein
-/// schlanker Header ohne DIN-5008-Briefkopf gerendert).
+/// Practice header data for record / fact sheet (optional — when `None` a
+/// slim header without DIN-5008 letterhead is rendered).
 #[derive(Debug, Clone, Default)]
 pub struct AkteHeaderContext {
     pub praxis_lines: Vec<String>,
@@ -446,10 +446,10 @@ pub struct AkteHeaderContext {
     pub dokument_id: Option<String>,
 }
 
-/// Haupt-Renderer für die Patientenakte als PDF (modular).
+/// Main renderer for the patient record as PDF (modular).
 ///
-/// `header` gibt den Praxis-Kontext (Praxiskopf, Behandler) für die erste
-/// Seite vor. Wenn leer, wird nur Titel + Datum oben gerendert.
+/// `header` supplies the practice context (letterhead, provider) for the first
+/// page. When empty, only title + date are rendered at the top.
 pub fn render_akte_blocks(
     doc_title: &str,
     generated_at: &str,
@@ -482,7 +482,7 @@ pub fn render_akte_blocks(
         };
         emit_letterhead(&mut pb, &lh);
     } else {
-        // Schlanker Header: nur Titel + Datum
+        // Slim header: title + date only
         pb.text(M_LEFT, 18, true, doc_title);
         pb.advance(22);
         pb.text(M_LEFT, 9, false, &format!("Erstellt: {generated_at}"));
@@ -491,7 +491,7 @@ pub fn render_akte_blocks(
         pb.advance(20);
     }
 
-    // Dokumenttitel auch bei vorhandenem Briefkopf zentral platzieren
+    // Place document title centrally even when letterhead is present
     if header.is_some() {
         pb.text(M_LEFT, 16, true, doc_title);
         pb.advance(20);
@@ -513,7 +513,7 @@ pub fn render_akte_blocks(
         emit_akte_block(&mut pb, block, &practice_name, doc_title);
     }
 
-    // ---------- DSGVO-Hinweis am Ende -------------------------------------
+    // ---------- GDPR notice at the end ------------------------------------
     if header.is_some() {
         pb.ensure_space(60);
         pb.advance(10);
@@ -542,7 +542,7 @@ fn emit_akte_block(
     practice_name: &str,
     doc_title: &str,
 ) {
-    // Sicherstellen, dass mind. Titel + 2 Zeilen passen
+    // Ensure at least title + 2 lines fit
     pb.ensure_space(48);
     if pb.y < M_BOTTOM + 100 {
         pb.break_page();
@@ -740,7 +740,7 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
     pb.advance(4);
 }
 
-/// Legacy-Wrapper.
+/// Legacy wrapper.
 pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
     let diag = doc
         .diagnose
@@ -873,12 +873,12 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
 }
 
 // ===========================================================================
-// Template-Preview (für Vorlagen-Editor)
+// Template preview (for template editor)
 // ===========================================================================
 
-/// Vorschau-Renderer: nutzt entweder ein strukturiertes Layout
-/// (`layout_json`, siehe `clinical_pdf_layout`) oder die gleiche Briefkopf-/Footer-
-/// Bibliothek über [`clinical_pdf_layout::render_plain_preview`].
+/// Preview renderer: uses either a structured layout
+/// (`layout_json`, see `clinical_pdf_layout`) or the same letterhead/footer
+/// library via [`clinical_pdf_layout::render_plain_preview`].
 pub fn render_template_preview_pdf(
     kind: &str,
     template_name: &str,
@@ -959,8 +959,8 @@ mod tests {
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(pdf.ends_with(b"%%EOF\n"));
 
-        // Sucht nach den Pflichtangaben (entweder als Latin-1 Text oder als
-        // Bytes — Helvetica Helvetica-WinAnsi wir alle als 7-bit ASCII vorliegen).
+        // Look for required fields (either as Latin-1 text or as
+        // bytes — Helvetica WinAnsi values are all 7-bit ASCII).
         let text = String::from_utf8_lossy(&pdf);
         for needle in [
             "Rechnung",

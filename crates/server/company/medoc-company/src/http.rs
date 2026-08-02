@@ -1,4 +1,4 @@
-//! HTTP-API des **MeDoc Company Servers** (`medoc-company-server` Binary).
+//! HTTP API for the **MeDoc Company Server** (`medoc-company-server` binary).
 
 use std::net::SocketAddr;
 use std::sync::Arc;

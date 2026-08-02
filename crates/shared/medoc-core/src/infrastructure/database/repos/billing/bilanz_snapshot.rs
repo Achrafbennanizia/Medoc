@@ -29,14 +29,14 @@ pub async fn create(
     created_by: &str,
 ) -> Result<BilanzSnapshot, AppError> {
     if data.zeitraum.trim().is_empty() {
-        return Err(AppError::Validation("Zeitraum erforderlich".into()));
+        return Err(AppError::Validation("Period required".into()));
     }
     if data.label.trim().is_empty() {
-        return Err(AppError::Validation("Label erforderlich".into()));
+        return Err(AppError::Validation("Label required".into()));
     }
     let saldo = data.einnahmen_cents - data.ausgaben_cents;
     let payload_str = serde_json::to_string(&data.payload)
-        .map_err(|e| AppError::Internal(format!("Snapshot-Payload nicht serialisierbar: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Snapshot payload not serializable: {e}")))?;
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO bilanz_snapshot

@@ -94,7 +94,7 @@ pub fn encode_frame(msg: &WireMessage) -> Result<Vec<u8>, AppError> {
     let mut body = Vec::new();
     into_writer(msg, &mut body).map_err(|e| AppError::Internal(format!("cbor encode: {e}")))?;
     if body.len() > MAX_FRAME {
-        return Err(AppError::Validation("Nachricht zu groß".into()));
+        return Err(AppError::Validation("Message too large".into()));
     }
     let len = u32::try_from(body.len())
         .map_err(|_| AppError::Internal("frame length overflow".into()))?;
@@ -105,12 +105,12 @@ pub fn encode_frame(msg: &WireMessage) -> Result<Vec<u8>, AppError> {
 
 pub fn decode_frame(mut data: &[u8]) -> Result<WireMessage, AppError> {
     if data.len() < 4 {
-        return Err(AppError::Validation("Frame zu kurz".into()));
+        return Err(AppError::Validation("Frame too short".into()));
     }
     let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
     data = &data[4..];
     if len > MAX_FRAME || data.len() < len {
-        return Err(AppError::Validation("Frame-Länge ungültig".into()));
+        return Err(AppError::Validation("Invalid frame length".into()));
     }
     from_reader(&data[..len]).map_err(|e| AppError::Validation(format!("cbor decode: {e}")))
 }
@@ -122,7 +122,7 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<WireMessage, AppError> {
         .map_err(|e| AppError::Internal(format!("read len: {e}")))?;
     let len = u32::from_be_bytes(len_buf) as usize;
     if len > MAX_FRAME {
-        return Err(AppError::Validation("Frame zu groß".into()));
+        return Err(AppError::Validation("Frame too large".into()));
     }
     let mut body = vec![0u8; len];
     reader

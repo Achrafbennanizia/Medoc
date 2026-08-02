@@ -1,4 +1,5 @@
-//! FA-AKTE-04 / FA-DOK-08 — PDF export use cases for patientenakte.
+//! FA-AKTE-04 / FA-DOK-08 — PDF export use cases for the patient chart (`patientenakte`).
+//! User-facing PDF labels remain German (default UI locale `de`) until a locale-aware pass.
 
 use crate::application::auth_service::Session;
 use crate::application::rbac::{self, Role};

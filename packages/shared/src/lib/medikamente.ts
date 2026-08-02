@@ -25,7 +25,7 @@ export const MEDIKAMENT_SUGGESTIONS: MedikamentSuggestion[] = [
     { label: "Ibuprofen 600 mg", wirkstoff: "Ibuprofen", dosierung: "1-0-1" },
     { label: "Paracetamol 500 mg", wirkstoff: "Paracetamol", dosierung: "1-1-1" },
     { label: "Novaminsulfon 500 mg", wirkstoff: "Metamizol", dosierung: "1-1-1" },
-    { label: "Chlorhexidin 0,2 % Mundspülung", wirkstoff: "Chlorhexidin", dosierung: "2x täglich spülen" },
+    { label: "Chlorhexidine 0.2% mouthwash", wirkstoff: "Chlorhexidin", dosierung: "Rinse twice daily" },
     { label: "Dexamethason 4 mg", wirkstoff: "Dexamethason", dosierung: "1-0-0" },
     { label: "Metronidazol 400 mg", wirkstoff: "Metronidazol", dosierung: "1-1-1" },
     { label: "Pantoprazol 20 mg", wirkstoff: "Pantoprazol", dosierung: "1-0-0" },
@@ -45,8 +45,8 @@ export const DARREICHUNGSFORM_OPTIONS = [
     "Salbe",
     "Gel",
     "Spray",
-    "Lösung",
-    "Zäpfchen",
+    "Solution",
+    "Suppository",
 ] as const;
 
 export const PACKUNGSGROESSE_OPTIONS = ["N1", "N2", "N3", "Sonstige"] as const;
@@ -63,8 +63,8 @@ export const DENTAL_ICD10_SUGGESTIONS = [
     "K04.0 — Pulpitis",
     "K05.0 — Akute Gingivitis",
     "K05.3 — Chronische Parodontitis",
-    "K08.1 — Verlust von Zähnen durch Unfall",
-    "K10.2 — Entzündliche Erkrankungen der Kiefer",
+    "K08.1 — Loss of teeth due to accident",
+    "K10.2 — Inflammatory conditions of the jaws",
     "K12.0 — Aphthen",
     "S02.5 — Fraktur des Zahnbogens",
 ] as const;

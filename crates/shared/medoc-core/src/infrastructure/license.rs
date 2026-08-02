@@ -137,7 +137,7 @@ pub fn verify(token: &str, local_device_id: &str) -> LicenseStatus {
 pub fn verify_v1(token: &str) -> LicenseStatus {
     let (body, sig_b64) = match token.rsplit_once('.') {
         Some(s) => s,
-        None => return invalid("Format ungültig — Trennzeichen fehlt"),
+        None => return invalid("Invalid format — separator missing"),
     };
 
     if let Err(e) =
@@ -148,14 +148,14 @@ pub fn verify_v1(token: &str) -> LicenseStatus {
 
     let license: License = match serde_json::from_str(body) {
         Ok(l) => l,
-        Err(e) => return invalid(&format!("Lizenzinhalt ungültig: {e}")),
+        Err(e) => return invalid(&format!("Invalid license content: {e}")),
     };
 
     let now = Utc::now();
     if now > license.expires_at {
         return LicenseStatus {
             valid: false,
-            reason: Some("Lizenz abgelaufen".into()),
+            reason: Some("License expired".into()),
             days_until_expiry: Some((license.expires_at - now).num_days()),
             license: Some(license),
             license_v2: None,
@@ -177,22 +177,22 @@ pub fn verify_v1(token: &str) -> LicenseStatus {
 /// Verify an encrypted v2 envelope. Format: `<nonce_b64>.<ciphertext_b64>`.
 pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatus {
     if local_device_id.trim().is_empty() {
-        return invalid("device_id fehlt — Gerät nicht initialisiert");
+        return invalid("device_id missing — device not initialized");
     }
     let (nonce_b64, ct_b64) = match envelope.split_once('.') {
         Some(s) => s,
-        None => return invalid("v2 Envelope ungültig — Trennzeichen fehlt"),
+        None => return invalid("Invalid v2 envelope — separator missing"),
     };
     let nonce_bytes = match STANDARD_NO_PAD.decode(nonce_b64) {
         Ok(v) => v,
-        Err(e) => return invalid(&format!("Nonce nicht decodierbar: {e}")),
+        Err(e) => return invalid(&format!("Nonce not decodable: {e}")),
     };
     if nonce_bytes.len() != 12 {
-        return invalid("Nonce Länge ungültig");
+        return invalid("Invalid nonce length");
     }
     let ciphertext = match STANDARD_NO_PAD.decode(ct_b64) {
         Ok(v) => v,
-        Err(e) => return invalid(&format!("Ciphertext nicht decodierbar: {e}")),
+        Err(e) => return invalid(&format!("Ciphertext not decodable: {e}")),
     };
 
     let key_bytes = derive_device_key(local_device_id);
@@ -201,16 +201,16 @@ pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatu
     let nonce = Nonce::from_slice(&nonce_bytes);
     let plain = match cipher.decrypt(nonce, ciphertext.as_ref()) {
         Ok(p) => p,
-        Err(_) => return invalid("Lizenz konnte nicht entschlüsselt werden (falsches Gerät?)"),
+        Err(_) => return invalid("Could not decrypt license (wrong device?)"),
     };
     let plaintext = match std::str::from_utf8(&plain) {
         Ok(s) => s,
-        Err(e) => return invalid(&format!("Lizenz-Klartext ungültig: {e}")),
+        Err(e) => return invalid(&format!("Invalid license plaintext: {e}")),
     };
 
     let (body, sig_b64) = match plaintext.rsplit_once('.') {
         Some(s) => s,
-        None => return invalid("v2 Innen-Format ungültig"),
+        None => return invalid("Invalid v2 inner format"),
     };
     if let Err(e) =
         crate::infrastructure::crypto::sig::verify_ed25519(&VENDOR_PUBKEY, body.as_bytes(), sig_b64)
@@ -219,14 +219,14 @@ pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatu
     }
     let license: LicenseV2 = match serde_json::from_str(body) {
         Ok(l) => l,
-        Err(e) => return invalid(&format!("v2 Lizenzinhalt ungültig: {e}")),
+        Err(e) => return invalid(&format!("Invalid v2 license content: {e}")),
     };
     if license.version != 2 {
-        return invalid("Version Mismatch — erwartet v=2");
+        return invalid("Version mismatch — expected v=2");
     }
     if license.device_id.trim() != local_device_id.trim() {
         return invalid(&format!(
-            "Lizenz ist an anderes Gerät gebunden (license={}, lokal={})",
+            "License is bound to another device (license={}, local={})",
             license.device_id, local_device_id
         ));
     }
@@ -245,7 +245,7 @@ pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatu
 /// `<json>.<sig>` into the device-bound AES-GCM envelope.
 pub fn encrypt_v2_for_device(signed_inner: &str, device_id: &str) -> Result<String, AppError> {
     if device_id.trim().is_empty() {
-        return Err(AppError::Validation("device_id leer".into()));
+        return Err(AppError::Validation("device_id empty".into()));
     }
     let key_bytes = derive_device_key(device_id);
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -255,7 +255,7 @@ pub fn encrypt_v2_for_device(signed_inner: &str, device_id: &str) -> Result<Stri
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ct = cipher
         .encrypt(nonce, signed_inner.as_bytes())
-        .map_err(|e| AppError::Internal(format!("Lizenz verschlüsseln: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Encrypt license: {e}")))?;
     Ok(format!(
         "v2.{}.{}",
         STANDARD_NO_PAD.encode(nonce_bytes),
@@ -275,7 +275,7 @@ fn dev_signing_key() -> Result<SigningKey, AppError> {
     let sk = SigningKey::from_bytes(&sk_bytes);
     if sk.verifying_key().to_bytes() != VENDOR_PUBKEY {
         return Err(AppError::Internal(
-            "Dev-Lizenzsignierung nicht verfügbar (VENDOR_PUBKEY passt nicht zum Testschlüssel)."
+            "Dev license signing unavailable (VENDOR_PUBKEY does not match test key)."
                 .into(),
         ));
     }
@@ -289,7 +289,7 @@ pub fn mint_dev_v2_license_envelope(
     edition: &str,
 ) -> Result<String, AppError> {
     if device_id.trim().is_empty() {
-        return Err(AppError::Validation("device_id leer".into()));
+        return Err(AppError::Validation("device_id empty".into()));
     }
     let edition = edition.trim().to_uppercase();
     let lic = LicenseV2 {

@@ -88,11 +88,15 @@ async fn create_rejects_over_open_even_with_float_noise() {
         .await
         .expect_err("over open");
     match err {
-        AppError::Validation(msg) => assert!(
-            msg.contains("übersteigt") || msg.contains("offenen"),
+        AppError::ValidationCode(msg) => assert!(
+            msg.contains("error.zahlung.overpayment"),
             "{msg}"
         ),
-        e => panic!("expected Validation, got {e:?}"),
+        AppError::Validation(msg) => assert!(
+            msg.contains("exceeds") || msg.contains("open"),
+            "{msg}"
+        ),
+        e => panic!("expected overpayment validation, got {e:?}"),
     }
 
     // Within EPS slack vs recomputed open on server
@@ -273,11 +277,15 @@ async fn create_rejects_behandlung_without_physician_release() {
         .await
         .expect_err("must fail without FA-LEIST-05 release");
     match err {
-        AppError::Validation(msg) => assert!(
-            msg.contains("FA-LEIST-05") || msg.contains("freigegeben"),
+        AppError::ValidationCode(msg) => assert!(
+            msg.contains("error.billing.not_released"),
             "{msg}"
         ),
-        e => panic!("expected Validation, got {e:?}"),
+        AppError::Validation(msg) => assert!(
+            msg.contains("FA-LEIST-05") || msg.contains("freigegeben") || msg.contains("released"),
+            "{msg}"
+        ),
+        e => panic!("expected not-released validation, got {e:?}"),
     }
 }
 
@@ -311,8 +319,12 @@ async fn update_fields_caps_replacement_betrag_against_other_rows() {
         .await
         .expect_err("too high");
     match err {
+        AppError::ValidationCode(msg) => assert!(
+            msg.contains("error.zahlung.overpayment"),
+            "{msg}"
+        ),
         AppError::Validation(msg) => assert!(
-            msg.contains("übersteigt") || msg.contains("Rahmen"),
+            msg.contains("exceeds") || msg.contains("open") || msg.contains("limit"),
             "{msg}"
         ),
         e => panic!("expected Validation, got {e:?}"),

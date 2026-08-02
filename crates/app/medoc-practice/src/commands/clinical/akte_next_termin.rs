@@ -1,4 +1,4 @@
-//! Next-termin planning hint (per patient, replaces browser `localStorage`).
+//! Next-appointment planning hint (per patient, replaces browser `localStorage`).
 //!
 //! Invoke payload keys follow Tauri v2 defaults (**camelCase**, e.g. `patientId`, `hintJson`).
 //! The frontend centralizes snake_case ↔ camelCase mirroring in `services/tauri.service.ts`.

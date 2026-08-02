@@ -128,7 +128,7 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
     { to: "/statistik", labelKey: "nav.statistik", visibility: { kind: "roles", roles: ["ARZT"] } },
     {
         to: "/einstellungen",
-        labelKey: "nav.einstellungen",
+        labelKey: "nav.settings",
         visibility: { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
     },
 ];
@@ -317,11 +317,11 @@ export type SettingsSectionId =
     | "system"
     | "ueber";
 
-/** Einstellungen sub-panels (page is already gated by `einstellungen` route). */
+/** Settings sub-panels (page is already gated by `einstellungen` route). */
 export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavVisibility>> = {
     migration: { kind: "action", action: "ops.migration" },
     system: { kind: "anyOf", actions: ["ops.backup", "ops.system", "ops.logs"] },
-    /** Lizenz-Aktivierung, Abo-Portal — Praxisleitung / IT (ops.system). */
+    /** License activation, subscription portal — practice lead / IT (ops.system). */
     lizenz: { kind: "action", action: "ops.system" },
     /** Manufacturer interfaces — not for front desk. */
     integrationen: { kind: "action", action: "ops.system" },

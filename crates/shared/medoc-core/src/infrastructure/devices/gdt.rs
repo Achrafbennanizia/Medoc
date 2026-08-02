@@ -1,4 +1,4 @@
-// GDT (Geräte-Daten-Träger) — file-based exchange format used between dental
+// GDT (device data carrier) — file-based exchange format used between dental
 // devices and PVS systems. Records are line-oriented:
 //
 //   <length:3><field-id:4><content>\r\n
@@ -61,7 +61,7 @@ pub fn parse(content: &str) -> GdtRecord {
     rec
 }
 
-/// Build a GDT file body for an outgoing patient/befund record.
+/// Build a GDT file body for an outgoing patient/findings record.
 pub fn build(satzart: &str, patient_id: &str, patient_name: &str) -> String {
     let mut out = String::new();
     let mut push = |field: &str, value: &str| {

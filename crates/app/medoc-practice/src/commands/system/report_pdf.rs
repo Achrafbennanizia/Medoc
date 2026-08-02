@@ -1,4 +1,4 @@
-//! PDF export for practice reports (Statistik, Bilanz, Einnahmen).
+//! PDF export for practice reports (statistics, balance, revenue).
 
 use tauri::State;
 
@@ -7,7 +7,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::pdf_export::{render_report_pdf, ReportPdfInput};
 
-/// Structured practice report → PDF bytes (same renderer as Akte / Merkblatt).
+/// Structured practice report → PDF bytes (same renderer as chart / leaflet export).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state, input))]
 pub fn render_report_pdf_command(

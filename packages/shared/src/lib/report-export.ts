@@ -47,7 +47,7 @@ function escapeCsvCell(v: string | number): string {
 function practiceContext(): { practiceName: string; practiceAddress: string[] } {
     const praxis = getInvoicePraxisFromStorage();
     return {
-        practiceName: praxis.name?.trim() || "Zahnarztpraxis",
+        practiceName: praxis.name?.trim() || "Dental practice",
         practiceAddress: buildInvoiceHeaderAddressLinesForExport(praxis),
     };
 }
@@ -203,7 +203,7 @@ function todayLocalized(locale: Locale): string {
     return new Date().toLocaleDateString(bcp47ForLocale(locale));
 }
 
-/** Statistik page — full overview including Einnahmen (income) section. */
+/** Statistics page — full overview including income section. */
 export function buildStatistikReportBundle(stats: StatistikOverview, period: Period, locale?: Locale): ReportBundle {
     const loc = locale ?? useLocale.getState().locale;
     const tr = (key: string) => translateLocale(loc, key);
@@ -315,28 +315,28 @@ export function buildBilanzReportBundle(
     ]);
 
     return {
-        docTitle: "Bilanz — Einnahmenbericht",
-        exportTitle: "Bilanz exportieren",
-        hint: "Einnahmen, Ausstehend, Monatsverlauf und Snapshots — PDF mit Praxis-Briefkopf.",
+        docTitle: "Balance — income report",
+        exportTitle: "Export balance",
+        hint: "Income, outstanding, monthly trend and snapshots — PDF with practice letterhead.",
         suggestedBasename: `medoc-bilanz-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Einnahmen (bezahlt)", value: formatCurrency(bilanz.einnahmen) },
-            { label: "Ausstehend", value: formatCurrency(bilanz.ausstehend) },
-            { label: "Storniert", value: formatCurrency(bilanz.storniert) },
-            { label: "Anzahl Zahlungen", value: String(bilanz.anzahl_zahlungen) },
+            { label: "Income (paid)", value: formatCurrency(bilanz.einnahmen) },
+            { label: "Outstanding", value: formatCurrency(bilanz.ausstehend) },
+            { label: "Cancelled", value: formatCurrency(bilanz.storniert) },
+            { label: "Payment count", value: String(bilanz.anzahl_zahlungen) },
         ],
         sections: [
             {
-                title: "Monatlicher Verlauf (letzte 12 Monate)",
-                headers: ["Monat", "Einnahmen", "Ausstehend", "Storniert"],
+                title: "Monthly trend (last 12 months)",
+                headers: ["Month", "Income", "Outstanding", "Cancelled"],
                 rows: monthRows,
             },
             ...(snapRows.length > 0
                 ? [
                       {
-                          title: "Gespeicherte Bilanz-Snapshots",
-                          headers: ["Label", "Einnahmen", "Ausgaben", "Saldo"],
+                          title: "Saved balance snapshots",
+                          headers: ["Label", "Income", "Expenses", "Balance"],
                           rows: snapRows,
                       },
                   ]
@@ -360,18 +360,18 @@ export interface FinanzKpiSnapshot {
 
 function zahlungsartLabelFin(art: string): string {
     const map: Record<string, string> = {
-        BAR: "Bar",
-        KARTE: "Karte",
-        UEBERWEISUNG: "Überweisung",
-        RECHNUNG: "Rechnung",
+        BAR: "Cash",
+        KARTE: "Card",
+        UEBERWEISUNG: "Bank transfer",
+        RECHNUNG: "Invoice",
     };
     return map[art] ?? art;
 }
 
 function finanzVorgangText(z: Zahlung): string {
-    const bezug = z.behandlung_id ? "Behandlung" : z.untersuchung_id ? "Untersuchung" : "Direktzahlung";
+    const bezug = z.behandlung_id ? "Treatment" : z.untersuchung_id ? "Examination" : "Direct payment";
     const note = (z.beschreibung ?? "").trim();
-    if (note) return bezug === "Direktzahlung" ? note : `${bezug} — ${note}`;
+    if (note) return bezug === "Direct payment" ? note : `${bezug} — ${note}`;
     return bezug;
 }
 
@@ -388,7 +388,7 @@ export function buildFinanzenReportBundle(
             const z = r.z;
             return [
                 formatDate(z.created_at),
-                "Zahlung",
+                "Payment",
                 finanzVorgangText(z),
                 patientNames.get(z.patient_id) ?? "—",
                 zahlungsartLabelFin(z.zahlungsart),
@@ -399,8 +399,8 @@ export function buildFinanzenReportBundle(
         const b = r.b;
         return [
             formatDate(b.created_at),
-            "Bestellung",
-            `Bestellung: ${b.artikel}`,
+            "Order",
+            `Order: ${b.artikel}`,
             b.lieferant,
             "—",
             b.status,
@@ -409,22 +409,22 @@ export function buildFinanzenReportBundle(
     });
 
     return {
-        docTitle: "Finanzen — Transaktionsbericht",
-        exportTitle: "Finanzen exportieren",
-        hint: `${filterLabel} · PDF mit Praxis-Briefkopf oder CSV/JSON/XML.`,
+        docTitle: "Finance — transaction report",
+        exportTitle: "Export finance",
+        hint: `${filterLabel} · PDF with practice letterhead or CSV/JSON/XML.`,
         suggestedBasename: `medoc-finanzen-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
             { label: "Filter", value: filterLabel },
-            { label: "Einnahmen MTD", value: formatCurrency(kpi.einnM) },
-            { label: "Storni MTD", value: formatCurrency(kpi.st) },
-            { label: "Gewinn MTD (netto)", value: formatCurrency(kpi.gew) },
-            { label: "Offene Posten", value: `${kpi.offeneN} (${formatCurrency(kpi.offeneSum)})` },
+            { label: "Income MTD", value: formatCurrency(kpi.einnM) },
+            { label: "Cancellations MTD", value: formatCurrency(kpi.st) },
+            { label: "Profit MTD (net)", value: formatCurrency(kpi.gew) },
+            { label: "Open items", value: `${kpi.offeneN} (${formatCurrency(kpi.offeneSum)})` },
         ],
         sections: [
             {
-                title: "Transaktionen",
-                headers: ["Datum", "Typ", "Vorgang", "Gegenpartei", "Zahlungsart", "Status", "Betrag"],
+                title: "Transactions",
+                headers: ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount"],
                 rows: txRows,
             },
         ],
@@ -443,26 +443,26 @@ export function buildComplianceReportBundle(
         const v = data as VVT;
         const sections = v.activities.map((a) => ({
             title: a.name,
-            headers: ["Feld", "Inhalt"],
+            headers: ["Field", "Content"],
             rows: [
-                ["Zweck", a.purpose],
-                ["Rechtsgrundlage", a.legal_basis],
-                ["Datenkategorien", a.data_categories.join("; ")],
-                ["Betroffene", a.data_subjects.join("; ")],
-                ["Empfänger", a.recipients.join("; ")],
-                ["Aufbewahrung", a.retention],
-                ["Technische Maßnahmen", a.technical_measures.join("; ")],
-                ["Organisatorische Maßnahmen", a.organisational_measures.join("; ")],
+                ["Purpose", a.purpose],
+                ["Legal basis", a.legal_basis],
+                ["Data categories", a.data_categories.join("; ")],
+                ["Data subjects", a.data_subjects.join("; ")],
+                ["Recipients", a.recipients.join("; ")],
+                ["Retention", a.retention],
+                ["Technical measures", a.technical_measures.join("; ")],
+                ["Organisational measures", a.organisational_measures.join("; ")],
             ],
         }));
         return {
-            docTitle: "Verzeichnis der Verarbeitungstätigkeiten (VVT)",
-            exportTitle: "Compliance-Bericht exportieren",
-            hint: "Art. 30 DSGVO · PDF/CSV/JSON/XML — gleicher Renderer wie Finanzberichte.",
+            docTitle: "Record of processing activities (ROPA / VVT)",
+            exportTitle: "Export compliance report",
+            hint: "GDPR Art. 30 · PDF/CSV/JSON/XML — same renderer as finance reports.",
             suggestedBasename: `medoc-vvt-${dateStamp}`,
             generatedAt: formatDateTime(v.generated_at),
             summary: [
-                { label: "Verantwortlicher", value: v.controller },
+                { label: "Controller", value: v.controller },
                 { label: "System", value: v.system },
                 { label: "Version", value: v.system_version },
             ],
@@ -480,9 +480,9 @@ export function buildComplianceReportBundle(
             s.mitigations.join("; "),
         ]);
         return {
-            docTitle: "Datenschutz-Folgenabschätzung (DSFA)",
-            exportTitle: "Compliance-Bericht exportieren",
-            hint: "Art. 35 DSGVO · PDF/CSV/JSON/XML.",
+            docTitle: "Data protection impact assessment (DPIA / DSFA)",
+            exportTitle: "Export compliance report",
+            hint: "GDPR Art. 35 · PDF/CSV/JSON/XML.",
             suggestedBasename: `medoc-dsfa-${dateStamp}`,
             generatedAt: formatDateTime(d.generated_at),
             summary: [
@@ -491,18 +491,18 @@ export function buildComplianceReportBundle(
             ],
             sections: [
                 {
-                    title: "Beschreibung der Verarbeitung",
-                    headers: ["Abschnitt", "Inhalt"],
-                    rows: [["Überblick", d.processing_overview]],
+                    title: "Processing description",
+                    headers: ["Section", "Content"],
+                    rows: [["Overview", d.processing_overview]],
                 },
                 {
-                    title: "Notwendigkeit und Verhältnismäßigkeit",
-                    headers: ["Abschnitt", "Inhalt"],
-                    rows: [["Bewertung", d.necessity_proportionality]],
+                    title: "Necessity and proportionality",
+                    headers: ["Section", "Content"],
+                    rows: [["Assessment", d.necessity_proportionality]],
                 },
                 {
-                    title: "Risikoszenarien",
-                    headers: ["Nr.", "Bedrohung", "Wahrscheinlichkeit", "Auswirkung", "Restrisiko", "Maßnahmen"],
+                    title: "Risk scenarios",
+                    headers: ["No.", "Threat", "Likelihood", "Impact", "Residual risk", "Measures"],
                     rows: scenarioRows,
                 },
             ],
@@ -510,22 +510,22 @@ export function buildComplianceReportBundle(
     }
     const r = data as LogRetentionReport;
     return {
-        docTitle: "Log-Retention — Ausführungsbericht",
-        exportTitle: "Compliance-Bericht exportieren",
-        hint: "Retention-Lauf · PDF/CSV/JSON/XML.",
+        docTitle: "Log retention — run report",
+        exportTitle: "Export compliance report",
+        hint: "Retention run · PDF/CSV/JSON/XML.",
         suggestedBasename: `medoc-retention-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Geprüfte Einträge", value: String(r.scanned) },
-            { label: "Beibehalten", value: String(r.kept) },
-            { label: "Gelöscht", value: String(r.deleted.length) },
-            { label: "Fehler", value: String(r.errors.length) },
+            { label: "Entries scanned", value: String(r.scanned) },
+            { label: "Kept", value: String(r.kept) },
+            { label: "Deleted", value: String(r.deleted.length) },
+            { label: "Errors", value: String(r.errors.length) },
         ],
         sections: [
             ...(r.deleted.length > 0
                 ? [
                       {
-                          title: "Gelöschte Referenzen",
+                          title: "Deleted references",
                           headers: ["ID"],
                           rows: r.deleted.map((id) => [id]),
                       },
@@ -534,8 +534,8 @@ export function buildComplianceReportBundle(
             ...(r.errors.length > 0
                 ? [
                       {
-                          title: "Fehler",
-                          headers: ["Meldung"],
+                          title: "Errors",
+                          headers: ["Message"],
                           rows: r.errors.map((e) => [e]),
                       },
                   ]
@@ -554,36 +554,36 @@ export function buildAuditReportBundleFromCsv(csvText: string, totalHint?: numbe
         r[3] ?? "",
         r[4] ?? "",
         r[6] ?? "",
-        r[7] === "1" ? "Ja" : "Nein",
+        r[7] === "1" ? "Yes" : "No",
         r[2] ?? "",
     ]);
     return {
-        docTitle: "Audit-Log — Vollständiger Export",
-        exportTitle: "Audit-Log exportieren",
-        hint: "Vollständiger Audit-Trail · PDF mit Praxis-Briefkopf oder CSV/JSON/XML.",
+        docTitle: "Audit log — full export",
+        exportTitle: "Export audit log",
+        hint: "Full audit trail · PDF with practice letterhead or CSV/JSON/XML.",
         suggestedBasename: `medoc-audit-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Einträge", value: String(totalHint ?? dataRows.length) },
-            { label: "Exportumfang", value: "Vollständig (Backend)" },
+            { label: "Entries", value: String(totalHint ?? dataRows.length) },
+            { label: "Export scope", value: "Full (backend)" },
         ],
         sections: [
             {
-                title: "Audit-Einträge",
-                headers: ["Zeitpunkt", "Aktion", "Entität", "Details", "Notfall", "Benutzer"],
+                title: "Audit entries",
+                headers: ["Timestamp", "Action", "Entity", "Details", "Emergency", "User"],
                 rows: tableRows,
             },
         ],
     };
 }
 
-/** Legacy comma-separated Finanzen CSV (Excel-compatible). */
+/** Legacy comma-separated finance CSV (Excel-compatible). */
 export function finanzenTransactionsToLegacyCsv(
     rows: FinanzTxRow[],
     patientNames: Map<string, string>,
 ): string {
     const esc = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-    const header = ["Datum", "Typ", "Vorgang", "Gegenpartei", "Zahlungsart", "Status", "Betrag_EUR", "Notiz"];
+    const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
     const lines = [header.map(esc).join(",")];
     for (const r of rows) {
         if (r.kind === "zahlung") {
@@ -591,7 +591,7 @@ export function finanzenTransactionsToLegacyCsv(
             lines.push(
                 [
                     formatDate(z.created_at),
-                    "Zahlung",
+                    "Payment",
                     finanzVorgangText(z),
                     patientNames.get(z.patient_id) ?? "—",
                     zahlungsartLabelFin(z.zahlungsart),
@@ -607,8 +607,8 @@ export function finanzenTransactionsToLegacyCsv(
             lines.push(
                 [
                     formatDate(b.created_at),
-                    "Bestellung",
-                    `Bestellung: ${b.artikel}`,
+                    "Order",
+                    `Order: ${b.artikel}`,
                     b.lieferant,
                     "—",
                     b.status,

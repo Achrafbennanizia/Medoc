@@ -52,7 +52,7 @@ export function UserAccountMenuDropdown({
             <div className="menu-sep" />
             <div className="menu-list">
                 <button type="button" className="menu-item" role="menuitem" onClick={onSettings}>
-                    {t("nav.einstellungen")}
+                    {t("nav.settings")}
                 </button>
                 <button type="button" className="menu-item" role="menuitem" onClick={onShortcuts}>
                     {helpNavLabel ?? t("account.menu_help")}

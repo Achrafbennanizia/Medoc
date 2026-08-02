@@ -1,4 +1,4 @@
-//! FA-AUFG-01..06 — Praxis-Aufgaben (bidirektional, Statusmaschine).
+//! FA-AUFG-01..06 — Practice tasks (bidirectional, status machine).
 use crate::application::auth_service::Session;
 use crate::application::rbac::{self, effective_allowed, Role};
 use crate::commands::auth_commands::SessionState;
@@ -16,7 +16,7 @@ use tauri::State;
 
 const AUFGABE_TYPS: &[&str] = &["ABRECHNUNG", "TERMIN", "DRUCK", "STAMMDATEN", "SONSTIGES"];
 
-/// Posteingang visibility or Praxis-Aufgaben admin (`verwaltung.read`).
+/// Inbox visibility or practice-task admin (`verwaltung.read`).
 fn assert_aufgabe_readable(
     session: &Session,
     role: Role,
@@ -44,7 +44,7 @@ fn normalize_typ(raw: &str) -> Result<String, AppError> {
         Ok(t)
     } else {
         Err(AppError::Validation(format!(
-            "Unbekannter Aufgabentyp: {t} (erlaubt: {})",
+            "Unknown task type: {t} (allowed: {})",
             AUFGABE_TYPS.join(", ")
         )))
     }
@@ -202,7 +202,7 @@ pub async fn transition_praxis_aufgabe(
             .is_some_and(|s| !s.is_empty());
         if !has_note && !has_zahl {
             return Err(AppError::Validation(
-                "Kurznotiz oder Zahlungs-Verknüpfung erforderlich (FA-AUFG-04).".into(),
+                "Short note or payment link required (FA-AUFG-04).".into(),
             ));
         }
     }
@@ -210,7 +210,7 @@ pub async fn transition_praxis_aufgabe(
         let reason = args.zurueck_begruendung.as_deref().unwrap_or("").trim();
         if reason.is_empty() {
             return Err(AppError::Validation(
-                "Begründung für Zurück an Rezeption ist Pflicht (FA-AUFG-05).".into(),
+                "Reason for return to reception is required (FA-AUFG-05).".into(),
             ));
         }
     }

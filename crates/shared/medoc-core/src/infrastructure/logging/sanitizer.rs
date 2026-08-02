@@ -64,7 +64,7 @@ fn log_dir_candidates() -> Vec<PathBuf> {
 /// Replace a patient id in rolling log files (best-effort; skips unreadable files).
 pub fn redact_patient_id_in_logs(patient_id: &str) -> Result<LogRedactionReport, AppError> {
     if patient_id.trim().is_empty() {
-        return Err(AppError::Validation("patient_id fehlt".into()));
+        return Err(AppError::Validation("patient_id missing".into()));
     }
     let replacement = format!(
         "[REDACTED-patient-{}]",

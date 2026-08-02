@@ -23,7 +23,7 @@ import { bundleAttestExport, suggestAttestExportBasename, type ClinicalDocumentE
 import { useT, useTParams } from "@/lib/i18n";
 
 /**
- * Attestverwaltung (FA-ATT-01..04).
+ * Certificate management (FA-ATT-01..04).
  */
 export function AttestePage() {
     const t = useT();

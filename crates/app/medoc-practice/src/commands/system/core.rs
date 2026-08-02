@@ -70,7 +70,7 @@ pub async fn activate_license(
 }
 
 /// Read the currently-installed license (prefers v2). Returns
-/// `valid=false, reason="Keine Lizenz aktiviert"` when none exists.
+/// `valid=false` with a “no license activated” reason when none exists.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn current_license_status(
@@ -95,7 +95,7 @@ pub async fn clear_license(
     let app_data_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
 
     medoc_sync::verbund::services::wipe_desktop_network_state(
         &pool,
@@ -147,7 +147,7 @@ pub struct UpdateInfo {
     pub source: String,
 }
 
-/// Ruft optional das **Hersteller-Portal** oder **GitHub Releases** (CI) auf.
+/// Optionally queries the **vendor portal** or **GitHub Releases** (CI).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn check_for_updates(
@@ -245,7 +245,7 @@ pub async fn install_available_update(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let Some(update) = checked else {
-        return Err(AppError::Validation("Kein Update verfügbar".into()));
+        return Err(AppError::Validation("No update available".into()));
     };
     update
         .download_and_install(

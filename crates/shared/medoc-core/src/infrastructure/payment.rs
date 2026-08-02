@@ -47,10 +47,10 @@ pub enum PaymentStatus {
 /// banner until real terminals are integrated.
 pub fn process(req: &PaymentRequest) -> Result<PaymentReceipt, AppError> {
     if req.amount_cents <= 0 {
-        return Err(AppError::Validation("Betrag muss positiv sein".into()));
+        return Err(AppError::Validation("Amount must be positive".into()));
     }
     if req.currency != "EUR" {
-        return Err(AppError::Validation("Nur EUR unterstützt".into()));
+        return Err(AppError::Validation("Only EUR supported".into()));
     }
 
     let now = std::time::SystemTime::now()

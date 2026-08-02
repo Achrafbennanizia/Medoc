@@ -20,7 +20,7 @@ pub struct PreviewDocumentPdfArgs {
     pub layout_json: Option<String>,
 }
 
-/// Produktiver PDF-Inhalt (gleicher Renderer wie Vorlagen-Vorschau), Zeilen aus strukturierten Daten — kein Roh-HTML.
+/// Production PDF content (same renderer as template preview); lines from structured data — no raw HTML.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state, args))]
 pub fn preview_document_pdf(
@@ -29,7 +29,7 @@ pub fn preview_document_pdf(
 ) -> Result<String, AppError> {
     rbac::require_authenticated(&session_state)?;
     let v: serde_json::Value = serde_json::from_str(&args.template_payload_json)
-        .map_err(|e| AppError::Validation(format!("Vorlage JSON: {e}")))?;
+        .map_err(|e| AppError::Validation(format!("Template JSON: {e}")))?;
     let body_pt = v
         .get("bodyPt")
         .and_then(|x| x.as_u64())

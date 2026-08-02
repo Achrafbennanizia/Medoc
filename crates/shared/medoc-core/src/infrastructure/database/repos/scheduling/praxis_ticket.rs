@@ -57,7 +57,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<PraxisTick
         .map_err(AppError::from)
 }
 
-/// Tickets an den eingeloggten Arzt (offen + in Bearbeitung zuerst).
+/// Tickets for the logged-in doctor (open + in progress first).
 pub async fn list_for_arzt(
     pool: &SqlitePool,
     arzt_id: &str,
@@ -78,7 +78,7 @@ pub async fn list_for_arzt(
     Ok(rows)
 }
 
-/// Von der Rezeption erstellte Tickets (Übersicht).
+/// Tickets created by reception (overview).
 pub async fn list_created_by(
     pool: &SqlitePool,
     from_user_id: &str,

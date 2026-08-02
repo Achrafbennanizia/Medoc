@@ -114,7 +114,7 @@ export type AkteNextTerminPendingRow = {
     hintJson: string;
 };
 
-/** Patients with a non-empty next-Termin hint (Dashboard / Rezeption). */
+/** Patients with a non-empty next-appointment hint (dashboard / reception). */
 export async function listAkteNextTerminHintsPending(): Promise<AkteNextTerminPendingRow[]> {
     return practiceSystem.invoke<AkteNextTerminPendingRow[]>("list_akte_next_termin_hints_pending");
 }

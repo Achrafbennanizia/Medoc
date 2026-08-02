@@ -399,7 +399,7 @@ fn pick_bearer(deployment: &SyncDeploymentConfig) -> Result<String, AppError> {
         return Ok(deployment.master_access_token.clone());
     }
     Err(AppError::Validation(
-        "Replica nicht gekoppelt — Pairing-Maske ausführen".into(),
+        "Replica not paired — complete the pairing flow".into(),
     ))
 }
 

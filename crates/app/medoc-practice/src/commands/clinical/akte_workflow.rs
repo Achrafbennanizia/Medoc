@@ -1,4 +1,4 @@
-//! FA-AKTE-14/15, FA-PERS-08 — Akten-Workflow (Validierungs-Warteschlange, Weiterleitung, Tickets).
+//! FA-AKTE-14/15, FA-PERS-08 — Chart workflow (validation queue, forwarding, tickets).
 use crate::application::rbac::{self, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::services::workflow_transitions;
@@ -142,9 +142,9 @@ pub async fn forward_akte_to_physicians(
         "note": note,
     });
     let payload_str = payload.to_string();
-    let title = "Akte — Review angefragt";
+    let title = "Chart — review requested";
     let body = if note.is_empty() {
-        format!("{from_name} bittet um Prüfung der Akte ({patient_name}).")
+        format!("{from_name} requests a chart review ({patient_name}).")
     } else {
         format!("{from_name} ({patient_name}): {note}")
     };
@@ -162,7 +162,7 @@ pub async fn forward_akte_to_physicians(
         )
         .await?;
     }
-    let details = format!("an {} Empfänger", ids.len());
+    let details = format!("to {} recipient(s)", ids.len());
     audit_repo::create(
         &pool,
         &session.user_id,

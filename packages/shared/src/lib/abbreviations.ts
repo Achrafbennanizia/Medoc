@@ -3,23 +3,25 @@ export type LabelPair = { full: string; short: string; aria: string };
 /**
  * Curated short forms for cramped UI (toolbars, table headers). Never use raw ellipsis truncation
  * for these concepts — use `pickLabel` + {@link ResponsiveLabel}.
+ *
+ * English source strings; wire DE/AR/FR via i18n when consumers pass a locale (PROPOSED).
  */
 export const LABELS = {
-    bestellnummer: { full: "Bestellnummer", short: "Best.-Nr.", aria: "Bestellnummer" },
-    behandlungsnummer: { full: "Behandlungsnummer", short: "B-Nr.", aria: "Behandlungsnummer" },
-    untersuchungsnummer: { full: "Untersuchungsnummer", short: "U-Nr.", aria: "Untersuchungsnummer" },
-    sitzungsnummer: { full: "Sitzungsnummer", short: "Sitz.", aria: "Sitzungsnummer" },
-    zahlungsart_ueberweisung: { full: "Überweisung", short: "Überw.", aria: "Überweisung" },
-    zahlungsart_rechnung: { full: "Rechnung", short: "Rechn.", aria: "Rechnung" },
-    zahlungsart_bar: { full: "Barzahlung", short: "Bar", aria: "Barzahlung" },
-    zahlungsart_karte: { full: "Karte", short: "Karte", aria: "Kartenzahlung" },
-    leistung: { full: "Leistung", short: "Leist.", aria: "Leistung" },
-    patientenakte: { full: "Patientenakte", short: "Akte", aria: "Patientenakte" },
-    geburtsdatum: { full: "Geburtsdatum", short: "Geb.-Dat.", aria: "Geburtsdatum" },
-    kontakt: { full: "Kontakt", short: "Kont.", aria: "Kontakt" },
-    verfuegbarkeit: { full: "Verfügbarkeit", short: "Verf.", aria: "Verfügbarkeit" },
-    steuernummer: { full: "Steuernummer", short: "St.-Nr.", aria: "Steuernummer" },
-    kv_nummer: { full: "KV-Nummer", short: "KV-Nr.", aria: "Kassenärztliche Verbindungsnummer" },
+    bestellnummer: { full: "Order number", short: "Ord. no.", aria: "Order number" },
+    behandlungsnummer: { full: "Treatment number", short: "T-no.", aria: "Treatment number" },
+    untersuchungsnummer: { full: "Examination number", short: "E-no.", aria: "Examination number" },
+    sitzungsnummer: { full: "Session number", short: "Sess.", aria: "Session number" },
+    zahlungsart_ueberweisung: { full: "Bank transfer", short: "Xfer", aria: "Bank transfer" },
+    zahlungsart_rechnung: { full: "Invoice", short: "Inv.", aria: "Invoice" },
+    zahlungsart_bar: { full: "Cash", short: "Cash", aria: "Cash payment" },
+    zahlungsart_karte: { full: "Card", short: "Card", aria: "Card payment" },
+    leistung: { full: "Service", short: "Svc.", aria: "Service" },
+    patientenakte: { full: "Patient record", short: "Record", aria: "Patient record" },
+    geburtsdatum: { full: "Date of birth", short: "DOB", aria: "Date of birth" },
+    kontakt: { full: "Contact", short: "Cont.", aria: "Contact" },
+    verfuegbarkeit: { full: "Availability", short: "Avail.", aria: "Availability" },
+    steuernummer: { full: "Tax number", short: "Tax no.", aria: "Tax number" },
+    kv_nummer: { full: "KV number", short: "KV no.", aria: "Statutory health insurance connection number" },
 } as const satisfies Record<string, LabelPair>;
 
 export type LabelKey = keyof typeof LABELS;

@@ -1,4 +1,4 @@
-//! FA-AUFG-04/05 — In-App-Benachrichtigungen für Praxis-Aufgaben-Workflow.
+//! FA-AUFG-04/05 — In-app notifications for the practice-task workflow.
 use crate::domain::entities::praxis_aufgabe::PraxisAufgabe;
 use crate::error::AppError;
 use crate::infrastructure::database::{in_app_notification_repo, patient_repo, personal_repo};
@@ -18,13 +18,13 @@ pub async fn notify_creator_if_aufgabe_erledigt_by_other(
     }
     let pname = patient_name(pool, before.patient_id.as_deref()).await?;
     let title = if pname.is_empty() {
-        format!("Aufgabe erledigt: {}", before.titel.trim())
+        format!("Task completed: {}", before.titel.trim())
     } else {
-        format!("Aufgabe erledigt: {pname}")
+        format!("Task completed: {pname}")
     };
     let body = erledigt_notiz
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or("Rezeption hat die Aufgabe erledigt.");
+        .unwrap_or("Reception marked the task as completed.");
     let pay = json!({
         "aufgabeId": updated.id,
         "patientId": before.patient_id,
@@ -42,7 +42,7 @@ pub async fn notify_creator_if_aufgabe_erledigt_by_other(
     .await
 }
 
-/// FA-AUFG-05 — Empfänger (Rezeption-Pool oder Ziel-Arzt) bei `ZURUECK` benachrichtigen.
+/// FA-AUFG-05 — Notify recipients (reception pool or target physician) on `ZURUECK`.
 pub async fn notify_assignees_if_aufgabe_zurueck(
     pool: &SqlitePool,
     before: &PraxisAufgabe,
@@ -62,13 +62,13 @@ pub async fn notify_assignees_if_aufgabe_zurueck(
 
     let pname = patient_name(pool, before.patient_id.as_deref()).await?;
     let title = if pname.is_empty() {
-        format!("Aufgabe zurück: {}", before.titel.trim())
+        format!("Task returned: {}", before.titel.trim())
     } else {
-        format!("Aufgabe zurück: {pname}")
+        format!("Task returned: {pname}")
     };
     let body = zurueck_begruendung
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or("Bitte erneut bearbeiten.");
+        .unwrap_or("Please process again.");
     let pay = json!({
         "aufgabeId": updated.id,
         "patientId": before.patient_id,

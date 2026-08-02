@@ -21,7 +21,7 @@ pub struct Bestellung {
     pub menge: i32,
     pub einheit: Option<String>,
     pub bemerkung: Option<String>,
-    /// Auftragssumme bei Erfassung (Lager-Einzelpreis × Menge), für Finanzen/Ausgaben.
+    /// Order total at capture (stock unit price × quantity), for finance/expenses.
     pub gesamtbetrag: Option<f64>,
     pub created_by: String,
     pub created_at: NaiveDateTime,
@@ -40,7 +40,7 @@ pub struct CreateBestellung {
     pub bestellnummer: Option<String>,
     #[serde(default)]
     pub pharmaberater: Option<String>,
-    /// Optional; UI rechnet aus Produktpreis × Menge.
+    /// Optional; UI derives from product price × quantity.
     #[serde(default)]
     pub gesamtbetrag: Option<f64>,
 }

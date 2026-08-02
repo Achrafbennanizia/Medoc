@@ -28,7 +28,7 @@ describe("i18n locale parity", () => {
     });
 
     it("all locales resolve core nav keys", () => {
-        const keys = ["nav.einstellungen", "nav.rezepte", "common.loading"];
+        const keys = ["nav.settings", "nav.rezepte", "common.loading"];
         for (const loc of LOCALES) {
             for (const key of keys) {
                 expect(translateLocale(loc, key)).not.toBe(key);

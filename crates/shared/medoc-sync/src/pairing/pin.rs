@@ -1,4 +1,4 @@
-//! Four-digit out-of-band confirmation for pairing (Geräteverbund + legacy HTTP).
+//! Four-digit out-of-band confirmation for pairing (device cluster + legacy HTTP).
 
 use hmac::{Hmac, Mac};
 use rand::Rng;
@@ -13,8 +13,8 @@ pub const CONFIRM_PIN_LEN: usize = SAS_LEN;
 pub const CONFIRM_PIN_TTL_SECS: i64 = 600;
 pub const CONFIRM_PIN_MAX_ATTEMPTS: i32 = 5;
 
-/// Derive SAS from Noise handshake transcript (preferred for Geräteverbund).
-#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (Geräteverbund phase 5)
+/// Derive SAS from Noise handshake transcript (preferred for device cluster).
+#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (device-cluster phase 5)
 pub fn generate_confirm_pin_from_transcript(transcript: &[u8]) -> String {
     derive_sas_from_transcript(transcript)
 }
@@ -25,13 +25,13 @@ pub fn generate_confirm_pin_random() -> String {
     format!("{n:04}")
 }
 
-/// Generate a 4-digit confirmation code. Uses transcript when provided (Geräteverbund).
+/// Generate a 4-digit confirmation code. Uses transcript when provided (device cluster).
 pub fn generate_confirm_pin() -> String {
     generate_confirm_pin_random()
 }
 
-/// Geräteverbund path: always derive from handshake transcript.
-#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (Geräteverbund phase 5)
+/// Device-cluster path: always derive from handshake transcript.
+#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (device-cluster phase 5)
 pub fn generate_confirm_pin_for_verbund(transcript: &[u8]) -> String {
     generate_confirm_pin_from_transcript(transcript)
 }

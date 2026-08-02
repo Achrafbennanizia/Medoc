@@ -1,4 +1,4 @@
-//! Akte validation state (per patient, replaces browser `localStorage`).
+//! Chart validation state (per patient, replaces browser `localStorage`).
 
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -52,7 +52,7 @@ pub async fn set_akte_section_validated(
 
     akte_validation_repo::upsert_row(&pool, &patient_id, &section, &at, Some(by)).await?;
 
-    // Stammdaten-Validierung gilt UI-seitig auch für Anamnese.
+    // Master-data validation also covers anamnesis on the UI side.
     if section == "stamm" {
         akte_validation_repo::upsert_row(&pool, &patient_id, "anam", &at, Some(by)).await?;
     }

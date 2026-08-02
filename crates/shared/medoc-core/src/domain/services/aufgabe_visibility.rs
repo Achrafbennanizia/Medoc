@@ -1,4 +1,4 @@
-//! FA-AUFG — who may see or work a Praxis-Aufgabe (chat-like direct assign vs. REZ pool).
+//! FA-AUFG — who may see or work a practice task (chat-like direct assign vs. REZ pool).
 use crate::domain::entities::praxis_aufgabe::PraxisAufgabe;
 use crate::domain::rbac::Role;
 use crate::error::AppError;
@@ -24,7 +24,7 @@ pub fn is_direct_task(a: &PraxisAufgabe) -> bool {
         .is_some_and(|s| !s.is_empty())
 }
 
-/// Posteingang / transition guard: creator, named assignee, or (Rezeption + pool task).
+/// Inbox / transition guard: creator, named assignee, or (reception + pool task).
 pub fn user_can_view_aufgabe(a: &PraxisAufgabe, user_id: &str, role: Role) -> bool {
     let uid = user_id.trim();
     if a.created_by.trim() == uid {

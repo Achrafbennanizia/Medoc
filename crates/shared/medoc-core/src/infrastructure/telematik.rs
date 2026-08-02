@@ -69,27 +69,27 @@ pub fn kvnr_format_ok(kvnr: &str) -> bool {
         && kvnr.chars().skip(1).all(|c| c.is_ascii_digit())
 }
 
-/// LANR (9 digits + Fachgruppen-/Prüfziffer).
+/// LANR (9 digits + specialty/check digit).
 pub fn lanr_format_ok(lanr: &str) -> bool {
     lanr.len() == 9 && lanr.chars().all(|c| c.is_ascii_digit())
 }
 
 pub fn validate(rx: &EPrescription) -> Result<(), AppError> {
     if !pzn_is_valid(&rx.pzn) {
-        return Err(AppError::Validation(format!("Ungültige PZN: {}", rx.pzn)));
+        return Err(AppError::Validation(format!("Invalid PZN: {}", rx.pzn)));
     }
     if !kvnr_format_ok(&rx.kvnr) {
         return Err(AppError::Validation(format!(
-            "KVNR Format ungültig: {}",
+            "Invalid KVNR format: {}",
             rx.kvnr
         )));
     }
     if !lanr_format_ok(&rx.doctor_lanr) {
-        return Err(AppError::Validation("LANR muss 9 Ziffern enthalten".into()));
+        return Err(AppError::Validation("LANR must contain 9 digits".into()));
     }
     if rx.quantity == 0 || rx.quantity > 99 {
         return Err(AppError::Validation(
-            "Menge muss zwischen 1 und 99 liegen".into(),
+            "Quantity must be between 1 and 99".into(),
         ));
     }
     Ok(())
@@ -104,7 +104,7 @@ pub fn submit_via_ti(rx: &EPrescription) -> Result<EPrescriptionToken, AppError>
         pzn = %rx.pzn,
     );
     Err(AppError::Internal(
-        "E-Rezept-Übermittlung erfordert TI-Konnektor und HBA-Karte".into(),
+        "E-prescription submission requires TI connector and HBA card".into(),
     ))
 }
 
@@ -118,14 +118,14 @@ pub struct KimMessage {
 
 pub fn kim_send(msg: &KimMessage) -> Result<(), AppError> {
     if !msg.from.contains('@') || !msg.to.contains('@') {
-        return Err(AppError::Validation("Ungültige KIM-Adresse".into()));
+        return Err(AppError::Validation("Invalid KIM address".into()));
     }
     log_system!(warn,
         event = "KIM_SEND_NOT_IMPLEMENTED",
         from = %msg.from, to = %msg.to,
     );
     Err(AppError::Internal(
-        "KIM-Versand erfordert akkreditierten KIM-Provider und SMC-B".into(),
+        "KIM send requires accredited KIM provider and SMC-B".into(),
     ))
 }
 

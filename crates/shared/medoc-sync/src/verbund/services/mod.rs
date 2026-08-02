@@ -1,4 +1,4 @@
-//! Geräteverbund application services.
+//! Device-cluster application services.
 
 pub mod cluster_reset_service;
 pub mod audit;

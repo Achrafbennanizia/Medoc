@@ -1,4 +1,4 @@
-// Verzeichnis von Verarbeitungstätigkeiten (DSGVO Art. 30 — VVT).
+// Record of processing activities (GDPR Art. 30 — VVT).
 //
 // Generates the legally required record of processing activities for the
 // dental practice operating MeDoc. The output is a structured document

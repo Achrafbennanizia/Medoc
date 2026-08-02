@@ -42,7 +42,7 @@ pub fn log_dir() -> Result<&'static Path, crate::error::AppError> {
     LOG_DIR
         .get()
         .map(|p| p.as_path())
-        .ok_or_else(|| crate::error::AppError::Internal("Logging nicht initialisiert".into()))
+        .ok_or_else(|| crate::error::AppError::Internal("Logging not initialized".into()))
 }
 
 /// Initialise the global tracing subscriber with 6 file layers.

@@ -175,7 +175,7 @@ export interface Behandlung {
     freigegeben_am?: string | null;
 }
 
-/** Verwaltung: predefined treatment services for Akte forms (`behandlungs_katalog`). */
+/** Admin: predefined treatment services for record forms (`behandlungs_katalog`). */
 export interface BehandlungsKatalogItem {
     id: string;
     kategorie: string;
@@ -186,7 +186,7 @@ export interface BehandlungsKatalogItem {
     created_at: string;
 }
 
-/** Verwaltung: master data for orders (`lieferant_stamm` / `pharmaberater_stamm`). */
+/** Admin: master data for orders (`lieferant_stamm` / `pharmaberater_stamm`). */
 export interface LieferantStamm {
     id: string;
     name: string;
@@ -203,7 +203,7 @@ export interface PharmaberaterStamm {
     created_at: string;
 }
 
-/** Predefined combination supplier + Pharmaberater + product (inventory) for "Neue Bestellung". */
+/** Predefined combination supplier + pharmaceutical advisor + product (inventory) for new orders. */
 export interface LieferantPharmaVorlage {
     id: string;
     lieferant_id: string;
@@ -232,7 +232,7 @@ export interface Zahlung {
     behandlung_id?: string | null;
     untersuchung_id?: string | null;
     betrag_erwartet?: number | null;
-    /** 0/1 — Tagesabschluss: payment cash-verified. */
+    /** 0/1 — day-end close: payment cash-verified. */
     kasse_geprueft?: number;
     created_at: string;
 }
@@ -301,31 +301,31 @@ export interface LabelValue {
     value: number;
 }
 
-/** Aggregated breakdowns powering the rich Statistik page. */
+/** Aggregated breakdowns powering the rich statistics page. */
 export interface StatistikOverview {
-    // Patienten
+    // Patients
     patienten_gesamt: number;
     patienten_neu_pro_monat: MonthBucket[];
     patienten_kumuliert_pro_monat: MonthBucket[];
     altersgruppen: LabelValue[];
     geschlechter: LabelValue[];
     patient_status: LabelValue[];
-    // Behandlungen
+    // Treatments
     behandlungen_nach_kategorie: LabelValue[];
     behandlungen_pro_monat: MonthBucket[];
     /** WAAD 9.5 — disease patterns (category/type) and monthly course. */
     krankheitsbilder_top: LabelValue[];
     krankheitsbilder_verlauf_pro_monat: MonthBucket[];
     medikamente_top: LabelValue[];
-    // Termine & Organisation
+    // Appointments & organisation
     termine_pro_monat: MonthBucket[];
     termin_status: LabelValue[];
     termin_art: LabelValue[];
-    // Finanzen
+    // Finance
     einnahmen_pro_monat: MonthBucket[];
     umsatz_nach_zahlungsart: LabelValue[];
     einnahmen_aktueller_monat: number;
-    // Bestellungen
+    // Orders
     bestellungen_nach_status: LabelValue[];
     bestellungen_pro_monat: MonthBucket[];
     produkte_niedrig: number;

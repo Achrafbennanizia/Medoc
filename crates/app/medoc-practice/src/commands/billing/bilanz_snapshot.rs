@@ -1,4 +1,4 @@
-//! Tauri commands for the Bilanz wizard snapshots (FA-FIN-09/10).
+//! Tauri commands for balance-sheet (Bilanz) wizard snapshots (FA-FIN-09/10).
 use crate::application::rbac::{self, FINANZEN_READ_OR_RECEPTION};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::bilanz_snapshot::{BilanzSnapshot, CreateBilanzSnapshot};

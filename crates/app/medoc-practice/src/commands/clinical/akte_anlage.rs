@@ -1,4 +1,4 @@
-//! Tauri-Kommandos: persistierte Akte-Anlagen (Fotos, PDF, …).
+//! Tauri commands: persisted chart attachments (photos, PDF, …).
 
 use base64::Engine;
 use serde::Deserialize;
@@ -93,14 +93,14 @@ pub struct AkteAnlageDto {
     pub size_bytes: i64,
     pub document_kind: String,
     pub created_at: String,
-    /// Absoluter Pfad für `convertFileSrc` im Frontend
+    /// Absolute path for frontend `convertFileSrc`.
     pub abs_path: String,
 }
 
 fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
     app.path()
         .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App-Datenverzeichnis: {e}")))
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))
 }
 
 fn row_to_dto(app_data_dir: &Path, row: AkteAnlageRow) -> AkteAnlageDto {
@@ -119,7 +119,7 @@ fn row_to_dto(app_data_dir: &Path, row: AkteAnlageRow) -> AkteAnlageDto {
 fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(), AppError> {
     let p = path
         .to_str()
-        .ok_or_else(|| AppError::Internal("Ungültiger Dateipfad".into()))?;
+        .ok_or_else(|| AppError::Internal("Invalid file path".into()))?;
     let custom = app_opt.and_then(|s| {
         let t = s.trim();
         if t.is_empty() {
@@ -137,7 +137,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
                 .map_err(|e| AppError::Internal(format!("open: {e}")))?;
             if !st.success() {
                 return Err(AppError::Internal(
-                    "Externes Programm konnte die Datei nicht öffnen.".into(),
+                    "External application could not open the file.".into(),
                 ));
             }
         } else {
@@ -147,7 +147,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
                 .map_err(|e| AppError::Internal(format!("open: {e}")))?;
             if !st.success() {
                 return Err(AppError::Internal(
-                    "Datei konnte nicht mit der Standard-App geöffnet werden.".into(),
+                    "Could not open the file with the default application.".into(),
                 ));
             }
         }
@@ -159,10 +159,10 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
             let st = std::process::Command::new(exe)
                 .arg(p)
                 .status()
-                .map_err(|e| AppError::Internal(format!("Programmstart: {e}")))?;
+                .map_err(|e| AppError::Internal(format!("Failed to start program: {e}")))?;
             if !st.success() {
                 return Err(AppError::Internal(
-                    "Externes Programm konnte die Datei nicht öffnen.".into(),
+                    "External application could not open the file.".into(),
                 ));
             }
         } else {
@@ -172,7 +172,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
                 .map_err(|e| AppError::Internal(format!("start: {e}")))?;
             if !st.success() {
                 return Err(AppError::Internal(
-                    "Datei konnte nicht geöffnet werden.".into(),
+                    "Could not open the file.".into(),
                 ));
             }
         }
@@ -183,10 +183,10 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
         let st = std::process::Command::new(exe)
             .arg(p)
             .status()
-            .map_err(|e| AppError::Internal(format!("Programmstart: {e}")))?;
+            .map_err(|e| AppError::Internal(format!("Failed to start program: {e}")))?;
         if !st.success() {
             return Err(AppError::Internal(
-                "Externes Programm konnte die Datei nicht öffnen.".into(),
+                "External application could not open the file.".into(),
             ));
         }
     } else {
@@ -196,7 +196,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
             .map_err(|e| AppError::Internal(format!("xdg-open: {e}")))?;
         if !st.success() {
             return Err(AppError::Internal(
-                "Datei konnte nicht geöffnet werden.".into(),
+                "Could not open the file.".into(),
             ));
         }
     }
@@ -239,7 +239,7 @@ pub async fn create_akte_anlage(
     let app_dir = app_data_dir(&app)?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data.bytes_base64.trim())
-        .map_err(|_| AppError::Validation("Ungültige Base64-Daten.".into()))?;
+        .map_err(|_| AppError::Validation("Invalid Base64 data.".into()))?;
     let kind = normalize_document_kind(data.document_kind.as_deref());
     let row = akte_anlage_repo::create(
         &pool,
@@ -282,7 +282,7 @@ pub async fn create_akte_anlage_from_path(
         return Err(AppError::validation_code("error.anlage.invalid_format"));
     }
     let bytes =
-        std::fs::read(src).map_err(|e| AppError::Internal(format!("Scanner-Datei lesen: {e}")))?;
+        std::fs::read(src).map_err(|e| AppError::Internal(format!("Reading scanner file: {e}")))?;
     let display_name = data
         .display_name
         .as_deref()
@@ -438,8 +438,8 @@ pub async fn duplicate_akte_anlage(
         .ok_or_else(|| AppError::NotFound("Akte-Anlage".into()))?;
     let path = akte_anlage_repo::absolute_path(&app_dir, &src.rel_storage_path);
     let bytes =
-        std::fs::read(&path).map_err(|e| AppError::Internal(format!("Anlage lesen: {e}")))?;
-    let new_name = format!("{} (Kopie)", src.display_name);
+        std::fs::read(&path).map_err(|e| AppError::Internal(format!("Reading attachment: {e}")))?;
+    let new_name = format!("{} (Copy)", src.display_name);
     let row = akte_anlage_repo::create(
         &pool,
         &app_dir,

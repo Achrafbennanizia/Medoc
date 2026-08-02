@@ -75,7 +75,7 @@ pub async fn get_dashboard_stats(
 }
 
 // ---------------------------------------------------------------------------
-// Statistik overview — populates the rich Statistik page with charts.
+// Statistics overview — populates the rich statistics page with charts.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize, Clone)]
@@ -93,30 +93,30 @@ pub struct LabelValue {
 
 #[derive(Debug, Serialize, Default)]
 pub struct StatistikOverview {
-    // Patienten
+    // Patients
     pub patienten_gesamt: i64,
     pub patienten_neu_pro_monat: Vec<MonthBucket>,
     pub patienten_kumuliert_pro_monat: Vec<MonthBucket>,
     pub altersgruppen: Vec<LabelValue>,
     pub geschlechter: Vec<LabelValue>,
     pub patient_status: Vec<LabelValue>,
-    // Behandlungen
+    // Treatments
     pub behandlungen_nach_kategorie: Vec<LabelValue>,
     pub behandlungen_pro_monat: Vec<MonthBucket>,
-    /// WAAD 9.5 / G8 — Top-Kategorien als Krankheitsbild-Proxy (Behandlungskategorie/Art).
+    /// WAAD 9.5 / G8 — top categories as disease-proxy (treatment category/type).
     pub krankheitsbilder_top: Vec<LabelValue>,
-    /// WAAD 9.5 / G8 — Verlauf der Behandlungsfälle pro Monat.
+    /// WAAD 9.5 / G8 — treatment-case trend per month.
     pub krankheitsbilder_verlauf_pro_monat: Vec<MonthBucket>,
     pub medikamente_top: Vec<LabelValue>,
-    // Termine & Organisation
+    // Appointments & organisation
     pub termine_pro_monat: Vec<MonthBucket>,
     pub termin_status: Vec<LabelValue>,
     pub termin_art: Vec<LabelValue>,
-    // Finanzen
+    // Finance
     pub einnahmen_pro_monat: Vec<MonthBucket>,
     pub umsatz_nach_zahlungsart: Vec<LabelValue>,
     pub einnahmen_aktueller_monat: f64,
-    // Bestellungen / Lager
+    // Orders / stock
     pub bestellungen_nach_status: Vec<LabelValue>,
     pub bestellungen_pro_monat: Vec<MonthBucket>,
     pub produkte_niedrig: i64,
@@ -196,7 +196,7 @@ pub async fn get_statistik_overview(
     let earliest_start = format!("{}-01", earliest);
     let mut out = StatistikOverview::default();
 
-    // -------- Patienten --------
+    // -------- Patients --------
     if rbac::allowed("patient.read", role) {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
             .fetch_one(pool.inner())
@@ -236,7 +236,7 @@ pub async fn get_statistik_overview(
         };
         out.patienten_kumuliert_pro_monat = cumulative;
 
-        // Altersgruppen
+        // Age groups
         let births: Vec<(String,)> = sqlx::query_as("SELECT geburtsdatum FROM patient")
             .fetch_all(pool.inner())
             .await?;
@@ -256,7 +256,7 @@ pub async fn get_statistik_overview(
             .filter(|lv| lv.value > 0.0)
             .collect();
 
-        // Geschlechter
+        // Genders
         let gender: Vec<(String, i64)> = sqlx::query_as(
             "SELECT geschlecht, COUNT(*) FROM patient GROUP BY geschlecht ORDER BY geschlecht",
         )
@@ -275,7 +275,7 @@ pub async fn get_statistik_overview(
             })
             .collect();
 
-        // Patient-Status (NEU / AKTIV / VALIDIERT / READONLY)
+        // Patient status (NEU / AKTIV / VALIDIERT / READONLY)
         let pstatus: Vec<(String, i64)> =
             sqlx::query_as("SELECT status, COUNT(*) FROM patient GROUP BY status ORDER BY status")
                 .fetch_all(pool.inner())
@@ -283,9 +283,9 @@ pub async fn get_statistik_overview(
         out.patient_status = group_label_value(pstatus);
     }
 
-    // -------- Behandlungen --------
+    // -------- Treatments --------
     if rbac::allowed("patient.read_medical", role) {
-        // by kategorie (fallback art when kategorie missing)
+        // by category (fallback type when category missing)
         let beh_kat: Vec<(String, i64)> = sqlx::query_as(
             "SELECT COALESCE(NULLIF(kategorie,''), art) AS k, COUNT(*) AS c
              FROM behandlung
@@ -316,7 +316,7 @@ pub async fn get_statistik_overview(
         out.krankheitsbilder_top = out.behandlungen_nach_kategorie.clone();
         out.krankheitsbilder_verlauf_pro_monat = out.behandlungen_pro_monat.clone();
 
-        // top medikamente by wirkstoff
+        // top medications by active ingredient
         let med: Vec<(String, i64)> = sqlx::query_as(
             "SELECT COALESCE(NULLIF(wirkstoff,''), medikament) AS w, COUNT(*) AS c
              FROM rezept
@@ -329,7 +329,7 @@ pub async fn get_statistik_overview(
         out.medikamente_top = group_label_value(med);
     }
 
-    // -------- Termine & Organisation --------
+    // -------- Appointments & organisation --------
     if rbac::allowed("termin.read", role) {
         let ter_mon: Vec<(String, i64)> = sqlx::query_as(
             "SELECT strftime('%Y-%m', datum) AS m, COUNT(*) AS c
@@ -386,7 +386,7 @@ pub async fn get_statistik_overview(
             .collect();
     }
 
-    // -------- Finanzen --------
+    // -------- Finance --------
     if rbac::allowed("finanzen.read", role) {
         let einn_mon: Vec<(String, f64)> = sqlx::query_as(
             "SELECT strftime('%Y-%m', created_at) AS m, COALESCE(SUM(betrag),0.0) AS s
@@ -433,7 +433,7 @@ pub async fn get_statistik_overview(
         out.einnahmen_aktueller_monat = row.0;
     }
 
-    // -------- Bestellungen --------
+    // -------- Orders --------
     if rbac::allowed("bestellung.read", role) {
         let best_st: Vec<(String, i64)> = sqlx::query_as(
             "SELECT status, COUNT(*) FROM bestellung GROUP BY status ORDER BY status",

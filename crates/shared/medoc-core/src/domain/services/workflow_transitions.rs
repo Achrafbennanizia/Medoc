@@ -100,7 +100,7 @@ fn aufgabe_closed() -> AppError {
     AppError::validation_code("error.workflow.aufgabe_closed")
 }
 
-/// Admin-RBAC: beliebiger Statuswechsel (außer aus `VALIDIERT`).
+/// Admin RBAC: any status change (except out of `VALIDIERT`).
 pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
@@ -122,7 +122,7 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
     Ok(())
 }
 
-/// Fulfill-RBAC / Erfüller: `IN_BEARBEITUNG` und `ERLEDIGT_REZEPTION` (inkl. Rücknahme `OFFEN`).
+/// Fulfill RBAC / assignee: `IN_BEARBEITUNG` and `ERLEDIGT_REZEPTION` (incl. reopen to `OFFEN`).
 fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
@@ -144,8 +144,8 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
     allowed_transition(&cur, &nxt, allowed)
 }
 
-/// FA-AUFG-06: Praxis-Aufgabe — Erfüller (REZ-Pool oder zugewiesener Arzt) vs. Ersteller (Validierung).
-/// `rbac_fulfill` / `rbac_admin` spiegeln `aufgabe.status.fulfill` bzw. `aufgabe.status.admin`.
+/// FA-AUFG-06: practice task — assignee (REZ pool or named physician) vs. creator (validation).
+/// `rbac_fulfill` / `rbac_admin` mirror `aufgabe.status.fulfill` / `aufgabe.status.admin`.
 #[allow(clippy::too_many_arguments)]
 pub fn praxis_aufgabe_status_transition(
     current: &str,
@@ -182,7 +182,7 @@ pub fn praxis_aufgabe_status_transition(
     };
     let is_validator = actor_user_id == created_by.trim();
 
-    // Erledigte Aufgabe: Ersteller validiert/zurückgeben — auch wenn Ersteller zugleich Erfüller war.
+    // Completed task: creator validates/returns — even if creator was also the assignee.
     if is_validator && cur == "ERLEDIGT_REZEPTION" {
         return allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]);
     }

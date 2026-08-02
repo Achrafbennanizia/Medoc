@@ -74,7 +74,7 @@ fn write_signature(db_path: &Path) -> Result<(), AppError> {
     let hmac = audit_repo::hmac_file(db_path)?;
     let sig = sig_path(db_path);
     std::fs::write(&sig, format!("{hmac}\n"))
-        .map_err(|e| AppError::Internal(format!("Signatur schreiben: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("Write signature: {e}")))?;
     Ok(())
 }
 
@@ -179,7 +179,7 @@ pub fn enforce_retention_at(
             let Some(ts) = parse_backup_timestamp(&path) else {
                 report
                     .errors
-                    .push(format!("Zeitstempel nicht lesbar: {}", path.display()));
+                    .push(format!("Timestamp not readable: {}", path.display()));
                 continue;
             };
             files.push((path, ts));
@@ -296,7 +296,7 @@ pub async fn restore_from_backup(
 
     std::fs::copy(backup_path, &db_path).map_err(|e| {
         AppError::Internal(format!(
-            "Wiederherstellung fehlgeschlagen (Kopie nach {}): {e}",
+            "Restore failed (copy to {}): {e}",
             db_path.display()
         ))
     })?;

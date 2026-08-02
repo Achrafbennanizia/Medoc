@@ -1,4 +1,4 @@
-//! IPC commands — praxis domain.
+//! IPC commands — practice domain.
 
 pub mod bestellung;
 pub mod core;

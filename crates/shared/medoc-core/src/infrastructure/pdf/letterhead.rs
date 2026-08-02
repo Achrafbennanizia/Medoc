@@ -1,36 +1,36 @@
-//! DIN-5008-konformer Briefkopf für alle MeDoc-Dokumente.
+//! DIN-5008-compliant letterhead for all MeDoc documents.
 //!
-//! Layout (Form A, Fensterumschlag-kompatibel):
+//! Layout (Form A, window-envelope compatible):
 //!
 //! ```text
 //! ┌──────────────────────────────────────────────────────────────────┐
-//! │ Praxisname (fett, 12 pt)                  ┌───────────────────┐ │
-//! │ Straße                                    │ Meta-Block:       │ │
-//! │ PLZ Ort                                   │ Rechnung-Nr.      │ │
-//! │ Tel · Fax · E-Mail · Web                  │ Datum             │ │
-//! │ BSNR · ZANR · USt-IdNr.                   │ Behandler         │ │
-//! │                                           │ Patienten-Nr.     │ │
+//! │ Practice name (bold, 12 pt)               ┌───────────────────┐ │
+//! │ Street                                    │ Meta block:       │ │
+//! │ ZIP City                                  │ Invoice no.       │ │
+//! │ Tel · Fax · E-Mail · Web                  │ Date              │ │
+//! │ BSNR · ZANR · VAT ID                      │ Provider          │ │
+//! │                                           │ Patient no.       │ │
 //! │                                           └───────────────────┘ │
-//! │ ┌─── Praxisname · Straße · PLZ Ort (7 pt, klein)──────────────┐ │
+//! │ ┌─── Practice · Street · ZIP City (7 pt, small)───────────────┐ │
 //! │ │                                                              │ │
-//! │ │  Empfänger Anschrift                                         │ │
-//! │ │  (Fensterumschlag-Bereich, DIN 5008 A, Y 700–572)            │ │
+//! │ │  Recipient address                                           │ │
+//! │ │  (window envelope area, DIN 5008 A, Y 700–572)               │ │
 //! │ │                                                              │ │
 //! │ └──────────────────────────────────────────────────────────────┘ │
 //! │ ───────────────────────────────────────────────────────────────  │
-//! │ [Inhalt ab Y ≈ 560]                                              │
+//! │ [Content from Y ≈ 560]                                           │
 //! └──────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! Der Briefkopf wird **einmal** auf der ersten Seite gerendert; auf
-//! Folgeseiten wird ein kurzer **Kopfzeilen-Stub** (Praxisname + Dokument-Nr.)
-//! verwendet (siehe [`emit_continuation_header`]).
+//! The letterhead is rendered **once** on the first page; on
+//! continuation pages a short **header stub** (practice name + document no.)
+//! is used (see [`emit_continuation_header`]).
 
 use super::core::{
     wrap_soft, PageBuilder, ADDRESS_WINDOW_Y, M_LEFT, M_RIGHT, M_TOP, SENDER_HINT_Y,
 };
 
-/// Eine Zeile des rechten Meta-Blocks: "Bezeichnung" + "Wert".
+/// One row of the right meta block: "label" + "value".
 #[derive(Debug, Clone)]
 pub struct MetaRow {
     pub label: String,
@@ -46,35 +46,35 @@ impl MetaRow {
     }
 }
 
-/// Vollständiger Briefkopf einer Praxis.
+/// Complete practice letterhead.
 #[derive(Debug, Clone, Default)]
 pub struct Letterhead<'a> {
-    /// Erste Zeile = Praxisname (fett); weitere Zeilen = Adresse, Kontakt.
-    /// Empfehlung: max. 6 Zeilen, damit der Adressblock nicht überlappt.
+    /// First line = practice name (bold); further lines = address, contact.
+    /// Recommendation: max. 6 lines so the address block does not overlap.
     pub praxis_lines: &'a [String],
-    /// Rechte Spalte oben: kleine Zusatzinfos wie "Tel: …", "Fax: …".
-    /// Nur wenn `meta_rows` leer ist — sonst nutzt man den Meta-Block.
+    /// Right column at top: small extras like "Tel: …", "Fax: …".
+    /// Only when `meta_rows` is empty — otherwise use the meta block.
     pub header_right_lines: &'a [String],
-    /// Strukturierter Meta-Block rechts (Rechnung-Nr., Datum, Behandler, …).
+    /// Structured meta block on the right (invoice no., date, provider, …).
     pub meta_rows: &'a [MetaRow],
-    /// Empfänger-Adresse im Fensterumschlag-Bereich. Erste Zeile = Name,
-    /// danach Straße, PLZ Ort, ggf. Land.
+    /// Recipient address in the window-envelope area. First line = name,
+    /// then street, ZIP city, optional country.
     pub address_lines: &'a [String],
-    /// Wenn `true`: Rücksender-Mini-Zeile über dem Adressfenster
-    /// ("Praxisname · Straße · PLZ Ort").
+    /// When `true`: return-address mini-line above the address window
+    /// ("Practice · Street · ZIP City").
     pub show_sender_hint: bool,
 }
 
-/// Rendert den vollständigen Briefkopf auf die aktuelle Seite des PageBuilders
-/// und positioniert `pb.y` direkt unter der Trennlinie, bereit für Inhalt.
+/// Render the full letterhead on the current PageBuilder page
+/// and position `pb.y` just below the divider, ready for content.
 ///
-/// Returns `pb.y` nach dem Briefkopf (kann der Aufrufer für weitere
-/// Positionierung nutzen, ist aber bereits in `pb.y` gesetzt).
+/// Returns `pb.y` after the letterhead (caller may use it for further
+/// positioning; it is already set in `pb.y`).
 const LEFT_HEADER_WRAP: usize = 46;
 const LEFT_HEADER_MIN_Y: i32 = M_TOP - 88;
 
 pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
-    // --- 1. Praxis-Block oben links ---------------------------------------
+    // --- 1. Practice block top-left ---------------------------------------
     let mut left_y = M_TOP;
     for (i, line) in lh.praxis_lines.iter().enumerate() {
         if left_y < LEFT_HEADER_MIN_Y {
@@ -92,7 +92,7 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
         }
     }
 
-    // --- 2. Meta-Block rechts oder Kontaktblock rechts --------------------
+    // --- 2. Meta block right or contact block right -----------------------
     let mut right_y = M_TOP;
     if !lh.meta_rows.is_empty() {
         right_y = emit_meta_block(pb, lh.meta_rows, M_TOP);
@@ -106,7 +106,7 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
 
     let header_bottom = left_y.min(right_y);
 
-    // --- 3. Adressfenster (Fensterumschlag) -------------------------------
+    // --- 3. Address window (window envelope) ------------------------------
     if !lh.address_lines.is_empty() {
         if lh.show_sender_hint {
             let sender = sender_hint_line(lh.praxis_lines);
@@ -126,13 +126,13 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
         }
     }
 
-    // --- 4. Trennlinie unter dem Briefkopf --------------------------------
-    // Wenn ein Adressfeld da ist: knapp unter dem Adressfeld; sonst direkt
-    // unter dem Praxis-/Meta-Block.
+    // --- 4. Divider below letterhead --------------------------------------
+    // If an address field is present: just below it; otherwise directly
+    // below the practice/meta block.
     let rule_y = if lh.address_lines.is_empty() {
         header_bottom - 8
     } else {
-        // Unter dem Adressfenster (DIN 5008: ~Y 560)
+        // Below the address window (DIN 5008: ~Y 560)
         560
     };
     pb.hline_at(M_LEFT, rule_y, M_RIGHT);
@@ -141,9 +141,8 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     pb.y
 }
 
-/// Kurze Kopfzeile für Folgeseiten (nur Praxisname + Dokumenttyp).
-/// Wird **nicht** Teil von `emit_letterhead`, sondern direkt nach `break_page()`
-/// aufgerufen.
+/// Short header for continuation pages (practice name + document type only).
+/// Not part of `emit_letterhead`; call directly after `break_page()`.
 pub fn emit_continuation_header(pb: &mut PageBuilder, praxis_name: &str, doc_title: &str) {
     pb.y = M_TOP;
     pb.text(M_LEFT, 9, true, praxis_name);
@@ -153,8 +152,8 @@ pub fn emit_continuation_header(pb: &mut PageBuilder, praxis_name: &str, doc_tit
     pb.y -= 16;
 }
 
-/// Meta-Block rechts: pro Eintrag zwei Zeilen — Label klein, Wert größer.
-/// Returns die `y`-Position der untersten geschriebenen Zeile.
+/// Right meta block: two lines per entry — small label, larger value.
+/// Returns the `y` position of the lowest written line.
 fn emit_meta_block(pb: &mut PageBuilder, rows: &[MetaRow], start_y: i32) -> i32 {
     let label_x = 320;
     let mut y = start_y;
@@ -182,15 +181,15 @@ fn sender_hint_line(praxis_lines: &[String]) -> String {
         .join(" · ")
 }
 
-/// Ein einheitlicher Unterschriftsblock am Seitenende:
+/// A unified signature block at the bottom of the page:
 ///
 /// ```text
-/// ─────────────────────────────  (Linie oben)
+/// ─────────────────────────────  (line above)
 ///
 ///   __________________________
-///   Behandler-Name
-///   Berufsbezeichnung · ZANR · BSNR
-///   (Stempel)
+///   Provider name
+///   Professional title · ZANR · BSNR
+///   (Stamp)
 /// ```
 pub fn emit_signature_block(
     pb: &mut PageBuilder,
@@ -205,7 +204,7 @@ pub fn emit_signature_block(
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(28);
 
-    // Unterschriftslinie
+    // Signature line
     pb.hline_at(M_LEFT, pb.y, M_LEFT + 180);
     pb.advance(14);
 
@@ -235,7 +234,7 @@ pub fn emit_signature_block(
     }
 }
 
-/// Bankverbindungs-Block für Rechnungen.
+/// Bank-details block for invoices.
 pub fn emit_bankverbindung(pb: &mut PageBuilder, lines: &[String]) {
     if lines.is_empty() {
         return;
@@ -309,7 +308,7 @@ mod tests {
             show_sender_hint: false,
         };
         let y_after = emit_letterhead(&mut pb, &lh);
-        // Ohne Adressfeld muss die Trennlinie früher sein als die DIN-5008-Y560.
+        // Without an address field the divider must be earlier than DIN-5008 Y560.
         assert!(y_after > 560);
     }
 
@@ -327,7 +326,7 @@ mod tests {
         pb.y = 200;
         emit_signature_block(&mut pb, None, None, None, None, false);
         let pages = pb.finish();
-        // Nur die Linien, keine Texte — sollte trotzdem valid sein
+        // Lines only, no text — should still be valid
         assert_eq!(pages.len(), 1);
     }
 }

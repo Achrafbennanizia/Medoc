@@ -2,7 +2,7 @@ import { useT, useTParams } from "@/lib/i18n";
 /**
  * Master license activation gate.
  *
- * First step: choose Hauptgerät (company license) vs Zweitgerät (join main device).
+ * First step: choose main device (company license) vs secondary device (join main device).
  * Rendered by `LicenseAndPairingGate` when no valid local vendor license exists.
  */
 

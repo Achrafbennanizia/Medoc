@@ -3,7 +3,7 @@
  *
  * Architecture (analogous to common document pattern): view/export builds a **data package** (body lines),
  * this layer adds the **letterhead** per template (`kopf.fieldsToShow`) and **privacy**
- * (Einstellungen › Praxis) — Rust renders lines only, no raw HTML.
+ * (Settings › Practice) — Rust renders lines only, no raw HTML.
  */
 
 import type { DocumentTemplatePayloadV1, PraxisFieldKey } from "@/lib/document-template-schema";
@@ -104,7 +104,7 @@ export function buildClinicalTemplateKopfLines(
             case "hours": {
                 const t = (praxis.oeffnungszeiten ?? "").trim();
                 if (!t) break;
-                lines.push(`Öffn.: ${privacy.oz ? t : maskPraxisExportToken(t)}`);
+                lines.push(`Hrs: ${privacy.oz ? t : maskPraxisExportToken(t)}`);
                 break;
             }
             case "behandler": {
