@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-25 (background quality run — workflow instrumentation)
 
 ## Now
 
@@ -11,6 +11,9 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **Runner unblocker:** provide OpenSSL development headers for SQLCipher (`libsqlite3-sys`) so Rust `fmt/clippy/test` gates can run to completion in this cloud image.
+- **Workflow QA continuation:** extend workflow bridge coverage from route-enter + IPC lifecycle to explicit cancel/success/error points in high-risk UI flows.
+- **Step 4/5 debt:** Playwright geometry/spacing audit + axe contrast/focus checks still pending in this branch.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
@@ -23,6 +26,16 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-07-25 — workflow instrumentation + smoke/build fixes)
+
+- Extended existing Rust tracing logger (no parallel logger) with dedicated `workflow.log` channel and `log_workflow!` macro.
+- Added sanitized backend IPC bridge `log_workflow_event` (`commands/system/logging.rs`) and registered command in central invoke registry (count 303).
+- Added frontend workflow bridge in `tauri.service.ts`: route-enter logging + IPC lifecycle events (start/success/error) with sanitized payload metadata.
+- Added route instrumentation hook `WorkflowRouteLogger` at app root.
+- Added focused bridge tests (`src/services/tauri.service.test.ts`) and fixed smoke harness mocks for new onboarding/workflow dependencies.
+- Frontend gates now green in this runner: `npm run test` (**287 pass / 3 skipped**) and `npm run build` (**PASS**).
+- Remaining blocker: Rust gates still fail in this environment due missing SQLCipher OpenSSL headers.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

@@ -1,6 +1,29 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (Background quality run — workflow instrumentation)
+
+## Background quality run — workflow instrumentation + workflow dead-end fixes (2026-07-25)
+
+### Validation matrix
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Baseline matrix (pre-change) | `cargo +stable fmt --all -- --check && cargo +stable clippy --workspace --all-targets -- -D warnings && cargo +stable test --workspace --tests && npm run test && npm run build` | **FAIL** — Rust blocked by SQLCipher OpenSSL header (`openssl/crypto.h`) and frontend had 3 smoke failures + TS6133 build errors |
+| Instrumentation helper test | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (2/2) |
+| Smoke reproducer (before fix) | `npm run test -w medoc -- src/critical-flows.smoke.test.tsx src/g21-routing.smoke.test.tsx` | **FAIL** — missing `logRouteEnter` mock export + onboarding gate dead-end |
+| Smoke suite (after fixes) | `npm run test -w medoc -- src/critical-flows.smoke.test.tsx src/g21-routing.smoke.test.tsx` | **PASS** — 7 passed, 1 skipped |
+| Full frontend tests | `npm run test` | **PASS** — 287 passed, 3 skipped |
+| Frontend build | `npm run build` | **PASS** |
+| Final matrix (post-change) | `cargo +stable fmt --all -- --check && cargo +stable clippy --workspace --all-targets -- -D warnings && cargo +stable test --workspace --tests && npm run test && npm run build` | **PARTIAL** — `npm test` + `npm run build` PASS; Rust commands still blocked by missing OpenSSL headers |
+
+### Findings register (workflow/non-terminable focus)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| WF-2026-07-25-001 | `apps/practice-host-ui/src/views/components/verbund-onboarding-gate.tsx` + smoke tests | Workflow dead-end in smoke harness: missing mock for `onboarding_subscription_status` forced onboarding error shell and prevented route progress to login | `npm run test` failures in `critical-flows.smoke.test.tsx` (flow a/f) and `g21-routing.smoke.test.tsx` | **P1** | **Fixed** by adding explicit onboarding status IPC mocks in both smoke files |
+| WF-2026-07-25-002 | `apps/practice-host-ui/src/views/components/workflow-route-logger.tsx` + smoke tests | New route logger introduced additional module export requirement in tests (`logRouteEnter`) | Targeted smoke run failed with `[vitest] No "logRouteEnter" export is defined on the "@/services/tauri.service" mock` | **P1** | **Fixed** by extending `vi.mock("@/services/tauri.service")` stubs with `logRouteEnter: vi.fn()` |
+| WF-2026-07-25-003 | `packages/shared/src/lib/{termin-availability.ts,termin-calendar-layout.ts}` + `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx` | Build was non-terminable in CI gate due unused symbols (`TS6133`) | `npm run build` failed on `resolveEffectiveArbeitszeitenForArzt`, `fallback`, `deriveTerminTimelineBounds` | **P2** | **Fixed** by removing unused imports/parameter |
+| WF-2026-07-25-004 | Rust workspace SQLCipher toolchain | Rust validation blocked by environment dependency, preventing `cargo test`/`clippy` completion | `cargo +stable clippy/test` failed with `fatal error: 'openssl/crypto.h' file not found` from `libsqlite3-sys` | **P1** | **Open** — requires runner image with OpenSSL development headers or vendored SQLCipher/OpenSSL strategy |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Background quality run — workflow instrumentation + test gate repairs (2026-07-25)  
+**Last closed:** Added sanitized workflow logging channel/bridge, fixed smoke workflow dead-ends, restored frontend test/build green in this runner.
+
+### Verified (2026-07-25 — workflow instrumentation)
+
+- **Logger extension (reused existing subsystem):** added `workflow.log` channel in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` (+ `log_workflow!` macro), routed via existing tracing/rotation/sanitizer stack.
+- **Backend bridge:** new `log_workflow_event` IPC command (`crates/app/medoc-practice/src/commands/system/logging.rs`) sanitizes/truncates workflow fields before persistence; command registered in central invoke handler (`EXPECTED_INVOKE_COMMAND_COUNT = 303`).
+- **Frontend bridge:** `apps/practice-host-ui/src/services/tauri.service.ts` now emits sanitized workflow events for route enter + IPC lifecycle (start/success/error), with recursion guard for `log_workflow_event`.
+- **Route instrumentation:** `WorkflowRouteLogger` mounted in `App.tsx` to emit route-enter events.
+- **Fixes validated:** smoke test dead-end around onboarding status mocked in `critical-flows.smoke.test.tsx` + `g21-routing.smoke.test.tsx`; route-logger export mock added; TypeScript build blockers (TS6133) removed in shared timeline/availability files.
+- **Frontend validation:** `npm run test` **PASS** (287 passed, 3 skipped); `npm run build` **PASS**.
+
+### Remains unverified
+
+- Rust matrix (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`) cannot complete in this cloud image because SQLCipher build lacks OpenSSL headers (`openssl/crypto.h`).
+- Step 4/5 scope from quality brief (Playwright geometry spacing audit, axe WCAG sweep, responsive visual snapshots) **NOT RUN** in this iteration.
+- Live Tauri manual workflow terminability checks (dialogs/escape/keyboard behaviors) **NOT OBSERVED**.
+
+### Next
+
+1. Unblock Rust runner image (OpenSSL dev headers or vendored SQLCipher/OpenSSL path), then rerun full Rust matrix.
+2. Add integration profile that enables workflow channel logging during automated workflow tests (currently disabled in `MODE=test` for deterministic mocks).
+3. Implement Playwright geometry/token audit + axe compliance pass and log findings in `validation.md`.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

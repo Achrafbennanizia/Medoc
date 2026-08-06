@@ -11,6 +11,7 @@ import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
+    logRouteEnter: vi.fn(),
 }));
 
 const REZ_SESSION: Session = {
@@ -70,6 +71,16 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 };
             case "get_app_kv":
                 return null;
+            case "onboarding_subscription_status":
+                return {
+                    registered: true,
+                    practiceSlug: "smoke",
+                    setupComplete: true,
+                    needsAdminAccount: false,
+                    personalCount: 1,
+                    needsPracticeSetup: false,
+                    needsMemberAccount: false,
+                };
             case "sync_native_menu":
                 return undefined;
             case "sync_get_status":
