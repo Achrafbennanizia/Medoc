@@ -1,6 +1,17 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-25 (CI/CD pipeline tiers)
+
+## Done (2026-07-25 — CI/CD pipeline tiers)
+
+- Replaced stale monolithic CI workflow with four-tier orchestration:
+  - Tier 1 verify: `.github/workflows/verify.yml` (push/PR + reusable gate, zero mutation)
+  - Tier 2 autofix: `.github/workflows/autofix.yml` (PR-only deterministic fixes + loop guard)
+  - Tier 3 fix proposal: `.github/workflows/fix-proposal.yml` (new branch + draft PR evidence flow)
+  - Tier 4 release: `.github/workflows/release.yml` (verify gate + protected release environment + signed build)
+- Added CI/CD design record: `docs/coordination/ci-cd-plan.md`.
+- Added accessibility gate command and runner: `test:a11y` + `apps/practice-host-ui/scripts/test-a11y.mjs`.
+- Recorded validation evidence and known frontend baseline failures in `validation.md`.
 
 ## Now
 

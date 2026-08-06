@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration — verified (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `for f in .github/workflows/*.yml; do npx --yes js-yaml "$f" > /dev/null; echo "OK $f"; done` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` |
+| A11y runner syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** |
+| Frontend typecheck | `npm run typecheck -w medoc` | **FAIL** — existing TS6133 unused-symbol errors in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` (+ mirrored package paths) |
+| Frontend build | `npm run build -w medoc` | **FAIL** — same existing TS6133 errors |
+| Workflow linter | `actionlint` | **NOT RUN** — binary unavailable (`command not found`) |
+
+**Pipeline artifacts delivered:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml`, `docs/coordination/ci-cd-plan.md`, `apps/practice-host-ui/scripts/test-a11y.mjs`, root/medoc script wiring (`typecheck`, `lint:fix`, `format`, `test:a11y`).
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

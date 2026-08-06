@@ -1,143 +1,117 @@
-name: Release
+name: release
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+
+permissions:
+  attestations: write
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
   MEDOC_UPDATER_GITHUB_REPO: ${{ github.repository }}
-  # Long-lived read-only PAT for private release assets (NOT the ephemeral GITHUB_TOKEN).
-  MEDOC_UPDATER_GITHUB_TOKEN: ${{ secrets.MEDOC_UPDATER_GITHUB_PAT }}
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-  TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
 
 jobs:
-  build-keygen:
-    name: medoc-keygen (${{ matrix.os }})
+  gate:
+    name: verify gate
+    uses: ./.github/workflows/verify.yml
+    secrets: inherit
+
+  build:
+    name: signed build (${{ matrix.os }})
+    needs: gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: medoc-keygen-linux-x86_64
-          - os: macos-latest
-            artifact: medoc-keygen-macos
-          - os: windows-latest
-            artifact: medoc-keygen-windows-x86_64.exe
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    environment: release
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Install libsodium (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
-      - name: Install libsodium (macOS)
-        if: runner.os == 'macOS'
-        run: brew install libsodium cmake
-      - name: Build keygen (Unix)
-        if: runner.os != 'Windows'
-        run: bash installer/build-keygen.sh
-      - name: Build keygen (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install cmake -y
-          vcpkg install libsodium:x64-windows
-          cmake -S installer/medoc-keygen -B installer/medoc-keygen/build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          cmake --build installer/medoc-keygen/build --config Release
-          New-Item -ItemType Directory -Force -Path installer/dist | Out-Null
-          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen.exe installer/dist/medoc-keygen-windows-x86_64.exe
-          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen-verify.exe installer/dist/medoc-keygen-verify-windows-x86_64.exe
-      - name: Upload keygen artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: installer/dist/*
 
-  activation-smoke:
-    name: Activation interop smoke
-    runs-on: ubuntu-latest
-    needs: [build-keygen]
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
-      - run: bash installer/build-keygen.sh
-      - name: Generate and verify manifest
-        run: |
-          echo 'correct horse battery staple' > /tmp/pw.txt
-          ./installer/dist/medoc-keygen-linux-* --out /tmp/activation.json --passphrase-file /tmp/pw.txt
-          ./installer/dist/medoc-keygen-verify-linux-* /tmp/activation.json 'correct horse battery staple'
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
-      - name: Rust activation unwrap test
-        run: MEDOC_VENDOR_PUBKEY=$MEDOC_VENDOR_PUBKEY cargo test -p medoc-sync activation::tests::unwrap_matches_cpp_keygen_when_available -- --nocapture
 
-  build-installer:
-    name: App installer (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: [activation-smoke]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            bundles: deb,rpm,appimage
-          - os: macos-latest
-            bundles: dmg,app
-          - os: windows-latest
-            bundles: nsis,msi
-    steps:
-      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Linux Tauri deps
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - name: Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
-      - run: npm ci
-      - run: npm run build -w medoc
-      - name: Configure Tauri updater (GitHub Releases endpoint)
-        run: node scripts/configure-tauri-updater.mjs
-      - name: Tauri bundle
-        run: npm run tauri build -w medoc -- --bundles ${{ matrix.bundles }}
-      - name: Upload installer
+
+      - name: Re-verify workspace tests on tagged commit
+        run: cargo test --workspace
+
+      - name: Build signed bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          MEDOC_UPDATER_GITHUB_TOKEN: ${{ secrets.MEDOC_UPDATER_GITHUB_PAT }}
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_ui_script() {
+            script="$1"
+            shift
+            if [ "$PM" = "pnpm" ]; then
+              pnpm --filter medoc run "$script" -- "$@"
+            elif [ "$PM" = "yarn" ]; then
+              yarn workspace medoc "$script" "$@"
+            else
+              npm run "$script" -w medoc -- "$@"
+            fi
+          }
+
+          run_ui_script tauri build
+
+      - name: Upload signed bundle artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: medoc-installer-${{ matrix.os }}
+          name: medoc-${{ matrix.os }}
           path: apps/practice-host/target/release/bundle/**/*
 
-  publish-release:
-    name: Publish GitHub Release (updater manifest)
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    needs: [build-installer]
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
+      - name: Generate build provenance
+        uses: actions/attest-build-provenance@v2
         with:
-          path: release-artifacts
-      - name: Merge updater latest.json
-        run: |
-          node scripts/merge-updater-latest.mjs release-artifacts > latest.json
-          cat latest.json
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            latest.json
-            release-artifacts/**/*
-          generate_release_notes: true
-          fail_on_unmatched_files: false
+          subject-path: apps/practice-host/target/release/bundle/**/*
