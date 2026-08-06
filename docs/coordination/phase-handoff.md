@@ -1,28 +1,34 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-07-12)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split with guardrails + coordination docs refresh.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-07-12 — CI/CD tier migration)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Tiered workflows shipped:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml`; legacy `.github/workflows/ci.yml` removed.
+- **Tier 1 verify:** zero-mutation checks for Rust (`fmt --check`, clippy `-D warnings`, `cargo test`, `cargo audit`), JS lint/typecheck/test/build, plus critical-only axe WCAG 2.1 A/AA gate via `.github/scripts/axe-critical-check.mjs`.
+- **Tier 2 autofix:** `pull_request`-only deterministic fixes (`cargo fmt`, lint autofix, optional format), bot-loop guard, commit/push to PR head only.
+- **Tier 3 fix proposal:** manual dispatch or failed `verify` on `main`; creates new branch, captures failing-before/passing-after logs, opens draft PR, labels `needs-human-review` when sensitive paths (`security|audit|crypto|rbac`) are touched, then stops.
+- **Tier 4 release:** tag/dispatch entrypoint; reuses full `verify.yml` as gate, then signed cross-platform build in protected `environment: release` with provenance attestation, no source mutation.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `validation.md`, `project-truth.md`, `actions.md`, and `docs/process/freigabeprozess.md` updated to match workflow migration.
 
 ### Remains unverified
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- End-to-end GitHub-hosted execution results for new workflows (not runnable in this local automation session).
+- Release environment approval settings (`environment: release`) correctness on repository settings side.
+- Tier-3 operational quality of heuristic fixes on real failing `main` runs (workflow exists; runtime behavior **NOT OBSERVED**).
+
+### Understanding delta
+
+- CI/CD moved from a single `ci.yml` file to explicit verify/fix/proposal/release tiers with strict mutation boundaries.
+- Release gating now depends on a reusable verify workflow and protected environment approval rather than a monolithic release workflow.
+- Accessibility enforcement is now an explicit critical-only axe gate in verify, tied to built UI routes.
 
 ### Next
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+1. Trigger a PR run to observe `verify.yml` + `autofix.yml` interplay on a real branch.
+2. Trigger `fix-proposal.yml` in `workflow_dispatch` mode with a known failing command and inspect the generated draft PR evidence bundle.
+3. Execute a protected `release.yml` dry run (manual approval path) to confirm signing + artifact upload behavior.
 
 ---
 

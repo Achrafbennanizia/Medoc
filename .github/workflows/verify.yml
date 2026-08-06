@@ -1,0 +1,238 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    name: rust-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt (check)
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --force
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: web-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" >&2; exit 1 ;;
+          esac
+      - name: Lint
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          run_medoc_script() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run "$1" ;;
+              yarn) yarn workspace medoc "$1" ;;
+              npm) npm run "$1" -w medoc ;;
+            esac
+          }
+          run_medoc_script lint
+      - name: Typecheck
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          run_medoc_script() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run "$1" ;;
+              yarn) yarn workspace medoc "$1" ;;
+              npm) npm run "$1" -w medoc ;;
+            esac
+          }
+
+          if node -e 'const fs=require("node:fs"); const pkg=JSON.parse(fs.readFileSync("apps/practice-host-ui/package.json","utf8")); process.exit(pkg.scripts && pkg.scripts.typecheck ? 0 : 1);'; then
+            run_medoc_script typecheck
+          else
+            case "$PM" in
+              pnpm) pnpm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+              yarn) yarn tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+              npm) npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+            esac
+          fi
+      - name: Test
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm --filter medoc run test ;;
+            yarn) yarn workspace medoc test ;;
+            npm) npm run test -w medoc ;;
+          esac
+      - name: Build
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc build ;;
+            npm) npm run build -w medoc ;;
+          esac
+
+  a11y:
+    name: accessibility-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" >&2; exit 1 ;;
+          esac
+      - name: Build UI
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc build ;;
+            npm) npm run build -w medoc ;;
+          esac
+      - name: Install Playwright browser
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm --filter medoc exec playwright install --with-deps chromium ;;
+            yarn) yarn workspace medoc playwright install --with-deps chromium ;;
+            npm) npm exec --workspace medoc playwright install --with-deps chromium ;;
+          esac
+      - name: Axe critical WCAG 2.1 AA checks
+        shell: bash
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+          A11Y_BASE_URL: http://127.0.0.1:4173
+          A11Y_ROUTES: /,/login
+        run: |
+          set -euo pipefail
+
+          start_preview() {
+            case "$PM" in
+              pnpm) pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 ;;
+              yarn) yarn workspace medoc preview --host 127.0.0.1 --port 4173 ;;
+              npm) npm run preview -w medoc -- --host 127.0.0.1 --port 4173 ;;
+            esac
+          }
+
+          start_preview > /tmp/verify-a11y-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          cleanup() {
+            kill "$PREVIEW_PID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$A11Y_BASE_URL" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "Preview server failed to start." >&2
+              cat /tmp/verify-a11y-preview.log >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          npx --yes --package=axe-core@latest node .github/scripts/axe-critical-check.mjs

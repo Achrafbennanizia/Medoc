@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-12 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-12)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3` + `yaml.safe_load` on `.github/workflows/{verify,autofix,fix-proposal,release}.yml` | **PASS** |
+| Axe helper syntax | `node --check .github/scripts/axe-critical-check.mjs` | **PASS** |
+| Retired path scan in workflows | `rg 'app/src-tauri|\bapp/' .github/workflows` | **PASS** (no matches) |
+| CI structure migration | `.github/workflows/ci.yml` removed; new workflows present | **PASS** (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`) |
+| Full runtime CI execution on GitHub runners | GitHub Actions run | **NOT RUN** (local automation session cannot execute hosted workflow jobs) |
+
+**Delivered:** four-tier CI/CD pipeline with guardrails (`verify`, PR-only deterministic `autofix`, draft-PR `fix-proposal`, verify-gated `release` in protected environment), lockfile-based package manager detection, critical-only axe gate, and release provenance attestation.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
