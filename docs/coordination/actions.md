@@ -1,9 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD tiered pipeline wiring)
 
 ## Now
 
+- **CI/CD follow-up:** resolve current TypeScript failures blocking `npm run typecheck` / `npm run build -w medoc` (see `validation.md`, 2026-07-26 block).
+- **Process-doc sync:** update `docs/process/freigabeprozess.md` references from monolithic `ci.yml` to tiered workflows (`verify/autofix/fix-proposal/release`).
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -32,6 +34,13 @@ Active cost-priority delivery plan and test allow-list:
 - `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
 - Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
 - `npm run build` **PASS** (2026-07-10).
+
+## Done (2026-07-26 — CI/CD pipeline tiers)
+
+- Added tiered workflows: `verify.yml` (blocking verify), `autofix.yml` (PR-only deterministic fixes), `fix-proposal.yml` (new-branch draft PR proposals), and rewritten `release.yml` (verify gate + protected `release` environment + signed build).
+- Added `docs/coordination/ci-cd-plan.md` as canonical CI/CD coordination note.
+- Added workspace scripts for CI parity: root + `apps/practice-host-ui` `typecheck`, `lint:fix`, `format`, `test:a11y`; introduced `apps/practice-host-ui/scripts/test-a11y.mjs` using axe-core + Playwright.
+- Added `ci.yml` compatibility wrapper (`workflow_call` → `verify.yml`) to keep reusable entry point while retiring monolithic CI behavior.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 

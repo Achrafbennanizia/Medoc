@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tiered workflow wiring)
+
+## CI/CD tiered workflow wiring — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "import glob,yaml; [yaml.safe_load(open(p, encoding='utf-8')) for p in glob.glob('.github/workflows/*.yml')]; print('workflow-yaml-parse-ok')"` | **PASS** (`workflow-yaml-parse-ok`) |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** |
+| Workspace typecheck | `npm run typecheck` | **FAIL** — TS2307 (`i18next`, `react-i18next`) + TS6133 unused-local errors in `apps/practice-host-ui/src/lib/*`, `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`, and mirrored `packages/shared/src/lib/*` |
+| Practice-host build proxy | `npm run build -w medoc` | **FAIL** — same TypeScript errors as typecheck |
+
+**Delivered:** four-tier workflow split (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), compatibility wrapper `ci.yml` (`workflow_call`), package-manager detection from lockfiles, deterministic PR-only autofix guardrails, release gate via reusable verify + protected `release` environment, and new `docs/coordination/ci-cd-plan.md`.
+
+**Notes:** whether the current TypeScript failures are pre-existing in this branch state is **UNVERIFIED** in this session (no before-change baseline run was captured).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
