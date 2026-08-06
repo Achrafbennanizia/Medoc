@@ -1,7 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Workflow logging instrumentation + bounded QA pass (2026-07-25)  
+**Last closed:** Dedicated sanitized `workflow.log` channel, frontend→backend workflow bridge, invoke lifecycle telemetry, domain transition telemetry, and bridge tests.
+
+### Verified (2026-07-25 — Workflow logging instrumentation pass)
+
+- **Logger extension (reuse, no parallel logger):** `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` now creates `workflow.log` and routes target `medoc::workflow`; `config.rs` excludes workflow target from `app.log`.
+- **Sanitizer bridge:** `log_workflow_event` command in `crates/app/medoc-practice/src/commands/system/logging.rs` sanitizes workflow labels via `logging::sanitizer::sanitize_workflow_label`.
+- **UI workflow telemetry:** `apps/practice-host-ui/src/services/tauri.service.ts` emits route/action lifecycle phases (`route_enter`, `primary_action`, `success`, `cancel`, `error`) and `app-layout.tsx` emits route enter + Escape-cancel events.
+- **Domain state transitions:** `crates/shared/medoc-core/src/domain/services/workflow_transitions.rs` now emits structured `DOMAIN_STATE_TRANSITION` events to `medoc::workflow`.
+- **Tests added:** `apps/practice-host-ui/src/services/tauri.service.test.ts` (3 tests) plus sanitizer/config/retention unit tests in `medoc-core` logging modules.
+- **Commits:** `6a87fc6`, `e7f0be9`, `8abf401` pushed to branch `cursor/medoc-application-quality-3d6b`.
+
+### Remains unverified
+
+- **Rust gates blocked by environment:** `cargo +stable clippy/test` fail because SQLCipher build cannot find `openssl/crypto.h` in this runner.
+- **Repo-wide rustfmt drift:** `cargo +stable fmt --all -- --check` fails across many pre-existing files not touched in this run.
+- **Frontend baseline failures:** `npm run test` still fails 3 smoke tests due unmocked `onboarding_subscription_status`.
+- **Frontend build baseline failures:** `npm run build` fails TS6133 unused-symbol errors in termin modules.
+- **Steps 2–6 completeness:** full workflow map/state-machine detection, exhaustive component event tests, Playwright geometry/spacing audit, axe/contrast/full UI rule compliance, and P0 fix sweep are **NOT COMPLETE** in this bounded pass.
+
+### Next
+
+1. Fix test harness mocks for onboarding gate (`onboarding_subscription_status`) and rerun `npm run test`.
+2. Resolve TS6133 unused-symbol errors in termin modules and rerun `npm run build`.
+3. Provide OpenSSL headers (or equivalent SQLCipher build deps) in runner, then rerun Rust gates: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`.
+4. Continue Step 2+ (workflow map, Playwright geometry, axe/rules sweep) using `validation.md`/`contradictions.md` register entries as the source of truth.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

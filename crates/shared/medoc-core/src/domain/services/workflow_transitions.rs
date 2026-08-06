@@ -9,15 +9,34 @@ fn status_transition_denied(current: &str, next: &str) -> AppError {
     )
 }
 
-fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
+fn log_transition(machine: &str, current: &str, next: &str, outcome: &str) {
+    tracing::info!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION",
+        machine = machine,
+        current = current,
+        next = next,
+        outcome = outcome
+    );
+}
+
+fn allowed_transition(
+    machine: &str,
+    current: &str,
+    next: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition(machine, &cur, &nxt, "no_change");
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_transition(machine, &cur, &nxt, "accepted");
         Ok(())
     } else {
+        log_transition(machine, &cur, &nxt, "denied");
         Err(status_transition_denied(&cur, &nxt))
     }
 }
@@ -36,18 +55,36 @@ pub fn termin_status_transition(current: &str, next: &str) -> Result<(), AppErro
         "DURCHGEFUEHRT" | "ABGESAGT" | "NICHT_ERSCHIENEN" | "NICHTERSCHIENEN" => &[],
         _ => return Ok(()),
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("termin_status", &cur, next, allowed)
 }
 
 /// FA-AKTE-14: reception/physician forward → queue (`IN_BEARBEITUNG`).
 pub fn patientenakte_forward_review_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "READONLY" {
+        log_transition(
+            "patientenakte_forward_review",
+            &s,
+            "IN_BEARBEITUNG",
+            "denied",
+        );
         return Err(AppError::validation_code("error.workflow.akte_readonly"));
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" || s == "VALIDIERT" {
+        log_transition(
+            "patientenakte_forward_review",
+            &s,
+            "IN_BEARBEITUNG",
+            "accepted",
+        );
         return Ok(());
     }
+    log_transition(
+        "patientenakte_forward_review",
+        &s,
+        "IN_BEARBEITUNG",
+        "denied",
+    );
     Err(AppError::validation_code_params(
         "error.workflow.akte_status_invalid",
         &[("status", &s)],
@@ -58,13 +95,16 @@ pub fn patientenakte_forward_review_transition(current: &str) -> Result<(), AppE
 pub fn patientenakte_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "VALIDIERT" || s == "READONLY" {
+        log_transition("patientenakte_validate", &s, "VALIDIERT", "denied");
         return Err(AppError::validation_code(
             "error.workflow.akte_already_validated",
         ));
     }
     if s == "ENTWURF" || s == "IN_BEARBEITUNG" {
+        log_transition("patientenakte_validate", &s, "VALIDIERT", "accepted");
         return Ok(());
     }
+    log_transition("patientenakte_validate", &s, "VALIDIERT", "denied");
     Err(AppError::validation_code_params(
         "error.workflow.akte_status_invalid",
         &[("status", &s)],
@@ -85,7 +125,7 @@ pub fn praxis_ticket_status_transition(current: &str, next: &str) -> Result<(), 
             ))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("praxis_ticket_status", &cur, next, allowed)
 }
 
 const AUFGABE_STATUSES: &[&str] = &[
@@ -105,20 +145,24 @@ pub fn praxis_aufgabe_admin_status_transition(current: &str, next: &str) -> Resu
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition("praxis_aufgabe_admin", &cur, &nxt, "no_change");
         return Ok(());
     }
     if cur == "VALIDIERT" {
+        log_transition("praxis_aufgabe_admin", &cur, &nxt, "denied");
         return Err(aufgabe_closed());
     }
     if !AUFGABE_STATUSES
         .iter()
         .any(|s| s.eq_ignore_ascii_case(&nxt))
     {
+        log_transition("praxis_aufgabe_admin", &cur, &nxt, "denied");
         return Err(AppError::validation_code_params(
             "error.workflow.aufgabe_unknown_status",
             &[("status", &nxt)],
         ));
     }
+    log_transition("praxis_aufgabe_admin", &cur, &nxt, "accepted");
     Ok(())
 }
 
@@ -127,6 +171,7 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDIERT" {
+        log_transition("praxis_aufgabe_fulfill", &cur, &nxt, "denied");
         return Err(aufgabe_closed());
     }
     let allowed: &[&str] = match cur.as_str() {
@@ -141,7 +186,7 @@ fn praxis_aufgabe_fulfill_status_transition(current: &str, next: &str) -> Result
             ))
         }
     };
-    allowed_transition(&cur, &nxt, allowed)
+    allowed_transition("praxis_aufgabe_fulfill", &cur, &nxt, allowed)
 }
 
 /// FA-AUFG-06: practice task — assignee (REZ pool or named physician) vs. creator (validation).
@@ -184,7 +229,12 @@ pub fn praxis_aufgabe_status_transition(
 
     // Completed task: creator validates/returns — even if creator was also the assignee.
     if is_validator && cur == "ERLEDIGT_REZEPTION" {
-        return allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]);
+        return allowed_transition(
+            "praxis_aufgabe_validator",
+            &cur,
+            &nxt,
+            &["VALIDIERT", "ZURUECK"],
+        );
     }
 
     if is_fulfiller {
@@ -200,7 +250,12 @@ pub fn praxis_aufgabe_status_transition(
 
     if is_validator {
         return match cur.as_str() {
-            "ERLEDIGT_REZEPTION" => allowed_transition(&cur, &nxt, &["VALIDIERT", "ZURUECK"]),
+            "ERLEDIGT_REZEPTION" => allowed_transition(
+                "praxis_aufgabe_validator",
+                &cur,
+                &nxt,
+                &["VALIDIERT", "ZURUECK"],
+            ),
             _ => Err(AppError::validation_code(
                 "error.workflow.aufgabe_validate_only_done",
             )),
@@ -224,5 +279,5 @@ pub fn bestellung_status_transition(current: &str, next: &str) -> Result<(), App
             ))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("bestellung_status", &cur, next, allowed)
 }

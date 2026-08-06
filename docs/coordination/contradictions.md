@@ -1,6 +1,16 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-25
+
+## Workflow quality finding register (2026-07-25)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| Q-2026-07-25-01 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs` | Dedicated workflow log channel and sanitized frontend→backend workflow event bridge were missing. | Commit `6a87fc6`: adds `workflow.log` channel, `log_workflow!` target, and `log_workflow_event` IPC command with sanitizer. | P1 | **Resolved in code**; keep validating with smoke/UI workflow tests. |
+| Q-2026-07-25-02 | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/views/layouts/app-layout.tsx` | UI workflow lifecycle events (route enter/action/success/cancel/error) were not emitted to backend logs. | Commit `6a87fc6`: adds invoke lifecycle bridge + route enter/Escape cancel logging; commit `8abf401` guards Vitest harness. | P1 | **Resolved in code**; keep extending coverage to additional UI cancel paths. |
+| Q-2026-07-25-03 | Rust validation toolchain/build environment | `cargo clippy`/`cargo test` fail in this runner because SQLCipher C build cannot find `openssl/crypto.h`. | `cargo +stable clippy --locked --workspace --all-targets -- -D warnings` and `cargo +stable test --locked --workspace --tests` both fail with `libsqlite3-sys` build error at `sqlcipher/sqlite3.c:110594`. | P1 | Human/infra follow-up: provide OpenSSL headers in runner image (or SQLCipher-compatible build deps), then rerun full Rust gates. |
+| Q-2026-07-25-04 | Frontend smoke tests | Baseline smoke tests fail on onboarding gate due `onboarding_subscription_status` being unmocked in critical/G21 smoke specs. | `npm run test` → 3 failing tests: `critical-flows.smoke.test.tsx` (flows a, f) and `g21-routing.smoke.test.tsx`; output shows `unmocked IPC ... onboarding_subscription_status`. | P2 | Update smoke fixtures/mocks for onboarding gate; rerun full `npm run test`. |
+| Q-2026-07-25-05 | Frontend TypeScript build | Workspace build fails on pre-existing TS6133 unused symbol errors in termin utility modules. | `npm run build` fails in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` (+ package mirrors). | P2 | Clean up unused symbols or relax strict-unused policy where intentional, then rerun `npm run build`. |
 
 ## Open contradictions
 

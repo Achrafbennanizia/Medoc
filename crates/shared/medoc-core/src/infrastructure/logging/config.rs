@@ -67,6 +67,7 @@ impl LoggingConfig {
             || t.starts_with("medoc::device")
             || t.starts_with("medoc::migration")
             || t.starts_with("medoc::perf")
+            || t.starts_with("medoc::workflow")
         {
             return false;
         }
@@ -92,9 +93,21 @@ impl LoggingConfig {
     pub fn app_filter(&self) -> EnvFilter {
         let lvl = self.level().as_filter();
         EnvFilter::new(format!(
-            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off"
+            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off,medoc::workflow=off"
         ))
     }
 }
 
 pub static LOGGING_CONFIG: LoggingConfig = LoggingConfig::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_filter_disables_workflow_target() {
+        LOGGING_CONFIG.set_level(LogLevel::Info);
+        let filter = LOGGING_CONFIG.app_filter().to_string();
+        assert!(filter.contains("medoc::workflow=off"));
+    }
+}

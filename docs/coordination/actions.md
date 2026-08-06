@@ -1,9 +1,13 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-25 (workflow logging instrumentation pass)
 
 ## Now
 
+- **Unblock Rust CI gates in this runner:** install/provide OpenSSL headers required by SQLCipher (`openssl/crypto.h`) so `cargo clippy/test` can execute.
+- **Fix frontend baseline smoke mocks:** add `onboarding_subscription_status` mocking to `critical-flows.smoke.test.tsx` and `g21-routing.smoke.test.tsx`.
+- **Fix TypeScript build drift:** resolve TS6133 unused symbols in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` (+ package mirrors).
+- **Continue quality Steps 2–6:** workflow map/state machines, component event tests, Playwright geometry/spacing audit, axe/UI rules compliance.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -32,6 +36,15 @@ Active cost-priority delivery plan and test allow-list:
 - `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
 - Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
 - `npm run build` **PASS** (2026-07-10).
+
+## Done (2026-07-25 — Workflow logging instrumentation pass)
+
+- Added dedicated `workflow.log` channel in shared tracing subsystem (`medoc-core` logging).
+- Added sanitized workflow bridge command `log_workflow_event` and registered it in IPC handler count (`EXPECTED_INVOKE_COMMAND_COUNT` now 303).
+- Added frontend invoke lifecycle telemetry + route-enter/Escape-cancel workflow events.
+- Added domain state transition telemetry in `workflow_transitions.rs`.
+- Added workflow bridge tests (`tauri.service.test.ts`) and sanitizer/retention/config tests for logging behavior.
+- Recorded findings and validation outcomes in `docs/coordination/contradictions.md` and `validation.md`.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
