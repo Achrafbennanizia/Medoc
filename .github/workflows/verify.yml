@@ -1,0 +1,134 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test --workspace
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager and web commands
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint=pnpm --filter medoc run lint" >> "$GITHUB_OUTPUT"
+            echo "typecheck=pnpm --filter medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test=pnpm --filter medoc run test" >> "$GITHUB_OUTPUT"
+            echo "build=pnpm --filter medoc run build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lint=yarn workspace medoc run lint" >> "$GITHUB_OUTPUT"
+            echo "typecheck=yarn workspace medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test=yarn workspace medoc run test" >> "$GITHUB_OUTPUT"
+            echo "build=yarn workspace medoc run build" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lint=npm run lint -w medoc" >> "$GITHUB_OUTPUT"
+            echo "typecheck=npm run typecheck -w medoc" >> "$GITHUB_OUTPUT"
+            echo "test=npm run test -w medoc" >> "$GITHUB_OUTPUT"
+            echo "build=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.cache_path }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+      - name: Lint (no --fix)
+        run: ${{ steps.pm.outputs.lint }}
+      - name: Type-check
+        run: ${{ steps.pm.outputs.typecheck }}
+      - name: Test
+        run: ${{ steps.pm.outputs.test }}
+      - name: Build
+        run: ${{ steps.pm.outputs.build }}
+
+  a11y:
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager and a11y commands
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build=pnpm --filter medoc run build" >> "$GITHUB_OUTPUT"
+            echo "a11y=pnpm --filter medoc run test:a11y" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "build=yarn workspace medoc run build" >> "$GITHUB_OUTPUT"
+            echo "a11y=yarn workspace medoc run test:a11y" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "build=npm run build -w medoc" >> "$GITHUB_OUTPUT"
+            echo "a11y=npm run test:a11y -w medoc" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.cache_path }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+      - name: Build UI for accessibility checks
+        run: ${{ steps.pm.outputs.build }}
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run axe-core audit (critical WCAG 2.1 AA)
+        run: ${{ steps.pm.outputs.a11y }}
