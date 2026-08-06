@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (CI/CD tier migration)
+
+## CI/CD tier migration — validation snapshot (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "import yaml, pathlib; ... safe_load(...)"` over `.github/workflows/*.yml` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parsed successfully |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — large pre-existing formatting drift across Rust workspace (not introduced in this change) |
+| Frontend lint gate | `npm run lint -w medoc` | **FAIL** — existing lint/compiler-hook violations in app code |
+| Frontend typecheck gate | `npm run typecheck` | **FAIL** — existing TS module/unused-symbol errors in current tree |
+| Frontend build gate | `npm run build` | **FAIL** — blocked by same TS errors as typecheck |
+| Axe-core run | `npm run test:a11y -w medoc` | **FAIL** (expected precondition) — `dist/` missing because build failed first |
+
+**Interpretation:** workflow wiring and script syntax are valid; repository currently has pre-existing Rust/TS/lint debt that will cause Tier-1 `verify` to fail until those issues are remediated.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

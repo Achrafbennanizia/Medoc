@@ -1,0 +1,224 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Branch to propose fixes against"
+        required: true
+        default: "main"
+      verify_command:
+        description: "Verification command to run before/after the fix"
+        required: false
+        default: ""
+      fix_command:
+        description: "Fix command to attempt (must produce a real diff)"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            echo "base_ref=$RUN_HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=$RUN_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            echo "trigger_label=verify-run-$RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_ref=$INPUT_BASE_REF" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=$INPUT_BASE_REF" >> "$GITHUB_OUTPUT"
+            echo "trigger_label=manual-dispatch-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.checkout_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager" && exit 1 ;;
+          esac
+
+      - name: Run failing-before / fix / passing-after cycle
+        id: cycle
+        env:
+          INPUT_VERIFY_COMMAND: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_command || '' }}
+          INPUT_FIX_COMMAND: ${{ github.event_name == 'workflow_dispatch' && inputs.fix_command || '' }}
+          DEFAULT_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          set -euo pipefail
+
+          run_pm() {
+            case "$PM" in
+              pnpm) pnpm run "$1" ;;
+              yarn) yarn run "$1" ;;
+              npm) npm run "$1" ;;
+              *) echo "Unsupported package manager: $PM" ; return 1 ;;
+            esac
+          }
+
+          run_default_verify() {
+            cargo test --workspace
+            run_pm typecheck
+            run_pm test
+          }
+
+          run_verify() {
+            if [ -n "$INPUT_VERIFY_COMMAND" ]; then
+              bash -lc "$INPUT_VERIFY_COMMAND"
+            else
+              run_default_verify
+            fi
+          }
+
+          FIX_COMMAND="$INPUT_FIX_COMMAND"
+          if [ -z "$FIX_COMMAND" ] && [ -n "$DEFAULT_FIX_COMMAND" ]; then
+            FIX_COMMAND="$DEFAULT_FIX_COMMAND"
+          fi
+
+          if [ -z "$FIX_COMMAND" ]; then
+            echo "No fix command provided. Set workflow input fix_command or repository variable CI_FIX_PROPOSAL_COMMAND."
+            exit 1
+          fi
+
+          set +e
+          run_verify > /tmp/fix-proposal-before.log 2>&1
+          BEFORE_EXIT=$?
+          set -e
+
+          if [ "$BEFORE_EXIT" -eq 0 ]; then
+            echo "Verification passed before fix attempt; no failing baseline to repair."
+            exit 1
+          fi
+
+          set +e
+          bash -lc "$FIX_COMMAND" > /tmp/fix-proposal-fix.log 2>&1
+          FIX_EXIT=$?
+          set -e
+          if [ "$FIX_EXIT" -ne 0 ]; then
+            echo "Fix command failed."
+            exit 1
+          fi
+
+          set +e
+          run_verify > /tmp/fix-proposal-after.log 2>&1
+          AFTER_EXIT=$?
+          set -e
+          if [ "$AFTER_EXIT" -ne 0 ]; then
+            echo "Verification still fails after fix attempt."
+            exit 1
+          fi
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Fix command produced no source changes."
+            exit 1
+          fi
+
+          {
+            echo "## Fix proposal rationale"
+            echo ""
+            echo "- Trigger: \`${{ steps.meta.outputs.trigger_label }}\`"
+            echo "- Base branch: \`${{ steps.meta.outputs.base_ref }}\`"
+            echo "- Package manager: \`$PM\`"
+            echo "- Verify command: \`${INPUT_VERIFY_COMMAND:-cargo test --workspace && <pm> run typecheck && <pm> run test}\`"
+            echo "- Fix command: \`$FIX_COMMAND\`"
+            echo ""
+            echo "## Failing-before evidence"
+            echo ""
+            echo '```text'
+            cat /tmp/fix-proposal-before.log
+            echo '```'
+            echo ""
+            echo "## Passing-after evidence"
+            echo ""
+            echo '```text'
+            cat /tmp/fix-proposal-after.log
+            echo '```'
+            echo ""
+            echo "## Fix command output"
+            echo ""
+            echo '```text'
+            cat /tmp/fix-proposal-fix.log
+            echo '```'
+          } > .github/fix-proposal-body.md
+
+      - name: Check for protected-surface touch
+        id: guard
+        run: |
+          CHANGED_FILES="$(git diff --name-only)"
+          echo "$CHANGED_FILES"
+          if echo "$CHANGED_FILES" | grep -E '(^|/)(security|audit|crypto|rbac)(/|_|\.|$)' >/dev/null; then
+            echo "labels=needs-human-review" >> "$GITHUB_OUTPUT"
+            echo "touches_protected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "labels=" >> "$GITHUB_OUTPUT"
+            echo "touches_protected=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create draft PR with fix proposal
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "ci: fix proposal for failed verification"
+          branch: ci/fix-proposal/${{ github.run_id }}
+          base: ${{ steps.meta.outputs.base_ref }}
+          delete-branch: true
+          title: "ci: fix proposal for ${{ steps.meta.outputs.trigger_label }}"
+          body-path: .github/fix-proposal-body.md
+          draft: true
+          labels: ${{ steps.guard.outputs.labels }}
+
+      - name: Stop when protected surfaces changed
+        if: steps.guard.outputs.touches_protected == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: |
+          echo "Fix proposal touches protected security/audit/crypto/RBAC code."
+          echo "needs-human-review label has been applied; stopping for explicit human approval."
+          exit 1

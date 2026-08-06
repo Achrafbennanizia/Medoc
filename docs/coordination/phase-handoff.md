@@ -1,5 +1,38 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-07-25)  
+**Last closed:** tiered workflow wiring + coordination docs sync.
+
+### Verified (2026-07-25 — CI/CD tier migration)
+
+- **Tier 1 (verify):** new `.github/workflows/verify.yml` with Rust fmt/clippy/test/audit, package-manager detection, JS lint/typecheck/test/build, and axe-core a11y gate.
+- **Tier 2 (autofix):** new `.github/workflows/autofix.yml` (`pull_request` only) with bot loop guard, deterministic fixes only, and protected-surface block for security/audit/crypto/RBAC file changes.
+- **Tier 3 (fix proposal):** new `.github/workflows/fix-proposal.yml` (manual dispatch + failed `verify` on `main`) requiring failing-before/passing-after evidence and opening a **draft PR** only.
+- **Tier 4 (release):** `.github/workflows/release.yml` rewritten to reuse `verify.yml` as gate, then build signed cross-platform artifacts under protected `release` environment; asserts tracked source tree remains unchanged.
+- **Legacy migration:** retired `.github/workflows/ci.yml`; CI truth/actions docs updated (`project-truth.md`, `actions.md`, `ci-cd-plan.md`).
+- **Local syntax checks:** workflow YAML parse + `test-a11y.mjs` syntax check passed (see `validation.md` 2026-07-25 block).
+
+### Remains unverified
+
+- Live GitHub Actions execution of all four new workflows.
+- Branch protection wiring for required `verify` checks.
+- Protected `release` environment approval policy in repository settings.
+- Tier 3 repository variable `CI_FIX_PROPOSAL_COMMAND` configuration (if red-main auto proposal should run unattended).
+- Existing repository quality debt surfaced by gate commands (`cargo fmt --check`, `npm lint`, `npm typecheck`, `npm build`) — currently failing independent of this workflow wiring.
+
+### Understanding delta
+
+- Current repo already runs from root `apps/crates/packages`; CI now explicitly matches that workspace and no longer depends on a monolithic `ci.yml`.
+- A11y verification is now explicit and executable via `apps/practice-host-ui/scripts/test-a11y.mjs` (`axe-core`, critical WCAG 2.1 AA only).
+
+### Next
+
+1. Run new workflows in CI (PR + tag dry-run) and capture outcomes in `validation.md`.
+2. Configure branch protection required checks (`verify` jobs).
+3. Confirm `release` environment reviewer gate and secret availability (`TAURI_SIGNING_PRIVATE_KEY*`, updater secrets).
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

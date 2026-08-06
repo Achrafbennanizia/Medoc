@@ -1,0 +1,86 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    # Loop guard + avoid attempting to push into external forks.
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager" && exit 1 ;;
+          esac
+      - name: Deterministic fixes only
+        run: |
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run "$1" ;;
+              yarn) yarn run "$1" ;;
+              npm) npm run "$1" ;;
+            esac
+          }
+          cargo fmt --all
+          run_pm lint:fix || true
+          run_pm format || true
+      - name: Block protected-surface mutations
+        run: |
+          CHANGED="$(git diff --name-only)"
+          if [ -z "$CHANGED" ]; then
+            exit 0
+          fi
+
+          if echo "$CHANGED" | grep -E '(^|/)(security|audit|crypto|rbac)(/|_|\.|$)' >/dev/null; then
+            echo "Autofix produced changes in protected security/audit/crypto/RBAC areas."
+            echo "$CHANGED"
+            exit 1
+          fi
+      - name: Commit fixes if changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic autofix (fmt/lint)"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
