@@ -1,6 +1,17 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD pipeline tier migration)
+
+## Done (2026-07-26 — CI/CD pipeline tier migration)
+
+- Replaced legacy single-file CI with four-tier workflow set:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Retired `.github/workflows/ci.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Logged command evidence + validation status in `docs/coordination/validation.md`.
 
 ## Now
 
