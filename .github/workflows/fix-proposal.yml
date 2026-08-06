@@ -1,0 +1,219 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch or commit SHA to evaluate (default: main)"
+        required: false
+        default: "main"
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: target
+        name: Resolve target ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_branch=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "trigger_summary=verify failed on workflow run ${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          else
+            REF_INPUT="${{ github.event.inputs.source_ref }}"
+            if [ -z "$REF_INPUT" ]; then
+              REF_INPUT="main"
+            fi
+            echo "ref=$REF_INPUT" >> "$GITHUB_OUTPUT"
+            echo "base_branch=main" >> "$GITHUB_OUTPUT"
+            echo "trigger_summary=manual dispatch" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - run: cargo install cargo-audit --locked || true
+
+      - id: before_tests
+        name: Baseline cargo tests
+        continue-on-error: true
+        run: cargo test --workspace --tests
+      - id: before_audit
+        name: Baseline cargo audit
+        continue-on-error: true
+        run: cargo audit
+      - id: before_typecheck
+        name: Baseline web type-check
+        continue-on-error: true
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run typecheck ;;
+            yarn) yarn run typecheck ;;
+            npm) npm run typecheck ;;
+          esac
+
+      - name: Attempt advisory remediation by dependency update
+        if: steps.before_audit.outcome == 'failure'
+        run: cargo update --workspace
+      - name: Attempt type remediation with deterministic JS autofixes
+        if: steps.before_typecheck.outcome == 'failure'
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm run lint:fix || true
+              pnpm run format || true
+              ;;
+            yarn)
+              yarn run lint:fix || true
+              yarn run format || true
+              ;;
+            npm)
+              npm run lint:fix || true
+              npm run format || true
+              ;;
+          esac
+
+      - id: after_tests
+        name: Re-run cargo tests after remediation
+        if: steps.before_tests.outcome == 'failure'
+        continue-on-error: true
+        run: cargo test --workspace --tests
+      - id: after_audit
+        name: Re-run cargo audit after remediation
+        if: steps.before_audit.outcome == 'failure'
+        continue-on-error: true
+        run: cargo audit
+      - id: after_typecheck
+        name: Re-run web type-check after remediation
+        if: steps.before_typecheck.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run typecheck ;;
+            yarn) yarn run typecheck ;;
+            npm) npm run typecheck ;;
+          esac
+
+      - id: pr_body
+        name: Prepare draft PR body (failing-before / passing-after evidence)
+        run: |
+          BODY_FILE="${RUNNER_TEMP}/fix-proposal-pr-body.md"
+          cat > "$BODY_FILE" <<'EOF'
+          ## CI fix proposal (draft)
+
+          This draft PR was created by the Tier 3 `fix-proposal` workflow.
+          It attempts a **safe, non-destructive remediation** for failed verify gates and leaves final merge decisions to humans.
+
+          ### Trigger context
+          - ${{ steps.target.outputs.trigger_summary }}
+          - Target ref: `${{ steps.target.outputs.ref }}`
+
+          ### Evidence (before / after)
+
+          | Check | Before | After |
+          | --- | --- | --- |
+          | `cargo test --workspace --tests` | `${{ steps.before_tests.outcome }}` | `${{ steps.after_tests.outcome || 'not-rerun' }}` |
+          | `cargo audit` | `${{ steps.before_audit.outcome }}` | `${{ steps.after_audit.outcome || 'not-rerun' }}` |
+          | `npm run typecheck` | `${{ steps.before_typecheck.outcome }}` | `${{ steps.after_typecheck.outcome || 'not-rerun' }}` |
+
+          ### Remediation policy
+          - Deterministic Tier 2 changes stay in `autofix.yml`.
+          - This workflow only proposes a **draft PR** on a **new branch**.
+          - It never auto-merges.
+          - If sensitive code paths are touched (security/audit/crypto/RBAC), the PR is labeled `needs-human-review`.
+          EOF
+          echo "path=$BODY_FILE" >> "$GITHUB_OUTPUT"
+
+      - id: diff
+        name: Detect diff and sensitive-path changes
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "sensitive_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only > changed-files.txt
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+          if rg -i -n "(^|/)(security|audit|crypto)(/|\\.|_)" changed-files.txt >/dev/null || rg -i -n "(^|/)rbac(\\.|/|_)" changed-files.txt >/dev/null || rg -n "^config/rbac\\.yaml$" changed-files.txt >/dev/null; then
+            echo "sensitive_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        name: Open draft PR for proposed fix
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          base: ${{ steps.target.outputs.base_branch }}
+          title: "ci: draft fix proposal for failed verification gate"
+          commit-message: "ci: propose follow-up fix for failed verify gate"
+          body-path: ${{ steps.pr_body.outputs.path }}
+          draft: true
+          delete-branch: false
+
+      - name: Label sensitive changes for human-only review
+        if: steps.diff.outputs.sensitive_changed == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop after sensitive-change labeling
+        if: steps.diff.outputs.sensitive_changed == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: echo "Sensitive paths changed; draft PR labeled needs-human-review and left for manual adjudication."
+
+      - name: No-fix notice
+        if: steps.diff.outputs.has_changes != 'true'
+        run: echo "No repository changes were produced by fix-proposal heuristics."

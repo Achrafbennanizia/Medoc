@@ -1,6 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD tiered workflow migration)
+
+## Done (2026-07-26 — CI/CD tiered workflows)
+
+- Added Tier 1 verify gate: `.github/workflows/verify.yml` (non-mutating Rust/web/a11y checks, pm auto-detection, concurrency/timeouts).
+- Added Tier 2 PR autofix: `.github/workflows/autofix.yml` (deterministic formatting/lint-only, loop guard for `github-actions[bot]`).
+- Added Tier 3 fix-proposal: `.github/workflows/fix-proposal.yml` (manual or red-main trigger, new branch + draft PR, sensitive-path label guard).
+- Updated Tier 4 release: `.github/workflows/release.yml` now blocks on reusable verify gate and requires protected `release` environment for signed matrix builds.
+- Migrated `.github/workflows/ci.yml` to manual legacy wrapper; added `docs/coordination/ci-cd-plan.md`.
+- Captured validation evidence in `docs/coordination/validation.md` (2026-07-26 block).
 
 ## Now
 
