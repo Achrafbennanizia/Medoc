@@ -1,0 +1,318 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to analyze for proposal fixes"
+        required: false
+        default: "main"
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose-fix:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve source ref
+        id: source
+        env:
+          MANUAL_BASE_REF: ${{ github.event.inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=main" >> "$GITHUB_OUTPUT"
+            echo "reason=verify run #${{ github.event.workflow_run.run_number }} failed on main" >> "$GITHUB_OUTPUT"
+          else
+            base="${MANUAL_BASE_REF:-main}"
+            echo "ref=${base}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=${base}" >> "$GITHUB_OUTPUT"
+            echo "reason=manual dispatch for ${base}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Create proposal branch
+        id: branch
+        run: |
+          set -euo pipefail
+          ts="$(date -u +%Y%m%d%H%M%S)"
+          branch="ci/fix-proposal-${ts}-${GITHUB_RUN_ID}"
+          git switch -c "${branch}"
+          echo "name=${branch}" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: Detect package manager
+        id: pm
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: Capture baseline failures
+        id: baseline
+        run: |
+          set +e
+          cargo test --workspace > /tmp/cargo-test-before.log 2>&1
+          cargo_test=$?
+          cargo audit > /tmp/cargo-audit-before.log 2>&1
+          cargo_audit=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm audit > /tmp/npm-audit-before.log 2>&1
+              npm_audit=$?
+              ;;
+            yarn)
+              yarn npm audit > /tmp/npm-audit-before.log 2>&1
+              npm_audit=$?
+              ;;
+            *)
+              npm audit --omit=dev > /tmp/npm-audit-before.log 2>&1
+              npm_audit=$?
+              ;;
+          esac
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json > /tmp/typecheck-before.log 2>&1
+          typecheck=$?
+          set -e
+
+          echo "cargo_test=${cargo_test}" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit=${cargo_audit}" >> "$GITHUB_OUTPUT"
+          echo "npm_audit=${npm_audit}" >> "$GITHUB_OUTPUT"
+          echo "typecheck=${typecheck}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip when no failing gates are detected
+        id: gate
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.baseline.outputs.cargo_test }}" = "0" ] && \
+             [ "${{ steps.baseline.outputs.cargo_audit }}" = "0" ] && \
+             [ "${{ steps.baseline.outputs.npm_audit }}" = "0" ] && \
+             [ "${{ steps.baseline.outputs.typecheck }}" = "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "verify checks are green on ${GITHUB_SHA}; no fix proposal PR opened." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Attempt non-deterministic repairs
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set +e
+          if [ "${{ steps.baseline.outputs.cargo_test }}" != "0" ]; then
+            cargo fix --workspace --allow-dirty --allow-staged
+          fi
+
+          if [ "${{ steps.baseline.outputs.cargo_audit }}" != "0" ]; then
+            cargo update --workspace
+          fi
+
+          if [ "${{ steps.baseline.outputs.npm_audit }}" != "0" ]; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm)
+                pnpm audit --fix
+                ;;
+              yarn)
+                yarn npm audit --fix
+                ;;
+              *)
+                npm audit fix --package-lock-only --omit=dev
+                ;;
+            esac
+          fi
+
+          if [ "${{ steps.baseline.outputs.typecheck }}" != "0" ]; then
+            npm dedupe
+          fi
+          set -e
+
+      - name: Capture post-repair status
+        id: after
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set +e
+          cargo test --workspace > /tmp/cargo-test-after.log 2>&1
+          cargo_test=$?
+          cargo audit > /tmp/cargo-audit-after.log 2>&1
+          cargo_audit=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm audit > /tmp/npm-audit-after.log 2>&1
+              npm_audit=$?
+              ;;
+            yarn)
+              yarn npm audit > /tmp/npm-audit-after.log 2>&1
+              npm_audit=$?
+              ;;
+            *)
+              npm audit --omit=dev > /tmp/npm-audit-after.log 2>&1
+              npm_audit=$?
+              ;;
+          esac
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json > /tmp/typecheck-after.log 2>&1
+          typecheck=$?
+          set -e
+
+          echo "cargo_test=${cargo_test}" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit=${cargo_audit}" >> "$GITHUB_OUTPUT"
+          echo "npm_audit=${npm_audit}" >> "$GITHUB_OUTPUT"
+          echo "typecheck=${typecheck}" >> "$GITHUB_OUTPUT"
+
+      - name: Write proposal report
+        id: report
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p docs/coordination/fix-proposals
+          report_path="docs/coordination/fix-proposals/${GITHUB_RUN_ID}.md"
+          changed_files="$(git status --porcelain | awk '{print $2}')"
+
+          cat > "${report_path}" <<EOF
+          # CI fix proposal ${GITHUB_RUN_ID}
+
+          - Trigger: ${{ steps.source.outputs.reason }}
+          - Source ref: ${{ steps.source.outputs.ref }}
+          - Proposal branch: ${{ steps.branch.outputs.name }}
+          - Base branch: ${{ steps.source.outputs.base_ref }}
+          - Auto-merge: disabled (draft PR only)
+
+          ## Failing-before / Passing-after evidence (exit codes)
+
+          | Check | Before | After |
+          | --- | ---: | ---: |
+          | cargo test --workspace | ${{ steps.baseline.outputs.cargo_test }} | ${{ steps.after.outputs.cargo_test }} |
+          | cargo audit | ${{ steps.baseline.outputs.cargo_audit }} | ${{ steps.after.outputs.cargo_audit }} |
+          | npm/pnpm/yarn audit | ${{ steps.baseline.outputs.npm_audit }} | ${{ steps.after.outputs.npm_audit }} |
+          | TypeScript typecheck | ${{ steps.baseline.outputs.typecheck }} | ${{ steps.after.outputs.typecheck }} |
+
+          ## Files changed by proposal attempt
+
+          ${changed_files:-No tracked file changes from automated attempt.}
+
+          ## Notes
+
+          - This PR is created as a **draft** for human review.
+          - Security/audit/crypto/RBAC touching changes are labelled \`needs-human-review\`.
+          EOF
+
+          echo "path=${report_path}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect sensitive-path edits
+        id: sensitive
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          : > /tmp/sensitive-files.txt
+          needs_human_review=false
+          while IFS= read -r path; do
+            lower_path="${path,,}"
+            case "${lower_path}" in
+              *security*|*audit*|*crypto*|*rbac*)
+                needs_human_review=true
+                echo "${path}" >> /tmp/sensitive-files.txt
+                ;;
+            esac
+          done < <(git diff --name-only)
+
+          echo "needs_human_review=${needs_human_review}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push proposal branch
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes were produced; proposal branch is not pushed."
+            exit 0
+          fi
+          git commit -m "ci: proposal fix attempt for failing verify gate"
+          git push -u origin "${{ steps.branch.outputs.name }}"
+
+      - name: Open draft pull request
+        id: pr
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ steps.source.outputs.base_ref }}
+        run: |
+          set -euo pipefail
+          if ! git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+            git fetch origin "${BASE_REF}"
+          fi
+
+          ahead_count="$(git rev-list --count "origin/${BASE_REF}..HEAD")"
+          if [ "${ahead_count}" = "0" ]; then
+            echo "No commits ahead of base branch; skipping PR creation."
+            exit 0
+          fi
+
+          title="ci: fix proposal for failing verify gate on ${BASE_REF}"
+          pr_url="$(gh pr create \
+            --base "${BASE_REF}" \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "${title}" \
+            --body-file "${{ steps.report.outputs.path }}" \
+            --draft)"
+          echo "url=${pr_url}" >> "$GITHUB_OUTPUT"
+          echo "Opened draft PR: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Label sensitive proposal
+        if: steps.gate.outputs.skip != 'true' && steps.sensitive.outputs.needs_human_review == 'true' && steps.pr.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label needs-human-review
+          {
+            echo "Sensitive files touched by automation:"
+            cat /tmp/sensitive-files.txt
+          } >> "$GITHUB_STEP_SUMMARY"

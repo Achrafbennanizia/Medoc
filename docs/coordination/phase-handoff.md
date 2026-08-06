@@ -1,7 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tiering + stale path migration (2026-07-26)  
+**Last closed:** Replaced stale `ci.yml` with `verify.yml`/`autofix.yml`/`fix-proposal.yml`/`release.yml`; added `docs/coordination/ci-cd-plan.md`; aligned release-process doc CI reference.
+
+### Verified (2026-07-26 — CI/CD tiering)
+
+- **Workspace-aware verification:** Tier 1 `verify.yml` now targets the live root Cargo/npm workspace (`apps/*`, `crates/*`, `packages/*`) and includes rust, web, and a11y gates with concurrency cancellation + job timeouts.
+- **Safe deterministic autofix:** Tier 2 `autofix.yml` is `pull_request`-only, loop-guarded (`github-actions[bot]` skip), pushes only deterministic formatting/lint fixes back to PR head.
+- **Substantive-fix proposal path:** Tier 3 `fix-proposal.yml` runs on manual dispatch or failed `verify` on `main`, attempts non-deterministic repair on a new branch, and opens a **draft PR** with failing-before/passing-after evidence; sensitive paths (`security|audit|crypto|rbac`) trigger `needs-human-review`.
+- **Gated release:** Tier 4 `release.yml` reuses full `verify` as a gate, then builds signed cross-platform bundles under protected `release` environment (manual approval gate), without source mutation.
+
+### Remains unverified
+
+- First end-to-end GitHub Actions execution of all four workflows in remote CI (this session is file-level wiring only).
+- Real PR-loop behavior confirmation for `autofix.yml` on a live pull request.
+- Tag-based release run with configured signing/updater secrets in repository settings.
+
+### Next
+
+1. Trigger a PR validation run to confirm `verify` + `autofix` sequencing and loop guard behavior.
+2. Trigger `fix-proposal.yml` manually once to validate draft PR creation and sensitive-label path.
+3. Run a tag or `workflow_dispatch` release dry run through protected `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
