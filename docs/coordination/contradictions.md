@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-26
 
 ## Open contradictions
 
@@ -10,6 +10,7 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Verify gate expectations vs current frontend baseline | New Tier-1 verify requires `typecheck` + `build` for `medoc` | Local run on 2026-07-26: `npm run typecheck -w medoc` and `npm run build -w medoc` fail with TS6133 unused-symbol errors in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` | **Open** — fix TS unused-symbol debt or relax TS config/check scope intentionally before enforcing as required branch gate. |
 
 ## Resolved (recent)
 

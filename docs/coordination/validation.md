@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-26)
+
+| Check | Command | Result | Notes |
+|-------|---------|--------|-------|
+| Shell helper syntax | `bash -n scripts/ci/fix-proposal-default.sh` | **PASS** | Script parses cleanly |
+| Axe runner syntax | `node --check scripts/ci/run-axe-critical.mjs` | **PASS** | ESM syntax valid |
+| Workflow YAML parse | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** (`parsed 4 workflow files`) | Structural YAML parse only |
+| Frontend typecheck (baseline) | `npm run typecheck -w medoc` | **FAIL** | TS6133 unused-symbol errors in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| Frontend build (baseline) | `npm run build -w medoc` | **FAIL** | Same TS6133 failures; build currently not green locally |
+| Accessibility runtime scan | `node scripts/ci/run-axe-critical.mjs` against built preview | **NOT RUN** | Blocked by current frontend build failure |
+
+**Delivered in this phase:** tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), removal of legacy `.github/workflows/ci.yml`, CI/CD plan doc (`docs/coordination/ci-cd-plan.md`), a11y runner (`scripts/ci/run-axe-critical.mjs`), and fix-proposal helper script.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
