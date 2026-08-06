@@ -1,7 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline wiring (2026-07-26)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows, CI plan doc, axe runner.
+
+### Verified (2026-07-26 — CI/CD tiered pipeline wiring)
+
+- **Workflow migration:** retired `.github/workflows/ci.yml`; added `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- **Tier 1 guardrails:** verify workflow is zero-mutation, has job timeouts, and `concurrency.cancel-in-progress`.
+- **Tier 2 guardrails:** autofix is `pull_request`-only, deterministic (`cargo fmt`, `lint:fix`, `format`), and loop-guarded with `github.actor != 'github-actions[bot]'`.
+- **Tier 3 guardrails:** fix-proposal opens draft PRs only, records failing-before/passing-after evidence, labels `needs-human-review` and stops when touching `security|audit|crypto|rbac`.
+- **Tier 4 guardrails:** release reuses full verify gate (`workflow_call`) before protected-environment signed builds.
+- **JS support hooks added:** root + `apps/practice-host-ui` scripts for `typecheck`, `lint:fix`, `format`, `test:a11y`; new `scripts/run-axe-a11y.mjs`.
+- **Local validation:** workflow YAML parse **PASS**; a11y runner syntax **PASS**; `npm run typecheck` + `npm run build` **FAIL** on pre-existing TS6133 unused-symbol errors.
+
+### Remains unverified
+
+- GitHub Actions runner execution of new workflows (local YAML parse only).
+- Runtime `test:a11y` pass/fail on CI browser runners.
+- End-to-end release approval/signing path under protected `release` environment.
+
+### Understanding delta
+
+- The repository now has explicit CI tiers separated by responsibility; release and verify are now clearly non-mutating gates.
+- Frontend `tsc` strictness currently blocks `typecheck`/`build` with existing TS6133 issues unrelated to workflow wiring; verify will correctly surface these until fixed.
+
+### Next
+
+1. Fix pre-existing TS6133 frontend errors so Tier 1 web gate can pass.
+2. Execute GitHub Actions runs for `verify.yml` and `autofix.yml` on a test PR branch.
+3. Dry-run `fix-proposal.yml` (`workflow_dispatch`) with `CI_FIX_AGENT_COMMAND` configured.
+4. Tag-based rehearsal of `release.yml` through protected `release` environment approvals.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

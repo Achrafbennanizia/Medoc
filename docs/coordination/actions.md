@@ -1,16 +1,25 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD tiered pipeline wiring)
 
 ## Now
 
-- **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
-- **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
-- **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **CI follow-up:** Resolve pre-existing frontend TS6133 typecheck/build failures so Tier 1 web gate can pass.
+- **CI runtime verification:** Run `verify.yml` + `autofix.yml` on a live PR and confirm guardrails/loop-guard behavior.
+- **Tier 3 configuration:** Provide `CI_FIX_AGENT_COMMAND` secret and dry-run `fix-proposal.yml`.
+- **Release rehearsal:** execute tag/dispatch run through protected `release` environment approval.
+
+## Done (2026-07-26 — CI/CD tiered pipeline wiring)
+
+- Added `.github/workflows/verify.yml` (Tier 1 verify, zero mutation, Rust/Web/A11y, concurrency + timeouts).
+- Added `.github/workflows/autofix.yml` (Tier 2 deterministic autofix, PR-only, bot loop guard).
+- Added `.github/workflows/fix-proposal.yml` (Tier 3 draft fix proposals with before/after evidence and sensitive-path label guard).
+- Replaced `.github/workflows/release.yml` with Tier 4 verify-gated signed build flow under protected `release` environment.
+- Retired legacy monolith `.github/workflows/ci.yml`.
+- Added `docs/coordination/ci-cd-plan.md` and `scripts/run-axe-a11y.mjs`.
+- Added workspace scripts: `typecheck`, `lint:fix`, `format`, `test:a11y` (root + `apps/practice-host-ui`).
+
+**Observed blocker:** `npm run typecheck` and `npm run build` currently fail on pre-existing TS6133 unused symbols.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
