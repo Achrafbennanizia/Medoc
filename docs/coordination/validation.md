@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (workflow logging + geometry baseline)
+
+## Workflow quality run — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Frontend tests | `npm run test` | **PASS** — 289 passed, 3 skipped (`64` files total) |
+| Frontend build | `npm run build` | **PASS** — Vite production build completed |
+| Tailwind token-scale lint | `npm run lint:tailwind-scale` | **PASS** — no arbitrary spacing/size tokens |
+| Geometry + snapshots | `npm run test:playwright -- e2e-playwright/ui-geometry.spec.ts --update-snapshots` then `npm run test:playwright -- e2e-playwright/ui-geometry.spec.ts` | **PASS** — 4/4 at 375, 768, 1259 with snapshots in `apps/practice-host-ui/e2e-playwright/ui-geometry.spec.ts-snapshots/` |
+| Frontend lint gate | `npm run lint` | **FAIL** — 57 problems (19 errors, 38 warnings), mainly pre-existing `react-hooks/*` violations |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — repo-wide formatting drift (multiple pre-existing files) |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — Cargo 1.83 cannot parse dependency requiring `edition2024` (`home v0.5.12`) |
+| Rust tests gate | `cargo test --workspace --tests` | **FAIL** — same `edition2024` blocker as clippy |
+
+**Run notes (2026-07-26):**
+
+- Playwright initially failed because Chromium runtime was absent; resolved via `npx playwright install chromium`, then reran the geometry spec successfully.
+- Workflow smoke coverage updated and passing (`critical-flows.smoke.test.tsx`, `g21-routing.smoke.test.tsx`, `workflow-route-logger.test.tsx`, `tauri-practice.adapter.test.ts`).
+- **NOT RUN:** full `axe-core` accessibility sweep across all pages/components.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

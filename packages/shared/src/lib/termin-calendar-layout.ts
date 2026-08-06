@@ -119,10 +119,7 @@ export type TerminClosedSpan = {
     toMin: number;
 };
 
-function boundsFromSegments(
-    segments: Array<{ from: string; to: string }>,
-    fallback: TerminTimelineBounds,
-): TerminTimelineBounds | null {
+function boundsFromSegments(segments: Array<{ from: string; to: string }>): TerminTimelineBounds | null {
     let minStart = Number.POSITIVE_INFINITY;
     let maxEnd = 0;
     for (const seg of segments) {
@@ -167,10 +164,7 @@ export function deriveTerminTimelineBounds(
             if (seg.from && seg.to && seg.from < seg.to) allSegments.push(seg);
         }
     }
-    return boundsFromSegments(allSegments, {
-        startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
-        endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
-    }) ?? {
+    return boundsFromSegments(allSegments) ?? {
         startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
         endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
     };
@@ -188,7 +182,7 @@ export function deriveDayTimelineBounds(
         return deriveTerminTimelineBounds(cfg, arztId);
     }
     return (
-        boundsFromSegments(day.segments ?? [], deriveTerminTimelineBounds(cfg, arztId))
+        boundsFromSegments(day.segments ?? [])
         ?? deriveTerminTimelineBounds(cfg, arztId)
     );
 }

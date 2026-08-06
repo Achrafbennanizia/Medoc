@@ -6,7 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
-        "lint": "eslint src --max-warnings 0 --no-cache",
+        "lint": "npm run lint:tailwind-scale && eslint src --max-warnings 0 --no-cache",
+        "lint:tailwind-scale": "node ../../scripts/lint-tailwind-token-scale.mjs",
         "check": "npm run lint && npm run build && npm test",
         "test": "vitest run",
         "test:mvp-coverage": "vitest run --project mvp-unit --coverage",
