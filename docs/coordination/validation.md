@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (Workflow logging bridge instrumentation run)
+
+## Workflow logging bridge instrumentation — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — large existing rustfmt drift across many files unrelated to this run |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL (pre-existing)** — existing warnings/errors in `company_portal.rs` (`if_same_then_else`, `collapsible_if`) and `app_menu.rs` (`for_kv_map`) |
+| Rust tests | `cargo test --workspace --tests` | **FAIL (pre-existing)** — `auth_session_audit_tests::authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` fails with staff quota DB constraint |
+| Frontend tests | `npm run test -w medoc -- src/services/tauri.service.test.ts ../../packages/app/practice-host/src/lib/workflow-logger.test.ts` | **PASS** — 8/8 new workflow-bridge tests |
+| Frontend tests (full) | `npm test` | **FAIL (pre-existing)** — 3 failures in G21 routing smoke due unmocked `onboarding_subscription_status` |
+| Frontend build | `npm run build` | **FAIL (pre-existing)** — TS6133 unused-symbol errors in existing `termin-*` files |
+
+**Delivered in this run:**
+- Added dedicated `workflow.log` channel to existing tracing subsystem (`medoc::workflow` target, rotation retained, export/sanitizer path reused).
+- Added backend command `log_workflow_event` with sanitizer + bounded field lengths (best-effort/no-RBAC so onboarding/login flows can emit telemetry).
+- Added frontend bridge that emits `route_enter`, `primary_action`, `success`, `cancel`, `error` events without breaking UX if bridge is unavailable.
+- Added focused tests for route normalization/masking + IPC lifecycle telemetry instrumentation.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

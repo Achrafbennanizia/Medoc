@@ -1,7 +1,44 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Workflow logging bridge instrumentation (2026-07-26)  
+**Last closed:** Dedicated workflow log channel + sanitized FE→BE telemetry bridge + focused workflow logging tests.
+
+### Verified (2026-07-26 — workflow logging bridge run)
+
+- Added `workflow.log` channel to tracing subsystem (`medoc::workflow`) in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` and excluded it from `app.log` fan-in via `config.rs`.
+- Added backend bridge command `log_workflow_event` in `crates/app/medoc-practice/src/commands/system/logging.rs`; command is sanitizer-backed and field-length bounded.
+- Added frontend bridge module `packages/app/practice-host/src/lib/workflow-logger.ts` with route-id masking (`normalizeWorkflowRoute`) and graceful-disable fallback when the bridge command is unavailable.
+- Added IPC lifecycle instrumentation in `apps/practice-host-ui/src/services/tauri.service.ts` (`primary_action`/`success`/`cancel|error`) and route-enter emission in `app-layout.tsx`.
+- Added focused tests (8 passing):
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts`
+  - `packages/app/practice-host/src/lib/workflow-logger.test.ts`
+
+### Remains unverified
+
+- Full-green workspace gates remain blocked by pre-existing failures:
+  - `cargo fmt --all -- --check` (existing formatting drift)
+  - `cargo clippy --workspace --all-targets -- -D warnings` (existing clippy debt in `company_portal.rs`, `app_menu.rs`)
+  - `cargo test --workspace --tests` (`auth_session_audit_tests` quota failure)
+  - `npm test` (existing G21 smoke mock gap)
+  - `npm run build` (existing TS6133 unused-symbol errors)
+- Live Tauri workflow walk-through for every route/action state machine remains **NOT OBSERVED** in this run.
+
+### Understanding delta
+
+- The repository now has a reusable workflow telemetry path without introducing a parallel logging stack:
+  FE (`tauri.service` + `workflow-logger`) → BE (`log_workflow_event`) → structured file channel (`workflow.log`).
+- Validation blockers are now explicitly environment/code-gate separated: system dependencies were installed (OpenSSL/GTK/WebKit), and remaining red gates are code-level pre-existing issues.
+
+### Next
+
+1. Fix pre-existing red validation gates in isolated PRs (clippy debt, auth-session test fixture, G21 smoke mocks, TS6133 cleanup).
+2. Add broader workflow-map/state-machine tests using the new `workflow.log` channel as evidence.
+3. Execute real-browser route/action terminability audit once the baseline test/build gates are green.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

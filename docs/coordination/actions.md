@@ -1,9 +1,26 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (workflow logging bridge + validation sweep)
+
+## Done (2026-07-26 — workflow logging bridge instrumentation)
+
+- Added dedicated workflow channel in existing logging stack: `workflow.log` (`medoc::workflow`) with the same rotation/export/sanitizer pipeline.
+- Added backend bridge command `log_workflow_event` (sanitized + bounded fields; accepts pre-login telemetry).
+- Added frontend instrumentation:
+  - route enter events from `AppLayout`
+  - automatic `primary_action` / `success` / `cancel|error` telemetry around every Tauri IPC call in `tauri.service.ts`
+- Added focused tests:
+  - `src/services/tauri.service.test.ts` (IPC lifecycle telemetry behavior)
+  - `packages/app/practice-host/src/lib/workflow-logger.test.ts` (route masking + bridge fallback behavior)
+- Validation rerun completed and recorded in `validation.md` (workspace-wide failures remain pre-existing).
 
 ## Now
 
+- Resolve pre-existing red gates blocking full-green quality runs:
+  - Rust clippy (`company_portal.rs`, `app_menu.rs`)
+  - Rust test failure (`auth_session_audit_tests`)
+  - Frontend smoke test mock gap (`g21-routing.smoke.test.tsx`)
+  - Frontend TS build unused-symbol errors (`termin-*`)
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
