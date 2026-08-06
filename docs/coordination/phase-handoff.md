@@ -1,7 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-07-26)  
+**Last closed:** Four-tier workflow wiring (`verify` / `autofix` / `fix-proposal` / `release`), stale `ci.yml` retirement, coordination ledgers updated.
+
+### Verified (2026-07-26 — CI/CD tier migration)
+
+- **Tier 1 gate implemented:** `.github/workflows/verify.yml` with Rust fmt/clippy/test/audit, JS lint/typecheck/test/build, and Playwright axe-core critical a11y scan.
+- **Tier 2 safe mutation implemented:** `.github/workflows/autofix.yml` is PR-only, same-repo-PR guarded, bot-loop guarded, deterministic-only (`cargo fmt`, `lint:fix`, `format`) with commit-back to PR head.
+- **Tier 3 proposal path implemented:** `.github/workflows/fix-proposal.yml` supports manual dispatch and failed-`verify`-on-`main`, captures before/after evidence, and opens draft PRs; restricted path touches add `needs-human-review`.
+- **Tier 4 release gate implemented:** `.github/workflows/release.yml` reuses `verify` as gate, builds signed matrix artifacts under protected `release` environment, uploads provenance attestations, and does not mutate source.
+- **Legacy workflow retired:** `.github/workflows/ci.yml` removed; pipeline documented in `docs/coordination/ci-cd-plan.md`.
+- **Script plumbing added:** root/app scripts now include `typecheck`, `lint:fix`, `format`, and `test:a11y`; a11y test lives at `apps/practice-host-ui/e2e-playwright/a11y.critical.spec.ts`.
+
+### Remains unverified
+
+- **GitHub-hosted execution of new workflows:** not observed in this run (no remote workflow run inspection yet).
+- **Tier 3 runtime prerequisites:** `OPENAI_API_KEY` availability and Codex action behavior on this repository.
+- **Release environment controls:** protected `release` environment manual approval and signing secret wiring.
+- **Green baseline for blocking verify:** local replay shows existing failures in rustfmt + TS/lint/build/a11y, so gate-hardening remediation is still pending.
+
+### Understanding delta
+
+- CI/CD structure now matches the verify-first, safe-autofix, gated-release model in dedicated workflow files rather than monolithic `ci.yml`.
+- The principal blocker shifted from workflow architecture to baseline code health debt: stricter gate commands reveal pre-existing formatting/lint/type errors that must be resolved before enforcement as required checks.
+
+### Next
+
+1. Fix baseline gate debt (Rust fmt drift + JS typecheck/lint/build blockers) and re-run `verify` command set to green.
+2. Execute or inspect at least one real GitHub Actions run for each tier (`verify`, `autofix`, `release`) and append evidence to `validation.md`.
+3. Confirm secrets/environments for release (`TAURI_SIGNING_PRIVATE_KEY*`, protected `release`) and Tier 3 (`OPENAI_API_KEY`) are configured.
+4. After baseline is green, mark `verify` as required branch protection and keep Tier 2/3 as non-merging helpers.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
