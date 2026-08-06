@@ -1,0 +1,216 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Rust format check
+        run: cargo fmt --all -- --check
+      - name: Rust clippy (warnings as errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+      - name: Rust dependency audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Lint (no auto-fix in verify)
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --dir apps/practice-host-ui run lint ;;
+            yarn) yarn --cwd apps/practice-host-ui run lint ;;
+            npm) npm --prefix apps/practice-host-ui run lint ;;
+          esac
+      - name: Type-check
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --dir apps/practice-host-ui exec tsc --noEmit
+              pnpm --dir apps/lan-web-client exec tsc --noEmit
+              ;;
+            yarn)
+              yarn --cwd apps/practice-host-ui exec tsc --noEmit
+              yarn --cwd apps/lan-web-client exec tsc --noEmit
+              ;;
+            npm)
+              npm --prefix apps/practice-host-ui exec tsc --noEmit
+              npm --prefix apps/lan-web-client exec tsc --noEmit
+              ;;
+          esac
+      - name: Unit and smoke tests
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --dir apps/practice-host-ui run test ;;
+            yarn) yarn --cwd apps/practice-host-ui run test ;;
+            npm) npm --prefix apps/practice-host-ui run test ;;
+          esac
+      - name: Build
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --dir apps/practice-host-ui run build
+              pnpm --dir apps/lan-web-client run build
+              ;;
+            yarn)
+              yarn --cwd apps/practice-host-ui run build
+              yarn --cwd apps/lan-web-client run build
+              ;;
+            npm)
+              npm --prefix apps/practice-host-ui run build
+              npm --prefix apps/lan-web-client run build
+              ;;
+          esac
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Build web UI
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --dir apps/practice-host-ui run build ;;
+            yarn) yarn --cwd apps/practice-host-ui run build ;;
+            npm) npm --prefix apps/practice-host-ui run build ;;
+          esac
+      - name: Run axe-core scan (critical WCAG 2.1 AA only)
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory apps/practice-host-ui/dist >/tmp/a11y-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+
+          for _ in $(seq 1 20); do
+            if curl -fsS "http://127.0.0.1:4173" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          AXE_EXIT=0
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" \
+            --tags "wcag2a,wcag2aa,wcag21a,wcag21aa" \
+            --save a11y-report.json || AXE_EXIT=$?
+
+          if [ ! -f a11y-report.json ]; then
+            echo "axe-core did not produce a11y-report.json"
+            exit "${AXE_EXIT:-1}"
+          fi
+
+          node <<'NODE'
+          const fs = require("fs");
+          const raw = JSON.parse(fs.readFileSync("a11y-report.json", "utf8"));
+          const scans = Array.isArray(raw)
+            ? raw
+            : Array.isArray(raw.results)
+              ? raw.results
+              : [raw];
+
+          const violations = [];
+          for (const scan of scans) {
+            const url = scan.url || "http://127.0.0.1:4173";
+            if (Array.isArray(scan.violations)) {
+              for (const v of scan.violations) violations.push({ ...v, __url: url });
+            }
+            if (scan.results && Array.isArray(scan.results.violations)) {
+              for (const v of scan.results.violations) violations.push({ ...v, __url: url });
+            }
+          }
+
+          const critical = violations.filter((v) => v.impact === "critical");
+          if (critical.length === 0) {
+            console.log("No critical WCAG 2.1 A/AA violations found by axe-core.");
+            process.exit(0);
+          }
+
+          console.error(`Found ${critical.length} critical accessibility violation(s):`);
+          for (const v of critical) {
+            console.error(`- [${v.__url}] ${v.id}: ${v.help}`);
+          }
+          process.exit(1);
+          NODE

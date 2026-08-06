@@ -1,0 +1,304 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch or ref for the proposal branch"
+        required: false
+        default: "main"
+      reason:
+        description: "Optional failure context for manual runs"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: context
+        name: Resolve trigger context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "checkout_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "pr_base=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "trigger_reason=${{ inputs.reason }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "pr_base=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "trigger_reason=verify run ${{ github.event.workflow_run.id }} failed on main" >> "$GITHUB_OUTPUT"
+          fi
+          echo "proposal_branch=ci/fix-proposal-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.checkout_ref }}
+          fetch-depth: 0
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+      - name: Capture baseline failures
+        run: |
+          set +e
+          mkdir -p .github/tmp/fix-proposal
+
+          cargo test --workspace > .github/tmp/fix-proposal/before-cargo-test.log 2>&1
+          BEFORE_CARGO_TEST=$?
+          cargo audit > .github/tmp/fix-proposal/before-cargo-audit.log 2>&1
+          BEFORE_CARGO_AUDIT=$?
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --dir apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_A=$?
+              pnpm --dir apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_B=$?
+              ;;
+            yarn)
+              yarn --cwd apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_A=$?
+              yarn --cwd apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_B=$?
+              ;;
+            npm)
+              npm --prefix apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_A=$?
+              npm --prefix apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/before-typecheck.log 2>&1
+              BEFORE_TS_B=$?
+              ;;
+          esac
+
+          BEFORE_TYPECHECK=$(( BEFORE_TS_A || BEFORE_TS_B ))
+
+          {
+            echo "cargo_test=$BEFORE_CARGO_TEST"
+            echo "cargo_audit=$BEFORE_CARGO_AUDIT"
+            echo "typecheck=$BEFORE_TYPECHECK"
+          } > .github/tmp/fix-proposal/before-status.env
+      - name: Attempt automated fix proposal on a new branch
+        run: |
+          set +e
+          git checkout -b "${{ steps.context.outputs.proposal_branch }}"
+
+          cargo fix --workspace --all-targets --allow-dirty --allow-staged > .github/tmp/fix-proposal/attempt-cargo-fix.log 2>&1
+          cargo fmt --all >> .github/tmp/fix-proposal/attempt-cargo-fix.log 2>&1
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --dir apps/practice-host-ui run lint -- --fix > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              pnpm --dir apps/practice-host-ui run format > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              ;;
+            yarn)
+              yarn --cwd apps/practice-host-ui run lint --fix > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              yarn --cwd apps/practice-host-ui run format > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              ;;
+            npm)
+              npm --prefix apps/practice-host-ui run lint -- --fix > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              npm --prefix apps/practice-host-ui run format > .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              npm audit fix --package-lock-only >> .github/tmp/fix-proposal/attempt-js-fix.log 2>&1 || true
+              ;;
+          esac
+      - name: Capture post-fix results
+        run: |
+          set +e
+
+          cargo test --workspace > .github/tmp/fix-proposal/after-cargo-test.log 2>&1
+          AFTER_CARGO_TEST=$?
+          cargo audit > .github/tmp/fix-proposal/after-cargo-audit.log 2>&1
+          AFTER_CARGO_AUDIT=$?
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --dir apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_A=$?
+              pnpm --dir apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_B=$?
+              ;;
+            yarn)
+              yarn --cwd apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_A=$?
+              yarn --cwd apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_B=$?
+              ;;
+            npm)
+              npm --prefix apps/practice-host-ui exec tsc --noEmit > .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_A=$?
+              npm --prefix apps/lan-web-client exec tsc --noEmit >> .github/tmp/fix-proposal/after-typecheck.log 2>&1
+              AFTER_TS_B=$?
+              ;;
+          esac
+
+          AFTER_TYPECHECK=$(( AFTER_TS_A || AFTER_TS_B ))
+
+          {
+            echo "cargo_test=$AFTER_CARGO_TEST"
+            echo "cargo_audit=$AFTER_CARGO_AUDIT"
+            echo "typecheck=$AFTER_TYPECHECK"
+          } > .github/tmp/fix-proposal/after-status.env
+      - id: change_guard
+        name: Detect sensitive scope changes
+        run: |
+          set -euo pipefail
+          mkdir -p .github/tmp/fix-proposal
+          {
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          } > .github/tmp/fix-proposal/changed-files.txt
+
+          CHANGED_COUNT="$(wc -l < .github/tmp/fix-proposal/changed-files.txt | tr -d ' ')"
+          echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$CHANGED_COUNT" = "0" ]; then
+            echo "sensitive_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if rg -i '(^|/)(security|audit|crypto|rbac)(/|_|\.|-)' .github/tmp/fix-proposal/changed-files.txt >/dev/null; then
+            echo "sensitive_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build draft PR body
+        if: steps.change_guard.outputs.changed_count != '0'
+        run: |
+          set -euo pipefail
+          source .github/tmp/fix-proposal/before-status.env
+          BEFORE_CARGO_TEST="$cargo_test"
+          BEFORE_CARGO_AUDIT="$cargo_audit"
+          BEFORE_TYPECHECK="$typecheck"
+          source .github/tmp/fix-proposal/after-status.env
+          AFTER_CARGO_TEST="$cargo_test"
+          AFTER_CARGO_AUDIT="$cargo_audit"
+          AFTER_TYPECHECK="$typecheck"
+
+          {
+            echo "## Automated fix proposal"
+            echo
+            echo "This workflow attempted a repository fix on a new branch after a failing verify gate."
+            echo
+            echo "### Rationale"
+            echo
+            if [ -n "${{ steps.context.outputs.trigger_reason }}" ]; then
+              echo "- Trigger: ${{ steps.context.outputs.trigger_reason }}"
+            else
+              echo "- Trigger: manual fix proposal run"
+            fi
+            echo "- Scope: test failure / advisory / type-check follow-up with human-reviewed draft PR."
+            echo
+            echo "### Failing-before / passing-after evidence"
+            echo
+            echo "| Check | Before | After |"
+            echo "| ----- | ------ | ----- |"
+            echo "| cargo test --workspace | \`$BEFORE_CARGO_TEST\` | \`$AFTER_CARGO_TEST\` |"
+            echo "| cargo audit | \`$BEFORE_CARGO_AUDIT\` | \`$AFTER_CARGO_AUDIT\` |"
+            echo "| Type-check (practice + lan-web) | \`$BEFORE_TYPECHECK\` | \`$AFTER_TYPECHECK\` |"
+            echo
+            echo "### Sensitive-scope guard"
+            echo
+            if [ "${{ steps.change_guard.outputs.sensitive_changes }}" = "true" ]; then
+              echo "- This proposal touches security/audit/crypto/RBAC paths; it must receive explicit human review."
+            else
+              echo "- No security/audit/crypto/RBAC path was detected in changed files."
+            fi
+            echo
+            echo "### Changed files"
+            echo
+            echo '```text'
+            cat .github/tmp/fix-proposal/changed-files.txt
+            echo '```'
+            echo
+            echo "### Log excerpts"
+            echo
+            echo "#### cargo test (before, last 40 lines)"
+            echo '```text'
+            tail -n 40 .github/tmp/fix-proposal/before-cargo-test.log || true
+            echo '```'
+            echo
+            echo "#### cargo test (after, last 40 lines)"
+            echo '```text'
+            tail -n 40 .github/tmp/fix-proposal/after-cargo-test.log || true
+            echo '```'
+          } > .github/tmp/fix-proposal/body.md
+      - name: Open draft pull request
+        id: cpr
+        if: steps.change_guard.outputs.changed_count != '0'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          base: ${{ steps.context.outputs.pr_base }}
+          branch: ${{ steps.context.outputs.proposal_branch }}
+          title: "ci: fix proposal for verify gate failure"
+          commit-message: "ci: automated fix proposal"
+          body-path: .github/tmp/fix-proposal/body.md
+          draft: true
+          delete-branch: true
+          labels: ci-fix-proposal
+      - name: Label sensitive proposals for manual review
+        if: steps.cpr.outputs.pull-request-number != '' && steps.change_guard.outputs.sensitive_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop after sensitive-path proposal
+        if: steps.cpr.outputs.pull-request-number != '' && steps.change_guard.outputs.sensitive_changes == 'true'
+        run: |
+          echo "Sensitive scope touched. Draft PR labeled needs-human-review; no auto-merge path is allowed."
+      - name: No diff produced
+        if: steps.change_guard.outputs.changed_count == '0'
+        run: |
+          echo "No code changes were produced by the fix proposal attempt, so no draft PR was opened."

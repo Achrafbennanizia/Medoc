@@ -1,7 +1,34 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline migration (2026-07-25)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split, legacy CI removal, coordination plan + validation ledger update.
+
+### Verified (2026-07-25 — CI/CD tiered pipeline migration)
+
+- Added `verify.yml` (tier 1, zero mutation): Rust fmt/clippy/test/audit, JS lint/typecheck/test/build, axe-core critical WCAG 2.1 scan.
+- Added `autofix.yml` (tier 2, PR-only): deterministic `cargo fmt` + JS lint/format fix pass, bot loop guard, commit-back to PR head.
+- Added `fix-proposal.yml` (tier 3): manual or red-main trigger, new branch proposal, draft PR opening with before/after evidence, `needs-human-review` label on security/audit/crypto/RBAC touches.
+- Rewrote `release.yml` (tier 4): verify gate reuse, protected `release` environment, cross-platform signed build artifact upload.
+- Removed legacy `.github/workflows/ci.yml`.
+- Added `docs/coordination/ci-cd-plan.md`.
+- Validation ledger updated with static workflow syntax/path checks (`docs/coordination/validation.md`).
+
+### Remains unverified
+
+- First full GitHub-hosted execution of each new workflow (`verify`, `autofix`, `fix-proposal`, `release`) on live runners.
+- Runtime behavior of tier-3 PR auto-labeling and draft PR body evidence formatting.
+- Release environment manual approval flow + signed artifact promotion against a real `v*` tag.
+
+### Next
+
+1. Open CI/CD migration PR and require branch protection to use `verify` as blocking gate.
+2. Run a PR smoke (`autofix` + `verify`) and capture evidence in `validation.md`.
+3. Trigger `fix-proposal.yml` manually once to validate draft PR generation and sensitive-path labeling.
+4. Run a tag-based dry run of `release.yml` with manual approval in `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
