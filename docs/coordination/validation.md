@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-25 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-07-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse (initial) | `python3 -c "... yaml.safe_load(...)"` | **FAIL → FIXED** — `fix-proposal.yml` heredoc indentation produced YAML parser error; proposal step rewritten to valid YAML block |
+| Workflow YAML parse (post-fix) | `python3 -c "... trigger_keys ..."` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` all parse with expected triggers |
+| Patch integrity | `git diff --check` | **PASS** — no trailing whitespace / patch markers |
+| Workflow set migration | `ls .github/workflows` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` present; legacy `ci.yml` removed |
+| Full CI execution on runners | GitHub Actions run | **NOT RUN** in this session (local workflow-file migration only) |
+
+**Delivered artifacts:**
+
+- `.github/workflows/verify.yml` — tier 1 check-only pipeline.
+- `.github/workflows/autofix.yml` — tier 2 deterministic PR-only auto-fix pipeline.
+- `.github/workflows/fix-proposal.yml` — tier 3 draft-PR proposal workflow.
+- `.github/workflows/release.yml` — tier 4 verify-gated signed release workflow.
+- `docs/coordination/ci-cd-plan.md` — design + guardrails document.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
