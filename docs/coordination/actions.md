@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-07-26 (CI/CD tiered pipeline migration)
 
 ## Now
 
+- **CI follow-up:** set branch protection required checks to Tier-1 `verify.yml` jobs; configure `CI_FIX_AGENT_COMMAND` secret for Tier-3 automation.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -23,6 +24,19 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-07-26 — CI/CD tiered pipeline migration)
+
+- Replaced legacy `ci.yml` with four-tier workflow set:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Added lockfile-driven package manager detection in verify/release/autofix/fix-proposal jobs.
+- Added PR-only deterministic autofix with loop guard + bot/fork guards.
+- Added release gate that reuses Tier-1 verify and blocks signed artifact builds behind protected `release` environment.
+- Added sensitive-path stop+label (`needs-human-review`) in Tier-3 fix proposals.
+- Added coordination doc: `docs/coordination/ci-cd-plan.md`.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

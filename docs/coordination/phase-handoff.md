@@ -1,6 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD tiered pipeline migration (2026-07-26)  
+**Last closed:** Introduced verify/autofix/fix-proposal/release workflow tiers and documented guardrails.
+
+### Verified (2026-07-26 — CI/CD pipeline)
+
+- **Tier-1 verify gate:** `.github/workflows/verify.yml` now provides non-mutating Rust/web/a11y verification with lockfile-based package-manager detection, `cargo audit`, and a critical-only WCAG 2.1 A/AA axe-core gate.
+- **Tier-2 deterministic auto-fix:** `.github/workflows/autofix.yml` runs only on PR branches, skips bot-authored loops, applies deterministic formatting/lint fixes, and commits only when changes exist.
+- **Tier-3 fix proposals:** `.github/workflows/fix-proposal.yml` supports manual dispatch or failed `verify` on `main`, opens draft PRs only, and adds `needs-human-review` + stop when security/audit/crypto/RBAC paths are touched.
+- **Tier-4 gated release:** `.github/workflows/release.yml` reuses `verify.yml` as a gate, then builds signed cross-platform artifacts behind protected `release` environment approval.
+- **Coordination doc:** `docs/coordination/ci-cd-plan.md` added as authoritative plan + paste-ready master command.
+
+### Remains unverified
+
+- End-to-end execution of the new workflows on GitHub runners (**NOT RUN** in this session).
+- Repository branch-protection rule updates to require `verify.yml` checks (**NOT RUN** in this session).
+- Tier-3 secret wiring (`CI_FIX_AGENT_COMMAND`) in repository settings (**NOT RUN** in this session).
+
+### Next
+
+1. Enable/verify required status checks for Tier-1 verify jobs in branch protection.
+2. Configure `CI_FIX_AGENT_COMMAND` and run one manual `fix-proposal` dry-run.
+3. Execute tag/dispatched `release.yml` smoke with protected `release` environment approval.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)

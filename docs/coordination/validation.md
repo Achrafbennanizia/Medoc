@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow lint (initial) | `~/go/bin/actionlint .github/workflows/*.yml` | **FAIL** — `autofix.yml` used `github.head_ref` inline in shell push command (untrusted expression warning) |
+| Workflow lint (after guard fix) | `~/go/bin/actionlint .github/workflows/*.yml` | **PASS** |
+| Workflow set | file changes under `.github/workflows/` | **DONE** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`; legacy `ci.yml` removed |
+| Coordination plan doc | `docs/coordination/ci-cd-plan.md` | **ADDED** |
+
+**Delivered:** Tier-1 verify gate with lockfile PM detection + rust/web/a11y checks; Tier-2 PR-only deterministic autofix with loop/fork guards; Tier-3 draft fix-proposal flow with sensitive-path stop+label; Tier-4 release gate reusing verify plus protected `release` environment for signed cross-platform builds.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
