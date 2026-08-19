@@ -3,8 +3,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MigrationWizardPage } from "@/views/pages/migration-wizard";
-import { EinstellungenMigrationSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-migration-section";
-import { EinstellungenDeploymentSection } from "@/systems/practice-host/pages/einstellungen/einstellungen-deployment-section";
+import { SettingsMigrationSection } from "@/systems/practice-host/pages/settings/settings-migration-section";
+import { SettingsDeploymentSection } from "@/systems/practice-host/pages/settings/settings-deployment-section";
 
 vi.mock("@/systems/practice-host/controllers/sync.controller", () => ({
     syncGetStatus: vi.fn().mockResolvedValue({
@@ -72,10 +72,10 @@ describe("P0 routes smoke (T-U3)", () => {
         expect(screen.getByText(/MVP v0\.1.*CSV/i)).toBeInTheDocument();
     });
 
-    it("einstellungen migration section links to wizard (W9)", () => {
+    it("settings migration section links to wizard (W9)", () => {
         render(
             <MemoryRouter>
-                <EinstellungenMigrationSection canMigration />
+                <SettingsMigrationSection canMigration />
             </MemoryRouter>,
         );
         expect(screen.getByText(/MVP v0\.1.*CSV/i)).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe("P0 routes smoke (T-U3)", () => {
     it("deployment section focuses on serverless connection (W7)", async () => {
         render(
             <MemoryRouter>
-                <EinstellungenDeploymentSection />
+                <SettingsDeploymentSection />
             </MemoryRouter>,
         );
         expect(await screen.findByText(/Serverless connection/i)).toBeInTheDocument();

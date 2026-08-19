@@ -34,15 +34,15 @@ fn parse_args() -> Result<Args, String> {
     let mut http_bind = "0.0.0.0".to_string();
     let mut http_port: u16 = 8787;
     let mut discovery_port: u16 = 47_830;
-    let mut label = "MeDoc Praxis (Server)".to_string();
+    let mut label = "MeDoc Practice (Server)".to_string();
     while let Some(a) = args.next() {
         match a.as_str() {
             "--help" | "-h" => return Err(usage().into()),
             "--data-dir" => {
-                let v = args
+                let version = args
                     .next()
                     .ok_or_else(|| "--data-dir requires a path".to_string())?;
-                data_dir = Some(PathBuf::from(v));
+                data_dir = Some(PathBuf::from(version));
             }
             "--http-bind" => {
                 http_bind = args
@@ -50,16 +50,16 @@ fn parse_args() -> Result<Args, String> {
                     .ok_or_else(|| "--http-bind requires ADDR".to_string())?;
             }
             "--http-port" => {
-                let v = args
+                let version = args
                     .next()
                     .ok_or_else(|| "--http-port requires PORT".to_string())?;
-                http_port = v.parse().map_err(|_| "invalid http port".to_string())?;
+                http_port = version.parse().map_err(|_| "invalid http port".to_string())?;
             }
             "--discovery-port" => {
-                let v = args
+                let version = args
                     .next()
                     .ok_or_else(|| "--discovery-port requires PORT".to_string())?;
-                discovery_port = v
+                discovery_port = version
                     .parse()
                     .map_err(|_| "invalid discovery port".to_string())?;
             }

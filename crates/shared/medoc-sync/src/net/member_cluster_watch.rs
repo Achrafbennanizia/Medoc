@@ -7,16 +7,16 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 
-use crate::verbund::crypto::DeviceIdentity;
-use crate::verbund::services::cluster_reset_service::{
+use crate::cluster::crypto::DeviceIdentity;
+use crate::cluster::services::cluster_reset_service::{
     apply_queued_remote_reset_if_any, load_pending_reset, queue_verified_remote_reset,
 };
-use crate::verbund::services::lizenz_service::verbund_status;
+use crate::cluster::services::license_service::cluster_status;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::discovery::{scan_admins, AdminEndpoint};
 use super::handshake::run_xx_initiator;
-use super::listener::DEFAULT_VERBUND_PORT;
+use super::listener::DEFAULT_CLUSTER_PORT;
 use super::wire::WireMessage;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(30);
@@ -32,7 +32,7 @@ pub fn spawn_member_cluster_watch(
             tokio::time::sleep(POLL_INTERVAL).await;
             if let Err(e) = member_watch_tick(&pool, &app_data_dir, &emit_reset).await {
                 tracing::debug!(
-                    target: "medoc::verbund",
+                    target: "medoc::cluster",
                     event = "MEMBER_CLUSTER_WATCH_TICK_ERR",
                     error = %e
                 );
@@ -46,7 +46,7 @@ async fn member_watch_tick(
     app_data_dir: &Path,
     emit_reset: &impl Fn(),
 ) -> Result<(), AppError> {
-    let status = verbund_status(pool).await?;
+    let status = cluster_status(pool).await?;
     if !status.provisioned || status.is_owner {
         return Ok(());
     }
@@ -94,7 +94,7 @@ async fn poll_admin_for_reset(
     cluster_id: &str,
 ) -> Result<(String, String), AppError> {
     let identity = DeviceIdentity::load_or_create()?;
-    let addr = format!("{}:{DEFAULT_VERBUND_PORT}", admin.host);
+    let addr = format!("{}:{DEFAULT_CLUSTER_PORT}", admin.host);
     let mut stream = tokio::time::timeout(Duration::from_secs(5), TcpStream::connect(&addr))
         .await
         .map_err(|_| AppError::Internal(format!("cluster status connect timeout {addr}")))?
@@ -117,6 +117,6 @@ async fn poll_admin_for_reset(
             token_json: Some(token_json),
             signature_b64: Some(signature_b64),
         } => Ok((token_json, signature_b64)),
-        _ => Err(AppError::Validation("Kein Reset ausstehend".into())),
+        _ => Err(AppError::Validation("Kein Reset outstanding".into())),
     }
 }

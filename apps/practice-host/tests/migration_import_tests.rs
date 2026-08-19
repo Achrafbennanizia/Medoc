@@ -31,7 +31,7 @@ async fn rejects_csv_without_required_headers() {
     match err {
         AppError::Validation(msg) => {
             assert!(
-                msg.contains("name") || msg.contains("geburtsdatum"),
+                msg.contains("name") || msg.contains("date_of_birth"),
                 "{msg}"
             );
         }
@@ -43,7 +43,7 @@ async fn rejects_csv_without_required_headers() {
 async fn dry_run_does_not_insert_patients() {
     let pool = migrated_pool().await;
     let path = temp_csv(
-        "name;geburtsdatum;geschlecht;versicherungsnummer\n\
+        "name;date_of_birth;sex;insurance_number\n\
          Test User;1990-01-15;M;V-DRY-1\n",
     );
     let report = import_patients(&pool, &path, true).await.expect("dry run");
@@ -51,7 +51,7 @@ async fn dry_run_does_not_insert_patients() {
     assert_eq!(report.imported, 1);
 
     let n: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM patient WHERE versicherungsnummer = 'V-DRY-1'")
+        sqlx::query_as("SELECT COUNT(*) FROM patient WHERE insurance_number = 'V-DRY-1'")
             .fetch_one(&pool)
             .await
             .expect("count");
@@ -62,7 +62,7 @@ async fn dry_run_does_not_insert_patients() {
 async fn imports_semicolon_csv_iso_and_de_dates() {
     let pool = migrated_pool().await;
     let path = temp_csv(
-        "name;geburtsdatum;geschlecht;versicherungsnummer\n\
+        "name;date_of_birth;sex;insurance_number\n\
          Iso Pat;1990-03-20;M;V-ISO-1\n\
          De Pat;15.06.1985;W;V-DE-1\n",
     );
@@ -73,14 +73,14 @@ async fn imports_semicolon_csv_iso_and_de_dates() {
     assert_eq!(report.skipped, 0);
 
     let n1: (String,) =
-        sqlx::query_as("SELECT name FROM patient WHERE versicherungsnummer = 'V-ISO-1'")
+        sqlx::query_as("SELECT name FROM patient WHERE insurance_number = 'V-ISO-1'")
             .fetch_one(&pool)
             .await
             .unwrap();
     assert_eq!(n1.0, "Iso Pat");
 
     let geb: (String,) =
-        sqlx::query_as("SELECT geburtsdatum FROM patient WHERE versicherungsnummer = 'V-DE-1'")
+        sqlx::query_as("SELECT date_of_birth FROM patient WHERE insurance_number = 'V-DE-1'")
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -88,10 +88,10 @@ async fn imports_semicolon_csv_iso_and_de_dates() {
 }
 
 #[tokio::test]
-async fn duplicate_versicherungsnummer_is_skipped() {
+async fn duplicate_insurance_number_is_skipped() {
     let pool = migrated_pool().await;
     let path = temp_csv(
-        "name;geburtsdatum;geschlecht;versicherungsnummer\n\
+        "name;date_of_birth;sex;insurance_number\n\
          First;1991-01-01;M;V-DUP-1\n\
          Second;1992-02-02;W;V-DUP-1\n",
     );
@@ -101,7 +101,7 @@ async fn duplicate_versicherungsnummer_is_skipped() {
     assert_eq!(report.failed, 0);
 
     let name: (String,) =
-        sqlx::query_as("SELECT name FROM patient WHERE versicherungsnummer = 'V-DUP-1'")
+        sqlx::query_as("SELECT name FROM patient WHERE insurance_number = 'V-DUP-1'")
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -112,7 +112,7 @@ async fn duplicate_versicherungsnummer_is_skipped() {
 async fn invalid_date_row_is_failed_not_imported() {
     let pool = migrated_pool().await;
     let path = temp_csv(
-        "name;geburtsdatum;geschlecht;versicherungsnummer\n\
+        "name;date_of_birth;sex;insurance_number\n\
          Bad Date;not-a-date;M;V-BAD-1\n",
     );
     let report = import_patients(&pool, &path, false).await.expect("report");
@@ -121,7 +121,7 @@ async fn invalid_date_row_is_failed_not_imported() {
     assert!(!report.errors.is_empty());
 
     let n: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM patient WHERE versicherungsnummer = 'V-BAD-1'")
+        sqlx::query_as("SELECT COUNT(*) FROM patient WHERE insurance_number = 'V-BAD-1'")
             .fetch_one(&pool)
             .await
             .unwrap();

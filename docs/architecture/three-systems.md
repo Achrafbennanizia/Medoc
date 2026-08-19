@@ -49,7 +49,7 @@ Legacy import path `app/src/controllers/*.ts` re-exports from `systems/*` (**Fac
 | **Mediator** | Zustand stores (`auth-store`, UI prefs) |
 | **Memento** | Termin drafts in `app_kv`, form-dirty store |
 | **Observer** | Audit chain guard, Tauri event hooks |
-| **Prototype** | Demo seed data (`company.db`, dev vertrag seed) |
+| **Prototype** | Demo seed data (`company.db`, dev contract seed) |
 | **Proxy** | LAN `/api/v1/company/*` → Company HTTP adapter; `HttpPracticeAdapter` → LAN `/api/v1/*` |
 | **Factory** | `createPracticeSystem()` — Tauri IPC vs LAN HTTP (`practice-transport.ts`) |
 | **Singleton** | `COMPANY_PORTAL`, `systems` registry, DB pool in Tauri state |

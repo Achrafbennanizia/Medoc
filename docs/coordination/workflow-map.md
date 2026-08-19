@@ -48,40 +48,40 @@ RBAC: N/A (pre-auth)
 
 ### W-02 Patient anlegen
 
-Route: `/patienten/neu`  
+Route: `/patients/new`  
 States: `form → submitting → success | validation_error`  
-Terminals: success → `/patienten/:id`; cancel → confirm abandon → `/patienten`; error → inline  
+Terminals: success → `/patients/:id`; cancel → confirm abandon → `/patients`; error → inline  
 Smoke: [`p0-routes.smoke.test.tsx`](../../apps/practice-host-ui/src/p0-routes.smoke.test.tsx)
 
 ### W-03 Termin anlegen
 
-Route: `/termine/neu`  
-Terminals: success → `/termine`; cancel → back; error → inline  
+Route: `/appointments/new`  
+Terminals: success → `/appointments`; cancel → back; error → inline  
 Loading: `PageLoading` + `PageLoadError` on list parent
 
 ### W-04 Patientenakte / export
 
-Route: `/patienten/:id`  
+Route: `/patients/:id`  
 Subflows: akte save confirm, export picker, discharge PDF, workflow dialogs  
 Terminals: each dialog `onClose`; export success closes picker; errors → toast  
 Smoke: [`export-preview-dialog.smoke.test.tsx`](../../apps/practice-host-ui/src/views/components/export-preview-dialog.smoke.test.tsx), [`patient-akte-workflow-dialogs.smoke.test.tsx`](../../apps/practice-host-ui/src/views/components/patient-akte-workflow-dialogs.smoke.test.tsx)
 
 ### W-05 Finanzen / Zahlung
 
-Routes: `/finanzen`, `/finanzen/neu`, `/finanzen/kasse/neu`  
-Terminals: save → list; cancel → back; RBAC: `finanzen.read` / `finanzen.write`
+Routes: `/finance`, `/finance/new`, `/finance/cash/new`  
+Terminals: save → list; cancel → back; RBAC: `finance.read` / `finance.write`
 
 ### W-06 Praxis-Aufgaben / Tickets
 
-Routes: `/tickets`, `/tickets/neu`, `/tickets/:id/bearbeiten`  
-Redirect: `/posteingang` → `/tickets` (terminable redirect)  
+Routes: `/tickets`, `/tickets/new`, `/tickets/:id/bearbeiten`  
+Redirect: `/inbox` → `/tickets` (terminable redirect)  
 Smoke: [`praxis-tickets.smoke.test.tsx`](../../apps/practice-host-ui/src/views/pages/praxis-tickets.smoke.test.tsx)
 
 ### W-07 Einstellungen
 
-Route: `/einstellungen` (+ section panels in package)  
+Route: `/settings` (+ section panels in package)  
 Terminals: save per section → toast; nav away → unsaved handled per section  
-Smoke: [`einstellungen.rbac.smoke.test.tsx`](../../apps/practice-host-ui/src/views/pages/einstellungen.rbac.smoke.test.tsx)
+Smoke: [`settings.rbac.smoke.test.tsx`](../../apps/practice-host-ui/src/views/pages/settings.rbac.smoke.test.tsx)
 
 ### W-08 Migration wizard
 
@@ -90,16 +90,16 @@ Terminals: complete → success summary; cancel → `/`; stub device steps docum
 
 ### W-09 Verwaltung hub
 
-Route: `/verwaltung` + nested TOC pages  
-Legacy redirects terminable: `/verwaltung/tagesabschluss` → finanzen-berichte; `/personal/neu` → query param
+Route: `/administration` + nested TOC pages  
+Legacy redirects terminable: `/administration/day-close` → finance-berichte; `/staff/new` → query param
 
 ## Flag-gated surfaces (not dead ends)
 
 | Flag | Route / nav | Behavior |
 | ---- | ----------- | -------- |
-| `DATENSCHUTZ_UI_ENABLED=false` | `/datenschutz` | Route exists; nav hidden; page shows gate if navigated directly |
-| `POSTEINGANG_UI_ENABLED=false` | `/posteingang` | Redirect to `/tickets` |
-| Deferred roles | login | STEUERBERATER/PHARMABERATER rejected at IPC — documented in [`todos-deferred-roles.md`](todos-deferred-roles.md) |
+| `DATENSCHUTZ_UI_ENABLED=false` | `/privacy` | Route exists; nav hidden; page shows gate if navigated directly |
+| `POSTEINGANG_UI_ENABLED=false` | `/inbox` | Redirect to `/tickets` |
+| Deferred roles | login | TAX_ADVISOR/PHARMA_CONSULTANT rejected at IPC — documented in [`todos-deferred-roles.md`](todos-deferred-roles.md) |
 
 ## Register cross-reference (workflow items)
 
@@ -111,7 +111,7 @@ Legacy redirects terminable: `/verwaltung/tagesabschluss` → finanzen-berichte;
 
 ## Route inventory (shell)
 
-Main authenticated routes in [`App.tsx`](../../apps/practice-host-ui/src/App.tsx): dashboard, termine, patienten, tickets, finanzen, bestellungen, bilanz, verwaltung/*, rezepte, atteste, leistungen, produkte, personal, statistik, audit, datenschutz, einstellungen, logs, ops, compliance, hilfe, feedback, migration, akten-zu-validieren.
+Main authenticated routes in [`App.tsx`](../../apps/practice-host-ui/src/App.tsx): dashboard, appointments, patients, tickets, finance, purchase-orders, balance-sheet, administration/*, prescriptions, certificates, services, products, staff, statistics, audit, privacy, settings, logs, ops, compliance, hilfe, feedback, migration, charts-zu-validieren.
 
 Onboarding (outside shell): `/onboarding`, `/onboarding/lizenz`, `/onboarding/beitreten`.
 

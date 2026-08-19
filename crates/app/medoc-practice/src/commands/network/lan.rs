@@ -319,7 +319,7 @@ pub async fn auto_start_replica_sync_lan(
             return;
         }
     };
-    if cfg.instance_label == "MeDoc Praxis" {
+    if cfg.instance_label == "MeDoc Practice" {
         cfg.instance_label = format!(
             "MeDoc Replica ({})",
             &snap.local_device_id[..snap.local_device_id.len().min(8)]

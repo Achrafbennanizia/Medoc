@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useAuthStore } from "@/models/store/auth-store";
 import {
     allowed,
-    canReadFinanzen as roleCanReadFinanzen,
+    canReadFinance as roleCanReadFinance,
     navVisibilitySatisfied,
     parseRole,
     routeChildPathAllowed,
@@ -17,7 +17,7 @@ import {
 
 export function useRbac() {
     const session = useAuthStore((s) => s.session);
-    const role = parseRole(session?.rolle);
+    const role = parseRole(session?.role);
     const overrides = session?.permission_overrides;
 
     return useMemo(
@@ -37,19 +37,19 @@ export function useRbac() {
             canWriteMedical: role != null && allowed("patient.write_medical", role, overrides),
             canReadDocuments: role != null && allowed("patient.read_documents", role, overrides),
             canWritePatient: role != null && allowed("patient.write", role, overrides),
-            canWritePraxisplanung: role != null && allowed("verwaltung.praxisplanung.write", role, overrides),
-            canReadFinanzen: role != null && roleCanReadFinanzen(role, overrides),
+            canWritePracticePlanning: role != null && allowed("administration.practice_planning.write", role, overrides),
+            canReadFinance: role != null && roleCanReadFinance(role, overrides),
             canReadAudit: role != null && allowed("audit.read", role, overrides),
             canOpsSystem: role != null && allowed("ops.system", role, overrides),
             canOpsDsgvo: role != null && allowed("ops.dsgvo", role, overrides),
-            canTagesabschlussWrite: role != null && allowed("finanzen.tagesabschluss.write", role, overrides),
-            canReceptionFinanzenView: role != null && allowed("finanzen.reception.view", role, overrides),
+            canDayCloseWrite: role != null && allowed("finance.day_close.write", role, overrides),
+            canReceptionFinanceView: role != null && allowed("finance.reception.view", role, overrides),
             satisfies: (visibility: NavVisibility) =>
-                navVisibilitySatisfied(visibility, session?.rolle, overrides),
-            canRoute: (routePath: string) => routeChildPathAllowed(routePath, session?.rolle, overrides),
-            canLocation: (pathname: string) => routeLocationAllowed(pathname, session?.rolle, overrides),
+                navVisibilitySatisfied(visibility, session?.role, overrides),
+            canRoute: (routePath: string) => routeChildPathAllowed(routePath, session?.role, overrides),
+            canLocation: (pathname: string) => routeLocationAllowed(pathname, session?.role, overrides),
             canSettingsSection: (section: string) =>
-                settingsSectionVisible(section, session?.rolle, overrides),
+                settingsSectionVisible(section, session?.role, overrides),
         }),
         [session, role, overrides],
     );

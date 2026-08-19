@@ -8,40 +8,40 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Nicht autorisiert")]
+    #[error("Unauthorized")]
     Unauthorized,
 
-    #[error("Zu viele Fehlversuche — bitte {0} Sekunden warten")]
+    #[error("Too many failed attempts — wait {0} seconds")]
     RateLimited(u64),
 
-    #[error("Zugriff verweigert")]
+    #[error("Access denied")]
     Forbidden,
 
-    #[error("{0} nicht gefunden")]
+    #[error("{0} not found")]
     NotFound(String),
 
-    #[error("Konflikt: {0}")]
+    #[error("Conflict: {0}")]
     Conflict(String),
 
-    #[error("Validierungsfehler: {0}")]
+    #[error("Validation error: {0}")]
     Validation(String),
 
     /// Stable i18n key returned to the UI (e.g. `error.work_time.no_open_session`).
     #[error("{0}")]
     ValidationCode(String),
 
-    #[error("Datenbankfehler: {0}")]
+    #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
-    #[error("Interner Fehler: {0}")]
+    #[error("Internal error: {0}")]
     Internal(String),
 
     /// Password OK; enrolled user must supply a 6-digit TOTP code on the next login step.
-    #[error("Zwei-Faktor-Code erforderlich")]
+    #[error("Two-factor code required")]
     TotpRequired,
 
-    /// Password OK; ARZT must complete TOTP enrollment before a session is issued.
-    #[error("Zwei-Faktor-Einrichtung erforderlich")]
+    /// Password OK; PHYSICIAN must complete TOTP enrollment before a session is issued.
+    #[error("Two-factor enrollment required")]
     TotpEnrollmentRequired,
 }
 
@@ -57,11 +57,11 @@ impl AppError {
         params: &[(&str, impl std::fmt::Display)],
     ) -> Self {
         let mut out = code.into();
-        for (k, v) in params {
+        for (k, version) in params {
             out.push('|');
             out.push_str(k);
             out.push('=');
-            out.push_str(&v.to_string());
+            out.push_str(&version.to_string());
         }
         AppError::ValidationCode(out)
     }

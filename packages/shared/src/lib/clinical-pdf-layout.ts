@@ -1,29 +1,29 @@
 /**
  * Structured PDF layout payloads for the Rust renderer (`clinical_pdf_layout.rs`).
- * Matches German reference layouts (Attest, Rezept, Patientenquittung).
+ * Matches German reference layouts (Certificate, Prescription, Patientenquittung).
  */
 
-import type { Attest } from "@/systems/practice-host/controllers/attest.controller";
-import type { Rezept } from "@/systems/practice-host/controllers/rezept.controller";
-import type { Patient, Behandlung, Untersuchung, Zahlung } from "@/models/types";
+import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
+import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
+import type { Patient, Treatment, Examination, Payment } from "@/models/types";
 import { translateLocale, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
-import { buildClinicalTemplateKopfLines } from "@/lib/clinical-document-pdf";
-import { emptyDocumentTemplatePayloadV1, type PraxisFieldKey } from "@/lib/document-template-schema";
-import { loadPraxisHeaderPrivacy } from "@/lib/praxis-header-privacy";
-import { formatZahlungBezugLine, zahlStatusDisplay, zahlungsartLabel } from "@/lib/zahlung-buchung";
+import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
+import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
+import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
+import { loadPracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
+import { formatPaymentReferenceLine, paymentStatusDisplay, paymentMethodLabel } from "@/lib/payment-booking";
 
 const docT = (key: string) => translateLocale(useLocale.getState().locale, key);
 const docTp = (key: string, params: Record<string, string | number>) =>
     translateLocaleParams(useLocale.getState().locale, key, params);
 
-const KOPF_FIELDS: PraxisFieldKey[] = [
+const HEADER_FIELDS: PracticeFieldKey[] = [
     "name",
     "address",
     "phone",
     "email",
-    "behandler",
+    "clinician",
     "zanr",
     "bsnr",
     "bank",
@@ -31,8 +31,8 @@ const KOPF_FIELDS: PraxisFieldKey[] = [
 
 export type ClinicalPdfLayout = {
     kind: string;
-    praxisLines: string[];
-    /** Contact lines top right (Attest reference layout). */
+    practiceLines: string[];
+    /** Contact lines top right (Certificate reference layout). */
     headerRightLines?: string[];
     metaLines: { label: string; value: string }[];
     addressLines: string[];
@@ -51,21 +51,21 @@ export type ClinicalPdfLayout = {
         title?: string | null;
         headers: string[];
         rows: string[][];
-        /** Rust column widths: `quittung` | `rezept` | `rezept_combo` */
+        /** Rust column widths: `receipt` | `prescription` | `prescription_combo` */
         columnLayout?: string | null;
     }[];
-    detailRecords: { art: string; zeitraum: string; details: string[] }[];
+    detailRecords: { kind: string; period: string; details: string[] }[];
     totals: { label: string; value: string }[];
     closingParagraphs: string[];
     signatureLines: string[];
-    /** Meta unten rechts (Attest: Ausstellungsdatum, Nummer). */
+    /** Meta unten rechts (Certificate: Ausstellungsdatum, Nummer). */
     footerMetaLines?: { label: string; value: string }[];
 };
 
-function headerContactRightFromPraxis(): string[] {
-    const p = getInvoicePraxisFromStorage();
+function headerContactRightFromPractice(): string[] {
+    const p = getInvoicePracticeFromStorage();
     const out: string[] = [];
-    const tel = (p.telefon ?? "").trim();
+    const tel = (p.phone ?? "").trim();
     const fax = (p.fax ?? "").trim();
     const mail = (p.email ?? "").trim();
     if (tel) out.push(`${docT("document.print.phone")}: ${tel}`);
@@ -74,14 +74,14 @@ function headerContactRightFromPraxis(): string[] {
     return out;
 }
 
-function praxisLinesForPdf(): string[] {
-    const praxis = getInvoicePraxisFromStorage();
+function practiceLinesForPdf(): string[] {
+    const practice = getInvoicePracticeFromStorage();
     const tpl = emptyDocumentTemplatePayloadV1();
-    tpl.kopf.fieldsToShow = KOPF_FIELDS;
-    return buildClinicalTemplateKopfLines(tpl, praxis, loadPraxisHeaderPrivacy());
+    tpl.header.fieldsToShow = HEADER_FIELDS;
+    return buildClinicalTemplateHeaderLines(tpl, practice, loadPracticeHeaderPrivacy());
 }
 
-function formatVerordnungsdatumDe(iso: string): string {
+function formatPrescriptionDate(iso: string): string {
     const d = iso.trim().slice(0, 10);
     if (d.length >= 10 && d[4] === "-") {
         return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
@@ -90,63 +90,63 @@ function formatVerordnungsdatumDe(iso: string): string {
 }
 
 function signatureLines(): string[] {
-    const p = getInvoicePraxisFromStorage();
-    const bh = (p.behandler_name ?? "").trim();
-    const beruf = (p.berufsbezeichnung ?? "").trim();
+    const p = getInvoicePracticeFromStorage();
+    const bh = (p.clinician_name ?? "").trim();
+    const beruf = (p.professional_title ?? "").trim();
     const zanr = (p.zanr ?? "").trim();
     const bsnr = (p.bsnr ?? "").trim();
     if (!bh) return [];
     const out = [bh];
     if (beruf) out.push(beruf);
     if (zanr || bsnr) out.push(`ZANR: ${zanr || "-"} / BSNR: ${bsnr || "-"}`);
-    out.push("(Stempel / Unterschrift)");
+    out.push("(Stamp / signature)");
     return out;
 }
 
-export function buildAttestPdfLayout(a: Attest, patient: Patient | null): ClinicalPdfLayout {
-    const von = formatDate(a.gueltig_von);
-    const bis = formatDate(a.gueltig_bis);
-    const ausgestellt = formatDate(a.ausgestellt_am);
-    const t0 = new Date(`${a.gueltig_von.slice(0, 10)}T12:00:00`);
-    const t1 = new Date(`${a.gueltig_bis.slice(0, 10)}T12:00:00`);
+export function buildCertificatePdfLayout(a: Certificate, patient: Patient | null): ClinicalPdfLayout {
+    const from = formatDate(a.valid_from);
+    const until = formatDate(a.valid_until);
+    const issued = formatDate(a.issued_at);
+    const t0 = new Date(`${a.valid_from.slice(0, 10)}T12:00:00`);
+    const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
     const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
     const erstFolge =
-        (a.erst_oder_folge ?? "ERST") === "FOLGE" ? "Folgebescheinigung" : "Erstbescheinigung";
+        (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP" ? "Follow-up certificate" : "Initial certificate";
     const pname = patient?.name ?? a.patient_id;
-    const geb = patient ? formatDate(patient.geburtsdatum) : "—";
+    const geb = patient ? formatDate(patient.date_of_birth) : "—";
     const icd = (a.icd10_code ?? "").trim() || "—";
 
     const intro = [
-        `Hiermit wird bescheinigt, dass sich ${pname}${patient ? `, geboren am ${geb},` : ""} in ärztlicher Behandlung befindet.`,
+        `This certifies that ${pname}${patient ? `, born on ${geb},` : ""} is under medical treatment.`,
     ];
 
     const labelValueRows: { label: string; value: string }[] = [
-        { label: "Art der Bescheinigung", value: `${a.typ} (${erstFolge})` },
+        { label: "Type of certificate", value: `${a.kind} (${erstFolge})` },
         {
-            label: "Gültigkeitszeitraum",
-            value: `${von} bis ${bis} (${days} Kalendertag${days === 1 ? "" : "e"})`,
+            label: "Validity period",
+            value: `${from} until ${until} (${days} calendar day${days === 1 ? "" : "s"})`,
         },
-        { label: "Diagnose (ICD-10)", value: icd },
+        { label: "Diagnosis (ICD-10)", value: icd },
     ];
-    if (a.typ.toLowerCase().includes("arbeitsunfähig") && (a.arbeitgeber ?? "").trim()) {
-        labelValueRows.push({ label: "Arbeitgeber", value: a.arbeitgeber!.trim() });
+    if (a.kind.toLowerCase().includes("sick_leave") && (a.employer ?? "").trim()) {
+        labelValueRows.push({ label: "Employer", value: a.employer!.trim() });
     }
 
-    const befund = a.inhalt.split(/\r?\n/).map((s) => s.trimEnd()).filter((s) => s.length > 0);
-    const befundText = befund.join("\n").trim();
+    const finding = a.body_text.split(/\r?\n/).map((s) => s.trimEnd()).filter((s) => s.length > 0);
+    const findingText = finding.join("\n").trim();
     const labelRows = [...labelValueRows];
-    if (befundText) {
-        labelRows.unshift({ label: "Befund / Angaben", value: befundText });
+    if (findingText) {
+        labelRows.unshift({ label: "Findings / notes", value: findingText });
     }
-    labelRows.push({ label: "Ort, Datum", value: "________________________________________" });
+    labelRows.push({ label: "Place, date", value: "________________________________________" });
 
     return {
-        kind: "attest",
-        praxisLines: praxisLinesForPdf(),
-        headerRightLines: headerContactRightFromPraxis(),
+        kind: "certificate",
+        practiceLines: practiceLinesForPdf(),
+        headerRightLines: headerContactRightFromPractice(),
         metaLines: [],
         addressLines: [],
-        documentTitle: "ÄRZTLICHES ATTEST",
+        documentTitle: "MEDICAL CERTIFICATE",
         documentSubtitle: null,
         introParagraphs: intro,
         labelValueRows: labelRows,
@@ -157,61 +157,61 @@ export function buildAttestPdfLayout(a: Attest, patient: Patient | null): Clinic
         closingParagraphs: [],
         signatureLines: signatureLines(),
         footerMetaLines: [
-            { label: "Ausstellungsdatum", value: ausgestellt },
-            { label: "Attest-Nr.", value: a.id.slice(0, 8).toUpperCase() },
+            { label: "Issue date", value: issued },
+            { label: "Certificate-Nr.", value: a.id.slice(0, 8).toUpperCase() },
         ],
     };
 }
 
-export function buildRezeptPdfLayout(r: Rezept, patient: Patient | null): ClinicalPdfLayout {
-    const typ = (r.rezept_typ ?? "PRIVAT").trim() || "PRIVAT";
+export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | null): ClinicalPdfLayout {
+    const kind = (r.prescription_type ?? "PRIVAT").trim() || "PRIVAT";
     const autIdem = r.aut_idem !== false;
     const left: string[] = [
         `Name: ${patient?.name ?? "—"}`,
-        patient ? `Geburtsdatum: ${formatDate(patient.geburtsdatum)}` : "",
-        patient?.versicherungsnummer ? `Vers.-Nr.: ${patient.versicherungsnummer}` : "",
+        patient ? `Date of birth: ${formatDate(patient.date_of_birth)}` : "",
+        patient?.insurance_number ? `Ins. no.: ${patient.insurance_number}` : "",
     ].filter(Boolean);
     const right: string[] = [
-        patient?.adresse?.trim() ? patient.adresse.trim().replace(/\n/g, ", ") : "",
+        patient?.address?.trim() ? patient.address.trim().replace(/\n/g, ", ") : "",
     ].filter(Boolean);
 
     return {
-        kind: "rezept",
-        praxisLines: praxisLinesForPdf(),
+        kind: "prescription",
+        practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Rezeptnummer", value: r.id.slice(0, 8).toUpperCase() },
-            { label: "Verschreibungsdatum", value: formatVerordnungsdatumDe(r.ausgestellt_am) },
-            { label: "Rezepttyp", value: typ },
+            { label: "Prescription number", value: r.id.slice(0, 8).toUpperCase() },
+            { label: "Prescription date", value: formatPrescriptionDate(r.issued_at) },
+            { label: "Prescription type", value: kind },
         ],
         addressLines: [],
-        documentTitle: "REZEPT",
-        documentSubtitle: `Verschreibung (${typ})`,
+        documentTitle: "PRESCRIPTION",
+        documentSubtitle: `Prescription (${kind})`,
         introParagraphs: [],
         twoColumn: {
-            leftTitle: "Patient/in",
+            leftTitle: "Patient",
             leftLines: left,
-            rightTitle: "Adresse",
+            rightTitle: "Address",
             rightLines: right.length > 0 ? right : ["—"],
         },
         tables: [
             {
-                title: "Rp. — Verschriebene Medikamente",
-                columnLayout: "rezept",
-                headers: ["Medikament", "Dosierung", "Dauer", "PZN", "Hinweis"],
+                title: "Rx — prescribed medication",
+                columnLayout: "prescription",
+                headers: ["Medication", "Dosage", "Duration", "PZN", "Notes"],
                 rows: [
                     [
-                        r.medikament,
-                        r.dosierung,
-                        r.dauer,
+                        r.medication,
+                        r.dosage,
+                        r.duration,
                         (r.pzn ?? "").trim() || "—",
-                        (r.hinweise ?? "").trim() || "—",
+                        (r.instructions ?? "").trim() || "—",
                     ],
                     [
-                        (r.wirkstoff ?? "").trim() || "—",
-                        (r.darreichungsform ?? "").trim() || "—",
-                        (r.packungsgroesse ?? "").trim() || "—",
-                        r.menge != null ? String(r.menge) : "—",
-                        autIdem ? "aut idem" : "Austausch möglich",
+                        (r.active_ingredient ?? "").trim() || "—",
+                        (r.dosage_form ?? "").trim() || "—",
+                        (r.pack_size ?? "").trim() || "—",
+                        r.quantity != null ? String(r.quantity) : "—",
+                        autIdem ? "aut idem" : "Substitution allowed",
                     ],
                 ],
             },
@@ -223,45 +223,45 @@ export function buildRezeptPdfLayout(r: Rezept, patient: Patient | null): Clinic
     };
 }
 
-export function buildRezeptComboPdfLayout(items: Rezept[], patient: Patient | null): ClinicalPdfLayout {
+export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: Patient | null): ClinicalPdfLayout {
     const first = items[0]!;
     const rows = items.map((r, i) => [
         String(i + 1),
-        r.medikament,
-        r.dosierung,
-        r.dauer,
+        r.medication,
+        r.dosage,
+        r.duration,
         (r.pzn ?? "").trim() || "—",
     ]);
     return {
-        kind: "rezept",
-        praxisLines: praxisLinesForPdf(),
+        kind: "prescription",
+        practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Datum", value: formatVerordnungsdatumDe(first.ausgestellt_am) },
-            { label: "Positionen", value: String(items.length) },
+            { label: "Date", value: formatPrescriptionDate(first.issued_at) },
+            { label: "Line items", value: String(items.length) },
         ],
         addressLines: [],
-        documentTitle: "KOMBINATIONSREZEPT",
-        documentSubtitle: `${items.length} Medikamente`,
+        documentTitle: "COMBINATION PRESCRIPTION",
+        documentSubtitle: `${items.length} medications`,
         introParagraphs: [],
         twoColumn: patient
             ? {
-                  leftTitle: "Patient/in",
+                  leftTitle: "Patient",
                   leftLines: [
                       `Name: ${patient.name}`,
-                      `Geburtsdatum: ${formatDate(patient.geburtsdatum)}`,
-                      patient.versicherungsnummer ? `Vers.-Nr.: ${patient.versicherungsnummer}` : "",
+                      `Date of birth: ${formatDate(patient.date_of_birth)}`,
+                      patient.insurance_number ? `Ins. no.: ${patient.insurance_number}` : "",
                   ].filter(Boolean),
-                  rightTitle: "Adresse",
-                  rightLines: patient.adresse?.trim()
-                      ? [patient.adresse.trim().replace(/\n/g, ", ")]
+                  rightTitle: "Address",
+                  rightLines: patient.address?.trim()
+                      ? [patient.address.trim().replace(/\n/g, ", ")]
                       : ["—"],
               }
             : null,
         tables: [
             {
                 title: "Rp.",
-                columnLayout: "rezept_combo",
-                headers: ["Pos.", "Medikament", "Dosierung", "Dauer", "PZN"],
+                columnLayout: "prescription_combo",
+                headers: ["Pos.", "Medication", "Dosage", "Duration", "PZN"],
                 rows,
             },
         ],
@@ -272,58 +272,58 @@ export function buildRezeptComboPdfLayout(items: Rezept[], patient: Patient | nu
     };
 }
 
-export function buildQuittungPdfLayout(
-    z: Zahlung,
+export function buildReceiptPdfLayout(
+    z: Payment,
     patient: Patient,
-    behandlungen: Behandlung[],
-    untersuchungen: Untersuchung[],
+    treatments: Treatment[],
+    examinations: Examination[],
     receiptNumber: string,
 ): ClinicalPdfLayout {
-    const bezug = formatZahlungBezugLine(z, behandlungen, untersuchungen, docT, docTp);
-    const praxis = getInvoicePraxisFromStorage();
+    const reference = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
+    const practice = getInvoicePracticeFromStorage();
     const ust =
-        (praxis.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
+        (practice.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
 
     const payDate = formatDate(z.created_at);
 
     return {
-        kind: "quittung",
-        praxisLines: praxisLinesForPdf(),
+        kind: "receipt",
+        practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Quittung-Nr.", value: receiptNumber },
-            { label: "Zahlungsdatum", value: payDate },
+            { label: "Receipt-Nr.", value: receiptNumber },
+            { label: "Payment date", value: payDate },
         ],
-        addressLines: [patient.name, ...(patient.adresse?.trim() ? [patient.adresse.trim()] : [])],
-        documentTitle: "PATIENTENQUITTUNG",
-        documentSubtitle: `für ${patient.name}`,
-        introParagraphs: [`Abgerechnete Leistung für ${payDate}`],
+        addressLines: [patient.name, ...(patient.address?.trim() ? [patient.address.trim()] : [])],
+        documentTitle: "PATIENT RECEIPT",
+        documentSubtitle: `for ${patient.name}`,
+        introParagraphs: [`Billed service items for ${payDate}`],
         labelValueRows: [
-            { label: "Patient/in", value: patient.name },
-            { label: "Geburtsdatum", value: formatDate(patient.geburtsdatum) },
-            ...(patient.versicherungsnummer
-                ? [{ label: "Versicherungsnummer", value: patient.versicherungsnummer }]
+            { label: "Patient", value: patient.name },
+            { label: "Date of birth", value: formatDate(patient.date_of_birth) },
+            ...(patient.insurance_number
+                ? [{ label: "Insurance number", value: patient.insurance_number }]
                 : []),
         ],
         twoColumn: null,
         tables: [
             {
                 title: null,
-                columnLayout: "quittung",
-                headers: ["Tag", "Position", "Kurzbeschreibung"],
-                rows: [[payDate, receiptNumber, bezug]],
+                columnLayout: "receipt",
+                headers: ["Date", "Item", "Description"],
+                rows: [[payDate, receiptNumber, reference]],
             },
         ],
         detailRecords: [],
         totals: [
-            { label: "Sachkosten", value: "0,00 €" },
-            { label: "Honorar", value: formatCurrency(z.betrag) },
-            { label: "Gesamt", value: formatCurrency(z.betrag) },
+            { label: "Material costs", value: "0,00 €" },
+            { label: "Fee", value: formatCurrency(z.amount) },
+            { label: "Total", value: formatCurrency(z.amount) },
         ],
         closingParagraphs: [
-            `Zahlungsart: ${zahlungsartLabel(z.zahlungsart, docT)} · Status: ${zahlStatusDisplay(z.status, docT).label}`,
+            `Payment method: ${paymentMethodLabel(z.payment_method, docT)} · Status: ${paymentStatusDisplay(z.status, docT).label}`,
             ust,
-            ...(z.zahlungsart === "BAR" || z.zahlungsart === "KARTE" ? ["Betrag dankend erhalten."] : []),
-            ...((z.beschreibung ?? "").trim() ? [(z.beschreibung ?? "").trim()] : []),
+            ...(z.payment_method === "CASH" || z.payment_method === "CARD" ? ["Amount received with thanks."] : []),
+            ...((z.description ?? "").trim() ? [(z.description ?? "").trim()] : []),
         ],
         signatureLines: signatureLines(),
     };

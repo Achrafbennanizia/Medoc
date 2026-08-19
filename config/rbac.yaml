@@ -3,74 +3,74 @@
 version: 1
 
 roles:
-  - ARZT
-  - REZEPTION
-  # TODO(deferred-roles): STEUERBERATER — see docs/coordination/todos-deferred-roles.md
-  # TODO(deferred-roles): PHARMABERATER
+  - PHYSICIAN
+  - RECEPTION
+  # TODO(deferred-roles): TAX_ADVISOR — see docs/coordination/todos-deferred-roles.md
+  # TODO(deferred-roles): PHARMA_CONSULTANT
 
 # Reusable role groups (expanded at codegen time).
 role_sets:
-  arzt_only: [ARZT]
-  clinical_frontdesk: [ARZT, REZEPTION]
-  # TODO(deferred-roles): was [ARZT, REZEPTION, STEUERBERATER]
-  finanzen_staff: [ARZT, REZEPTION]
-  # TODO(deferred-roles): was [ARZT, REZEPTION, PHARMABERATER]
-  inventory_write: [ARZT, REZEPTION]
-  # TODO(deferred-roles): was [ARZT, REZEPTION, STEUERBERATER, PHARMABERATER]
-  everyone: [ARZT, REZEPTION]
+  physician_only: [PHYSICIAN]
+  clinical_frontdesk: [PHYSICIAN, RECEPTION]
+  # TODO(deferred-roles): was [PHYSICIAN, RECEPTION, TAX_ADVISOR]
+  finance_staff: [PHYSICIAN, RECEPTION]
+  # TODO(deferred-roles): was [PHYSICIAN, RECEPTION, PHARMA_CONSULTANT]
+  inventory_write: [PHYSICIAN, RECEPTION]
+  # TODO(deferred-roles): was [PHYSICIAN, RECEPTION, TAX_ADVISOR, PHARMA_CONSULTANT]
+  everyone: [PHYSICIAN, RECEPTION]
 
 # action → role set name, explicit role list, or "*" (all authenticated roles).
 permissions:
-  patient.read_medical: arzt_only
-  patient.write_medical: arzt_only
+  patient.read_medical: physician_only
+  patient.write_medical: physician_only
   patient.read_documents: clinical_frontdesk
-  patient.behandlungen_list_for_zahlung: finanzen_staff
+  patient.treatments_list_for_payment: finance_staff
   patient.read: clinical_frontdesk
   patient.write: clinical_frontdesk
-  termin.list_aerzte: clinical_frontdesk
-  termin.read: clinical_frontdesk
-  termin.write: clinical_frontdesk
-  # TODO(deferred-roles): was [ARZT, STEUERBERATER]
-  finanzen.read: arzt_only
-  finanzen.reception.view: [REZEPTION]
-  finanzen.write: finanzen_staff
+  appointment.list_physicians: clinical_frontdesk
+  appointment.read: clinical_frontdesk
+  appointment.write: clinical_frontdesk
+  # TODO(deferred-roles): was [PHYSICIAN, TAX_ADVISOR]
+  finance.read: physician_only
+  finance.reception.view: [RECEPTION]
+  finance.write: finance_staff
   dashboard.read: everyone
-  produkt.read: everyone
-  produkt.write: inventory_write
-  bestellung.read: everyone
-  bestellung.write: inventory_write
-  # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
-  verwaltung.read: arzt_only
-  verwaltung.lager.read: everyone
-  verwaltung.lager.write: inventory_write
-  verwaltung.vertraege.read: everyone
-  verwaltung.vertraege.write: inventory_write
-  verwaltung.kataloge.read: finanzen_staff
-  verwaltung.kataloge.write: finanzen_staff
-  verwaltung.vorlagen.read: arzt_only
-  verwaltung.vorlagen.write: arzt_only
-  # Verwaltung sub-areas (decouple from `personal.*` HR permissions — N6).
-  verwaltung.team.read: arzt_only
-  verwaltung.praxisplanung.read: arzt_only
-  verwaltung.praxisplanung.write: arzt_only
-  # TODO(deferred-roles): was [ARZT, STEUERBERATER]
-  finanzen.tagesabschluss.write: arzt_only
-  personal.read: arzt_only
-  personal.write: arzt_only
-  vorlagen.read: arzt_only
-  vorlagen.write: arzt_only
-  audit.read: arzt_only
-  ops.backup: arzt_only
-  ops.dsgvo: arzt_only
-  ops.migration: arzt_only
-  ops.system: arzt_only
-  ops.logs: arzt_only
-  ops.audit_chain_ack: arzt_only
+  product.read: everyone
+  product.write: inventory_write
+  purchase_order.read: everyone
+  purchase_order.write: inventory_write
+  # TODO(deferred-roles): was [PHYSICIAN, TAX_ADVISOR, PHARMA_CONSULTANT]
+  administration.read: physician_only
+  administration.inventory.read: everyone
+  administration.inventory.write: inventory_write
+  administration.contracts.read: everyone
+  administration.contracts.write: inventory_write
+  administration.catalogs.read: finance_staff
+  administration.catalogs.write: finance_staff
+  administration.templates.read: physician_only
+  administration.templates.write: physician_only
+  # Administration sub-areas (decouple from `staff.*` HR permissions — N6).
+  administration.team.read: physician_only
+  administration.practice_planning.read: physician_only
+  administration.practice_planning.write: physician_only
+  # TODO(deferred-roles): was [PHYSICIAN, TAX_ADVISOR]
+  finance.day_close.write: physician_only
+  staff.read: physician_only
+  staff.write: physician_only
+  templates.read: physician_only
+  templates.write: physician_only
+  audit.read: physician_only
+  ops.backup: physician_only
+  ops.dsgvo: physician_only
+  ops.migration: physician_only
+  ops.system: physician_only
+  ops.logs: physician_only
+  ops.audit_chain_ack: physician_only
   # Practice tasks: change status (FA-AUFG-06 + RBAC).
-  aufgabe.status.fulfill: clinical_frontdesk
-  # TODO(deferred-roles): was [ARZT, STEUERBERATER, PHARMABERATER]
-  aufgabe.status.admin: arzt_only
+  task.status.fulfill: clinical_frontdesk
+  # TODO(deferred-roles): was [PHYSICIAN, TAX_ADVISOR, PHARMA_CONSULTANT]
+  task.status.admin: physician_only
   work_time.self: clinical_frontdesk
-  work_time.team.read: arzt_only
-  work_time.admin: arzt_only
-  statistik.read: arzt_only
+  work_time.team.read: physician_only
+  work_time.admin: physician_only
+  statistics.read: physician_only

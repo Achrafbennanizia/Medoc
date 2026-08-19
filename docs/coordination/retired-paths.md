@@ -22,12 +22,12 @@ Legacy `app/` is README-only ([`app/README.md`](../../app/README.md)).
 | `docs/architecture/architecture-design.md` | Directory trees §1–2 |
 | `docs/architecture/three-systems.md` | Old systems paths |
 | `docs/architecture/deployment-topologies.md` | `cd app` examples |
-| `docs/v-model/00-uebersicht.md` | Stack table |
-| `docs/v-model/01-anforderungen/pflichtenheft.md` | Historical evidence paths |
-| `docs/v-model/04-modulentwurf/modulentwurf.md` | Module paths |
-| `docs/v-model/07-systemtest/README.md` | Test paths |
-| `docs/v-model/08-integrationstest/README.md` | Test paths |
-| `docs/v-model/09-modultest/README.md` | Test paths |
+| `docs/version-model/00-uebersicht.md` | Stack table |
+| `docs/version-model/01-anforderungen/pflichtenheft.md` | Historical evidence paths |
+| `docs/version-model/04-modulentwurf/modulentwurf.md` | Module paths |
+| `docs/version-model/07-systemtest/README.md` | Test paths |
+| `docs/version-model/08-integrationstest/README.md` | Test paths |
+| `docs/version-model/09-modultest/README.md` | Test paths |
 | `docs/requirements-engineering/01b-traceability-waad.md` | Traceability paths |
 | `docs/coordination/validation.md` | Historical command logs |
 | `docs/coordination/phase-handoff.md` | Migration narrative |

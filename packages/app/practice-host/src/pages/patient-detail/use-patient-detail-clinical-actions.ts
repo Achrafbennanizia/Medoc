@@ -2,134 +2,134 @@ import { useCallback, useMemo, type Dispatch, type SetStateAction } from "react"
 import { useNavigate } from "react-router-dom";
 import { deletePatient, updatePatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
-    createBehandlung,
-    createUntersuchung,
-    deleteBehandlung,
-    deleteUntersuchung,
-    saveAnamnesebogen,
-    updateBehandlung,
-    updateUntersuchung,
-} from "@/systems/practice-host/controllers/akte.controller";
-import { persistPlanNextTerminToBackend } from "@/systems/practice-host/controllers/plan-next-termin.controller";
-import { mergeQuickIntoAnamneseJson, parseAnamneseV1 } from "@/lib/anamnese";
+    createTreatment,
+    createExamination,
+    deleteTreatment,
+    deleteExamination,
+    saveAnamnesisForm,
+    updateTreatment,
+    updateExamination,
+} from "@/systems/practice-host/controllers/chart.controller";
+import { persistPlanNextAppointmentToBackend } from "@/systems/practice-host/controllers/plan-next-appointment.controller";
+import { mergeQuickIntoAnamnesisJson, parseAnamnesisV1 } from "@/lib/anamnesis";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
-    behandlungContinueLabel,
-    behandlungToUpdatePayload,
+    treatmentContinueLabel,
+    treatmentToUpdatePayload,
     PATIENT_DETAIL_TOAST_UNDO_MS,
-    resolveKatalogIdForBehandlung,
+    resolveCatalogIdForTreatment,
 } from "@/lib/patient-detail-utils";
 import {
-    buildBehandlungsKatalogCategoryOptions,
+    buildTreatmentCatalogCategoryOptions,
     DEFAULT_CATALOG_CATEGORIES,
-} from "@/lib/behandlungs-katalog-categories";
+} from "@/lib/treatment-catalog-categories";
 import {
-    mergeBehandlungFollowupIntoPlan,
+    mergeTreatmentFollowupIntoPlan,
     planNextHasContent,
-    type PlanNextTerminV2,
-} from "@/lib/plan-next-termin";
-import { previewNextUntersuchungsnummer } from "@/lib/untersuchung";
+    type PlanNextAppointmentV2,
+} from "@/lib/plan-next-appointment";
+import { previewNextExaminationNumber } from "@/lib/examination";
 import type {
-    Behandlung,
-    BehandlungsKatalogItem,
+    Treatment,
+    TreatmentCatalogItem,
     Patient,
-    Patientenakte,
-    Untersuchung,
-    Zahnbefund,
+    PatientChart,
+    Examination,
+    DentalFinding,
 } from "@/models/types";
-import type { BehandlungAkteComposerPanelProps } from "@/views/components/behandlung-akte-composer-panel";
+import type { TreatmentChartComposerPanelProps } from "@/views/components/treatment-chart-composer-panel";
 import {
-    behandlungHasBillableLeistung,
-    openZahlTabAfterBillableBehandlung,
-    openZahlTabAfterBillableUntersuchung,
-    untersuchungHasBillableLeistung,
-    type ZahlNewFormState,
+    treatmentHasBillableServiceItem,
+    openPaymentTabAfterBillableTreatment,
+    openPaymentTabAfterBillableExamination,
+    examinationHasBillableServiceItem,
+    type PaymentNewFormState,
 } from "@/lib/billing-open-booking";
-import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
+import type { PatientDetailChartTab } from "@/lib/patient-detail-utils";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-export type BehandFormState = {
-    datum: string;
-    kategorie: string;
-    leistungsname: string;
-    leistungKatalogId: string;
-    behandlungsnummer: string;
-    sitzung: string;
-    gesamtkosten: string;
-    behandlung_status: string;
-    termin_erforderlich: string;
-    notizen: string;
+export type TreatmentFormState = {
+    date: string;
+    category: string;
+    service_name: string;
+    serviceCatalogId: string;
+    treatment_number: string;
+    session_number: string;
+    total_cost: string;
+    treatment_status: string;
+    appointment_required: string;
+    notes: string;
 };
 
 export type AnamQuickState = {
-    versicherungsstatus: string;
-    krankenkasse: string;
-    chronisch: string;
-    allergienMed: string;
+    insuranceStatus: string;
+    health_insurance: string;
+    chronic: string;
+    allergiesMed: string;
 };
 
-const EMPTY_BEHAND_FORM = (): BehandFormState => ({
-    datum: new Date().toISOString().slice(0, 10),
-    kategorie: "",
-    leistungsname: "",
-    leistungKatalogId: "",
-    behandlungsnummer: "",
-    sitzung: "",
-    gesamtkosten: "",
-    behandlung_status: "DURCHGEFUEHRT",
-    termin_erforderlich: "0",
-    notizen: "",
+const EMPTY_TREATMENT_FORM = (): TreatmentFormState => ({
+    date: new Date().toISOString().slice(0, 10),
+    category: "",
+    service_name: "",
+    serviceCatalogId: "",
+    treatment_number: "",
+    session_number: "",
+    total_cost: "",
+    treatment_status: "COMPLETED",
+    appointment_required: "0",
+    notes: "",
 });
 
 export type UsePatientDetailClinicalActionsArgs = {
     patientId: string | undefined;
     patient: Patient | null;
-    akte: Patientenakte | null;
+    chart: PatientChart | null;
     canViewClinical: boolean;
-    editForm: { name: string; telefon: string; email: string; adresse: string };
-    setShowEditPatient: (v: boolean) => void;
-    behandlungen: Behandlung[];
-    untersuchungen: Untersuchung[];
-    katalog: BehandlungsKatalogItem[];
-    befunde: Zahnbefund[];
-    behandForm: BehandFormState;
-    setBehandForm: Dispatch<SetStateAction<BehandFormState>>;
-    selectedBehandTooth: string | null;
-    setSelectedBehandTooth: (v: string | null) => void;
-    behandEditId: string | null;
-    setBehandEditId: (v: string | null) => void;
-    behandFormUnlocked: boolean;
-    setBehandFormUnlocked: (v: boolean) => void;
-    behandComposerMode: "new" | "continue" | null;
-    setBehandComposerMode: (v: "new" | "continue" | null) => void;
-    setShowBehandComposer: (v: boolean) => void;
-    continueFromBehandlungId: string;
-    setContinueFromBehandlungId: (v: string) => void;
-    behandDeleteId: string | null;
-    setBehandDeleteId: (v: string | null) => void;
-    untersuchungForm: { beschwerden: string; ergebnisse: string; diagnose: string };
-    setUntersuchungForm: Dispatch<SetStateAction<{ beschwerden: string; ergebnisse: string; diagnose: string }>>;
-    setShowUnterComposer: (v: boolean) => void;
-    unterEdit: Untersuchung | null;
-    setUnterEdit: (v: Untersuchung | null) => void;
+    editForm: { name: string; phone: string; email: string; address: string };
+    setShowEditPatient: (version: boolean) => void;
+    treatments: Treatment[];
+    examinations: Examination[];
+    catalog: TreatmentCatalogItem[];
+    findings: DentalFinding[];
+    treatmentForm: TreatmentFormState;
+    setTreatmentForm: Dispatch<SetStateAction<TreatmentFormState>>;
+    selectedTreatmentTooth: string | null;
+    setSelectedTreatmentTooth: (version: string | null) => void;
+    treatmentEditId: string | null;
+    setTreatmentEditId: (version: string | null) => void;
+    treatmentFormUnlocked: boolean;
+    setTreatmentFormUnlocked: (version: boolean) => void;
+    treatmentComposerMode: "new" | "continue" | null;
+    setTreatmentComposerMode: (version: "new" | "continue" | null) => void;
+    setShowTreatmentComposer: (version: boolean) => void;
+    continueFromTreatmentId: string;
+    setContinueFromTreatmentId: (version: string) => void;
+    treatmentDeleteId: string | null;
+    setTreatmentDeleteId: (version: string | null) => void;
+    examinationForm: { chief_complaint: string; results: string; diagnosis: string };
+    setExaminationForm: Dispatch<SetStateAction<{ chief_complaint: string; results: string; diagnosis: string }>>;
+    setShowUnterComposer: (version: boolean) => void;
+    unterEdit: Examination | null;
+    setUnterEdit: (version: Examination | null) => void;
     unterDeleteId: string | null;
-    setUnterDeleteId: (v: string | null) => void;
-    anamneseJson: string;
-    setAnamneseJson: (v: string) => void;
+    setUnterDeleteId: (version: string | null) => void;
+    anamnesisJson: string;
+    setAnamnesisJson: (version: string) => void;
     anamQuick: AnamQuickState;
     setAnamQuick: Dispatch<SetStateAction<AnamQuickState>>;
-    anamneseSign: boolean;
-    setAnamEditing: (v: boolean) => void;
-    planNext: PlanNextTerminV2;
-    setPlanNext: Dispatch<SetStateAction<PlanNextTerminV2>>;
-    setPatientDeleteOpen: (v: boolean) => void;
-    setPatientDeleteBusy: (v: boolean) => void;
+    anamnesisSign: boolean;
+    setAnamEditing: (version: boolean) => void;
+    planNext: PlanNextAppointmentV2;
+    setPlanNext: Dispatch<SetStateAction<PlanNextAppointmentV2>>;
+    setPatientDeleteOpen: (version: boolean) => void;
+    setPatientDeleteBusy: (version: boolean) => void;
     load: () => Promise<void>;
-    sessionRolle: string | undefined;
-    goTab: (tab: PatientDetailAkteTab) => void;
-    setShowZahlComposer: (v: boolean) => void;
-    setZahlNewForm: (form: ZahlNewFormState) => void;
+    sessionRole: string | undefined;
+    goTab: (tab: PatientDetailChartTab) => void;
+    setShowPaymentComposer: (version: boolean) => void;
+    setPaymentNewForm: (form: PaymentNewFormState) => void;
 };
 
 export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalActionsArgs) {
@@ -141,67 +141,67 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
     const {
         patientId,
         patient,
-        akte,
+        chart,
         canViewClinical,
         editForm,
         setShowEditPatient,
-        behandlungen,
-        untersuchungen,
-        katalog,
-        befunde,
-        behandForm,
-        setBehandForm,
-        selectedBehandTooth,
-        setSelectedBehandTooth,
-        behandEditId,
-        setBehandEditId,
-        behandFormUnlocked,
-        setBehandFormUnlocked,
-        behandComposerMode,
-        setBehandComposerMode,
-        setShowBehandComposer,
-        continueFromBehandlungId,
-        setContinueFromBehandlungId,
-        behandDeleteId,
-        setBehandDeleteId,
-        untersuchungForm,
-        setUntersuchungForm,
+        treatments,
+        examinations,
+        catalog,
+        findings,
+        treatmentForm,
+        setTreatmentForm,
+        selectedTreatmentTooth,
+        setSelectedTreatmentTooth,
+        treatmentEditId,
+        setTreatmentEditId,
+        treatmentFormUnlocked,
+        setTreatmentFormUnlocked,
+        treatmentComposerMode,
+        setTreatmentComposerMode,
+        setShowTreatmentComposer,
+        continueFromTreatmentId,
+        setContinueFromTreatmentId,
+        treatmentDeleteId,
+        setTreatmentDeleteId,
+        examinationForm,
+        setExaminationForm,
         setShowUnterComposer,
         unterEdit,
         setUnterEdit,
         unterDeleteId,
         setUnterDeleteId,
-        anamneseJson,
-        setAnamneseJson,
+        anamnesisJson,
+        setAnamnesisJson,
         anamQuick,
         setAnamQuick,
-        anamneseSign,
+        anamnesisSign,
         setAnamEditing,
         planNext,
         setPlanNext,
         setPatientDeleteOpen,
         setPatientDeleteBusy,
         load,
-        sessionRolle,
+        sessionRole,
         goTab,
-        setShowZahlComposer,
-        setZahlNewForm,
+        setShowPaymentComposer,
+        setPaymentNewForm,
     } = args;
 
     const runSavePatient = async () => {
         if (!patientId || !patient || !editForm.name.trim()) return;
         const prev = {
             name: patient.name,
-            telefon: patient.telefon ?? "",
+            phone: patient.phone ?? "",
             email: patient.email ?? "",
-            adresse: patient.adresse ?? "",
+            address: patient.address ?? "",
         };
         try {
             await updatePatient(patientId, {
                 name: editForm.name,
-                telefon: editForm.telefon || null,
+                phone: editForm.phone || null,
                 email: editForm.email || null,
-                adresse: editForm.adresse || null,
+                address: editForm.address || null,
             });
             toast(t("patient.detail.toast.patient_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
@@ -209,9 +209,9 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                     try {
                         await updatePatient(patientId, {
                             name: prev.name,
-                            telefon: prev.telefon || null,
+                            phone: prev.phone || null,
                             email: prev.email || null,
-                            adresse: prev.adresse || null,
+                            address: prev.address || null,
                         });
                         await load();
                     } catch (err) {
@@ -226,65 +226,65 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         }
     };
 
-    const persistBehandlungAfterConfirm = async () => {
-        if (!akte) return;
-        const bn = behandForm.behandlungsnummer.trim();
-        let sitzungNum: number | null = null;
-        if (behandForm.sitzung.trim()) {
-            const n = Number(behandForm.sitzung);
-            sitzungNum = Number.isFinite(n) ? n : null;
+    const persistTreatmentAfterConfirm = async () => {
+        if (!chart) return;
+        const bn = treatmentForm.treatment_number.trim();
+        let sessionNumberNum: number | null = null;
+        if (treatmentForm.session_number.trim()) {
+            const n = Number(treatmentForm.session_number);
+            sessionNumberNum = Number.isFinite(n) ? n : null;
         } else if (bn) {
-            const same = behandlungen.filter((b) => (b.behandlungsnummer ?? "").trim() === bn);
-            const maxS = same.reduce((acc, b) => Math.max(acc, b.sitzung ?? 0), 0);
-            sitzungNum = maxS + 1;
+            const same = treatments.filter((b) => (b.treatment_number ?? "").trim() === bn);
+            const maxS = same.reduce((acc, b) => Math.max(acc, b.session_number ?? 0), 0);
+            sessionNumberNum = maxS + 1;
         }
-        const gRaw = behandForm.gesamtkosten.trim().replace(",", ".");
+        const gRaw = treatmentForm.total_cost.trim().replace(",", ".");
         const g = gRaw === "" ? NaN : Number(gRaw);
         const payload = {
-            art: behandForm.leistungsname.trim(),
-            beschreibung: behandForm.leistungsname.trim(),
-            zaehne: selectedBehandTooth,
+            kind: treatmentForm.service_name.trim(),
+            description: treatmentForm.service_name.trim(),
+            teeth: selectedTreatmentTooth,
             material: null as string | null,
-            notizen: behandForm.notizen.trim() || null,
-            kategorie: behandForm.kategorie.trim(),
-            leistungsname: behandForm.leistungsname.trim(),
-            behandlungsnummer: bn || null,
-            sitzung: sitzungNum,
-            behandlung_status: behandForm.behandlung_status || null,
-            gesamtkosten: Number.isFinite(g) ? g : null,
-            termin_erforderlich: behandForm.termin_erforderlich === "1",
-            behandlung_datum: behandForm.datum.trim() || null,
+            notes: treatmentForm.notes.trim() || null,
+            category: treatmentForm.category.trim(),
+            service_name: treatmentForm.service_name.trim(),
+            treatment_number: bn || null,
+            session_number: sessionNumberNum,
+            treatment_status: treatmentForm.treatment_status || null,
+            total_cost: Number.isFinite(g) ? g : null,
+            appointment_required: treatmentForm.appointment_required === "1",
+            treatment_date: treatmentForm.date.trim() || null,
         };
-        const prevBh = behandEditId ? behandlungen.find((b) => b.id === behandEditId) ?? null : null;
-        const billable = behandlungHasBillableLeistung(
-            payload.leistungsname,
+        const prevBh = treatmentEditId ? treatments.find((b) => b.id === treatmentEditId) ?? null : null;
+        const billable = treatmentHasBillableServiceItem(
+            payload.service_name,
             Number.isFinite(g) ? g : null,
         );
-        let savedBehandlungId = behandEditId ?? "";
+        let savedTreatmentId = treatmentEditId ?? "";
         try {
-            if (behandEditId) {
-                await updateBehandlung({ id: behandEditId, ...payload });
-                toast(t("patient.detail.toast.behand_updated"), "success", {
+            if (treatmentEditId) {
+                await updateTreatment({ id: treatmentEditId, ...payload });
+                toast(t("patient.detail.toast.treatment_updated"), "success", {
                     durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                     onUndo: async () => {
                         if (!prevBh) return;
                         try {
-                            await updateBehandlung(behandlungToUpdatePayload(prevBh));
+                            await updateTreatment(treatmentToUpdatePayload(prevBh));
                             await load();
                         } catch (err) {
                             toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
                         }
                     },
                 });
-                setBehandEditId(null);
+                setTreatmentEditId(null);
             } else {
-                const created = await createBehandlung({ akte_id: akte.id, ...payload });
-                savedBehandlungId = created.id;
-                toast(t("patient.detail.toast.behand_documented"), "success", {
+                const created = await createTreatment({ chart_id: chart.id, ...payload });
+                savedTreatmentId = created.id;
+                toast(t("patient.detail.toast.treatment_documented"), "success", {
                     durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                     onUndo: async () => {
                         try {
-                            await deleteBehandlung(created.id);
+                            await deleteTreatment(created.id);
                             await load();
                         } catch (err) {
                             toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
@@ -296,14 +296,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
             return;
         }
-        if (patientId && payload.termin_erforderlich) {
-            const merged = mergeBehandlungFollowupIntoPlan(planNext, {
-                leistungsname: behandForm.leistungsname,
-                notizen: behandForm.notizen ?? "",
+        if (patientId && payload.appointment_required) {
+            const merged = mergeTreatmentFollowupIntoPlan(planNext, {
+                service_name: treatmentForm.service_name,
+                notes: treatmentForm.notes ?? "",
             });
             if (planNextHasContent(merged)) {
                 try {
-                    await persistPlanNextTerminToBackend(patientId, merged);
+                    await persistPlanNextAppointmentToBackend(patientId, merged);
                     setPlanNext(merged);
                 } catch (err) {
                     toast(
@@ -315,63 +315,63 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 }
             }
         }
-        setBehandForm(EMPTY_BEHAND_FORM());
-        setSelectedBehandTooth(null);
-        setShowBehandComposer(false);
-        setBehandComposerMode(null);
-        setContinueFromBehandlungId("");
-        setBehandFormUnlocked(true);
+        setTreatmentForm(EMPTY_TREATMENT_FORM());
+        setSelectedTreatmentTooth(null);
+        setShowTreatmentComposer(false);
+        setTreatmentComposerMode(null);
+        setContinueFromTreatmentId("");
+        setTreatmentFormUnlocked(true);
         await load();
-        if (sessionRolle === "ARZT" && billable && savedBehandlungId) {
-            openZahlTabAfterBillableBehandlung({
-                behandlungId: savedBehandlungId,
-                gesamtkosten: Number.isFinite(g) ? g : null,
+        if (sessionRole === "PHYSICIAN" && billable && savedTreatmentId) {
+            openPaymentTabAfterBillableTreatment({
+                treatmentId: savedTreatmentId,
+                total_cost: Number.isFinite(g) ? g : null,
                 goTab,
-                setShowZahlComposer,
-                setZahlNewForm,
+                setShowPaymentComposer,
+                setPaymentNewForm,
             });
             toast(t("patient.detail.toast.billing_area_opened"), "info");
         }
     };
 
-    const runSaveBehandlung = () => {
-        if (!akte) return;
-        if (behandEditId && !behandFormUnlocked) {
+    const runSaveTreatment = () => {
+        if (!chart) return;
+        if (treatmentEditId && !treatmentFormUnlocked) {
             toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
-        if (!behandForm.kategorie.trim() || !behandForm.leistungsname.trim()) {
-            toast(t("patient.detail.toast.category_leistung_required"), "error");
+        if (!treatmentForm.category.trim() || !treatmentForm.service_name.trim()) {
+            toast(t("patient.detail.toast.category_service_item_required"), "error");
             return;
         }
-        void persistBehandlungAfterConfirm();
+        void persistTreatmentAfterConfirm();
     };
 
-    const persistUntersuchungCreate = async (data: {
-        beschwerden: string;
-        diagnose: string;
-        ergebnisseJson: string;
-        kategorie?: string | null;
-        leistungsname?: string | null;
-        gesamtkosten?: number | null;
+    const persistExaminationCreate = async (data: {
+        chiefComplaint: string;
+        diagnosis: string;
+        resultsJson: string;
+        category?: string | null;
+        serviceName?: string | null;
+        totalCost?: number | null;
     }) => {
-        if (!akte) return;
-        const billable = untersuchungHasBillableLeistung(data.leistungsname, data.gesamtkosten ?? null);
+        if (!chart) return;
+        const billable = examinationHasBillableServiceItem(data.serviceName, data.totalCost ?? null);
         try {
-            const created = await createUntersuchung({
-                akte_id: akte.id,
-                beschwerden: data.beschwerden.trim() || null,
-                ergebnisse: data.ergebnisseJson.trim() || null,
-                diagnose: data.diagnose.trim() || null,
-                kategorie: data.kategorie?.trim() || null,
-                leistungsname: data.leistungsname?.trim() || null,
-                gesamtkosten: data.gesamtkosten ?? null,
+            const created = await createExamination({
+                chart_id: chart.id,
+                chief_complaint: data.chiefComplaint.trim() || null,
+                results: data.resultsJson.trim() || null,
+                diagnosis: data.diagnosis.trim() || null,
+                category: data.category?.trim() || null,
+                service_name: data.serviceName?.trim() || null,
+                total_cost: data.totalCost ?? null,
             });
-            toast(t("patient.detail.toast.untersuchung_captured"), "success", {
+            toast(t("patient.detail.toast.examination_captured"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        await deleteUntersuchung(created.id);
+                        await deleteExamination(created.id);
                         await load();
                     } catch (e) {
                         toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
@@ -379,15 +379,15 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 },
             });
             setShowUnterComposer(false);
-            setUntersuchungForm({ beschwerden: "", ergebnisse: "", diagnose: "" });
+            setExaminationForm({ chief_complaint: "", results: "", diagnosis: "" });
             await load();
-            if (sessionRolle === "ARZT" && billable) {
-                openZahlTabAfterBillableUntersuchung({
-                    untersuchungId: created.id,
-                    gesamtkosten: data.gesamtkosten ?? null,
+            if (sessionRole === "PHYSICIAN" && billable) {
+                openPaymentTabAfterBillableExamination({
+                    examinationId: created.id,
+                    total_cost: data.totalCost ?? null,
                     goTab,
-                    setShowZahlComposer,
-                    setZahlNewForm,
+                    setShowPaymentComposer,
+                    setPaymentNewForm,
                 });
                 toast(t("patient.detail.toast.billing_area_opened"), "info");
             }
@@ -396,58 +396,58 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         }
     };
 
-    const handleCreateUntersuchung = async (payload?: {
-        beschwerden: string;
-        diagnose: string;
-        ergebnisseJson: string;
-        kategorie?: string | null;
-        leistungsname?: string | null;
-        gesamtkosten?: number | null;
+    const handleCreateExamination = async (payload?: {
+        chiefComplaint: string;
+        diagnosis: string;
+        resultsJson: string;
+        category?: string | null;
+        serviceName?: string | null;
+        totalCost?: number | null;
     }) => {
         const data =
             payload ??
             ({
-                beschwerden: untersuchungForm.beschwerden,
-                diagnose: untersuchungForm.diagnose,
-                ergebnisseJson: untersuchungForm.ergebnisse,
+                chiefComplaint: examinationForm.chief_complaint,
+                diagnosis: examinationForm.diagnosis,
+                resultsJson: examinationForm.results,
             } as const);
-        await persistUntersuchungCreate(data);
+        await persistExaminationCreate(data);
     };
 
-    const runSaveUntersuchungEdit = async (payload: {
-        beschwerden: string;
-        diagnose: string;
-        ergebnisseJson: string;
+    const runSaveExaminationEdit = async (payload: {
+        chiefComplaint: string;
+        diagnosis: string;
+        resultsJson: string;
     }) => {
         if (!unterEdit) return;
         const uid = unterEdit.id;
         const prevSnap = {
-            beschwerden: unterEdit.beschwerden,
-            diagnose: unterEdit.diagnose,
-            ergebnisse: unterEdit.ergebnisse,
+            chiefComplaint: unterEdit.chief_complaint,
+            diagnosis: unterEdit.diagnosis,
+            results: unterEdit.results,
         };
         try {
-            await updateUntersuchung({
+            await updateExamination({
                 id: uid,
-                beschwerden: payload.beschwerden.trim() || null,
-                ergebnisse: payload.ergebnisseJson.trim() || null,
-                diagnose: payload.diagnose.trim() || null,
-                kategorie: unterEdit.kategorie ?? null,
-                leistungsname: unterEdit.leistungsname ?? null,
-                gesamtkosten: unterEdit.gesamtkosten ?? null,
+                chief_complaint: payload.chiefComplaint.trim() || null,
+                results: payload.resultsJson.trim() || null,
+                diagnosis: payload.diagnosis.trim() || null,
+                category: unterEdit.category ?? null,
+                service_name: unterEdit.service_name ?? null,
+                total_cost: unterEdit.total_cost ?? null,
             });
-            toast(t("patient.detail.toast.untersuchung_saved"), "success", {
+            toast(t("patient.detail.toast.examination_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        await updateUntersuchung({
+                        await updateExamination({
                             id: uid,
-                            beschwerden: prevSnap.beschwerden ?? null,
-                            ergebnisse: prevSnap.ergebnisse ?? null,
-                            diagnose: prevSnap.diagnose ?? null,
-                            kategorie: unterEdit.kategorie ?? null,
-                            leistungsname: unterEdit.leistungsname ?? null,
-                            gesamtkosten: unterEdit.gesamtkosten ?? null,
+                            chief_complaint: prevSnap.chiefComplaint ?? null,
+                            results: prevSnap.results ?? null,
+                            diagnosis: prevSnap.diagnosis ?? null,
+                            category: unterEdit.category ?? null,
+                            service_name: unterEdit.service_name ?? null,
+                            total_cost: unterEdit.total_cost ?? null,
                         });
                         await load();
                     } catch (e) {
@@ -462,51 +462,51 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         }
     };
 
-    const cancelAnamneseEdit = useCallback(() => {
-        const p = parseAnamneseV1(anamneseJson);
+    const cancelAnamnesisEdit = useCallback(() => {
+        const p = parseAnamnesisV1(anamnesisJson);
         setAnamQuick({
-            versicherungsstatus: p?.versicherungsstatus ?? "",
-            krankenkasse: p?.krankenkasse ?? "",
-            chronisch: p?.vorerkrankungen?.chronisch ?? "",
-            allergienMed: p?.allergien?.medikamente ?? "",
+            insuranceStatus: p?.insuranceStatus ?? "",
+            health_insurance: p?.health_insurance ?? "",
+            chronic: p?.preExisting?.chronic ?? "",
+            allergiesMed: p?.allergies?.medications ?? "",
         });
         setAnamEditing(false);
-    }, [anamneseJson, setAnamQuick, setAnamEditing]);
+    }, [anamnesisJson, setAnamQuick, setAnamEditing]);
 
-    const runSaveAnamnese = async () => {
+    const runSaveAnamnesis = async () => {
         if (!patientId) return;
-        const merged = mergeQuickIntoAnamneseJson(anamneseJson, anamQuick);
-        let antworten: unknown;
+        const merged = mergeQuickIntoAnamnesisJson(anamnesisJson, anamQuick);
+        let answers: unknown;
         try {
-            antworten = JSON.parse(merged || "{}");
+            answers = JSON.parse(merged || "{}");
         } catch {
-            toast(t("patient.detail.toast.anamnese_invalid"));
+            toast(t("patient.detail.toast.anamnesis_invalid"));
             return;
         }
-        const rollbackJson = anamneseJson;
+        const rollbackJson = anamnesisJson;
         const rollbackQuick = { ...anamQuick };
-        const rollbackSign = anamneseSign;
+        const rollbackSign = anamnesisSign;
         let rollbackParsed: unknown;
         try {
-            rollbackParsed = JSON.parse(mergeQuickIntoAnamneseJson(rollbackJson, rollbackQuick) || "{}");
+            rollbackParsed = JSON.parse(mergeQuickIntoAnamnesisJson(rollbackJson, rollbackQuick) || "{}");
         } catch {
-            toast(t("patient.detail.toast.anamnese_invalid"));
+            toast(t("patient.detail.toast.anamnesis_invalid"));
             return;
         }
         try {
-            await saveAnamnesebogen({
+            await saveAnamnesisForm({
                 patient_id: patientId,
-                antworten,
-                unterschrieben: anamneseSign,
+                answers,
+                signed: anamnesisSign,
             });
-            toast(t("patient.detail.toast.anamnese_saved"), "success", {
+            toast(t("patient.detail.toast.anamnesis_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        await saveAnamnesebogen({
+                        await saveAnamnesisForm({
                             patient_id: patientId,
-                            antworten: rollbackParsed,
-                            unterschrieben: rollbackSign,
+                            answers: rollbackParsed,
+                            signed: rollbackSign,
                         });
                         await load();
                     } catch (e) {
@@ -514,7 +514,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                     }
                 },
             });
-            setAnamneseJson(JSON.stringify(antworten, null, 2));
+            setAnamnesisJson(JSON.stringify(answers, null, 2));
             setAnamEditing(false);
             await load();
         } catch (e) {
@@ -522,23 +522,23 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         }
     };
 
-    const handleDeleteBehandlungRow = async () => {
-        if (!behandDeleteId) return;
+    const handleDeleteTreatmentRow = async () => {
+        if (!treatmentDeleteId) return;
         try {
-            await deleteBehandlung(behandDeleteId);
-            toast(t("patient.detail.toast.behand_deleted"));
-            setBehandDeleteId(null);
+            await deleteTreatment(treatmentDeleteId);
+            toast(t("patient.detail.toast.treatment_deleted"));
+            setTreatmentDeleteId(null);
             await load();
         } catch (e) {
             toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }
     };
 
-    const handleDeleteUntersuchungRow = async () => {
+    const handleDeleteExaminationRow = async () => {
         if (!unterDeleteId) return;
         try {
-            await deleteUntersuchung(unterDeleteId);
-            toast(t("patient.detail.toast.untersuchung_deleted"));
+            await deleteExamination(unterDeleteId);
+            toast(t("patient.detail.toast.examination_deleted"));
             setUnterDeleteId(null);
             await load();
         } catch (e) {
@@ -552,9 +552,9 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             await deletePatient(patientId);
             clearPatientScopedBrowserStorage(patientId);
-            toast(t("patient.detail.toast.akte_deleted"));
+            toast(t("patient.detail.toast.chart_deleted"));
             setPatientDeleteOpen(false);
-            navigate("/patienten");
+            navigate("/patients");
         } catch (e) {
             toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         } finally {
@@ -562,29 +562,29 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         }
     };
 
-    const kategorieOptions = useMemo(() => {
-        const values = new Set<string>([...DEFAULT_CATALOG_CATEGORIES, ...katalog.map((k) => k.kategorie)]);
-        if (behandForm.kategorie) values.add(behandForm.kategorie);
-        const rest = buildBehandlungsKatalogCategoryOptions(t, values, sortLocale);
-        return [{ value: "", label: t("patient.detail.behand.category_pick") }, ...rest];
-    }, [katalog, behandForm.kategorie, sortLocale, t]);
+    const categoryOptions = useMemo(() => {
+        const values = new Set<string>([...DEFAULT_CATALOG_CATEGORIES, ...catalog.map((k) => k.category)]);
+        if (treatmentForm.category) values.add(treatmentForm.category);
+        const rest = buildTreatmentCatalogCategoryOptions(t, values, sortLocale);
+        return [{ value: "", label: t("patient.detail.treatment.category_pick") }, ...rest];
+    }, [catalog, treatmentForm.category, sortLocale, t]);
 
-    const leistungOptions = useMemo(() => {
-        if (!behandForm.kategorie) {
-            return [{ value: "", label: t("patient.detail.behand.category_first") }];
+    const serviceCatalogOptions = useMemo(() => {
+        if (!treatmentForm.category) {
+            return [{ value: "", label: t("patient.detail.treatment.category_first") }];
         }
-        const filtered = katalog.filter((k) => k.kategorie === behandForm.kategorie);
-        return [{ value: "", label: t("patient.detail.behand.leistung_pick") }, ...filtered.map((k) => ({ value: k.id, label: k.name }))];
-    }, [katalog, behandForm.kategorie, t]);
+        const filtered = catalog.filter((k) => k.category === treatmentForm.category);
+        return [{ value: "", label: t("patient.detail.treatment.service_item_pick") }, ...filtered.map((k) => ({ value: k.id, label: k.name }))];
+    }, [catalog, treatmentForm.category, t]);
 
-    const behandlungGroups = useMemo(() => {
-        const keyOf = (b: Behandlung) => {
-            const n = (b.behandlungsnummer ?? "").trim();
+    const treatmentGroups = useMemo(() => {
+        const keyOf = (b: Treatment) => {
+            const n = (b.treatment_number ?? "").trim();
             return n || `__id_${b.id}`;
         };
-        const map = new Map<string, Behandlung[]>();
+        const map = new Map<string, Treatment[]>();
         const order: string[] = [];
-        for (const b of behandlungen) {
+        for (const b of treatments) {
             const k = keyOf(b);
             if (!map.has(k)) {
                 map.set(k, []);
@@ -593,112 +593,112 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             map.get(k)!.push(b);
         }
         return order.map((key) => map.get(key)!);
-    }, [behandlungen]);
+    }, [treatments]);
 
-    const generateNewBehandlungsnummer = useCallback(() => {
+    const generateNewTreatmentNumber = useCallback(() => {
         const year = new Date().getFullYear();
         const prefix = `B-${year}-`;
         let max = 0;
-        for (const b of behandlungen) {
-            const n = (b.behandlungsnummer ?? "").trim();
+        for (const b of treatments) {
+            const n = (b.treatment_number ?? "").trim();
             if (!n.startsWith(prefix)) continue;
             const tail = n.slice(prefix.length);
             const m = /^(\d+)/.exec(tail);
             if (!m) continue;
-            const v = Number.parseInt(m[1], 10);
-            if (Number.isFinite(v) && v > max) max = v;
+            const version = Number.parseInt(m[1], 10);
+            if (Number.isFinite(version) && version > max) max = version;
         }
         return `${prefix}${String(max + 1).padStart(3, "0")}`;
-    }, [behandlungen]);
+    }, [treatments]);
 
-    const applyContinueFromBehandlung = useCallback(
-        (behandlungId: string) => {
-            const b = behandlungen.find((x) => x.id === behandlungId);
+    const applyContinueFromTreatment = useCallback(
+        (treatmentId: string) => {
+            const b = treatments.find((x) => x.id === treatmentId);
             if (!b) return;
-            const bn = (b.behandlungsnummer ?? "").trim();
+            const bn = (b.treatment_number ?? "").trim();
             if (!bn) {
                 toast(t("patient.detail.toast.no_b_number"), "info");
                 return;
             }
-            const same = behandlungen.filter((x) => (x.behandlungsnummer ?? "").trim() === bn);
-            const nextSitz = same.reduce((acc, x) => Math.max(acc, x.sitzung ?? 0), 0) + 1;
-            const kid = resolveKatalogIdForBehandlung(katalog, b);
-            setContinueFromBehandlungId(behandlungId);
-            setBehandForm({
-                datum: new Date().toISOString().slice(0, 10),
-                kategorie: b.kategorie ?? b.art ?? "",
-                leistungsname: b.leistungsname ?? b.beschreibung ?? b.art ?? "",
-                leistungKatalogId: kid,
-                behandlungsnummer: bn,
-                sitzung: String(nextSitz),
-                gesamtkosten: "",
-                behandlung_status: "DURCHGEFUEHRT",
-                termin_erforderlich: "0",
-                notizen: "",
+            const same = treatments.filter((x) => (x.treatment_number ?? "").trim() === bn);
+            const nextSitz = same.reduce((acc, x) => Math.max(acc, x.session_number ?? 0), 0) + 1;
+            const kid = resolveCatalogIdForTreatment(catalog, b);
+            setContinueFromTreatmentId(treatmentId);
+            setTreatmentForm({
+                date: new Date().toISOString().slice(0, 10),
+                category: b.category ?? b.kind ?? "",
+                service_name: b.service_name ?? b.description ?? b.kind ?? "",
+                serviceCatalogId: kid,
+                treatment_number: bn,
+                session_number: String(nextSitz),
+                total_cost: "",
+                treatment_status: "COMPLETED",
+                appointment_required: "0",
+                notes: "",
             });
-            setSelectedBehandTooth(b.zaehne ?? null);
+            setSelectedTreatmentTooth(b.teeth ?? null);
         },
-        [behandlungen, katalog, toast, t, setContinueFromBehandlungId, setBehandForm, setSelectedBehandTooth],
+        [treatments, catalog, toast, t, setContinueFromTreatmentId, setTreatmentForm, setSelectedTreatmentTooth],
     );
 
-    const continueBehandlungOptions = useMemo(
+    const continueTreatmentOptions = useMemo(
         () =>
-            behandlungen.map((b) => ({
+            treatments.map((b) => ({
                 value: b.id,
-                label: behandlungContinueLabel(b),
+                label: treatmentContinueLabel(b),
             })),
-        [behandlungen],
+        [treatments],
     );
 
     const nextUnterPreview = useMemo(
-        () => previewNextUntersuchungsnummer(untersuchungen.map((u) => u.untersuchungsnummer)),
-        [untersuchungen],
+        () => previewNextExaminationNumber(examinations.map((u) => u.examination_number)),
+        [examinations],
     );
 
-    const behandFieldsLocked = Boolean(behandEditId) && !behandFormUnlocked;
+    const treatmentFieldsLocked = Boolean(treatmentEditId) && !treatmentFormUnlocked;
 
-    const behandComposerCommon = {
+    const treatmentComposerCommon = {
         navigate,
-        akte,
-        befunde,
-        selectedBehandTooth,
-        onSelectTooth: setSelectedBehandTooth,
-        behandEditId,
-        behandComposerMode,
-        behandFieldsLocked,
-        onUnlockFields: () => setBehandFormUnlocked(true),
+        chart,
+        findings,
+        selectedTreatmentTooth,
+        onSelectTooth: setSelectedTreatmentTooth,
+        treatmentEditId,
+        treatmentComposerMode,
+        treatmentFieldsLocked,
+        onUnlockFields: () => setTreatmentFormUnlocked(true),
         onCancelComposer: () => {
-            setShowBehandComposer(false);
-            setBehandComposerMode(null);
-            setBehandEditId(null);
-            setContinueFromBehandlungId("");
-            setBehandFormUnlocked(true);
+            setShowTreatmentComposer(false);
+            setTreatmentComposerMode(null);
+            setTreatmentEditId(null);
+            setContinueFromTreatmentId("");
+            setTreatmentFormUnlocked(true);
         },
-        continueBehandlungOptions,
-        continueFromBehandlungId,
-        applyContinueFromBehandlung,
-        behandForm,
-        setBehandForm,
-        kategorieOptions,
-        leistungOptions,
-        katalog,
+        continueTreatmentOptions,
+        continueFromTreatmentId,
+        applyContinueFromTreatment,
+        treatmentForm,
+        setTreatmentForm,
+        categoryOptions,
+        serviceCatalogOptions,
+        catalog,
         planNext,
-        runSaveBehandlung,
-    } satisfies BehandlungAkteComposerPanelProps;
+        runSaveTreatment,
+    } satisfies TreatmentChartComposerPanelProps;
 
     return {
         runSavePatient,
-        runSaveBehandlung,
-        handleCreateUntersuchung,
-        runSaveUntersuchungEdit,
-        cancelAnamneseEdit,
-        runSaveAnamnese,
-        handleDeleteBehandlungRow,
-        handleDeleteUntersuchungRow,
+        runSaveTreatment,
+        handleCreateExamination,
+        runSaveExaminationEdit,
+        cancelAnamnesisEdit,
+        runSaveAnamnesis,
+        handleDeleteTreatmentRow,
+        handleDeleteExaminationRow,
         handleDeletePatient,
-        behandlungGroups,
-        generateNewBehandlungsnummer,
+        treatmentGroups,
+        generateNewTreatmentNumber,
         nextUnterPreview,
-        behandComposerCommon,
+        treatmentComposerCommon,
     };
 }

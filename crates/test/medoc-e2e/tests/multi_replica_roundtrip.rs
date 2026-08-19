@@ -25,7 +25,7 @@
 use axum::http::StatusCode;
 use chrono::{NaiveDate, Utc};
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::enums::Geschlecht;
+use medoc_core::domain::enums::Sex;
 use medoc_core::infrastructure::database::patient_repo;
 use medoc_e2e::harness::{slave_pubkey_b64, slave_signing_key, LanHarness};
 use medoc_sync::repo::OutboxEntry;
@@ -67,7 +67,7 @@ fn patient_entry(
     // UPDATE op — the row MUST already exist on the receiver, otherwise
     // `apply_remote_entry` falls into `insert_from_json` which fails
     // because the patient schema has NOT NULL columns
-    // (geburtsdatum, geschlecht, versicherungsnummer) not present in
+    // (date_of_birth, sex, insurance_number) not present in
     // this minimal payload. Callers should pair this with
     // `seed_patient_directly` or `patient_insert_entry`.
     OutboxEntry {
@@ -96,10 +96,10 @@ fn patient_insert_entry(
     let payload = serde_json::json!({
         "id": patient_id,
         "name": name,
-        "geburtsdatum": "1990-01-01",
-        "geschlecht": "MAENNLICH",
-        "versicherungsnummer": versicherung,
-        "status": "AKTIV",
+        "date_of_birth": "1990-01-01",
+        "sex": "MALE",
+        "insurance_number": versicherung,
+        "status": "ACTIVE",
         "created_at": "2026-01-01 00:00:00",
         "updated_at": updated_at_iso,
     });
@@ -117,10 +117,10 @@ fn patient_insert_entry(
 
 async fn seed_patient_directly(pool: &sqlx::SqlitePool, id: &str, name: &str, updated_at: &str) {
     sqlx::query(
-        "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
-                              telefon, email, adresse, status, created_at, updated_at)
-         VALUES (?1, ?2, '1990-01-01', 'MAENNLICH', 'V-X',
-                 NULL, NULL, NULL, 'AKTIV', '2026-01-01 00:00:00', ?3)
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number,
+                              phone, email, address, status, created_at, updated_at)
+         VALUES (?1, ?2, '1990-01-01', 'MALE', 'V-X',
+                 NULL, NULL, NULL, 'ACTIVE', '2026-01-01 00:00:00', ?3)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at",
     )
     .bind(id)
@@ -217,12 +217,12 @@ async fn replica_pull_sees_master_local_writes() {
         &lan.pool,
         &CreatePatient {
             name: "Master Local Write".into(),
-            geburtsdatum: NaiveDate::from_ymd_opt(1985, 4, 21).unwrap(),
-            geschlecht: Geschlecht::Weiblich,
-            versicherungsnummer: "V-MLW-1".into(),
-            telefon: None,
+            date_of_birth: NaiveDate::from_ymd_opt(1985, 4, 21).unwrap(),
+            sex: Sex::Female,
+            insurance_number: "V-MLW-1".into(),
+            phone: None,
             email: None,
-            adresse: None,
+            address: None,
         },
     )
     .await
@@ -258,8 +258,8 @@ async fn replica_pull_sees_master_local_writes() {
         "expected a patient row in pull: {entries:?}"
     );
     assert!(
-        entries.iter().any(|e| e["entityTable"] == "patientenakte"),
-        "expected a patientenakte row in pull (auto-created): {entries:?}"
+        entries.iter().any(|e| e["entityTable"] == "patient_chart"),
+        "expected a patient_chart row in pull (auto-created): {entries:?}"
     );
 }
 

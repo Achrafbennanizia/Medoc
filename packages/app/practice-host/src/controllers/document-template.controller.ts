@@ -3,7 +3,7 @@ import type { DocumentTemplatePayloadV1 } from "@/lib/document-template-schema";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { uint8ToBase64 } from "@/lib/save-download";
 
-export type DokumentTemplateDto = {
+export type DocumentTemplateDto = {
     id: string;
     kind: string;
     name: string;
@@ -14,8 +14,8 @@ export type DokumentTemplateDto = {
     updatedAt: string;
 };
 
-/** Tauri serializes `DokumentTemplateUser` with `camelCase` JSON keys. */
-type DokumentTemplateRow = {
+/** Tauri serializes `DocumentTemplateUser` with `camelCase` JSON keys. */
+type DocumentTemplateRow = {
     id: string;
     kind: string;
     name: string;
@@ -31,7 +31,7 @@ type DokumentTemplateRow = {
     updated_at?: string;
 };
 
-function normalizeDto(r: DokumentTemplateRow): DokumentTemplateDto {
+function normalizeDto(r: DocumentTemplateRow): DocumentTemplateDto {
     const rawDef = r.isDefault ?? r.is_default ?? 0;
     const isDefault = rawDef === true || rawDef === 1;
     return {
@@ -46,8 +46,8 @@ function normalizeDto(r: DokumentTemplateRow): DokumentTemplateDto {
     };
 }
 
-export async function listDokumentTemplatesForKind(kind: DocumentKind): Promise<DokumentTemplateDto[]> {
-    const rows = await practiceSystem.invoke<DokumentTemplateRow[]>("list_dokument_templates_for_kind", { kind });
+export async function listDocumentTemplatesForKind(kind: DocumentKind): Promise<DocumentTemplateDto[]> {
+    const rows = await practiceSystem.invoke<DocumentTemplateRow[]>("list_document_templates_for_kind", { kind });
     return rows.map(normalizeDto);
 }
 

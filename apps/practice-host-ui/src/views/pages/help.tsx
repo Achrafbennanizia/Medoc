@@ -1,0 +1,109 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/models/store/auth-store";
+import { allowed, parseRole } from "@/lib/rbac";
+import { useT } from "@/lib/i18n";
+import { AboutAppDialog } from "../components/app-help-dialogs";
+import { Button } from "../components/ui/button";
+import { Card, CardHeader } from "../components/ui/card";
+import { WorkspacePageHeader } from "../components/administration-page-header";
+
+export type HelpPageProps = {
+    /** Embedded in Settings: no jumps to other routes */
+    embedded?: boolean;
+};
+
+export function HelpPage({ embedded = false }: HelpPageProps = {}) {
+    const t = useT();
+    const navigate = useNavigate();
+    const [aboutOpen, setAboutOpen] = useState(false);
+    const role = useAuthStore((s) => s.session?.role);
+    const parsedRole = parseRole(role);
+    const canMigration = parsedRole != null && allowed("ops.migration", parsedRole);
+
+    const rows = useMemo(
+        () => [
+            { keys: t("page.help.kbd.cmdk_keys"), action: t("page.help.kbd.cmdk") },
+            { keys: t("page.help.kbd.question_keys"), action: t("page.help.kbd.question") },
+            { keys: t("page.help.kbd.alt_keys"), action: t("page.help.kbd.alt") },
+            { keys: "Esc", action: t("page.help.kbd.esc") },
+            { keys: t("page.help.kbd.tab_keys"), action: t("page.help.kbd.tab") },
+            { keys: t("page.help.kbd.cal_keys"), action: t("appointment.keyboard.hint") },
+        ],
+        [t],
+    );
+
+    return (
+        <div className={`${embedded ? "" : "practice-workspace-page "}animate-fade-in`}>
+            <WorkspacePageHeader
+                titleLevel="h1"
+                title={t("page.help.title")}
+                subtitle={t("page.help.intro")}
+            />
+
+            <Card>
+                <CardHeader title={t("page.help.section_shortcuts")} />
+                <div className="card-pad">
+                    <table className="tbl">
+                        <thead>
+                            <tr>
+                                <th style={{ width: "36%" }}>{t("page.help.col_keys")}</th>
+                                <th>{t("page.help.col_action")}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((r, idx) => (
+                                <tr key={`${idx}-${r.keys}`}>
+                                    <td>
+                                        <kbd style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, background: "rgba(0,0,0,0.06)" }}>{r.keys}</kbd>
+                                    </td>
+                                    <td style={{ fontSize: 13.5 }}>{r.action}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
+            {!embedded ? (
+                <Card>
+                    <CardHeader title={t("page.help.section_links")} />
+                    <div className="card-pad row" style={{ gap: 10, flexWrap: "wrap" }}>
+                        <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
+                            {t("page.help.link_feedback")}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => navigate("/compliance")}>
+                            {t("page.help.link_compliance")}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => navigate("/appointments")}>
+                            {t("page.help.link_appointments")}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => setAboutOpen(true)}>
+                            {t("page.help.about_app")}
+                        </Button>
+                        {canMigration ? (
+                            <Button type="button" variant="secondary" onClick={() => navigate("/migration")}>
+                                {t("page.help.link_migration")}
+                            </Button>
+                        ) : null}
+                    </div>
+                </Card>
+            ) : (
+                <Card>
+                    <CardHeader title={t("page.help.section_links")} />
+                    <div className="card-pad col" style={{ gap: 14 }}>
+                        <p className="card-sub" style={{ margin: 0 }}>
+                            {t("page.help.embedded_hint")}
+                        </p>
+                        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                            <Button type="button" variant="secondary" onClick={() => setAboutOpen(true)}>
+                                {t("page.help.embedded_about")}
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+            )}
+            <AboutAppDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+        </div>
+    );
+}

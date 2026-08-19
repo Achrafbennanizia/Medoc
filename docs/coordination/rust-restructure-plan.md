@@ -132,11 +132,11 @@ medoc-sync/src/
 database/
 ├── ports/           DatabasePool trait
 ├── repos/
-│   ├── clinical/    patient, akte*, rezept, attest
-│   ├── scheduling/  termin, praxis_aufgabe, praxis_ticket
-│   ├── billing/     zahlung, leistung, rechnung_document, …
-│   ├── admin/       personal, audit, app_kv, license, …
-│   └── praxis/      praxis, bestellung, produkt, …
+│   ├── clinical/    patient, akte*, prescription, certificate
+│   ├── scheduling/  appointment, practice_task, practice_ticket
+│   ├── billing/     payment, serviceItem, rechnung_document, …
+│   ├── admin/       staff, audit, app_kv, license, …
+│   └── praxis/      praxis, purchaseOrder, product, …
 └── *_repo.rs        29 legacy shims (re-export from repos/)
 ```
 
@@ -169,11 +169,11 @@ medoc-sync/src/
 ```
 medoc-practice/src/
 ├── commands/
-│   ├── clinical/      patient, akte*, rezept, attest
-│   ├── scheduling/    termin, praxis_aufgabe
-│   ├── billing/       zahlung, invoice, vertrag, …
-│   ├── admin/         auth, personal, audit, db_setup, …
-│   ├── praxis/        praxis settings, produkt, statistik, …
+│   ├── clinical/      patient, akte*, prescription, certificate
+│   ├── scheduling/    appointment, practice_task
+│   ├── billing/       payment, invoice, contract, …
+│   ├── admin/         auth, staff, audit, db_setup, …
+│   ├── praxis/        praxis settings, product, statistics, …
 │   ├── network/       lan, pairing, sync, company_portal
 │   ├── system/        ops, export, pdf, devices, menu, …
 │   ├── register.rs
@@ -287,8 +287,8 @@ npm test && npm run build
 # Docker Wave V1 scoped (Linux; verified 2026-06-06)
 docker build -f docker/ci/Dockerfile.rust-wave-v1 -t medoc-rust-wave-v1:latest .
 docker run --rm --shm-size=4g -e CARGO_BUILD_JOBS=1 \
-  -v "$PWD:/work" -v medoc-cargo-registry:/usr/local/cargo/registry \
-  -v medoc-cargo-git:/usr/local/cargo/git -v medoc-target-linux-e2e:/work/target \
+  -version "$PWD:/work" -version medoc-cargo-registry:/usr/local/cargo/registry \
+  -version medoc-cargo-git:/usr/local/cargo/git -version medoc-target-linux-e2e:/work/target \
   medoc-rust-wave-v1:latest
 
 # Full Docker pipeline (+ optional VALIDATE_DOCKER_FULL=1 for Tauri)

@@ -5,7 +5,7 @@
 
 ## 1. Wartungsstrategie
 MeDoc wird als sicherheits-relevantes Praxisverwaltungssystem über die gesamte
-Lebensdauer aktiv gewartet. Wartung umfasst korrigierende, adaptive, perfektive
+Lebensdauer active gewartet. Wartung umfasst korrigierende, adaptive, perfektive
 und präventive Maßnahmen (IEEE 14764).
 
 ## 2. Update-Zyklen

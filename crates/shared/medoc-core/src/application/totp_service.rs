@@ -1,7 +1,7 @@
 //! TOTP lifecycle (enrollment teardown) — shared by desktop IPC and future HTTP surfaces.
 
 use crate::error::AppError;
-use crate::infrastructure::database::personal_repo;
+use crate::infrastructure::database::staff_repo;
 use crate::infrastructure::totp;
 use sqlx::SqlitePool;
 
@@ -22,11 +22,11 @@ pub async fn deactivate_totp(
     user_id: &str,
     code: Option<&str>,
 ) -> Result<TotpDeactivateResult, AppError> {
-    let user = personal_repo::find_by_id(pool, user_id)
+    let user = staff_repo::find_by_id(pool, user_id)
         .await?
-        .ok_or(AppError::NotFound("Personal".into()))?;
+        .ok_or(AppError::NotFound("Staff".into()))?;
 
-    let enrolled = personal_repo::is_totp_enrolled(&user);
+    let enrolled = staff_repo::is_totp_enrolled(&user);
     let pending = user.totp_secret.as_ref().is_some_and(|s| !s.is_empty()) && !enrolled;
 
     if enrolled {
@@ -43,12 +43,12 @@ pub async fn deactivate_totp(
                 "Invalid code — please try again".into(),
             ));
         }
-        personal_repo::clear_totp(pool, user_id).await?;
+        staff_repo::clear_totp(pool, user_id).await?;
         return Ok(TotpDeactivateResult::Deactivated);
     }
 
     if pending {
-        personal_repo::clear_totp(pool, user_id).await?;
+        staff_repo::clear_totp(pool, user_id).await?;
         return Ok(TotpDeactivateResult::CancelledPending);
     }
 

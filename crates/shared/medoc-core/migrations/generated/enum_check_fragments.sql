@@ -1,36 +1,36 @@
 -- @generated from config/enums.yaml — reference CHECK fragments for migrations.
 -- Do not edit; regenerate with `cargo build`.
 
--- AktenStatus (patientenakte.status)
--- CHECK (... IN ('ENTWURF','IN_BEARBEITUNG','VALIDIERT','READONLY'))
+-- ChartStatus (patient_chart.status)
+-- CHECK (... IN ('DRAFT','IN_PROGRESS','VALIDATED','READONLY'))
 
--- BestellStatus (bestellung.status)
--- CHECK (... IN ('OFFEN','UNTERWEGS','GELIEFERT','STORNIERT'))
+-- OrderStatus (purchase_order.status)
+-- CHECK (... IN ('OPEN','IN_TRANSIT','DELIVERED','CANCELLED'))
 
--- FeedbackKategorie (feedback.kategorie)
+-- FeedbackCategory (feedback.category)
 -- CHECK (... IN ('feedback','vigilance','technical'))
 
 -- FeedbackStatus (feedback.status)
--- CHECK (... IN ('OFFEN','BEARBEITUNG','ERLEDIGT'))
+-- CHECK (... IN ('OPEN','IN_PROGRESS','DONE'))
 
--- Geschlecht (patient.geschlecht)
--- CHECK (... IN ('MAENNLICH','WEIBLICH','DIVERS'))
+-- Sex (patient.sex)
+-- CHECK (... IN ('MALE','FEMALE','DIVERSE'))
 
 -- PatientStatus (patient.status)
--- CHECK (... IN ('NEU','AKTIV','VALIDIERT','READONLY'))
+-- CHECK (... IN ('NEW','ACTIVE','VALIDATED','READONLY'))
 
--- Rolle (personal.rolle)
--- CHECK (... IN ('ARZT','REZEPTION','STEUERBERATER','PHARMABERATER'))
+-- Role (staff.role)
+-- CHECK (... IN ('PHYSICIAN','RECEPTION','TAX_ADVISOR','PHARMA_CONSULTANT'))
 
--- TerminArt (termin.art)
--- CHECK (... IN ('ERSTBESUCH','UNTERSUCHUNG','BEHANDLUNG','KONTROLLE','BERATUNG'))
+-- AppointmentKind (appointment.kind)
+-- CHECK (... IN ('FIRST_VISIT','EXAMINATION','TREATMENT','CHECKUP','CONSULTATION'))
 
--- TerminStatus (termin.status)
--- CHECK (... IN ('GEPLANT','BESTAETIGT','DURCHGEFUEHRT','NICHT_ERSCHIENEN','ABGESAGT'))
+-- AppointmentStatus (appointment.status)
+-- CHECK (... IN ('PLANNED','CONFIRMED','COMPLETED','NO_SHOW','CANCELLED'))
 
--- ZahlungsArt (zahlung.zahlungsart)
--- CHECK (... IN ('BAR','KARTE','UEBERWEISUNG','RECHNUNG'))
+-- PaymentMethod (payment.payment_method)
+-- CHECK (... IN ('CASH','CARD','BANK_TRANSFER','INVOICE'))
 
--- ZahlungsStatus (zahlung.status)
--- CHECK (... IN ('AUSSTEHEND','BEZAHLT','TEILBEZAHLT','STORNIERT'))
+-- PaymentStatus (payment.status)
+-- CHECK (... IN ('OUTSTANDING','PAID','PARTIALLY_PAID','CANCELLED'))
 

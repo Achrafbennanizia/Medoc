@@ -40,7 +40,7 @@
 | Styling | Tailwind CSS 3 + `app/src/index.css` |
 | State | Zustand |
 | Backend / IPC | Rust 2021, Tauri-Commands, `sqlx` + SQLite (WAL) |
-| Auth (lokal) | Argon2id (bcrypt-Fallback) + Sitzung; Rollen ARZT/REZEPTION/… |
+| Auth (lokal) | Argon2id (bcrypt-Fallback) + Sitzung; Rollen PHYSICIAN/RECEPTION/… |
 | Tests (CI) | `cargo test` (Backend) + `npm test` (Vitest) + `npm run build` / `tsc` (Frontend) |
 | Sprache UI | Deutsch (partiell i18n) |
 

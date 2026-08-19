@@ -83,7 +83,7 @@ pub async fn current_status(pool: &SqlitePool) -> Result<LicenseStatus, AppError
     }
     Ok(LicenseStatus {
         valid: false,
-        reason: Some("Keine Lizenz aktiviert".into()),
+        reason: Some("Keine License aktiviert".into()),
         license: None,
         license_v2: None,
         days_until_expiry: None,
@@ -122,6 +122,6 @@ mod tests {
         run_migrations(&pool).await.expect("migrate");
         let s = current_status(&pool).await.unwrap();
         assert!(!s.valid);
-        assert!(s.reason.unwrap().contains("Keine Lizenz"));
+        assert!(s.reason.unwrap().contains("Keine License"));
     }
 }

@@ -1,11 +1,11 @@
-pub mod akte;
+pub mod chart;
 pub mod app_kv_policy;
 pub mod audit_chain_guard;
 pub mod auth_service;
 pub mod break_glass;
 pub mod device_session_service;
 pub mod own_profile;
-pub mod praxis_aufgabe_notify;
+pub mod practice_task_notify;
 pub mod rbac;
-pub mod termin_hint_fulfillment;
+pub mod appointment_hint_fulfillment;
 pub mod totp_service;

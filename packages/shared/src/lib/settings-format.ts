@@ -10,7 +10,7 @@ export function formatEurFromCents(cents: unknown): string {
     }
 }
 
-export function formatDeDateShort(iso: unknown): string {
+export function formatDateShort(iso: unknown): string {
     const s = typeof iso === "string" ? iso : "";
     if (!s.trim()) return "—";
     const d = new Date(s);

@@ -22,7 +22,7 @@ Requires `MEDOC_VENDOR_PUBKEY` and platform Tauri build dependencies (see CI).
 
 ## Admin onboarding flow
 
-1. **Step 1** — License code (`/onboarding/lizenz`) *or* join existing network (`/onboarding/beitreten`)
+1. **Step 1** — License code (`/onboarding/license`) *or* join existing network (`/onboarding/beitreten`)
 2. **Step 2 (new network / owner)** — Practice setup + admin account (`/onboarding/abonnement`)
 3. **Step 2 (existing network / member)** — Create account or sign in (`/onboarding/konto`)
 4. Sign in at `/login`

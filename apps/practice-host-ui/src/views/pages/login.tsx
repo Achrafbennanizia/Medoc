@@ -48,7 +48,7 @@ function formatLoginError(err: unknown, rateLimitedMsg: string, failedMsg: strin
         lower.includes("rate") ||
         lower.includes("429") ||
         lower.includes("throttle") ||
-        lower.includes("zu viele") ||
+        lower.includes("to viele") ||
         lower.includes("too many")
     ) {
         return rateLimitedMsg;
@@ -65,7 +65,7 @@ function formatLoginError(err: unknown, rateLimitedMsg: string, failedMsg: strin
 export function LoginPage() {
     const t = useT();
     const [email, setEmail] = useState(readRememberedEmail);
-    const [passwort, setPasswort] = useState("");
+    const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(() => {
@@ -94,7 +94,7 @@ export function LoginPage() {
         setHelperMsg("");
         setLoading(true);
         try {
-            const session = await login(email, passwort, deviceOpts);
+            const session = await login(email, password, deviceOpts);
             persistRememberMe(rememberMe, email);
             navigate(await postLoginPath(session));
         } catch (err) {
@@ -126,11 +126,11 @@ export function LoginPage() {
             ) : null}
             <div className="login-root__panels">
             <div
-                className={`login-art${isMacOverlay ? " login-art--mac-drag" : ""}`}
+                className={`login-kind${isMacOverlay ? " login-kind--mac-drag" : ""}`}
                 data-tauri-drag-region={isMacOverlay ? true : undefined}
                 onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
             >
-                <div className="login-art__content" style={{ position: "relative", zIndex: 1 }}>
+                <div className="login-kind_content" style={{ position: "relative", zIndex: 1 }}>
                     <div className="login-brand-row row">
                         <div className="login-brand-mark" aria-hidden>
                             <PinIcon size={ICON_SIZE_LG} />
@@ -189,9 +189,9 @@ export function LoginPage() {
                         </div>
                     )}
                     <label htmlFor="email" className="form-label">{t("auth.email")}</label>
-                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@praxis.de" required autoComplete="username" style={{ marginBottom: 12 }} />
+                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@practice.de" required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-                        <label htmlFor="passwort" className="form-label form-label--mb-0">{t("auth.password")}</label>
+                        <label htmlFor="password" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button
                             type="button"
                             aria-describedby="login-password-help"
@@ -203,11 +203,11 @@ export function LoginPage() {
                     </div>
                     <div className="input login-password-input-row" style={{ marginBottom: 8 }}>
                         <input
-                            id="passwort"
+                            id="password"
                             className="input-edit login-password-input-row__field"
                             type={showPw ? "text" : "password"}
-                            value={passwort}
-                            onChange={(e) => setPasswort(e.target.value)}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
                             onFocus={syncCapsLock}
                             onKeyDown={syncCapsLock}
                             onKeyUp={syncCapsLock}
@@ -229,7 +229,7 @@ export function LoginPage() {
                             type="button"
                             className="icon-btn login-password-toggle"
                             aria-label={showPw ? t("login.pw_toggle_hide") : t("login.pw_toggle_show")}
-                            onClick={() => setShowPw((v) => !v)}
+                            onClick={() => setShowPw((version) => !version)}
                         >
                             {showPw ? <EyeOffIcon size={ICON_SIZE_SM} /> : <EyeIcon size={ICON_SIZE_SM} />}
                         </button>
@@ -271,9 +271,9 @@ export function LoginPage() {
                         <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
                     ) : null}
                     {BREAK_GLASS_ENABLED ? (
-                    <div id="login-notfall-hinweis" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>{t("login.notfall.title")}</div>
-                        <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.45 }}>{t("login.notfall.body")}</p>
+                    <div id="login-emergency-hint" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>{t("login.emergency.title")}</div>
+                        <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.45 }}>{t("login.emergency.body")}</p>
                     </div>
                     ) : null}
                 </form>

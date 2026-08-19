@@ -6,60 +6,60 @@ import type { Session } from "@/models/types";
 import { useAuthStore } from "@/models/store/auth-store";
 import App from "@/App";
 import { createPatient } from "@/systems/practice-host/controllers/patient.controller";
-import { getAkte, createZahnbefund } from "@/systems/practice-host/controllers/akte.controller";
-import { setAkteSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
-import { createTermin, updateTermin } from "@/systems/practice-host/controllers/termin.controller";
-import { createZahlung, updateZahlungStatus } from "@/systems/practice-host/controllers/zahlung.controller";
-import { DATENSCHUTZ_UI_ENABLED } from "@/lib/datenschutz-config";
-import { DatenschutzPage } from "@/views/pages/datenschutz";
-import { TagesabschlussForm } from "@/views/components/tagesabschluss-form";
+import { getChart, createDentalFinding } from "@/systems/practice-host/controllers/chart.controller";
+import { setChartSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
+import { createAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { createPayment, updatePaymentStatus } from "@/systems/practice-host/controllers/payment.controller";
+import { PRIVACY_UI_ENABLED } from "@/lib/privacy-config";
+import { PrivacyPage } from "@/views/pages/privacy";
+import { DayCloseForm } from "@/views/components/day-close-form";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
-import type { Zahlung } from "@/models/types";
+import type { Payment } from "@/models/types";
 import { tauriInvoke } from "@/services/tauri.service";
-import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
+import { CLUSTER_STATUS_READY } from "@/models/store/cluster-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
 }));
 
-const ARZT_SESSION: Session = {
+const PHYSICIAN_SESSION: Session = {
     user_id: "u-smoke",
     name: "Dr. Smoke",
     email: "smoke@medoc.test",
-    rolle: "ARZT",
+    role: "PHYSICIAN",
 };
 
 const MOCK_PATIENT = {
     id: "p-smoke-1",
     name: "Patient Smoke",
-    geburtsdatum: "1988-01-15",
-    geschlecht: "MAENNLICH" as const,
-    versicherungsnummer: "VNR-SMOKE-1",
-    telefon: null,
+    date_of_birth: "1988-01-15",
+    sex: "MALE" as const,
+    insurance_number: "VNR-SMOKE-1",
+    phone: null,
     email: null,
-    adresse: null,
-    status: "AKTIV" as const,
+    address: null,
+    status: "ACTIVE" as const,
     created_at: "2026-01-01 10:00:00",
     updated_at: "2026-01-01 10:00:00",
 };
 
-const MOCK_AKTE = {
-    id: "akte-smoke-1",
+const MOCK_CHART = {
+    id: "chart-smoke-1",
     patient_id: MOCK_PATIENT.id,
-    status: "VALIDIERT" as const,
-    diagnose: null,
-    befunde: null,
+    status: "VALIDATED" as const,
+    diagnosis: null,
+    findings: null,
     created_at: "2026-01-01 10:00:00",
     updated_at: "2026-01-01 10:00:00",
 };
 
-const MOCK_ZAHNBEFUND = {
+const MOCK_DENTAL_FINDING = {
     id: "zb-smoke-1",
-    akte_id: MOCK_AKTE.id,
-    zahn_nummer: 11,
-    befund: "KARIES",
-    diagnose: null,
-    notizen: null,
+    chart_id: MOCK_CHART.id,
+    tooth_number: 11,
+    finding: "KARIES",
+    diagnosis: null,
+    notes: null,
     created_at: "2026-01-01 10:00:00",
     updated_at: "2026-01-01 10:00:00",
 };
@@ -87,8 +87,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
                 case "get_session":
                     return sessionHold;
                 case "login":
-                    sessionHold = ARZT_SESSION;
-                    return ARZT_SESSION;
+                    sessionHold = PHYSICIAN_SESSION;
+                    return PHYSICIAN_SESSION;
                 case "logout":
                     sessionHold = null;
                     return undefined;
@@ -129,20 +129,20 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     };
                 case "current_license_status":
                     return { valid: true, format: "v1" };
-                case "verbund_status_cmd":
-                    return VERBUND_STATUS_READY;
+                case "cluster_status_cmd":
+                    return CLUSTER_STATUS_READY;
                 case "get_dashboard_stats":
                     return {
-                        patienten_gesamt: 0,
-                        termine_heute: 0,
-                        einnahmen_monat: 0,
-                        produkte_niedrig: 0,
+                        patients_total: 0,
+                        appointments_today: 0,
+                        revenue_month: 0,
+                        products_low: 0,
                     };
-                case "list_termine":
+                case "list_appointments":
                     return [];
-                case "list_patienten":
+                case "list_patients":
                     return [];
-                case "list_bestellungen":
+                case "list_purchase_orders":
                     return [];
                 default:
                     throw new Error(`unmocked IPC in flow (a): ${cmd}`);
@@ -157,7 +157,7 @@ describe("critical flow (a) login → dashboard → logout", () => {
         expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
         await user.type(screen.getByLabelText("Email"), "smoke@medoc.test");
-        const pw = document.querySelector<HTMLInputElement>("#passwort");
+        const pw = document.querySelector<HTMLInputElement>("#password");
         expect(pw).toBeTruthy();
         await user.type(pw!, "secret123");
         await user.click(screen.getByRole("button", { name: /Sign in$/ }));
@@ -179,7 +179,7 @@ describe("critical flow (a) login → dashboard → logout", () => {
     });
 });
 
-describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm", () => {
+describe("critical flow (b) patient → chart → DentalFinding → validate Master", () => {
     const calls: string[] = [];
 
     beforeEach(() => {
@@ -187,9 +187,9 @@ describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm",
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
             calls.push(cmd);
             if (cmd === "create_patient") return MOCK_PATIENT;
-            if (cmd === "get_akte") return MOCK_AKTE;
-            if (cmd === "update_zahnbefund") return MOCK_ZAHNBEFUND;
-            if (cmd === "set_akte_section_validated") return undefined;
+            if (cmd === "get_chart") return MOCK_CHART;
+            if (cmd === "update_dental_finding") return MOCK_DENTAL_FINDING;
+            if (cmd === "set_chart_section_validated") return undefined;
             throw new Error(`unmocked IPC in flow (b): ${cmd} ${JSON.stringify(args)}`);
         });
     });
@@ -197,29 +197,29 @@ describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm",
     it("performs the IPC sequence for.stub backend", async () => {
         const p = await createPatient({
             name: MOCK_PATIENT.name,
-            geburtsdatum: MOCK_PATIENT.geburtsdatum,
-            geschlecht: MOCK_PATIENT.geschlecht,
-            versicherungsnummer: MOCK_PATIENT.versicherungsnummer,
+            date_of_birth: MOCK_PATIENT.date_of_birth,
+            sex: MOCK_PATIENT.sex,
+            insurance_number: MOCK_PATIENT.insurance_number,
         });
         expect(p.id).toBe(MOCK_PATIENT.id);
 
-        const akte = await getAkte(p.id);
-        expect(akte.id).toBe(MOCK_AKTE.id);
+        const chart = await getChart(p.id);
+        expect(chart.id).toBe(MOCK_CHART.id);
 
-        const zb = await createZahnbefund({
-            akte_id: akte.id,
-            zahn_nummer: 11,
-            befund: "KARIES",
+        const zb = await createDentalFinding({
+            chart_id: chart.id,
+            tooth_number: 11,
+            finding: "KARIES",
         });
-        expect(zb.zahn_nummer).toBe(11);
+        expect(zb.tooth_number).toBe(11);
 
-        await setAkteSectionValidated(p.id, "stamm", "u-smoke");
+        await setChartSectionValidated(p.id, "master", "u-smoke");
 
         expect(calls).toEqual([
             "create_patient",
-            "get_akte",
-            "update_zahnbefund",
-            "set_akte_section_validated",
+            "get_chart",
+            "update_dental_finding",
+            "set_chart_section_validated",
         ]);
     });
 });
@@ -227,28 +227,28 @@ describe("critical flow (b) patient → akte → Zahnbefund → validate Stamm",
 describe("critical flow (c) appointment → completed → payment → paid", () => {
     const calls: string[] = [];
 
-    const termin1 = {
+    const appointment1 = {
         id: "t-smoke-1",
-        datum: "2026-05-10",
-        uhrzeit: "09:30:00",
-        art: "UNTERSUCHUNG" as const,
-        status: "GEPLANT" as const,
-        notizen: null,
-        beschwerden: null,
+        date: "2026-05-10",
+        time: "09:30:00",
+        kind: "EXAMINATION" as const,
+        status: "PLANNED" as const,
+        notes: null,
+        chief_complaint: null,
         patient_id: MOCK_PATIENT.id,
-        arzt_id: "u-smoke",
+        physician_id: "u-smoke",
         created_at: "2026-05-01 08:00:00",
         updated_at: "2026-05-01 08:00:00",
     };
 
-    const zahlung1: Zahlung = {
+    const payment1: Payment = {
         id: "z-smoke-1",
         patient_id: MOCK_PATIENT.id,
-        betrag: 42,
-        zahlungsart: "BAR",
-        status: "AUSSTEHEND",
-        leistung_id: null,
-        beschreibung: null,
+        amount: 42,
+        payment_method: "CASH",
+        status: "OUTSTANDING",
+        service_item_id: null,
+        description: null,
         created_at: "2026-05-10 10:00:00",
     };
 
@@ -256,71 +256,71 @@ describe("critical flow (c) appointment → completed → payment → paid", () 
         calls.length = 0;
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
             calls.push(cmd);
-            if (cmd === "create_termin") return termin1;
-            if (cmd === "update_termin") return { ...termin1, status: "DURCHGEFUEHRT" as const };
-            if (cmd === "create_zahlung") return zahlung1;
-            if (cmd === "update_zahlung_status") return { ...zahlung1, status: "BEZAHLT" as const };
+            if (cmd === "create_appointment") return appointment1;
+            if (cmd === "update_appointment") return { ...appointment1, status: "COMPLETED" as const };
+            if (cmd === "create_payment") return payment1;
+            if (cmd === "update_payment_status") return { ...payment1, status: "PAID" as const };
             throw new Error(`unmocked IPC in flow (c): ${cmd}`);
         });
     });
 
-    it("advances termin and settles payment in IPC order", async () => {
-        const t0 = await createTermin({
-            datum: termin1.datum,
-            uhrzeit: termin1.uhrzeit,
-            art: termin1.art,
-            patient_id: termin1.patient_id,
-            arzt_id: termin1.arzt_id,
+    it("advances appointment and settles payment in IPC order", async () => {
+        const t0 = await createAppointment({
+            date: appointment1.date,
+            time: appointment1.time,
+            kind: appointment1.kind,
+            patient_id: appointment1.patient_id,
+            physician_id: appointment1.physician_id,
         });
-        expect(t0.status).toBe("GEPLANT");
+        expect(t0.status).toBe("PLANNED");
 
-        const t1 = await updateTermin(t0.id, { status: "DURCHGEFUEHRT" });
-        expect(t1.status).toBe("DURCHGEFUEHRT");
+        const t1 = await updateAppointment(t0.id, { status: "COMPLETED" });
+        expect(t1.status).toBe("COMPLETED");
 
-        const z = await createZahlung({
+        const z = await createPayment({
             patient_id: MOCK_PATIENT.id,
-            betrag: 42,
-            zahlungsart: "BAR",
+            amount: 42,
+            payment_method: "CASH",
         });
-        expect(z.status).toBe("AUSSTEHEND");
+        expect(z.status).toBe("OUTSTANDING");
 
-        const zDone = await updateZahlungStatus(z.id, "BEZAHLT");
-        expect(zDone.status).toBe("BEZAHLT");
+        const zDone = await updatePaymentStatus(z.id, "PAID");
+        expect(zDone.status).toBe("PAID");
 
-        expect(calls).toEqual(["create_termin", "update_termin", "create_zahlung", "update_zahlung_status"]);
+        expect(calls).toEqual(["create_appointment", "update_appointment", "create_payment", "update_payment_status"]);
     });
 });
 
-describe("critical flow (d) Tagesabschluss mismatch → Notiz → protokollieren", () => {
-    const zahlungTag: Zahlung = {
+describe("critical flow (d) DayClose mismatch → Notiz → protokollieren", () => {
+    const paymentTag: Payment = {
         id: "z-ta-1",
         patient_id: MOCK_PATIENT.id,
-        betrag: 100,
-        zahlungsart: "BAR",
-        status: "BEZAHLT",
-        leistung_id: null,
-        beschreibung: null,
-        kasse_geprueft: 0,
+        amount: 100,
+        payment_method: "CASH",
+        status: "PAID",
+        service_item_id: null,
+        description: null,
+        cash_verified: 0,
         created_at: "2001-03-20 15:00:00",
     };
 
     beforeEach(() => {
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
-            if (cmd === "list_zahlungen") return [zahlungTag];
+            if (cmd === "list_payments") return [paymentTag];
             throw new Error(`unmocked IPC in flow (d): ${cmd}`);
         });
     });
 
     it("submits protocol with mismatch and note", async () => {
         const user = userEvent.setup();
-        const onProtokolliere = vi.fn().mockResolvedValue(undefined);
+        const onRecord = vi.fn().mockResolvedValue(undefined);
 
         render(
-            <TagesabschlussForm
+            <DayCloseForm
                 canWrite
                 getPatientName={(id) => (id === MOCK_PATIENT.id ? MOCK_PATIENT.name : id)}
-                onProtokolliere={onProtokolliere}
-                fixedStichtag="2001-03-20"
+                onRecord={onRecord}
+                fixedAsOfDate="2001-03-20"
                 saveBusy={false}
             />,
         );
@@ -333,17 +333,17 @@ describe("critical flow (d) Tagesabschluss mismatch → Notiz → protokollieren
         await user.click(screen.getByRole("button", { name: /Log daily close/i }));
 
         await waitFor(() => {
-            expect(onProtokolliere).toHaveBeenCalledTimes(1);
+            expect(onRecord).toHaveBeenCalledTimes(1);
         });
 
-        const payload = onProtokolliere.mock.calls[0][0] as {
-            notiz: string | null;
-            bar_stimmt: number;
-            abweichung_eur: number | null;
+        const payload = onRecord.mock.calls[0][0] as {
+            note: string | null;
+            cash_matches: number;
+            variance_eur: number | null;
         };
-        expect(payload.notiz).toBe("Kassenabweichung Smoke");
-        expect(payload.bar_stimmt).toBe(0);
-        expect(payload.abweichung_eur).not.toBeNull();
+        expect(payload.note).toBe("Kassenabweichung Smoke");
+        expect(payload.cash_matches).toBe(0);
+        expect(payload.variance_eur).not.toBeNull();
     });
 });
 
@@ -364,8 +364,8 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return undefined;
                 case "get_app_kv":
                     return null;
-                case "verbund_status_cmd":
-                    return VERBUND_STATUS_READY;
+                case "cluster_status_cmd":
+                    return CLUSTER_STATUS_READY;
                 default:
                     throw new Error(`unmocked IPC in flow (f): ${cmd}`);
             }
@@ -379,7 +379,7 @@ describe("critical flow (f) login rejection on wrong password", () => {
         expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
         await user.type(screen.getByLabelText("Email"), "smoke@medoc.test");
-        const pw = document.querySelector<HTMLInputElement>("#passwort");
+        const pw = document.querySelector<HTMLInputElement>("#password");
         expect(pw).toBeTruthy();
         await user.type(pw!, "bogus");
         await user.click(screen.getByRole("button", { name: /Sign in$/ }));
@@ -404,7 +404,7 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
                 case "current_license_status": {
                     if (!firstStatusServed) {
                         firstStatusServed = true;
-                        return { valid: false, reason: "Lizenz abgelaufen", format: null };
+                        return { valid: false, reason: "License abgelaufen", format: null };
                     }
                     return {
                         valid: true,
@@ -470,10 +470,10 @@ describe("critical flow (g) LicenseActivatePage: invalid → activate v2 → sho
     });
 });
 
-describe.skipIf(!DATENSCHUTZ_UI_ENABLED)("critical flow (e) DSGVO export → erase → browser storage clean", () => {
+describe.skipIf(!PRIVACY_UI_ENABLED)("critical flow (e) DSGVO export → erase → browser storage clean", () => {
     beforeEach(() => {
         vi.mocked(tauriInvoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
-            if (cmd === "list_patienten") return [MOCK_PATIENT];
+            if (cmd === "list_patients") return [MOCK_PATIENT];
             if (cmd === "dsgvo_export_patient") {
                 return { patient_id: MOCK_PATIENT.id, stub: true };
             }
@@ -490,7 +490,7 @@ describe.skipIf(!DATENSCHUTZ_UI_ENABLED)("critical flow (e) DSGVO export → era
 
     it("invokes export and erase and clears patient-scoped legacy keys", async () => {
         const user = userEvent.setup();
-        const legacyKey = `medoc.akte.validation.v1.${MOCK_PATIENT.id}`;
+        const legacyKey = `medoc.chart.validation.v1.${MOCK_PATIENT.id}`;
         try {
             localStorage.removeItem(legacyKey);
         } catch {
@@ -498,7 +498,7 @@ describe.skipIf(!DATENSCHUTZ_UI_ENABLED)("critical flow (e) DSGVO export → era
         }
         localStorage.setItem(legacyKey, '{"version":2,"sections":{},"items":{}}');
 
-        render(<DatenschutzPage />);
+        render(<PrivacyPage />);
 
         expect(await screen.findByRole("button", { name: /Export \(JSON\)/ })).toBeInTheDocument();
 

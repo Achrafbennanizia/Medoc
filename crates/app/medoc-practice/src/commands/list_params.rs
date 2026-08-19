@@ -105,7 +105,7 @@ impl ListParams {
         self.filter
             .as_ref()
             .and_then(|m| m.get(key))
-            .and_then(|v| match v {
+            .and_then(|version| match version {
                 FilterValue::Bool(b) => Some(*b),
                 FilterValue::Int(n) => Some(*n != 0),
                 FilterValue::Text(s) => Some(s == "1" || s.eq_ignore_ascii_case("true")),

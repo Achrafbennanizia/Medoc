@@ -83,15 +83,15 @@ pub fn attach_to_patient(
     Ok(target)
 }
 
-/// Copy a scan into `archive_root/vertraege/{vertrag_id}/` for contract filing.
-pub fn attach_to_vertrag(
+/// Copy a scan into `archive_root/contracts/{contract_id}/` for contract filing.
+pub fn attach_to_contract(
     src: &Path,
     archive_root: &Path,
-    vertrag_id: &str,
+    contract_id: &str,
 ) -> Result<PathBuf, AppError> {
-    let target_dir = archive_root.join("vertraege").join(vertrag_id);
+    let target_dir = archive_root.join("contracts").join(contract_id);
     std::fs::create_dir_all(&target_dir)
-        .map_err(|e| AppError::Internal(format!("vertrag-doc mkdir: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("contract-doc mkdir: {e}")))?;
     let filename = src
         .file_name()
         .ok_or_else(|| AppError::Validation("source has no filename".into()))?;
@@ -106,7 +106,7 @@ pub fn attach_to_vertrag(
     );
     let target = target_dir.join(unique);
     std::fs::copy(src, &target)
-        .map_err(|e| AppError::Internal(format!("vertrag-doc copy: {e}")))?;
-    log_device!(info, event = "VERTRAG_DOC_ATTACHED", vertrag_id = %vertrag_id, path = %target.display());
+        .map_err(|e| AppError::Internal(format!("contract-doc copy: {e}")))?;
+    log_device!(info, event = "CONTRACT_DOC_ATTACHED", contract_id = %contract_id, path = %target.display());
     Ok(target)
 }

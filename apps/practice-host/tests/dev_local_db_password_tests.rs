@@ -5,7 +5,7 @@ use medoc_lib::infrastructure::database::connection::init_db_headless;
 
 #[tokio::test]
 #[ignore = "dev-only: requires local medoc.db seeded via tools/dev-tauri.sh with MEDOC_DEV_SEED=1"]
-async fn seed_accounts_accept_passwort123() {
+async fn seed_accounts_accept_password_123() {
     std::env::set_var("MEDOC_DEV_SEED", "1");
     let app_dir = dirs::home_dir()
         .expect("home")
@@ -17,9 +17,9 @@ async fn seed_accounts_accept_passwort123() {
     let pool = init_db_headless(&app_dir)
         .await
         .expect("open local db (set MEDOC_DB_KEY like dev-tauri.sh)");
-    for email in ["ahmed@praxis.de", "aya@praxis.de"] {
+    for email in ["ahmed@practice.de", "aya@practice.de"] {
         let (hash, pw_change): (String, i32) = sqlx::query_as(
-            "SELECT passwort_hash, passwort_aendern_erforderlich FROM personal WHERE email = ?1",
+            "SELECT password_hash, password_change_required FROM staff WHERE email = ?1",
         )
         .bind(email)
         .fetch_one(&pool)
@@ -30,8 +30,8 @@ async fn seed_accounts_accept_passwort123() {
             "{email} should not require password change in dev seed"
         );
         assert!(
-            crypto::verify_password("passwort123", &hash).expect("verify"),
-            "passwort123 must match stored hash for {email} (prefix={})",
+            crypto::verify_password("password123", &hash).expect("verify"),
+            "password123 must match stored hash for {email} (prefix={})",
             &hash[..hash.len().min(7)]
         );
     }

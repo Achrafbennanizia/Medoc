@@ -15,13 +15,13 @@ use crate::log_system;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AppointmentReminder {
-    pub termin_id: String,
+    pub appointment_id: String,
     pub patient_id: String,
     pub patient_name: String,
-    pub arzt_id: String,
-    pub datum: String,
-    pub uhrzeit: String,
-    pub art: String,
+    pub physician_id: String,
+    pub date: String,
+    pub time: String,
+    pub kind: String,
     pub minutes_until: i64,
 }
 
@@ -35,12 +35,12 @@ pub async fn upcoming(
     // Filter in SQL on the date portion to keep the scan small; remaining
     // time-of-day comparison happens in Rust to handle any timezone quirks.
     let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
-        "SELECT t.id, t.patient_id, p.name, t.arzt_id, t.datum, t.uhrzeit, t.art \
-         FROM termin t \
+        "SELECT t.id, t.patient_id, p.name, t.physician_id, t.date, t.time, t.kind \
+         FROM appointment t \
          JOIN patient p ON p.id = t.patient_id \
-         WHERE t.status IN ('GEPLANT','BESTAETIGT') \
-           AND t.datum BETWEEN ? AND ? \
-         ORDER BY t.datum, t.uhrzeit",
+         WHERE t.status IN ('PLANNED','CONFIRMED') \
+           AND t.date BETWEEN ? AND ? \
+         ORDER BY t.date, t.time",
     )
     .bind(now.date().format("%Y-%m-%d").to_string())
     .bind(until.date().format("%Y-%m-%d").to_string())
@@ -48,19 +48,19 @@ pub async fn upcoming(
     .await?;
 
     let mut out = Vec::new();
-    for (id, pid, pname, aid, datum, uhrzeit, art) in rows {
-        let stamp = format!("{datum} {uhrzeit}");
+    for (id, pid, pname, aid, date, time, kind) in rows {
+        let stamp = format!("{date} {time}");
         if let Ok(dt) = NaiveDateTime::parse_from_str(&stamp, "%Y-%m-%d %H:%M") {
             let delta = dt.signed_duration_since(now).num_minutes();
             if delta >= 0 && delta <= lead_minutes {
                 out.push(AppointmentReminder {
-                    termin_id: id,
+                    appointment_id: id,
                     patient_id: pid,
                     patient_name: pname,
-                    arzt_id: aid,
-                    datum,
-                    uhrzeit,
-                    art,
+                    physician_id: aid,
+                    date,
+                    time,
+                    kind,
                     minutes_until: delta,
                 });
             }

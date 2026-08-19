@@ -8,7 +8,7 @@ use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::devices::{dicom, gdt, host_integration, scanner};
-use crate::infrastructure::{dsfa, payment, update, vvt};
+use crate::infrastructure::{dpia, payment, update, vvt};
 use crate::log_system;
 
 #[tauri::command]
@@ -16,16 +16,16 @@ use crate::log_system;
 pub fn generate_vvt(session_state: State<'_, SessionState>) -> Result<Value, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
     log_system!(info, event = "VVT_GENERATED");
-    let v = vvt::generate();
-    serde_json::to_value(v).map_err(|e| AppError::Internal(e.to_string()))
+    let version = vvt::generate();
+    serde_json::to_value(version).map_err(|e| AppError::Internal(e.to_string()))
 }
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
-pub fn generate_dsfa(session_state: State<'_, SessionState>) -> Result<Value, AppError> {
+pub fn generate_dpia(session_state: State<'_, SessionState>) -> Result<Value, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
-    log_system!(info, event = "DSFA_GENERATED");
-    let d = dsfa::generate();
+    log_system!(info, event = "DPIA_GENERATED");
+    let d = dpia::generate();
     serde_json::to_value(d).map_err(|e| AppError::Internal(e.to_string()))
 }
 
@@ -57,8 +57,8 @@ pub fn scanner_list_recent(
     limit: Option<usize>,
 ) -> Result<Vec<scanner::ScannedDocument>, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    let role = rbac::Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("patient.write", role) && !rbac::allowed("verwaltung.vertraege.write", role) {
+    let role = rbac::Role::parse(&session.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed("patient.write", role) && !rbac::allowed("administration.contracts.write", role) {
         return Err(AppError::Forbidden);
     }
     scanner::list_recent(&PathBuf::from(folder), limit.unwrap_or(20))
@@ -70,9 +70,9 @@ pub fn scanner_list_recent(
 #[tracing::instrument(level = "info", skip(session_state))]
 pub fn open_system_scan_utility(session_state: State<'_, SessionState>) -> Result<(), AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    let role = rbac::Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
+    let role = rbac::Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     if !rbac::allowed("patient.write", role)
-        && !rbac::allowed("verwaltung.vertraege.write", role)
+        && !rbac::allowed("administration.contracts.write", role)
         && !rbac::allowed("ops.migration", role)
     {
         return Err(AppError::Forbidden);
@@ -115,45 +115,45 @@ pub fn scanner_attach(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, src, vertrag_id))]
-pub fn scanner_attach_vertrag_app_data(
+#[tracing::instrument(level = "info", skip(session_state, src, contract_id))]
+pub fn scanner_attach_contract_app_data(
     session_state: State<'_, SessionState>,
     src: String,
-    vertrag_id: String,
+    contract_id: String,
 ) -> Result<String, AppError> {
-    rbac::require(&session_state, "verwaltung.vertraege.write")?;
+    rbac::require(&session_state, "administration.contracts.write")?;
     let root = dirs::home_dir()
         .map(|h| h.join("medoc-data"))
         .unwrap_or_else(|| PathBuf::from("./medoc-data"));
     std::fs::create_dir_all(&root).map_err(|e| AppError::Internal(format!("medoc-data: {e}")))?;
-    let p = scanner::attach_to_vertrag(&PathBuf::from(src), &root, &vertrag_id)?;
+    let p = scanner::attach_to_contract(&PathBuf::from(src), &root, &contract_id)?;
     Ok(p.display().to_string())
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, src, archive_root, vertrag_id))]
-pub fn scanner_attach_vertrag(
+#[tracing::instrument(level = "info", skip(session_state, src, archive_root, contract_id))]
+pub fn scanner_attach_contract(
     session_state: State<'_, SessionState>,
     src: String,
     archive_root: String,
-    vertrag_id: String,
+    contract_id: String,
 ) -> Result<String, AppError> {
-    rbac::require(&session_state, "verwaltung.vertraege.write")?;
-    let p = scanner::attach_to_vertrag(
+    rbac::require(&session_state, "administration.contracts.write")?;
+    let p = scanner::attach_to_contract(
         &PathBuf::from(src),
         &PathBuf::from(archive_root),
-        &vertrag_id,
+        &contract_id,
     )?;
     Ok(p.display().to_string())
 }
 
-/// Native PDF file picker for Vertragsdokument — copy via [`scanner_attach_vertrag_app_data`] or [`scanner_attach_vertrag`].
+/// Native PDF file picker for Vertragsdokument — copy via [`scanner_attach_contract_app_data`] or [`scanner_attach_contract`].
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
-pub fn pick_vertrag_pdf_file(
+pub fn pick_contract_pdf_file(
     session_state: State<'_, SessionState>,
 ) -> Result<Option<String>, AppError> {
-    rbac::require(&session_state, "verwaltung.vertraege.write")?;
+    rbac::require(&session_state, "administration.contracts.write")?;
     let path = rfd::FileDialog::new()
         .add_filter("PDF", &["pdf"])
         .pick_file();
@@ -166,7 +166,7 @@ pub fn process_payment(
     session_state: State<'_, SessionState>,
     request: payment::PaymentRequest,
 ) -> Result<payment::PaymentReceipt, AppError> {
-    rbac::require(&session_state, "finanzen.write")?;
+    rbac::require(&session_state, "finance.write")?;
     payment::process(&request)
 }
 
@@ -194,16 +194,16 @@ pub fn current_app_version(
 macro_rules! register_devices_commands {
     () => {
         $crate::commands::devices_commands::generate_vvt,
-        $crate::commands::devices_commands::generate_dsfa,
+        $crate::commands::devices_commands::generate_dpia,
         $crate::commands::devices_commands::parse_gdt_file,
         $crate::commands::devices_commands::inspect_dicom_file,
         $crate::commands::devices_commands::scanner_list_recent,
         $crate::commands::devices_commands::open_system_scan_utility,
         $crate::commands::devices_commands::open_native_print_dialog,
         $crate::commands::devices_commands::scanner_attach,
-        $crate::commands::devices_commands::scanner_attach_vertrag,
-        $crate::commands::devices_commands::scanner_attach_vertrag_app_data,
-        $crate::commands::devices_commands::pick_vertrag_pdf_file,
+        $crate::commands::devices_commands::scanner_attach_contract,
+        $crate::commands::devices_commands::scanner_attach_contract_app_data,
+        $crate::commands::devices_commands::pick_contract_pdf_file,
         $crate::commands::devices_commands::process_payment,
         $crate::commands::devices_commands::evaluate_update_payload,
         $crate::commands::devices_commands::current_app_version,

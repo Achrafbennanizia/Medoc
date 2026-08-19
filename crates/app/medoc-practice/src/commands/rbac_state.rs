@@ -31,12 +31,12 @@ pub fn require(session_state: &State<'_, SessionState>, action: &str) -> Result<
     let guard: std::sync::MutexGuard<'_, Option<(Session, std::time::Instant)>> =
         session_state.lock_session();
     let (session, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
+    let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     if !effective_allowed(action, role, &session.permission_overrides) {
         log_security!(warn,
             event = "ACCESS_DENIED",
             user_id = %session.user_id,
-            role = %session.rolle,
+            role = %session.role,
             action = action,
         );
         return Err(AppError::Forbidden);
@@ -48,7 +48,7 @@ pub fn require(session_state: &State<'_, SessionState>, action: &str) -> Result<
         log_security!(error,
             event = "ACCESS_DENIED",
             user_id = %session.user_id,
-            role = %session.rolle,
+            role = %session.role,
             action = action,
             reason = "audit_chain_broken",
         );
@@ -66,7 +66,7 @@ pub fn require_one_of(
     let guard: std::sync::MutexGuard<'_, Option<(Session, std::time::Instant)>> =
         session_state.lock_session();
     let (session, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
+    let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     if actions
         .iter()
         .any(|a| effective_allowed(a, role, &session.permission_overrides))
@@ -76,7 +76,7 @@ pub fn require_one_of(
     log_security!(warn,
         event = "ACCESS_DENIED",
         user_id = %session.user_id,
-        role = %session.rolle,
+        role = %session.role,
         action = ?actions,
     );
     Err(AppError::Forbidden)

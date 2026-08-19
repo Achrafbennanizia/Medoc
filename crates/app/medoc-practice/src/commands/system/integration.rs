@@ -15,7 +15,7 @@ pub async fn list_upcoming_appointments(
     session_state: State<'_, SessionState>,
     lead_minutes: Option<i64>,
 ) -> Result<Vec<notifications::AppointmentReminder>, AppError> {
-    rbac::require(&session_state, "termin.read")?;
+    rbac::require(&session_state, "appointment.read")?;
     notifications::upcoming(&pool, lead_minutes.unwrap_or(24 * 60)).await
 }
 

@@ -13,13 +13,13 @@
  */
 import { z } from "zod";
 import {
-    FeedbackKategorieSchema,
-    GeschlechtSchema,
+    FeedbackCategorySchema,
+    SexSchema,
     PatientStatusSchema,
-    RolleSchema,
-    TerminArtSchema,
-    TerminStatusSchema,
-    ZahlungsartSchema,
+    RoleSchema,
+    AppointmentKindSchema,
+    AppointmentStatusSchema,
+    PaymentMethodSchema,
 } from "@/lib/schemas.enums.generated";
 
 const isoDate = z
@@ -33,88 +33,88 @@ const nonEmpty = (msg = "Required") =>
 const optionalText = z
     .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .transform((v) => (v == null || v === "" ? null : v));
+    .transform((version) => (version == null || version === "" ? null : version));
 
 export {
-    AktenStatusSchema,
-    FeedbackKategorieSchema,
-    GeschlechtSchema,
+    ChartStatusSchema,
+    FeedbackCategorySchema,
+    SexSchema,
     PatientStatusSchema,
-    RolleSchema,
-    TerminArtSchema,
-    TerminStatusSchema,
-    ZahlungsartSchema,
-    ZahlungStatusSchema,
+    RoleSchema,
+    AppointmentKindSchema,
+    AppointmentStatusSchema,
+    PaymentMethodSchema,
+    PaymentStatusSchema,
 } from "@/lib/schemas.enums.generated";
-/** @deprecated Use {@link GeschlechtSchema}. */
-export const PatientGeschlechtSchema = GeschlechtSchema;
+/** @deprecated Use {@link SexSchema}. */
+export const PatientSexSchema = SexSchema;
 
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name is required").max(120),
-    geburtsdatum: isoDate,
-    geschlecht: GeschlechtSchema,
-    versicherungsnummer: nonEmpty("Insurance number is required").max(40),
-    telefon: optionalText,
+    date_of_birth: isoDate,
+    sex: SexSchema,
+    insurance_number: nonEmpty("Insurance number is required").max(40),
+    phone: optionalText,
     email: z
         .union([z.string().email("Invalid email"), z.literal(""), z.null(), z.undefined()])
         .optional()
-        .transform((v) => (v == null || v === "" ? null : v)),
-    adresse: optionalText,
+        .transform((version) => (version == null || version === "" ? null : version)),
+    address: optionalText,
 });
 export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
 
 export const UpdatePatientSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
-        telefon: optionalText,
+        phone: optionalText,
         email: z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]).optional(),
-        adresse: optionalText,
+        address: optionalText,
         status: PatientStatusSchema.optional(),
     })
     .strict();
 
-export const CreateTerminSchema = z.object({
-    datum: isoDate,
-    uhrzeit: isoTime,
-    art: TerminArtSchema,
+export const CreateAppointmentSchema = z.object({
+    date: isoDate,
+    time: isoTime,
+    kind: AppointmentKindSchema,
     patient_id: nonEmpty("Patient is required"),
-    arzt_id: nonEmpty("Provider is required"),
-    notizen: optionalText,
-    beschwerden: optionalText,
+    physician_id: nonEmpty("Provider is required"),
+    notes: optionalText,
+    chief_complaint: optionalText,
 });
-export type CreateTerminInput = z.infer<typeof CreateTerminSchema>;
+export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
 
-export const UpdateTerminSchema = z
+export const UpdateAppointmentSchema = z
     .object({
-        datum: isoDate.optional(),
-        uhrzeit: isoTime.optional(),
-        art: TerminArtSchema.optional(),
-        status: TerminStatusSchema.optional(),
-        notizen: optionalText,
-        beschwerden: optionalText,
-        arzt_id: z.string().min(1).optional(),
+        date: isoDate.optional(),
+        time: isoTime.optional(),
+        kind: AppointmentKindSchema.optional(),
+        status: AppointmentStatusSchema.optional(),
+        notes: optionalText,
+        chief_complaint: optionalText,
+        physician_id: z.string().min(1).optional(),
     })
     .strict();
 
-export const CreatePersonalSchema = z.object({
+export const CreateStaffSchema = z.object({
     name: nonEmpty().max(120),
     email: z.string().email("Invalid email"),
-    passwort: z.string().min(8, "At least 8 characters"),
-    rolle: RolleSchema,
-    taetigkeitsbereich: optionalText,
-    fachrichtung: optionalText,
-    telefon: optionalText,
+    password: z.string().min(8, "At least 8 characters"),
+    role: RoleSchema,
+    activity_area: optionalText,
+    specialty: optionalText,
+    phone: optionalText,
 });
 
-export const UpdatePersonalSchema = z
+export const UpdateStaffSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
         email: z.string().email("Invalid email").optional(),
-        rolle: RolleSchema.optional(),
-        taetigkeitsbereich: optionalText,
-        fachrichtung: optionalText,
-        telefon: optionalText,
-        verfuegbar: z.boolean().optional(),
+        role: RoleSchema.optional(),
+        activity_area: optionalText,
+        specialty: optionalText,
+        phone: optionalText,
+        available: z.boolean().optional(),
     })
     .strict();
 
@@ -123,217 +123,217 @@ export const UpdateOwnProfileSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
         email: z.string().email("Invalid email").optional(),
-        taetigkeitsbereich: optionalText,
-        fachrichtung: optionalText,
+        activity_area: optionalText,
+        specialty: optionalText,
         /** Empty string clears stored number (like backend). */
-        telefon: z.string().max(40).optional(),
+        phone: z.string().max(40).optional(),
     })
     .strict()
     .refine(
         (d) =>
             d.name != null ||
             d.email != null ||
-            d.taetigkeitsbereich != null ||
-            d.fachrichtung != null ||
-            d.telefon !== undefined,
+            d.activity_area != null ||
+            d.specialty != null ||
+            d.phone !== undefined,
         { message: "Fill in at least one field to save" },
     );
 
-export const CreateZahlungSchema = z.object({
+export const CreatePaymentSchema = z.object({
     patient_id: nonEmpty(),
-    betrag: z.number().nonnegative("Amount must not be negative"),
-    zahlungsart: ZahlungsartSchema,
-    leistung_id: optionalText,
-    beschreibung: optionalText,
-    behandlung_id: optionalText,
-    untersuchung_id: optionalText,
-    betrag_erwartet: z.number().finite().nonnegative().optional().nullable(),
+    amount: z.number().nonnegative("Amount must not be negative"),
+    payment_method: PaymentMethodSchema,
+    service_item_id: optionalText,
+    description: optionalText,
+    treatment_id: optionalText,
+    examination_id: optionalText,
+    amount_expected: z.number().finite().nonnegative().optional().nullable(),
 });
 
-export const UpdateZahlungSchema = z
+export const UpdatePaymentSchema = z
     .object({
         id: nonEmpty(),
-        betrag: z.number().nonnegative(),
-        zahlungsart: ZahlungsartSchema,
-        leistung_id: optionalText,
-        beschreibung: optionalText,
+        amount: z.number().nonnegative(),
+        payment_method: PaymentMethodSchema,
+        service_item_id: optionalText,
+        description: optionalText,
     })
     .strict();
 
-export const CreateBestellungSchema = z.object({
-    lieferant: nonEmpty().max(200),
-    artikel: nonEmpty().max(200),
-    erwartet_am: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
+export const CreatePurchaseOrderSchema = z.object({
+    supplier: nonEmpty().max(200),
+    item: nonEmpty().max(200),
+    expected_on: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
         .optional()
-        .transform((v) => (v == null || v === "" ? null : v)),
-    menge: z.number().int().positive("Quantity must be > 0"),
-    einheit: optionalText,
-    bemerkung: optionalText,
-    bestellnummer: optionalText,
-    pharmaberater: optionalText,
-    gesamtbetrag: z.number().finite().nonnegative().optional().nullable(),
+        .transform((version) => (version == null || version === "" ? null : version)),
+    quantity: z.number().int().positive("Quantity must be > 0"),
+    unit: optionalText,
+    remark: optionalText,
+    order_number: optionalText,
+    pharma_consultant: optionalText,
+    total_amount: z.number().finite().nonnegative().optional().nullable(),
 });
 
-export const UpdateBestellungSchema = z
+export const UpdatePurchaseOrderSchema = z
     .object({
-        lieferant: z.string().min(1).max(200).optional(),
-        artikel: z.string().min(1).max(200).optional(),
-        menge: z.number().int().positive("Quantity must be > 0").optional(),
-        einheit: optionalText,
-        erwartet_am: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
+        supplier: z.string().min(1).max(200).optional(),
+        item: z.string().min(1).max(200).optional(),
+        quantity: z.number().int().positive("Quantity must be > 0").optional(),
+        unit: optionalText,
+        expected_on: z.union([isoDate, z.literal(""), z.null(), z.undefined()])
             .optional()
-            .transform((v) => (v == null ? undefined : v === "" ? null : v)),
-        bemerkung: optionalText,
-        bestellnummer: optionalText,
-        pharmaberater: optionalText,
+            .transform((version) => (version == null ? undefined : version === "" ? null : version)),
+        remark: optionalText,
+        order_number: optionalText,
+        pharma_consultant: optionalText,
     })
     .strict();
 
-export const CreateLeistungSchema = z.object({
+export const CreateServiceItemSchema = z.object({
     name: nonEmpty().max(200),
-    beschreibung: optionalText,
-    kategorie: nonEmpty().max(80),
-    preis: z.number().nonnegative(),
+    description: optionalText,
+    category: nonEmpty().max(80),
+    price: z.number().nonnegative(),
 });
 
-export const UpdateLeistungSchema = z
+export const UpdateServiceItemSchema = z
     .object({
         name: z.string().min(1).max(200).optional(),
-        beschreibung: optionalText,
-        kategorie: z.string().min(1).max(80).optional(),
-        preis: z.number().nonnegative().optional(),
-        aktiv: z.boolean().optional(),
+        description: optionalText,
+        category: z.string().min(1).max(80).optional(),
+        price: z.number().nonnegative().optional(),
+        active: z.boolean().optional(),
     })
     .strict();
 
-export const CreateRezeptSchema = z.object({
+export const CreatePrescriptionSchema = z.object({
     patient_id: nonEmpty("Patient is required"),
-    arzt_id: nonEmpty(),
-    medikament: nonEmpty("Medication is required").max(200),
-    wirkstoff: optionalText,
-    dosierung: nonEmpty().max(200),
-    dauer: nonEmpty().max(200),
-    hinweise: optionalText,
+    physician_id: nonEmpty(),
+    medication: nonEmpty("Medication is required").max(200),
+    active_ingredient: optionalText,
+    dosage: nonEmpty().max(200),
+    duration: nonEmpty().max(200),
+    instructions: optionalText,
     pzn: optionalText,
-    darreichungsform: optionalText,
-    packungsgroesse: optionalText,
-    menge: z.number().int().positive().optional().nullable(),
+    dosage_form: optionalText,
+    pack_size: optionalText,
+    quantity: z.number().int().positive().optional().nullable(),
     aut_idem: z.boolean().optional().nullable(),
-    rezept_typ: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
+    prescription_type: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
     icd10_code: optionalText,
-    verordnender_arzt_id: optionalText,
+    prescribing_physician_id: optionalText,
 });
 
-export const UpdateRezeptSchema = z.object({
+export const UpdatePrescriptionSchema = z.object({
     id: nonEmpty(),
-    medikament: nonEmpty().max(200),
-    wirkstoff: optionalText,
-    dosierung: nonEmpty().max(200),
-    dauer: nonEmpty().max(200),
-    hinweise: optionalText,
+    medication: nonEmpty().max(200),
+    active_ingredient: optionalText,
+    dosage: nonEmpty().max(200),
+    duration: nonEmpty().max(200),
+    instructions: optionalText,
     pzn: optionalText,
-    darreichungsform: optionalText,
-    packungsgroesse: optionalText,
-    menge: z.number().int().positive().optional().nullable(),
+    dosage_form: optionalText,
+    pack_size: optionalText,
+    quantity: z.number().int().positive().optional().nullable(),
     aut_idem: z.boolean().optional().nullable(),
-    rezept_typ: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
+    prescription_type: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
     icd10_code: optionalText,
-    verordnender_arzt_id: optionalText,
+    prescribing_physician_id: optionalText,
 });
 
-export const CreateAttestSchema = z.object({
+export const CreateCertificateSchema = z.object({
     patient_id: nonEmpty(),
-    arzt_id: nonEmpty(),
-    typ: nonEmpty(),
-    inhalt: nonEmpty().max(5000),
-    gueltig_von: isoDate,
-    gueltig_bis: isoDate,
+    physician_id: nonEmpty(),
+    kind: nonEmpty(),
+    body_text: nonEmpty().max(5000),
+    valid_from: isoDate,
+    valid_until: isoDate,
     icd10_code: optionalText,
-    erst_oder_folge: z.enum(["ERST", "FOLGE"]).optional().nullable(),
-    arbeitgeber: optionalText,
-    ausstellender_arzt_id: optionalText,
+    first_or_follow_up: z.enum(["FIRST", "FOLLOW_UP"]).optional().nullable(),
+    employer: optionalText,
+    issuing_physician_id: optionalText,
 });
 
-export const CreateBehandlungSchema = z.object({
-    akte_id: nonEmpty(),
-    art: nonEmpty(),
-    beschreibung: optionalText,
-    zaehne: optionalText,
+export const CreateTreatmentSchema = z.object({
+    chart_id: nonEmpty(),
+    kind: nonEmpty(),
+    description: optionalText,
+    teeth: optionalText,
     material: optionalText,
-    notizen: optionalText,
-    kategorie: optionalText,
-    leistungsname: optionalText,
-    behandlungsnummer: optionalText,
-    sitzung: z.number().int().optional().nullable(),
-    behandlung_status: optionalText,
-    gesamtkosten: z.number().finite().optional().nullable(),
-    termin_erforderlich: z.boolean().optional().nullable(),
-    behandlung_datum: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((v) => (v === "" ? null : v)),
+    notes: optionalText,
+    category: optionalText,
+    service_name: optionalText,
+    treatment_number: optionalText,
+    session_number: z.number().int().optional().nullable(),
+    treatment_status: optionalText,
+    total_cost: z.number().finite().optional().nullable(),
+    appointment_required: z.boolean().optional().nullable(),
+    treatment_date: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((version) => (version === "" ? null : version)),
 });
 
-export const UpdateBehandlungSchema = z.object({
+export const UpdateTreatmentSchema = z.object({
     id: nonEmpty(),
-    art: nonEmpty(),
-    beschreibung: optionalText,
-    zaehne: optionalText,
+    kind: nonEmpty(),
+    description: optionalText,
+    teeth: optionalText,
     material: optionalText,
-    notizen: optionalText,
-    kategorie: optionalText,
-    leistungsname: optionalText,
-    behandlungsnummer: optionalText,
-    sitzung: z.number().int().optional().nullable(),
-    behandlung_status: optionalText,
-    gesamtkosten: z.number().finite().optional().nullable(),
-    termin_erforderlich: z.boolean().optional().nullable(),
-    behandlung_datum: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((v) => (v === "" ? null : v)),
+    notes: optionalText,
+    category: optionalText,
+    service_name: optionalText,
+    treatment_number: optionalText,
+    session_number: z.number().int().optional().nullable(),
+    treatment_status: optionalText,
+    total_cost: z.number().finite().optional().nullable(),
+    appointment_required: z.boolean().optional().nullable(),
+    treatment_date: z.union([isoDate, z.literal(""), z.null()]).optional().nullable().transform((version) => (version === "" ? null : version)),
 });
 
-export const CreateUntersuchungSchema = z.object({
-    akte_id: nonEmpty(),
-    beschwerden: optionalText,
-    ergebnisse: optionalText,
-    diagnose: optionalText,
-    untersuchungsnummer: optionalText,
-    kategorie: optionalText,
-    leistungsname: optionalText,
-    gesamtkosten: z.number().finite().optional().nullable(),
+export const CreateExaminationSchema = z.object({
+    chart_id: nonEmpty(),
+    chief_complaint: optionalText,
+    results: optionalText,
+    diagnosis: optionalText,
+    examination_number: optionalText,
+    category: optionalText,
+    service_name: optionalText,
+    total_cost: z.number().finite().optional().nullable(),
 });
 
-export const UpdateUntersuchungSchema = z.object({
+export const UpdateExaminationSchema = z.object({
     id: nonEmpty(),
-    beschwerden: optionalText,
-    ergebnisse: optionalText,
-    diagnose: optionalText,
-    kategorie: optionalText,
-    leistungsname: optionalText,
-    gesamtkosten: z.number().finite().optional().nullable(),
+    chief_complaint: optionalText,
+    results: optionalText,
+    diagnosis: optionalText,
+    category: optionalText,
+    service_name: optionalText,
+    total_cost: z.number().finite().optional().nullable(),
 });
 
-export const CreateZahnbefundSchema = z.object({
-    akte_id: nonEmpty(),
-    zahn_nummer: z.number().int(),
-    befund: nonEmpty(),
-    diagnose: optionalText,
-    notizen: optionalText,
+export const CreateDentalFindingSchema = z.object({
+    chart_id: nonEmpty(),
+    tooth_number: z.number().int(),
+    finding: nonEmpty(),
+    diagnosis: optionalText,
+    notes: optionalText,
 });
 
-export const CreateBilanzSnapshotSchema = z.object({
-    zeitraum: nonEmpty(),
-    typ: nonEmpty(),
+export const CreateBalanceSheetSnapshotSchema = z.object({
+    period: nonEmpty(),
+    kind: nonEmpty(),
     label: nonEmpty(),
-    einnahmen_cents: z.number().int().nonnegative(),
-    ausgaben_cents: z.number().int().nonnegative(),
+    income_cents: z.number().int().nonnegative(),
+    expenses_cents: z.number().int().nonnegative(),
     payload: z.unknown(),
 });
 
 export const CreateFeedbackSchema = z.object({
-    kategorie: FeedbackKategorieSchema,
-    betreff: z.string().min(3, "Subject too short").max(200),
-    nachricht: z.string().min(10, "Message too short").max(4000),
-    referenz: optionalText,
+    category: FeedbackCategorySchema,
+    subject: z.string().min(3, "Subject too short").max(200),
+    message: z.string().min(10, "Message too short").max(4000),
+    reference: optionalText,
 });
 
-export type UpdateLeistungInput = z.infer<typeof UpdateLeistungSchema>;
+export type UpdateServiceItemInput = z.infer<typeof UpdateServiceItemSchema>;
 
 /**
  * Convert a ZodError into a single human-readable string suitable for toasts.

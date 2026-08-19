@@ -25,9 +25,9 @@ const DEFAULT_PATH: ExportPathConfigV1 = { mode: "documents", customPath: "" };
 const DEFAULT_FORMATS: ExportFormatsConfigV1 = {
     defaultFormat: "pdf",
     perKind: {
-        akte: "pdf",
+        chart: "pdf",
         audit_list: "csv",
-        rechnung: "pdf",
+        invoice: "pdf",
     },
 };
 
@@ -78,6 +78,6 @@ export async function loadExportFormatsConfig(): Promise<ExportFormatsConfigV1> 
 }
 
 export function defaultFormatForKind(formats: ExportFormatsConfigV1, kind: DocumentKind): ExportFileFormat {
-    if (kind === "rechnung") return "pdf";
+    if (kind === "invoice") return "pdf";
     return formats.perKind[kind] ?? formats.defaultFormat;
 }

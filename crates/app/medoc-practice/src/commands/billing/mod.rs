@@ -1,10 +1,10 @@
 //! IPC commands — billing domain.
 
-pub mod bilanz_snapshot;
+pub mod balance_sheet_snapshot;
 pub mod invoice;
 pub mod invoice_sequence;
-pub mod leistung;
-pub mod rechnung_document;
-pub mod tagesabschluss_protokoll;
-pub mod vertrag;
-pub mod zahlung;
+pub mod service_item;
+pub mod invoice_document;
+pub mod day_close_protocol;
+pub mod contract;
+pub mod payment;

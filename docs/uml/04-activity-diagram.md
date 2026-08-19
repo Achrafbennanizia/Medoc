@@ -71,9 +71,9 @@ flowchart TD
     E -- Bar --> F[Bargeldzahlung entgegennehmen]
     E -- Karte --> G[Kartenzahlung durchführen]
     E -- Überweisung --> H[Rechnung mit Bankdaten erstellen]
-    F --> I[Zahlung als BEZAHLT markieren]
+    F --> I[Zahlung als PAID markieren]
     G --> I
-    H --> J[Zahlung als OFFEN markieren]
+    H --> J[Zahlung als OPEN markieren]
 
     C -- Nein --> K[Rechnung erstellen und zusenden]
     K --> J
@@ -148,10 +148,10 @@ flowchart TD
     K --> L[Material und Leistung zuordnen]
     L --> M[Behandlungserfolg bewerten]
     J -- Nein --> N[Folgetermin vorschlagen]
-    M --> O[Akte Status → IN_BEARBEITUNG]
+    M --> O[Akte Status → IN_PROGRESS]
     N --> O
     O --> P{Arzt validiert?}
-    P -- Ja --> Q[Akte Status → VALIDIERT]
+    P -- Ja --> Q[Akte Status → VALIDATED]
     P -- Nein --> R([Ende – Validierung später])
     Q --> R
 ```

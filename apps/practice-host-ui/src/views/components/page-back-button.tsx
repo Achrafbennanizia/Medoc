@@ -8,7 +8,7 @@ type Props = {
     className?: string;
 };
 
-/** Compact back control — same look as Verwaltung back (`btn btn-subtle`). */
+/** Compact back control — same look as Administration back (`btn btn-subtle`). */
 export function PageBackButton({ label, to, onClick, className }: Props) {
     const cls = className ?? "btn btn-subtle workspace-page-back-button";
     if (to) {

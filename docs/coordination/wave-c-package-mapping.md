@@ -30,7 +30,7 @@
 
 ### Pure helpers → `@medoc/shared/src/lib/` (no `@/systems/*`, no Tauri, no React) (~50 files)
 
-`abbreviations.ts`, `accent-preset.ts`, `anamnese.ts`, `arbeitsplan-compose.ts`, `arbeitsplan-preferences.ts`, `attest-composer.ts`, `breakpoints.ts`, `client-settings.ts`, `clinical-document-pdf.ts`, `command-palette-data.ts`, `dental.ts`*, `document-template-schema.ts`, `export-delimited.ts`, `i18n.ts`, `integration-capabilities.ts`, `interaction-standards.ts`, `kpi-icon-chrome.ts`, `list-params.ts`, `login-totp-errors.ts`, `medikamente.ts`, `password-policy.ts`, `patient-csv.ts`*, `personal-arbeitsplan.ts`, `plan-next-termin.ts`, `posteingang-config.ts`, `praxis-arbeitszeiten-validation.ts`, `praxis-completeness.ts`, `praxis-header-privacy.ts`, `praxis-praeferenzen-storage.ts`*, `praxis-search-prefs-sync.ts`*, `print-html.ts`, `produkt-form-model.ts`*, `rbac.ts` (consumes `rbac.generated`), `save-download.ts`, `schemas.ts`, `settings-format.ts`, `string-suggest.ts`, `tagesabschluss.ts`*, `termin-availability.ts`*, `termin-calendar-ui.ts`*, `termin-domain.ts`*, `untersuchung.ts`, `utils.ts`, `vertrag-domain.ts`, `verwaltung-hierarchy.ts`, `zahlung-buchung.ts`*.
+`abbreviations.ts`, `accent-preset.ts`, `anamnesis.ts`, `work_plan-compose.ts`, `work_plan-preferences.ts`, `certificate-composer.ts`, `breakpoints.ts`, `client-settings.ts`, `clinical-document-pdf.ts`, `command-palette-data.ts`, `dental.ts`*, `document-template-schema.ts`, `export-delimited.ts`, `i18n.ts`, `integration-capabilities.ts`, `interaction-standards.ts`, `kpi-icon-chrome.ts`, `list-params.ts`, `login-totp-errors.ts`, `medikamente.ts`, `password-policy.ts`, `patient-csv.ts`*, `staff-work_plan.ts`, `plan-next-appointment.ts`, `inbox-config.ts`, `praxis-arbeitszeiten-validation.ts`, `praxis-completeness.ts`, `praxis-header-privacy.ts`, `praxis-praeferenzen-storage.ts`*, `praxis-search-prefs-sync.ts`*, `print-html.ts`, `product-form-model.ts`*, `rbac.ts` (consumes `rbac.generated`), `save-download.ts`, `schemas.ts`, `settings-format.ts`, `string-suggest.ts`, `tagesabschluss.ts`*, `appointment-availability.ts`*, `appointment-calendar-ui.ts`*, `appointment-domain.ts`*, `examination.ts`, `utils.ts`, `contract-domain.ts`, `administration-hierarchy.ts`, `payment-buchung.ts`*.
 
 > **\*** = touches `@/systems/*` per grep. Each needs a closer look: either invert the import (use a system-injected dependency), or move out of "pure" into `@medoc/system-practice/lib/`. Mark UNVERIFIED until each is individually inspected.
 
@@ -41,7 +41,7 @@ Plus all matching `*.test.ts` files (vitest specs co-located).
 | File | Tauri usage |
 |------|-------------|
 | `native-app-menu-bridge.ts` | `@tauri-apps/api` event/menu bridges |
-| `akte-anlagen.ts` | `@tauri-apps/api` blob handling |
+| `akte-attachments.ts` | `@tauri-apps/api` blob handling |
 | `mac-window-drag.ts` | `@tauri-apps/api` window drag region |
 
 ### React (UI) → `@medoc/ui/src/` (1 file)
@@ -58,7 +58,7 @@ These reference `@/systems/*`, `@/controllers/*`, or `@/models/*`. Each is a can
 
 Files:
 
-`akte-completeness.ts`, `akte-export.ts`, `akte-validation.ts`, `billing-open-booking.ts`, `billing-release.ts`, `clinical-pdf-layout.ts`, `confirmation-preferences.ts`, `document-print-html.ts`, `export-settings.ts`, `export.ts`, `invoice-leistung.ts`, `native-go-menu.ts`, `onboarding.ts`, `patient-browser-storage.ts`, `patient-detail-rezept-actions.ts`, `patient-detail-utils.ts`, `photo-viewer-apps.ts`, `praxis-planning.ts`, `tagesabschluss-invoice-pdf.ts`, `use-rbac.ts`.
+`akte-completeness.ts`, `akte-export.ts`, `akte-validation.ts`, `billing-open-booking.ts`, `billing-release.ts`, `clinical-pdf-layout.ts`, `confirmation-preferences.ts`, `document-print-html.ts`, `export-settings.ts`, `export.ts`, `invoice-serviceItem.ts`, `native-go-menu.ts`, `onboarding.ts`, `patient-browser-storage.ts`, `patient-detail-prescription-actions.ts`, `patient-detail-utils.ts`, `photo-viewer-apps.ts`, `praxis-planning.ts`, `tagesabschluss-invoice-pdf.ts`, `use-rbac.ts`.
 
 Plus matching `*.test.ts` files.
 

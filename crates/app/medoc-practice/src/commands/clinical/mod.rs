@@ -1,10 +1,10 @@
 //! IPC commands — clinical domain.
 
-pub mod akte;
-pub mod akte_anlage;
-pub mod akte_next_termin;
-pub mod akte_validation;
-pub mod akte_workflow;
-pub mod attest;
+pub mod chart;
+pub mod chart_attachment;
+pub mod chart_next_appointment;
+pub mod chart_validation;
+pub mod chart_workflow;
+pub mod certificate;
 pub mod patient;
-pub mod rezept;
+pub mod prescription;

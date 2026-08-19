@@ -1,13 +1,13 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 
 export interface UpcomingAppointment {
-    termin_id: string;
+    appointment_id: string;
     patient_id: string;
     patient_name: string;
-    arzt_id: string;
-    datum: string;
-    uhrzeit: string;
-    art: string;
+    physician_id: string;
+    date: string;
+    time: string;
+    kind: string;
     minutes_until: number;
 }
 
@@ -17,7 +17,7 @@ export function listUpcomingAppointments(leadMinutes: number) {
     });
 }
 
-/* ──────────────── E-Rezept (FA-INT, FA-REZ) ─────────────────────────────── */
+/* ──────────────── E-Prescription (FA-INT, FA-REZ) ─────────────────────────────── */
 
 /** Matches Rust `infrastructure::telematik::EPrescription`. */
 export interface EPrescription {
@@ -42,7 +42,7 @@ export interface EPrescriptionToken {
 }
 
 /**
- * Validate an E-Rezept locally (PZN, KVNR, LANR, quantity).
+ * Validate an E-Prescription locally (PZN, KVNR, LANR, quantity).
  * Resolves on success; rejects with `AppError::Validation` text on failure.
  */
 export function validateEprescription(rx: EPrescription): Promise<void> {

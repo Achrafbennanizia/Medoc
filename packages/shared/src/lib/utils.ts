@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-import type { Produkt } from "@/models/types";
+import type { Product } from "@/models/types";
 import { formatIpcError } from "./ipc-errors";
 import type { Locale } from "./i18n";
 import { bcp47ForLocale, useLocale } from "./i18n";
@@ -50,13 +50,13 @@ export function formatCurrency(amount: number, locale?: Locale): string {
 }
 
 /** How often the name appears — for ambiguity (same name, different category/price/ID). */
-export function countProdukteWithName(produkte: Produkt[], name: string): number {
-    return produkte.filter((p) => p.name === name).length;
+export function countProductsWithName(products: Product[], name: string): number {
+    return products.filter((p) => p.name === name).length;
 }
 
 /** Row in product dropdowns: name · category · price; append short ID for name duplicates. */
-export function produktSelectLabel(p: Produkt, nameDupCount: number): string {
-    const base = `${p.name} · ${p.kategorie} · ${formatCurrency(p.preis)}`;
+export function productSelectLabel(p: Product, nameDupCount: number): string {
+    const base = `${p.name} · ${p.category} · ${formatCurrency(p.price)}`;
     if (nameDupCount > 1) {
         return `${base} · #${p.id.slice(0, 8)}`;
     }

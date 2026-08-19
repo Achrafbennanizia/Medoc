@@ -17,13 +17,13 @@ flowchart LR
     CS["medoc-company-server\nHTTP :9797"]
     R1["Replica A\n(HTTP client + token)"]
     R2["Replica B\n(HTTP client + token)"]
-    ARZT["Arzt JWT client\n(login)"]
+    PHYSICIAN["Arzt JWT client\n(login)"]
   end
   R1 -->|POST /sync/push| MS
   R2 -->|POST /sync/pull| MS
-  ARZT -->|GET /patienten| MS
-  ARZT -->|POST /pairing/decide| MS
-  ARZT -->|GET /company/summary| MS
+  PHYSICIAN -->|GET /patients| MS
+  PHYSICIAN -->|POST /pairing/decide| MS
+  PHYSICIAN -->|GET /company/summary| MS
   MS -.->|optional proxy| CS
 ```
 
@@ -52,9 +52,9 @@ flowchart LR
 
 | Method | Path | Request | Response | Test |
 | ------ | ---- | ------- | -------- | ---- |
-| POST | `/api/v1/auth/login` | `{ email, passwort, totp_code }` | `{ access_token }` | `port_master_jwt_login_and_me` |
-| GET | `/api/v1/me` | `Authorization: Bearer <jwt>` | `{ email, rolle }` | same |
-| GET | `/api/v1/patienten` | JWT | `[{ id, name, … }]` | `port_two_replicas_…` (after sync push) |
+| POST | `/api/v1/auth/login` | `{ email, password, totp_code }` | `{ access_token }` | `port_master_jwt_login_and_me` |
+| GET | `/api/v1/me` | `Authorization: Bearer <jwt>` | `{ email, role }` | same |
+| GET | `/api/v1/patients` | JWT | `[{ id, name, … }]` | `port_two_replicas_…` (after sync push) |
 | POST | `/api/v1/pairing/decide/{id}` | `{ accept: true }` + JWT | `{ status: "ACCEPTED", activationToken }` | pairing tests |
 | POST | `/api/v1/pairing/revoke/{device}` | JWT | 204 | `port_revoked_replica_push_forbidden` |
 | GET | `/api/v1/company/summary` | JWT (`ops.system`) | subscription summary JSON | `port_practice_proxy_company_summary_via_lan` |
@@ -77,8 +77,8 @@ flowchart LR
 | Replica local outbox → master DB | `SyncEngine::push_to_master` → `POST /sync/push` | `port_sync_engine_push_to_master_propagates_patient` |
 | Master outbox → replica local DB | `SyncEngine::pull_from_master` → `POST /sync/pull` | `port_sync_engine_pull_from_master_applies_to_replica_db` |
 | Replica A outbox → replica B DB (mesh) | `SyncEngine::run_mesh_sync` → peer `POST /sync/push` | `port_mesh_sync_delivers_app_kv_to_peer_replica` (incl. idempotent re-run) |
-| Tier-1 `rezept` push | `POST /sync/push` activation token | `port_sync_rezept_push_applies_on_master` |
-| Tier-1 `praxis_ticket` push | `POST /sync/push` activation token | `port_sync_praxis_ticket_push_applies_on_master` |
+| Tier-1 `prescription` push | `POST /sync/push` activation token | `port_sync_rezept_push_applies_on_master` |
+| Tier-1 `practice_ticket` push | `POST /sync/push` activation token | `port_sync_praxis_ticket_push_applies_on_master` |
 | Freshness conflict on master | two `POST /sync/push` with competing `updated_at` | `port_two_replicas_freshness_conflict_over_https` |
 | Token/device binding | `POST /sync/push` with wrong `fromDeviceId` | `port_push_spoofed_from_device_id_forbidden` |
 
@@ -155,9 +155,9 @@ Manual checklist (second device / VM):
 
 1. Master: `medoc-server` + license + pairing inbox accept.
 2. Replica: `serverless_peer` + REPLICA role → pairing scan or paste master URL.
-3. Create `praxis_ticket` + `rezept` on replica → verify on master after sync.
+3. Create `practice_ticket` + `prescription` on replica → verify on master after sync.
 4. Revoke replica → `POST /sync/push` returns 403.
 
 See [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) for Tauri UI rows.
 
-**DB verification:** Port tests assert master-side effects via `GET /api/v1/patienten` (JWT) and replica-side via `POST /api/v1/sync/pull` entries — no direct SQLite access from tests when using external binaries.
+**DB verification:** Port tests assert master-side effects via `GET /api/v1/patients` (JWT) and replica-side via `POST /api/v1/sync/pull` entries — no direct SQLite access from tests when using external binaries.

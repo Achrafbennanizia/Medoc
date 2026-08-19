@@ -3,7 +3,7 @@
 use axum::http::StatusCode;
 use medoc_e2e::harness::CompanyHarness;
 
-const DEMO_SLUG: &str = "demo-praxis";
+const DEMO_SLUG: &str = "demo-practice";
 const DEMO_API_KEY: &str = "sk_demo_company_practice_key";
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn company_authenticated_summary() {
         .await;
     assert_eq!(status, StatusCode::OK, "summary failed: {body:?}");
     assert_eq!(body["practice_slug"], DEMO_SLUG);
-    assert_eq!(body["display_name"], "Demo Praxis GmbH");
+    assert_eq!(body["display_name"], "Demo Practice GmbH");
     assert!(body["monthly_fee_cents"].is_number());
 }
 

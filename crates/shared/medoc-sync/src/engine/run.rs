@@ -548,10 +548,10 @@ mod tests {
         // the incoming master push.
         let id = "00000000-0000-0000-0000-0000000000aa";
         sqlx::query(
-            "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
-                                  telefon, email, adresse, status, created_at, updated_at)
-             VALUES (?1, 'Local Newer', '1990-01-01', 'MAENNLICH', 'V-A',
-                     NULL, NULL, NULL, 'AKTIV', '2099-01-01 00:00:00', '2099-01-02 00:00:00')",
+            "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number,
+                                  phone, email, address, status, created_at, updated_at)
+             VALUES (?1, 'Local Newer', '1990-01-01', 'MALE', 'V-A',
+                     NULL, NULL, NULL, 'ACTIVE', '2099-01-01 00:00:00', '2099-01-02 00:00:00')",
         )
         .bind(id)
         .execute(&pool)
@@ -596,10 +596,10 @@ mod tests {
 
         let id = "00000000-0000-0000-0000-0000000000bb";
         sqlx::query(
-            "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
-                                  telefon, email, adresse, status, created_at, updated_at)
-             VALUES (?1, 'Local Older', '1990-01-01', 'MAENNLICH', 'V-B',
-                     NULL, NULL, NULL, 'AKTIV', '2099-01-01 00:00:00', '2099-01-01 00:00:00')",
+            "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number,
+                                  phone, email, address, status, created_at, updated_at)
+             VALUES (?1, 'Local Older', '1990-01-01', 'MALE', 'V-B',
+                     NULL, NULL, NULL, 'ACTIVE', '2099-01-01 00:00:00', '2099-01-01 00:00:00')",
         )
         .bind(id)
         .execute(&pool)

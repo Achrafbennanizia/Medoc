@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
-import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { WorkspacePageHeader } from "../components/administration-page-header";
 import { Input } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
@@ -90,7 +90,7 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
     }
 
     return (
-        <div className="praxis-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in">
             <WorkspacePageHeader
                 titleLevel="h1"
                 title={t("page.migration.title")}
@@ -288,7 +288,7 @@ function DeviceFilePanel() {
                     {docs.length > 0 ? (
                         <>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-                                <Input id="scan-archive" label={t("migration.device.archive_root")} value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/akten" />
+                                <Input id="scan-archive" label={t("migration.device.archive_root")} value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/charts" />
                                 <Input id="scan-pid" label={t("migration.device.patient_id")} value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder="seed-pat-001" />
                             </div>
                             <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>

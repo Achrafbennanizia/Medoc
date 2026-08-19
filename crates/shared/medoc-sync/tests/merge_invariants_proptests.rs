@@ -34,10 +34,10 @@ async fn fresh_seeded_pool() -> SqlitePool {
     run_migrations(&pool).await.expect("migrations");
     ensure_sync_tables(&pool).await.expect("schema");
     sqlx::query(
-        "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
-                              telefon, email, adresse, status, created_at, updated_at)
-         VALUES (?1, ?2, '1990-01-01', 'MAENNLICH', 'V-BASELINE',
-                 NULL, NULL, NULL, 'AKTIV', '2026-01-01 00:00:00', ?3)",
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number,
+                              phone, email, address, status, created_at, updated_at)
+         VALUES (?1, ?2, '1990-01-01', 'MALE', 'V-BASELINE',
+                 NULL, NULL, NULL, 'ACTIVE', '2026-01-01 00:00:00', ?3)",
     )
     .bind(PATIENT_ID)
     .bind(BASELINE_NAME)
@@ -93,15 +93,15 @@ fn update_strat() -> impl Strategy<Value = Update> {
 }
 
 fn updates_set_strat() -> impl Strategy<Value = Vec<Update>> {
-    prop::collection::vec(update_strat(), 1..=10).prop_map(|mut v| {
+    prop::collection::vec(update_strat(), 1..=10).prop_map(|mut version| {
         // Dedupe by (device_seed, seq) so was_applied doesn't reject any.
-        v.sort_by_key(|u| (u.device_seed, u.seq));
-        v.dedup_by_key(|u| (u.device_seed, u.seq));
+        version.sort_by_key(|u| (u.device_seed, u.seq));
+        version.dedup_by_key(|u| (u.device_seed, u.seq));
         // Also dedupe by day_offset+name so the "newest" entry is unique
         // (avoids ambiguity when two entries tie on updated_at).
         let mut seen_offsets = std::collections::HashSet::new();
-        v.retain(|u| seen_offsets.insert(u.day_offset));
-        v
+        version.retain(|u| seen_offsets.insert(u.day_offset));
+        version
     })
 }
 

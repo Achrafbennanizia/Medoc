@@ -388,7 +388,7 @@ impl PageBuilder {
 // ---------------------------------------------------------------------------
 
 /// Write n pages as a PDF-1.4 file with embedded Helvetica + Helvetica-Bold
-/// and an automatic "Seite X von Y" footer.
+/// and an automatic "Seite X from Y" footer.
 ///
 /// Typically called after `let pages = page_builder.finish();`.
 pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Vec<u8>, AppError> {
@@ -512,7 +512,7 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
 }
 
 fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize) {
-    let label = format!("Seite {} von {}", page_index + 1, page_total);
+    let label = format!("Seite {} from {}", page_index + 1, page_total);
     let op = text_operand(&label);
     // Centered in the footer.
     let x = (PAGE_WIDTH - approx_text_width(&label, 9)) / 2;
@@ -591,7 +591,7 @@ pub fn wrap_soft(text: &str, max_chars: usize) -> Vec<String> {
 
 /// German flowing-text wrap — also breaks long compounds at syllable points
 /// (prefix/suffix heuristic + vowel/consonant change) with a hyphen.
-pub fn wrap_de(text: &str, max_chars: usize) -> Vec<String> {
+pub fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
     let width = max_chars.clamp(12, 200);
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
@@ -665,7 +665,7 @@ fn collect_german_hyphen_points(word: &str) -> Vec<usize> {
     let mut set = std::collections::BTreeSet::new();
 
     const PREFIXES: &[&str] = &[
-        "be", "ge", "ver", "zer", "er", "emp", "ent", "auf", "aus", "ein", "über", "unter", "voll",
+        "be", "ge", "ver", "zer", "er", "emp", "ent", "auf", "aus", "ein", "über", "examination", "voll",
         "teil", "haus", "grund", "haupt", "neben", "zwischen",
     ];
     for p in PREFIXES {
@@ -766,7 +766,7 @@ fn pack_word_at_hyphen_points(word: &str, width: usize) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// ISO `YYYY-MM-DD` → DIN `DD.MM.YYYY`. Other inputs returned unchanged.
-pub fn format_date_de(iso: &str) -> String {
+pub fn format_date_dmy(iso: &str) -> String {
     let d = iso.trim();
     if d.len() >= 10 && d.as_bytes().get(4) == Some(&b'-') && d.as_bytes().get(7) == Some(&b'-') {
         return format!("{}.{}.{}", &d[8..10], &d[5..7], &d[0..4]);
@@ -775,11 +775,11 @@ pub fn format_date_de(iso: &str) -> String {
 }
 
 /// Cent value → "1.234,56 €" (DIN 5008 / German number format).
-pub fn format_eur_de(cents: i64) -> String {
+pub fn format_eur(cents: i64) -> String {
     let neg = cents < 0;
-    let v = cents.abs();
-    let euros = v / 100;
-    let frac = v % 100;
+    let version = cents.abs();
+    let euros = version / 100;
+    let frac = version % 100;
     let mut grouped = String::new();
     let s = euros.to_string();
     for (i, ch) in s.chars().rev().enumerate() {
@@ -847,29 +847,29 @@ mod tests {
     }
 
     #[test]
-    fn format_date_de_converts_iso() {
-        assert_eq!(format_date_de("2026-04-19"), "19.04.2026");
-        assert_eq!(format_date_de("invalid"), "invalid");
-        assert_eq!(format_date_de(""), "");
+    fn format_date_dmy_converts_iso() {
+        assert_eq!(format_date_dmy("2026-04-19"), "19.04.2026");
+        assert_eq!(format_date_dmy("invalid"), "invalid");
+        assert_eq!(format_date_dmy(""), "");
     }
 
     #[test]
-    fn format_eur_de_groups_thousands() {
-        assert_eq!(format_eur_de(0), "0,00 €");
-        assert_eq!(format_eur_de(1250), "12,50 €");
-        assert_eq!(format_eur_de(1234567), "12.345,67 €");
-        assert_eq!(format_eur_de(-100), "-1,00 €");
+    fn format_eur_groups_thousands() {
+        assert_eq!(format_eur(0), "0,00 €");
+        assert_eq!(format_eur(1250), "12,50 €");
+        assert_eq!(format_eur(1234567), "12.345,67 €");
+        assert_eq!(format_eur(-100), "-1,00 €");
     }
 
     #[test]
     fn wrap_soft_keeps_words_intact() {
-        let lines = wrap_soft("Hallo Welt Foo Bar", 10);
+        let lines = wrap_soft("Hello World Foo Bar", 10);
         assert!(lines.iter().all(|l| l.chars().count() <= 10));
     }
 
     #[test]
-    fn wrap_de_hyphenates_long_compounds() {
-        let lines = wrap_de("Versicherungsnummer Patientenkarte", 14);
+    fn wrap_text_hyphenates_long_compounds() {
+        let lines = wrap_text("Versicherungsnummer Patientenkarte", 14);
         assert!(lines.len() >= 2);
     }
 
@@ -896,6 +896,6 @@ mod tests {
         assert!(bytes.starts_with(b"%PDF-1.4"));
         assert!(bytes.ends_with(b"%%EOF\n"));
         let s = String::from_utf8_lossy(&bytes);
-        assert!(s.contains("Seite 1 von 1") || s.contains("(Seite"));
+        assert!(s.contains("Seite 1 from 1") || s.contains("(Seite"));
     }
 }

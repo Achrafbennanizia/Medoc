@@ -8,15 +8,15 @@ use medoc_e2e::harness::{
 };
 use medoc_e2e::port_client::{
     company_url_from_env, master_url_from_env, pair_replica_over_port, patient_insert_entry,
-    patient_update_entry, port_e2e_or_skip, praxis_ticket_insert_entry, replica_port_a_from_env,
-    replica_port_b_from_env, rezept_insert_entry, spawn_medoc_server, submit_pairing_request,
+    patient_update_entry, port_e2e_or_skip, practice_ticket_insert_entry, replica_port_a_from_env,
+    replica_port_b_from_env, prescription_insert_entry, spawn_medoc_server, submit_pairing_request,
     sync_pull_since, sync_push_entries, sync_push_raw, MedocServerProcess, PortE2eClient,
 };
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX;
 use medoc_sync::repo;
 
-const DEMO_SLUG: &str = "demo-praxis";
+const DEMO_SLUG: &str = "demo-practice";
 const DEMO_API_KEY: &str = "sk_demo_company_practice_key";
 
 /// Invoked by Docker orchestrator before starting `medoc-server`.
@@ -58,12 +58,12 @@ async fn port_master_jwt_login_and_me() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let (status, body) = client.json("GET", "/api/v1/me", None, Some(&jwt)).await;
     assert_eq!(status, 200);
-    assert_eq!(body["email"], "ahmed@praxis.de");
-    assert_eq!(body["rolle"], "ARZT");
+    assert_eq!(body["email"], "ahmed@practice.de");
+    assert_eq!(body["role"], "PHYSICIAN");
 }
 
 #[tokio::test]
@@ -73,7 +73,7 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let token_a = pair_replica_over_port(&client, &jwt, 11, "port-replica-a").await;
     let token_b = pair_replica_over_port(&client, &jwt, 12, "port-replica-b").await;
@@ -93,9 +93,9 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
     assert_eq!(push["accepted"], 1);
 
     let (status, patients) = client
-        .json("GET", "/api/v1/patienten", None, Some(&jwt))
+        .json("GET", "/api/v1/patients", None, Some(&jwt))
         .await;
-    assert_eq!(status, 200, "patienten list: {patients:?}");
+    assert_eq!(status, 200, "patients list: {patients:?}");
     let names: Vec<_> = patients
         .as_array()
         .expect("patient array")
@@ -120,7 +120,7 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
     assert!(
         master_entries
             .iter()
-            .any(|e| e["entityTable"] == "patient" || e["entityTable"] == "patientenakte"),
+            .any(|e| e["entityTable"] == "patient" || e["entityTable"] == "patient_chart"),
         "replica B should pull master outbox after seed: {master_entries:?}"
     );
 
@@ -138,7 +138,7 @@ async fn port_master_sync_status_and_signed_peers() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
     let token = pair_replica_over_port(&client, &jwt, 13, "port-replica-peers").await;
 
     let (status, sync_status) = client
@@ -186,7 +186,7 @@ async fn port_practice_proxy_company_summary_via_lan() {
     }
     harness::ensure_e2e_env();
     let lan = PortE2eClient::lan(&master_url_from_env());
-    let jwt = lan.login_arzt_totp("1234").await;
+    let jwt = lan.login_physician_totp("1234").await;
 
     let (status, body) = lan
         .json("GET", "/api/v1/company/summary", None, Some(&jwt))
@@ -207,7 +207,7 @@ async fn port_pairing_status_transitions_pending_to_accepted() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let (request_id, _) =
         submit_pairing_request(&client, 21, "port-status-replica", "Port Status Replica").await;
@@ -269,7 +269,7 @@ async fn port_push_spoofed_from_device_id_forbidden() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
     let token = pair_replica_over_port(&client, &jwt, 22, "port-real-replica").await;
 
     let spoofed = "port-spoof-replica";
@@ -291,7 +291,7 @@ async fn port_two_replicas_freshness_conflict_over_https() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let dev_a = "port-conflict-a";
     let dev_b = "port-conflict-b";
@@ -319,7 +319,7 @@ async fn port_two_replicas_freshness_conflict_over_https() {
     sync_push_entries(&client, &token_a, dev_a, &[update_a_newer]).await;
 
     let (status, patients) = client
-        .json("GET", "/api/v1/patienten", None, Some(&jwt))
+        .json("GET", "/api/v1/patients", None, Some(&jwt))
         .await;
     assert_eq!(status, 200);
     let winner = patients
@@ -339,7 +339,7 @@ async fn port_sync_engine_push_to_master_propagates_patient() {
     harness::ensure_e2e_env();
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_id = "port-engine-push-replica";
     let token = pair_replica_over_port(&client, &jwt, 25, device_id).await;
@@ -393,7 +393,7 @@ async fn port_sync_engine_push_to_master_propagates_patient() {
     assert_eq!(push.accepted, 1);
 
     let (status, patients) = client
-        .json("GET", "/api/v1/patienten", None, Some(&jwt))
+        .json("GET", "/api/v1/patients", None, Some(&jwt))
         .await;
     assert_eq!(status, 200);
     assert!(patients.as_array().is_some_and(|rows| rows
@@ -411,7 +411,7 @@ async fn port_sync_engine_pull_from_master_applies_to_replica_db() {
     harness::ensure_e2e_env();
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_id = "port-engine-pull-replica";
     let token = pair_replica_over_port(&client, &jwt, 26, device_id).await;
@@ -469,7 +469,7 @@ async fn port_revoked_replica_push_forbidden() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_id = "port-revoke-replica";
     let token = pair_replica_over_port(&client, &jwt, 27, device_id).await;
@@ -511,7 +511,7 @@ async fn port_mesh_sync_delivers_app_kv_to_peer_replica() {
 
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_a = "port-mesh-replica-a";
     let device_b = "port-mesh-replica-b";
@@ -620,7 +620,7 @@ async fn port_mesh_sync_delivers_app_kv_to_peer_replica() {
 }
 
 #[tokio::test]
-async fn port_sync_rezept_push_applies_on_master() {
+async fn port_sync_prescription_push_applies_on_master() {
     if port_e2e_or_skip() {
         return;
     }
@@ -629,34 +629,34 @@ async fn port_sync_rezept_push_applies_on_master() {
         .expect("MEDOC_MASTER_DATA_DIR required for tier-1 port test");
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
-    let device_id = "port-rezept-replica";
+    let device_id = "port-prescription-replica";
     let token = pair_replica_over_port(&client, &jwt, 30, device_id).await;
-    let rezept_id = "port-rezept-001";
+    let prescription_id = "port-prescription-001";
     let ts = "2026-06-02T12:00:00Z";
-    let entry = rezept_insert_entry(
+    let entry = prescription_insert_entry(
         device_id,
         1,
-        rezept_id,
+        prescription_id,
         "seed-pat-001",
-        "seed-arzt-001",
-        "Port E2E Rezept",
+        "seed-physician-001",
+        "Port E2E Prescription",
         ts,
     );
     sync_push_entries(&client, &token, device_id, &[entry]).await;
 
     let master_pool = open_headless_pool(std::path::Path::new(&master_data_dir)).await;
-    let med: Option<String> = sqlx::query_scalar("SELECT medikament FROM rezept WHERE id = ?1")
-        .bind(rezept_id)
+    let med: Option<String> = sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
+        .bind(prescription_id)
         .fetch_optional(&master_pool)
         .await
-        .expect("read rezept");
-    assert_eq!(med.as_deref(), Some("Port E2E Rezept"));
+        .expect("read prescription");
+    assert_eq!(med.as_deref(), Some("Port E2E Prescription"));
 }
 
 #[tokio::test]
-async fn port_sync_praxis_ticket_push_applies_on_master() {
+async fn port_sync_practice_ticket_push_applies_on_master() {
     if port_e2e_or_skip() {
         return;
     }
@@ -665,31 +665,31 @@ async fn port_sync_praxis_ticket_push_applies_on_master() {
         .expect("MEDOC_MASTER_DATA_DIR required for tier-1 port test");
     let master_url = master_url_from_env();
     let client = PortE2eClient::lan(&master_url);
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_id = "port-ticket-replica";
     let token = pair_replica_over_port(&client, &jwt, 31, device_id).await;
     let ticket_id = "port-ticket-001";
     let ts = "2026-06-02T12:30:00Z";
-    let entry = praxis_ticket_insert_entry(
+    let entry = practice_ticket_insert_entry(
         device_id,
         1,
         ticket_id,
         "seed-pat-001",
         "seed-rez-001",
-        "seed-arzt-001",
-        "Port E2E Praxis-Ticket",
+        "seed-physician-001",
+        "Port E2E Practice-Ticket",
         ts,
     );
     sync_push_entries(&client, &token, device_id, &[entry]).await;
 
     let master_pool = open_headless_pool(std::path::Path::new(&master_data_dir)).await;
-    let body: Option<String> = sqlx::query_scalar("SELECT body FROM praxis_ticket WHERE id = ?1")
+    let body: Option<String> = sqlx::query_scalar("SELECT body FROM practice_ticket WHERE id = ?1")
         .bind(ticket_id)
         .fetch_optional(&master_pool)
         .await
         .expect("read ticket");
-    assert_eq!(body.as_deref(), Some("Port E2E Praxis-Ticket"));
+    assert_eq!(body.as_deref(), Some("Port E2E Practice-Ticket"));
 }
 
 #[tokio::test]
@@ -699,7 +699,7 @@ async fn port_activation_token_patient_read_lists_over_https() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let device_id = "port-rbac-patient-read";
     let (request_id, _) = submit_pairing_request(&client, 32, device_id, device_id).await;
@@ -734,7 +734,7 @@ async fn port_activation_token_patient_read_lists_over_https() {
     let token = confirmed["activationToken"].as_str().expect("token");
 
     let (status, patients) = client
-        .json("GET", "/api/v1/patienten", None, Some(token))
+        .json("GET", "/api/v1/patients", None, Some(token))
         .await;
     assert_eq!(status, 200);
     assert!(patients.as_array().is_some_and(|a| !a.is_empty()));
@@ -747,12 +747,12 @@ async fn port_activation_token_without_patient_read_gets_403() {
     }
     harness::ensure_e2e_env();
     let client = PortE2eClient::lan(&master_url_from_env());
-    let jwt = client.login_arzt_totp("1234").await;
+    let jwt = client.login_physician_totp("1234").await;
 
     let token = pair_replica_over_port(&client, &jwt, 33, "port-rbac-no-read").await;
 
     let (status, _) = client
-        .json("GET", "/api/v1/patienten", None, Some(&token))
+        .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
     assert_eq!(status, 403);
 }

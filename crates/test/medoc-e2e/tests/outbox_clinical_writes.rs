@@ -1,23 +1,23 @@
-//! Outbox coverage for `behandlung` + `untersuchung` repo write paths.
+//! Outbox coverage for `treatment` + `examination` repo write paths.
 //!
 //! These two tables are in [`SYNCED_TABLES`](medoc_core::infrastructure::database::sync_outbox)
 //! but are not directly exercised by `sync_outbox_hooks_tests.rs` (which
-//! focuses on patient/termin/aufgabe/zahlung). This file closes the gap
+//! focuses on patient/appointment/task/payment). This file closes the gap
 //! end-to-end:
 //!
-//! - `akte_repo::create_behandlung` → 1 outbox row on `behandlung`.
-//! - `akte_repo::update_behandlung` → +1 row.
-//! - `akte_repo::delete_behandlung` → +1 row.
-//! - same lifecycle for `untersuchung`.
+//! - `chart_repo::create_treatment` → 1 outbox row on `treatment`.
+//! - `chart_repo::update_treatment` → +1 row.
+//! - `chart_repo::delete_treatment` → +1 row.
+//! - same lifecycle for `examination`.
 //! - `practice_desktop` mode must not append any rows.
 
 use chrono::NaiveDate;
-use medoc_core::domain::entities::behandlung::{
-    CreateBehandlung, CreateUntersuchung, UpdateBehandlung, UpdateUntersuchung,
+use medoc_core::domain::entities::treatment::{
+    CreateTreatment, CreateExamination, UpdateTreatment, UpdateExamination,
 };
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::enums::Geschlecht;
-use medoc_core::infrastructure::database::{akte_repo, app_kv_repo, connection, patient_repo};
+use medoc_core::domain::enums::Sex;
+use medoc_core::infrastructure::database::{chart_repo, app_kv_repo, connection, patient_repo};
 use sqlx::SqlitePool;
 
 const SERVERLESS_DEPLOYMENT_JSON: &str = r#"{"schemaVersion":1,"mode":"serverless_peer","role":"REPLICA","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E"}"#;
@@ -42,167 +42,167 @@ async fn outbox_count(pool: &SqlitePool, table: &str) -> i64 {
         .unwrap()
 }
 
-async fn seed_patient_with_akte(pool: &SqlitePool, name: &str) -> (String, String) {
+async fn seed_patient_with_chart(pool: &SqlitePool, name: &str) -> (String, String) {
     let p = patient_repo::create(
         pool,
         &CreatePatient {
             name: name.into(),
-            geburtsdatum: NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
-            geschlecht: Geschlecht::Maennlich,
-            versicherungsnummer: format!("V-{name}"),
-            telefon: None,
+            date_of_birth: NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+            sex: Sex::Male,
+            insurance_number: format!("V-{name}"),
+            phone: None,
             email: None,
-            adresse: None,
+            address: None,
         },
     )
     .await
     .expect("create patient");
-    let akte = akte_repo::find_akte_by_patient(pool, &p.id)
+    let chart = chart_repo::find_chart_by_patient(pool, &p.id)
         .await
-        .expect("akte query")
-        .expect("patientenakte auto-created on patient insert");
-    (p.id, akte.id)
+        .expect("chart query")
+        .expect("patient_chart auto-created on patient insert");
+    (p.id, chart.id)
 }
 
 #[tokio::test]
-async fn behandlung_lifecycle_emits_three_outbox_rows_in_serverless_peer() {
+async fn treatment_lifecycle_emits_three_outbox_rows_in_serverless_peer() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
-    let (_p_id, akte_id) = seed_patient_with_akte(&pool, "behandlung-alpha").await;
-    // Reset baseline AFTER seeding so we count only behandlung mutations.
-    let baseline_behandlung = outbox_count(&pool, "behandlung").await;
+    let (_p_id, chart_id) = seed_patient_with_chart(&pool, "treatment-alpha").await;
+    // Reset baseline AFTER seeding so we count only treatment mutations.
+    let baseline_treatment = outbox_count(&pool, "treatment").await;
 
-    let b = akte_repo::create_behandlung(
+    let b = chart_repo::create_treatment(
         &pool,
-        &CreateBehandlung {
-            akte_id: akte_id.clone(),
-            art: "FÜLLUNG".into(),
-            beschreibung: Some("Füllung 36".into()),
-            zaehne: Some("36".into()),
+        &CreateTreatment {
+            chart_id: chart_id.clone(),
+            kind: "FÜLLUNG".into(),
+            description: Some("Füllung 36".into()),
+            teeth: Some("36".into()),
             material: None,
-            notizen: None,
-            kategorie: None,
-            leistungsname: None,
-            behandlungsnummer: None,
-            sitzung: Some(1),
-            behandlung_status: Some("DURCHGEFUEHRT".into()),
-            gesamtkosten: Some(120.0),
-            termin_erforderlich: Some(false),
-            behandlung_datum: Some("2099-01-15".into()),
+            notes: None,
+            category: None,
+            service_name: None,
+            treatment_number: None,
+            session_number: Some(1),
+            treatment_status: Some("COMPLETED".into()),
+            total_cost: Some(120.0),
+            appointment_required: Some(false),
+            treatment_date: Some("2099-01-15".into()),
         },
     )
     .await
-    .expect("create behandlung");
+    .expect("create treatment");
 
-    akte_repo::update_behandlung(
+    chart_repo::update_treatment(
         &pool,
-        &UpdateBehandlung {
+        &UpdateTreatment {
             id: b.id.clone(),
-            art: "FÜLLUNG".into(),
-            beschreibung: Some("Füllung 36 (revidiert)".into()),
-            zaehne: Some("36".into()),
+            kind: "FÜLLUNG".into(),
+            description: Some("Füllung 36 (revidiert)".into()),
+            teeth: Some("36".into()),
             material: Some("Composite".into()),
-            notizen: None,
-            kategorie: None,
-            leistungsname: None,
-            behandlungsnummer: None,
-            sitzung: Some(1),
-            behandlung_status: Some("DURCHGEFUEHRT".into()),
-            gesamtkosten: Some(150.0),
-            termin_erforderlich: Some(false),
-            behandlung_datum: Some("2099-01-15".into()),
+            notes: None,
+            category: None,
+            service_name: None,
+            treatment_number: None,
+            session_number: Some(1),
+            treatment_status: Some("COMPLETED".into()),
+            total_cost: Some(150.0),
+            appointment_required: Some(false),
+            treatment_date: Some("2099-01-15".into()),
         },
     )
     .await
-    .expect("update behandlung");
+    .expect("update treatment");
 
-    akte_repo::delete_behandlung(&pool, &b.id)
+    chart_repo::delete_treatment(&pool, &b.id)
         .await
-        .expect("delete behandlung");
+        .expect("delete treatment");
 
-    let after = outbox_count(&pool, "behandlung").await;
-    assert_eq!(after - baseline_behandlung, 3, "insert + update + delete");
+    let after = outbox_count(&pool, "treatment").await;
+    assert_eq!(after - baseline_treatment, 3, "insert + update + delete");
 }
 
 #[tokio::test]
-async fn untersuchung_lifecycle_emits_three_outbox_rows_in_serverless_peer() {
+async fn examination_lifecycle_emits_three_outbox_rows_in_serverless_peer() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
-    let (_p_id, akte_id) = seed_patient_with_akte(&pool, "untersuchung-beta").await;
-    let baseline = outbox_count(&pool, "untersuchung").await;
+    let (_p_id, chart_id) = seed_patient_with_chart(&pool, "examination-beta").await;
+    let baseline = outbox_count(&pool, "examination").await;
 
-    let u = akte_repo::create_untersuchung(
+    let u = chart_repo::create_examination(
         &pool,
-        &CreateUntersuchung {
-            akte_id: akte_id.clone(),
-            beschwerden: Some("Schmerz".into()),
-            ergebnisse: None,
-            diagnose: Some("Karies".into()),
-            untersuchungsnummer: None,
-            kategorie: None,
-            leistungsname: None,
-            gesamtkosten: Some(75.0),
+        &CreateExamination {
+            chart_id: chart_id.clone(),
+            chief_complaint: Some("Schmerz".into()),
+            results: None,
+            diagnosis: Some("Karies".into()),
+            examination_number: None,
+            category: None,
+            service_name: None,
+            total_cost: Some(75.0),
         },
     )
     .await
-    .expect("create untersuchung");
+    .expect("create examination");
 
-    akte_repo::update_untersuchung(
+    chart_repo::update_examination(
         &pool,
-        &UpdateUntersuchung {
+        &UpdateExamination {
             id: u.id.clone(),
-            beschwerden: Some("Schmerz".into()),
-            ergebnisse: Some("PSI 2".into()),
-            diagnose: Some("Karies tief".into()),
-            kategorie: None,
-            leistungsname: None,
-            gesamtkosten: Some(80.0),
+            chief_complaint: Some("Schmerz".into()),
+            results: Some("PSI 2".into()),
+            diagnosis: Some("Karies tief".into()),
+            category: None,
+            service_name: None,
+            total_cost: Some(80.0),
         },
     )
     .await
-    .expect("update untersuchung");
+    .expect("update examination");
 
-    akte_repo::delete_untersuchung(&pool, &u.id)
+    chart_repo::delete_examination(&pool, &u.id)
         .await
-        .expect("delete untersuchung");
+        .expect("delete examination");
 
-    let after = outbox_count(&pool, "untersuchung").await;
+    let after = outbox_count(&pool, "examination").await;
     assert_eq!(after - baseline, 3, "insert + update + delete");
 }
 
 #[tokio::test]
-async fn behandlung_writes_in_practice_desktop_mode_record_no_outbox() {
+async fn treatment_writes_in_practice_desktop_mode_record_no_outbox() {
     let pool = fresh_pool().await;
     // No `enable_serverless` — default is practice_desktop.
 
-    let (_p, akte_id) = seed_patient_with_akte(&pool, "behandlung-gamma").await;
+    let (_p, chart_id) = seed_patient_with_chart(&pool, "treatment-gamma").await;
 
-    let b = akte_repo::create_behandlung(
+    let b = chart_repo::create_treatment(
         &pool,
-        &CreateBehandlung {
-            akte_id,
-            art: "ANAMNESE".into(),
-            beschreibung: None,
-            zaehne: None,
+        &CreateTreatment {
+            chart_id,
+            kind: "ANAMNESE".into(),
+            description: None,
+            teeth: None,
             material: None,
-            notizen: None,
-            kategorie: None,
-            leistungsname: None,
-            behandlungsnummer: None,
-            sitzung: None,
-            behandlung_status: None,
-            gesamtkosten: None,
-            termin_erforderlich: None,
-            behandlung_datum: None,
+            notes: None,
+            category: None,
+            service_name: None,
+            treatment_number: None,
+            session_number: None,
+            treatment_status: None,
+            total_cost: None,
+            appointment_required: None,
+            treatment_date: None,
         },
     )
     .await
-    .expect("create behandlung");
+    .expect("create treatment");
 
     let _ = b.id;
-    assert_eq!(outbox_count(&pool, "behandlung").await, 0);
+    assert_eq!(outbox_count(&pool, "treatment").await, 0);
     assert_eq!(outbox_count(&pool, "patient").await, 0);
-    assert_eq!(outbox_count(&pool, "patientenakte").await, 0);
+    assert_eq!(outbox_count(&pool, "patient_chart").await, 0);
 }

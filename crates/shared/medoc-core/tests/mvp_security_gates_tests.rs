@@ -3,7 +3,7 @@
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::test_memory_pool;
-use medoc_core::infrastructure::database::personal_repo;
+use medoc_core::infrastructure::database::staff_repo;
 use medoc_core::mvp_security::{self, QuotaErrorMessages, StaffQuotaLimits};
 
 #[test]
@@ -12,9 +12,9 @@ fn staff_quota_limits_matches_constants() {
     assert_eq!(
         limits,
         StaffQuotaLimits {
-            max_arzt: mvp_security::MAX_ARZT,
-            max_rezeption: mvp_security::MAX_REZEPTION,
-            max_total: mvp_security::MAX_TOTAL_PERSONAL,
+            max_physician: mvp_security::MAX_PHYSICIAN,
+            max_reception: mvp_security::MAX_RECEPTION,
+            max_total: mvp_security::MAX_TOTAL_STAFF,
         }
     );
 }
@@ -35,8 +35,8 @@ fn staff_quota_trigger_ddl_uses_limits() {
 #[test]
 fn staff_quota_trigger_ddl_custom_limits() {
     let limits = StaffQuotaLimits {
-        max_arzt: 2,
-        max_rezeption: 8,
+        max_physician: 2,
+        max_reception: 8,
         max_total: 10,
     };
     let (insert, update) = mvp_security::staff_quota_trigger_ddl(limits);
@@ -52,39 +52,39 @@ fn staff_quota_trigger_ddl_custom_limits() {
 #[test]
 fn quota_error_messages_match_limits() {
     let limits = StaffQuotaLimits {
-        max_arzt: 2,
-        max_rezeption: 8,
+        max_physician: 2,
+        max_reception: 8,
         max_total: 10,
     };
     let msgs = mvp_security::quota_error_messages(limits);
     assert_eq!(msgs.max_total, "Maximal 10 Benutzer erlaubt");
-    assert!(msgs.max_arzt.contains('2'));
-    assert!(msgs.max_rezeption.contains('8'));
+    assert!(msgs.max_physician.contains('2'));
+    assert!(msgs.max_reception.contains('8'));
 }
 
 #[test]
 fn sql_raise_message_literal_always_escapes_apostrophes() {
     assert_eq!(mvp_security::sql_raise_message_literal("plain"), "'plain'");
     assert_eq!(
-        mvp_security::sql_raise_message_literal("Arzt's Konto"),
-        "'Arzt''s Konto'"
+        mvp_security::sql_raise_message_literal("Physician's Konto"),
+        "'Physician''s Konto'"
     );
 }
 
 #[test]
 fn staff_quota_trigger_ddl_apostrophe_in_raise_message() {
     let limits = StaffQuotaLimits {
-        max_arzt: 1,
-        max_rezeption: 4,
+        max_physician: 1,
+        max_reception: 4,
         max_total: 5,
     };
     let msgs = QuotaErrorMessages {
         max_total: "Maximal 5 Benutzer erlaubt".into(),
-        max_arzt: "Arzt's Konto ist belegt".into(),
-        max_rezeption: "Maximal 4 Rezeptions-Konten erlaubt".into(),
+        max_physician: "Physician's Konto ist belegt".into(),
+        max_reception: "Maximal 4 Rezeptions-Konten erlaubt".into(),
     };
     let (insert, update) = mvp_security::staff_quota_trigger_ddl_with_messages(limits, msgs);
-    let escaped = "RAISE(ABORT, 'Arzt''s Konto ist belegt')";
+    let escaped = "RAISE(ABORT, 'Physician''s Konto ist belegt')";
     assert!(
         insert.contains(escaped),
         "insert DDL must contain escaped apostrophe: {insert}"
@@ -94,7 +94,7 @@ fn staff_quota_trigger_ddl_apostrophe_in_raise_message() {
         "update DDL must contain escaped apostrophe: {update}"
     );
     assert!(
-        !insert.contains("RAISE(ABORT, 'Arzt's Konto"),
+        !insert.contains("RAISE(ABORT, 'Physician's Konto"),
         "unescaped apostrophe would break SQL: {insert}"
     );
 }
@@ -106,8 +106,8 @@ fn app_layer_and_trigger_ddl_quota_messages_match() {
     let (insert, update) = mvp_security::staff_quota_trigger_ddl(limits);
     for (label, msg) in [
         ("max_total", &msgs.max_total),
-        ("max_arzt", &msgs.max_arzt),
-        ("max_rezeption", &msgs.max_rezeption),
+        ("max_physician", &msgs.max_physician),
+        ("max_reception", &msgs.max_reception),
     ] {
         let literal = mvp_security::sql_raise_message_literal(msg);
         assert!(
@@ -139,16 +139,16 @@ fn require_totp_enabled_rejects_when_off() {
 async fn enforce_staff_quota_for_create_rejects_sixth_user() {
     let pool = test_memory_pool().await.expect("pool");
     sqlx::query(
-        "CREATE TABLE personal (
+        "CREATE TABLE staff (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT NOT NULL UNIQUE,
-            passwort_hash TEXT NOT NULL,
-            rolle TEXT NOT NULL,
-            taetigkeitsbereich TEXT,
-            fachrichtung TEXT,
-            telefon TEXT,
-            verfuegbar INTEGER NOT NULL DEFAULT 1,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL,
+            activity_area TEXT,
+            specialty TEXT,
+            phone TEXT,
+            available INTEGER NOT NULL DEFAULT 1,
             totp_secret TEXT,
             totp_enrolled_at TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -157,7 +157,7 @@ async fn enforce_staff_quota_for_create_rejects_sixth_user() {
     )
     .execute(&pool)
     .await
-    .expect("personal table");
+    .expect("staff table");
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS app_kv (
             key TEXT PRIMARY KEY,
@@ -170,40 +170,40 @@ async fn enforce_staff_quota_for_create_rejects_sixth_user() {
     .expect("app_kv");
 
     let hash = crypto::hash_password("TestPass42").unwrap();
-    for (id, rolle) in [
-        ("a1", "ARZT"),
-        ("r1", "REZEPTION"),
-        ("r2", "REZEPTION"),
-        ("r3", "REZEPTION"),
-        ("r4", "REZEPTION"),
+    for (id, role) in [
+        ("a1", "PHYSICIAN"),
+        ("r1", "RECEPTION"),
+        ("r2", "RECEPTION"),
+        ("r3", "RECEPTION"),
+        ("r4", "RECEPTION"),
     ] {
         sqlx::query(
-            "INSERT INTO personal (id, name, email, passwort_hash, rolle)
+            "INSERT INTO staff (id, name, email, password_hash, role)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         )
         .bind(id)
         .bind(format!("User {id}"))
-        .bind(format!("{id}@praxis.de"))
+        .bind(format!("{id}@practice.de"))
         .bind(&hash)
-        .bind(rolle)
+        .bind(role)
         .execute(&pool)
         .await
         .unwrap();
     }
 
-    use medoc_core::domain::entities::personal::CreatePersonal;
-    use medoc_core::domain::enums::Rolle;
+    use medoc_core::domain::entities::staff::CreateStaff;
+    use medoc_core::domain::enums::Role;
 
-    let data = CreatePersonal {
+    let data = CreateStaff {
         name: "Sixth".into(),
-        email: "sixth@praxis.de".into(),
-        passwort: "SecurePass42".into(),
-        rolle: Rolle::Rezeption,
-        taetigkeitsbereich: None,
-        fachrichtung: None,
-        telefon: None,
+        email: "sixth@practice.de".into(),
+        password: "SecurePass42".into(),
+        role: Role::Reception,
+        activity_area: None,
+        specialty: None,
+        phone: None,
     };
-    let err = personal_repo::create_with_quota(&pool, &data, &hash)
+    let err = staff_repo::create_with_quota(&pool, &data, &hash)
         .await
         .expect_err("sixth user via atomic path");
     assert!(matches!(err, AppError::Validation(_)));

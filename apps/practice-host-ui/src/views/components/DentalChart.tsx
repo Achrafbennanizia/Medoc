@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useT, useTParams } from "@/lib/i18n";
-import type { Zahnbefund } from "@/models/types";
+import type { DentalFinding } from "@/models/types";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
@@ -10,7 +10,7 @@ import {
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
     type DentalStatusKey,
-    befundToStatusKey,
+    findingToStatusKey,
     dentalStatusLabel,
     dentalToothType,
 } from "@/lib/dental";
@@ -21,8 +21,8 @@ const LOWER_R = DENTAL_LOWER_R;
 const LOWER_L = DENTAL_LOWER_L;
 
 type DentalChartProps = {
-    befunde: Zahnbefund[];
-    /** Clinical: paint status chips + write befunde via onApply. Picker: only select tooth for forms. */
+    findings: DentalFinding[];
+    /** Clinical: paint status chips + write findings via onApply. Picker: only select tooth for forms. */
     mode?: "clinical" | "picker";
     /** Picker: currently selected FDI tooth (e.g. "11"). */
     selectedTooth?: string | null;
@@ -37,7 +37,7 @@ type DentalChartProps = {
 };
 
 export function DentalChart({
-    befunde,
+    findings,
     mode = "clinical",
     selectedTooth = null,
     onToothSelect,
@@ -52,14 +52,14 @@ export function DentalChart({
     const [lastTouched, setLastTouched] = useState<string | null>(null);
     const map = useMemo(() => {
         const m = new Map<number, string>();
-        befunde.forEach((b) => m.set(b.zahn_nummer, b.befund));
+        findings.forEach((b) => m.set(b.tooth_number, b.finding));
         return m;
-    }, [befunde]);
+    }, [findings]);
 
     const renderTooth = (n: string) => {
         const type = dentalToothType(n);
         const shape = DENTAL_TOOTH_SHAPES[type];
-        const stateKey = befundToStatusKey(map.get(Number(n)));
+        const stateKey = findingToStatusKey(map.get(Number(n)));
         const state = DENTAL_STATES[stateKey];
         const isSel = mode === "picker" && selectedTooth === n;
         return (

@@ -1,3 +1,3 @@
-pub mod praxis_aufgabe;
-pub mod praxis_ticket;
-pub mod termin;
+pub mod practice_task;
+pub mod practice_ticket;
+pub mod appointment;

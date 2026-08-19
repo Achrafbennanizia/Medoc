@@ -1,4 +1,4 @@
-//! **Legacy flat path** — canonical: `super::repos::praxis::in_app_notification`.
+//! **Legacy flat path** — canonical: `super::repos::practice::in_app_notification`.
 //!
 //! Pre-R5 wiring (commented out — SQLx impl moved under `repos/`):
 //!
@@ -6,4 +6,4 @@
 //! // pub async fn create(pool: &SqlitePool, ...) -> Result<...> { ... }
 //! ```
 
-pub use super::repos::praxis::in_app_notification::*;
+pub use super::repos::practice::in_app_notification::*;

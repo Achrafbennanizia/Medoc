@@ -65,7 +65,7 @@ async fn company_rejects_any_origin() {
         .oneshot(
             axum::http::Request::builder()
                 .uri("/health")
-                .header(header::ORIGIN, "https://praxis.example")
+                .header(header::ORIGIN, "https://practice.example")
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )

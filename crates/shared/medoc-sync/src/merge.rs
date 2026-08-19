@@ -199,8 +199,8 @@ async fn load_local_updated_at(
     Ok(raw.and_then(|s| parse_ts_str(&s)))
 }
 
-fn parse_ts(v: &serde_json::Value) -> Option<chrono::DateTime<chrono::FixedOffset>> {
-    v.as_str().and_then(parse_ts_str)
+fn parse_ts(version: &serde_json::Value) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    version.as_str().and_then(parse_ts_str)
 }
 
 /// Accepts RFC 3339 (preferred) and SQLite's `YYYY-MM-DD HH:MM:SS[.fff]`
@@ -240,7 +240,7 @@ async fn apply_app_kv(
         .map(json_to_sql_literal)
         .transpose()?
         .unwrap_or_default();
-    let row_key = obj.get("key").and_then(|v| v.as_str()).unwrap_or(key);
+    let row_key = obj.get("key").and_then(|version| version.as_str()).unwrap_or(key);
     sqlx::query("INSERT OR REPLACE INTO app_kv (key, value) VALUES (?1, ?2)")
         .bind(row_key)
         .bind(value)
@@ -277,12 +277,12 @@ async fn insert_from_json(
     let table = sanitize_table(table)?;
     let mut cols = vec!["id".to_string()];
     let mut binds: Vec<String> = vec![id.to_string()];
-    for (k, v) in obj {
+    for (k, version) in obj {
         if k == "id" {
             continue;
         }
         cols.push(k.clone());
-        binds.push(json_to_sql_literal(v)?);
+        binds.push(json_to_sql_literal(version)?);
     }
     let placeholders: Vec<String> = (1..=binds.len()).map(|i| format!("?{i}")).collect();
     let sql = format!(
@@ -308,12 +308,12 @@ async fn update_from_json(
     let mut sets = Vec::new();
     let mut binds = Vec::new();
     let mut idx = 1;
-    for (k, v) in obj {
+    for (k, version) in obj {
         if k == "id" {
             continue;
         }
         sets.push(format!("{k} = ?{idx}"));
-        binds.push(json_to_sql_literal(v)?);
+        binds.push(json_to_sql_literal(version)?);
         idx += 1;
     }
     if sets.is_empty() {
@@ -332,20 +332,20 @@ async fn update_from_json(
 fn sanitize_table(table: &str) -> Result<&str, AppError> {
     const ALLOWED: &[&str] = &[
         "patient",
-        "patientenakte",
-        "termin",
-        "behandlung",
-        "untersuchung",
-        "zahlung",
+        "patient_chart",
+        "appointment",
+        "treatment",
+        "examination",
+        "payment",
         "app_kv",
-        "praxis_aufgabe",
-        "anamnesebogen",
-        "zahnbefund",
-        "rezept",
-        "attest",
-        "leistung",
+        "practice_task",
+        "anamnesis_form",
+        "dental_finding",
+        "prescription",
+        "certificate",
+        "service_item",
         "in_app_notification",
-        "praxis_ticket",
+        "practice_ticket",
     ];
     if ALLOWED.contains(&table) {
         Ok(table)
@@ -356,8 +356,8 @@ fn sanitize_table(table: &str) -> Result<&str, AppError> {
     }
 }
 
-fn json_to_sql_literal(v: &serde_json::Value) -> Result<String, AppError> {
-    match v {
+fn json_to_sql_literal(version: &serde_json::Value) -> Result<String, AppError> {
+    match version {
         serde_json::Value::Null => Ok(String::new()),
         serde_json::Value::Bool(b) => Ok(if *b { "1".into() } else { "0".into() }),
         serde_json::Value::Number(n) => Ok(n.to_string()),
@@ -372,20 +372,20 @@ mod tests {
 
     #[test]
     fn allow_list_rejects_unknown_tables() {
-        assert!(sanitize_table("personal").is_err());
+        assert!(sanitize_table("staff").is_err());
         assert!(sanitize_table("patient").is_ok());
     }
 
     #[test]
     fn tier1_tables_are_allow_listed() {
         for table in [
-            "anamnesebogen",
-            "zahnbefund",
-            "rezept",
-            "attest",
-            "leistung",
+            "anamnesis_form",
+            "dental_finding",
+            "prescription",
+            "certificate",
+            "service_item",
             "in_app_notification",
-            "praxis_ticket",
+            "practice_ticket",
         ] {
             assert!(sanitize_table(table).is_ok(), "{table}");
         }

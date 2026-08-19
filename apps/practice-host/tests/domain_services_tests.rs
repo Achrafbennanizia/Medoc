@@ -1,64 +1,64 @@
 //! Domain services (Phase 3.2): konflikt, pricing, workflow_transitions.
 
-use medoc_lib::domain::services::{device_session_risk, konflikt, pricing, workflow_transitions};
+use medoc_lib::domain::services::{device_session_risk, conflict, pricing, workflow_transitions};
 use medoc_lib::error::AppError;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
 #[test]
-fn uhrzeit_to_minutes_parses_hh_mm() {
-    assert_eq!(konflikt::uhrzeit_to_minutes("09:30"), 9 * 60 + 30);
-    assert_eq!(konflikt::uhrzeit_to_minutes("09:30:00"), 9 * 60 + 30);
+fn time_to_minutes_parses_hh_mm() {
+    assert_eq!(conflict::time_to_minutes("09:30"), 9 * 60 + 30);
+    assert_eq!(conflict::time_to_minutes("09:30:00"), 9 * 60 + 30);
 }
 
 #[tokio::test]
-async fn arzt_slot_conflict_detects_duplicate() {
+async fn physician_slot_conflict_detects_duplicate() {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
 
-    let arzt = "seed-arzt-001";
-    let datum = "2030-06-01";
-    let uhrzeit = "10:00";
+    let physician = "seed-physician-001";
+    let date = "2030-06-01";
+    let time = "10:00";
 
     sqlx::query(
-        "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer)
-         VALUES ('t-conflict-pat', 'Konflikt Test', '1990-01-01', 'MAENNLICH', 'V-KONFLIKT-1')",
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number)
+         VALUES ('t-conflict-pat', 'Konflikt Test', '1990-01-01', 'MALE', 'V-KONFLIKT-1')",
     )
     .execute(&pool)
     .await
     .expect("insert patient");
 
     sqlx::query(
-        "INSERT INTO termin (id, datum, uhrzeit, art, patient_id, arzt_id)
-         VALUES ('t-conflict-a', ?1, ?2, 'KONTROLLE', 't-conflict-pat', ?3)",
+        "INSERT INTO appointment (id, date, time, kind, patient_id, physician_id)
+         VALUES ('t-conflict-a', ?1, ?2, 'CHECKUP', 't-conflict-pat', ?3)",
     )
-    .bind(datum)
-    .bind(uhrzeit)
-    .bind(arzt)
+    .bind(date)
+    .bind(time)
+    .bind(physician)
     .execute(&pool)
     .await
-    .expect("insert termin");
+    .expect("insert appointment");
 
-    let q = konflikt::ArztSlotConflictQuery {
-        datum,
-        uhrzeit,
-        arzt_id: arzt,
-        exclude_termin_id: None,
+    let q = conflict::PhysicianSlotConflictQuery {
+        date,
+        time,
+        physician_id: physician,
+        exclude_appointment_id: None,
     };
     assert!(
-        konflikt::has_arzt_slot_conflict(&pool, q)
+        conflict::has_physician_slot_conflict(&pool, q)
             .await
             .expect("query"),
         "duplicate slot should conflict"
     );
 
-    let q2 = konflikt::ArztSlotConflictQuery {
-        datum,
-        uhrzeit,
-        arzt_id: arzt,
-        exclude_termin_id: Some("t-conflict-a"),
+    let q2 = conflict::PhysicianSlotConflictQuery {
+        date,
+        time,
+        physician_id: physician,
+        exclude_appointment_id: Some("t-conflict-a"),
     };
     assert!(
-        !konflikt::has_arzt_slot_conflict(&pool, q2)
+        !conflict::has_physician_slot_conflict(&pool, q2)
             .await
             .expect("query exclude"),
         "same row excluded → no conflict"
@@ -71,119 +71,119 @@ fn pricing_round_trip_and_release() {
     assert_eq!(pricing::money_to_invoice_cents(10.0), 1000);
     assert_eq!(pricing::money_to_invoice_cents(0.01), 1);
     assert!(pricing::is_released_for_billing(
-        Some("arzt-1"),
+        Some("physician-1"),
         Some("2026-01-01")
     ));
-    assert!(!pricing::is_released_for_billing(Some("arzt-1"), None));
-    assert!(pricing::behandlung_has_billable_leistung(
+    assert!(!pricing::is_released_for_billing(Some("physician-1"), None));
+    assert!(pricing::treatment_has_billable_service_item(
         Some("Füllung"),
         None
     ));
-    assert!(pricing::behandlung_has_billable_leistung(None, Some(42.0)));
-    assert!(!pricing::behandlung_has_billable_leistung(None, None));
-    assert!(!pricing::behandlung_has_billable_leistung(
+    assert!(pricing::treatment_has_billable_service_item(None, Some(42.0)));
+    assert!(!pricing::treatment_has_billable_service_item(None, None));
+    assert!(!pricing::treatment_has_billable_service_item(
         Some("  "),
         Some(0.0)
     ));
     assert_eq!(
-        pricing::invoice_amount_cents_behandlung(Some(50.0), 0.0),
+        pricing::invoice_amount_cents_treatment(Some(50.0), 0.0),
         5000
     );
-    assert!(pricing::is_valid_praxis_digit_id("123 456 789"));
-    assert!(!pricing::is_valid_praxis_digit_id("12345"));
+    assert!(pricing::is_valid_practice_digit_id("123 456 789"));
+    assert!(!pricing::is_valid_practice_digit_id("12345"));
 }
 
 #[test]
-fn workflow_termin_transitions() {
-    assert!(workflow_transitions::termin_status_transition("GEPLANT", "BESTAETIGT").is_ok());
-    assert!(workflow_transitions::termin_status_transition("DURCHGEFUEHRT", "GEPLANT").is_err());
+fn workflow_appointment_transitions() {
+    assert!(workflow_transitions::appointment_status_transition("PLANNED", "CONFIRMED").is_ok());
+    assert!(workflow_transitions::appointment_status_transition("COMPLETED", "PLANNED").is_err());
 }
 
 #[test]
-fn workflow_patientenakte_validate() {
-    assert!(workflow_transitions::patientenakte_validate_transition("ENTWURF").is_ok());
-    assert!(workflow_transitions::patientenakte_validate_transition("VALIDIERT").is_err());
+fn workflow_patient_chart_validate() {
+    assert!(workflow_transitions::patient_chart_validate_transition("DRAFT").is_ok());
+    assert!(workflow_transitions::patient_chart_validate_transition("VALIDATED").is_err());
 }
 
 #[test]
-fn workflow_patientenakte_forward_review() {
-    assert!(workflow_transitions::patientenakte_forward_review_transition("ENTWURF").is_ok());
-    assert!(workflow_transitions::patientenakte_forward_review_transition("VALIDIERT").is_ok());
-    assert!(workflow_transitions::patientenakte_forward_review_transition("READONLY").is_err());
+fn workflow_patient_chart_forward_review() {
+    assert!(workflow_transitions::patient_chart_forward_review_transition("DRAFT").is_ok());
+    assert!(workflow_transitions::patient_chart_forward_review_transition("VALIDATED").is_ok());
+    assert!(workflow_transitions::patient_chart_forward_review_transition("READONLY").is_err());
 }
 
 #[test]
-fn workflow_praxis_aufgabe_transitions() {
+fn workflow_practice_task_transitions() {
     use medoc_lib::application::rbac::Role;
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "OFFEN",
-        "IN_BEARBEITUNG",
-        Role::Rezeption,
-        Some("REZEPTION"),
+    assert!(workflow_transitions::practice_task_status_transition(
+        "OPEN",
+        "IN_PROGRESS",
+        Role::Reception,
+        Some("RECEPTION"),
         None,
-        "seed-arzt-001",
+        "seed-physician-001",
         "seed-rez-001",
         false,
         false,
     )
     .is_ok());
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "ERLEDIGT_REZEPTION",
-        "VALIDIERT",
-        Role::Arzt,
-        Some("REZEPTION"),
+    assert!(workflow_transitions::practice_task_status_transition(
+        "DONE_RECEPTION",
+        "VALIDATED",
+        Role::Physician,
+        Some("RECEPTION"),
         None,
-        "seed-arzt-001",
-        "seed-arzt-001",
+        "seed-physician-001",
+        "seed-physician-001",
         false,
         false,
     )
     .is_ok());
     // Creator who also fulfilled (named assignee) may still validate.
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "ERLEDIGT_REZEPTION",
-        "VALIDIERT",
-        Role::Arzt,
+    assert!(workflow_transitions::practice_task_status_transition(
+        "DONE_RECEPTION",
+        "VALIDATED",
+        Role::Physician,
         None,
-        Some("seed-arzt-001"),
-        "seed-arzt-001",
-        "seed-arzt-001",
+        Some("seed-physician-001"),
+        "seed-physician-001",
+        "seed-physician-001",
         false,
         false,
     )
     .is_ok());
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "VALIDIERT",
-        "OFFEN",
-        Role::Arzt,
-        Some("REZEPTION"),
+    assert!(workflow_transitions::practice_task_status_transition(
+        "VALIDATED",
+        "OPEN",
+        Role::Physician,
+        Some("RECEPTION"),
         None,
-        "seed-arzt-001",
-        "seed-arzt-001",
+        "seed-physician-001",
+        "seed-physician-001",
         false,
         false,
     )
     .is_err());
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "OFFEN",
-        "VALIDIERT",
-        Role::Rezeption,
-        Some("REZEPTION"),
+    assert!(workflow_transitions::practice_task_status_transition(
+        "OPEN",
+        "VALIDATED",
+        Role::Reception,
+        Some("RECEPTION"),
         None,
-        "seed-arzt-001",
+        "seed-physician-001",
         "seed-rez-999",
         true,
         false,
     )
     .is_err());
-    assert!(workflow_transitions::praxis_aufgabe_status_transition(
-        "OFFEN",
-        "VALIDIERT",
-        Role::Arzt,
-        Some("REZEPTION"),
+    assert!(workflow_transitions::practice_task_status_transition(
+        "OPEN",
+        "VALIDATED",
+        Role::Physician,
+        Some("RECEPTION"),
         None,
-        "seed-arzt-001",
-        "seed-arzt-001",
+        "seed-physician-001",
+        "seed-physician-001",
         false,
         true,
     )
@@ -191,19 +191,19 @@ fn workflow_praxis_aufgabe_transitions() {
 }
 
 #[test]
-fn workflow_bestellung_and_ticket() {
-    assert!(workflow_transitions::bestellung_status_transition("OFFEN", "UNTERWEGS").is_ok());
-    assert!(workflow_transitions::bestellung_status_transition("GELIEFERT", "OFFEN").is_err());
+fn workflow_purchase_order_and_ticket() {
+    assert!(workflow_transitions::purchase_order_status_transition("OPEN", "IN_TRANSIT").is_ok());
+    assert!(workflow_transitions::purchase_order_status_transition("DELIVERED", "OPEN").is_err());
     assert!(
-        workflow_transitions::praxis_ticket_status_transition("OFFEN", "IN_BEARBEITUNG").is_ok()
+        workflow_transitions::practice_ticket_status_transition("OPEN", "IN_PROGRESS").is_ok()
     );
-    assert!(workflow_transitions::praxis_ticket_status_transition("ERLEDIGT", "OFFEN").is_err());
+    assert!(workflow_transitions::practice_ticket_status_transition("DONE", "OPEN").is_err());
 }
 
 #[test]
 fn pricing_require_release_maps_to_validation() {
     let err =
-        pricing::require_released_for_billing(None, None, "error.entity.behandlung").expect_err("must fail");
+        pricing::require_released_for_billing(None, None, "error.entity.treatment").expect_err("must fail");
     assert!(matches!(err, AppError::Validation(_)));
 }
 

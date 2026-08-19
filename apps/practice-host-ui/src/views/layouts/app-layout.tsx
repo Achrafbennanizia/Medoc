@@ -4,19 +4,19 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "@/systems/practice-host/controllers/auth.controller";
-import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { breakGlassActivate } from "@/systems/practice-host/controllers/break-glass.controller";
 import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
-import { countAktenZuValidieren } from "@/systems/practice-host/controllers/akte-workflow.controller";
-import { countOpenPraxisAufgabenForMe } from "@/systems/practice-host/controllers/praxis-aufgabe.controller";
+import { countChartsToValidate } from "@/systems/practice-host/controllers/chart-workflow.controller";
+import { countOpenPracticeTasksForMe } from "@/systems/practice-host/controllers/practice-task.controller";
 import { NAV_SECTIONS } from "@/lib/nav-sections";
 import { NAV_ITEM_DEFINITIONS, navItemVisible, routeChildPathAllowed, allowed, parseRole, type NavItemDefinition } from "@/lib/rbac";
 import { useT, useTParams, useLocale, translateLocale, applyDocumentLocale } from "@/lib/i18n";
 import { breadcrumbKeysForPath } from "@/lib/breadcrumb-keys";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
-import { shouldShowPraxisSetupWizard } from "@/lib/praxis-completeness";
-import { PraxisSetupWizard } from "../components/praxis-setup-wizard";
+import { shouldShowPracticeSetupWizard } from "@/lib/practice-completeness";
+import { PracticeSetupWizard } from "../components/practice-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "../components/ui/toast-store";
@@ -41,10 +41,10 @@ import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
 import { loadClientSettings } from "@/lib/client-settings";
 import {
-    hydrateInvoicePraxisFromAppKv,
-    migrateInvoicePraxisLocalStorageToAppKv,
-} from "@/lib/invoice-leistung";
-import { buildSyncNativeMenuPayload, MEDOC_PENDING_TERMIN_MENU_KEY } from "@/lib/native-go-menu";
+    hydrateInvoicePracticeFromAppKv,
+    migrateInvoicePracticeLocalStorageToAppKv,
+} from "@/lib/invoice-service-item";
+import { buildSyncNativeMenuPayload, MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.controller";
 import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
 import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
@@ -59,8 +59,8 @@ type SidebarRailPref = "full" | "icons";
 
 function readSidebarRailPref(): SidebarRailPref {
     try {
-        const v = localStorage.getItem(MEDOC_SIDEBAR_RAIL_PREF_KEY);
-        return v === "icons" ? "icons" : "full";
+        const version = localStorage.getItem(MEDOC_SIDEBAR_RAIL_PREF_KEY);
+        return version === "icons" ? "icons" : "full";
     } catch {
         return "full";
     }
@@ -128,8 +128,8 @@ export function AppLayout() {
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [inAppUnread, setInAppUnread] = useState(0);
-    const [aktenZuValidierenCount, setAktenZuValidierenCount] = useState(0);
-    const [openPraxisAufgabenCount, setOpenPraxisAufgabenCount] = useState(0);
+    const [chartsToValidateCount, setChartsToValidateCount] = useState(0);
+    const [openPracticeTasksCount, setOpenPracticeTasksCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -137,7 +137,7 @@ export function AppLayout() {
     );
     /** Help texts from native menu (Windows/Linux menu bar or macOS menu). */
     const [nativeHelpTopic, setNativeHelpTopic] = useState<null | "calendar" | "shortcuts">(null);
-    const [praxisSetupOpen, setPraxisSetupOpen] = useState(() => shouldShowPraxisSetupWizard());
+    const [practiceSetupOpen, setPracticeSetupOpen] = useState(() => shouldShowPracticeSetupWizard());
     const [aboutOpen, setAboutOpen] = useState(false);
     const [aboutVersion, setAboutVersion] = useState("");
     const [uiZoom, setUiZoom] = useState(readStoredUiZoom);
@@ -165,19 +165,19 @@ export function AppLayout() {
         return subscribeWorkTimeFocusMode(() => {});
     }, [session?.user_id]);
     const paletteCommands = useMemo(
-        () => filterCommandsForRole(session?.rolle, session?.permission_overrides),
-        [session?.rolle, session?.permission_overrides],
+        () => filterCommandsForRole(session?.role, session?.permission_overrides),
+        [session?.role, session?.permission_overrides],
     );
     const breadcrumbKeys = useMemo(() => breadcrumbKeysForPath(location.pathname), [location.pathname]);
     const breadcrumbs = useMemo(() => breadcrumbKeys.map((k) => t(k)), [breadcrumbKeys, t]);
     const isDashboardRoute = location.pathname === "/";
-    const isTermineCalendarRoute = location.pathname === "/termine";
+    const isAppointmentsCalendarRoute = location.pathname === "/appointments";
     const visibleNavItems = useMemo(
         () =>
             NAV_ITEM_DEFINITIONS.filter((item) =>
-                navItemVisible(session?.rolle, item, session?.permission_overrides),
+                navItemVisible(session?.role, item, session?.permission_overrides),
             ),
-        [session?.rolle, session?.permission_overrides],
+        [session?.role, session?.permission_overrides],
     );
     const visibleByTo = useMemo(
         () => new Map(visibleNavItems.map((item) => [item.to, item])),
@@ -195,13 +195,13 @@ export function AppLayout() {
     }, [visibleByTo]);
     const initials = (session?.name ?? "MD").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
     const profileRoleLine = useMemo(() => {
-        const r = session?.rolle;
-        if (r === "ARZT") return t("app.role_label.ARZT");
-        if (r === "REZEPTION") return t("app.role_label.REZEPTION");
-        // TODO(deferred-roles): if (r === "STEUERBERATER") return t("app.role_label.STEUERBERATER");
-        // TODO(deferred-roles): if (r === "PHARMABERATER") return t("app.role_label.PHARMABERATER");
+        const r = session?.role;
+        if (r === "PHYSICIAN") return t("app.role_label.PHYSICIAN");
+        if (r === "RECEPTION") return t("app.role_label.RECEPTION");
+        // TODO(deferred-roles): if (r === "TAX_ADVISOR") return t("app.role_label.TAX_ADVISOR");
+        // TODO(deferred-roles): if (r === "PHARMA_CONSULTANT") return t("app.role_label.PHARMA_CONSULTANT");
         return "";
-    }, [session?.rolle, t]);
+    }, [session?.role, t]);
 
     const refreshInAppUnread = useCallback(async () => {
         if (!session?.user_id) {
@@ -217,30 +217,30 @@ export function AppLayout() {
     }, [session?.user_id]);
 
     const refreshNavBadges = useCallback(async () => {
-        const rolle = session?.rolle;
-        if (rolle !== "ARZT" && rolle !== "REZEPTION") {
-            setAktenZuValidierenCount(0);
-            setOpenPraxisAufgabenCount(0);
+        const role = session?.role;
+        if (role !== "PHYSICIAN" && role !== "RECEPTION") {
+            setChartsToValidateCount(0);
+            setOpenPracticeTasksCount(0);
             return;
         }
         try {
-            if (rolle === "ARZT") {
-                const [akten, aufgaben] = await Promise.all([
-                    countAktenZuValidieren(),
-                    countOpenPraxisAufgabenForMe(),
+            if (role === "PHYSICIAN") {
+                const [charts, tasks] = await Promise.all([
+                    countChartsToValidate(),
+                    countOpenPracticeTasksForMe(),
                 ]);
-                setAktenZuValidierenCount(typeof akten === "number" && akten > 0 ? akten : 0);
-                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
+                setChartsToValidateCount(typeof charts === "number" && charts > 0 ? charts : 0);
+                setOpenPracticeTasksCount(typeof tasks === "number" && tasks > 0 ? tasks : 0);
             } else {
-                const aufgaben = await countOpenPraxisAufgabenForMe();
-                setAktenZuValidierenCount(0);
-                setOpenPraxisAufgabenCount(typeof aufgaben === "number" && aufgaben > 0 ? aufgaben : 0);
+                const tasks = await countOpenPracticeTasksForMe();
+                setChartsToValidateCount(0);
+                setOpenPracticeTasksCount(typeof tasks === "number" && tasks > 0 ? tasks : 0);
             }
         } catch {
-            setAktenZuValidierenCount(0);
-            setOpenPraxisAufgabenCount(0);
+            setChartsToValidateCount(0);
+            setOpenPracticeTasksCount(0);
         }
-    }, [session?.rolle]);
+    }, [session?.role]);
 
     const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
 
@@ -329,14 +329,14 @@ export function AppLayout() {
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {
-        if (!session?.rolle) return;
-        const payload = buildSyncNativeMenuPayload(session.rolle, (key) => translateLocale(locale, key));
+        if (!session?.role) return;
+        const payload = buildSyncNativeMenuPayload(session.role, (key) => translateLocale(locale, key));
         void syncNativeMenu(payload).catch((err) => {
             console.error("sync_native_menu failed", err);
         });
-    }, [session?.rolle, locale]);
+    }, [session?.role, locale]);
 
-    /** Matches native menu actions (⌘K/⌘⇧P Befehlspalette, ⌘N Termin, Zoom, Neu laden). */
+    /** Matches native menu actions (⌘K/⌘⇧P Befehlspalette, ⌘N Appointment, Zoom, Neu laden). */
     useEffect(() => {
         const typing = (el: EventTarget | null) => {
             if (!(el instanceof HTMLElement)) return false;
@@ -383,11 +383,11 @@ export function AppLayout() {
             }
 
             if (key === "n" && !e.shiftKey) {
-                if (location.pathname.startsWith("/termine")) return;
+                if (location.pathname.startsWith("/appointments")) return;
                 const acct = useAuthStore.getState().session;
-                if (!routeChildPathAllowed("termine/neu", acct?.rolle, acct?.permission_overrides)) return;
+                if (!routeChildPathAllowed("appointments/new", acct?.role, acct?.permission_overrides)) return;
                 e.preventDefault();
-                navigate("/termine/neu");
+                navigate("/appointments/new");
                 setMobileNavOpen(false);
             }
         };
@@ -407,7 +407,7 @@ export function AppLayout() {
             if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
             if (typing(e.target)) return;
             e.preventDefault();
-            navigate("/hilfe");
+            navigate("/help");
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
@@ -467,10 +467,10 @@ export function AppLayout() {
         if (!sessionUserId) return;
         void (async () => {
             try {
-                await migrateInvoicePraxisLocalStorageToAppKv();
-                await hydrateInvoicePraxisFromAppKv();
+                await migrateInvoicePracticeLocalStorageToAppKv();
+                await hydrateInvoicePracticeFromAppKv();
             } catch (e) {
-                toast(tp("app.layout.praxis_sync_error", { message: errorMessage(e) }), "warning");
+                toast(tp("app.layout.practice_sync_error", { message: errorMessage(e) }), "warning");
             }
         })();
     }, [sessionUserId, toast]);
@@ -502,7 +502,7 @@ export function AppLayout() {
 
     useEffect(() => {
         if (!breakOpen) return;
-        listPatienten()
+        listPatients()
             .then(setBgPatients)
             .catch((e) => {
                 setBgPatients([]);
@@ -558,7 +558,7 @@ export function AppLayout() {
             if (!el) return;
             const r = el.getBoundingClientRect();
             const labels = [t("nav.settings")];
-            if (BREAK_GLASS_ENABLED && session?.rolle === "ARZT") labels.push(t("app.layout.break_glass.emergency_access"));
+            if (BREAK_GLASS_ENABLED && session?.role === "PHYSICIAN") labels.push(t("app.layout.break_glass.emergency_access"));
             labels.push(t("auth.logout"));
             const widthPx = measureSidebarAccountMenuWidthPx(labels);
             let left = r.left;
@@ -575,7 +575,7 @@ export function AppLayout() {
             window.removeEventListener("resize", update);
             window.removeEventListener("scroll", update, true);
         };
-    }, [userMenuOpen, userMenuAnchor, sidebarRailPref, sidebarProfileDisplayOnly, session?.rolle, t]);
+    }, [userMenuOpen, userMenuAnchor, sidebarRailPref, sidebarProfileDisplayOnly, session?.role, t]);
 
     const handleLogout = async () => {
         await logout();
@@ -591,12 +591,12 @@ export function AppLayout() {
                 className="sidebar-account-popover__item"
                 onClick={() => {
                     setUserMenuOpen(false);
-                    navigate("/einstellungen");
+                    navigate("/settings");
                 }}
             >
                 {t("nav.settings")}
             </button>
-            {BREAK_GLASS_ENABLED && session?.rolle === "ARZT" ? (
+            {BREAK_GLASS_ENABLED && session?.role === "PHYSICIAN" ? (
                 <button
                     type="button"
                     role="menuitem"
@@ -663,7 +663,7 @@ export function AppLayout() {
                             const routeKey =
                                 pathOnly === "/" || pathOnly === "" ? "" : pathOnly.replace(/^\//, "");
                             const acct = useAuthStore.getState().session;
-                            if (!routeChildPathAllowed(routeKey, acct?.rolle, acct?.permission_overrides)) {
+                            if (!routeChildPathAllowed(routeKey, acct?.role, acct?.permission_overrides)) {
                                 useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
                                 return;
                             }
@@ -671,23 +671,23 @@ export function AppLayout() {
                             setMobileNavOpen(false);
                             return;
                         }
-                        if (p.kind === "termin" && typeof p.action === "string") {
+                        if (p.kind === "appointment" && typeof p.action === "string") {
                             const acct = useAuthStore.getState().session;
-                            if (!routeChildPathAllowed("termine", acct?.rolle, acct?.permission_overrides)) {
+                            if (!routeChildPathAllowed("appointments", acct?.role, acct?.permission_overrides)) {
                                 useToastStore.getState().add(translateLocale(locale, "app.native_menu.denied"));
                                 return;
                             }
-                            if (location.pathname !== "/termine") {
+                            if (location.pathname !== "/appointments") {
                                 try {
-                                    sessionStorage.setItem(MEDOC_PENDING_TERMIN_MENU_KEY, p.action);
+                                    sessionStorage.setItem(MEDOC_PENDING_APPOINTMENT_MENU_KEY, p.action);
                                 } catch {
                                     /* ignore */
                                 }
-                                navigate("/termine");
+                                navigate("/appointments");
                                 setMobileNavOpen(false);
                                 return;
                             }
-                            window.dispatchEvent(new CustomEvent("medoc-native-menu-termin", { detail: p.action }));
+                            window.dispatchEvent(new CustomEvent("medoc-native-menu-appointment", { detail: p.action }));
                             return;
                         }
                         if (p.kind === "app" && typeof p.action === "string") {
@@ -830,7 +830,7 @@ export function AppLayout() {
                     <button
                         className="tb-chip update"
                         type="button"
-                        onClick={() => navigate("/einstellungen")}
+                        onClick={() => navigate("/settings")}
                         title={tp("app.layout.update_available_title", { version: updateLatestVersion })}
                     >
                         <DownloadIcon size={12} />
@@ -909,19 +909,19 @@ export function AppLayout() {
                             placement="below"
                             initials={initials}
                             name={session?.name ?? t("app.layout.user_fallback")}
-                            emailFallback={session?.email ?? "praxis@medoc.de"}
+                            emailFallback={session?.email ?? "practice@medoc.de"}
                             logoutLabel={t("auth.logout")}
                             onRoleSwitch={() => {
                                 setUserMenuOpen(false);
                                 setRoleSwitchOpen(true);
                             }}
                             onSettings={() => {
-                                navigate("/einstellungen");
+                                navigate("/settings");
                                 setUserMenuOpen(false);
                             }}
                             onShortcuts={() => {
                                 setUserMenuOpen(false);
-                                navigate("/hilfe");
+                                navigate("/help");
                             }}
                             helpNavLabel={t("account.menu_help")}
                             onLogoutRequest={() => {
@@ -948,10 +948,10 @@ export function AppLayout() {
             <AuditChainBanner
                 canAcknowledge={
                     !!session &&
-                    parseRole(session.rolle) != null &&
+                    parseRole(session.role) != null &&
                     allowed(
                         "ops.audit_chain_ack",
-                        parseRole(session.rolle)!,
+                        parseRole(session.role)!,
                         session.permission_overrides,
                     )
                 }
@@ -994,7 +994,7 @@ export function AppLayout() {
                                         <NavLink
                                             key={item.to}
                                             to={item.to}
-                                            end={item.to !== "/patienten"}
+                                            end={item.to !== "/patients"}
                                             className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
                                             title={sidebarRailPref === "icons" ? label : undefined}
                                             aria-label={label}
@@ -1006,19 +1006,19 @@ export function AppLayout() {
                                             <span className="sb-item-label" aria-hidden="true">
                                                 {label}
                                             </span>
-                                            {item.to === "/akten/zu-validieren" && aktenZuValidierenCount > 0 ? (
-                                                <span className="count" aria-label={tp("app.layout.nav_badge_akten_pending", { count: aktenZuValidierenCount })}>
-                                                    {aktenZuValidierenCount > 99 ? "99+" : aktenZuValidierenCount}
+                                            {item.to === "/charts/to-validate" && chartsToValidateCount > 0 ? (
+                                                <span className="count" aria-label={tp("app.layout.nav_badge_charts_pending", { count: chartsToValidateCount })}>
+                                                    {chartsToValidateCount > 99 ? "99+" : chartsToValidateCount}
                                                 </span>
                                             ) : null}
-                                            {item.to === "/tickets" && openPraxisAufgabenCount > 0 ? (
+                                            {item.to === "/tickets" && openPracticeTasksCount > 0 ? (
                                                 <span
                                                     className="count"
-                                                    aria-label={tp("app.layout.nav_badge_tickets_open", { count: openPraxisAufgabenCount })}
+                                                    aria-label={tp("app.layout.nav_badge_tickets_open", { count: openPracticeTasksCount })}
                                                 >
-                                                    {openPraxisAufgabenCount > 99
+                                                    {openPracticeTasksCount > 99
                                                         ? "99+"
-                                                        : openPraxisAufgabenCount}
+                                                        : openPracticeTasksCount}
                                                 </span>
                                             ) : null}
                                         </NavLink>
@@ -1115,7 +1115,7 @@ export function AppLayout() {
                 <main
                     id="main-content"
                     tabIndex={-1}
-                    className={`app-main${isDashboardRoute || isTermineCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
+                    className={`app-main${isDashboardRoute || isAppointmentsCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
                     aria-label={t("app.title")}
                 >
                     <Suspense fallback={<PageLoading label={t("common.loading")} />}>
@@ -1127,10 +1127,10 @@ export function AppLayout() {
             </div>
             </div>
 
-            {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark rolle={session?.rolle} /> : null}
+            {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark role={session?.role} /> : null}
             <ToastContainer />
             <ExportPreviewHost />
-            <PraxisSetupWizard open={praxisSetupOpen} onClose={() => setPraxisSetupOpen(false)} />
+            <PracticeSetupWizard open={practiceSetupOpen} onClose={() => setPracticeSetupOpen(false)} />
 
             <Dialog
                 open={nativeHelpTopic === "calendar"}

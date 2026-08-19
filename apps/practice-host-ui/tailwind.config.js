@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 /**
- * Farben/Radien sind mit `index.css` `:root` synchron — bei Nutzung von `bg-primary` etc.
+ * Farben/Radien sind mit `index.css` `:root` synchron — bei Nutzung from `bg-primary` etc.
  * folgen Tailwind-Klassen der gewählten Akzentfarbe (Darstellung).
  */
 export default {

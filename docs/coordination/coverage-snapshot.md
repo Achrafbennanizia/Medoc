@@ -38,7 +38,7 @@ HTML (after archive): `releases/v0.1.0/coverage/rust-medoc-lan/html/`
 
 ### medoc-practice IPC — STARTED
 
-**8 tests** in `tests/ipc_sync_pairing_tests.rs` — RBAC matrix (`ops.system` = ARZT) + `SyncEngine`/`pairing` paths matching command logic.
+**8 tests** in `tests/ipc_sync_pairing_tests.rs` — RBAC matrix (`ops.system` = PHYSICIAN) + `SyncEngine`/`pairing` paths matching command logic.
 
 ### medoc-e2e — GREEN (integration)
 
@@ -51,6 +51,6 @@ HTML (after archive): `releases/v0.1.0/coverage/rust-medoc-lan/html/`
 ## Remaining toward 100%
 
 - medoc-sync: HTTP decode failures, `find_master_device_id` edge cases
-- medoc-lan: activation-token RBAC on `/patienten`, revoked slave paths
+- medoc-lan: activation-token RBAC on `/patients`, revoked slave paths
 - medoc-practice: full Tauri command invocation (needs app harness)
 - medoc-core: remaining tier-1 repo hook tests

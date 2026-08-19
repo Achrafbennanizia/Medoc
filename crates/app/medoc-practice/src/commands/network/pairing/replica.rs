@@ -42,12 +42,12 @@ pub async fn pairing_submit_request(
         .map_err(|e| into_tauri(AppError::Internal(format!("master-info json: {e}"))))?;
     let master_pubkey = info
         .get("masterPubkey")
-        .and_then(|v| v.as_str())
+        .and_then(|version| version.as_str())
         .unwrap_or("")
         .to_string();
     let master_device_id = info
         .get("masterDeviceId")
-        .and_then(|v| v.as_str())
+        .and_then(|version| version.as_str())
         .unwrap_or("")
         .to_string();
     if master_pubkey.is_empty() || master_device_id.is_empty() {

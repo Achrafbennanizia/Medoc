@@ -4,7 +4,7 @@
  * Run with medoc-server + optional Vite dev server:
  *   MEDOC_LAN_E2E=1 MEDOC_LAN_URL=https://127.0.0.1:8787 npm run test:playwright
  *
- * JWT login test uses demo seed: ahmed@praxis.de + TOTP 123456 (see g21-live-smoke-checklist.md).
+ * JWT login test uses demo seed: ahmed@practice.de + TOTP 123456 (see g21-live-smoke-checklist.md).
  */
 
 import { test, expect } from "@playwright/test";
@@ -35,11 +35,11 @@ test.describe("LAN server public surface", () => {
         expect(body.masterPubkey.length).toBeGreaterThan(10);
     });
 
-    test("arzt JWT login and /me", async ({ request }) => {
+    test("physician JWT login and /me", async ({ request }) => {
         const login = await request.post(`${lanUrl}/api/v1/auth/login`, {
             data: {
-                email: "ahmed@praxis.de",
-                passwort: "passwort123",
+                email: "ahmed@practice.de",
+                password: "password123",
             },
             ignoreHTTPSErrors: true,
         });
@@ -54,15 +54,15 @@ test.describe("LAN server public surface", () => {
         });
         expect(me.ok()).toBeTruthy();
         const meJson = await me.json();
-        expect(meJson.email).toBe("ahmed@praxis.de");
-        expect(meJson.rolle).toBe("ARZT");
+        expect(meJson.email).toBe("ahmed@practice.de");
+        expect(meJson.role).toBe("PHYSICIAN");
 
-        const patienten = await request.get(`${lanUrl}/api/v1/patienten`, {
+        const patients = await request.get(`${lanUrl}/api/v1/patients`, {
             headers: { Authorization: `Bearer ${token}` },
             ignoreHTTPSErrors: true,
         });
-        expect(patienten.ok()).toBeTruthy();
-        const list = await patienten.json();
+        expect(patients.ok()).toBeTruthy();
+        const list = await patients.json();
         expect(Array.isArray(list)).toBe(true);
     });
 });

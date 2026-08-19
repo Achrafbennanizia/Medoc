@@ -16,7 +16,7 @@ Die Anforderung „nicht über öffentliche Netze erreichbar“ wird für den **
 ```
 medoc/
 ├── docs/                          # V-Modell Dokumentation
-│   └── v-model/
+│   └── version-model/
 │       ├── 00-uebersicht.md       # Kanonischer Stack + Implementierungspfad
 │       ├── 01-anforderungen/
 │       ├── 02-systementwurf/
@@ -67,9 +67,9 @@ medoc/
 │   Patient    │────────────▶│    Termin     │
 │──────────────│             │──────────────│
 │ id           │             │ id           │
-│ name         │     1:1     │ datum        │
-│ geburtsdatum │────────────▶│ uhrzeit      │
-│ geschlecht   │  Patientenakte│ art          │
+│ name         │     1:1     │ date        │
+│ date_of_birth │────────────▶│ time      │
+│ sex   │  Patientenakte│ kind          │
 │ versicherung │             │ status       │
 │ kontakt      │             │ patientId    │
 │ createdAt    │             │ arztId       │
@@ -80,17 +80,17 @@ medoc/
 ┌──────────────┐     1:n     ┌──────────────┐
 │Patientenakte │────────────▶│ Untersuchung │
 │──────────────│             │──────────────│
-│ id           │             │ beschwerden  │
-│ patientId    │     1:n     │ ergebnisse   │
-│ status       │────────────▶│ diagnose     │
+│ id           │             │ chief_complaint  │
+│ patientId    │     1:n     │ results   │
+│ status       │────────────▶│ diagnosis     │
 │ validiert    │  Behandlung │ bildmaterial │
-│ notizen      │             └──────────────┘
+│ notes      │             └──────────────┘
 └──────┬───────┘
        │
        │ 1:n              ┌──────────────┐
        ├────────────────▶│  Behandlung  │
        │                  │──────────────│
-       │                  │ art          │
+       │                  │ kind          │
        │                  │ verlauf      │
        │                  │ materialien  │
        │                  │ erfolg       │
@@ -99,8 +99,8 @@ medoc/
        │ 1:n              ┌──────────────┐
        └────────────────▶│   Zahlung    │
                           │──────────────│
-                          │ betrag       │
-                          │ zahlungsart  │
+                          │ amount       │
+                          │ payment_method  │
                           │ status       │
                           └──────────────┘
 
@@ -109,16 +109,16 @@ medoc/
 │──────────────│             │──────────────│
 │ id           │             │ id           │
 │ name         │             │ name         │
-│ rolle        │             │ kategorie    │
-│ email        │             │ preis        │
-│ verfuegbar   │             └──────────────┘
+│ role        │             │ category    │
+│ email        │             │ price        │
+│ available   │             └──────────────┘
 └──────────────┘
                               ┌──────────────┐
 ┌──────────────┐             │   Produkt    │
 │   AuditLog   │             │──────────────│
 │──────────────│             │ name         │
-│ id           │             │ lieferant    │
-│ userId       │             │ menge        │
+│ id           │             │ supplier    │
+│ userId       │             │ quantity        │
 │ action       │             │ lieferstatus │
 │ entity       │             └──────────────┘
 │ entityId     │
@@ -139,7 +139,7 @@ medoc/
 ### Beispiel-Signaturen
 
 ```typescript
-// actions/termine.ts
+// actions/appointments.ts
 "use server"
 export async function createTermin(data: TerminFormData): ActionResult<Termin>
 export async function updateTermin(id: string, data: Partial<TerminFormData>): ActionResult<Termin>
@@ -147,7 +147,7 @@ export async function deleteTermin(id: string): ActionResult<void>
 export async function getTermine(filter: TerminFilter): ActionResult<Termin[]>
 export async function blockZeit(data: BlockZeitData): ActionResult<void>
 
-// actions/patienten.ts
+// actions/patients.ts
 "use server"
 export async function createPatient(data: PatientFormData): ActionResult<Patient>
 export async function updatePatient(id: string, data: Partial<PatientFormData>): ActionResult<Patient>

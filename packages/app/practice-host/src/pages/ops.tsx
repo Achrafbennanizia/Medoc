@@ -22,7 +22,7 @@ import { getAuditChainStatus } from "@/systems/practice-host/controllers/audit-c
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog } from "@/views/components/ui/dialog";
-import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
+import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 
 const CSV_ERROR_PREVIEW_LIMIT = 50;
@@ -178,7 +178,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
     }
 
     return (
-        <div className="praxis-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in">
             <WorkspacePageHeader title={t("ops.page.title")} />
 
             {opsBlocked ? (

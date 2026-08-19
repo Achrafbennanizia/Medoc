@@ -16,13 +16,13 @@
 | Item | Status | Notes | Evidence |
 | ---- | ------ | ----- | -------- |
 | Break-Glass (Notfallzugriff) | **Deferred (MVP off)** | IPC + audit schema remain; UI hidden | [`todos-deferred-security-features.md`](todos-deferred-security-features.md), `mvp_security.rs` |
-| TOTP 2FA (ARZT-Pflicht) | **Deferred (MVP off)** | Password-only login; TOTP IPC gated | Same checklist |
-| Staff cap 5 (1 ARZT + 4 REZEPTION) | **Active (MVP)** | Enforced on create/update; `get_staff_quota` IPC | `mvp_security.rs`, `personal.tsx` |
-| Organisations-2FA erzwingen | Geplant | Praxis-weite Richtlinie über Hersteller-Portal; blocked until TOTP re-enabled | Comment block in `einstellungen-sicherheit-section.tsx` |
+| TOTP 2FA (PHYSICIAN-Pflicht) | **Deferred (MVP off)** | Password-only login; TOTP IPC gated | Same checklist |
+| Staff cap 5 (1 PHYSICIAN + 4 RECEPTION) | **Active (MVP)** | Enforced on create/update; `get_staff_quota` IPC | `mvp_security.rs`, `staff.tsx` |
+| Organisations-2FA erzwingen | Geplant | Praxis-weite Richtlinie über Hersteller-Portal; blocked until TOTP re-enabled | Comment block in `settings-sicherheit-section.tsx` |
 | HBA / eGK-Kartenleser | Geplant | Live-Status vom Terminal (Orga 6141) | Portal stub; legacy UI commented out |
 | Audit-Kettenprüfung in Einstellungen | Geplant | Integritätsstatus direkt in Sicherheit | `getAuditChainStatus` used on Ops page only |
 | Auto-Sperre: Minuten wählen | Geplant | Feineinstellung der Inaktivitätsdauer | Toggle Ein/Aus mit festen 5 Min. |
-| Datenschutz (DSGVO) — Patientenexport & Löschanfrage | **Deferred (UI off)** | Backend IPC ready; nav/route hidden for MVP | [`todos-deferred-features.md`](todos-deferred-features.md), `datenschutz-config.ts` |
+| Datenschutz (DSGVO) — Patientenexport & Löschanfrage | **Deferred (UI off)** | Backend IPC ready; nav/route hidden for MVP | [`todos-deferred-features.md`](todos-deferred-features.md), `privacy-config.ts` |
 
 ---
 
@@ -30,8 +30,8 @@
 
 | Item | Status | Notes | Evidence |
 | ---- | ------ | ----- | -------- |
-| STEUERBERATER login & navigation | **Deferred** | MVP: ARZT + REZEPTION only | [`todos-deferred-roles.md`](todos-deferred-roles.md), `deferred-roles.ts` |
-| PHARMABERATER login & navigation | **Deferred** | Same as above | [`todos-deferred-roles.md`](todos-deferred-roles.md) |
+| TAX_ADVISOR login & navigation | **Deferred** | MVP: PHYSICIAN + RECEPTION only | [`todos-deferred-roles.md`](todos-deferred-roles.md), `deferred-roles.ts` |
+| PHARMA_CONSULTANT login & navigation | **Deferred** | Same as above | [`todos-deferred-roles.md`](todos-deferred-roles.md) |
 
 ---
 
@@ -82,14 +82,14 @@ Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surface
 | Zahnschema popover — Befunde / Diagnosen list | **Removed (MVP)** | Per-tooth Zahnbefund history list removed from header tooth-chart hover; status color + Untersuchungen + Behandlungen remain | `DentalMiniBar.tsx` (2026-07-05); i18n keys `dental.mini.findings_heading`, `dental.mini.no_findings` kept for re-enable |
 | Zahnschema popover — Befunde / Diagnosen list re-enable | Geplant | Restore list section if structured Zahnbefund timeline is needed alongside Untersuchung `toothNotes` | See row above |
 | Untersuchung — structured sections (Hauptbeschwerde/VAS, Extraoral, Intraoral, Parodontal, Funktion, Bildgebung) | **Removed (MVP UI)** | Composer + detail summary show general note, Zahnschema tooth notes, diagnosis & plan only; legacy fields remain in `UntersuchungV1` JSON for export/migration | `UntersuchungComposer.tsx`, `patient-detail-unter-tab.tsx` (2026-07-05) |
-| Untersuchung — structured sections re-enable | Geplant | Restore tabbed composer + detail grid when full dental exam protocol is required | i18n keys `untersuchung.composer.section_*` retained |
-| Untersuchung detail — Diagnosis + Treatment plan | **Active (MVP)** | List row + Show detail panel; `clinicalSummaryFromUntersuchung`; backend `diagnose` column + `plan` in V1 JSON | `UntersuchungDetailPanel.tsx`, `untersuchung.ts`, `patient-detail-unter-tab.tsx` |
-| Sidebar + Verwaltung — Rezepte & Atteste | **Blinded (MVP)** | `/rezepte`, `/verwaltung/vorlagen*` hidden; patient Akte tab unchanged | `catalog-menu-flags.ts` → `REZEPTE_ATTESTE_MENU_ENABLED` |
-| Sidebar + Verwaltung — Leistungen | **Blinded (MVP)** | `/leistungen` + Verwaltung hub row hidden; Behandlungskatalog hub remains | `LEISTUNGEN_MENU_ENABLED` |
-| Sidebar + Verwaltung — Produkte | **Enabled (MVP)** | `/produkte` via Verwaltung → Lager only (not main sidebar); Bestellstamm/Verträge remain | `PRODUKTE_MENU_ENABLED` |
-| Produkte — stock column + min-stock alerts | **Blinded (MVP)** | Table STOCK column hidden; form shows **Amount** only (maps to `bestand`); min-stock inputs blinded | `PRODUKT_STOCK_UI_ENABLED` |
+| Untersuchung — structured sections re-enable | Geplant | Restore tabbed composer + detail grid when full dental exam protocol is required | i18n keys `examination.composer.section_*` retained |
+| Untersuchung detail — Diagnosis + Treatment plan | **Active (MVP)** | List row + Show detail panel; `clinicalSummaryFromUntersuchung`; backend `diagnosis` column + `plan` in V1 JSON | `UntersuchungDetailPanel.tsx`, `examination.ts`, `patient-detail-unter-tab.tsx` |
+| Sidebar + Verwaltung — Rezepte & Atteste | **Blinded (MVP)** | `/prescriptions`, `/administration/templates*` hidden; patient Akte tab unchanged | `catalog-menu-flags.ts` → `REZEPTE_ATTESTE_MENU_ENABLED` |
+| Sidebar + Verwaltung — Leistungen | **Blinded (MVP)** | `/services` + Verwaltung hub row hidden; Behandlungskatalog hub remains | `LEISTUNGEN_MENU_ENABLED` |
+| Sidebar + Verwaltung — Produkte | **Enabled (MVP)** | `/products` via Verwaltung → Lager only (not main sidebar); Bestellstamm/Verträge remain | `PRODUKTE_MENU_ENABLED` |
+| Produkte — stock column + min-stock alerts | **Blinded (MVP)** | Table STOCK column hidden; form shows **Amount** only (maps to `stock`); min-stock inputs blinded | `PRODUKT_STOCK_UI_ENABLED` |
 | Produkte — stock + min-stock form re-enable | Geplant | Restore stock/min-stock fields and table column when full inventory tracking is ready | See row above |
-| Patient Akte header — Task to reception | **Blinded (MVP)** | ARZT → Rezeption Aufgabe dialog; backend wired | `v1-ui-flags.ts` → `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED` |
+| Patient Akte header — Task to reception | **Blinded (MVP)** | PHYSICIAN → Rezeption Aufgabe dialog; backend wired | `v1-ui-flags.ts` → `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED` |
 | Patient Akte header — Request review | **Blinded (MVP)** | Forward Akte to physicians dialog | Same flag |
 | Patient Akte header — Discharge sheet | **Blinded (MVP)** | Discharge Merkblatt PDF export | Same flag |
 | Patient Akte workflow header buttons re-enable | Geplant | Set `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = true`; polish UX + manual QA on G21 rows | [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |

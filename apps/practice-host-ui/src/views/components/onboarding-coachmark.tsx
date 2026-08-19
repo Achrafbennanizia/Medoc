@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import type { Rolle } from "@/models/types";
+import type { Role } from "@/models/types";
 import {
     coverageRatio,
     loadOnboardingProgress,
@@ -16,10 +16,10 @@ import { DismissibleNotice } from "./ui/dismissible-notice";
 import { useToastStore } from "./ui/toast-store";
 
 export type OnboardingCoachmarkProps = {
-    rolle: Rolle | undefined;
+    role: Role | undefined;
 };
 
-export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
+export function OnboardingCoachmark({ role }: OnboardingCoachmarkProps) {
     const t = useT();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
@@ -28,39 +28,39 @@ export function OnboardingCoachmark({ rolle }: OnboardingCoachmarkProps) {
     const [dismissed, setDismissed] = useState(false);
 
     const routePath = routePathFromLocation(location.pathname);
-    const step = stepForRoute(rolle, routePath);
-    const steps = stepsForRole(rolle ?? undefined);
-    const ratio = rolle ? coverageRatio(rolle, completed) : 1;
+    const step = stepForRoute(role, routePath);
+    const steps = stepsForRole(role ?? undefined);
+    const ratio = role ? coverageRatio(role, completed) : 1;
 
     useEffect(() => {
         setDismissed(false);
     }, [routePath]);
 
     useEffect(() => {
-        if (!rolle) {
+        if (!role) {
             setCompleted([]);
             return;
         }
-        void loadOnboardingProgress(rolle)
+        void loadOnboardingProgress(role)
             .then((p) => setCompleted(p.completedRoutes))
             .catch((e) => {
                 setCompleted([]);
                 toast(tp("onboarding.toast.load_failed", { error: errorMessage(e) }), "warning");
             });
-    }, [rolle, routePath, toast, tp]);
+    }, [role, routePath, toast, tp]);
 
     const onDone = useCallback(async () => {
-        if (!rolle || !step) return;
+        if (!role || !step) return;
         try {
-            const next = await markOnboardingRouteDone(rolle, step.routePath);
+            const next = await markOnboardingRouteDone(role, step.routePath);
             setCompleted(next.completedRoutes);
             setDismissed(true);
         } catch (e) {
             toast(tp("onboarding.toast.save_failed", { error: errorMessage(e) }), "error");
         }
-    }, [rolle, step, toast, tp]);
+    }, [role, step, toast, tp]);
 
-    if (!rolle || !step || dismissed || completed.includes(step.routePath)) {
+    if (!role || !step || dismissed || completed.includes(step.routePath)) {
         return null;
     }
 

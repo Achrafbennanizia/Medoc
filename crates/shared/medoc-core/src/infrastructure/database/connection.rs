@@ -49,11 +49,9 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
 
     if db_path.exists() && !sqlcipher::is_plaintext_sqlite_file(&db_path) {
         let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;
-        if schema_needs_bootstrap(&pool).await? {
-            run_migrations(&pool).await?;
-        } else {
-            crate::mvp_security::ensure_staff_quota_db_triggers(&pool).await?;
-        }
+        // Always re-run (idempotent): existing installs must pick up the English
+        // table/column/enum upgrade even when `patient` already exists.
+        run_migrations(&pool).await?;
         return Ok(pool);
     }
 
@@ -64,16 +62,6 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
         sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
     }
     sqlcipher::open_encrypted_pool(&db_path, key, true).await
-}
-
-async fn schema_needs_bootstrap(pool: &SqlitePool) -> Result<bool, AppError> {
-    let n: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='patient'",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
-    Ok(n == 0)
 }
 
 async fn maybe_migrate_plaintext_db(
@@ -107,16 +95,14 @@ pub async fn test_memory_pool() -> Result<SqlitePool, AppError> {
     sqlcipher::open_memory_pool(&key).await
 }
 
-/// Applies full schema DDL, forward `ALTER`s, and default seed staff when `personal` is empty.
+/// Applies full schema DDL, forward `ALTER`s, and default seed staff when `staff` is empty.
 /// Public for integration tests (`cargo test`) and tooling; production callers use [`init_db_headless`].
 pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
-    let existing: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='patient'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
-    if existing > 0 {
+    // Rename leftover German / camelCase tables+columns+enum wires before any
+    // CREATE IF NOT EXISTS, so we never create an empty English twin beside
+    // a populated German table.
+    migrations::run_english_schema_upgrade(pool).await?;
+    if migrations::schema_already_present(pool).await? {
         migrations::run_legacy_embedded_migrations(pool).await?;
         migrations::run_rust_only_migrations(pool).await?;
     } else {
@@ -127,7 +113,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         migrations::run_rust_only_migrations(pool).await?;
         migrations::run_post_migration_seed(pool).await?;
     }
-    // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-ARZT cap).
+    // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-PHYSICIAN cap).
     crate::mvp_security::ensure_staff_quota_db_triggers(pool).await?;
     Ok(())
 }

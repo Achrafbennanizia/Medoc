@@ -8,18 +8,18 @@ import {
 } from "@/lib/report-export";
 import { openExportPreview } from "@/models/store/export-preview-store";
 
-function isSummaryRow(v: unknown): v is ReportSummaryRow {
+function isSummaryRow(version: unknown): version is ReportSummaryRow {
     return (
-        typeof v === "object" &&
-        v != null &&
-        typeof (v as ReportSummaryRow).label === "string" &&
-        typeof (v as ReportSummaryRow).value === "string"
+        typeof version === "object" &&
+        version != null &&
+        typeof (version as ReportSummaryRow).label === "string" &&
+        typeof (version as ReportSummaryRow).value === "string"
     );
 }
 
-function isSection(v: unknown): v is ReportSection {
-    if (typeof v !== "object" || v == null) return false;
-    const s = v as ReportSection;
+function isSection(version: unknown): version is ReportSection {
+    if (typeof version !== "object" || version == null) return false;
+    const s = version as ReportSection;
     return (
         typeof s.title === "string" &&
         Array.isArray(s.headers) &&

@@ -13,13 +13,13 @@
 | 2 | HTTP pairing + owner-only CA | Done |
 | 3 | i18n DE/EN/FR/AR + RTL | Done |
 | 4 | Arbeitszeit + Krankenbescheinigung | Done (MVP) |
-| 5 | UI correctness (tables, calendar, NEU, PDF) | Partial — **Wave 3 owns calendar RTL/logical CSS**; Wave 5 content/compression only |
+| 5 | UI correctness (tables, calendar, NEW, PDF) | Partial — **Wave 3 owns calendar RTL/logical CSS**; Wave 5 content/compression only |
 | 6 | Auth polish + update channel | Done (config) |
 | 7 | Ship gate | Partial — tests green; live two-device NOT RUN |
 
 ## Already landed (do not re-do)
 
-- MVP security: Break-Glass off, 2FA off, staff cap 1 ARZT + 4 REZEPTION — [`todos-deferred-security-features.md`](todos-deferred-security-features.md)
+- MVP security: Break-Glass off, 2FA off, staff cap 1 PHYSICIAN + 4 RECEPTION — [`todos-deferred-security-features.md`](todos-deferred-security-features.md)
 
 ## Flag modules
 

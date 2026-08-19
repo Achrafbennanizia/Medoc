@@ -2,7 +2,7 @@
 
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{self as pairing, PairingDecideResult, PairingDecision, PairingRequest};
-use medoc_sync::verbund::services::list_pending_requests;
+use medoc_sync::cluster::services::list_pending_requests;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -21,25 +21,25 @@ pub async fn pairing_list_pending(
 ) -> Result<Vec<PairingRequest>, TauriAppError> {
     require(&session_state, "ops.system")?;
     let mut pending = pairing::list_pending(&pool).await.map_err(into_tauri)?;
-    if let Ok(verbund) = list_pending_requests(&pool).await {
-        for v in verbund {
+    if let Ok(cluster) = list_pending_requests(&pool).await {
+        for version in cluster {
             pending.push(PairingRequest {
-                id: v.id,
-                device_id: v.fingerprint.clone(),
+                id: version.id,
+                device_id: version.fingerprint.clone(),
                 slave_pubkey: String::new(),
-                slave_label: v
+                slave_label: version
                     .hostname
                     .filter(|h| !h.is_empty())
-                    .unwrap_or(v.fingerprint),
-                requester_ip: v.ip.unwrap_or_default(),
+                    .unwrap_or(version.fingerprint),
+                requester_ip: version.ip.unwrap_or_default(),
                 status: "PENDING".into(),
                 allowed_actions: vec![],
                 activation_token: None,
-                requested_at: v.created_at,
+                requested_at: version.created_at,
                 decided_at: None,
                 decided_by: None,
                 awaiting_pin: false,
-                transport: "verbund".into(),
+                transport: "cluster".into(),
             });
         }
     }

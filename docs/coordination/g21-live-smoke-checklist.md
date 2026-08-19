@@ -25,8 +25,8 @@ This sets `MEDOC_DEV_SEED=1`, stable SQLCipher keys, and demo data. On first run
 
 | Role | E-Mail | Name |
 | ---- | ------ | ---- |
-| REZEPTION | `aya@praxis.de` | Aya M. |
-| ARZT | `ahmed@praxis.de` | Dr. Ahmed R. |
+| RECEPTION | `aya@praxis.de` | Aya M. |
+| PHYSICIAN | `ahmed@praxis.de` | Dr. Ahmed R. |
 
 **License:** If activation gate appears, generate a dev token:
 
@@ -44,28 +44,28 @@ Paste the **V2 LICENSE** into the activation screen or Einstellungen → Lizenz.
 
 | # | Role | Steps | Expected | Observed |
 | - | ---- | ----- | -------- | -------- |
-| 1 | REZEPTION | Sidebar → **Posteingang** | Page loads; list or empty state; no access denied | ☐ |
-| 2 | REZEPTION | Wait ≥6s on Posteingang | List refreshes (5s poll — watch network/IPC or add a task in row 3 first) | ☐ |
-| 3 | ARZT | Patientenakte (Lena Hoffmann) → **Aufgabe an Rezeption** | Dialog saves; log out → REZ login → Posteingang shows new task | ☐ |
-| 4 | REZEPTION | Posteingang → **Erledigen** (with Kurznotiz) | Status updates; log out → ARZT → bell icon shows notification | ☐ |
-| 5 | REZEPTION | Patientenakte → tabs Anamnese, Befund, … | Tabs disabled or blocked toast | ☐ |
-| 6 | REZEPTION | Tab **Kundenleistungen** (Zahl) | Payment view; no clinical freitext fields | ☐ |
-| 7 | ARZT | **Einstellungen → Betrieb** → Backup wählen → Prüfen → Wiederherstellen | Confirm dialog; success message; reload hint | ☐ |
-| 8 | ARZT | **Praxis-Tickets** | Banner links to Posteingang; legacy tickets still work | ☐ |
-| 9 | ARZT + REPLICA | **Serverless pairing (W8)** — Master: Einstellungen → Pairing → accept replica. Replica: `serverless_peer` + pairing scan or paste master URL → sync | Patient + `praxis_ticket` visible on master after sync; revoke blocks push (403) | ☐ |
+| 1 | RECEPTION | Sidebar → **Posteingang** | Page loads; list or empty state; no access denied | ☐ |
+| 2 | RECEPTION | Wait ≥6s on Posteingang | List refreshes (5s poll — watch network/IPC or add a task in row 3 first) | ☐ |
+| 3 | PHYSICIAN | Patientenakte (Lena Hoffmann) → **Aufgabe an Rezeption** | Dialog saves; log out → REZ login → Posteingang shows new task | ☐ |
+| 4 | RECEPTION | Posteingang → **Erledigen** (with Kurznotiz) | Status updates; log out → PHYSICIAN → bell icon shows notification | ☐ |
+| 5 | RECEPTION | Patientenakte → tabs Anamnese, Befund, … | Tabs disabled or blocked toast | ☐ |
+| 6 | RECEPTION | Tab **Kundenleistungen** (Zahl) | Payment view; no clinical freitext fields | ☐ |
+| 7 | PHYSICIAN | **Einstellungen → Betrieb** → Backup wählen → Prüfen → Wiederherstellen | Confirm dialog; success message; reload hint | ☐ |
+| 8 | PHYSICIAN | **Praxis-Tickets** | Banner links to Posteingang; legacy tickets still work | ☐ |
+| 9 | PHYSICIAN + REPLICA | **Serverless pairing (W8)** — Master: Einstellungen → Pairing → accept replica. Replica: `serverless_peer` + pairing scan or paste master URL → sync | Patient + `practice_ticket` visible on master after sync; revoke blocks push (403) | ☐ |
 
 **Automated coverage (not a substitute for rows above):**
 
 - `packages/shared/src/lib/collaboration-g21.test.ts`
-- `apps/practice-host-ui/src/views/pages/posteingang.smoke.test.tsx` (rows 2, 4 UI transition)
-- `packages/shared/src/lib/nav-sections.test.ts` (G17 — posteingang in sidebar section config)
+- `apps/practice-host-ui/src/views/pages/inbox.smoke.test.tsx` (rows 2, 4 UI transition)
+- `packages/shared/src/lib/nav-sections.test.ts` (G17 — inbox in sidebar section config)
 - `apps/practice-host/tests/praxis_aufgabe_tests.rs` (`g21_arzt_to_rez_flow_*` — rows 3–4 backend E2E)
 - `apps/practice-host-ui/src/views/pages/praxis-tickets.smoke.test.tsx` (row 8)
 - `apps/practice-host-ui/src/views/components/patient-akte-workflow-dialogs.smoke.test.tsx` (row 3 proxy)
 - `packages/app/practice-host/src/pages/patient-detail/patient-detail-akte-subnav.smoke.test.tsx` (rows 5–6 proxy)
-- `apps/practice-host-ui/src/g21-routing.smoke.test.tsx` (row 1 proxy — REZEPTION sidebar → Posteingang)
+- `apps/practice-host-ui/src/g21-routing.smoke.test.tsx` (row 1 proxy — RECEPTION sidebar → Posteingang)
 - `apps/practice-host-ui/src/views/pages/ops.smoke.test.tsx` (row 7 proxy — backup validate/restore)
 - `packages/shared/src/lib/quittung-export-flow.test.ts` (GAP-11 Finanzen Quittung)
 - `bash tools/g21-verify-automated.sh` — runs all proxies + Rust G21/redaction in one command
-- `bash scripts/validate-docker-multi-device.sh` — **17/17** port e2e (Tier-1 `rezept` + `praxis_ticket`, mesh, RBAC)
+- `bash scripts/validate-docker-multi-device.sh` — **17/17** port e2e (Tier-1 `prescription` + `practice_ticket`, mesh, RBAC)
 - `bash tools/two-device-sync-smoke.sh` — Docker proxy + live 2-host steps for row 9

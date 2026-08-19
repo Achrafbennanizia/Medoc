@@ -34,7 +34,7 @@ async fn locks_out_after_six_failures() {
     init_audit();
     let pool = pool().await;
     let t = BruteForceTracker::new();
-    let k = key("user@praxis.de", "1.2.3.4");
+    let k = key("user@practice.de", "1.2.3.4");
     for _ in 0..5 {
         assert!(matches!(
             t.check(Some(&pool), &k).await,
@@ -54,11 +54,11 @@ async fn other_ip_unaffected() {
     init_audit();
     let pool = pool().await;
     let t = BruteForceTracker::new();
-    let victim = key("victim@praxis.de", "1.2.3.4");
+    let victim = key("victim@practice.de", "1.2.3.4");
     for _ in 0..6 {
         t.record_failure(Some(&pool), &victim).await;
     }
-    let attacker_ip = key("victim@praxis.de", "9.9.9.9");
+    let attacker_ip = key("victim@practice.de", "9.9.9.9");
     assert!(matches!(
         t.check(Some(&pool), &attacker_ip).await,
         CheckResult::Allowed
@@ -70,11 +70,11 @@ async fn different_subject_same_ip_unaffected() {
     init_audit();
     let pool = pool().await;
     let t = BruteForceTracker::new();
-    let a = key("alice@praxis.de", "5.5.5.5");
+    let a = key("alice@practice.de", "5.5.5.5");
     for _ in 0..6 {
         t.record_failure(Some(&pool), &a).await;
     }
-    let b = key("bob@praxis.de", "5.5.5.5");
+    let b = key("bob@practice.de", "5.5.5.5");
     assert!(matches!(
         t.check(Some(&pool), &b).await,
         CheckResult::Allowed
@@ -86,7 +86,7 @@ async fn success_clears_state() {
     init_audit();
     let pool = pool().await;
     let t = BruteForceTracker::new();
-    let k = key("reset@praxis.de", "8.8.8.8");
+    let k = key("reset@practice.de", "8.8.8.8");
     for _ in 0..3 {
         t.record_failure(Some(&pool), &k).await;
     }
@@ -101,7 +101,7 @@ async fn lockout_survives_hydrate_restart() {
     init_audit();
     let pool = pool().await;
     let t1 = BruteForceTracker::new();
-    let k = key("persist@praxis.de", DESKTOP_PEER_IP);
+    let k = key("persist@practice.de", DESKTOP_PEER_IP);
     for _ in 0..6 {
         t1.record_failure(Some(&pool), &k).await;
     }
@@ -123,7 +123,7 @@ async fn admin_clear_subject_removes_all_peer_ips() {
     init_audit();
     let pool = pool().await;
     let t = BruteForceTracker::new();
-    let email = "admin-clear@praxis.de";
+    let email = "admin-clear@practice.de";
     let hashed = brute_force::hash_subject(email).expect("hash");
     for ip in ["1.1.1.1", "2.2.2.2"] {
         let k = key(email, ip);

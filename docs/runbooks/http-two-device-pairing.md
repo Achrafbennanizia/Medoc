@@ -16,7 +16,7 @@
 4. **Master** — Accept request in inbox; note 4-digit PIN if prompted.
 5. **Replica** — Enter PIN; activation token persisted (`pairing_persist_token`).
 6. **Replica** — `sync_run_now` or automatic connect pulls clinical data.
-7. **Owner-only** — Non-owner replica cannot `import_activation_manifest` or `lizenz_activate` (403).
+7. **Owner-only** — Non-owner replica cannot `import_activation_manifest` or `license_activate` (403).
 8. **Merge** — After connect, verify deterministic data on both sides (see `docs/architecture/serverless-sync.md` push-then-pull).
 
 ## Automated smoke

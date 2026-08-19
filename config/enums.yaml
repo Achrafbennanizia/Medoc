@@ -1,89 +1,90 @@
 # MeDoc domain enums — single source of truth (TASK 3.5).
 # Edit this file only; run `cargo build` to regenerate Rust, TypeScript, Zod, and SQL CHECK fragments.
+# Type / variant *identifiers* are English. `wire` values stay German (SQLite CHECK / IPC).
 version: 1
 
 enums:
-  Rolle:
-    ts_const: ROLLE_VALUES
-    zod_schema: RolleSchema
-    sql_column: personal.rolle
+  Role:
+    ts_const: ROLE_VALUES
+    zod_schema: RoleSchema
+    sql_column: staff.role
     variants:
-      - { rust: Arzt, wire: ARZT }
-      - { rust: Rezeption, wire: REZEPTION }
+      - { rust: Physician, wire: PHYSICIAN }
+      - { rust: Reception, wire: RECEPTION }
       # TODO(deferred-roles): login disabled — keep wire values for SQLite CHECK / legacy rows
-      - { rust: Steuerberater, wire: STEUERBERATER }
-      - { rust: Pharmaberater, wire: PHARMABERATER }
+      - { rust: TaxAdvisor, wire: TAX_ADVISOR }
+      - { rust: PharmaConsultant, wire: PHARMA_CONSULTANT }
 
-  Geschlecht:
-    ts_const: GESCHLECHT_VALUES
-    zod_schema: GeschlechtSchema
-    sql_column: patient.geschlecht
+  Sex:
+    ts_const: SEX_VALUES
+    zod_schema: SexSchema
+    sql_column: patient.sex
     variants:
-      - { rust: Maennlich, wire: MAENNLICH }
-      - { rust: Weiblich, wire: WEIBLICH }
-      - { rust: Divers, wire: DIVERS }
+      - { rust: Male, wire: MALE }
+      - { rust: Female, wire: FEMALE }
+      - { rust: Diverse, wire: DIVERSE }
 
-  TerminArt:
-    ts_const: TERMIN_ART_VALUES
-    zod_schema: TerminArtSchema
-    sql_column: termin.art
+  AppointmentKind:
+    ts_const: APPOINTMENT_KIND_VALUES
+    zod_schema: AppointmentKindSchema
+    sql_column: appointment.kind
     variants:
-      - { rust: Erstbesuch, wire: ERSTBESUCH }
-      - { rust: Untersuchung, wire: UNTERSUCHUNG }
-      - { rust: Behandlung, wire: BEHANDLUNG }
-      - { rust: Kontrolle, wire: KONTROLLE }
-      - { rust: Beratung, wire: BERATUNG }
+      - { rust: FirstVisit, wire: FIRST_VISIT }
+      - { rust: Examination, wire: EXAMINATION }
+      - { rust: Treatment, wire: TREATMENT }
+      - { rust: Checkup, wire: CHECKUP }
+      - { rust: Consultation, wire: CONSULTATION }
 
-  TerminStatus:
-    ts_const: TERMIN_STATUS_VALUES
-    zod_schema: TerminStatusSchema
-    sql_column: termin.status
+  AppointmentStatus:
+    ts_const: APPOINTMENT_STATUS_VALUES
+    zod_schema: AppointmentStatusSchema
+    sql_column: appointment.status
     variants:
-      - { rust: Geplant, wire: GEPLANT }
-      - { rust: Bestaetigt, wire: BESTAETIGT }
-      - { rust: Durchgefuehrt, wire: DURCHGEFUEHRT }
-      - { rust: NichtErschienen, wire: NICHT_ERSCHIENEN }
-      - { rust: Abgesagt, wire: ABGESAGT }
+      - { rust: Planned, wire: PLANNED }
+      - { rust: Confirmed, wire: CONFIRMED }
+      - { rust: Completed, wire: COMPLETED }
+      - { rust: NoShow, wire: NO_SHOW }
+      - { rust: Cancelled, wire: CANCELLED }
 
   PatientStatus:
     ts_const: PATIENT_STATUS_VALUES
     zod_schema: PatientStatusSchema
     sql_column: patient.status
     variants:
-      - { rust: Neu, wire: NEU }
-      - { rust: Aktiv, wire: AKTIV }
-      - { rust: Validiert, wire: VALIDIERT }
+      - { rust: New, wire: NEW }
+      - { rust: Active, wire: ACTIVE }
+      - { rust: Validated, wire: VALIDATED }
       - { rust: Readonly, wire: READONLY }
 
-  AktenStatus:
-    ts_const: AKTEN_STATUS_VALUES
-    zod_schema: AktenStatusSchema
-    sql_column: patientenakte.status
+  ChartStatus:
+    ts_const: CHART_STATUS_VALUES
+    zod_schema: ChartStatusSchema
+    sql_column: patient_chart.status
     variants:
-      - { rust: Entwurf, wire: ENTWURF }
-      - { rust: InBearbeitung, wire: IN_BEARBEITUNG }
-      - { rust: Validiert, wire: VALIDIERT }
+      - { rust: Draft, wire: DRAFT }
+      - { rust: InProgress, wire: IN_PROGRESS }
+      - { rust: Validated, wire: VALIDATED }
       - { rust: Readonly, wire: READONLY }
 
-  ZahlungsArt:
-    ts_const: ZAHLUNGS_ART_VALUES
-    zod_schema: ZahlungsartSchema
-    sql_column: zahlung.zahlungsart
+  PaymentMethod:
+    ts_const: PAYMENT_METHOD_VALUES
+    zod_schema: PaymentMethodSchema
+    sql_column: payment.payment_method
     variants:
-      - { rust: Bar, wire: BAR }
-      - { rust: Karte, wire: KARTE }
-      - { rust: Ueberweisung, wire: UEBERWEISUNG }
-      - { rust: Rechnung, wire: RECHNUNG }
+      - { rust: Cash, wire: CASH }
+      - { rust: Card, wire: CARD }
+      - { rust: BankTransfer, wire: BANK_TRANSFER }
+      - { rust: Invoice, wire: INVOICE }
 
-  ZahlungsStatus:
-    ts_const: ZAHLUNGS_STATUS_VALUES
-    zod_schema: ZahlungStatusSchema
-    sql_column: zahlung.status
+  PaymentStatus:
+    ts_const: PAYMENT_STATUS_VALUES
+    zod_schema: PaymentStatusSchema
+    sql_column: payment.status
     variants:
-      - { rust: Ausstehend, wire: AUSSTEHEND }
-      - { rust: Bezahlt, wire: BEZAHLT }
-      - { rust: Teilbezahlt, wire: TEILBEZAHLT }
-      - { rust: Storniert, wire: STORNIERT }
+      - { rust: Outstanding, wire: OUTSTANDING }
+      - { rust: Paid, wire: PAID }
+      - { rust: PartiallyPaid, wire: PARTIALLY_PAID }
+      - { rust: Cancelled, wire: CANCELLED }
 
   AuditAction:
     generate_ts: false
@@ -95,23 +96,23 @@ enums:
       - { rust: Login, wire: LOGIN }
       - { rust: Logout, wire: LOGOUT }
 
-  BestellStatus:
+  OrderStatus:
     generate_rust: false
     generate_zod: false
-    ts_const: BESTELL_STATUS_VALUES
-    sql_column: bestellung.status
+    ts_const: ORDER_STATUS_VALUES
+    sql_column: purchase_order.status
     variants:
-      - { wire: OFFEN }
-      - { wire: UNTERWEGS }
-      - { wire: GELIEFERT }
-      - { wire: STORNIERT }
+      - { wire: OPEN }
+      - { wire: IN_TRANSIT }
+      - { wire: DELIVERED }
+      - { wire: CANCELLED }
 
-  FeedbackKategorie:
+  FeedbackCategory:
     generate_rust: false
-    ts_const: FEEDBACK_KATEGORIE_VALUES
-    zod_schema: FeedbackKategorieSchema
+    ts_const: FEEDBACK_CATEGORY_VALUES
+    zod_schema: FeedbackCategorySchema
     serde_rename_all: lowercase
-    sql_column: feedback.kategorie
+    sql_column: feedback.category
     variants:
       - { wire: feedback }
       - { wire: vigilance }
@@ -123,6 +124,6 @@ enums:
     ts_const: FEEDBACK_STATUS_VALUES
     sql_column: feedback.status
     variants:
-      - { wire: OFFEN }
-      - { wire: BEARBEITUNG }
-      - { wire: ERLEDIGT }
+      - { wire: OPEN }
+      - { wire: IN_PROGRESS }
+      - { wire: DONE }

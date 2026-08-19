@@ -43,20 +43,20 @@ const LAN_COMMAND_ROUTES: Partial<
     get_own_profile: { method: "GET", path: "/api/v1/me" },
     login: { method: "POST", path: "/api/v1/auth/login" },
     logout: { method: "POST", path: "/api/v1/auth/login" }, // no-op over HTTP; session is JWT-only
-    list_patienten: { method: "GET", path: "/api/v1/patienten" },
-    list_termine: {
+    list_patients: { method: "GET", path: "/api/v1/patients" },
+    list_appointments: {
         method: "GET",
         path: (args) => {
-            const datum = args.datum;
-            return datum != null && String(datum).length > 0
-                ? `/api/v1/termine?datum=${encodeURIComponent(String(datum))}`
-                : "/api/v1/termine";
+            const date = args.date;
+            return date != null && String(date).length > 0
+                ? `/api/v1/appointments?date=${encodeURIComponent(String(date))}`
+                : "/api/v1/appointments";
         },
     },
-    list_termine_by_date: {
+    list_appointments_by_date: {
         method: "GET",
         path: (args) =>
-            `/api/v1/termine?datum=${encodeURIComponent(String(args.datum ?? ""))}`,
+            `/api/v1/appointments?date=${encodeURIComponent(String(args.date ?? ""))}`,
     },
     get_app_kv: {
         method: "GET",
@@ -111,7 +111,7 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             if (command === "login") {
                 init.body = JSON.stringify({
                     email: args?.email,
-                    passwort: args?.passwort ?? args?.password,
+                    password: args?.password ?? args?.password,
                     totp_code: args?.totp_code ?? null,
                 });
             } else if (command === "set_app_kv") {
@@ -141,13 +141,13 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
                 user_id: string;
                 email: string;
                 name: string;
-                rolle: string;
+                role: string;
             };
             return {
                 user_id: u.user_id,
                 email: u.email,
                 name: u.name,
-                rolle: u.rolle,
+                role: u.role,
             } as T;
         }
 
@@ -157,7 +157,7 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
                 user_id: record.user_id as string,
                 email: record.email as string,
                 name: record.name as string,
-                rolle: record.rolle as string,
+                role: record.role as string,
             } as T;
         }
 

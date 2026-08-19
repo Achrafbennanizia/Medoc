@@ -27,7 +27,7 @@ pub use crate::domain::rbac::{
 include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
 
 /// Finance read access: full finance overview (physician/tax advisor) or cash-desk area (reception).
-pub const FINANZEN_READ_OR_RECEPTION: &[&str] = &["finanzen.read", "finanzen.reception.view"];
+pub const FINANCE_READ_OR_RECEPTION: &[&str] = &["finance.read", "finance.reception.view"];
 
 /// Permission matrix from `config/rbac.yaml` (generated at build time).
 pub fn allowed(action: &str, role: Role) -> bool {

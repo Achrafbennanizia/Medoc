@@ -1,4 +1,4 @@
-// Record of processing activities (GDPR Art. 30 — VVT).
+// Record of processing activities (GDPR Art. 30 — VVT / ROPA).
 //
 // Generates the legally required record of processing activities for the
 // dental practice operating MeDoc. The output is a structured document
@@ -31,113 +31,113 @@ pub struct VVT {
 
 pub fn generate() -> VVT {
     let common_tech = vec![
-        "SQLite-Datenbank lokal (WAL-Modus) mit SQLCipher (AES-256) — Schlüssel im OS-Schlüsselbund; optional `db-key.wrap` (NFA-SEC-08)",
-        "Ergänzend OS-Vollverschlüsselung des Geräts (BitLocker/FileVault) empfohlen",
-        "Argon2id Passwort-Hashing",
-        "TLS 1.3 für alle Netzwerkverbindungen",
-        "Tamper-proof Audit-Log (HMAC-SHA256-Hash-Kette)",
-        "Rollenbasierte Zugriffskontrolle (4 Rollen)",
-        "Automatische Sitzungssperre nach 15 Min. Inaktivität",
-        "Zeroize sensibler Daten im Arbeitsspeicher",
+        "Local SQLite database (WAL mode) with SQLCipher (AES-256) — key in the OS keychain; optional `db-key.wrap` (NFA-SEC-08)",
+        "Additional full-disk encryption recommended (BitLocker / FileVault)",
+        "Argon2id password hashing",
+        "TLS 1.3 for all network connections",
+        "Tamper-evident audit log (HMAC-SHA256 hash chain)",
+        "Role-based access control (four roles)",
+        "Automatic session lock after 15 minutes of inactivity",
+        "Zeroize of sensitive data in memory",
     ];
     let common_org = vec![
-        "Dokumentierte Berechtigungskonzepte",
-        "Schulung des Personals zur DSGVO",
-        "Datenschutz-Folgenabschätzung (DSFA) bei Hochrisiko-Verarbeitung",
-        "Verfahren zur Wahrnehmung der Betroffenenrechte",
+        "Documented authorisation concept",
+        "Staff training on GDPR",
+        "Data protection impact assessment (DPIA) for high-risk processing",
+        "Procedure for exercising data-subject rights",
     ];
 
     VVT {
         generated_at: chrono::Utc::now().to_rfc3339(),
-        controller: "Praxisinhaber:in (Verantwortliche:r i.S.v. Art. 4 Nr. 7 DSGVO)",
+        controller: "Practice owner (controller under GDPR Art. 4(7))",
         system: "MeDoc",
         system_version: env!("CARGO_PKG_VERSION"),
         activities: vec![
             ProcessingActivity {
-                name: "Patientenstammdaten & Behandlungsdokumentation".into(),
+                name: "Patient master data and treatment documentation".into(),
                 purpose:
-                    "Erbringung zahnmedizinischer Leistungen, Dokumentationspflicht nach § 630f BGB"
+                    "Provision of dental services; documentation duty under § 630f BGB"
                         .into(),
-                legal_basis: "Art. 9 Abs. 2 lit. h DSGVO i.V.m. § 22 Abs. 1 Nr. 1 lit. b BDSG"
+                legal_basis: "GDPR Art. 9(2)(h) in conjunction with § 22(1) no. 1(b) BDSG"
                     .into(),
                 data_categories: vec![
-                    "Identifikationsdaten (Name, Geburtsdatum, Adresse)",
-                    "Versicherungsdaten",
-                    "Gesundheitsdaten (Anamnese, Befunde, Behandlungen)",
-                    "Bilddaten (Röntgen, Fotos)",
+                    "Identification data (name, date of birth, address)",
+                    "Insurance data",
+                    "Health data (anamnesis, findings, treatments)",
+                    "Image data (X-ray, photos)",
                 ],
-                data_subjects: vec!["Patient:innen"],
+                data_subjects: vec!["Patients"],
                 recipients: vec![
-                    "Behandelnde Ärzt:innen",
-                    "Auf Anforderung: KZV",
-                    "Bei Überweisung: Fachärzt:innen",
+                    "Treating clinicians",
+                    "On request: regional dental association (KZV)",
+                    "On referral: specialists",
                 ],
-                retention: "10 Jahre nach Abschluss der Behandlung (§ 630f Abs. 3 BGB)",
+                retention: "10 years after completion of treatment (§ 630f(3) BGB)",
                 technical_measures: common_tech.clone(),
                 organisational_measures: common_org.clone(),
             },
             ProcessingActivity {
-                name: "Terminverwaltung".into(),
-                purpose: "Planung und Erinnerung an Behandlungstermine".into(),
-                legal_basis: "Art. 6 Abs. 1 lit. b DSGVO (Vertragsanbahnung/-erfüllung)".into(),
-                data_categories: vec!["Identifikationsdaten", "Terminhistorie", "Kontaktdaten"],
-                data_subjects: vec!["Patient:innen"],
-                recipients: vec!["Praxispersonal"],
-                retention: "Mit Patientenakte: 10 Jahre",
+                name: "Appointment management".into(),
+                purpose: "Planning and reminders for treatment appointments".into(),
+                legal_basis: "GDPR Art. 6(1)(b) (steps prior to / performance of a contract)".into(),
+                data_categories: vec!["Identification data", "Appointment history", "Contact data"],
+                data_subjects: vec!["Patients"],
+                recipients: vec!["Practice staff"],
+                retention: "With the patient chart: 10 years",
                 technical_measures: common_tech.clone(),
                 organisational_measures: common_org.clone(),
             },
             ProcessingActivity {
-                name: "Abrechnung & Buchhaltung".into(),
-                purpose: "Erstellung von Rechnungen, BEMA/GOZ-Abrechnung, Zahlungsverfolgung"
+                name: "Billing and accounting".into(),
+                purpose: "Invoices, BEMA/GOZ billing, payment tracking"
                     .into(),
-                legal_basis: "Art. 6 Abs. 1 lit. b/c DSGVO (Vertrag, gesetzliche Pflicht)".into(),
+                legal_basis: "GDPR Art. 6(1)(b)/(c) (contract; legal obligation)".into(),
                 data_categories: vec![
-                    "Identifikationsdaten",
-                    "Versicherungsdaten",
-                    "Leistungspositionen",
-                    "Zahlungsdaten",
+                    "Identification data",
+                    "Insurance data",
+                    "Service items",
+                    "Payment data",
                 ],
-                data_subjects: vec!["Patient:innen", "Steuerberater:in (lesend)"],
-                recipients: vec!["Steuerberatung", "Krankenkassen / KZV", "Finanzamt"],
-                retention: "10 Jahre (§ 147 AO)",
+                data_subjects: vec!["Patients", "Tax advisor (read-only)"],
+                recipients: vec!["Tax advisor", "Health insurers / KZV", "Tax office"],
+                retention: "10 years (§ 147 AO)",
                 technical_measures: common_tech.clone(),
                 organisational_measures: common_org.clone(),
             },
             ProcessingActivity {
-                name: "Personalverwaltung".into(),
-                purpose: "Verwaltung der Mitarbeiter:innen und ihrer Rollen".into(),
-                legal_basis: "Art. 6 Abs. 1 lit. b DSGVO, § 26 BDSG".into(),
+                name: "Staff administration".into(),
+                purpose: "Administration of staff and their roles".into(),
+                legal_basis: "GDPR Art. 6(1)(b), § 26 BDSG".into(),
                 data_categories: vec![
-                    "Identifikationsdaten",
-                    "Rollendaten",
-                    "Authentifizierungsdaten (Passwort-Hashes)",
+                    "Identification data",
+                    "Role data",
+                    "Authentication data (password hashes)",
                 ],
-                data_subjects: vec!["Mitarbeiter:innen"],
-                recipients: vec!["Praxisleitung"],
-                retention: "Bis 3 Jahre nach Ende des Arbeitsverhältnisses",
+                data_subjects: vec!["Staff"],
+                recipients: vec!["Practice management"],
+                retention: "Up to 3 years after the end of employment",
                 technical_measures: common_tech.clone(),
                 organisational_measures: common_org.clone(),
             },
             ProcessingActivity {
-                name: "Audit-Log & Sicherheitslog".into(),
+                name: "Audit log and security log".into(),
                 purpose:
-                    "Nachvollziehbarkeit von Datenzugriffen, Erkennung von Sicherheitsvorfällen"
+                    "Traceability of data access; detection of security incidents"
                         .into(),
-                legal_basis: "Art. 32 DSGVO (Sicherheit der Verarbeitung), Art. 33 (Meldepflicht)"
+                legal_basis: "GDPR Art. 32 (security of processing), Art. 33 (notification)"
                     .into(),
                 data_categories: vec![
-                    "User-IDs",
-                    "Zeitstempel",
-                    "Aktionen",
-                    "IP-Adresse (Sicherheitslog)",
+                    "User IDs",
+                    "Timestamps",
+                    "Actions",
+                    "IP address (security log)",
                 ],
-                data_subjects: vec!["Mitarbeiter:innen"],
+                data_subjects: vec!["Staff"],
                 recipients: vec![
-                    "Datenschutzbeauftragte:r",
-                    "Aufsichtsbehörde (auf Anforderung)",
+                    "Data protection officer",
+                    "Supervisory authority (on request)",
                 ],
-                retention: "Audit-Log: 10 Jahre. Sicherheitslog: 90 Tage. Anwendungslog: 30 Tage.",
+                retention: "Audit log: 10 years. Security log: 90 days. Application log: 30 days.",
                 technical_measures: common_tech,
                 organisational_measures: common_org,
             },

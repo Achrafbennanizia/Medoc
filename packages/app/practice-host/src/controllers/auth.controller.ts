@@ -10,12 +10,12 @@ export type LoginOpts = {
 
 export async function login(
     email: string,
-    passwort: string,
+    password: string,
     opts?: LoginOpts,
 ): Promise<Session> {
     const session = await practiceSystem.invoke<Session>("login", {
         email,
-        passwort,
+        password,
         totp_code: null,
         device_label: opts?.device_label ?? null,
         user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
@@ -61,8 +61,8 @@ export async function touchSession(): Promise<boolean> {
     return practiceSystem.invoke<boolean>("touch_session");
 }
 
-/** Post-login landing path: REZEPTION → work-time page; others → dashboard. */
+/** Post-login landing path: RECEPTION → work-time page; others → dashboard. */
 export async function postLoginPath(session: Session): Promise<string> {
-    if (session.rolle === "REZEPTION") return "/personal/arbeitszeit";
+    if (session.role === "RECEPTION") return "/staff/work-time";
     return "/";
 }

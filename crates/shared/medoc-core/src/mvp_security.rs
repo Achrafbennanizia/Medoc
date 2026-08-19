@@ -12,19 +12,19 @@ pub const BREAK_GLASS_ENABLED: bool = false;
 /// TOTP two-factor authentication — disabled for MVP.
 pub const TOTP_2FA_ENABLED: bool = false;
 
-/// Max ARZT accounts (admin slot).
-pub const MAX_ARZT: u32 = 1;
+/// Max PHYSICIAN accounts (admin slot).
+pub const MAX_PHYSICIAN: u32 = 1;
 
-/// Max REZEPTION accounts (user slots).
-pub const MAX_REZEPTION: u32 = 4;
+/// Max RECEPTION accounts (user slots).
+pub const MAX_RECEPTION: u32 = 4;
 
 /// Max total staff accounts.
-pub const MAX_TOTAL_PERSONAL: u32 = 5;
+pub const MAX_TOTAL_STAFF: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct StaffQuotaLimits {
-    pub max_arzt: u32,
-    pub max_rezeption: u32,
+    pub max_physician: u32,
+    pub max_reception: u32,
     pub max_total: u32,
 }
 
@@ -32,27 +32,27 @@ pub struct StaffQuotaLimits {
 /// When limits change at runtime, call [`reinstall_staff_quota_db_triggers`] after activate.
 pub fn staff_quota_limits() -> StaffQuotaLimits {
     StaffQuotaLimits {
-        max_arzt: MAX_ARZT,
-        max_rezeption: MAX_REZEPTION,
-        max_total: MAX_TOTAL_PERSONAL,
+        max_physician: MAX_PHYSICIAN,
+        max_reception: MAX_RECEPTION,
+        max_total: MAX_TOTAL_STAFF,
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct StaffQuota {
-    pub max_arzt: u32,
-    pub max_rezeption: u32,
+    pub max_physician: u32,
+    pub max_reception: u32,
     pub max_total: u32,
-    pub used_arzt: u32,
-    pub used_rezeption: u32,
+    pub used_physician: u32,
+    pub used_reception: u32,
     pub used_total: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct StaffCounts {
     total: u32,
-    arzt: u32,
-    rezeption: u32,
+    physician: u32,
+    reception: u32,
 }
 
 pub fn require_break_glass_enabled() -> Result<(), AppError> {
@@ -80,11 +80,11 @@ pub async fn staff_quota(pool: &SqlitePool) -> Result<StaffQuota, AppError> {
     let counts = staff_counts_pool(pool, None).await?;
 
     Ok(StaffQuota {
-        max_arzt: limits.max_arzt,
-        max_rezeption: limits.max_rezeption,
+        max_physician: limits.max_physician,
+        max_reception: limits.max_reception,
         max_total: limits.max_total,
-        used_arzt: counts.arzt,
-        used_rezeption: counts.rezeption,
+        used_physician: counts.physician,
+        used_reception: counts.reception,
         used_total: counts.total,
     })
 }
@@ -92,11 +92,11 @@ pub async fn staff_quota(pool: &SqlitePool) -> Result<StaffQuota, AppError> {
 /// Validates quota inside an open `BEGIN IMMEDIATE` transaction.
 pub async fn enforce_staff_quota_on_conn(
     tx: &mut sqlx::Transaction<'_, Sqlite>,
-    rolle: &str,
+    role: &str,
     exclude_id: Option<&str>,
 ) -> Result<(), AppError> {
     let counts = staff_counts_tx(tx, exclude_id).await?;
-    enforce_staff_quota_from_counts(staff_quota_limits(), rolle, counts)
+    enforce_staff_quota_from_counts(staff_quota_limits(), role, counts)
 }
 
 /// Sentinel `app_kv` row touched at the start of quota transactions to acquire a
@@ -137,21 +137,21 @@ async fn pin_staff_quota_write_lock(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaErrorMessages {
     pub max_total: String,
-    pub max_arzt: String,
-    pub max_rezeption: String,
+    pub max_physician: String,
+    pub max_reception: String,
 }
 
 /// German validation messages shared by app-layer checks and DB trigger RAISE text.
 pub fn quota_error_messages(limits: StaffQuotaLimits) -> QuotaErrorMessages {
     QuotaErrorMessages {
         max_total: format!("Maximal {} Benutzer erlaubt", limits.max_total),
-        max_arzt: format!(
-            "Maximal {} Arzt-Konto erlaubt (Admin-Platz belegt)",
-            limits.max_arzt
+        max_physician: format!(
+            "Maximal {} Physician-Konto erlaubt (Admin-Platz belegt)",
+            limits.max_physician
         ),
-        max_rezeption: format!(
+        max_reception: format!(
             "Maximal {} Rezeptions-Konten erlaubt",
-            limits.max_rezeption
+            limits.max_reception
         ),
     }
 }
@@ -166,8 +166,8 @@ pub fn sql_raise_message_literal(message: &str) -> String {
 fn quota_messages_as_raise_literals(msgs: &QuotaErrorMessages) -> (String, String, String) {
     (
         sql_raise_message_literal(&msgs.max_total),
-        sql_raise_message_literal(&msgs.max_arzt),
-        sql_raise_message_literal(&msgs.max_rezeption),
+        sql_raise_message_literal(&msgs.max_physician),
+        sql_raise_message_literal(&msgs.max_reception),
     )
 }
 
@@ -175,7 +175,7 @@ fn quota_messages_as_raise_literals(msgs: &QuotaErrorMessages) -> (String, Strin
 pub fn staff_quota_limits_fingerprint(limits: StaffQuotaLimits) -> String {
     format!(
         "{},{},{}",
-        limits.max_arzt, limits.max_rezeption, limits.max_total
+        limits.max_physician, limits.max_reception, limits.max_total
     )
 }
 
@@ -197,45 +197,45 @@ pub fn staff_quota_trigger_ddl_with_messages(
     limits: StaffQuotaLimits,
     msgs: QuotaErrorMessages,
 ) -> (String, String) {
-    let (msg_total, msg_arzt, msg_rezeption) = quota_messages_as_raise_literals(&msgs);
+    let (msg_total, msg_physician, msg_reception) = quota_messages_as_raise_literals(&msgs);
 
     let insert = format!(
-        "CREATE TRIGGER trg_personal_quota_insert
-         BEFORE INSERT ON personal
-         WHEN UPPER(NEW.rolle) IN ('ARZT', 'REZEPTION')
+        "CREATE TRIGGER trg_staff_quota_insert
+         BEFORE INSERT ON staff
+         WHEN UPPER(NEW.role) IN ('PHYSICIAN', 'RECEPTION')
          BEGIN
            SELECT RAISE(ABORT, {msg_total})
-           WHERE (SELECT COUNT(*) FROM personal) >= {max_total};
-           SELECT RAISE(ABORT, {msg_arzt})
-           WHERE UPPER(NEW.rolle) = 'ARZT'
-             AND (SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'ARZT') >= {max_arzt};
-           SELECT RAISE(ABORT, {msg_rezeption})
-           WHERE UPPER(NEW.rolle) = 'REZEPTION'
-             AND (SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'REZEPTION') >= {max_rezeption};
+           WHERE (SELECT COUNT(*) FROM staff) >= {max_total};
+           SELECT RAISE(ABORT, {msg_physician})
+           WHERE UPPER(NEW.role) = 'PHYSICIAN'
+             AND (SELECT COUNT(*) FROM staff WHERE UPPER(role) = 'PHYSICIAN') >= {max_physician};
+           SELECT RAISE(ABORT, {msg_reception})
+           WHERE UPPER(NEW.role) = 'RECEPTION'
+             AND (SELECT COUNT(*) FROM staff WHERE UPPER(role) = 'RECEPTION') >= {max_reception};
          END",
         max_total = limits.max_total,
-        max_arzt = limits.max_arzt,
-        max_rezeption = limits.max_rezeption,
+        max_physician = limits.max_physician,
+        max_reception = limits.max_reception,
     );
 
     let update = format!(
-        "CREATE TRIGGER trg_personal_quota_update_rolle
-         BEFORE UPDATE OF rolle ON personal
-         WHEN UPPER(NEW.rolle) IN ('ARZT', 'REZEPTION')
-           AND UPPER(NEW.rolle) != UPPER(OLD.rolle)
+        "CREATE TRIGGER trg_staff_quota_update_role
+         BEFORE UPDATE OF role ON staff
+         WHEN UPPER(NEW.role) IN ('PHYSICIAN', 'RECEPTION')
+           AND UPPER(NEW.role) != UPPER(OLD.role)
          BEGIN
            SELECT RAISE(ABORT, {msg_total})
-           WHERE (SELECT COUNT(*) FROM personal WHERE id != OLD.id) >= {max_total};
-           SELECT RAISE(ABORT, {msg_arzt})
-           WHERE UPPER(NEW.rolle) = 'ARZT'
-             AND (SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'ARZT' AND id != OLD.id) >= {max_arzt};
-           SELECT RAISE(ABORT, {msg_rezeption})
-           WHERE UPPER(NEW.rolle) = 'REZEPTION'
-             AND (SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'REZEPTION' AND id != OLD.id) >= {max_rezeption};
+           WHERE (SELECT COUNT(*) FROM staff WHERE id != OLD.id) >= {max_total};
+           SELECT RAISE(ABORT, {msg_physician})
+           WHERE UPPER(NEW.role) = 'PHYSICIAN'
+             AND (SELECT COUNT(*) FROM staff WHERE UPPER(role) = 'PHYSICIAN' AND id != OLD.id) >= {max_physician};
+           SELECT RAISE(ABORT, {msg_reception})
+           WHERE UPPER(NEW.role) = 'RECEPTION'
+             AND (SELECT COUNT(*) FROM staff WHERE UPPER(role) = 'RECEPTION' AND id != OLD.id) >= {max_reception};
          END",
         max_total = limits.max_total,
-        max_arzt = limits.max_arzt,
-        max_rezeption = limits.max_rezeption,
+        max_physician = limits.max_physician,
+        max_reception = limits.max_reception,
     );
 
     (insert, update)
@@ -250,7 +250,7 @@ async fn stored_staff_quota_limits_fingerprint(
             .fetch_optional(pool)
             .await
             .map_err(AppError::Database)?;
-    Ok(row.map(|(v,)| v))
+    Ok(row.map(|(version,)| version))
 }
 
 fn log_staff_quota_trigger_drift(stored: &str, expected: &str) {
@@ -264,7 +264,7 @@ fn log_staff_quota_trigger_drift(stored: &str, expected: &str) {
 }
 
 async fn staff_quota_triggers_present(pool: &SqlitePool) -> Result<bool, AppError> {
-    for name in ["trg_personal_quota_insert", "trg_personal_quota_update_rolle"] {
+    for name in ["trg_staff_quota_insert", "trg_staff_quota_update_role"] {
         let n: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?1",
         )
@@ -294,7 +294,7 @@ pub async fn reinstall_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), 
 
     let (insert_sql, update_sql) = staff_quota_trigger_ddl(limits);
 
-    for name in ["trg_personal_quota_insert", "trg_personal_quota_update_rolle"] {
+    for name in ["trg_staff_quota_insert", "trg_staff_quota_update_role"] {
         sqlx::query(&format!("DROP TRIGGER IF EXISTS {name}"))
             .execute(pool)
             .await
@@ -331,24 +331,24 @@ pub async fn ensure_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), App
     reinstall_staff_quota_db_triggers(pool).await
 }
 
-/// Validates that assigning `rolle` to a new or updated staff member stays within quota.
+/// Validates that assigning `role` to a new or updated staff member stays within quota.
 /// Non-atomic; prefer [`enforce_staff_quota_on_conn`] inside `BEGIN IMMEDIATE` for writes.
 pub async fn check_staff_quota(
     pool: &SqlitePool,
-    rolle: &str,
+    role: &str,
     exclude_id: Option<&str>,
 ) -> Result<(), AppError> {
     let counts = staff_counts_pool(pool, exclude_id).await?;
-    enforce_staff_quota_from_counts(staff_quota_limits(), rolle, counts)
+    enforce_staff_quota_from_counts(staff_quota_limits(), role, counts)
 }
 
 fn enforce_staff_quota_from_counts(
     limits: StaffQuotaLimits,
-    rolle: &str,
+    role: &str,
     counts: StaffCounts,
 ) -> Result<(), AppError> {
-    let role = rolle.trim().to_uppercase();
-    if role != "ARZT" && role != "REZEPTION" {
+    let role = role.trim().to_uppercase();
+    if role != "PHYSICIAN" && role != "RECEPTION" {
         return Ok(());
     }
 
@@ -358,12 +358,12 @@ fn enforce_staff_quota_from_counts(
         return Err(AppError::Validation(msgs.max_total));
     }
 
-    if role == "ARZT" && counts.arzt >= limits.max_arzt {
-        return Err(AppError::Validation(msgs.max_arzt));
+    if role == "PHYSICIAN" && counts.physician >= limits.max_physician {
+        return Err(AppError::Validation(msgs.max_physician));
     }
 
-    if role == "REZEPTION" && counts.rezeption >= limits.max_rezeption {
-        return Err(AppError::Validation(msgs.max_rezeption));
+    if role == "RECEPTION" && counts.reception >= limits.max_reception {
+        return Err(AppError::Validation(msgs.max_reception));
     }
 
     Ok(())
@@ -373,13 +373,13 @@ async fn staff_counts_pool(
     pool: &SqlitePool,
     exclude_id: Option<&str>,
 ) -> Result<StaffCounts, AppError> {
-    let total = count_personal(pool, exclude_id).await?;
-    let arzt = count_personal_by_role(pool, "ARZT", exclude_id).await?;
-    let rezeption = count_personal_by_role(pool, "REZEPTION", exclude_id).await?;
+    let total = count_staff(pool, exclude_id).await?;
+    let physician = count_staff_by_role(pool, "PHYSICIAN", exclude_id).await?;
+    let reception = count_staff_by_role(pool, "RECEPTION", exclude_id).await?;
     Ok(StaffCounts {
         total,
-        arzt,
-        rezeption,
+        physician,
+        reception,
     })
 }
 
@@ -387,17 +387,17 @@ async fn staff_counts_tx(
     tx: &mut sqlx::Transaction<'_, Sqlite>,
     exclude_id: Option<&str>,
 ) -> Result<StaffCounts, AppError> {
-    let total = count_personal(&mut **tx, exclude_id).await?;
-    let arzt = count_personal_by_role(&mut **tx, "ARZT", exclude_id).await?;
-    let rezeption = count_personal_by_role(&mut **tx, "REZEPTION", exclude_id).await?;
+    let total = count_staff(&mut **tx, exclude_id).await?;
+    let physician = count_staff_by_role(&mut **tx, "PHYSICIAN", exclude_id).await?;
+    let reception = count_staff_by_role(&mut **tx, "RECEPTION", exclude_id).await?;
     Ok(StaffCounts {
         total,
-        arzt,
-        rezeption,
+        physician,
+        reception,
     })
 }
 
-async fn count_personal<'e, E>(
+async fn count_staff<'e, E>(
     executor: E,
     exclude_id: Option<&str>,
 ) -> Result<u32, AppError>
@@ -405,21 +405,21 @@ where
     E: sqlx::Executor<'e, Database = Sqlite>,
 {
     let row: (i64,) = if let Some(id) = exclude_id {
-        sqlx::query_as("SELECT COUNT(*) FROM personal WHERE id != ?1")
+        sqlx::query_as("SELECT COUNT(*) FROM staff WHERE id != ?1")
             .bind(id)
             .fetch_one(executor)
             .await?
     } else {
-        sqlx::query_as("SELECT COUNT(*) FROM personal")
+        sqlx::query_as("SELECT COUNT(*) FROM staff")
             .fetch_one(executor)
             .await?
     };
     Ok(row.0.max(0) as u32)
 }
 
-async fn count_personal_by_role<'e, E>(
+async fn count_staff_by_role<'e, E>(
     executor: E,
-    rolle: &str,
+    role: &str,
     exclude_id: Option<&str>,
 ) -> Result<u32, AppError>
 where
@@ -427,15 +427,15 @@ where
 {
     let row: (i64,) = if let Some(id) = exclude_id {
         sqlx::query_as(
-            "SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = UPPER(?1) AND id != ?2",
+            "SELECT COUNT(*) FROM staff WHERE UPPER(role) = UPPER(?1) AND id != ?2",
         )
-        .bind(rolle)
+        .bind(role)
         .bind(id)
         .fetch_one(executor)
         .await?
     } else {
-        sqlx::query_as("SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = UPPER(?1)")
-            .bind(rolle)
+        sqlx::query_as("SELECT COUNT(*) FROM staff WHERE UPPER(role) = UPPER(?1)")
+            .bind(role)
             .fetch_one(executor)
             .await?
     };

@@ -2,7 +2,7 @@
 //
 // Two protocols matter for a dental PVS in Germany:
 //
-// - **E-Rezept** (electronic prescription) — issued via the gematik FHIR
+// - **E-Prescription** (electronic prescription) — issued via the gematik FHIR
 //   profile, signed with the doctor's HBA card (eHBA), submitted to the
 //   gematik Fachdienst.
 // - **KIM** (Kommunikation im Medizinwesen) — secure email between
@@ -99,7 +99,7 @@ pub fn validate(rx: &EPrescription) -> Result<(), AppError> {
 pub fn submit_via_ti(rx: &EPrescription) -> Result<EPrescriptionToken, AppError> {
     validate(rx)?;
     log_system!(warn,
-        event = "EREZEPT_SUBMIT_NOT_IMPLEMENTED",
+        event = "E_PRESCRIPTION_SUBMIT_NOT_IMPLEMENTED",
         kvnr = %rx.kvnr,
         pzn = %rx.pzn,
     );

@@ -6,5 +6,5 @@
 pub mod admin;
 pub mod billing;
 pub mod clinical;
-pub mod praxis;
+pub mod practice;
 pub mod scheduling;

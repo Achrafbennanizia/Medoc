@@ -1,6 +1,6 @@
 # 4. Spezifikation der Anforderungen
 
-**Traceability:** Verbindliche Anforderungs-IDs und vollständiger Umfang stehen im **Pflichtenheft** (`docs/v-model/01-anforderungen/pflichtenheft.md`). Dieses Kapitel ist eine **kompakte Ableitung** aus der Bachelorarbeit/Frühphase; Abweichungen bei gleichen **FA-\***-Kürzeln werden zugunsten des Pflichtenhefts aufgelöst.
+**Traceability:** Verbindliche Anforderungs-IDs und vollständiger Umfang stehen im **Pflichtenheft** (`docs/version-model/01-anforderungen/pflichtenheft.md`). Dieses Kapitel ist eine **kompakte Ableitung** aus der Bachelorarbeit/Frühphase; Abweichungen bei gleichen **FA-\***-Kürzeln werden zugunsten des Pflichtenhefts aufgelöst.
 
 **RBAC:** Die Matrix unten trennt **Stammdaten/administrativ** von **medizinischen Daten** konsistent mit **NFA-SEC-02** (siehe `docs/rbac-matrix.md`).
 
@@ -25,7 +25,7 @@
 |----|------------------|--------------------|
 | FA-PAT-01 | Patientenstammdaten: Name, Geburtsdatum, Geschlecht, VNR, Kontaktdaten | Alle Pflichtfelder validiert |
 | FA-PAT-02 | Fuzzy-Suche über alle Patientennamen | Ergebnis bei 1000+ Patienten in <500ms |
-| FA-PAT-03 | Patient-Status-Workflow: NEU→AKTIV→VALIDIERT→READONLY | Status nur durch berechtigte Rollen änderbar |
+| FA-PAT-03 | Patient-Status-Workflow: NEW→ACTIVE→VALIDATED→READONLY | Status nur durch berechtigte Rollen änderbar |
 | FA-PAT-04 | Bei Neuanlage wird automatisch Patientenakte erstellt | Akte existiert sofort nach Speichern |
 
 ### Zahnschema
@@ -43,12 +43,12 @@
 | ID | Systemanforderung | Akzeptanzkriterium |
 |----|------------------|--------------------|
 | FA-FIN-01 | Zahlung: Patient, Betrag, Art (Bar/Karte/Überweisung), opt. Leistung | Betrag >0, Zahlungsart Pflicht |
-| FA-FIN-02 | Zahlungsstatus: OFFEN→BEZAHLT / STORNIERT | Statusänderung auditiert |
+| FA-FIN-02 | Zahlungsstatus: OPEN→PAID / CANCELLED | Statusänderung auditiert |
 | FA-FIN-03 | Bilanz: Einnahmen vs. Ausgaben mit Saldo | Berechnung in Echtzeit |
 
 ### Rollenbasierte Zugriffskontrolle
 
-| Ressource | ARZT | REZEPTION | STEUERBERATER | PHARMABERATER |
+| Ressource | PHYSICIAN | RECEPTION | TAX_ADVISOR | PHARMA_CONSULTANT |
 |-----------|------|-----------|---------------|---------------|
 | Dashboard | CRUD | CR | R (nur Finanzen) | – |
 | Termine | CRUD | CRUD | – | – |

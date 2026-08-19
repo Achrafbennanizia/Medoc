@@ -15,49 +15,49 @@ classDiagram
 
     class Rolle {
         <<enumeration>>
-        ARZT
-        REZEPTION
-        STEUERBERATER
-        PHARMABERATER
+        PHYSICIAN
+        RECEPTION
+        TAX_ADVISOR
+        PHARMA_CONSULTANT
     }
 
     class Geschlecht {
         <<enumeration>>
-        MAENNLICH
-        WEIBLICH
-        DIVERS
+        MALE
+        FEMALE
+        DIVERSE
     }
 
     class PatientStatus {
         <<enumeration>>
-        NEU
-        AKTIV
-        VALIDIERT
+        NEW
+        ACTIVE
+        VALIDATED
         READONLY
     }
 
     class AkteStatus {
         <<enumeration>>
-        NEU
-        IN_BEARBEITUNG
-        VALIDIERT
+        NEW
+        IN_PROGRESS
+        VALIDATED
         READONLY
     }
 
     class TerminArt {
         <<enumeration>>
-        UNTERSUCHUNG
-        BEHANDLUNG
+        EXAMINATION
+        TREATMENT
         NOTFALL
     }
 
     class TerminStatus {
         <<enumeration>>
         ANGEFRAGT
-        BESTAETIGT
-        DURCHGEFUEHRT
+        CONFIRMED
+        COMPLETED
         ABGESCHLOSSEN
-        STORNIERT
+        CANCELLED
     }
 
     class DokumentTyp {
@@ -67,28 +67,28 @@ classDiagram
         REZEPT
         ATTEST
         QUITTUNG
-        SONSTIGES
+        OTHER
     }
 
     class ZahlungStatus {
         <<enumeration>>
-        BEZAHLT
-        OFFEN
-        STORNIERT
+        PAID
+        OPEN
+        CANCELLED
     }
 
     class ZahlungsArt {
         <<enumeration>>
-        BAR
-        KARTE
-        UEBERWEISUNG
+        CASH
+        CARD
+        BANK_TRANSFER
     }
 
     class LieferStatus {
         <<enumeration>>
         BESTELLT
-        GELIEFERT
-        STORNIERT
+        DELIVERED
+        CANCELLED
     }
 
     %% ============================================================
@@ -99,31 +99,31 @@ classDiagram
         +String id
         +String name
         +String email
-        -String passwort_hash
-        +Rolle rolle
-        +String? taetigkeitsbereich
-        +String? fachrichtung
-        +String? telefon
-        +bool verfuegbar
-        +DateTime created_at
+        -String password_hash
+        +Rolle role
+        +String? activity_area
+        +String? specialty
+        +String? phone
+        +bool available
+        +DateTime _created_at
         +DateTime updated_at
-        +authenticate(email, passwort) Option~Personal~
+        +authenticate(email, password) Option~Personal~
         +change_role(neue_rolle: Rolle) Result
         +set_verfuegbar(status: bool) void
-        +validate_password(passwort: String) bool
+        +validate_password(password: String) bool
     }
 
     class Patient {
         +String id
         +String name
-        +Date geburtsdatum
-        +Geschlecht geschlecht
-        +String versicherungsnummer
-        +String? telefon
+        +Date date_of_birth
+        +Geschlecht sex
+        +String insurance_number
+        +String? phone
         +String? email
-        +String? adresse
+        +String? address
         +PatientStatus status
-        +DateTime created_at
+        +DateTime _created_at
         +DateTime updated_at
         +get_alter() u32
         +change_status(neuer_status: PatientStatus) Result
@@ -136,29 +136,29 @@ classDiagram
         +String patient_id
         +AkteStatus status
         +String? behandlungsverlauf
-        +String? diagnose
-        +String? befunde
-        +String? notizen
+        +String? diagnosis
+        +String? findings
+        +String? notes
         +String? validiert_von
         +DateTime? validiert_am
-        +DateTime created_at
+        +DateTime _created_at
         +DateTime updated_at
-        +validieren(arzt_id: String) Result
-        +add_befund(befund: String) void
+        +validieren(physician_id: String) Result
+        +add_befund(finding: String) void
         +set_readonly() void
         +export_pdf() Vec~u8~
     }
 
     class Termin {
         +String id
-        +Date datum
-        +String uhrzeit
-        +TerminArt art
+        +Date date
+        +String time
+        +TerminArt kind
         +TerminStatus status
-        +String? beschwerden
+        +String? chief_complaint
         +String patient_id
-        +String arzt_id
-        +DateTime created_at
+        +String physician_id
+        +DateTime _created_at
         +DateTime updated_at
         +hat_konflikt(andere_termine: Vec~Termin~) bool
         +change_status(neuer_status: TerminStatus) Result
@@ -168,21 +168,21 @@ classDiagram
 
     class BlockierteZeit {
         +String id
-        +String arzt_id
-        +Date datum
-        +String von_uhrzeit
-        +String bis_uhrzeit
+        +String physician_id
+        +Date date
+        +String from_time
+        +String to_time
         +String? grund
-        +DateTime created_at
-        +ueberschneidet(uhrzeit: String) bool
+        +DateTime _created_at
+        +ueberschneidet(time: String) bool
     }
 
     class Anamnesebogen {
         +String id
         +String patient_id
-        +JSON antworten
-        +bool unterschrieben
-        +DateTime created_at
+        +JSON answers
+        +bool signed
+        +DateTime _created_at
         +DateTime updated_at
         +is_vollstaendig() bool
         +get_antwort(frage: String) Option~String~
@@ -190,27 +190,27 @@ classDiagram
 
     class Untersuchung {
         +String id
-        +String akte_id
-        +String? beschwerden
+        +String chart_id
+        +String? chief_complaint
         +String? untersuchungsergebnisse
-        +String? diagnose
+        +String? diagnosis
         +String? bildmaterial
-        +DateTime created_at
+        +DateTime _created_at
         +DateTime updated_at
         +hat_diagnose() bool
     }
 
     class Behandlung {
         +String id
-        +String akte_id
+        +String chart_id
         +String? behandlungsart
         +String? verlauf
         +String? materialien
         +String? dokumentation
         +bool? erfolg
         +String? abbruchgrund
-        +String? leistung_id
-        +DateTime created_at
+        +String? service_item_id
+        +DateTime _created_at
         +DateTime updated_at
         +is_abgeschlossen() bool
         +mark_erfolg(erfolg: bool) void
@@ -218,13 +218,13 @@ classDiagram
 
     class Zahnbefund {
         +String id
-        +String akte_id
-        +i32 zahn_nummer
-        +String befund
-        +String? diagnose
-        +String? behandlung
-        +String? notizen
-        +DateTime created_at
+        +String chart_id
+        +i32 tooth_number
+        +String finding
+        +String? diagnosis
+        +String? treatment
+        +String? notes
+        +DateTime _created_at
         +DateTime updated_at
         +is_fdi_valid() bool
         +needs_treatment() bool
@@ -232,13 +232,13 @@ classDiagram
 
     class Dokument {
         +String id
-        +String akte_id
-        +DokumentTyp typ
-        +String titel
+        +String chart_id
+        +DokumentTyp kind
+        +String title
         +String datei_pfad
         +String? referenz_nr
         +String? tags
-        +DateTime created_at
+        +DateTime _created_at
         +get_extension() String
         +get_size_bytes() u64
     }
@@ -246,12 +246,12 @@ classDiagram
     class Zahlung {
         +String id
         +String patient_id
-        +f64 betrag
-        +ZahlungsArt zahlungsart
+        +f64 amount
+        +ZahlungsArt payment_method
         +ZahlungStatus status
-        +String? beschreibung
-        +String? leistung_id
-        +DateTime created_at
+        +String? description
+        +String? service_item_id
+        +DateTime _created_at
         +DateTime updated_at
         +mark_bezahlt() Result
         +stornieren() Result
@@ -260,22 +260,22 @@ classDiagram
 
     class Finanzdokument {
         +String id
-        +String typ
-        +f64 betrag
-        +String? kategorie
-        +String? beschreibung
-        +String? zeitraum
-        +DateTime created_at
+        +String kind
+        +f64 amount
+        +String? category
+        +String? description
+        +String? period
+        +DateTime _created_at
         +is_einnahme() bool
     }
 
     class Leistung {
         +String id
         +String name
-        +String kategorie
-        +f64 preis
-        +bool aktiv
-        +DateTime created_at
+        +String category
+        +f64 price
+        +bool active
+        +DateTime _created_at
         +DateTime updated_at
         +deactivate() void
         +format_preis() String
@@ -284,12 +284,12 @@ classDiagram
     class Produkt {
         +String id
         +String name
-        +String lieferant
-        +i32 menge
+        +String supplier
+        +i32 quantity
         +LieferStatus lieferstatus
         +String? hersteller
-        +f64? preis
-        +DateTime created_at
+        +f64? price
+        +DateTime _created_at
         +DateTime updated_at
         +is_verfuegbar() bool
         +mark_geliefert() void
@@ -297,14 +297,14 @@ classDiagram
 
     class ExternerPartner {
         +String id
-        +String typ
+        +String kind
         +String firmenname
         +String? personenname
-        +String? taetigkeitsbereich
+        +String? activity_area
         +String? email
-        +String? telefon
-        +bool verfuegbar
-        +DateTime created_at
+        +String? phone
+        +bool available
+        +DateTime _created_at
         +DateTime updated_at
     }
 

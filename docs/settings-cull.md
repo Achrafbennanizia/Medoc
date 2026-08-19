@@ -22,7 +22,7 @@ Each setting from the pre-refactor UI / `client-settings.ts` is classified. **RE
 | Embedded About from Hilfe (duplicate entry points) | **MOVE** | Single **Über** section + native menu still opens `AboutAppDialog`. |
 | `appearance.density` | **KEEP** | Read by `applyAppearanceFromSettings` → `html[data-density]`. |
 | `appearance.darkSidebar` | **KEEP** | Read by `applyAppearanceFromSettings` → `html[data-sidebar-tone]`. |
-| `workflows.termineDefaultView` | **KEEP** | Read in `termine.tsx` on first paint + persisted on view change. |
+| `workflows.termineDefaultView` | **KEEP** | Read in `appointments.tsx` on first paint + persisted on view change. |
 | `akte.openImagesWithApp` | **KEEP** | Read in `patient-detail.tsx` for extern open. |
 | Praxis Rechnung Stammdaten (local storage) | **KEEP** | Real PDF/invoice consumers. |
 | Praxis-Präferenzen (KV) Terminregeln | **KEEP** | Used by Termin-planning paths. |
@@ -38,12 +38,12 @@ Each setting from the pre-refactor UI / `client-settings.ts` is classified. **RE
 | `security.idleLogoutMinutes` | Client idle timer → logout after N min (0 = off); still uses `touchSession` on activity when not idle. |
 | `workflows.tagesabschlussReminderTime` | Dashboard toast at local HH:MM once per day. |
 | `workflows.defaultTerminDauerMin` | Prefill **Neuer Termin** duration. |
-| `search.patientIncludeVersicherungsnummer` | Passed to `search_patienten` (Rust: name-only vs name+VN). |
+| `search.patientIncludeVersicherungsnummer` | Passed to `search_patients` (Rust: name-only vs name+VN). |
 | `appearance.showHeaderAvatar` | Hides topbar avatar chip when false. |
 | `appearance.showKeyboardHints` | Hides `.ui-kbd-hint` elements (e.g. ⌘K). |
 
 ## DoD
 
-- **Phase 1:** This doc + removals applied in `client-settings.ts` / `einstellungen.tsx`.
+- **Phase 1:** This doc + removals applied in `client-settings.ts` / `settings.tsx`.
 - **Phase 2:** All new keys have a verified read site (see code + Rust `search` branch).
 - **Phase 3:** Nav groups: Praxis, Konto, Darstellung, Arbeitsabläufe, Export & Druck, System, Über.

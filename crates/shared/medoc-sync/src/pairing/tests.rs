@@ -81,7 +81,7 @@ async fn submit_then_accept_round_trip_issues_token() {
         "master-1",
         &req.id,
         vec!["sync.push".into(), "sync.pull".into()],
-        "admin@praxis",
+        "admin@practice",
     )
     .await;
     assert_eq!(decided.status, "ACCEPTED");

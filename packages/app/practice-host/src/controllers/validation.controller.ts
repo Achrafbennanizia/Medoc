@@ -4,23 +4,23 @@ import {
     type ValidationSection,
     type ValidationState,
     type ValidationRecord,
-} from "@/lib/akte-validation";
+} from "@/lib/chart-validation";
 
-/** Row mirrors Rust `AkteValidationRowDto`. */
-export type AkteValidationRow = {
+/** Row mirrors Rust `ChartValidationRowDto`. */
+export type ChartValidationRow = {
     patient_id: string;
     section_or_item: string;
     validated_at: string;
     validated_by: string | null;
 };
 
-const LEGACY_LS_PREFIX = "medoc.akte.validation.v1.";
+const LEGACY_LS_PREFIX = "medoc.chart.validation.v1.";
 
 function legacyKey(patientId: string): string {
     return `${LEGACY_LS_PREFIX}${patientId}`;
 }
 
-export function rowsToValidationMaps(rows: AkteValidationRow[]): {
+export function rowsToValidationMaps(rows: ChartValidationRow[]): {
     sections: ValidationState;
     items: Partial<Record<string, ValidationRecord>>;
 } {
@@ -41,41 +41,41 @@ export function rowsToValidationMaps(rows: AkteValidationRow[]): {
     return { sections, items };
 }
 
-export async function listAkteValidation(patientId: string): Promise<AkteValidationRow[]> {
+export async function listChartValidation(patientId: string): Promise<ChartValidationRow[]> {
     const pid = typeof patientId === "string" ? patientId.trim() : "";
     if (!pid) return [];
-    return practiceSystem.invoke<AkteValidationRow[]>("list_akte_validation", { patientId: pid });
+    return practiceSystem.invoke<ChartValidationRow[]>("list_chart_validation", { patientId: pid });
 }
 
-export async function setAkteSectionValidated(
+export async function setChartSectionValidated(
     patientId: string,
     section: ValidationSection,
     validatedBy?: string | null,
 ): Promise<void> {
-    await practiceSystem.invoke<void>("set_akte_section_validated", {
+    await practiceSystem.invoke<void>("set_chart_section_validated", {
         patientId,
         section,
         validatedBy: validatedBy ?? null,
     });
 }
 
-export async function setAkteItemValidated(
+export async function setChartItemValidated(
     patientId: string,
     itemKey: string,
     validatedBy?: string | null,
 ): Promise<void> {
-    await practiceSystem.invoke<void>("set_akte_item_validated", {
+    await practiceSystem.invoke<void>("set_chart_item_validated", {
         patientId,
         itemKey,
         validatedBy: validatedBy ?? null,
     });
 }
 
-export async function clearAkteValidation(
+export async function clearChartValidation(
     patientId: string,
     sectionOrItem?: string | null,
 ): Promise<void> {
-    await practiceSystem.invoke<void>("clear_akte_validation", {
+    await practiceSystem.invoke<void>("clear_chart_validation", {
         patientId,
         sectionOrItem: sectionOrItem ?? null,
     });
@@ -109,7 +109,7 @@ function parseLegacyLs(raw: string | null): LegacyStoredV2 | null {
 }
 
 /** One-shot migration from `localStorage` into SQLite. Returns true if legacy data was imported. */
-export async function migrateLegacyAkteValidationFromLocalStorage(patientId: string): Promise<boolean> {
+export async function migrateLegacyChartValidationFromLocalStorage(patientId: string): Promise<boolean> {
     if (typeof window === "undefined" || !patientId) return false;
     let raw: string | null = null;
     try {
@@ -136,11 +136,11 @@ export async function migrateLegacyAkteValidationFromLocalStorage(patientId: str
 
     for (const [sec, rec] of entries) {
         if (!rec || !(VALIDATION_SECTIONS as readonly string[]).includes(sec)) continue;
-        await setAkteSectionValidated(patientId, sec, rec.by);
+        await setChartSectionValidated(patientId, sec, rec.by);
     }
     for (const [itemKey, rec] of itemEntries) {
         if (!rec) continue;
-        await setAkteItemValidated(patientId, itemKey, rec.by);
+        await setChartItemValidated(patientId, itemKey, rec.by);
     }
     try {
         window.localStorage.removeItem(legacyKey(patientId));
@@ -150,7 +150,7 @@ export async function migrateLegacyAkteValidationFromLocalStorage(patientId: str
     return true;
 }
 
-export function stripLegacyAkteValidationLocalStorage(patientId: string): void {
+export function stripLegacyChartValidationLocalStorage(patientId: string): void {
     if (!patientId || typeof window === "undefined") return;
     try {
         window.localStorage.removeItem(legacyKey(patientId));

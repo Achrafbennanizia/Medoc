@@ -195,12 +195,12 @@ FormField
 ```typescript
 const patientSchema = z.object({
   name: z.string().min(2, "Name ist erforderlich"),
-  geburtsdatum: z.date({ required_error: "Geburtsdatum erforderlich" }),
-  geschlecht: z.enum(["MAENNLICH", "WEIBLICH", "DIVERS"]),
-  versicherungsnummer: z.string().min(1, "Versicherungsnummer erforderlich"),
-  telefon: z.string().optional(),
+  date_of_birth: z.date({ required_error: "Geburtsdatum erforderlich" }),
+  sex: z.enum(["MALE", "FEMALE", "DIVERSE"]),
+  insurance_number: z.string().min(1, "Versicherungsnummer erforderlich"),
+  phone: z.string().optional(),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
-  adresse: z.string().optional(),
+  address: z.string().optional(),
 });
 ```
 
@@ -208,12 +208,12 @@ const patientSchema = z.object({
 
 ```typescript
 const terminSchema = z.object({
-  datum: z.date({ required_error: "Datum erforderlich" }),
-  uhrzeit: z.string().regex(/^\d{2}:\d{2}$/, "Format: HH:MM"),
-  art: z.enum(["UNTERSUCHUNG", "BEHANDLUNG", "NOTFALL"]),
+  date: z.date({ required_error: "Datum erforderlich" }),
+  time: z.string().regex(/^\d{2}:\d{2}$/, "Format: HH:MM"),
+  kind: z.enum(["EXAMINATION", "TREATMENT", "NOTFALL"]),
   patientId: z.string().uuid("Patient auswählen"),
   arztId: z.string().uuid("Arzt auswählen"),
-  beschwerden: z.string().optional(),
+  chief_complaint: z.string().optional(),
 });
 ```
 
@@ -227,7 +227,7 @@ const terminSchema = z.object({
 | UT-02 | Patient Schema | Gültiger Patient | Schema akzeptiert |
 | UT-03 | Termin Schema | Doppelbuchung | Fehler bei Konfliktprüfung |
 | UT-04 | RBAC | REZ versucht med. Schreiben | Zugriff verweigert |
-| UT-05 | RBAC | ARZT hat vollen Zugriff | Zugriff gewährt |
+| UT-05 | RBAC | PHYSICIAN hat vollen Zugriff | Zugriff gewährt |
 | UT-06 | DentalChart | Klick auf Zahn 11 | Detail-Panel öffnet sich |
 | UT-07 | DataTable | Suche "Müller" | Gefilterte Ergebnisse |
 | UT-08 | ConfirmDialog | Bestätigung klicken | Callback ausgelöst |

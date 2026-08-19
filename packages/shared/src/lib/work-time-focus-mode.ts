@@ -1,4 +1,4 @@
-/** Broadcast when Arbeitszeit „Fokusmodus“ toggles so the shell sidebar updates immediately. */
+/** Broadcast when WorkTime „Fokusmodus“ toggles so the shell sidebar updates immediately. */
 export const WORK_TIME_FOCUS_MODE_EVENT = "medoc-work-time-focus-mode";
 
 export function dispatchWorkTimeFocusMode(focusMode: boolean): void {

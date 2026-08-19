@@ -18,14 +18,14 @@ describe("ExportPreviewDialog (UX-9 / W10)", () => {
             <ExportPreviewDialog
                 payload={{
                     format: "html",
-                    title: "Akte-Export",
-                    suggestedFilename: "akte.html",
+                    title: "Chart-Export",
+                    suggestedFilename: "chart.html",
                     textBody: "<p>Patient Smoke</p>",
                 }}
                 onClose={() => {}}
             />,
         );
         expect(screen.getByTitle("HTML preview")).toBeInTheDocument();
-        expect(screen.getByText(/Akte-Export/)).toBeInTheDocument();
+        expect(screen.getByText(/Chart-Export/)).toBeInTheDocument();
     });
 });

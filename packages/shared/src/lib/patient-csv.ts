@@ -1,4 +1,4 @@
-import type { Geschlecht, Patient } from "@/models/types";
+import type { Sex, Patient } from "@/models/types";
 
 /** Semicolon-separated CSV row cell escaping (aligned with `migration.rs` import). */
 function escapeSemicolonField(raw: string): string {
@@ -8,11 +8,11 @@ function escapeSemicolonField(raw: string): string {
     return raw;
 }
 
-function geschlechtToImportLetter(g: Geschlecht): string {
+function sexToImportLetter(g: Sex): string {
     switch (g) {
-        case "MAENNLICH":
+        case "MALE":
             return "M";
-        case "WEIBLICH":
+        case "FEMALE":
             return "W";
         default:
             return "D";
@@ -20,7 +20,7 @@ function geschlechtToImportLetter(g: Geschlecht): string {
 }
 
 /** Prefer ISO date prefix; keeps values compatible with `import_patients` (`YYYY-MM-DD` or `DD.MM.YYYY`). */
-function geburtsdatumForCsv(isoOrDate: string): string {
+function dateOfBirthForCsv(isoOrDate: string): string {
     const s = isoOrDate.trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
     if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(s)) return s;
@@ -28,7 +28,7 @@ function geburtsdatumForCsv(isoOrDate: string): string {
 }
 
 const MIGRATION_HEADER =
-    "name;geburtsdatum;geschlecht;versicherungsnummer;telefon;email;adresse";
+    "name;date_of_birth;sex;insurance_number;phone;email;address";
 
 /**
  * Builds a CSV string ready for `import_patients_csv` / ops migration
@@ -40,12 +40,12 @@ export function buildPatientsMigrationCsv(patients: readonly Patient[]): string 
         lines.push(
             [
                 escapeSemicolonField(p.name),
-                escapeSemicolonField(geburtsdatumForCsv(p.geburtsdatum)),
-                escapeSemicolonField(geschlechtToImportLetter(p.geschlecht)),
-                escapeSemicolonField(p.versicherungsnummer),
-                escapeSemicolonField(p.telefon ?? ""),
+                escapeSemicolonField(dateOfBirthForCsv(p.date_of_birth)),
+                escapeSemicolonField(sexToImportLetter(p.sex)),
+                escapeSemicolonField(p.insurance_number),
+                escapeSemicolonField(p.phone ?? ""),
                 escapeSemicolonField(p.email ?? ""),
-                escapeSemicolonField(p.adresse ?? ""),
+                escapeSemicolonField(p.address ?? ""),
             ].join(";"),
         );
     }

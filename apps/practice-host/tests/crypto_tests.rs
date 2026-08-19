@@ -53,8 +53,8 @@ async fn login_rehashes_legacy_bcrypt_to_argon2() {
 
     let legacy = bcrypt::hash("legacy-login-pw", 4).unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('u1', 'Test', 'legacy@praxis.de', ?1, 'REZEPTION')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('u1', 'Test', 'legacy@practice.de', ?1, 'RECEPTION')",
     )
     .bind(&legacy)
     .execute(&pool)
@@ -64,15 +64,15 @@ async fn login_rehashes_legacy_bcrypt_to_argon2() {
     authenticate(
         &pool,
         &LoginRequest {
-            email: "legacy@praxis.de".into(),
-            passwort: "legacy-login-pw".into(),
+            email: "legacy@practice.de".into(),
+            password: "legacy-login-pw".into(),
             totp_code: None,
         },
     )
     .await
     .expect("login");
 
-    let row: (String,) = sqlx::query_as("SELECT passwort_hash FROM personal WHERE id = 'u1'")
+    let row: (String,) = sqlx::query_as("SELECT password_hash FROM staff WHERE id = 'u1'")
         .fetch_one(&pool)
         .await
         .unwrap();

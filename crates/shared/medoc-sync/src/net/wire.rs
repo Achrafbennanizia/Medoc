@@ -6,7 +6,7 @@ use ciborium::{from_reader, into_writer};
 use medoc_core::error::AppError;
 use serde::{Deserialize, Serialize};
 
-use crate::verbund::SeatRolle;
+use crate::cluster::SeatRole;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -19,7 +19,7 @@ pub enum WireMessage {
         os: String,
         app_version: String,
         ip: String,
-        requested_role: SeatRolleWire,
+        requested_role: SeatRoleWire,
     },
     JoinAccept {
         session_id: String,
@@ -74,16 +74,16 @@ pub enum WireMessage {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum SeatRolleWire {
+pub enum SeatRoleWire {
     Admin,
     Member,
 }
 
-impl From<SeatRolle> for SeatRolleWire {
-    fn from(r: SeatRolle) -> Self {
+impl From<SeatRole> for SeatRoleWire {
+    fn from(r: SeatRole) -> Self {
         match r {
-            SeatRolle::Admin => Self::Admin,
-            SeatRolle::Member => Self::Member,
+            SeatRole::Admin => Self::Admin,
+            SeatRole::Member => Self::Member,
         }
     }
 }
@@ -152,7 +152,7 @@ mod tests {
             os: "macos".into(),
             app_version: "0.1".into(),
             ip: "192.168.0.2".into(),
-            requested_role: SeatRolleWire::Member,
+            requested_role: SeatRoleWire::Member,
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");

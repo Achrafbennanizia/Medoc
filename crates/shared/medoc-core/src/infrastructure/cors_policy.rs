@@ -112,7 +112,7 @@ pub async fn cors_origin_gate_middleware(
     if let Some(origin) = req
         .headers()
         .get(header::ORIGIN)
-        .and_then(|v| v.to_str().ok())
+        .and_then(|version| version.to_str().ok())
     {
         if !gate.allowed.contains(origin) {
             return Err((

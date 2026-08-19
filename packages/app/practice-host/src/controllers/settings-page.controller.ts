@@ -1,5 +1,5 @@
 /**
- * Central IPC functions for Einstellungen page and embedded sections
+ * Central IPC functions for Settings page and embedded sections
  * (LAN host, embedded sections).
  *
  * **`medoc-server` (LAN)** — same practice KV keys as Tauri `get_app_kv` / `set_app_kv`:
@@ -67,8 +67,8 @@ export { deleteAppKv, getAppKv, setAppKv, type AppKvKey } from "./app-kv.control
 export * from "@/systems/lan/controllers/lan-server.controller";
 
 export {
-    listDokumentTemplatesForKind,
+    listDocumentTemplatesForKind,
     pickExportDirectory,
     previewDocumentPdf,
-    type DokumentTemplateDto,
+    type DocumentTemplateDto,
 } from "./document-template.controller";

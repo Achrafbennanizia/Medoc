@@ -144,9 +144,9 @@ impl LanTestHarness {
     pub fn ops_jwt(&self) -> String {
         medoc_lan::jwt::issue_token(
             self.jwt_secret.as_ref(),
-            "seed-arzt-001",
+            "seed-physician-001",
             "ops@test",
-            "ARZT",
+            "PHYSICIAN",
         )
         .expect("jwt")
     }

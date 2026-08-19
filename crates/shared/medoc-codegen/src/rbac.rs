@@ -51,10 +51,10 @@ fn resolve_roles(
     match value {
         serde_yaml::Value::String(name) if name == "*" => {
             vec![
-                "ARZT".into(),
-                "REZEPTION".into(),
-                "STEUERBERATER".into(),
-                "PHARMABERATER".into(),
+                "PHYSICIAN".into(),
+                "RECEPTION".into(),
+                "TAX_ADVISOR".into(),
+                "PHARMA_CONSULTANT".into(),
             ]
         }
         serde_yaml::Value::String(name) => role_sets
@@ -63,8 +63,8 @@ fn resolve_roles(
             .clone(),
         serde_yaml::Value::Sequence(seq) => seq
             .iter()
-            .map(|v| {
-                v.as_str()
+            .map(|version| {
+                version.as_str()
                     .unwrap_or_else(|| panic!("action {action}: role must be string"))
                     .to_string()
             })
@@ -128,10 +128,10 @@ fn render_rust_role_guard(roles: &[String]) -> String {
 
 fn role_label(r: &str) -> &'static str {
     match r {
-        "ARZT" => "Arzt",
-        "REZEPTION" => "Rezeption",
-        "STEUERBERATER" => "Steuerberater",
-        "PHARMABERATER" => "Pharmaberater",
+        "PHYSICIAN" => "Physician",
+        "RECEPTION" => "Reception",
+        "TAX_ADVISOR" => "TaxAdvisor",
+        "PHARMA_CONSULTANT" => "PharmaConsultant",
         _ => panic!("unknown role {r}"),
     }
 }

@@ -92,14 +92,14 @@ verbindliche Grundlage für die Validierung in `06-validierung.md`.
 - FA-DOK-05: Bild-/Dokumentenupload mit Drag-and-Drop, Vorschau und Kategorisierung (Typ, Referenznummer, Tags)
 - FA-DOK-06: Scanner-Integration: Anamnesebogen und Papierdokumente direkt scannen und der Akte zuordnen
 
-#### Rezeptverwaltung (FA-REZ) — NEU
+#### Rezeptverwaltung (FA-REZ) — NEW
 - FA-REZ-01: Rezeptformular: Patient, Medikament, Wirkstoff, Dosierung, Einnahmehäufigkeit, Dauer
 - FA-REZ-02: Mehrere Medikamente pro Rezept hinzufügbar (dynamische Liste)
 - FA-REZ-03: Rezept bearbeiten und löschen (mit Bestätigungsdialog)
 - FA-REZ-04: Rezept drucken und als PDF exportieren
 - FA-REZ-05: Rezeptliste mit Status und Filteroptionen innerhalb der Patientenakte
 
-#### Attestverwaltung (FA-ATT) — NEU
+#### Attestverwaltung (FA-ATT) — NEW
 - FA-ATT-01: Attestformular: Attesttyp, Patient, Freitextbereich, Gültigkeitsdauer, Datum
 - FA-ATT-02: Attest bearbeiten und löschen (mit Bestätigungsdialog)
 - FA-ATT-03: Attest drucken und als PDF exportieren
@@ -129,25 +129,25 @@ verbindliche Grundlage für die Validierung in `06-validierung.md`.
 - FA-LEIST-04: Leistungsliste mit Suche, Filter und Schnellaktionen (Bearbeiten, Löschen)
 - FA-LEIST-05: Arzt-Freigabe pro Behandlung/Untersuchung vor Abrechnung
 - FA-LEIST-06: Nach Leistungseingabe (B/U) automatisch Abrechnungsbereich mit offener Buchung öffnen
-- FA-LEIST-07: Untersuchung mit Leistungsname und gesamtkosten wie Behandlung (Katalog-Vorgabe)
+- FA-LEIST-07: Untersuchung mit Leistungsname und total_cost wie Behandlung (Katalog-Vorgabe)
 - FA-AUFG-01..06: Bidirektionale Praxis-Aufgaben (Arzt→Rezeption erledigen→Arzt validiert); Posteingang sync
 
 #### Personalverwaltung (FA-PERS)
 - FA-PERS-01: Mitarbeiterdaten mit Rolle und Fachrichtung
-- FA-PERS-02: Rollenbasierte Rechtevergabe (ARZT, REZEPTION, STEUERBERATER, PHARMABERATER)
+- FA-PERS-02: Rollenbasierte Rechtevergabe (PHYSICIAN, RECEPTION, TAX_ADVISOR, PHARMA_CONSULTANT)
 - FA-PERS-03: Verfügbarkeitsstatus
 - FA-PERS-04: Selbstlöschung verhindern
 - FA-PERS-05: Personalakte: Detailansicht mit Personaldaten, Tätigkeitsbereich, Kontakt, Rolle, Verfügbarkeitsstatus, Fachrichtung
 - FA-PERS-06: Personalliste mit Kachel-/Listenansicht, Suche und Statusfilter
 - FA-PERS-07: Drei-Punkte-Aktionsmenü pro Mitarbeiter (Bearbeiten, Löschen, Details)
 
-#### Authentifizierung (FA-AUTH) — NEU
+#### Authentifizierung (FA-AUTH) — NEW
 - FA-AUTH-01: Login-Seite mit E-Mail und Passwort
 - FA-AUTH-02: Logout-Button sichtbar auf jeder Seite (Header, oben rechts)
 - FA-AUTH-03: Session-Verwaltung mit automatischem Timeout (30 Min. Inaktivität)
 - FA-AUTH-04: Benutzerprofil im Header mit Avatar, Name und Rollenanzeige
 
-#### Einstellungen (FA-EINST) — NEU
+#### Einstellungen (FA-EINST) — NEW
 - FA-EINST-01: Einstellungsseite: Profildaten bearbeiten (Name, E-Mail, Profilbild)
 - FA-EINST-02: Passwort ändern (altes Passwort, neues Passwort, Bestätigung)
 - FA-EINST-03: Bestätigungsdialog bei Profileänderungen
@@ -217,7 +217,7 @@ Die Praxis arbeitet an mehreren Arbeitsplätzen: Der Arzt nutzt einen Desktop-PC
 
 #### Mobiler Zugriff für Rezeption (NFA-NET-MOBIL)
 - NFA-NET-MOBIL-01: Der Host stellt eine **responsive Web-Oberfläche** bereit, die über den Browser auf Smartphone/Tablet erreichbar ist
-- NFA-NET-MOBIL-02: Die mobile Version deckt **alle Funktionen der Rolle REZEPTION** ab: Terminverwaltung, Patientenaufnahme, Patientenliste, Suche, Zahlungsdokumentation
+- NFA-NET-MOBIL-02: Die mobile Version deckt **alle Funktionen der Rolle RECEPTION** ab: Terminverwaltung, Patientenaufnahme, Patientenliste, Suche, Zahlungsdokumentation
 - NFA-NET-MOBIL-03: Layout optimiert für **Touchscreen-Bedienung** (min. 44px Tap-Targets, vereinfachte Navigation)
 - NFA-NET-MOBIL-04: Responsive Breakpoints: Desktop (≥1259px), Tablet (768px–1258px), Smartphone (375px–767px)
 

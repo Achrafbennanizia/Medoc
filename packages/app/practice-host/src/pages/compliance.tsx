@@ -6,9 +6,9 @@ import { buildComplianceReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "@/views/components/report-export-toolbar";
 import {
     enforceLogRetention,
-    generateDsfa,
+    generateDpia,
     generateVvt,
-    type DSFA,
+    type Dpia,
     type LogRetentionReport,
     type ProcessingActivity,
     type RiskScenario,
@@ -16,10 +16,10 @@ import {
 } from "@/systems/practice-host/controllers/compliance.controller";
 import { Button } from "@/views/components/ui/button";
 import { useToastStore } from "@/views/components/ui/toast-store";
-import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
+import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 
-type ReportKind = "vvt" | "dsfa" | "retention";
+type ReportKind = "vvt" | "dpia" | "retention";
 
 export type CompliancePageProps = {
     embedded?: boolean;
@@ -127,29 +127,29 @@ function ScenarioBlock({ s, index }: { s: RiskScenario; index: number }) {
     );
 }
 
-function DsfaStructured({ data }: { data: DSFA }) {
+function DpiaStructured({ data }: { data: Dpia }) {
     const t = useT();
     const tp = useTParams();
     return (
         <div className="compliance-report-print">
-            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.dsfa.title")}</h2>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.dpia.title")}</h2>
             <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>
-                {tp("page.compliance.dsfa.subtitle", { date: formatDateTime(data.generated_at) })}
+                {tp("page.compliance.dpia.subtitle", { date: formatDateTime(data.generated_at) })}
             </p>
             <dl style={{ margin: "0 0 16px", display: "grid", gap: 6, fontSize: 14 }}>
                 <div><strong>{t("page.compliance.vvt.system")}</strong> {data.system}</div>
                 <div><strong>{t("page.compliance.vvt.version")}</strong> {data.system_version}</div>
             </dl>
             <section style={{ marginBottom: 16 }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dsfa.processing")}</h3>
+                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dpia.processing")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.processing_overview}</p>
             </section>
             <section style={{ marginBottom: 16 }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dsfa.necessity")}</h3>
+                <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dpia.necessity")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.necessity_proportionality}</p>
             </section>
             <section>
-                <h3 style={{ margin: "0 0 4px", fontSize: 16 }}>{t("page.compliance.dsfa.risk_scenarios")}</h3>
+                <h3 style={{ margin: "0 0 4px", fontSize: 16 }}>{t("page.compliance.dpia.risk_scenarios")}</h3>
                 {data.scenarios.map((s, i) => (
                     <ScenarioBlock key={`${s.threat}-${i}`} s={s} index={i} />
                 ))}
@@ -210,7 +210,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
         try {
             const data =
                 kind === "vvt" ? await generateVvt()
-                    : kind === "dsfa" ? await generateDsfa()
+                    : kind === "dpia" ? await generateDpia()
                         : await enforceLogRetention();
             setReport({ kind, data });
         } catch (e) {
@@ -224,7 +224,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
         if (!report) return null;
         return buildComplianceReportBundle(
             report.kind,
-            report.data as VVT | DSFA | LogRetentionReport,
+            report.data as VVT | Dpia | LogRetentionReport,
         );
     }, [report]);
 
@@ -243,7 +243,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
     }
 
     return (
-        <div className={`${embedded ? "" : "praxis-workspace-page "}animate-fade-in`}>
+        <div className={`${embedded ? "" : "practice-workspace-page "}animate-fade-in`}>
             <style>{`
                 @media print {
                     .compliance-no-print { display: none !important; }
@@ -263,16 +263,16 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                                 <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>
                                     {t("compliance.cta_feedback")}
                                 </Button>
-                                <Button type="button" variant="secondary" onClick={() => navigate("/hilfe")}>
-                                    {t("compliance.cta_hilfe")}
+                                <Button type="button" variant="secondary" onClick={() => navigate("/help")}>
+                                    {t("compliance.cta_help")}
                                 </Button>
                             </>
                         ) : null}
                         <Button type="button" onClick={() => run("vvt")} disabled={loading}>
                             {t("page.compliance.btn.vvt")}
                         </Button>
-                        <Button type="button" onClick={() => run("dsfa")} disabled={loading}>
-                            {t("page.compliance.btn.dsfa")}
+                        <Button type="button" onClick={() => run("dpia")} disabled={loading}>
+                            {t("page.compliance.btn.dpia")}
                         </Button>
                         <Button type="button" variant="secondary" onClick={() => run("retention")} disabled={loading}>
                             {t("page.compliance.btn.retention")}
@@ -307,8 +307,8 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 <div className="card card-pad compliance-report-print">
                     {report.kind === "vvt" ? (
                         <VvtStructured data={report.data as VVT} />
-                    ) : report.kind === "dsfa" ? (
-                        <DsfaStructured data={report.data as DSFA} />
+                    ) : report.kind === "dpia" ? (
+                        <DpiaStructured data={report.data as Dpia} />
                     ) : (
                         <RetentionStructured data={report.data as LogRetentionReport} />
                     )}

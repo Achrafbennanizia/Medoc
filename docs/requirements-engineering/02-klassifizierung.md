@@ -28,8 +28,8 @@ MeDoc
 │   ├── FA-AKTE (Elektronische Akte)       [14 Anforderungen]   ← +3 aus WAAD (1.3.1, 2.2.1, 7.3.3)
 │   ├── FA-ZAHN (Zahnschema)              [7 Anforderungen]
 │   ├── FA-DOK  (Dokumentation)           [7 Anforderungen]    ← +1 aus WAAD (5.1.1, Discharge-Summary)
-│   ├── FA-REZ  (Rezeptverwaltung)        [5 Anforderungen] — NEU
-│   └── FA-ATT  (Attestverwaltung)        [4 Anforderungen] — NEU
+│   ├── FA-REZ  (Rezeptverwaltung)        [5 Anforderungen] — NEW
+│   └── FA-ATT  (Attestverwaltung)        [4 Anforderungen] — NEW
 ├── Administrativer Bereich
 │   ├── FA-FIN  (Finanzen)                [8 Anforderungen]
 │   ├── FA-PROD (Produkte)                [5 Anforderungen]
@@ -37,8 +37,8 @@ MeDoc
 │   ├── FA-AUFG (Praxis-Aufgaben)         [6 Anforderungen]    ← Arzt↔Rezeption sync, Validierung (2026-05-21)
 │   └── FA-PERS (Personal)               [9 Anforderungen]    ← +2 aus WAAD (1.2.2 Override, 1.4 Ticket-System)
 ├── System & Zugang
-│   ├── FA-AUTH  (Authentifizierung)      [4 Anforderungen] — NEU
-│   └── FA-EINST (Einstellungen)          [3 Anforderungen] — NEU
+│   ├── FA-AUTH  (Authentifizierung)      [4 Anforderungen] — NEW
+│   └── FA-EINST (Einstellungen)          [3 Anforderungen] — NEW
 ├── Querschnitt
 │   ├── FA-STAT (Statistik)               [5 Anforderungen]
 │   └── NFA-*   (Nicht-funktional)        [18 Anforderungen]   ← +2 aus WAAD (1.5 Onboarding, 7.4 Autocomplete)

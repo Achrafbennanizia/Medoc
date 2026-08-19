@@ -2,42 +2,42 @@
 // Enum wire values: `config/enums.yaml` → `lib/enums.generated.ts` (via `cargo build`).
 
 export type {
-    AktenStatus,
-    BestellStatus,
-    FeedbackKategorie,
+    ChartStatus,
+    OrderStatus,
+    FeedbackCategory,
     FeedbackStatus,
-    Geschlecht,
+    Sex,
     PatientStatus,
-    Rolle,
-    TerminArt,
-    TerminStatus,
-    ZahlungsArt,
-    ZahlungsStatus,
+    Role,
+    AppointmentKind,
+    AppointmentStatus,
+    PaymentMethod,
+    PaymentStatus,
 } from "@/lib/enums.generated";
 
 export {
-    AKTEN_STATUS_VALUES,
-    BESTELL_STATUS_VALUES,
-    FEEDBACK_KATEGORIE_VALUES,
+    CHART_STATUS_VALUES,
+    ORDER_STATUS_VALUES,
+    FEEDBACK_CATEGORY_VALUES,
     FEEDBACK_STATUS_VALUES,
-    GESCHLECHT_VALUES,
+    SEX_VALUES,
     PATIENT_STATUS_VALUES,
-    ROLLE_VALUES,
-    TERMIN_ART_VALUES,
-    TERMIN_STATUS_VALUES,
-    ZAHLUNGS_ART_VALUES,
-    ZAHLUNGS_STATUS_VALUES,
+    ROLE_VALUES,
+    APPOINTMENT_KIND_VALUES,
+    APPOINTMENT_STATUS_VALUES,
+    PAYMENT_METHOD_VALUES,
+    PAYMENT_STATUS_VALUES,
 } from "@/lib/enums.generated";
 
 import type {
-    AktenStatus,
-    Geschlecht,
+    ChartStatus,
+    Sex,
     PatientStatus,
-    Rolle,
-    TerminArt,
-    TerminStatus,
-    ZahlungsArt,
-    ZahlungsStatus,
+    Role,
+    AppointmentKind,
+    AppointmentStatus,
+    PaymentMethod,
+    PaymentStatus,
 } from "@/lib/enums.generated";
 
 /** FA-PERS-07 — granular capability overrides (must match backend `PermissionOverride`). */
@@ -47,7 +47,7 @@ export interface Session {
     user_id: string;
     name: string;
     email: string;
-    rolle: Rolle;
+    role: Role;
     permission_overrides?: PermissionOverride[];
     /** Desktop/browser device session (SQLite `device_session`). */
     device_session_id?: string | null;
@@ -65,15 +65,15 @@ export interface InAppNotification {
     created_at: string;
 }
 
-export interface Personal {
+export interface Staff {
     id: string;
     name: string;
     email: string;
-    rolle: Rolle;
-    taetigkeitsbereich: string | null;
-    fachrichtung: string | null;
-    telefon: string | null;
-    verfuegbar: boolean;
+    role: Role;
+    activity_area: string | null;
+    specialty: string | null;
+    phone: string | null;
+    available: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -81,189 +81,189 @@ export interface Personal {
 export interface Patient {
     id: string;
     name: string;
-    geburtsdatum: string;
-    geschlecht: Geschlecht;
-    versicherungsnummer: string;
-    telefon: string | null;
+    date_of_birth: string;
+    sex: Sex;
+    insurance_number: string;
+    phone: string | null;
     email: string | null;
-    adresse: string | null;
+    address: string | null;
     status: PatientStatus;
     created_at: string;
     updated_at: string;
 }
 
-export interface Termin {
+export interface Appointment {
     id: string;
-    datum: string;
-    uhrzeit: string;
-    art: TerminArt;
-    status: TerminStatus;
-    notizen: string | null;
-    beschwerden: string | null;
+    date: string;
+    time: string;
+    kind: AppointmentKind;
+    status: AppointmentStatus;
+    notes: string | null;
+    chief_complaint: string | null;
     patient_id: string;
-    arzt_id: string;
+    physician_id: string;
     created_at: string;
     updated_at: string;
 }
 
-export interface Patientenakte {
-    id: string;
-    patient_id: string;
-    status: AktenStatus;
-    diagnose: string | null;
-    befunde: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface Zahnbefund {
-    id: string;
-    akte_id: string;
-    zahn_nummer: number;
-    befund: string;
-    diagnose: string | null;
-    notizen: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface Anamnesebogen {
+export interface PatientChart {
     id: string;
     patient_id: string;
-    antworten: string;
-    unterschrieben: boolean;
+    status: ChartStatus;
+    diagnosis: string | null;
+    findings: string | null;
     created_at: string;
     updated_at: string;
 }
 
-export interface Untersuchung {
+export interface DentalFinding {
     id: string;
-    akte_id: string;
-    beschwerden: string | null;
-    ergebnisse: string | null;
-    diagnose: string | null;
-    untersuchungsnummer?: string | null;
+    chart_id: string;
+    tooth_number: number;
+    finding: string;
+    diagnosis: string | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AnamnesisForm {
+    id: string;
+    patient_id: string;
+    answers: string;
+    signed: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Examination {
+    id: string;
+    chart_id: string;
+    chief_complaint: string | null;
+    results: string | null;
+    diagnosis: string | null;
+    examination_number?: string | null;
     created_at: string;
     /** FA-LEIST-07 */
-    kategorie?: string | null;
-    leistungsname?: string | null;
-    gesamtkosten?: number | null;
+    category?: string | null;
+    service_name?: string | null;
+    total_cost?: number | null;
     /** FA-LEIST-05 */
-    freigegeben_von_arzt_id?: string | null;
-    freigegeben_am?: string | null;
+    released_by_physician_id?: string | null;
+    released_at?: string | null;
 }
 
-export interface Behandlung {
+export interface Treatment {
     id: string;
-    akte_id: string;
-    art: string;
-    beschreibung: string | null;
-    zaehne: string | null;
+    chart_id: string;
+    kind: string;
+    description: string | null;
+    teeth: string | null;
     material: string | null;
-    notizen: string | null;
+    notes: string | null;
     created_at: string;
-    kategorie?: string | null;
-    leistungsname?: string | null;
-    behandlungsnummer?: string | null;
-    sitzung?: number | null;
-    behandlung_status?: string | null;
-    gesamtkosten?: number | null;
-    termin_erforderlich?: number | null;
-    behandlung_datum?: string | null;
+    category?: string | null;
+    service_name?: string | null;
+    treatment_number?: string | null;
+    session_number?: number | null;
+    treatment_status?: string | null;
+    total_cost?: number | null;
+    appointment_required?: number | null;
+    treatment_date?: string | null;
     /** FA-LEIST-05 */
-    freigegeben_von_arzt_id?: string | null;
-    freigegeben_am?: string | null;
+    released_by_physician_id?: string | null;
+    released_at?: string | null;
 }
 
-/** Admin: predefined treatment services for record forms (`behandlungs_katalog`). */
-export interface BehandlungsKatalogItem {
+/** Admin: predefined treatment services for record forms (`treatment_catalog`). */
+export interface TreatmentCatalogItem {
     id: string;
-    kategorie: string;
+    category: string;
     name: string;
-    default_kosten: number | null;
+    default_cost: number | null;
     sort_order: number;
-    aktiv: number;
+    active: number;
     created_at: string;
 }
 
-/** Admin: master data for orders (`lieferant_stamm` / `pharmaberater_stamm`). */
-export interface LieferantStamm {
+/** Admin: master data for orders (`supplier_master` / `pharma_consultant_master`). */
+export interface SupplierMaster {
     id: string;
     name: string;
     sort_order: number;
-    aktiv: number;
+    active: number;
     created_at: string;
 }
 
-export interface PharmaberaterStamm {
+export interface PharmaConsultantMaster {
     id: string;
     name: string;
     sort_order: number;
-    aktiv: number;
+    active: number;
     created_at: string;
 }
 
 /** Predefined combination supplier + pharmaceutical advisor + product (inventory) for new orders. */
-export interface LieferantPharmaVorlage {
+export interface SupplierPharmaTemplate {
     id: string;
-    lieferant_id: string;
-    pharmaberater_id: string;
-    produkt_id: string;
-    lieferant_name: string;
-    pharmaberater_name: string;
-    produkt_name: string;
-    produkt_kategorie: string;
-    produkt_preis: number;
+    supplier_id: string;
+    pharma_consultant_id: string;
+    product_id: string;
+    supplier_name: string;
+    pharma_consultant_name: string;
+    product_name: string;
+    product_category: string;
+    product_price: number;
     /** 0/1 — product deactivated in inventory, quick-select hint in UI. */
-    produkt_aktiv: number;
+    product_active: number;
     sort_order: number;
-    aktiv: number;
+    active: number;
     created_at: string;
 }
 
-export interface Zahlung {
+export interface Payment {
     id: string;
     patient_id: string;
-    betrag: number;
-    zahlungsart: ZahlungsArt;
-    status: ZahlungsStatus;
-    leistung_id: string | null;
-    beschreibung: string | null;
-    behandlung_id?: string | null;
-    untersuchung_id?: string | null;
-    betrag_erwartet?: number | null;
+    amount: number;
+    payment_method: PaymentMethod;
+    status: PaymentStatus;
+    service_item_id: string | null;
+    description: string | null;
+    treatment_id?: string | null;
+    examination_id?: string | null;
+    amount_expected?: number | null;
     /** 0/1 — day-end close: payment cash-verified. */
-    kasse_geprueft?: number;
+    cash_verified?: number;
     created_at: string;
 }
 
-export interface Bilanz {
-    einnahmen: number;
-    ausstehend: number;
-    storniert: number;
-    anzahl_zahlungen: number;
+export interface BalanceSheet {
+    income: number;
+    outstanding: number;
+    cancelled: number;
+    payment_count: number;
 }
 
-export interface Leistung {
+export interface ServiceItem {
     id: string;
     name: string;
-    beschreibung: string | null;
-    kategorie: string;
-    preis: number;
-    aktiv: boolean;
+    description: string | null;
+    category: string;
+    price: number;
+    active: boolean;
     created_at: string;
     updated_at: string;
 }
 
-export interface Produkt {
+export interface Product {
     id: string;
     name: string;
-    beschreibung: string | null;
-    kategorie: string;
-    preis: number;
-    bestand: number;
-    mindestbestand: number;
-    aktiv: boolean;
+    description: string | null;
+    category: string;
+    price: number;
+    stock: number;
+    min_stock: number;
+    active: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -282,13 +282,13 @@ export interface AuditLog {
 
 /** Mirrors `get_dashboard_stats` — fields are null when the role lacks permission. */
 export interface DashboardStats {
-    patienten_gesamt: number | null;
-    termine_heute: number | null;
-    einnahmen_monat: number | null;
-    produkte_niedrig: number | null;
+    patients_total: number | null;
+    appointments_today: number | null;
+    revenue_month: number | null;
+    products_low: number | null;
 }
 
-/** A single bucket in a per-month time series ({@link StatistikOverview}). */
+/** A single bucket in a per-month time series ({@link StatisticsOverview}). */
 export interface MonthBucket {
     /** `YYYY-MM` (e.g. `"2026-04"`). */
     month: string;
@@ -302,53 +302,63 @@ export interface LabelValue {
 }
 
 /** Aggregated breakdowns powering the rich statistics page. */
-export interface StatistikOverview {
+export interface StatisticsOverview {
     // Patients
-    patienten_gesamt: number;
-    patienten_neu_pro_monat: MonthBucket[];
-    patienten_kumuliert_pro_monat: MonthBucket[];
-    altersgruppen: LabelValue[];
-    geschlechter: LabelValue[];
+    patients_total: number;
+    new_patients_per_month: MonthBucket[];
+    patients_cumulative_per_month: MonthBucket[];
+    age_groups: LabelValue[];
+    sexes: LabelValue[];
     patient_status: LabelValue[];
     // Treatments
-    behandlungen_nach_kategorie: LabelValue[];
-    behandlungen_pro_monat: MonthBucket[];
+    treatments_by_category: LabelValue[];
+    treatments_per_month: MonthBucket[];
     /** WAAD 9.5 — disease patterns (category/type) and monthly course. */
-    krankheitsbilder_top: LabelValue[];
-    krankheitsbilder_verlauf_pro_monat: MonthBucket[];
-    medikamente_top: LabelValue[];
+    disease_patterns_top: LabelValue[];
+    disease_patterns_monthly: MonthBucket[];
+    medications_top: LabelValue[];
     // Appointments & organisation
-    termine_pro_monat: MonthBucket[];
-    termin_status: LabelValue[];
-    termin_art: LabelValue[];
+    appointments_per_month: MonthBucket[];
+    appointment_status: LabelValue[];
+    appointment_kind: LabelValue[];
     // Finance
-    einnahmen_pro_monat: MonthBucket[];
-    umsatz_nach_zahlungsart: LabelValue[];
-    einnahmen_aktueller_monat: number;
+    income_per_month: MonthBucket[];
+    revenue_by_payment_method: LabelValue[];
+    income_current_month: number;
     // Orders
-    bestellungen_nach_status: LabelValue[];
-    bestellungen_pro_monat: MonthBucket[];
-    produkte_niedrig: number;
+    orders_by_status: LabelValue[];
+    orders_per_month: MonthBucket[];
+    products_low: number;
 }
 
-/** Practice absences / vacation blocks (`abwesenheit` table). */
-export interface Abwesenheit {
+/** Practice absences / vacation blocks (`absence` table). */
+export interface Absence {
     id: string;
-    typ: string;
-    kommentar: string | null;
-    von_tag: string;
-    bis_tag: string;
-    von_uhrzeit: string | null;
-    bis_uhrzeit: string | null;
+    kind: string;
+    comment: string | null;
+    from_day: string;
+    to_day: string;
+    from_time: string | null;
+    to_time: string | null;
     created_at: string;
     updated_at: string;
 }
 
-/** Admin template for prescriptions or certificates (`dokument_vorlage`). */
-export interface DokumentVorlage {
+/** Admin template for prescriptions or certificates (`document_template`). */
+export type DocumentTemplateKind = "PRESCRIPTION" | "CERTIFICATE";
+
+/** Dual-read leftover German wires `REZEPT` / `ATTEST`. */
+export function normalizeDocumentTemplateKind(raw: string | null | undefined): DocumentTemplateKind | null {
+    const k = (raw ?? "").trim().toUpperCase();
+    if (k === "PRESCRIPTION" || k === "REZEPT") return "PRESCRIPTION";
+    if (k === "CERTIFICATE" || k === "ATTEST") return "CERTIFICATE";
+    return null;
+}
+
+export interface DocumentTemplate {
     id: string;
-    kind: "REZEPT" | "ATTEST";
-    titel: string;
+    kind: DocumentTemplateKind;
+    title: string;
     payload: string;
     created_at: string;
     updated_at: string;

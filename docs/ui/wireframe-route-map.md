@@ -14,36 +14,36 @@ Use this table to close the remaining ~30% gap between **`Untitled-2.fig`**, the
 |----------|-------------------------|----------------------------------------|----------------------------|-------------------------|------------------|--------------|
 | `/login` | _(outside layout)_ | `login.tsx` | `view-auth.jsx`, `MeDoc.html` | | | |
 | `/` | `""` | `dashboard.tsx` | `view-dashboard.jsx` | | | KPIs use real stats; Freigaben/Bestellungen honest placeholders |
-| `/termine` | `termine` | `termine.tsx` | shell / calendar in `app.jsx` / `MeDoc.html` | | | |
-| `/patienten` | `patienten` | `patienten.tsx` | `view-patients.jsx` | | | |
-| `/patienten/neu` | `patienten/neu` | `patient-create.tsx` | `view-patients.jsx` (if covered) | | | |
-| `/patienten/:id` | `patienten/:id` | `patient-detail.tsx` | `view-patients.jsx`, `dental.jsx` → `DentalChart.tsx` | | | |
-| `/finanzen` | `finanzen` | `finanzen.tsx` | `view-others.jsx` / `view-more.jsx` *(verify)* | | | |
-| `/bestellungen` | `bestellungen` | `bestellungen.tsx` | dashboard card / prototype orders *(verify)* | | | UI preview only until backend |
-| `/bilanz` | `bilanz` | `bilanz.tsx` | *(verify in Figma)* | | | |
-| `/rezepte` | `rezepte` | `rezepte.tsx` | *(verify)* | | | |
-| `/atteste` | `atteste` | `atteste.tsx` | *(verify)* | | | |
-| `/leistungen` | `leistungen` | `leistungen.tsx` | `dental.jsx` (catalog context) *(verify)* | | | |
-| `/leistungen/neu` | `leistungen/neu` | `leistung-create.tsx` | *(verify)* | | | |
-| `/produkte` | `produkte` | `produkte.tsx` | *(verify)* | | | |
-| `/personal` | `personal` | `personal.tsx` | *(verify)* | | | |
-| `/personal/neu` | `personal/neu` | `personal-create.tsx` | *(verify)* | | | |
-| `/statistik` | `statistik` | `statistik.tsx` | *(verify)* | | | |
+| `/appointments` | `appointments` | `appointments.tsx` | shell / calendar in `app.jsx` / `MeDoc.html` | | | |
+| `/patients` | `patients` | `patients.tsx` | `view-patients.jsx` | | | |
+| `/patients/new` | `patients/new` | `patient-create.tsx` | `view-patients.jsx` (if covered) | | | |
+| `/patients/:id` | `patients/:id` | `patient-detail.tsx` | `view-patients.jsx`, `dental.jsx` → `DentalChart.tsx` | | | |
+| `/finance` | `finance` | `finance.tsx` | `view-others.jsx` / `view-more.jsx` *(verify)* | | | |
+| `/purchase-orders` | `purchase-orders` | `purchase-orders.tsx` | dashboard card / prototype orders *(verify)* | | | UI preview only until backend |
+| `/balance-sheet` | `balance-sheet` | `balance-sheet.tsx` | *(verify in Figma)* | | | |
+| `/prescriptions` | `prescriptions` | `prescriptions.tsx` | *(verify)* | | | |
+| `/certificates` | `certificates` | `certificates.tsx` | *(verify)* | | | |
+| `/services` | `services` | `services.tsx` | `dental.jsx` (catalog context) *(verify)* | | | |
+| `/services/new` | `services/new` | `serviceItem-create.tsx` | *(verify)* | | | |
+| `/products` | `products` | `products.tsx` | *(verify)* | | | |
+| `/staff` | `staff` | `staff.tsx` | *(verify)* | | | |
+| `/staff/new` | `staff/new` | `staff-create.tsx` | *(verify)* | | | |
+| `/statistics` | `statistics` | `statistics.tsx` | *(verify)* | | | |
 | `/audit` | `audit` | `audit.tsx` | *(verify)* | | | |
-| `/datenschutz` | `datenschutz` | `datenschutz.tsx` | *(verify)* | | | |
-| `/einstellungen` | `einstellungen` | `einstellungen.tsx` | `MeDoc.html` / settings patterns | | | |
+| `/privacy` | `privacy` | `privacy.tsx` | *(verify)* | | | |
+| `/settings` | `settings` | `settings.tsx` | `MeDoc.html` / settings patterns | | | |
 | `/logs` | `logs` | `logging.tsx` | *(verify)* | | | |
 | `/ops` | `ops` | `ops.tsx` | `view-others.jsx` *(verify)* | | | Migration entry → `/migration` |
 | `/compliance` | `compliance` | `compliance.tsx` | *(verify)* | | | Links to `/feedback`, `/hilfe` |
 | `/hilfe` | `hilfe` | `hilfe.tsx` | `MeDoc.html` (`.help-panel`), `interactions.jsx` | | | |
 | `/feedback` | `feedback` | `feedback.tsx` | process docs / vigilance *(no single JSX)* | | | Local-only submit until API |
-| `/migration` | `migration` | `migration-wizard.tsx` | ops / wizard narrative | | | ARZT + `ops.migration` |
-| `/verwaltung` | `verwaltung` | `verwaltung.tsx` | admin hub | | | `personal.read` |
-| `/verwaltung/arbeitstage` | `verwaltung/arbeitstage` | `arbeitstage.tsx` | Desktop 70–71 Urlaub | | | SQLite `abwesenheit`, CRUD |
-| `/verwaltung/vorlagen` | `verwaltung/vorlagen` | `vorlagen-rezepte-atteste.tsx` | Desktop 74 Vorlagenliste | | | SQLite `dokument_vorlage` |
-| `/verwaltung/vorlagen/editor` | `verwaltung/vorlagen/editor` | `vorlage-editor.tsx` | Desktop 80–81 neu | | | `?kind=rezept` / `attest` |
-| `/verwaltung/vorlagen/editor/:id` | `verwaltung/vorlagen/editor` | `vorlage-editor.tsx` | Vorlage bearbeiten | | | gleiche RBAC-Route |
-| `/bilanz/neu` | `bilanz/neu` | `bilanz-neu.tsx` | Desktop 88–93 Wizard | | | Schritte 1–4 mit Live-Zahlungen + Demo-Verträge |
+| `/migration` | `migration` | `migration-wizard.tsx` | ops / wizard narrative | | | PHYSICIAN + `ops.migration` |
+| `/administration` | `administration` | `administration.tsx` | admin hub | | | `staff.read` |
+| `/administration/work-days` | `administration/work-days` | `arbeitstage.tsx` | Desktop 70–71 Urlaub | | | SQLite `abwesenheit`, CRUD |
+| `/administration/templates` | `administration/templates` | `vorlagen-prescriptions-certificates.tsx` | Desktop 74 Vorlagenliste | | | SQLite `document_template` |
+| `/administration/templates/editor` | `administration/templates/editor` | `vorlage-editor.tsx` | Desktop 80–81 neu | | | `?kind=prescription` / `certificate` |
+| `/administration/templates/editor/:id` | `administration/templates/editor` | `vorlage-editor.tsx` | Vorlage bearbeiten | | | gleiche RBAC-Route |
+| `/balance-sheet/new` | `balance-sheet/new` | `balance-sheet-neu.tsx` | Desktop 88–93 Wizard | | | Schritte 1–4 mit Live-Zahlungen + Demo-Verträge |
 
 ## Global shell (not a single route)
 

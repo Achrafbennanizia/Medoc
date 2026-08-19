@@ -25,12 +25,12 @@ function parseCodedError(raw: string): { key: string; params: Record<string, str
 
 function resolveParamValues(loc: Locale, params: Record<string, string>): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(params)) {
-        if (ERROR_KEY_RE.test(v)) {
-            const nested = translateLocale(loc, v);
-            out[k] = nested !== v ? nested : v;
+    for (const [k, version] of Object.entries(params)) {
+        if (ERROR_KEY_RE.test(version)) {
+            const nested = translateLocale(loc, version);
+            out[k] = nested !== version ? nested : version;
         } else {
-            out[k] = v;
+            out[k] = version;
         }
     }
     return out;

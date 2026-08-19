@@ -1,25 +1,25 @@
-//! Admin-side handler for inbound verbund TCP connections (pairing + cluster status + reset).
+//! Admin-side handler for inbound cluster TCP connections (pairing + cluster status + reset).
 
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 
-use crate::verbund::SeatRolle;
-use crate::verbund::services::cluster_reset_service::{load_pending_reset, queue_verified_remote_reset};
-use crate::verbund::services::create_join_request;
-use crate::verbund::services::export_staff_directory_json;
+use crate::cluster::SeatRole;
+use crate::cluster::services::cluster_reset_service::{load_pending_reset, queue_verified_remote_reset};
+use crate::cluster::services::create_join_request;
+use crate::cluster::services::export_staff_directory_json;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_responder;
 use super::transport::NoiseTransport;
-use super::wire::{SeatRolleWire, WireMessage};
+use super::wire::{SeatRoleWire, WireMessage};
 
-/// Handle one inbound verbund connection on the admin or member device.
-pub async fn handle_verbund_connection(mut stream: TcpStream, pool: SqlitePool) {
-    if let Err(e) = handle_verbund_connection_inner(&mut stream, &pool).await {
+/// Handle one inbound cluster connection on the admin or member device.
+pub async fn handle_cluster_connection(mut stream: TcpStream, pool: SqlitePool) {
+    if let Err(e) = handle_cluster_connection_inner(&mut stream, &pool).await {
         tracing::warn!(
-            target: "medoc::verbund",
-            event = "VERBUND_CONN_HANDLER_ERR",
+            target: "medoc::cluster",
+            event = "CLUSTER_CONN_HANDLER_ERR",
             error = %e
         );
     }
@@ -27,16 +27,16 @@ pub async fn handle_verbund_connection(mut stream: TcpStream, pool: SqlitePool) 
 
 /// Backward-compatible alias used by the listener loop.
 pub async fn handle_join_connection(stream: TcpStream, pool: SqlitePool) {
-    handle_verbund_connection(stream, pool).await;
+    handle_cluster_connection(stream, pool).await;
 }
 
-const VERBUND_CONN_STACK: usize = 8 * 1024 * 1024;
+const CLUSTER_CONN_STACK: usize = 8 * 1024 * 1024;
 
-/// Run inbound verbund TCP on a dedicated thread with a larger stack (Noise/snow).
-pub fn spawn_verbund_connection_handler(stream: TcpStream, pool: SqlitePool) {
+/// Run inbound cluster TCP on a dedicated thread with a larger stack (Noise/snow).
+pub fn spawn_cluster_connection_handler(stream: TcpStream, pool: SqlitePool) {
     if std::thread::Builder::new()
-        .name("verbund-tcp".into())
-        .stack_size(VERBUND_CONN_STACK)
+        .name("cluster-tcp".into())
+        .stack_size(CLUSTER_CONN_STACK)
         .spawn(move || {
             let rt = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -45,25 +45,25 @@ pub fn spawn_verbund_connection_handler(stream: TcpStream, pool: SqlitePool) {
                 Ok(rt) => rt,
                 Err(e) => {
                     tracing::warn!(
-                        target: "medoc::verbund",
-                        event = "VERBUND_CONN_RUNTIME_ERR",
+                        target: "medoc::cluster",
+                        event = "CLUSTER_CONN_RUNTIME_ERR",
                         error = %e
                     );
                     return;
                 }
             };
-            rt.block_on(handle_verbund_connection(stream, pool));
+            rt.block_on(handle_cluster_connection(stream, pool));
         })
         .is_err()
     {
         tracing::warn!(
-            target: "medoc::verbund",
-            event = "VERBUND_CONN_THREAD_SPAWN_FAILED"
+            target: "medoc::cluster",
+            event = "CLUSTER_CONN_THREAD_SPAWN_FAILED"
         );
     }
 }
 
-async fn handle_verbund_connection_inner(
+async fn handle_cluster_connection_inner(
     stream: &mut TcpStream,
     pool: &SqlitePool,
 ) -> Result<(), AppError> {
@@ -109,11 +109,11 @@ async fn handle_join_request(
     transcript: &[u8],
     fingerprint: String,
     hostname: String,
-    requested_role: SeatRolleWire,
+    requested_role: SeatRoleWire,
 ) -> Result<(), AppError> {
     let role = match requested_role {
-        SeatRolleWire::Admin => SeatRolle::Admin,
-        SeatRolleWire::Member => SeatRolle::Member,
+        SeatRoleWire::Admin => SeatRole::Admin,
+        SeatRoleWire::Member => SeatRole::Member,
     };
 
     let handle = match create_join_request(
@@ -151,8 +151,8 @@ async fn handle_join_request(
     .await?;
 
     tracing::info!(
-        target: "medoc::verbund",
-        event = "VERBUND_JOIN_ACCEPTED",
+        target: "medoc::cluster",
+        event = "CLUSTER_JOIN_ACCEPTED",
         fingerprint = %fingerprint,
     );
     Ok(())
@@ -217,21 +217,21 @@ async fn staff_directory_request_allowed(
     pool: &SqlitePool,
     fingerprint: &str,
 ) -> Result<bool, AppError> {
-    let cluster: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM lizenz LIMIT 1")
+    let cluster: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM license LIMIT 1")
         .fetch_optional(pool)
         .await
         .map_err(AppError::Database)?;
     if cluster.is_none() {
         return Ok(false);
     }
-    let geraet: Option<(i64,)> = sqlx::query_as(
-        "SELECT 1 FROM geraet WHERE fingerprint = ?1 AND status = 'ACTIVE' LIMIT 1",
+    let device: Option<(i64,)> = sqlx::query_as(
+        "SELECT 1 FROM sync_device WHERE fingerprint = ?1 AND device_status = 'ACTIVE' LIMIT 1",
     )
     .bind(fingerprint)
     .fetch_optional(pool)
     .await
     .map_err(AppError::Database)?;
-    if geraet.is_some() {
+    if device.is_some() {
         return Ok(true);
     }
     let session: Option<(i64,)> = sqlx::query_as(
@@ -262,7 +262,7 @@ async fn handle_inbound_cluster_reset(
     )
     .await?;
     tracing::warn!(
-        target: "medoc::verbund",
+        target: "medoc::cluster",
         event = "CLUSTER_RESET_QUEUED_INBOUND",
     );
     Ok(())

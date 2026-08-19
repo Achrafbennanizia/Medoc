@@ -1,6 +1,446 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-20 (English leftover identifiers — helpers / i18n / PDF / template kind)
+
+## English leftover identifiers (helpers / i18n / PDF / template kind)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + menus + reports + settings + appointments + templates + day-close + tickets + receipt + contracts | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts appointment-domain.test.ts appointment-calendar-ui.test.ts appointment-draft.controller.test.ts document-template-schema.test.ts day-close.test.ts practice-tickets.smoke.test.tsx receipt-export-flow.test.ts contract-domain.test.ts` | **PASS** — 97 tests / 16 files |
+| `cargo test` (PDF + schema upgrade) | — | **NOT RUN** (`cargo` not on PATH) |
+| Live `document_template.kind` remap | existing DB | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing prescriptions + invoice lines + day close)
+
+## Swing prescriptions + invoice lines + day close
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 66 tests / 17 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of billing lines / prescriptions / day close | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing onboarding + month + invoice status + templates)
+
+## Swing onboarding + month + invoice status + templates
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 64 tests / 16 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of onboarding / month / billing status / templates | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — invoice PDF IPC)
+
+## English leftover identifiers (invoice PDF IPC)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + menus + reports + settings + slot grid + appointment domain/calendar/draft + templates + day-close + tickets + receipt export | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts appointment-domain.test.ts appointment-calendar-ui.test.ts appointment-draft.controller.test.ts document-template-schema.test.ts day-close.test.ts practice-tickets.smoke.test.tsx receipt-export-flow.test.ts` | **PASS** — 95 tests / 15 files |
+| `cargo test` (PDF + invoice DTO) | — | **NOT RUN** (`cargo` not on PATH) |
+| Live reprint of stored invoices with leftover German IPC keys | GUI + localStorage | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing privacy + cash + anamnesis)
+
+## Swing privacy + cash + anamnesis
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 61 tests / 16 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of cash / privacy / anamnesis | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — appointments / numbering / i18n)
+
+## English leftover identifiers (appointments / numbering / i18n)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + menus + reports + settings + slot grid + appointment domain/calendar/draft + templates + day-close + tickets | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts appointment-domain.test.ts appointment-calendar-ui.test.ts appointment-draft.controller.test.ts document-template-schema.test.ts day-close.test.ts practice-tickets.smoke.test.tsx` | **PASS** — 89 tests / 13 files |
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** (`cargo` not on PATH) |
+| Live draft KV leftover keys / duration notes | existing DB + GUI | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — day-close columns / cash IPC)
+
+## English leftover identifiers (day-close)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + menus + reports + settings + slot grid + templates + tickets + day-close | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts document-template-schema.test.ts day-close.test.ts practice-tickets.smoke.test.tsx` | **PASS** — 76 tests / 10 files |
+| Day-close form smoke | `npm test -w medoc -- critical-flows.smoke.test.tsx -t "submits protocol"` | **PASS** — 1 test (6 skipped) |
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** (`cargo` not on PATH) |
+| Live `day_close_protocol` column rename | open practice host on existing DB | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing nested catalogs)
+
+## Swing nested catalogs
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 59 tests / 15 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of hubs / catalogs / privacy | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — VVT / done_note / PDF copy)
+
+## English leftover identifiers (VVT / done_note / PDF)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + menus + reports + settings + slot grid + templates + tickets | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts document-template-schema.test.ts inbox.smoke.test.tsx practice-tickets.smoke.test.tsx` | **PASS** — 68 tests / 9 files (2 inbox tests skipped by flag) |
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** (`cargo` not on PATH) |
+| Live `done_notiz` column rename | open practice host on existing DB | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — prefs / templates / DPIA)
+
+## English leftover identifiers (prefs / templates / DPIA)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + native menu + report-export + settings smoke + slot grid + template parse | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx appointment-slot-grid.test.ts document-template-schema.test.ts` | **PASS** — 67 tests / 8 files |
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** (`cargo` not on PATH) |
+| Live prefs / calendar view / stored templates / DPIA IPC | GUI + existing DB | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing sidebar features)
+
+## Swing sidebar features
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 54 tests / 13 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of new pages | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-19 (English leftover identifiers)
+
+## English leftover identifiers
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity + RBAC + native menu + report-export + settings smoke | `npm test -w medoc -- i18n-locales.test.ts administration-hierarchy.test.ts native-go-menu.test.ts rbac.test.ts report-export.test.ts settings.rbac.smoke.test.tsx` | **PASS** — 60 tests / 6 files |
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** (`cargo` not on PATH) |
+| Live `/help` and onboarding English paths | GUI | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing practice logo)
+
+## Swing practice logo
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 50 tests / 12 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| Swing UI launch | `cd /Users/achraf/pro/Medoc-swing && ./run` | **PASS** — `de.medoc.MedocApplication` running; window title `MeDoc — Dr. Demo` |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing invoice billing IDs)
+
+## Swing invoice billing IDs
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && JAVA_HOME=... ./gradlew test --rerun-tasks` | **PASS** — 47 tests / 12 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (English SQLite schema upgrade)
+
+## English SQLite schema upgrade
+
+| Check | Command | Result |
+|-------|---------|--------|
+| `cargo test --test db_migrations_tests` | — | **NOT RUN** — `cargo` not on PATH |
+| `cargo check -p medoc-core` | — | **NOT RUN** — `cargo` not on PATH |
+| Live existing `medoc.db` upgrade | open practice host | **NOT OBSERVED** |
+| Production SQL table names | `rg` `FROM serviceItem` / `FROM purchaseOrder` in `crates/**/*.rs` | **none** (only upgrade maps + test fixtures use old names) |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing practice letterhead KV)
+
+## Swing practice letterhead
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && JAVA_HOME=... ./gradlew test --rerun-tasks` | **PASS** — 44 tests / 11 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing own profile GET/PATCH /me)
+
+## Swing own profile
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && JAVA_HOME=... ./gradlew test --rerun-tasks` | **PASS** — 42 tests / 11 classes |
+| Live LAN login + list + PATCH /me | HTTPS to `medoc-lan-server` | **NOT OBSERVED** — `cargo` not on PATH; nothing on :8787 |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing LanDialect English LAN)
+
+## Swing LanDialect English LAN
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && JAVA_HOME=... ./gradlew test --rerun-tasks` | **PASS** — 37 tests / 10 classes |
+| Live LAN login + list | HTTPS to `medoc-lan-server` | **NOT OBSERVED** — `cargo` not on PATH; nothing listening on :8787 |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (leftover German copy + English de.json)
+
+## Leftover copy / default English
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vitest subset | `npm test -w medoc -- examination.test.ts chart-completeness.test.ts appointment-domain.test.ts appointment-availability.test.ts appointment-slot-grid.test.ts rbac.test.ts schemas.test.ts receipt-export-flow.test.ts patient-detail-utils.test.ts day-close.test.ts billing-release-flow.test.ts appointment-calendar-layout.test.ts domain-enums.test.ts chart-attachments.test.ts contract-domain.test.ts i18n-locales.test.ts treatment-catalog-categories.test.ts` | **PASS** — 120 tests / 18 files |
+| Full `npm test` | — | **NOT RUN** |
+| `tsc --noEmit` | — | **NOT RUN** |
+| `cargo check` / `cargo test` | — | **NOT RUN** — `cargo` not on PATH |
+
+---
+
+**Last updated (prior):** 2026-08-19 (full English wires)
+
+## Full English conversion (Medoc repo)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vitest subset | `npm test -w medoc -- examination.test.ts chart-completeness.test.ts appointment-domain.test.ts appointment-availability.test.ts appointment-slot-grid.test.ts rbac.test.ts schemas.test.ts receipt-export-flow.test.ts patient-detail-utils.test.ts day-close.test.ts billing-release-flow.test.ts appointment-calendar-layout.test.ts domain-enums.test.ts chart-attachments.test.ts contract-domain.test.ts` | **PASS** — 111 tests / 16 files |
+| Full `npm test` | — | **NOT RUN** |
+| `tsc --noEmit` | — | **NOT RUN** |
+| `cargo check` / `cargo test` | — | **NOT RUN** — `cargo` not on PATH |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing week appointments + help)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 36 tests / 10 classes (week list + prior slices) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** this session |
+| Live LAN week list | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (full identifier conversion TS + Rust)
+
+## Identifier conversion
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vitest subset | `npm test -w medoc -- examination.test.ts chart-completeness.test.ts appointment-domain.test.ts appointment-availability.test.ts appointment-slot-grid.test.ts rbac.test.ts schemas.test.ts receipt-export-flow.test.ts patient-detail-utils.test.ts day-close.test.ts billing-release-flow.test.ts appointment-calendar-layout.test.ts domain-enums.test.ts` | **PASS** — 106 tests / 14 files |
+| Full `npm test` | — | **NOT RUN** |
+| `tsc --noEmit` | — | **NOT RUN** |
+| `cargo check` / `cargo test` | — | **NOT RUN** — `cargo` not on PATH |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing settings English KV on the wire)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 35 tests / 10 classes; GET/PUT key is `practice.preferences.v1` |
+| `cargo test -p medoc-core` app_kv_policy | — | **NOT RUN** — `cargo` not on PATH |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Englishify inventory — saldo / domain entities)
+
+## `balance_sheet_snapshot.rs` cover-up
+
+| Check | Result |
+|-------|--------|
+| Rescan | **PASS** — hits=104057, clipped_count=6872 |
+| `balance_cents` in unique list | **PASS** — entity file line 19 |
+| `domain/entities` analyze-hit vs list | **PASS** — 0 missing |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing settings English KV key)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 35 tests / 10 classes after English `practice.preferences.v1` app key |
+| Live LAN `app-kv` | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Englishify German-inventory cover-up)
+
+## GermanToEnglish unique-list cover-up
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rescan | `python3 .englishify/scan_german_to_english.py` | **PASS** — files=1151, with_hits=776, hits=99547, clipped_count=6811 |
+| List sync | `clipped-identifiers.json` keys vs `GermanToEnglish.json` `clipped.identifiers` | **PASS** — 6811 == 6811 |
+| Live collect | `collect_clipped()` vs saved JSON | **PASS** — 0 live-not-saved, 0 saved-not-live |
+| `files[]` vs unique list | first-party matches (exclude `.englishify/`) | **PASS** — 0 missing |
+| Family grep | `Zahl\|Behand\|Bestell\|Termin\|Akte\|Praxis\|Rezept\|…` in code | **PASS** — 0 missing after ENGLISH_BLOCK |
+| Must-haves | `ZahlRowAction`, `bestellstamm`, `zahlungsziel_text`, `Rezeptverwaltung`, `quittieren`, … | **PASS** — all present |
+| Naive stem-prefix extras | `private`/`allergies`/`terminal`/`icd10_code` | **not German** — correctly excluded (`private`/`allergies`/`terminal` in ENGLISH_BLOCK; `icd10_code` splits to `icd`+`10`+`code`) |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing settings slice)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test` (JAVA_HOME = OpenJDK 21) | **PASS** — 35 tests / 10 classes, 0 failures (settings + prior slices) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** this session; compile verified via tests |
+| Live LAN `app-kv` | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+Test classes: `RbacTest` (4), `LanClientConfigStoreTest` (1), `LanDialectTest` (4), `HttpPracticeAdapterTest` (6), `PatientControllerTest` (5), `AppointmentControllerTest` (5), `DashboardControllerTest` (2), `SettingsControllerTest` (3), `AuthControllerTest` (3), `LoginPageTest` (2).
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing dashboard slice)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test` (JAVA_HOME = OpenJDK 21.0.12.1) | **PASS** — 30 tests / 9 classes, 0 failures (dashboard + prior slices) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | prior session launched; this slice compile verified via tests |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+Test classes: `RbacTest` (4), `LanClientConfigStoreTest` (1), `LanDialectTest` (4), `HttpPracticeAdapterTest` (4), `PatientControllerTest` (5), `AppointmentControllerTest` (5), `DashboardControllerTest` (2), `AuthControllerTest` (3), `LoginPageTest` (2).
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing appointments slice)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`) — prior
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test` (JAVA_HOME = OpenJDK 21.0.12.1) | **PASS** — 28 tests / 8 classes, 0 failures (appointments day list) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | prior session launched login; this slice compile verified via tests |
+| Live LAN login / `list_appointments` | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+Test classes: `RbacTest` (4), `LanClientConfigStoreTest` (1), `LanDialectTest` (4), `HttpPracticeAdapterTest` (4), `PatientControllerTest` (5), `AppointmentControllerTest` (5), `AuthControllerTest` (3), `LoginPageTest` (2).
+
+---
+
+**Last updated (prior):** 2026-08-19 (Swing Englishify rescan)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`) — prior
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test` (JAVA_HOME = OpenJDK 21.0.12.1) | **PASS** — 21 tests / 7 classes, 0 failures (after dialect isolation + gender i18n) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** (no display run this session) |
+| Live LAN login | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+Test classes: `RbacTest` (4), `LanClientConfigStoreTest` (1), `LanDialectTest` (3), `HttpPracticeAdapterTest` (3), `PatientControllerTest` (5), `AuthControllerTest` (3), `LoginPageTest` (2).
+
+German remaining **by policy:** `LanDialect.java` + `LanDialectTest.java` (LAN server dialect) and `messages_de.properties` (German locale values).
+
+---
+
+**Last updated (prior):** 2026-08-19 (Englishify TS identifiers)
+
+## Englishify TypeScript identifiers
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vitest subset | `npm test -w medoc -- examination.test.ts chart-completeness.test.ts appointment-domain.test.ts appointment-availability.test.ts appointment-slot-grid.test.ts rbac.test.ts schemas.test.ts receipt-export-flow.test.ts patient-detail-utils.test.ts day-close.test.ts billing-release-flow.test.ts appointment-calendar-layout.test.ts` | **PASS** — 96 tests / 13 files |
+| Full `npm test` | `npm test -w medoc` | **NOT RUN** |
+| `npm run build` / `tsc --noEmit` | — | **NOT RUN** |
+| `cargo check` | — | **NOT RUN** — `cargo` not on PATH |
+
+---
+
+**Last updated (prior):** 2026-08-19 (Java Swing frontend slice)
+
+## Swing sibling client (`/Users/achraf/pro/Medoc-swing`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test` (JAVA_HOME = OpenJDK 21.0.12.1) | **PASS** — 18 tests / 6 classes, 0 failures (re-run after Englishify) |
+| Swing UI launch | `./gradlew :apps:practice-host-ui:run` | **NOT OBSERVED** (no display run this session) |
+| Live LAN login | HTTPS to `medoc-lan-server` | **NOT OBSERVED** |
+
+Test classes: `RbacTest` (4), `LanClientConfigStoreTest` (1), `HttpPracticeAdapterTest` (3), `PatientControllerTest` (5), `AuthControllerTest` (3), `LoginPageTest` (2).
+
+---
+
+**Last updated (prior):** 2026-08-19 (Englishify source filenames)
+
+## Filename englishify
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Tokenized git mv | `.englishify/rename_filenames_only.py --apply` | **338 files** renamed |
+| Vitest subset (renamed modules + rbac/nav) | `npm test -w medoc -- systems-structure.test.ts examination.test.ts chart-completeness.test.ts appointment-domain.test.ts administration-toc.test.ts receipt-export-flow.test.ts rbac.test.ts nav-sections.test.ts appointment-availability.test.ts` | **PASS** — 76 tests / 10 files |
+| `cargo check -p medoc-core` | — | **NOT RUN** — `cargo` not on PATH |
+| Full `npm test` | `npm test -w medoc` | **NOT RUN** |
+
+---
+
+
+## Englishify repo-wide check — FAIL (German still present)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| German identifier grep (TS/Rust/config) | `rg` token list Untersuchung\|Behandlung\|Termin\|… | **HITS** — hundreds of files |
+| German-ish filenames | Python stem scan under `apps/`, `packages/`, `crates/`, `config/` | **256 paths** |
+| Rust entities | `crates/shared/medoc-core/src/domain/entities/mod.rs` | **18 German module names** still (`anamnesis_form`, `certificate`, `treatment`, `appointment`, …) |
+| TS domain types | `packages/shared/src/models/types.ts` | Only `Examination` English; rest German (`Termin`, `Patientenakte`, `Behandlung`, `Anamnesebogen`, `Attest` via other files, …) |
+| `examination.test.ts` German tokens | grep Untersuchung/chief_complaint/chart_id | **CLEAN** (this file only) |
+| Tarball englishify (AnamnesisForm/MedicalCertificate/i18n split) | compared to Downloads bundle | **NOT APPLIED** |
+
+---
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Examination + completeness unit | `npm test -w medoc -- examination.test.ts akte-completeness.test.ts` | **PASS** — 12 tests |
+| Locale parity | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4544 keys × 4 locales |
+| Full `npm test` | `npm test -w medoc` | **NOT RUN** |
+| Frontend build | `npm run build -w medoc` | **NOT RUN** |
+
+---
+
+**Last updated (prior):** 2026-07-05 (Sell-ready MVP + sync C8)
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
@@ -14,7 +454,7 @@
 | G21b live Tauri manual rows 1–9 | `bash tools/g21-dev-smoke.sh` + checklist | **NOT RUN** |
 | Tauri tag / release.yml smoke | tag-driven build | **NOT RUN** |
 
-**Delivered:** UI honesty (license portal empty state, E-Rezept gate, KARTE booking label, replica sync error in Deployment); locale plumbing (`bcp47ForLocale`, `useIntlLocaleTag`, locale-aware format/sort); Arabic/RTL (export labels, print `lang`/`dir`, sidebar logical CSS, termin context menu); CSS responsive (1024px min-width, settings 900px, patienten scroll); workflow blinds documented in `geplant.md`.
+**Delivered:** UI honesty (license portal empty state, E-Rezept gate, CARD booking label, replica sync error in Deployment); locale plumbing (`bcp47ForLocale`, `useIntlLocaleTag`, locale-aware format/sort); Arabic/RTL (export labels, print `lang`/`dir`, sidebar logical CSS, appointment context menu); CSS responsive (1024px min-width, settings 900px, patients scroll); workflow blinds documented in `geplant.md`.
 
 ---
 
@@ -43,7 +483,7 @@
 | Rust ValidationCode | `cargo test -p medoc-practice` | **PASS** (compiles; LAN HTTP maps `ValidationCode`) |
 | Docs | `docs/i18n.md` | **ADDED** |
 
-**Delivered:** i18next + JSON catalogs; command palette `titleKey`; breadcrumb keys; packages/ui a11y; high-traffic practice pages; LAN/company server pages; packages/app settings + patient detail; RTL CSS + Arabic font; `AppError::ValidationCode` + `ipc-errors.ts`; error.* keys for work_time/auth/praxis_aufgabe.
+**Delivered:** i18next + JSON catalogs; command palette `titleKey`; breadcrumb keys; packages/ui a11y; high-traffic practice pages; LAN/company server pages; packages/app settings + patient detail; RTL CSS + Arabic font; `AppError::ValidationCode` + `ipc-errors.ts`; error.* keys for work_time/auth/practice_task.
 
 **Remaining (non-blocking):** ~423 baseline hardcoded German hits in lower-traffic pages/components; full Rust `Validation` → code migration outside high-traffic commands.
 
@@ -86,8 +526,8 @@ Command: `rg 'submitEprescription|submit_eprescription|openSubscriptionPortal|op
 
 | IPC | FE callers | Reachable when blinded |
 |-----|------------|------------------------|
-| `submit_eprescription` | `rezepte.tsx` → `handleSubmitERezept` only; button gated by `eprescriptionLive` | **No** — guard added: `!eprescriptionLive` early return |
-| `open_subscription_portal` | `einstellungen-lizenz-section.tsx` inside `LICENSE_BILLING_CONNECTORS_ENABLED` | **No** when flag false |
+| `submit_eprescription` | `prescriptions.tsx` → `handleSubmitERezept` only; button gated by `eprescriptionLive` | **No** — guard added: `!eprescriptionLive` early return |
+| `open_subscription_portal` | `settings-lizenz-section.tsx` inside `LICENSE_BILLING_CONNECTORS_ENABLED` | **No** when flag false |
 | `attach_payment_method` / `company_portal_attach_payment` | Controllers + company-server demo; no practice-host `onClick` | **No** in practice app |
 | Keyboard shortcuts / retry queue | No matches in `apps/` / `packages/` | **No** |
 
@@ -98,9 +538,9 @@ Command: `rg 'submitEprescription|submit_eprescription|openSubscriptionPortal|op
 | Staff cap single source (`MAX_TOTAL_PERSONAL`) | **PASS** — license hero derives from `mvp-security-config.ts` |
 | Wave 1 i18n keys | **PASS** — `settings.license.*`, `v1.*` keys in `i18n.ts` |
 | C8 LastWriteWins | **PASS** — `cargo test -p medoc-sync --test merge_apply_tests` (20 tests) |
-| Calendar RTL (Wave 3) | **PASS** — `termin-week-day-grid.tsx` logical insets |
+| Calendar RTL (Wave 3) | **PASS** — `appointment-week-day-grid.tsx` logical insets |
 | Work-time crash policy | **PASS** — `work_time_reconcile_on_login` + logout `work_time_end` |
-| Sick-leave atomicity | **PASS** — `krankenbescheinigung_save` + `saveKrankenbescheinigungAtomic` |
+| Sick-leave atomicity | **PASS** — `sick_leave_certificate_save` + `saveKrankenbescheinigungAtomic` |
 | Release dry-run | **NOT RUN** — [`docs/runbooks/release-dry-run.md`](../runbooks/release-dry-run.md) |
 
 ---
@@ -116,7 +556,7 @@ Command: `rg 'submitEprescription|submit_eprescription|openSubscriptionPortal|op
 | Frontend build | `npm run build` | **PASS** |
 | Full workspace Rust | `cargo test --workspace --tests` | **PARTIAL** — 6 pre-existing `medoc-core` lib FK migration failures (license/sync_outbox); all integration test binaries **PASS** |
 
-**Hardening delivered:** `BEGIN IMMEDIATE` quota enforcement in `create_with_quota` / `update_with_quota`; `staff_quota_limits()` centralizes caps; `require_break_glass_enabled` / `require_totp_enabled` wired in IPC commands; over-quota UI warning in `personal.tsx`.
+**Hardening delivered:** `BEGIN IMMEDIATE` quota enforcement in `create_with_quota` / `update_with_quota`; `staff_quota_limits()` centralizes caps; `require_break_glass_enabled` / `require_totp_enabled` wired in IPC commands; over-quota UI warning in `staff.tsx`.
 
 ---
 
@@ -241,11 +681,11 @@ export MEDOC_DB_KEY=0123456789abcdef0123456789abcdef
 
 | Item | Result |
 | ---- | ------ |
-| Field hints (UX-2) | patient-create, termin-create, deployment, pairing-scan |
+| Field hints (UX-2) | patient-create, appointment-create, deployment, pairing-scan |
 | Form abandon (UX-8) | patient-create ConfirmDialog on back |
 | Export preview smoke (UX-9) | `export-preview-dialog.smoke.test.tsx` |
 | P0 route smokes (T-U3) | `p0-routes.smoke.test.tsx` (migration, deployment) |
-| W7 Playwright | `lan-server.spec.ts` + JWT `/patienten` |
+| W7 Playwright | `lan-server.spec.ts` + JWT `/patients` |
 | W8 two-device | `two-device-sync-smoke.sh` **17/17 PASS** |
 | Release gate | automated ticks in `releases/v0.1.0/release-gate-checklist.md` |
 | `npm test` | **236 PASS** (+4 smokes) |
@@ -288,10 +728,10 @@ export MEDOC_DB_KEY=0123456789abcdef0123456789abcdef
 cd /path/to/Medoc-main
 
 docker run --rm --shm-size=4g -e CARGO_BUILD_JOBS=1 \
-  -v "$PWD:/work" \
-  -v medoc-cargo-registry:/usr/local/cargo/registry \
-  -v medoc-cargo-git:/usr/local/cargo/git \
-  -v medoc-target-linux-e2e:/work/target \
+  -version "$PWD:/work" \
+  -version medoc-cargo-registry:/usr/local/cargo/registry \
+  -version medoc-cargo-git:/usr/local/cargo/git \
+  -version medoc-target-linux-e2e:/work/target \
   medoc-rust-wave-v1:latest
 ```
 
@@ -445,10 +885,10 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 | ----- | ------- | ------ | ----- |
 | G21 automated proxy | `bash tools/g21-verify-automated.sh` | **PASS** | Pre-live checklist gate |
 | Vitest | `cd app && npm test` | **PASS** | **194** tests (+ pairing, export-preview, deployment-config) |
-| Outbox hooks Tier-1 | `cargo test --test sync_outbox_hooks_tests` | **PASS** | **9/9** incl. `rezept`, `praxis_ticket` |
+| Outbox hooks Tier-1 | `cargo test --test sync_outbox_hooks_tests` | **PASS** | **9/9** incl. `prescription`, `practice_ticket` |
 | Rust e2e count | `cargo test -p medoc-e2e --tests -- --list` | **PASS** | **85** HTTP integration tests (target met) |
 | Port e2e count | `multi_device_port_http.rs` | **PASS** | **18** tests incl. Tier-1 + RBAC + mesh idempotency |
-| Tier-1 in-process push | `cargo test -p medoc-e2e --test tier1_http_push` | **PASS** | **5/5** rezept, ticket, attest, leistung, notification |
+| Tier-1 in-process push | `cargo test -p medoc-e2e --test tier1_http_push` | **PASS** | **5/5** prescription, ticket, certificate, serviceItem, notification |
 | Docker multi-device | `bash scripts/validate-docker-multi-device.sh` | **PASS** | **17/17** port tests (~40s) |
 | Two-device smoke proxy | `bash tools/two-device-sync-smoke.sh` | **PASS** | Delegates to Docker port suite |
 | MVP FE unit (T-U2) | `cd app && npm run test:mvp-coverage` | **PASS** | **100%** on 5 scoped modules (22 tests) |
@@ -461,7 +901,7 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
 | Port-based multi-service | `bash scripts/validate-docker-multi-device.sh` | **PASS** | **13/13** active tests; ~19s; includes SyncEngine + mesh |
-| Serverless push | `port_sync_engine_push_to_master_propagates_patient` | **PASS** | Replica local outbox → `push_to_master` → master JWT `/patienten` |
+| Serverless push | `port_sync_engine_push_to_master_propagates_patient` | **PASS** | Replica local outbox → `push_to_master` → master JWT `/patients` |
 | Serverless pull | `port_sync_engine_pull_from_master_applies_to_replica_db` | **PASS** | Master seed outbox → `pull_from_master` → replica SQLite |
 | Mesh replica→replica | `port_mesh_sync_delivers_app_kv_to_peer_replica` | **PASS** | Two `medoc-server` replicas :8788/:8789 + `run_mesh_sync` |
 | Security | revoke / spoofed push | **PASS** | 204 revoke, 403 revoked push, 403 device mismatch |
@@ -479,7 +919,7 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
 | G21 rows 3–4 backend E2E | `g21_arzt_to_rez_flow_posteingang_notify_and_pending_validation` | **PASS** | Create → REZ inbox → erledigt → notify → pending validation |
-| Sidebar config extract | `nav-sections.ts` + `nav-sections.test.ts` | **PASS** | Prevents `/posteingang` missing from `NAV_SECTIONS` |
+| Sidebar config extract | `nav-sections.ts` + `nav-sections.test.ts` | **PASS** | Prevents `/inbox` missing from `NAV_SECTIONS` |
 | Frontend | `npm test` | **PASS** | **181 passed** (+2) |
 
 ## Docker revalidation (2026-06-01)
@@ -495,7 +935,7 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 | ----- | ------- | ------ | ----- |
 | G21 row 4 FE proxy | `notifications-popover.smoke.test.tsx` | **PASS** | Arzt popover renders `PRAXIS_AUFGABE_ERLEDIGT` |
 | G21 row 1 flake fix | `g21-routing.smoke.test.tsx` | **PASS** | `findByText` + `setDeploymentModeCache("practice_desktop")` |
-| Posteingang erledigen smoke | `posteingang.smoke.test.tsx` | **PASS** | Asserts `erledigtNotiz` sent (FA-AUFG-04) |
+| Posteingang erledigen smoke | `inbox.smoke.test.tsx` | **PASS** | Asserts `erledigtNotiz` sent (FA-AUFG-04) |
 | Dev license helper | `cargo test --test gen_dev_license_once print_dev_licenses -- --ignored` | **PASS** | Resolved device id from local `medoc.db` |
 | Full Rust integration | `cargo test --tests` | **PASS** | All suites green (~2.8 min) |
 | Frontend | `npm test` / `lint` / `build` | **PASS** | **179** / zero warnings / Vite OK |
@@ -504,7 +944,7 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Notify helper extracted | `praxis_aufgabe_notify.rs` | **PASS** | Used by `transition_praxis_aufgabe` command |
+| Notify helper extracted | `praxis_aufgabe_notify.rs` | **PASS** | Used by `transition_practice_task` command |
 | G21 row 4 backend | `cargo test --test praxis_aufgabe_tests` | **PASS** | 5/5; `PRAXIS_AUFGABE_ERLEDIGT` + skip when creator completes own task |
 | Frontend full suite | `cd app && npm test` | **PASS** | **178 passed** (unchanged) |
 
@@ -512,8 +952,8 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
-| Posteingang in sidebar | code review + `g21-routing.smoke.test.tsx` | **PASS** | `/posteingang` added to `NAV_SECTIONS` in `app-layout.tsx` (route/RBAC existed; nav item was missing) |
-| G21 row 1 proxy | `g21-routing.smoke.test.tsx` | **PASS** | REZEPTION login → sidebar Posteingang → empty state |
+| Posteingang in sidebar | code review + `g21-routing.smoke.test.tsx` | **PASS** | `/inbox` added to `NAV_SECTIONS` in `app-layout.tsx` (route/RBAC existed; nav item was missing) |
+| G21 row 1 proxy | `g21-routing.smoke.test.tsx` | **PASS** | RECEPTION login → sidebar Posteingang → empty state |
 | G21 row 7 proxy | `ops.smoke.test.tsx` | **PASS** | validate backup → restore confirm → reload hint |
 | Frontend full suite | `cd app && npm test` | **PASS** | **178 passed** (+2 new smokes) |
 
@@ -598,7 +1038,7 @@ Build image first if missing: `docker build -f docker/ci/Dockerfile.rust-wave-v1
 
 ### Phase C ports (non-UI)
 
-- `personal.controller.ts` — `adminUnlockBruteForce` IPC wrapper
+- `staff.controller.ts` — `adminUnlockBruteForce` IPC wrapper
 - `praxis-aufgabe.controller.ts` — re-enabled inbox IPC (`listPraxisAufgabenForMe`, `transitionPraxisAufgabe`, `countOpenPraxisAufgabenForMe`); Posteingang page still disabled
 - `system.controller.ts` + `settings-page.controller.ts` — `clearLicense` IPC wrapper
 - `gen_dev_license_once.rs` — hybrid device id: `MEDOC_DEVICE_ID` → `lan-instance-id.txt` → DB
@@ -736,7 +1176,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a…`, `MEDOC_DB_KEY=0123456789abcdef�
 
 | File | Cases |
 | ---- | ----- |
-| `lan_pairing_sync.rs` | health/ping, JWT login+`/me`, pairing accept/reject, activation-token sync push/pull/status/peers, RBAC 403 on `/patienten`, device-id mismatch 403, unauth 401 |
+| `lan_pairing_sync.rs` | health/ping, JWT login+`/me`, pairing accept/reject, activation-token sync push/pull/status/peers, RBAC 403 on `/patients`, device-id mismatch 403, unauth 401 |
 | `company_portal.rs` | public health, authenticated summary/flags/integrations, invalid key, missing slug, billing attach validation |
 | `license_and_outbox.rs` | license v2 store+verify in `app_kv`, outbox hook on patient create, JWT patient list |
 | `two_replica_mesh.rs` | signed peer list URLs, license gate on unlicensed master, `touch_replica_seen`, **live mesh push** (TCP replicas) |
@@ -763,7 +1203,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | `cargo clippy --workspace --all-targets -- -D warnings` | as written | **PASS** | After fixes: `photo_viewer_scan.rs` (`explicit_counter_loop`), `app_menu.rs` (`#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]` on `pkg`). |
 | `cargo test --workspace --tests` | as written | **PASS** | All binaries green (~48s). Wave V1: `license_v2_tests` 6/6, `sync_outbox_hooks_tests` 7/7, `medoc_sync` lib 9/9. |
 | `npm run lint` | as written | **PASS** | |
-| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`posteingang.smoke.test.tsx`). |
+| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`inbox.smoke.test.tsx`). |
 | `npm run build` | as written | **PASS** | 2.4s; chunk-size warning pre-existing. |
 | Docker frontend (`medoc-fe-ci`) | `./scripts/validate-docker.sh` | **PASS** | Linux Node 20; lint + vitest + build (~34s). |
 | Docker Rust Wave V1 scoped | `./scripts/validate-docker.sh` | **PASS** | Linux `rust:1-bookworm`; fmt + clippy + tests for medoc-core/sync/lan/company (~186s). Wave V1 integration tests 6+7+9 green inside container. |
@@ -803,7 +1243,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Check | Command | Result | Notes |
 | ----- | ------- | ------ | ----- |
 | `npm run lint` | as written | **PASS** | |
-| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`posteingang.smoke.test.tsx` — page deaktiviert). |
+| `npm test` | as written | **PASS** | **167 passed**, 1 skipped (`inbox.smoke.test.tsx` — page deaktiviert). |
 | `npm run build` | as written | **PASS** | Vite 7.16s; chunk-size warning pre-existing. |
 | `cargo test --test pdf_document_tests --test invoke_registration_tests -p medoc` | as written | **PASS** | IPC count **234**; 8 PDF marker tests green. |
 
@@ -823,13 +1263,13 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | `cargo test --workspace --tests` | as written | **PASS** | All workspace test binaries green, including the new ones: `medoc-core::tests::license_v2_tests` (6), `medoc-core::tests::sync_outbox_hooks_tests` (7), `medoc-core::infrastructure::database::sync_outbox::tests` (3), `medoc_sync::pairing::tests` (4), `medoc_sync::engine::tests` (3 incl. 2 freshness tests). Run time ≈ 58s. |
 | `npm run lint` | as written | **PASS** | `eslint src --max-warnings 0`. |
 | `npm test` | as written | **PASS** | **168 tests** / 31 files. |
-| `npm run build` | as written | **PASS** | Vite build 2.5s; chunk warning for `index-*.js` / `statistik-*.js` is pre-existing. |
+| `npm run build` | as written | **PASS** | Vite build 2.5s; chunk warning for `index-*.js` / `statistics-*.js` is pre-existing. |
 
 ### New tests added in this wave
 
 - `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs` (7):
-  patient lifecycle, termin lifecycle, praxis_aufgabe insert+status,
-  zahlung create+update_status, app_kv with sync-key exclusion,
+  patient lifecycle, appointment lifecycle, practice_task insert+status,
+  payment create+update_status, app_kv with sync-key exclusion,
   practice-desktop no-op control.
 - `app/crates/medoc-sync/src/engine.rs::tests`:
   `master_does_not_overwrite_newer_replica_row` and
@@ -929,16 +1369,16 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Wave B8 — `cargo build -p medoc-company-server` (cold) | as above | **PASS** | 2026-05-26 | 12.3s; `target/debug/medoc-company-server` 19 MB; compile log lists `sqlx-macros / medoc-core / medoc-company / medoc-company-server` **and not `tauri`, not `medoc-lan`** |
 | Wave B8 — `cargo build -p medoc` (Tauri desktop) | as above | **PASS** | 2026-05-26 | 22.5s; `target/debug/medoc` 82 MB; pulls medoc-core + medoc-lan + medoc-company through re-export shims |
 | Wave B8 — full workspace `clippy --no-deps -D warnings` + `test --tests` | as above | **PASS** | 2026-05-26 | **159 tests / 0 fail** across all 7 crates (medoc, medoc-codegen, medoc-core, medoc-lan, medoc-company, medoc-lan-server, medoc-company-server) |
-| Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_akten_zu_validieren`; IPC count **226**; sidebar badges on `/akten/zu-validieren` + `/tickets` |
+| Gap G1 — validation nav badge | `cargo test --tests` + `npm test` | **PASS** | 2026-05-21 | `count_charts_zu_validieren`; IPC count **226**; sidebar badges on `/charts/to-validate` + `/tickets` |
 | Gap G2 — backup restore | `cargo test --test backup_tests` + `restore_from_backup_replaces_live_db_file` | **PASS** | 2026-05-21 | `restore_backup`; HMAC-trusted SQLCipher snapshots; Ops confirm + reload |
 | Gap G4 — discharge PDF test | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-21 | `test_discharge_merkblatt_pdf_markers` (7/7) |
 | Gap G3 — error surfacing (partial) | code review | **PARTIAL** | 2026-05-21 | `ops.tsx`, `db-setup-gate.tsx`, `patient-detail` plan-next; more pages queued |
 | Gap remediation — full stack | `cargo fmt` + `cargo test --tests` + `cargo clippy -D warnings` + `npm lint/test/build` | **PASS** | 2026-05-21 | Clippy: `AktePdfTable` derive Default; restore trusts HMAC for SQLCipher; **NOT OBSERVED:** live badge/restore UI |
-| Gap G8 — Krankheitsbild statistik | `cargo test --tests` + `npm run build` | **PASS** | 2026-05-21 | `krankheitsbilder_*` on `StatistikOverview`; panel `sec-krankheitsbilder` + CSV rows |
+| Gap G8 — Krankheitsbild statistics | `cargo test --tests` + `npm run build` | **PASS** | 2026-05-21 | `krankheitsbilder_*` on `StatistikOverview`; panel `sec-krankheitsbilder` + CSV rows |
 | Gap G9 — upcoming appointments panel | `npm run build` + code review | **PASS** | 2026-05-21 | `list_upcoming_appointments` → dashboard 24h list; SMS/email **deferred** |
-| Gap G10 — integration capability matrix | code review | **PASS** | 2026-05-21 | `integration-capabilities.ts` + `einstellungen-integrationen-section.tsx` |
+| Gap G10 — integration capability matrix | code review | **PASS** | 2026-05-21 | `integration-capabilities.ts` + `settings-integrationen-section.tsx` |
 | Gap G7 — autocomplete toggle | code review (pre-existing) | **PASS** | 2026-05-21 | `client-settings` + Arbeitsabläufe checkbox + `praxis-search-prefs-sync` |
-| Gap CAL2 — emergency toolbar flag | `npm run build` | **PASS** | 2026-05-21 | `calendarEmergencyToolbarEnabled` default false; termine banner + settings toggle |
+| Gap CAL2 — emergency toolbar flag | `npm run build` | **PASS** | 2026-05-21 | `calendarEmergencyToolbarEnabled` default false; appointments banner + settings toggle |
 | Gap G6 — onboarding coachmark | code review | **PARTIAL** | 2026-05-21 | `OnboardingCoachmark` in `app-layout`; full route wizard **NOT OBSERVED** |
 | Gap remediation wave 2 — full stack | `cargo test --tests` + `clippy -D warnings` + `npm lint/test/build` | **PASS** | 2026-05-21 | 114 vitest; IPC **226** unchanged |
 | Gap G0 — doc truth sync | code review | **PASS** | 2026-05-21 | `project-truth.md` WAAD status; `06-validierung.md` §6.3a matrix |
@@ -948,7 +1388,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Gap G11 — stress harness | `cargo test --test stress_tests` | **PASS** | 2026-05-21 | 5×20 concurrent audit inserts; chain verify OK |
 | Gap remediation wave 4 — stack | `cargo test --tests` + `stress_tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | G3/G6 settings UI |
 | Gap G5 — patient-detail shell split (partial) | `npm run lint/test/build` | **PASS** | 2026-05-21 | shell **~1481** lines (was ~2128); `use-patient-detail-{validation,zahl-actions,akte-save}.ts` |
-| Gap N3 — zahlung without release | `cargo test --test zahlung_repo_tests` | **PASS** | 2026-05-21 | `create_rejects_behandlung_without_physician_release` |
+| Gap N3 — payment without release | `cargo test --test zahlung_repo_tests` | **PASS** | 2026-05-21 | `create_rejects_behandlung_without_physician_release` |
 | Gap remediation wave 5 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 120 vitest |
 | Gap remediation wave 6 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | G5 hooks extraction |
 | Gap G5 — patient-detail shell &lt;1200 | `npm run lint` + `npm test` + `npm run build` + `wc -l patient-detail.tsx` | **PASS** | 2026-05-21 | shell **1028** lines; `use-patient-detail-clinical-actions.ts` (640); `patient-detail-overlays.tsx` (130) |
@@ -958,26 +1398,26 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Gap N3 — billing release FE | `billing-release-flow.test.ts` + `zahlung_repo_tests` | **PASS** | 2026-05-21 | IPC contract; full UI E2E **NOT RUN** |
 | Gap remediation wave 8 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 124 vitest |
 | N1 README desktop-only | code review | **PASS** | 2026-05-21 | `README.md` product table |
-| N4 termin alt slots | `termin-availability.test.ts` | **PASS** | 2026-05-21 | `suggestAlternativeTerminSlots` + `termin-create` toast |
+| N4 appointment alt slots | `appointment-availability.test.ts` | **PASS** | 2026-05-21 | `suggestAlternativeTerminSlots` + `appointment-create` toast |
 | N5 invoice LS→app_kv | code review + app-layout hydrate | **PASS** | 2026-05-21 | `migrateInvoicePraxisLocalStorageToAppKv` |
 | Gap remediation wave 9 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 127 vitest |
-| N6 RBAC Verwaltung split | `rbac_tests` + `rbac.test.ts` | **PASS** | 2026-05-21 | `verwaltung.praxisplanung.*`; REZEPTION planning routes |
+| N6 RBAC Verwaltung split | `rbac_tests` + `rbac.test.ts` | **PASS** | 2026-05-21 | `administration.praxisplanung.*`; RECEPTION planning routes |
 | N2 CI tauri smoke | `npm run tauri build -- --debug --no-bundle` + CI job | **PASS** | 2026-05-21 | Local binary `target/debug/medoc`; CI job `tauri-smoke` in `ci.yml` |
 | Gap remediation wave 10 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 128 vitest |
-| G14 FA-LEIST-06 | `zahlung_repo_tests::ensure_open_booking_*` + `billing-open-booking.test.ts` | **PASS** | 2026-05-21 | ARZT → Tab `zahl` after billable Behandlung save |
+| G14 FA-LEIST-06 | `zahlung_repo_tests::ensure_open_booking_*` + `billing-open-booking.test.ts` | **PASS** | 2026-05-21 | PHYSICIAN → Tab `zahl` after billable Behandlung save |
 | Gap remediation wave 11 — stack | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 129 vitest; `cargo fmt` on `backup_tests.rs` |
 | G15 FA-LEIST-07 | `zahlung_repo_tests::ensure_open_booking_for_billable_untersuchung_*` + `billing-open-booking.test.ts` | **PASS** | 2026-05-21 | Schema + `UntersuchungBillingFields`; live UI **NOT RUN** |
 | Gap remediation wave 12 — stack | `cargo test --tests` + `npm lint/test` | **PASS** | 2026-05-21 | 130 vitest; 5 `zahlung_repo_tests` |
 | G16 FA-AUFG-01/06 | `praxis_aufgabe_tests` + `domain_services_tests` | **PASS** | 2026-05-21 | 230 IPC; ticket migration |
-| G17–G18 | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | `/posteingang`; auto `ABRECHNUNG`; live UI **NOT RUN** |
+| G17–G18 | `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | `/inbox`; auto `ABRECHNUNG`; live UI **NOT RUN** |
 | Wave 13 revalidation | `npm lint` + `npm test` (130) + `npm run build` + `cargo test --tests` (MEDOC_VENDOR_PUBKEY) | **PASS** | 2026-05-21 | `cargo fmt` on `akte_commands.rs` |
 | G2b — backup restore SQLCipher | `cargo test --test backup_tests` (`MEDOC_DB_KEY`) | **PASS** | 2026-05-21 | `opens_with_sqlcipher_key` before migrate (fixes false plaintext on encrypted `VACUUM INTO`) |
 | G19 — manual Aufgabe dialog | `npm run lint` + `npm run build` | **PASS** | 2026-05-21 | `PatientAkteWorkflowDialogs` mode `aufgabe`; live UI **NOT OBSERVED** |
 | Wave 14 — full stack | `cargo test --tests` + `npm lint/test/build` (130 vitest) | **PASS** | 2026-05-21 | All integration tests green |
-| G17-fix — posteingang route | `rbac.test.ts` `posteingang` + `ROUTE_VISIBILITY` + `NAV_SECTIONS` | **PASS** | 2026-05-21 | Was blocking `RoleRoute` (returned false) and missing from sidebar |
-| G20 — tickets banner | `npm test` + `npm run build` | **PASS** | 2026-05-21 | Legacy tickets kept; link to `/posteingang` |
+| G17-fix — inbox route | `rbac.test.ts` `inbox` + `ROUTE_VISIBILITY` + `NAV_SECTIONS` | **PASS** | 2026-05-21 | Was blocking `RoleRoute` (returned false) and missing from sidebar |
+| G20 — tickets banner | `npm test` + `npm run build` | **PASS** | 2026-05-21 | Legacy tickets kept; link to `/inbox` |
 | Wave 15 — full stack | `backup_tests` + `cargo test --tests` + `npm lint/test` (132 vitest) | **PASS** | 2026-05-21 | Revalidation after G20 |
-| G21a — collaboration smoke | `collaboration-g21.test.ts` + `posteingang.smoke.test.tsx` | **PASS** | 2026-05-21 | Poll 5s; REZ tab guard; live Tauri **NOT OBSERVED** (`g21-live-smoke-checklist.md`) |
+| G21a — collaboration smoke | `collaboration-g21.test.ts` + `inbox.smoke.test.tsx` | **PASS** | 2026-05-21 | Poll 5s; REZ tab guard; live Tauri **NOT OBSERVED** (`g21-live-smoke-checklist.md`) |
 | Wave 16 — full stack | `cargo test --tests` + `npm lint/test/build` (139 vitest) | **PASS** | 2026-05-21 | G21a + `patientDetailTabBlocked` |
 | G2b regression fix | `cargo test --test backup_tests` | **PASS** | 2026-05-21 | `opens_with_sqlcipher_key` in `sqlcipher.rs` |
 | Wave 17 — full stack | `cargo test --tests` + `npm test` (139) + `npm run build` | **PASS** | 2026-05-21 | After G2b restore fix |
@@ -987,47 +1427,47 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Three-system wave 19 | `npm lint/test/build` (144 vitest) + `cargo test --tests` + `http-practice.adapter.test.ts` | **PASS** | 2026-05-21 | `HttpPracticeAdapter`; `application/akte/billing_release` |
 | Three-system wave 20 | `npm lint/test/build` (147 vitest) + `cargo test --tests` + `backup_tests` + clippy all | **PASS** | 2026-05-21 | LAN client UI; `rezeption_redact`; `lan-client-config.test.ts` |
 | Three-system wave 21 | `cargo fmt/clippy/test` + `npm lint/test/build` (148 vitest) + `zahlung_repo_tests` | **PASS** | 2026-05-21 | `clinical_line_persistence`; LAN page under `systems/lan/pages/` |
-| Three-system wave 22 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (149 vitest) | **PASS** | 2026-05-22 | `application/akte/pdf_export.rs`; `akte_commands.rs` ~369 lines; `practice-host/pages/einstellungen/` (12 sections) |
-| Three-system wave 23 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (151 vitest) | **PASS** | 2026-05-22 | `company-portal/pages/einstellungen-company-portal-section`; LAN `login` adapter test (mock fetch) |
+| Three-system wave 22 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (149 vitest) | **PASS** | 2026-05-22 | `application/akte/pdf_export.rs`; `akte_commands.rs` ~369 lines; `practice-host/pages/settings/` (12 sections) |
+| Three-system wave 23 | `cargo fmt/clippy --all-targets/test` + `npm lint/test/build` (151 vitest) | **PASS** | 2026-05-22 | `company-portal/pages/settings-company-portal-section`; LAN `login` adapter test (mock fetch) |
 | G2b — vacuum backup opens with key | `vacuum_backup_from_encrypted_db_opens_with_sqlcipher_key` | **PASS** | 2026-05-21 | 4/4 `backup_tests`; restore test lock held for full test |
 | Tauri build smoke | `npm run tauri build -- --debug --no-bundle` (MEDOC_VENDOR_PUBKEY) | **PASS** | 2026-05-21 | `target/debug/medoc` |
 | Wave 18 — full revalidation | `cargo fmt --check` + `cargo test --tests` + `npm lint/test/build` | **PASS** | 2026-05-21 | 139 vitest; `backup_tests` 4/4 |
 
 | Check | Command | Result | Date | Notes |
 | ----- | ------- | ------ | ---- | ----- |
-| Phase 3.7b — patient-detail rezept hook + panel | `npm run lint && npm test && npm run build` + `cargo test --tests` | **PASS** | 2026-05-19 | Shell `patient-detail.tsx` ~2126 lines; `use-patient-detail-rezept-tab.ts` (~638); `patient-detail-rezept-tab-panel.tsx` (~1116); `patient-detail-rezept-tab.tsx` (22); `patient-detail-rezept-actions.ts` (196); restored `handlePrintQuittung*` in shell; fixed `updateRezept` import |
-| Phase 3.7b — patient-detail all tabs | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | 7 tab modules + rezept hook/panel; shell was ~2815 before rezept logic move |
-| Phase 3.7b — patient-detail rezept tab | npm lint/test/build | **PASS** | 2026-05-19 | JSX panel extracted; logic in hook (supersedes monolithic tab file) |
+| Phase 3.7b — patient-detail prescription hook + panel | `npm run lint && npm test && npm run build` + `cargo test --tests` | **PASS** | 2026-05-19 | Shell `patient-detail.tsx` ~2126 lines; `use-patient-detail-prescription-tab.ts` (~638); `patient-detail-prescription-tab-panel.tsx` (~1116); `patient-detail-prescription-tab.tsx` (22); `patient-detail-prescription-actions.ts` (196); restored `handlePrintQuittung*` in shell; fixed `updateRezept` import |
+| Phase 3.7b — patient-detail all tabs | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | 7 tab modules + prescription hook/panel; shell was ~2815 before prescription logic move |
+| Phase 3.7b — patient-detail prescription tab | npm lint/test/build | **PASS** | 2026-05-19 | JSX panel extracted; logic in hook (supersedes monolithic tab file) |
 | Phase 3.7b — patient-detail zahl tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | `patient-detail-zahl-tab.tsx` (~938 lines) |
 | Phase 3.7b — patient-detail unter tab | npm lint/test/build | **PASS** | 2026-05-19 | `patient-detail-unter-tab.tsx` (~359 lines) |
 | Phase 3.7b — patient-detail behand tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-19 | `patient-detail-behand-tab.tsx` (~207 lines); recreated after missing file broke build |
 | Phase 3.7b — patient-detail anam + anlage tabs | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `patient-detail-anam-tab.tsx`, `patient-detail-anlage-tab.tsx` |
 | Phase 3.7b — patient-detail stamm tab | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `patient-detail-stamm-tab.tsx`; `patient-detail.tsx` reduced |
-| Phase 3.7b — einstellungen praxis + shell rebuild | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-praxis-section.tsx`; shell `einstellungen.tsx` ~500 lines (all 13 sections wired) |
-| Phase 3.7b — einstellungen lizenz + integrationen | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-lizenz-section.tsx`, `einstellungen-integrationen-section.tsx`; shell `einstellungen.tsx` ~1218 lines (−58% vs 2874) |
-| Phase 3.7b — einstellungen migration + ueber | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-migration-section.tsx`, `einstellungen-ueber-section.tsx`; shell `einstellungen.tsx` ~1465 lines (−44% vs 2874) |
-| Phase 3.7b — einstellungen system section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-system-section.tsx`; health/perf/backup/ops embed; `einstellungen.tsx` ~1601 lines |
-| Phase 3.7b — einstellungen sicherheit section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-sicherheit-section.tsx`; device sessions + portal flags internal |
-| Phase 3.7b — einstellungen konto section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-konto-section.tsx`; profile load/save self-contained |
-| Phase 3.7b — einstellungen arbeitsablaeufe section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-arbeitsablaeufe-section.tsx`; confirmation prefs colocated |
-| Phase 3.7b — einstellungen darstellung section | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `einstellungen-darstellung-section.tsx`; `einstellungen.tsx` ~2589 lines |
-| Phase 3.7b — einstellungen benachrichtigungen section | npm lint/test/build | **PASS** | 2026-05-20 | `einstellungen-benachrichtigungen-section.tsx`, shared `settings-switch.tsx` |
-| Phase 3.7b — termin week/day grid extracted | npm lint/test/build + clippy | **PASS** | 2026-05-20 | `termin-week-day-grid.tsx` (~748 lines); `termine.tsx` ~1295 lines |
-| Phase 3.7b — termin month cal + legend wired | `cargo test --tests` + clippy + npm lint/test/build | **PASS** | 2026-05-20 | `termin-month-calendar.tsx`, `termin-doctor-legend.tsx`; no duplicate `MonthCalendar`/`DoctorLegend` |
-| Phase 3.7b — termin drawer/context | npm lint/test/build | **PASS** | 2026-05-20 | `termin-detail-drawer.tsx`, `termin-context-menu.tsx` |
-| Phase 3.7 — page utils split | `cargo clippy` + npm lint/test (114 vitest) | **PASS** | 2026-05-20 | `patient-detail-utils.ts`, `termin-calendar-ui.ts`, `settings-format.ts` |
-| Phase 3.6 — patient localStorage → DB | `cargo test --tests` + clippy + npm lint/test (110 vitest) | **PASS** | 2026-05-20 | Termin drafts → `app_kv` `termin.draft.v1.{uuid}`; validation/plan/invoice already on SQLite |
+| Phase 3.7b — settings praxis + shell rebuild | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `settings-praxis-section.tsx`; shell `settings.tsx` ~500 lines (all 13 sections wired) |
+| Phase 3.7b — settings lizenz + integrationen | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `settings-lizenz-section.tsx`, `settings-integrationen-section.tsx`; shell `settings.tsx` ~1218 lines (−58% vs 2874) |
+| Phase 3.7b — settings migration + ueber | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `settings-migration-section.tsx`, `settings-ueber-section.tsx`; shell `settings.tsx` ~1465 lines (−44% vs 2874) |
+| Phase 3.7b — settings system section | npm lint/test/build | **PASS** | 2026-05-20 | `settings-system-section.tsx`; health/perf/backup/ops embed; `settings.tsx` ~1601 lines |
+| Phase 3.7b — settings sicherheit section | npm lint/test/build | **PASS** | 2026-05-20 | `settings-sicherheit-section.tsx`; device sessions + portal flags internal |
+| Phase 3.7b — settings konto section | npm lint/test/build | **PASS** | 2026-05-20 | `settings-konto-section.tsx`; profile load/save self-contained |
+| Phase 3.7b — settings arbeitsablaeufe section | npm lint/test/build | **PASS** | 2026-05-20 | `settings-arbeitsablaeufe-section.tsx`; confirmation prefs colocated |
+| Phase 3.7b — settings darstellung section | npm lint/test/build + `cargo test --tests` | **PASS** | 2026-05-20 | `settings-darstellung-section.tsx`; `settings.tsx` ~2589 lines |
+| Phase 3.7b — settings benachrichtigungen section | npm lint/test/build | **PASS** | 2026-05-20 | `settings-benachrichtigungen-section.tsx`, shared `settings-switch.tsx` |
+| Phase 3.7b — appointment week/day grid extracted | npm lint/test/build + clippy | **PASS** | 2026-05-20 | `appointment-week-day-grid.tsx` (~748 lines); `appointments.tsx` ~1295 lines |
+| Phase 3.7b — appointment month cal + legend wired | `cargo test --tests` + clippy + npm lint/test/build | **PASS** | 2026-05-20 | `appointment-month-calendar.tsx`, `appointment-doctor-legend.tsx`; no duplicate `MonthCalendar`/`DoctorLegend` |
+| Phase 3.7b — appointment drawer/context | npm lint/test/build | **PASS** | 2026-05-20 | `appointment-detail-drawer.tsx`, `appointment-context-menu.tsx` |
+| Phase 3.7 — page utils split | `cargo clippy` + npm lint/test (114 vitest) | **PASS** | 2026-05-20 | `patient-detail-utils.ts`, `appointment-calendar-ui.ts`, `settings-format.ts` |
+| Phase 3.6 — patient localStorage → DB | `cargo test --tests` + clippy + npm lint/test (110 vitest) | **PASS** | 2026-05-20 | Termin drafts → `app_kv` `appointment.draft.v1.{uuid}`; validation/plan/invoice already on SQLite |
 | Phase 3.5 — enum codegen | `cargo test --tests` + `enums_codegen_tests` + clippy + npm lint/test/build | **PASS** | 2026-05-20 | `config/enums.yaml`; `enums.generated.ts`; `schemas.enums.generated.ts`; PDF tests adjusted (BSNR line UTF-16) |
 | Phase 3.4 — RBAC codegen | `cargo build` + `rbac_tests` + `rbac_codegen_tests` + npm test | **PASS** | 2026-05-20 | `config/rbac.yaml`; `build/rbac_codegen.rs`; `rbac.generated.ts` |
 | Phase 3.3 — IPC registration | `cargo test --test invoke_registration_tests` + full suite + clippy | **PASS** | 2026-05-20 | `commands/register.rs` + 42× `register_*!()` macros; `lib.rs` uses `register_invoke_handler` |
-| Phase 3.2 — domain services | `cargo test --test domain_services_tests` + full `cargo test --tests` | **PASS** | 2026-05-19 | `domain/services/{konflikt,pricing,workflow_transitions}.rs`; wired termin/zahlung/akte/bestellung |
+| Phase 3.2 — domain services | `cargo test --test domain_services_tests` + full `cargo test --tests` | **PASS** | 2026-05-19 | `domain/services/{konflikt,pricing,workflow_transitions}.rs`; wired appointment/payment/akte/purchaseOrder |
 | Phase 3.1 — sqlx migrations | `MEDOC_* env cargo test --tests` + `fresh_db_records_sqlx_migration` | **PASS** | 2026-05-19 | `0001_initial_schema.sql` deduped; legacy path for existing DBs; demo seed via `should_run_demo_seed` |
 | Phase 3.1–3.2 — full stack | `cargo test --tests && clippy -D warnings && npm lint/test/build` | **PASS** | 2026-05-19 | 107 vitest; all integration suites green |
 | PDF professional layout — full stack | `MEDOC_DB_KEY` + `MEDOC_VENDOR_PUBKEY` → `cargo test --tests` + clippy + npm | **PASS** | 2026-05-19 | `clinical_pdf_layout`; `pdf_document_tests` 5/5; 107 vitest; `sqlcipher_tests` flake fixed |
 | Document Phases C–E — Frontend | `cd app && npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | 105 vitest tests; praxis guards + GOZ PDF UI |
 | Document Phases C–E — Rust PDF | `cargo test --test pdf_document_tests` | **PASS** | 2026-05-19 | GOZ markers (`GOZ`, `Fak`, `IBAN`, …) |
-| Document Phases C–E — Rust full | `cargo test --tests && clippy -D warnings` | **PASS** | 2026-05-19 | `db_migrations_tests` +4 (rezept/attest round-trip); `sqlcipher_tests` hardened |
-| Document Phases C–E — Frontend | `npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | `rezept-edit.tsx` AMVV fields |
+| Document Phases C–E — Rust full | `cargo test --tests && clippy -D warnings` | **PASS** | 2026-05-19 | `db_migrations_tests` +4 (prescription/certificate round-trip); `sqlcipher_tests` hardened |
+| Document Phases C–E — Frontend | `npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | `prescription-edit.tsx` AMVV fields |
 | Phase 0 — Rust | `MEDOC_VENDOR_PUBKEY=… cargo check && cargo test --tests && cargo clippy -D warnings` | **PASS** | 2026-05-19 | `update_signature_tests` 4/4 |
 | Phase 0 — Frontend | `npm run lint && npm test && npm run build` | **PASS** | 2026-05-19 | 101 vitest tests |
 | Phase 1.4 — CORS tests | `cargo test --test cors_policy_tests` | **PASS** | 2026-05-19 | LAN 403 on evil origin; company rejects Origin |
@@ -1038,7 +1478,7 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Phase 1.7 — brute-force | `cargo test --test brute_force_tests` | **PASS** | 2026-05-19 | 6 tests: IP+subject keys, hydrate, admin clear |
 | Full stack (post 1.7) | `MEDOC_* env cargo test --tests && clippy -D warnings && npm lint/test/build` | **PASS** | 2026-05-19 | All integration tests green; 105 vitest |
 | Phase 2.1–2.2 | `crypto_tests` (5) + `npm test` (107) + build | **PASS** | 2026-05-19 | Policy + login rehash; fixed `pdf_hline` arity |
-| Phase 2.3 — TOTP | `totp_tests` (5) + full `cargo test --tests` + npm lint/test/build | **PASS** | 2026-05-19 | ARZT enroll/verify login flow |
+| Phase 2.3 — TOTP | `totp_tests` (5) + full `cargo test --tests` + npm lint/test/build | **PASS** | 2026-05-19 | PHYSICIAN enroll/verify login flow |
 | Phase 2.4 — break-glass audit | `audit_break_glass_tests` (1) + full suite + npm lint/test/build | **PASS** | 2026-05-19 | `under_break_glass` / filter on audit page |
 | Phase 2.5 — audit chain gate | `audit_chain_guard` unit test + full suite + npm lint/test/build | **PASS** | 2026-05-19 | Startup `verify_chain`; `ops.*` blocked until ack |
 | Phase 2.6 — backup retention + sig | `backup_tests` (2) + full suite + npm lint/test/build | **PASS** | 2026-05-19 | GFS 30d/12w/12m; `.db.sig` HMAC; `signature_ok` in list |
@@ -1066,24 +1506,24 @@ Environment: `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fb
 | Frontend production build | `cd app && npm run build` | **PASS** | 2026-04-25 | After Vorlage-loader + Termin edit-mode + Krankheiten free-text — all bundles emit |
 | Frontend type-check | `cd app && npx tsc --noEmit` | **PASS** | 2026-04-25 | After Bestellungen end-to-end overhaul (D17) — entity, controller, page, EmptyState all clean |
 | Frontend unit tests | `cd app && npm test --silent` | **PASS** | 2026-04-25 | 29 tests / 4 files — unchanged after Bestellungen overhaul (D17) |
-| Frontend production build | `cd app && npm run build` | **PASS** | 2026-04-25 | After Bestellungen overhaul (D17) — `bestellungen` chunk now ~24 kB / 7 kB gz |
-| Rust check | `cd app/src-tauri && cargo check` | **PASS** | 2026-04-25 | After Bestellungen backend (D17): new `update_bestellung` command, `bestellnummer`/`pharmaberater` columns + idempotent migration |
+| Frontend production build | `cd app && npm run build` | **PASS** | 2026-04-25 | After Bestellungen overhaul (D17) — `purchase-orders` chunk now ~24 kB / 7 kB gz |
+| Rust check | `cd app/src-tauri && cargo check` | **PASS** | 2026-04-25 | After Bestellungen backend (D17): new `update_purchase_order` command, `order_number`/`pharma_consultant` columns + idempotent migration |
 | Rust tests | `cd app/src-tauri && cargo test --tests` | **PASS** | 2026-04-25 | All 5 test binaries green (db_migrations, dsgvo_erasure, audit_chain, etc.) after Bestellung schema extension |
 | Rust check | `cd app/src-tauri && cargo check --offline` | **PASS** | 2026-04-25 | No Rust changes this session — sanity confirms FE-only patches did not implicitly break anything |
 | Rust tests | `cd app/src-tauri && cargo test --tests` | **PASS** | 2026-04-19 | Includes integration suites |
 | Rust check | `cd app/src-tauri && cargo check --no-default-features` | **PASS** | 2026-04-25 | After `#[serde(rename_all = "UPPERCASE")]` on every domain enum + seed-data reordering |
 | Rust tests | `cd app/src-tauri && cargo test --no-default-features` | **PASS** | 2026-04-25 | Migration idempotency + DSGVO erasure + crypto + RBAC + audit chain — all green after FK seed-order fix |
 | Frontend lint | `cd app && npm run lint` | **PASS** | 2026-04-25 | After D18 (Statistik aggregations + new charts) and D19 (Bestellungen Detail-Route) — clean |
-| Frontend type-check | `cd app && ./node_modules/.bin/tsc --noEmit` | **PASS** | 2026-04-25 | After D18+D19 — `bestellungen.tsx`, `bestellung-detail.tsx`, `statistik.tsx`, `App.tsx`, `rbac.ts` clean |
+| Frontend type-check | `cd app && ./node_modules/.bin/tsc --noEmit` | **PASS** | 2026-04-25 | After D18+D19 — `purchase-orders.tsx`, `purchaseOrder-detail.tsx`, `statistics.tsx`, `App.tsx`, `rbac.ts` clean |
 | Frontend unit tests | `cd app && npm test` | **PASS** | 2026-04-25 | 29/29 (smoke, rbac, schemas, string-suggest) — unchanged |
 | Rust check | `cd app/src-tauri && cargo check --no-default-features` | **PASS** | 2026-04-25 | After D18 — `chrono::Datelike` import added to fix private `year()`/`month()`/`day()` errors in `statistik_commands.rs::altersgruppe` |
 | Rust tests | `cd app/src-tauri && cargo test --no-default-features` | **PASS** | 2026-04-25 | All 5 binaries green after D18 backend + D19 routing changes |
 | Rust clippy (deny warnings) | `cd app/src-tauri && cargo clippy --all-targets -- -D warnings` | **PASS** | 2026-04-19 | Includes tests; `manual_contains` fixes in `db_migrations_tests.rs` |
 | Next.js reference build | `cd src && npm run build` | **PASS** | 2026-04-19 | Run before CSP fixes; Next 16 |
-| Frontend type-check | `cd app && ./node_modules/.bin/tsc --noEmit -p tsconfig.json` | **PASS** | 2026-04-26 | After D20: modal→page conversion (`/finanzen/neu`), `patient-detail` header refactor, two-mode Behandlung composer with auto B-Nummer/Sitzung + collapsible "Nächsten Termin planen", per-section Validierung mit `localStorage`, Termin-create Tipp-Card, Rezept-Vorlagen quick-pick chips |
+| Frontend type-check | `cd app && ./node_modules/.bin/tsc --noEmit -p tsconfig.json` | **PASS** | 2026-04-26 | After D20: modal→page conversion (`/finance/new`), `patient-detail` header refactor, two-mode Behandlung composer with auto B-Nummer/Sitzung + collapsible "Nächsten Termin planen", per-section Validierung mit `localStorage`, Termin-create Tipp-Card, Rezept-Vorlagen quick-pick chips |
 | Frontend lint | `cd app && ./node_modules/.bin/eslint src --max-warnings 0` | **PASS** | 2026-04-26 | After D20 — fixed missing `activeTab` dep in Rezept-Vorlagen-Loader effect |
 | Frontend unit tests | `cd app && ./node_modules/.bin/vitest run` | **PASS** | 2026-04-26 | 29 tests / 4 files (smoke, string-suggest, rbac, schemas) — unchanged after D20 |
-| Frontend production build | `cd app && npm run build` | **PASS** | 2026-05-02 | Einstellungen cull + neue Client-Settings (`idleLogout`, Tagesabschluss-Toast, VN-Suche, …); `search_patienten` optional arg; Hilfe-Route `/hilfe` |
+| Frontend production build | `cd app && npm run build` | **PASS** | 2026-05-02 | Einstellungen cull + neue Client-Settings (`idleLogout`, Tagesabschluss-Toast, VN-Suche, …); `search_patients` optional arg; Hilfe-Route `/hilfe` |
 | Frontend unit tests | `cd app && npm test -- --run` | **PASS** | 2026-05-02 | 90 tests |
 
 ## Pending / not yet run
@@ -1102,14 +1542,14 @@ or file inspection that was performed.
 
 | WAAD-ID(s) | Question | Evidence | Verdict |
 | ---------- | -------- | -------- | ------- |
-| 1.2.1 / 8.1 | RBAC roles enforced for medical data? | `app/src-tauri/src/application/rbac.rs` defines `Role` + `allowed`; `akte_commands.rs:27` strips `diagnose`/`befunde` for non-ARZT roles | ✅ **VERIFIED** |
-| 1.2.2 | Per-personal granular permission overrides? | `rg "personal_permission|permission_override" app` → **0 hits**. Only role-based RBAC exists | 🔴 **PENDING** — covered by new `FA-PERS-07` |
-| 1.3.1 | "Akte an Arzt weiterleiten" UI? | `rg "weiterleit\|forward.*akte" app/src` → only Labor-Auftragsweiterleitung in `einstellungen.tsx`. No Akte-Weiterleitung UI | 🔴 **PENDING** — covered by new `FA-AKTE-14` |
+| 1.2.1 / 8.1 | RBAC roles enforced for medical data? | `app/src-tauri/src/application/rbac.rs` defines `Role` + `allowed`; `akte_commands.rs:27` strips `diagnosis`/`findings` for non-PHYSICIAN roles | ✅ **VERIFIED** |
+| 1.2.2 | Per-staff granular permission overrides? | `rg "personal_permission|permission_override" app` → **0 hits**. Only role-based RBAC exists | 🔴 **PENDING** — covered by new `FA-PERS-07` |
+| 1.3.1 | "Akte an Arzt weiterleiten" UI? | `rg "weiterleit\|forward.*akte" app/src` → only Labor-Auftragsweiterleitung in `settings.tsx`. No Akte-Weiterleitung UI | 🔴 **PENDING** — covered by new `FA-AKTE-14` |
 | 1.4 | Internal note/ticket Rezeption→Arzt? | `rg "personal_ticket\|ticket.*system\|inbox.*arzt\|notiz.*system" app` → only i18n string in `app/src/lib/i18n.ts`. No domain entity, no UI | 🔴 **PENDING** — covered by new `FA-PERS-08` |
 | 1.5 / NFA-USE-H10 | In-app help / tooltip / onboarding? | `rg "tooltip\|onboarding\|tutorial\|help.*dialog" app/src` → matches in `feedback.tsx`, `compliance.tsx`, `app-layout.tsx`, `hilfe.tsx`, `DentalMiniBar.tsx`. Generic Hilfe-Page exists; per-route walkthrough does not | 🟡 **PARTIAL** — `NFA-USE-09` formalises walkthrough |
-| 2.1.1 / 2.2.1 | Akten-Status `VALIDIERT` + read-audit-log? | `app/src-tauri/src/infrastructure/database/connection.rs` defines status `VALIDIERT`; `audit_repo.rs` + `akte_commands.rs` log read access | 🟡 **PARTIAL** — Status & audit OK, but separate Validierungs-Queue UI missing (`FA-AKTE-15`) |
+| 2.1.1 / 2.2.1 | Akten-Status `VALIDATED` + read-audit-log? | `app/src-tauri/src/infrastructure/database/connection.rs` defines status `VALIDATED`; `audit_repo.rs` + `akte_commands.rs` log read access | 🟡 **PARTIAL** — Status & audit OK, but separate Validierungs-Queue UI missing (`FA-AKTE-15`) |
 | 5.1.1 | Patient-Discharge-Summary / Merkblatt? | `rg "discharge\|merkblatt\|nachsorge" app` → only seed strings in `connection.rs`. No PDF generator | 🔴 **PENDING** — covered by new `FA-DOK-08` |
-| 6.1.2 / 6.2.4 | Arzt-Freigabe vor Abrechnung? | `rg "freigegeben_von_arzt\|approval\|approve.*leistung" app/src-tauri` → **0 hits**. Leistung-Eintrag wird ohne Freigabe-Flag erfasst | 🔴 **PENDING** — covered by new `FA-LEIST-05` |
+| 6.1.2 / 6.2.4 | Arzt-Freigabe vor Abrechnung? | `rg "freigegeben_von_arzt\|approval\|approve.*serviceItem" app/src-tauri` → **0 hits**. Leistung-Eintrag wird ohne Freigabe-Flag erfasst | 🔴 **PENDING** — covered by new `FA-LEIST-05` |
 | 7.3.3 | Akten-Vollständigkeits-Indikator? | `rg "akte.*completeness\|complete.*akte\|missing.*pflicht" app/src` → no dedicated lib | 🔴 **PENDING** — covered by new `FA-AKTE-16` |
 | 7.4 | Konfigurierbares Autocomplete? | `app/src/lib/string-suggest.ts` exists for Patient-Suche; vocabulary not yet praxis-extensible via `app_kv` | 🟡 **PARTIAL** — `NFA-USE-10` formalises extension |
 | 8.4 | Backup / Restore? | `rg "backup\|wiederherstell\|restore.*db" app` → matches `backup.rs`, `ops_commands.rs` | ✅ **VERIFIED** |
@@ -1131,5 +1571,5 @@ or file inspection that was performed.
 
 | Check | Command | Failure summary | Date |
 | ----- | ------- | ----------------- | ---- |
-| Migration idempotency | `cargo test --no-default-features --test db_migrations_tests` | `FOREIGN KEY constraint failed` on first run because `seed_demo_data` inserted `anamnesebogen`/`patientenakte` rows referencing `seed-pat-006/007/008` *before* those patients existed. **Fixed** in this session by reordering inserts in `connection.rs`. | 2026-04-25 |
-| DSGVO erasure | `cargo test --no-default-features --test dsgvo_erasure_tests` | `assert_eq! left=14 right=0` on global behandlung count. The test asserted `SELECT COUNT(*) FROM behandlung` was 0 after erasing one patient, but `seed_demo_data` legitimately seeds behandlungen for unrelated Akten. **Fixed** by scoping the assertion to `WHERE akte_id = 'akte-dsgvo-1'`. | 2026-04-25 |
+| Migration idempotency | `cargo test --no-default-features --test db_migrations_tests` | `FOREIGN KEY constraint failed` on first run because `seed_demo_data` inserted `anamnesis_form`/`patient_chart` rows referencing `seed-pat-006/007/008` *before* those patients existed. **Fixed** in this session by reordering inserts in `connection.rs`. | 2026-04-25 |
+| DSGVO erasure | `cargo test --no-default-features --test dsgvo_erasure_tests` | `assert_eq! left=14 right=0` on global treatment count. The test asserted `SELECT COUNT(*) FROM treatment` was 0 after erasing one patient, but `seed_demo_data` legitimately seeds treatments for unrelated Akten. **Fixed** by scoping the assertion to `WHERE chart_id = 'akte-dsgvo-1'`. | 2026-04-25 |

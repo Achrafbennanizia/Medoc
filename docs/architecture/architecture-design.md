@@ -24,7 +24,7 @@
 | Charts | Recharts | v2 |
 | Backend | Rust | Edition 2021 (`app/src-tauri/Cargo.toml`) |
 | ORM / DB | sqlx (async) | v0.8 |
-| Datenbank | SQLite (WAL); SQLCipher (NFA-SEC-08) **ausstehend** | SQLite 3 |
+| Datenbank | SQLite (WAL); SQLCipher (NFA-SEC-08) **outstanding** | SQLite 3 |
 | Auth | Argon2id + bcrypt-Fallback, JWT (lokal) | – |
 | Testing | `cargo test` (Backend); `npm run test` / Vitest im Frontend (`app/package.json`) | – |
 
@@ -41,9 +41,9 @@ app/src/
 ├── views/
 │   ├── layouts/
 │   │   └── app-layout.tsx     # Navigation, Notfallzugriff, Content-Outlet
-│   ├── pages/                 # u. a. patient-detail (Akte, Befunde, Anamnese-JSON), finanzen (Rechnungs-PDF)
+│   ├── pages/                 # u. a. patient-detail (Akte, Befunde, Anamnese-JSON), finance (Rechnungs-PDF)
 │   └── components/ui/         # Design-System
-├── controllers/               # Tauri-Invoke; u. a. akte, zahlung, invoice, break-glass, ops, …
+├── controllers/               # Tauri-Invoke; u. a. akte, payment, invoice, break-glass, ops, …
 ├── services/
 │   └── tauri.service.ts
 ├── lib/
@@ -64,22 +64,22 @@ app/src-tauri/src/
 ├── commands/                  # 🔌 Interface Layer (Tauri Commands = Ports)
 │   ├── mod.rs
 │   ├── auth_commands.rs       # #[tauri::command] login, logout, get_session
-│   ├── termin_commands.rs     # #[tauri::command] CRUD termine
-│   ├── patient_commands.rs    # #[tauri::command] CRUD patienten
-│   ├── akte_commands.rs       # #[tauri::command] akte, zahnbefund, anamnesebogen
-│   ├── zahlung_commands.rs    # #[tauri::command] CRUD zahlungen
-│   ├── leistung_commands.rs   # #[tauri::command] CRUD leistungen
-│   ├── produkt_commands.rs    # #[tauri::command] CRUD produkte
-│   ├── personal_commands.rs   # #[tauri::command] CRUD personal
+│   ├── termin_commands.rs     # #[tauri::command] CRUD appointments
+│   ├── patient_commands.rs    # #[tauri::command] CRUD patients
+│   ├── akte_commands.rs       # #[tauri::command] akte, dental_finding, anamnesis_form
+│   ├── zahlung_commands.rs    # #[tauri::command] CRUD payments
+│   ├── leistung_commands.rs   # #[tauri::command] CRUD services
+│   ├── produkt_commands.rs    # #[tauri::command] CRUD products
+│   ├── personal_commands.rs   # #[tauri::command] CRUD staff
 │   ├── statistik_commands.rs  # #[tauri::command] Dashboard-Daten
 │   └── audit_commands.rs      # #[tauri::command] Audit-Logs
 ├── application/               # 📋 Application Layer (Use Cases)
 │   ├── mod.rs
 │   ├── auth_service.rs        # authenticate(), validate_token()
-│   ├── termin_service.rs      # create_termin(), check_conflict()
+│   ├── termin_service.rs      # create_appointment(), check_conflict()
 │   ├── patient_service.rs     # create_patient() + auto-Akte
-│   ├── akte_service.rs        # validate_akte(), update_zahnbefund()
-│   ├── zahlung_service.rs     # create_zahlung(), get_bilanz()
+│   ├── akte_service.rs        # validate_akte(), update_dental_finding()
+│   ├── zahlung_service.rs     # create_payment(), get_balance_sheet()
 │   ├── leistung_service.rs    # CRUD mit Soft-Delete
 │   ├── produkt_service.rs     # CRUD
 │   ├── personal_service.rs    # create (Passwort-Hashing per NFA-SEC-03), prevent_self_delete
@@ -88,22 +88,22 @@ app/src-tauri/src/
 │   ├── mod.rs
 │   ├── entities/
 │   │   ├── mod.rs
-│   │   ├── personal.rs        # struct Personal, impl Personal
+│   │   ├── staff.rs        # struct Personal, impl Personal
 │   │   ├── patient.rs         # struct Patient, impl Patient
-│   │   ├── termin.rs          # struct Termin, impl (conflict check)
-│   │   ├── patientenakte.rs   # struct Patientenakte
-│   │   ├── zahnbefund.rs      # struct Zahnbefund (FDI validation)
-│   │   ├── behandlung.rs      # struct Behandlung, Untersuchung
-│   │   ├── zahlung.rs         # struct Zahlung, Finanzdokument
-│   │   ├── leistung.rs        # struct Leistung
-│   │   ├── produkt.rs         # struct Produkt
+│   │   ├── appointment.rs          # struct Termin, impl (conflict check)
+│   │   ├── patient_chart.rs   # struct Patientenakte
+│   │   ├── dental_finding.rs      # struct Zahnbefund (FDI validation)
+│   │   ├── treatment.rs      # struct Behandlung, Untersuchung
+│   │   ├── payment.rs         # struct Zahlung, Finanzdokument
+│   │   ├── serviceItem.rs        # struct Leistung
+│   │   ├── product.rs         # struct Produkt
 │   │   └── audit_log.rs       # struct AuditLog
 │   ├── enums.rs               # Rolle, TerminArt, TerminStatus, etc.
 │   ├── value_objects/
 │   │   ├── mod.rs
 │   │   ├── email.rs           # Email newtype mit Validierung
-│   │   ├── zahn_nummer.rs     # ZahnNummer (FDI 11-48) mit Validierung
-│   │   └── betrag.rs          # Betrag (f64 > 0) mit Formatierung
+│   │   ├── tooth_number.rs     # ZahnNummer (FDI 11-48) mit Validierung
+│   │   └── amount.rs          # Betrag (f64 > 0) mit Formatierung
 │   ├── repositories/          # 🔌 Repository Traits (Ports)
 │   │   ├── mod.rs
 │   │   ├── personal_repo.rs   # trait PersonalRepository
@@ -116,7 +116,7 @@ app/src-tauri/src/
 │   │   └── audit_repo.rs      # trait AuditRepository
 │   └── services/
 │       ├── mod.rs
-│       ├── rbac.rs            # can_access(rolle, resource, action)
+│       ├── rbac.rs            # can_access(role, resource, action)
 │       └── konflikt.rs        # Terminkonflikt-Prüfung
 ├── infrastructure/            # 🔧 Infrastructure Layer (Adapters)
 │   ├── mod.rs
@@ -192,7 +192,7 @@ Die folgenden Prinzipien gelten verbindlich für alle Code-Beiträge:
 | **Separation of Concerns** | Frontend: View rendert nur UI, Controller orchestriert Logik, Model hält State. Backend: Command = IPC-Adapter, Service = Use Case, Repository = Datenzugriff |
 | **Law of Demeter** | Controller spricht nur mit Service; Service spricht nur mit Repository; Views sprechen nur mit ihrem Controller/Store |
 | **Anticipation of Change** | Plugin-System für Fachmodule; Repository-Traits für DB-Austausch; Feature-Flags für optionale Module |
-| **High Cohesion** | Alle Termin-Logik in `termin_service.rs`; alle Termin-UI in `views/pages/termine.tsx` |
+| **High Cohesion** | Alle Termin-Logik in `termin_service.rs`; alle Termin-UI in `views/pages/appointments.tsx` |
 | **Low Coupling** | Module kommunizieren nur über definierte Interfaces (Traits/TypeScript-Interfaces); keine direkten Importe quer über Schichtgrenzen |
 | **Incremental Development** | Feature-weise Implementierung im V-Modell; jedes Feature einzeln testbar und deploybar |
 | **Continuous Validation** | Zod-Validierung (Frontend) + Rust-Typsystem (Backend) + SQL-Constraints (DB) = dreifache Absicherung |
@@ -250,7 +250,7 @@ Frontend (React)                 Backend (Rust)
 └──────────────┘                └──────────────────────────────┘
 ```
 
-**Frontend → Backend:** `invoke("create_termin", { data })` → Tauri serialisiert zu JSON → Rust deserialisiert → Command → Service → Repository → DB → Result → JSON → TypeScript
+**Frontend → Backend:** `invoke("create_appointment", { data })` → Tauri serialisiert zu JSON → Rust deserialisiert → Command → Service → Repository → DB → Result → JSON → TypeScript
 
 **Typsicherheit:** Shared types über `specta` (Rust → TypeScript Codegen) oder manuell synchronisierte Interfaces.
 
@@ -258,7 +258,7 @@ Frontend (React)                 Backend (Rust)
 
 | Schicht | Maßnahme |
 |---------|----------|
-| **Datenbank** | SQLite (WAL); SQLCipher/Verschlüsselung ruhender DB-Datei (NFA-SEC-08) **ausstehend** |
+| **Datenbank** | SQLite (WAL); SQLCipher/Verschlüsselung ruhender DB-Datei (NFA-SEC-08) **outstanding** |
 | **Authentifizierung** | Argon2id (+ bcrypt-Fallback für Legacy), JWT mit lokaler Signatur |
 | **Autorisierung** | RBAC in Domain Layer, geprüft in jedem Command |
 | **Audit** | Jede Schreiboperation wird in audit_log geschrieben |
@@ -272,31 +272,31 @@ SQLite-Schema über eingebettete DDL/Migrationen im Rust-Backend (`connection.rs
 
 ```sql
 -- SQLite Schema (Auszug)
-CREATE TABLE personal (
+CREATE TABLE staff (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
-    passwort_hash TEXT NOT NULL,
-    rolle TEXT NOT NULL CHECK (rolle IN ('ARZT','REZEPTION','STEUERBERATER','PHARMABERATER')),
-    taetigkeitsbereich TEXT,
-    fachrichtung TEXT,
-    telefon TEXT,
-    verfuegbar BOOLEAN NOT NULL DEFAULT 1,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('PHYSICIAN','RECEPTION','TAX_ADVISOR','PHARMA_CONSULTANT')),
+    activity_area TEXT,
+    specialty TEXT,
+    phone TEXT,
+    available BOOLEAN NOT NULL DEFAULT 1,
+    _created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE patient (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name TEXT NOT NULL,
-    geburtsdatum DATE NOT NULL,
-    geschlecht TEXT NOT NULL CHECK (geschlecht IN ('MAENNLICH','WEIBLICH','DIVERS')),
-    versicherungsnummer TEXT NOT NULL UNIQUE,
-    telefon TEXT,
+    date_of_birth DATE NOT NULL,
+    sex TEXT NOT NULL CHECK (sex IN ('MALE','FEMALE','DIVERSE')),
+    insurance_number TEXT NOT NULL UNIQUE,
+    phone TEXT,
     email TEXT,
-    adresse TEXT,
-    status TEXT NOT NULL DEFAULT 'NEU' CHECK (status IN ('NEU','AKTIV','VALIDIERT','READONLY')),
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    address TEXT,
+    status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','ACTIVE','VALIDATED','READONLY')),
+    _created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

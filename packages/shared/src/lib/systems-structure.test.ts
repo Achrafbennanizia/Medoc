@@ -69,16 +69,16 @@ describe("three-system frontend layout", () => {
 
     it("has LAN pages module", () => {
         expect(
-            existsSync(resolve(appRoot, "packages/server/lan/src/pages/einstellungen-lan-host.tsx")),
+            existsSync(resolve(appRoot, "packages/server/lan/src/pages/settings-lan-host.tsx")),
         ).toBe(true);
     });
 
-    it("has practice-host einstellungen sections", () => {
+    it("has practice-host settings sections", () => {
         expect(
             existsSync(
                 resolve(
                     appRoot,
-                    "packages/app/practice-host/src/pages/einstellungen/einstellungen-praxis-section.tsx",
+                    "packages/app/practice-host/src/pages/settings/settings-practice-section.tsx",
                 ),
             ),
         ).toBe(true);
@@ -89,7 +89,7 @@ describe("three-system frontend layout", () => {
             existsSync(
                 resolve(
                     appRoot,
-                    "packages/app/practice-host/src/pages/einstellungen/einstellungen-deployment-section.tsx",
+                    "packages/app/practice-host/src/pages/settings/settings-deployment-section.tsx",
                 ),
             ),
         ).toBe(true);
@@ -100,12 +100,12 @@ describe("three-system frontend layout", () => {
         ).toBe(true);
     });
 
-    it("has company-portal einstellungen section", () => {
+    it("has company-portal settings section", () => {
         expect(
             existsSync(
                 resolve(
                     appRoot,
-                    "packages/server/company/src/pages/einstellungen-company-portal-section.tsx",
+                    "packages/server/company/src/pages/settings-company-portal-section.tsx",
                 ),
             ),
         ).toBe(true);

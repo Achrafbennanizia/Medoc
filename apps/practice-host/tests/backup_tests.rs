@@ -67,11 +67,11 @@ async fn restore_from_backup_replaces_live_db_file() {
     let pool = medoc_lib::infrastructure::database::connection::init_db_headless(&dir)
         .await
         .expect("init db");
-    sqlx::query("CREATE TABLE IF NOT EXISTS restore_marker (v TEXT NOT NULL)")
+    sqlx::query("CREATE TABLE IF NOT EXISTS restore_marker (version TEXT NOT NULL)")
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO restore_marker (v) VALUES ('before')")
+    sqlx::query("INSERT INTO restore_marker (version) VALUES ('before')")
         .execute(&pool)
         .await
         .unwrap();
@@ -81,7 +81,7 @@ async fn restore_from_backup_replaces_live_db_file() {
         .await
         .expect("vacuum backup");
 
-    sqlx::query("UPDATE restore_marker SET v = 'mutated'")
+    sqlx::query("UPDATE restore_marker SET version = 'mutated'")
         .execute(&pool)
         .await
         .unwrap();
@@ -93,7 +93,7 @@ async fn restore_from_backup_replaces_live_db_file() {
     let pool2 = medoc_lib::infrastructure::database::connection::init_db_headless(&dir)
         .await
         .expect("reopen db");
-    let row: (String,) = sqlx::query_as("SELECT v FROM restore_marker")
+    let row: (String,) = sqlx::query_as("SELECT version FROM restore_marker")
         .fetch_one(&pool2)
         .await
         .expect("read marker");

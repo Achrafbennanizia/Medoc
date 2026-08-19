@@ -5,7 +5,7 @@ pub mod billing;
 pub mod clinical;
 pub mod list_params;
 pub mod network;
-pub mod praxis;
+pub mod practice;
 pub mod rbac_state;
 pub mod register;
 pub mod scheduling;
@@ -15,38 +15,38 @@ pub mod system;
 pub mod patient_commands {
     pub use super::clinical::patient::*;
 }
-pub mod akte_commands {
-    pub use super::clinical::akte::*;
+pub mod chart_commands {
+    pub use super::clinical::chart::*;
 }
-pub mod akte_anlage_commands {
-    pub use super::clinical::akte_anlage::*;
+pub mod chart_attachment_commands {
+    pub use super::clinical::chart_attachment::*;
 }
-pub mod akte_next_termin_commands {
-    pub use super::clinical::akte_next_termin::*;
+pub mod chart_next_appointment_commands {
+    pub use super::clinical::chart_next_appointment::*;
 }
-pub mod akte_validation_commands {
-    pub use super::clinical::akte_validation::*;
+pub mod chart_validation_commands {
+    pub use super::clinical::chart_validation::*;
 }
-pub mod akte_workflow_commands {
-    pub use super::clinical::akte_workflow::*;
+pub mod chart_workflow_commands {
+    pub use super::clinical::chart_workflow::*;
 }
-pub mod rezept_commands {
-    pub use super::clinical::rezept::*;
+pub mod prescription_commands {
+    pub use super::clinical::prescription::*;
 }
-pub mod attest_commands {
-    pub use super::clinical::attest::*;
+pub mod certificate_commands {
+    pub use super::clinical::certificate::*;
 }
-pub mod termin_commands {
-    pub use super::scheduling::termin::*;
+pub mod appointment_commands {
+    pub use super::scheduling::appointment::*;
 }
-pub mod praxis_aufgabe_commands {
-    pub use super::scheduling::praxis_aufgabe::*;
+pub mod practice_task_commands {
+    pub use super::scheduling::practice_task::*;
 }
-pub mod zahlung_commands {
-    pub use super::billing::zahlung::*;
+pub mod payment_commands {
+    pub use super::billing::payment::*;
 }
-pub mod leistung_commands {
-    pub use super::billing::leistung::*;
+pub mod service_item_commands {
+    pub use super::billing::service_item::*;
 }
 pub mod invoice_commands {
     pub use super::billing::invoice::*;
@@ -54,32 +54,32 @@ pub mod invoice_commands {
 pub mod invoice_sequence_commands {
     pub use super::billing::invoice_sequence::*;
 }
-pub mod rechnung_document_commands {
-    pub use super::billing::rechnung_document::*;
+pub mod invoice_document_commands {
+    pub use super::billing::invoice_document::*;
 }
-pub mod bilanz_snapshot_commands {
-    pub use super::billing::bilanz_snapshot::*;
+pub mod balance_sheet_snapshot_commands {
+    pub use super::billing::balance_sheet_snapshot::*;
 }
-pub mod tagesabschluss_protokoll_commands {
-    pub use super::billing::tagesabschluss_protokoll::*;
+pub mod day_close_protocol_commands {
+    pub use super::billing::day_close_protocol::*;
 }
-pub mod vertrag_commands {
-    pub use super::billing::vertrag::*;
+pub mod contract_commands {
+    pub use super::billing::contract::*;
 }
 pub mod auth_commands {
     pub use super::admin::auth::*;
 }
-pub mod personal_commands {
-    pub use super::admin::personal::*;
+pub mod staff_commands {
+    pub use super::admin::staff::*;
 }
 pub mod work_time_commands {
     pub use super::admin::work_time::*;
 }
-pub mod krankenbescheinigung_commands {
-    pub use super::admin::krankenbescheinigung::*;
+pub mod sick_leave_certificate_commands {
+    pub use super::admin::sick_leave_certificate::*;
 }
-pub mod arbeitsplan_adjustment_commands {
-    pub use super::admin::arbeitsplan_adjustment::*;
+pub mod work_plan_adjustment_commands {
+    pub use super::admin::work_plan_adjustment::*;
 }
 pub mod audit_commands {
     pub use super::admin::audit::*;
@@ -96,26 +96,26 @@ pub mod db_setup_commands {
 pub mod break_glass_commands {
     pub use super::admin::break_glass::*;
 }
-pub mod praxis_commands {
-    pub use super::praxis::core::*;
+pub mod practice_commands {
+    pub use super::practice::core::*;
 }
-pub mod produkt_commands {
-    pub use super::praxis::produkt::*;
+pub mod product_commands {
+    pub use super::practice::product::*;
 }
-pub mod bestellung_commands {
-    pub use super::praxis::bestellung::*;
+pub mod purchase_order_commands {
+    pub use super::practice::purchase_order::*;
 }
-pub mod dokument_template_commands {
-    pub use super::praxis::dokument_template::*;
+pub mod document_template_commands {
+    pub use super::practice::document_template::*;
 }
 pub mod in_app_notification_commands {
-    pub use super::praxis::in_app_notification::*;
+    pub use super::practice::in_app_notification::*;
 }
-pub mod statistik_commands {
-    pub use super::praxis::statistik::*;
+pub mod statistics_commands {
+    pub use super::practice::statistics::*;
 }
 pub mod feedback_commands {
-    pub use super::praxis::feedback::*;
+    pub use super::practice::feedback::*;
 }
 pub mod lan_commands {
     pub use super::network::lan::*;

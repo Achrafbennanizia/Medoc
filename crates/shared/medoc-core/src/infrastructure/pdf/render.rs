@@ -7,17 +7,17 @@
 //! - **Invoice** ([`render`]) — GOZ/GOÄ-compliant table with position, date,
 //!   tooth, GOZ no., description, quantity, factor, and total. Totals block
 //!   on the right with VAT note. Bank details + payment terms in the footer.
-//! - **Patient record** ([`render_akte_blocks`]) — modular block lists with
+//! - **Patient record** ([`render_chart_blocks`]) — modular block lists with
 //!   master data, diagnosis, findings, treatments, attachment metadata, etc.
 
 use crate::error::AppError;
 
 use super::core::{
-    emit_multipage_pdf, format_date_de, format_eur_de, truncate_cell, wrap_de, wrap_soft,
+    emit_multipage_pdf, format_date_dmy, format_eur, truncate_cell, wrap_text, wrap_soft,
     PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
-    emit_bankverbindung, emit_continuation_header, emit_letterhead, emit_signature_block,
+    emit_bank_details, emit_continuation_header, emit_letterhead, emit_signature_block,
     Letterhead, MetaRow,
 };
 
@@ -35,21 +35,21 @@ pub struct InvoiceLine {
     /// GOZ/GOÄ fee number (e.g. "2197" or "Ä5000").
     pub goz_nr: Option<String>,
     /// Increase factor (GOZ § 5: 1.0–3.5, default 2.3).
-    pub faktor: Option<f64>,
+    pub factor: Option<f64>,
     /// Unit price in cents (before factor).
-    pub einzelpreis_cents: Option<i64>,
+    pub unit_price_cents: Option<i64>,
     /// Quantity (default = 1).
-    pub menge: Option<i32>,
+    pub quantity: Option<i32>,
     /// FDI tooth designation ("11", "47", "27 mes" …).
-    pub zahn_nr: Option<String>,
+    pub tooth_nr: Option<String>,
     /// Treatment date (ISO or DE).
-    pub behandlungsdatum: Option<String>,
+    pub treatment_date: Option<String>,
     /// VAT rate (0 = exempt, 19 = materials).
-    pub ust_prozent: Option<f64>,
+    pub vat_percent: Option<f64>,
     /// Material costs / external lab (per GOZ § 9).
     pub material: Option<String>,
     /// Justification when factor > 2.3 (GOZ § 10 (3) — mandatory).
-    pub diagnose_begruendung: Option<String>,
+    pub diagnosis_reason: Option<String>,
 }
 
 impl InvoiceLine {
@@ -59,14 +59,14 @@ impl InvoiceLine {
             description: description.into(),
             amount_cents,
             goz_nr: None,
-            faktor: None,
-            einzelpreis_cents: None,
-            menge: None,
-            zahn_nr: None,
-            behandlungsdatum: None,
-            ust_prozent: None,
+            factor: None,
+            unit_price_cents: None,
+            quantity: None,
+            tooth_nr: None,
+            treatment_date: None,
+            vat_percent: None,
             material: None,
-            diagnose_begruendung: None,
+            diagnosis_reason: None,
         }
     }
 }
@@ -82,16 +82,16 @@ pub struct Invoice {
     pub practice_address: Vec<String>,
     pub lines: Vec<InvoiceLine>,
     pub note: Option<String>,
-    pub behandler_name: Option<String>,
-    pub behandler_zanr: Option<String>,
-    pub praxis_bsnr: Option<String>,
+    pub clinician_name: Option<String>,
+    pub clinician_zanr: Option<String>,
+    pub practice_bsnr: Option<String>,
     /// Full bank lines (e.g. ["IBAN: DE12…", "BIC: COBADEFFXXX",
-    /// "Bank: Commerzbank", "Kontoinhaber: Dr. M. Mustermann"]).
-    pub bankverbindung: Option<Vec<String>>,
-    /// E.g. "Zahlbar innerhalb von 14 Tagen ohne Abzug."
-    pub zahlungsziel_text: Option<String>,
-    /// E.g. "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"
-    pub ust_hinweis: Option<String>,
+    /// "Bank: Commerzbank", "Account holder: Dr. M. Mustermann"]).
+    pub bank_details: Option<Vec<String>>,
+    /// E.g. "Payable within 14 days with no deduction."
+    pub payment_terms_text: Option<String>,
+    /// E.g. "Exempt from VAT under UStG § 4 no. 14"
+    pub vat_notice: Option<String>,
 }
 
 impl Invoice {
@@ -104,17 +104,17 @@ impl Invoice {
 /// exactly the same X positions.
 mod inv_cols {
     pub const POS: i32 = 50;
-    pub const DATUM: i32 = 78;
-    pub const ZAHN: i32 = 130;
+    pub const DATE: i32 = 78;
+    pub const TOOTH: i32 = 130;
     pub const GOZ: i32 = 160;
-    pub const BEZEICHNUNG: i32 = 200;
-    pub const MENGE: i32 = 410;
-    pub const FAKTOR: i32 = 445;
+    pub const DESIGNATION: i32 = 200;
+    pub const QTY: i32 = 410;
+    pub const FACTOR: i32 = 445;
     /// Right-aligned — align against this X coordinate.
-    pub const PREIS_RIGHT: i32 = 545;
+    pub const PRICE_RIGHT: i32 = 545;
     pub const HEADER_BAND_W: i32 = 495;
     /// Width of the description column in characters (for wrap).
-    pub const BEZEICHNUNG_CHARS: usize = 36;
+    pub const DESIGNATION_CHARS: usize = 36;
 }
 
 /// Main entry: render an invoice as PDF bytes.
@@ -123,32 +123,32 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
 
     // ---------- Letterhead (first page only) ------------------------------
     let mut meta = Vec::new();
-    meta.push(MetaRow::new("Rechnung-Nr.", &invoice.number));
+    meta.push(MetaRow::new("Invoice-Nr.", &invoice.number));
     meta.push(MetaRow::new(
-        "Rechnungsdatum",
-        format_date_de(&invoice.date),
+        "Invoice date",
+        format_date_dmy(&invoice.date),
     ));
     if let Some(b) = invoice
-        .behandler_name
+        .clinician_name
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        meta.push(MetaRow::new("Behandler:in", b));
+        meta.push(MetaRow::new("Clinician", b));
     }
 
     // Practice lines + professional IDs (BSNR/ZANR) into the header
-    let mut praxis_full = vec![invoice.practice_name.clone()];
-    praxis_full.extend(invoice.practice_address.iter().cloned());
+    let mut practice_full = vec![invoice.practice_name.clone()];
+    practice_full.extend(invoice.practice_address.iter().cloned());
     if let (Some(bsnr), zanr) = (
-        invoice.praxis_bsnr.as_deref(),
-        invoice.behandler_zanr.as_deref(),
+        invoice.practice_bsnr.as_deref(),
+        invoice.clinician_zanr.as_deref(),
     ) {
         if !bsnr.trim().is_empty() {
             let zline = match zanr {
                 Some(z) if !z.trim().is_empty() => format!("BSNR: {bsnr} · ZANR: {z}"),
                 _ => format!("BSNR: {bsnr}"),
             };
-            praxis_full.push(zline);
+            practice_full.push(zline);
         }
     }
 
@@ -156,7 +156,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     recipient.extend(invoice.recipient_address.iter().cloned());
 
     let lh = Letterhead {
-        praxis_lines: &praxis_full,
+        practice_lines: &practice_full,
         meta_rows: &meta,
         address_lines: &recipient,
         header_right_lines: &[],
@@ -164,10 +164,10 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     };
     emit_letterhead(&mut pb, &lh);
 
-    // ---------- Dokument-Titel --------------------------------------------
-    pb.text(M_LEFT, 18, true, "Rechnung");
+    // ---------- Document-Titel --------------------------------------------
+    pb.text(M_LEFT, 18, true, "Invoice");
     pb.advance(20);
-    pb.text(M_LEFT, 10, false, "Leistungsübersicht nach GOZ / GOÄ");
+    pb.text(M_LEFT, 10, false, "Service overview per GOZ / GOÄ");
     pb.advance(8);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(16);
@@ -179,7 +179,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     for (i, line) in invoice.lines.iter().enumerate() {
         if pb.y < M_BOTTOM + 120 {
             pb.break_page();
-            emit_continuation_header(&mut pb, &invoice.practice_name, "Rechnung");
+            emit_continuation_header(&mut pb, &invoice.practice_name, "Invoice");
             emit_invoice_table_header(&mut pb);
         }
         emit_invoice_line(&mut pb, i, line);
@@ -189,9 +189,9 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.advance(8);
     emit_invoice_totals(&mut pb, invoice);
 
-    // ---------- Zahlungsbedingungen ---------------------------------------
+    // ---------- Payment terms ---------------------------------------------
     if let Some(zt) = invoice
-        .zahlungsziel_text
+        .payment_terms_text
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
@@ -202,35 +202,35 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         pb.paragraph(note, 9, 90, 0);
     }
 
-    // ---------- Bankverbindung --------------------------------------------
-    if let Some(bank) = &invoice.bankverbindung {
-        emit_bankverbindung(&mut pb, bank);
+    // ---------- Bank details ----------------------------------------------
+    if let Some(bank) = &invoice.bank_details {
+        emit_bank_details(&mut pb, bank);
     }
 
     // ---------- Signature -------------------------------------------------
     emit_signature_block(
         &mut pb,
-        invoice.behandler_name.as_deref(),
-        Some("Zahnärztin/Zahnarzt"),
-        invoice.behandler_zanr.as_deref(),
-        invoice.praxis_bsnr.as_deref(),
+        invoice.clinician_name.as_deref(),
+        Some("Dentist"),
+        invoice.clinician_zanr.as_deref(),
+        invoice.practice_bsnr.as_deref(),
         true,
     );
 
     let pages = pb.finish();
-    emit_multipage_pdf(&pages, &format!("Rechnung {}", invoice.number))
+    emit_multipage_pdf(&pages, &format!("Invoice {}", invoice.number))
 }
 
 fn emit_invoice_table_header(pb: &mut PageBuilder) {
     pb.table_header_band(M_LEFT, pb.y + 2, inv_cols::HEADER_BAND_W);
     pb.text(inv_cols::POS, 8, true, "Pos.");
-    pb.text(inv_cols::DATUM, 8, true, "Datum");
-    pb.text(inv_cols::ZAHN, 8, true, "Zahn");
+    pb.text(inv_cols::DATE, 8, true, "Date");
+    pb.text(inv_cols::TOOTH, 8, true, "Tooth");
     pb.text(inv_cols::GOZ, 8, true, "GOZ/GOÄ");
-    pb.text(inv_cols::BEZEICHNUNG, 8, true, "Bezeichnung");
-    pb.text(inv_cols::MENGE, 8, true, "Menge");
-    pb.text(inv_cols::FAKTOR, 8, true, "Faktor");
-    pb.text_right(inv_cols::PREIS_RIGHT, 8, true, "Gesamt €");
+    pb.text(inv_cols::DESIGNATION, 8, true, "Designation");
+    pb.text(inv_cols::QTY, 8, true, "Qty");
+    pb.text(inv_cols::FACTOR, 8, true, "Factor");
+    pb.text_right(inv_cols::PRICE_RIGHT, 8, true, "Total €");
     pb.advance(10);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(12);
@@ -238,26 +238,26 @@ fn emit_invoice_table_header(pb: &mut PageBuilder) {
 
 fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
     let pos = format!("{}", idx + 1);
-    let datum = line
-        .behandlungsdatum
+    let date = line
+        .treatment_date
         .as_deref()
-        .map(format_date_de)
+        .map(format_date_dmy)
         .unwrap_or_else(|| "—".into());
-    let zahn = line.zahn_nr.as_deref().unwrap_or("—");
+    let tooth = line.tooth_nr.as_deref().unwrap_or("—");
     let goz = line.goz_nr.as_deref().unwrap_or("—");
-    let bezeichnung = &line.description;
-    let menge = line
-        .menge
+    let designation = &line.description;
+    let quantity = line
+        .quantity
         .map(|m| m.to_string())
         .unwrap_or_else(|| "1".into());
-    let faktor = line
-        .faktor
+    let factor = line
+        .factor
         .map(|f| format!("{:.1}", f))
         .unwrap_or_else(|| "—".into());
-    let preis = format_eur_de(line.amount_cents);
+    let price = format_eur(line.amount_cents);
 
     // Description may be multi-line → wrap it
-    let bez_lines = wrap_soft(bezeichnung, inv_cols::BEZEICHNUNG_CHARS);
+    let bez_lines = wrap_soft(designation, inv_cols::DESIGNATION_CHARS);
     let row_height = (bez_lines.len() as i32).max(1) * 10 + 4;
 
     // If not enough space: wrap (already checked before call, but
@@ -269,27 +269,27 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
 
     // First line: all columns
     pb.text(inv_cols::POS, 8, false, &pos);
-    pb.text(inv_cols::DATUM, 8, false, &datum);
-    pb.text(inv_cols::ZAHN, 8, false, zahn);
+    pb.text(inv_cols::DATE, 8, false, &date);
+    pb.text(inv_cols::TOOTH, 8, false, tooth);
     pb.text(inv_cols::GOZ, 8, false, goz);
     if let Some(first) = bez_lines.first() {
-        pb.text(inv_cols::BEZEICHNUNG, 8, false, first);
+        pb.text(inv_cols::DESIGNATION, 8, false, first);
     }
-    pb.text(inv_cols::MENGE, 8, false, &menge);
-    pb.text(inv_cols::FAKTOR, 8, false, &faktor);
-    pb.text_right(inv_cols::PREIS_RIGHT, 8, false, &preis);
+    pb.text(inv_cols::QTY, 8, false, &quantity);
+    pb.text(inv_cols::FACTOR, 8, false, &factor);
+    pb.text_right(inv_cols::PRICE_RIGHT, 8, false, &price);
 
     // Continuation lines of the description
     for extra in bez_lines.iter().skip(1) {
         pb.advance(10);
-        pb.text(inv_cols::BEZEICHNUNG, 8, false, extra);
+        pb.text(inv_cols::DESIGNATION, 8, false, extra);
     }
 
     // Material sub-line (per GOZ § 9: list separately)
     if let Some(m) = line.material.as_deref().filter(|s| !s.trim().is_empty()) {
         pb.advance(10);
         pb.text(
-            inv_cols::BEZEICHNUNG,
+            inv_cols::DESIGNATION,
             8,
             false,
             &format!("   Material: {m}"),
@@ -298,19 +298,19 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
 
     // Justification sub-line (GOZ § 10 (3): mandatory when factor > 2.3)
     if let Some(reason) = line
-        .diagnose_begruendung
+        .diagnosis_reason
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        let needs = line.faktor.map(|f| f > 2.3).unwrap_or(false);
+        let needs = line.factor.map(|f| f > 2.3).unwrap_or(false);
         let label = if needs {
-            "Begründung (§ 10 Abs. 3 GOZ)"
+            "Justification (GOZ § 10 (3))"
         } else {
-            "Hinweis"
+            "Note"
         };
         // Label only on the first line; continuation lines indented.
         let body = format!("   {label}: {reason}");
-        for (i, chunk) in wrap_soft(&body, inv_cols::BEZEICHNUNG_CHARS)
+        for (i, chunk) in wrap_soft(&body, inv_cols::DESIGNATION_CHARS)
             .iter()
             .enumerate()
         {
@@ -320,7 +320,7 @@ fn emit_invoice_line(pb: &mut PageBuilder, idx: usize, line: &InvoiceLine) {
             } else {
                 format!("      {chunk}")
             };
-            pb.text(inv_cols::BEZEICHNUNG, 7, false, &text);
+            pb.text(inv_cols::DESIGNATION, 7, false, &text);
         }
     }
 
@@ -337,20 +337,20 @@ fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
     pb.hline(300, M_RIGHT);
     pb.advance(14);
 
-    pb.text_right(label_right_x, 10, false, "Warenwert netto:");
-    pb.text_right(M_RIGHT, 10, false, &format_eur_de(inv.total_cents()));
+    pb.text_right(label_right_x, 10, false, "Net amount:");
+    pb.text_right(M_RIGHT, 10, false, &format_eur(inv.total_cents()));
     pb.advance(14);
 
-    if let Some(ust) = inv.ust_hinweis.as_deref().filter(|s| !s.trim().is_empty()) {
-        for chunk in wrap_de(ust, 60) {
+    if let Some(ust) = inv.vat_notice.as_deref().filter(|s| !s.trim().is_empty()) {
+        for chunk in wrap_text(ust, 60) {
             pb.text(M_LEFT, 9, false, &chunk);
             pb.advance(11);
         }
     }
 
     pb.advance(4);
-    pb.text_right(label_right_x, 11, true, "Endbetrag:");
-    pb.text_right(M_RIGHT, 11, true, &format_eur_de(inv.total_cents()));
+    pb.text_right(label_right_x, 11, true, "Amount due:");
+    pb.text_right(M_RIGHT, 11, true, &format_eur(inv.total_cents()));
     pb.advance(22);
 }
 
@@ -360,7 +360,7 @@ fn emit_invoice_totals(pb: &mut PageBuilder, inv: &Invoice) {
 
 /// Table inside a record block.
 #[derive(Debug, Clone, Default)]
-pub struct AktePdfTable {
+pub struct ChartPdfTable {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
     /// Optional column weights (e.g. `[2, 1, 10]` → narrow · narrow · wide).
@@ -368,7 +368,7 @@ pub struct AktePdfTable {
     pub column_weights: Option<Vec<i32>>,
 }
 
-impl AktePdfTable {
+impl ChartPdfTable {
     pub fn new(headers: Vec<String>, rows: Vec<Vec<String>>) -> Self {
         Self {
             headers,
@@ -385,14 +385,14 @@ impl AktePdfTable {
 
 /// One section in the record (master data, diagnosis, treatments, …).
 #[derive(Debug, Clone, Default)]
-pub struct AktePdfBlock {
+pub struct ChartPdfBlock {
     pub title: String,
     pub body_lines: Vec<String>,
     pub kv_pairs: Vec<(String, String)>,
-    pub table: Option<AktePdfTable>,
+    pub table: Option<ChartPdfTable>,
 }
 
-impl AktePdfBlock {
+impl ChartPdfBlock {
     pub fn body(title: impl Into<String>, lines: Vec<String>) -> Self {
         Self {
             title: title.into(),
@@ -411,7 +411,7 @@ impl AktePdfBlock {
         }
     }
 
-    pub fn table(title: impl Into<String>, table: AktePdfTable) -> Self {
+    pub fn table(title: impl Into<String>, table: ChartPdfTable) -> Self {
         Self {
             title: title.into(),
             body_lines: Vec::new(),
@@ -422,59 +422,59 @@ impl AktePdfBlock {
 }
 
 /// Legacy single-document mode (for backward compatibility).
-pub struct AkteDocument {
+pub struct ChartDocument {
     pub patient_name: String,
-    pub patient_geburtsdatum: String,
-    pub patient_versicherungsnummer: String,
-    pub akte_status: String,
-    pub diagnose: Option<String>,
-    pub befunde: Option<String>,
-    pub behandlungen: Vec<(String, String)>,
+    pub patient_date_of_birth: String,
+    pub patient_insurance_number: String,
+    pub chart_status: String,
+    pub diagnosis: Option<String>,
+    pub findings: Option<String>,
+    pub treatments: Vec<(String, String)>,
     pub generated_at: String,
 }
 
 /// Practice header data for record / fact sheet (optional — when `None` a
 /// slim header without DIN-5008 letterhead is rendered).
 #[derive(Debug, Clone, Default)]
-pub struct AkteHeaderContext {
-    pub praxis_lines: Vec<String>,
-    pub behandler_name: Option<String>,
-    pub berufsbezeichnung: Option<String>,
+pub struct ChartHeaderContext {
+    pub practice_lines: Vec<String>,
+    pub clinician_name: Option<String>,
+    pub professional_title: Option<String>,
     pub bsnr: Option<String>,
     pub zanr: Option<String>,
-    pub erstellt_von: Option<String>,
-    pub dokument_id: Option<String>,
+    pub created_by: Option<String>,
+    pub document_id: Option<String>,
 }
 
 /// Main renderer for the patient record as PDF (modular).
 ///
 /// `header` supplies the practice context (letterhead, provider) for the first
 /// page. When empty, only title + date are rendered at the top.
-pub fn render_akte_blocks(
+pub fn render_chart_blocks(
     doc_title: &str,
     generated_at: &str,
     pdf_title_meta: &str,
-    blocks: &[AktePdfBlock],
-    header: Option<&AkteHeaderContext>,
+    blocks: &[ChartPdfBlock],
+    header: Option<&ChartHeaderContext>,
 ) -> Result<Vec<u8>, AppError> {
     let mut pb = PageBuilder::new();
 
-    // ---------- Kopf -------------------------------------------------------
-    if let Some(h) = header.filter(|h| !h.praxis_lines.is_empty()) {
+    // ---------- Header -----------------------------------------------------
+    if let Some(h) = header.filter(|h| !h.practice_lines.is_empty()) {
         let mut meta = Vec::new();
-        if let Some(id) = h.dokument_id.as_deref().filter(|s| !s.trim().is_empty()) {
-            meta.push(MetaRow::new("Dokument-ID", id));
+        if let Some(id) = h.document_id.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Document-ID", id));
         }
-        meta.push(MetaRow::new("Erstellt", generated_at));
-        if let Some(by) = h.erstellt_von.as_deref().filter(|s| !s.trim().is_empty()) {
-            meta.push(MetaRow::new("Erstellt von", by));
+        meta.push(MetaRow::new("Created", generated_at));
+        if let Some(by) = h.created_by.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Created by", by));
         }
-        if let Some(b) = h.behandler_name.as_deref().filter(|s| !s.trim().is_empty()) {
-            meta.push(MetaRow::new("Behandler:in", b));
+        if let Some(b) = h.clinician_name.as_deref().filter(|s| !s.trim().is_empty()) {
+            meta.push(MetaRow::new("Clinician", b));
         }
 
         let lh = Letterhead {
-            praxis_lines: &h.praxis_lines,
+            practice_lines: &h.practice_lines,
             meta_rows: &meta,
             address_lines: &[],
             header_right_lines: &[],
@@ -485,7 +485,7 @@ pub fn render_akte_blocks(
         // Slim header: title + date only
         pb.text(M_LEFT, 18, true, doc_title);
         pb.advance(22);
-        pb.text(M_LEFT, 9, false, &format!("Erstellt: {generated_at}"));
+        pb.text(M_LEFT, 9, false, &format!("Created: {generated_at}"));
         pb.advance(14);
         pb.hline(M_LEFT, M_RIGHT);
         pb.advance(20);
@@ -501,16 +501,16 @@ pub fn render_akte_blocks(
 
     // ---------- Blocks -----------------------------------------------------
     let practice_name = header
-        .and_then(|h| h.praxis_lines.first().cloned())
+        .and_then(|h| h.practice_lines.first().cloned())
         .unwrap_or_else(|| "MeDoc".into());
 
     if blocks.is_empty() {
-        pb.text(M_LEFT, 10, false, "(Keine Inhalte für diesen Export.)");
+        pb.text(M_LEFT, 10, false, "(No content for this export.)");
         pb.advance(14);
     }
 
     for block in blocks {
-        emit_akte_block(&mut pb, block, &practice_name, doc_title);
+        emit_chart_block(&mut pb, block, &practice_name, doc_title);
     }
 
     // ---------- GDPR notice at the end ------------------------------------
@@ -519,13 +519,12 @@ pub fn render_akte_blocks(
         pb.advance(10);
         pb.hline(M_LEFT, M_RIGHT);
         pb.advance(14);
-        pb.text(M_LEFT, 8, true, "Datenschutzhinweis");
+        pb.text(M_LEFT, 8, true, "Privacy notice");
         pb.advance(11);
         pb.paragraph(
-            "Dieses Dokument enthält vertrauliche Patientendaten gem. § 630f BGB. \
-             Weitergabe nur mit ausdrücklicher Einwilligung des Patienten. \
-             Eine Speicherung über die gesetzliche Aufbewahrungsfrist hinaus \
-             ist nicht zulässig.",
+            "This document contains confidential patient data under German BGB § 630f. \
+             Disclosure only with the patient's explicit consent. \
+             Retention beyond the statutory retention period is not permitted.",
             8,
             90,
             0,
@@ -536,9 +535,9 @@ pub fn render_akte_blocks(
     emit_multipage_pdf(&pages, pdf_title_meta)
 }
 
-fn emit_akte_block(
+fn emit_chart_block(
     pb: &mut PageBuilder,
-    block: &AktePdfBlock,
+    block: &ChartPdfBlock,
     practice_name: &str,
     doc_title: &str,
 ) {
@@ -558,14 +557,14 @@ fn emit_akte_block(
 
     if let Some(ref tbl) = block.table {
         if !tbl.headers.is_empty() || !tbl.rows.is_empty() {
-            emit_akte_table(pb, tbl, practice_name, doc_title);
+            emit_chart_table(pb, tbl, practice_name, doc_title);
             wrote_any = true;
         }
     }
 
     if !block.kv_pairs.is_empty() {
-        for (k, v) in &block.kv_pairs {
-            emit_akte_kv_pair(pb, k, v, practice_name, doc_title);
+        for (k, version) in &block.kv_pairs {
+            emit_chart_kv_pair(pb, k, version, practice_name, doc_title);
         }
         wrote_any = true;
     }
@@ -573,7 +572,7 @@ fn emit_akte_block(
     if !block.body_lines.is_empty() {
         for line in &block.body_lines {
             let display = crate::infrastructure::clinical_text_format::plain_text_for_pdf(line);
-            for chunk in wrap_de(&display, 90) {
+            for chunk in wrap_text(&display, 90) {
                 if pb.y < M_BOTTOM + 24 {
                     pb.break_page();
                     emit_continuation_header(pb, practice_name, doc_title);
@@ -595,7 +594,7 @@ fn emit_akte_block(
     pb.advance(14);
 }
 
-fn emit_akte_kv_pair(
+fn emit_chart_kv_pair(
     pb: &mut PageBuilder,
     key: &str,
     value: &str,
@@ -617,7 +616,7 @@ fn emit_akte_kv_pair(
     } else {
         pb.text(M_LEFT, 9, true, &format!("{key}:"));
         pb.advance(12);
-        for chunk in wrap_de(&display, 90) {
+        for chunk in wrap_text(&display, 90) {
             if pb.y < M_BOTTOM + 24 {
                 pb.break_page();
                 emit_continuation_header(pb, practice_name, doc_title);
@@ -629,7 +628,7 @@ fn emit_akte_kv_pair(
     }
 }
 
-fn akte_table_column_xs(ncol: usize, weights: Option<&[i32]>) -> Vec<i32> {
+fn chart_table_column_xs(ncol: usize, weights: Option<&[i32]>) -> Vec<i32> {
     let n = ncol.max(1);
     let Some(w) = weights.filter(|w| !w.is_empty()) else {
         let step = CONTENT_WIDTH / n as i32;
@@ -646,7 +645,7 @@ fn akte_table_column_xs(ncol: usize, weights: Option<&[i32]>) -> Vec<i32> {
     xs
 }
 
-fn akte_table_column_char_widths(col_xs: &[i32]) -> Vec<usize> {
+fn chart_table_column_char_widths(col_xs: &[i32]) -> Vec<usize> {
     let mut w = Vec::with_capacity(col_xs.len());
     for i in 0..col_xs.len() {
         let next = col_xs.get(i + 1).copied().unwrap_or(M_RIGHT);
@@ -656,9 +655,9 @@ fn akte_table_column_char_widths(col_xs: &[i32]) -> Vec<usize> {
     w
 }
 
-fn emit_akte_table_header_row(
+fn emit_chart_table_header_row(
     pb: &mut PageBuilder,
-    tbl: &AktePdfTable,
+    tbl: &ChartPdfTable,
     col_xs: &[i32],
     col_chars: &[usize],
 ) {
@@ -674,21 +673,21 @@ fn emit_akte_table_header_row(
     pb.advance(10);
 }
 
-fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str, doc_title: &str) {
+fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &str, doc_title: &str) {
     let ncol = tbl
         .headers
         .len()
         .max(tbl.rows.iter().map(|r| r.len()).max().unwrap_or(0))
         .max(1);
-    let col_xs = akte_table_column_xs(ncol, tbl.column_weights.as_deref());
-    let col_chars = akte_table_column_char_widths(&col_xs);
+    let col_xs = chart_table_column_xs(ncol, tbl.column_weights.as_deref());
+    let col_chars = chart_table_column_char_widths(&col_xs);
 
     if pb.y < M_BOTTOM + 60 {
         pb.break_page();
         emit_continuation_header(pb, practice_name, doc_title);
     }
 
-    emit_akte_table_header_row(pb, tbl, &col_xs, &col_chars);
+    emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
 
     if tbl.rows.is_empty() {
         pb.text(M_LEFT + 4, 9, false, "(keine Tabellenzeilen)");
@@ -711,7 +710,7 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
             emit_continuation_header(pb, practice_name, doc_title);
-            emit_akte_table_header_row(pb, tbl, &col_xs, &col_chars);
+            emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
         }
 
         if ri % 2 == 1 {
@@ -741,53 +740,53 @@ fn emit_akte_table(pb: &mut PageBuilder, tbl: &AktePdfTable, practice_name: &str
 }
 
 /// Legacy wrapper.
-pub fn render_akte(doc: &AkteDocument) -> Result<Vec<u8>, AppError> {
+pub fn render_chart(doc: &ChartDocument) -> Result<Vec<u8>, AppError> {
     let diag = doc
-        .diagnose
+        .diagnosis
         .clone()
-        .unwrap_or_else(|| "(keine Eintragung)".into());
+        .unwrap_or_else(|| "(none recorded)".into());
     let bef = doc
-        .befunde
+        .findings
         .clone()
-        .unwrap_or_else(|| "(keine Eintragung)".into());
-    let beh_lines: Vec<String> = if doc.behandlungen.is_empty() {
-        vec!["(keine Behandlungen erfasst)".to_string()]
+        .unwrap_or_else(|| "(none recorded)".into());
+    let beh_lines: Vec<String> = if doc.treatments.is_empty() {
+        vec!["(no treatments recorded)".to_string()]
     } else {
-        doc.behandlungen
+        doc.treatments
             .iter()
             .map(|(d, b)| format!("{d} — {b}"))
             .collect()
     };
 
     let blocks = vec![
-        AktePdfBlock::kv(
-            "Stammdaten / Aktenkopf",
+        ChartPdfBlock::kv(
+            "Master data / chart header",
             vec![
                 ("Patient".into(), doc.patient_name.clone()),
-                ("Geburtsdatum".into(), doc.patient_geburtsdatum.clone()),
+                ("Date of birth".into(), doc.patient_date_of_birth.clone()),
                 (
-                    "Versicherungsnr.".into(),
-                    doc.patient_versicherungsnummer.clone(),
+                    "Insurance no.".into(),
+                    doc.patient_insurance_number.clone(),
                 ),
-                ("Akten-Status".into(), doc.akte_status.clone()),
+                ("Chart status".into(), doc.chart_status.clone()),
             ],
         ),
-        AktePdfBlock::body("Diagnose", vec![diag]),
-        AktePdfBlock::body("Befunde (Freitext)", vec![bef]),
-        AktePdfBlock::body("Behandlungen", beh_lines),
+        ChartPdfBlock::body("Diagnosis", vec![diag]),
+        ChartPdfBlock::body("Findings (free text)", vec![bef]),
+        ChartPdfBlock::body("Treatments", beh_lines),
     ];
 
-    render_akte_blocks(
-        "Patientenakte",
+    render_chart_blocks(
+        "PatientChart",
         &doc.generated_at,
-        &format!("Patientenakte {}", doc.patient_name),
+        &format!("PatientChart {}", doc.patient_name),
         &blocks,
         None,
     )
 }
 
 // ===========================================================================
-// Auswertungs- / Finanzberichte (Statistik, Bilanz, Einnahmen)
+// Auswertungs- / Finanzberichte (Statistics, BalanceSheet, Income)
 // ===========================================================================
 
 /// Key-value row in the report summary block.
@@ -798,7 +797,7 @@ pub struct ReportPdfSummaryRow {
     pub value: String,
 }
 
-/// Tabular section (same table primitive as Patientenakte).
+/// Tabular section (same table primitive as PatientChart).
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportPdfSection {
@@ -807,7 +806,7 @@ pub struct ReportPdfSection {
     pub rows: Vec<Vec<String>>,
 }
 
-/// Structured input for practice reports (Einnahmen, Statistik, Bilanz).
+/// Structured input for practice reports (Income, Statistics, BalanceSheet).
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportPdfInput {
@@ -819,32 +818,32 @@ pub struct ReportPdfInput {
     pub sections: Vec<ReportPdfSection>,
 }
 
-/// Renders a practice report PDF using the same [`render_akte_blocks`] pipeline as
-/// Akte / Merkblatt — identical letterhead, margins, tables, and page numbers.
+/// Renders a practice report PDF using the same [`render_chart_blocks`] pipeline as
+/// Chart / Leaflet — identical letterhead, margins, tables, and page numbers.
 pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
-    let mut praxis_lines: Vec<String> = Vec::new();
+    let mut practice_lines: Vec<String> = Vec::new();
     if !input.practice_name.trim().is_empty() {
-        praxis_lines.push(input.practice_name.trim().to_string());
+        practice_lines.push(input.practice_name.trim().to_string());
     }
     for line in &input.practice_address {
         let t = line.trim();
         if !t.is_empty() {
-            praxis_lines.push(t.to_string());
+            practice_lines.push(t.to_string());
         }
     }
 
-    let header = if praxis_lines.is_empty() {
+    let header = if practice_lines.is_empty() {
         None
     } else {
-        Some(AkteHeaderContext {
-            praxis_lines,
+        Some(ChartHeaderContext {
+            practice_lines,
             ..Default::default()
         })
     };
 
-    let mut blocks: Vec<AktePdfBlock> = Vec::new();
+    let mut blocks: Vec<ChartPdfBlock> = Vec::new();
     if !input.summary.is_empty() {
-        blocks.push(AktePdfBlock::kv(
+        blocks.push(ChartPdfBlock::kv(
             "Zusammenfassung",
             input
                 .summary
@@ -857,13 +856,13 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
         if sec.headers.is_empty() && sec.rows.is_empty() {
             continue;
         }
-        blocks.push(AktePdfBlock::table(
+        blocks.push(ChartPdfBlock::table(
             &sec.title,
-            AktePdfTable::new(sec.headers.clone(), sec.rows.clone()),
+            ChartPdfTable::new(sec.headers.clone(), sec.rows.clone()),
         ));
     }
 
-    render_akte_blocks(
+    render_chart_blocks(
         &input.doc_title,
         &input.generated_at,
         &input.doc_title,
@@ -882,7 +881,7 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
 pub fn render_template_preview_pdf(
     kind: &str,
     template_name: &str,
-    fusszeile: &str,
+    footer: &str,
     body_pt: i32,
     body_lines: &[String],
     layout_json: Option<&str>,
@@ -896,7 +895,7 @@ pub fn render_template_preview_pdf(
     super::clinical_layout::render_plain_preview(
         kind,
         template_name,
-        fusszeile,
+        footer,
         body_pt,
         body_lines,
     )
@@ -927,28 +926,28 @@ mod tests {
                     description: "Komposit, dreiflächig".into(),
                     amount_cents: 5670,
                     goz_nr: Some("2197".into()),
-                    faktor: Some(2.3),
-                    einzelpreis_cents: Some(2465),
-                    menge: Some(1),
-                    zahn_nr: Some("21".into()),
-                    behandlungsdatum: Some("2026-04-01".into()),
-                    ust_prozent: Some(0.0),
+                    factor: Some(2.3),
+                    unit_price_cents: Some(2465),
+                    quantity: Some(1),
+                    tooth_nr: Some("21".into()),
+                    treatment_date: Some("2026-04-01".into()),
+                    vat_percent: Some(0.0),
                     material: None,
-                    diagnose_begruendung: None,
+                    diagnosis_reason: None,
                 },
-                InvoiceLine::simple("Kontrolluntersuchung", 4500),
+                InvoiceLine::simple("Checkup", 4500),
             ],
             note: None,
-            behandler_name: Some("Dr. Maria Beispiel".into()),
-            behandler_zanr: Some("987654321".into()),
-            praxis_bsnr: Some("123456789".into()),
-            bankverbindung: Some(vec![
+            clinician_name: Some("Dr. Maria Beispiel".into()),
+            clinician_zanr: Some("987654321".into()),
+            practice_bsnr: Some("123456789".into()),
+            bank_details: Some(vec![
                 "IBAN: DE89 3704 0044 0532 0130 00".into(),
                 "BIC: COBADEFFXXX".into(),
                 "Bank: Commerzbank Berlin".into(),
             ]),
-            zahlungsziel_text: Some("Zahlbar innerhalb von 14 Tagen ohne Abzug.".into()),
-            ust_hinweis: Some("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG".into()),
+            payment_terms_text: Some("Payable within 14 days with no deduction.".into()),
+            vat_notice: Some("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG".into()),
         }
     }
 
@@ -963,14 +962,14 @@ mod tests {
         // bytes — Helvetica WinAnsi values are all 7-bit ASCII).
         let text = String::from_utf8_lossy(&pdf);
         for needle in [
-            "Rechnung",
+            "Invoice",
             "BSNR",
             "ZANR",
             "IBAN",
             "GOZ",
-            "Faktor",
-            "Endbetrag",
-            "Zahlbar",
+            "Factor",
+            "Amount due",
+            "Payable",
         ] {
             assert!(text.contains(needle), "missing: {needle}");
         }
@@ -983,7 +982,7 @@ mod tests {
             date: "2026-04-19".into(),
             recipient_name: "Min Patient".into(),
             recipient_address: vec!["X-Straße 1".into(), "12345 Ort".into()],
-            practice_name: "Min Praxis".into(),
+            practice_name: "Min Practice".into(),
             practice_address: vec!["Y-Straße 2".into(), "12345 Ort".into()],
             lines: vec![InvoiceLine::simple("Kontrolle", 4500)],
             ..Default::default()
@@ -994,68 +993,68 @@ mod tests {
     }
 
     #[test]
-    fn invoice_with_high_faktor_emits_begruendung() {
+    fn invoice_with_high_factor_emits_reason() {
         let mut inv = dummy_invoice();
-        inv.lines[0].faktor = Some(3.5);
-        inv.lines[0].diagnose_begruendung =
-            Some("Erschwerter Zugang, komplexes Mehrflächen-Trauma.".into());
+        inv.lines[0].factor = Some(3.5);
+        inv.lines[0].diagnosis_reason =
+            Some("Difficult access, complex multi-surface trauma.".into());
         let pdf = render(&inv).unwrap();
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("Begründung") || text.contains("Begr") || text.contains("Hinweis"));
+        assert!(text.contains("Justification") || text.contains("Note"));
     }
 
     #[test]
-    fn renders_akte_with_header_context() {
+    fn renders_chart_with_header_context() {
         let blocks = vec![
-            AktePdfBlock::kv(
-                "Stammdaten",
+            ChartPdfBlock::kv(
+                "MasterData",
                 vec![
                     ("Name".into(), "Max Mustermann".into()),
                     ("Geb.-Dat.".into(), "01.01.1980".into()),
                 ],
             ),
-            AktePdfBlock::body(
-                "Diagnose",
-                vec!["Karies an Zahn 36, Kontrolle Zahn 26.".into()],
+            ChartPdfBlock::body(
+                "Diagnosis",
+                vec!["Caries on tooth 36, checkup tooth 26.".into()],
             ),
         ];
-        let header = AkteHeaderContext {
-            praxis_lines: vec!["Test-Praxis".into(), "Test-Straße 1".into()],
-            behandler_name: Some("Dr. Test".into()),
-            erstellt_von: Some("Rezeption".into()),
-            dokument_id: Some("AKT-001".into()),
+        let header = ChartHeaderContext {
+            practice_lines: vec!["Test-Practice".into(), "Test-Straße 1".into()],
+            clinician_name: Some("Dr. Test".into()),
+            created_by: Some("Reception".into()),
+            document_id: Some("AKT-001".into()),
             ..Default::default()
         };
-        let pdf = render_akte_blocks(
-            "Patientenakte",
+        let pdf = render_chart_blocks(
+            "PatientChart",
             "19.04.2026 14:30",
-            "Akte Max Mustermann",
+            "Chart Max Mustermann",
             &blocks,
             Some(&header),
         )
         .unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("Test-Praxis") || text.contains("Praxis"));
-        assert!(text.contains("Datenschutz") || text.contains("Daten"));
+        assert!(text.contains("Test-Practice") || text.contains("Practice"));
+        assert!(text.contains("Privacy") || text.contains("Daten"));
     }
 
     #[test]
-    fn renders_akte_without_header_context() {
-        let blocks = vec![AktePdfBlock::body(
-            "Hinweis",
-            vec!["Ohne Praxiskopf.".into()],
+    fn renders_chart_without_header_context() {
+        let blocks = vec![ChartPdfBlock::body(
+            "Note",
+            vec!["No practice header.".into()],
         )];
-        let pdf = render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
+        let pdf = render_chart_blocks("Chart", "date", "Titel", &blocks, None).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 
     #[test]
-    fn akte_table_renders_zebra() {
-        let blocks = vec![AktePdfBlock::table(
-            "Behandlungen",
-            AktePdfTable {
-                headers: vec!["Datum".into(), "Leistung".into(), "EUR".into()],
+    fn chart_table_renders_zebra() {
+        let blocks = vec![ChartPdfBlock::table(
+            "Treatments",
+            ChartPdfTable {
+                headers: vec!["Date".into(), "ServiceItem".into(), "EUR".into()],
                 rows: vec![
                     vec!["01.04.".into(), "Komposit".into(), "56,70 €".into()],
                     vec!["08.04.".into(), "Recall".into(), "45,00 €".into()],
@@ -1064,14 +1063,14 @@ mod tests {
                 ..Default::default()
             },
         )];
-        let pdf = render_akte_blocks("Akte", "datum", "Titel", &blocks, None).unwrap();
+        let pdf = render_chart_blocks("Chart", "date", "Titel", &blocks, None).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 
     #[test]
     fn template_preview_fallback_works() {
         let pdf = render_template_preview_pdf(
-            "quittung",
+            "receipt",
             "Standardvorlage",
             "Mit freundlichen Grüßen",
             11,
@@ -1090,11 +1089,11 @@ mod tests {
             practice_name: "Zahnarztpraxis Nord".into(),
             practice_address: vec!["Hauptstr. 1".into(), "10115 Berlin".into()],
             summary: vec![ReportPdfSummaryRow {
-                label: "Einnahmen (laufender Monat)".into(),
+                label: "Income (current month)".into(),
                 value: "12.450,00 €".into(),
             }],
             sections: vec![ReportPdfSection {
-                title: "Einnahmen pro Monat".into(),
+                title: "Income pro Monat".into(),
                 headers: vec!["Monat".into(), "Betrag".into()],
                 rows: vec![
                     vec!["2026-04".into(), "10.200,00".into()],
@@ -1108,7 +1107,7 @@ mod tests {
         for needle in [
             "Einnahmenbericht",
             "Zusammenfassung",
-            "Einnahmen pro Monat",
+            "Income pro Monat",
             "Seite",
         ] {
             assert!(text.contains(needle), "missing {needle}");

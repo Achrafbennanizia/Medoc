@@ -2,7 +2,7 @@ import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.
 
 export type WorkTimeSession = {
     id: string;
-    personalId: string;
+    staffId: string;
     startedAt: string;
     endedAt?: string | null;
     pauseStartedAt?: string | null;
@@ -32,7 +32,7 @@ export type WorkTimeActiveSession = {
 };
 
 export type WorkTimeTeamMemberRow = {
-    personalId: string;
+    staffId: string;
     name: string;
     status: string;
     todayMinutes: number;
@@ -62,7 +62,7 @@ export type WorkTimePreferencePatch = {
     focusMode?: boolean;
     autoRecordOnLogin?: boolean;
     autoRecordOnLogout?: boolean;
-    personalId?: string | null;
+    staffId?: string | null;
 };
 
 export type WorkTimePracticePolicy = {
@@ -117,9 +117,9 @@ export async function workTimeGetStatistics(): Promise<WorkTimeStatistics> {
     return practiceSystem.invoke<WorkTimeStatistics>("work_time_get_statistics");
 }
 
-export async function workTimeGetPreference(personalId?: string): Promise<WorkTimePreference> {
+export async function workTimeGetPreference(staffId?: string): Promise<WorkTimePreference> {
     return practiceSystem.invoke<WorkTimePreference>("work_time_get_preference", {
-        personal_id: personalId ?? null,
+        staff_id: staffId ?? null,
     });
 }
 

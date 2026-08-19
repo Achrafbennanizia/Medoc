@@ -27,8 +27,8 @@ export function photoViewerAppOptionsForSelect(apps: DetectedPhotoViewerApp[], t
 }
 
 /**
- * Resolution for `open_akte_anlage_externally`: empty = first found app;
- * {@link OPEN_IMAGE_SYSTEM_ONLY} = OS-Default; sonst konkreter Pfad.
+ * Resolution for `open_chart_attachment_externally`: empty = first found app;
+ * {@link OPEN_IMAGE_SYSTEM_ONLY} = OS-Default; sonst konkreter Path.
  */
 export async function resolveOpenImageWithAppPath(
     stored: string | undefined | null,

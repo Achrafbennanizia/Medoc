@@ -57,7 +57,7 @@ async fn pair_with_actions(
 }
 
 #[tokio::test]
-async fn activation_token_without_patient_read_gets_403_on_patienten() {
+async fn activation_token_without_patient_read_gets_403_on_patients() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
     let token = pair_with_actions(
@@ -70,13 +70,13 @@ async fn activation_token_without_patient_read_gets_403_on_patienten() {
     .await;
 
     let (status, _) = lan
-        .json("GET", "/api/v1/patienten", None, Some(&token))
+        .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
-async fn activation_token_with_patient_read_lists_patienten() {
+async fn activation_token_with_patient_read_lists_patients() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
     let token = pair_with_actions(
@@ -95,33 +95,33 @@ async fn activation_token_with_patient_read_lists_patienten() {
     .await;
 
     let (status, body) = lan
-        .json("GET", "/api/v1/patienten", None, Some(&token))
+        .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
-    assert_eq!(status, StatusCode::OK, "patienten: {body:?}");
+    assert_eq!(status, StatusCode::OK, "patients: {body:?}");
     assert!(body.is_array());
 }
 
 #[tokio::test]
-async fn activation_token_with_termin_read_lists_termine() {
+async fn activation_token_with_appointment_read_lists_appointments() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
     let token = pair_with_actions(
         &mut lan,
         &jwt,
         43,
-        "rbac-termin-read",
+        "rbac-appointment-read",
         &[
             "sync.push",
             "sync.pull",
             "sync.status",
             "pairing.peers",
-            "termin.read",
+            "appointment.read",
         ],
     )
     .await;
 
-    let (status, body) = lan.json("GET", "/api/v1/termine", None, Some(&token)).await;
-    assert_eq!(status, StatusCode::OK, "termine: {body:?}");
+    let (status, body) = lan.json("GET", "/api/v1/appointments", None, Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "appointments: {body:?}");
     assert!(body.is_array());
 }
 
@@ -134,7 +134,7 @@ async fn activation_token_cannot_access_me_route() {
         &jwt,
         44,
         "rbac-no-me",
-        &["sync.push", "patient.read", "termin.read"],
+        &["sync.push", "patient.read", "appointment.read"],
     )
     .await;
 

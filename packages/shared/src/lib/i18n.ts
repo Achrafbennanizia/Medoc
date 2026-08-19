@@ -78,7 +78,7 @@ function ensureI18n() {
             fr: { translation: catalogs.fr },
             ar: { translation: catalogs.ar },
         },
-        lng: "de",
+        lng: "en",
         fallbackLng: "en",
         keySeparator: ".",
         interpolation: { escapeValue: false },
@@ -108,7 +108,7 @@ interface LocaleStore {
 export const useLocale = create<LocaleStore>()(
     persist(
         (set) => ({
-            locale: "de",
+            locale: "en",
             setLocale: (locale) => {
                 ensureI18n();
                 void i18n.changeLanguage(locale);
@@ -201,9 +201,9 @@ export function localeCatalogKeys(locale: Locale): string[] {
 function interpolateParams(text: string, params?: Record<string, string | number>): string {
     if (!params) return text;
     let s = text;
-    for (const [k, v] of Object.entries(params)) {
-        s = s.replaceAll(`{${k}}`, String(v));
-        s = s.replaceAll(`{{${k}}}`, String(v));
+    for (const [k, version] of Object.entries(params)) {
+        s = s.replaceAll(`{${k}}`, String(version));
+        s = s.replaceAll(`{{${k}}}`, String(version));
     }
     return s;
 }
@@ -212,13 +212,13 @@ function interpolateParams(text: string, params?: Record<string, string | number
 export function translateLocale(locale: Locale, key: string): string {
     ensureI18n();
     const t = i18n.getFixedT(locale);
-    const v = t(key, { defaultValue: catalogs.en[key] ?? key });
-    return v === key && catalogs.en[key] ? catalogs.en[key]! : v;
+    const version = t(key, { defaultValue: catalogs.en[key] ?? key });
+    return version === key && catalogs.en[key] ? catalogs.en[key]! : version;
 }
 
 export function translateLocaleWithFallback(locale: Locale, key: string, fallback: string): string {
-    const v = translateLocale(locale, key);
-    return v === key ? fallback : v;
+    const version = translateLocale(locale, key);
+    return version === key ? fallback : version;
 }
 
 export function translateLocaleParams(
@@ -248,7 +248,7 @@ export function useTParams() {
 }
 
 /** Initialize i18n for non-React entry points (tests, native menu). */
-export function initI18n(locale: Locale = "de") {
+export function initI18n(locale: Locale = "en") {
     ensureI18n();
     void i18n.changeLanguage(locale);
     applyDocumentLocale(locale);

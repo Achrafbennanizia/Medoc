@@ -1,12 +1,12 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
-import { SECTION_LABEL as VAL_SECTION_LABEL, type ValidationRecord, type ValidationSection, type ValidationState } from "@/lib/akte-validation";
+import { SECTION_LABEL as VAL_SECTION_LABEL, type ValidationRecord, type ValidationSection, type ValidationState } from "@/lib/chart-validation";
 import {
-    clearAkteValidation,
-    listAkteValidation,
-    migrateLegacyAkteValidationFromLocalStorage,
+    clearChartValidation,
+    listChartValidation,
+    migrateLegacyChartValidationFromLocalStorage,
     rowsToValidationMaps,
-    setAkteItemValidated,
-    setAkteSectionValidated,
+    setChartItemValidated,
+    setChartSectionValidated,
 } from "@/systems/practice-host/controllers/validation.controller";
 import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -31,7 +31,7 @@ export function usePatientDetailValidation({
 
     const refreshValidationFromBackend = useCallback(async () => {
         if (!patientId) return;
-        const rows = await listAkteValidation(patientId);
+        const rows = await listChartValidation(patientId);
         const { sections, items } = rowsToValidationMaps(rows);
         setValidation(sections);
         setItemValidation(items);
@@ -41,7 +41,7 @@ export function usePatientDetailValidation({
         if (!patientId) return;
         void (async () => {
             try {
-                await migrateLegacyAkteValidationFromLocalStorage(patientId);
+                await migrateLegacyChartValidationFromLocalStorage(patientId);
                 await refreshValidationFromBackend();
             } catch (e) {
                 useToastStore.getState().add(
@@ -57,12 +57,12 @@ export function usePatientDetailValidation({
             if (!patientId) return;
             const by = sessionUserId ?? null;
             try {
-                if (section === "stamm") {
-                    await setAkteSectionValidated(patientId, "stamm", by);
-                    await setAkteSectionValidated(patientId, "anam", by);
-                    toast(t("patient.validation.stamm_marked"), "success");
+                if (section === "master") {
+                    await setChartSectionValidated(patientId, "master", by);
+                    await setChartSectionValidated(patientId, "anamnesis", by);
+                    toast(t("patient.validation.master_marked"), "success");
                 } else {
-                    await setAkteSectionValidated(patientId, section, by);
+                    await setChartSectionValidated(patientId, section, by);
                     toast(tp("patient.validation.section_marked", { section: VAL_SECTION_LABEL[section] }), "success");
                 }
                 await refreshValidationFromBackend();
@@ -77,12 +77,12 @@ export function usePatientDetailValidation({
         async (section: ValidationSection) => {
             if (!patientId) return;
             try {
-                if (section === "stamm") {
-                    await clearAkteValidation(patientId, "stamm");
-                    await clearAkteValidation(patientId, "anam");
-                    toast(t("patient.validation.stamm_revoked"), "info");
+                if (section === "master") {
+                    await clearChartValidation(patientId, "master");
+                    await clearChartValidation(patientId, "anamnesis");
+                    toast(t("patient.validation.master_revoked"), "info");
                 } else {
-                    await clearAkteValidation(patientId, section);
+                    await clearChartValidation(patientId, section);
                     toast(tp("patient.validation.section_revoked", { section: VAL_SECTION_LABEL[section] }), "info");
                 }
                 await refreshValidationFromBackend();
@@ -97,7 +97,7 @@ export function usePatientDetailValidation({
         async (itemKey: string, label: string) => {
             if (!patientId) return;
             try {
-                await setAkteItemValidated(patientId, itemKey, sessionUserId ?? null);
+                await setChartItemValidated(patientId, itemKey, sessionUserId ?? null);
                 await refreshValidationFromBackend();
                 toast(tp("patient.validation.item_marked", { label }), "success");
             } catch (e) {
@@ -111,7 +111,7 @@ export function usePatientDetailValidation({
         async (itemKey: string, shortLabel: string) => {
             if (!patientId) return;
             try {
-                await clearAkteValidation(patientId, itemKey);
+                await clearChartValidation(patientId, itemKey);
                 await refreshValidationFromBackend();
                 toast(tp("patient.validation.item_revoked", { label: shortLabel }), "info");
             } catch (e) {

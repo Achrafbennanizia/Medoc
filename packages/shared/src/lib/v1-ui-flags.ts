@@ -25,10 +25,10 @@ export const ONBOARDING_COACHMARK_ENABLED = false;
 export const MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED = false;
 
 /** v1 ships HTTP serverless pairing; device network panel stays off in settings. */
-export const VERBUND_ADMIN_PANEL_V1_ENABLED = false;
+export const CLUSTER_ADMIN_PANEL_V_1_ENABLED = false;
 
 /**
- * Patient Akte header — Task to reception, Request review, Discharge sheet.
+ * Patient Chart header — Task to reception, Request review, Discharge sheet.
  * Dialogs remain wired in `patient-detail.tsx`; re-enable when sell-ready polish is done.
  */
-export const PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = false;
+export const PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED = false;

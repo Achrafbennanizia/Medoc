@@ -20,7 +20,7 @@ Single source of truth for the Geräteverbund feature: a device that is not dire
 
 | Axis | Question | Values | Location |
 |------|----------|--------|----------|
-| App RBAC (existing) | What may this logged-in user do? | ARZT / REZEPTION / … | `medoc-core/src/application/rbac.rs` |
+| App RBAC (existing) | What may this logged-in user do? | PHYSICIAN / RECEPTION / … | `medoc-core/src/application/rbac.rs` |
 | Seat role (new) | What may this device do in the cluster? | ADMIN / MEMBER | `medoc-sync/src/verbund/enums.rs` |
 
 ---
@@ -109,7 +109,7 @@ Tables: `lizenz`, `geraet_blocklist`, `provisioning_state`; extensions to `sync_
 
 ## 10. Tauri commands
 
-`verbund_status`, `lizenz_activate`, `verbund_discover_admins`, `verbund_send_join_request`, `verbund_submit_sas`, `verbund_start_listener`, `verbund_list_pending`, `verbund_accept_request`, `verbund_reject_request`, `verbund_list_devices`, `verbund_reclaim_device`, `verbund_revoke_device`, `verbund_block_device`, `verbund_unblock_device`.
+`verbund_status`, `license_activate`, `cluster_discover_admins`, `cluster_send_join_request`, `cluster_submit_sas`, `cluster_start_listener`, `cluster_list_pending`, `cluster_accept_request`, `cluster_reject_request`, `cluster_list_devices`, `cluster_reclaim_device`, `cluster_revoke_device`, `cluster_block_device`, `cluster_unblock_device`.
 
 Legacy `pairing_*` commands delegate to these during migration.
 

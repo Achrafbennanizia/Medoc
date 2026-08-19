@@ -12,7 +12,7 @@ async fn demo_api_key_hashes_and_plaintext_column_removed() {
     let pool = init_company_db(&db_path).await.expect("init company db");
 
     let hash: (String,) =
-        sqlx::query_as("SELECT api_key_hash FROM practice WHERE slug = 'demo-praxis'")
+        sqlx::query_as("SELECT api_key_hash FROM practice WHERE slug = 'demo-practice'")
             .fetch_one(&pool)
             .await
             .expect("demo row");

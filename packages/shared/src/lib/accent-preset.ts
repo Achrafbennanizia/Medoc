@@ -47,14 +47,14 @@ export function normalizeAccentId(raw: unknown): AccentId {
 }
 
 export function applyAccentPresetToDocument(id: AccentId, theme: "light" | "dark" = "light"): void {
-    const v = PRESETS[normalizeAccentId(id)];
-    document.documentElement.style.setProperty("--accent", v.accent);
+    const version = PRESETS[normalizeAccentId(id)];
+    document.documentElement.style.setProperty("--accent", version.accent);
     if (theme === "dark") {
-        document.documentElement.style.setProperty("--accent-soft", `color-mix(in oklab, ${v.accent} 28%, #12161d)`);
-        document.documentElement.style.setProperty("--accent-ink", `color-mix(in oklab, #f4f4f5 88%, ${v.accent})`);
+        document.documentElement.style.setProperty("--accent-soft", `color-mix(in oklab, ${version.accent} 28%, #12161d)`);
+        document.documentElement.style.setProperty("--accent-ink", `color-mix(in oklab, #f4f4f5 88%, ${version.accent})`);
     } else {
-        document.documentElement.style.setProperty("--accent-soft", v.soft);
-        document.documentElement.style.setProperty("--accent-ink", v.ink);
+        document.documentElement.style.setProperty("--accent-soft", version.soft);
+        document.documentElement.style.setProperty("--accent-ink", version.ink);
     }
 }
 

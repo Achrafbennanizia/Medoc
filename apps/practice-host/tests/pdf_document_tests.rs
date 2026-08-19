@@ -1,11 +1,11 @@
-//! Integration tests for GOZ invoice, Akte, and clinical document PDF markers.
+//! Integration tests for GOZ invoice, Chart, and clinical document PDF markers.
 
 use medoc_lib::infrastructure::clinical_pdf_layout::{
     render_clinical_layout, ClinicalPdfLayout, LabelValue, PdfTableSpec, TableColumnLayout,
 };
-use medoc_lib::infrastructure::clinical_text_format::format_untersuchung_for_akte_table;
+use medoc_lib::infrastructure::clinical_text_format::format_examination_for_chart_table;
 use medoc_lib::infrastructure::pdf::{
-    render, render_akte_blocks, render_report_pdf, AktePdfBlock, AktePdfTable, Invoice,
+    render, render_chart_blocks, render_report_pdf, ChartPdfBlock, ChartPdfTable, Invoice,
     InvoiceLine, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
 };
 
@@ -14,14 +14,14 @@ fn sample_line(description: &str, amount_cents: i64) -> InvoiceLine {
         description: description.into(),
         amount_cents,
         goz_nr: None,
-        faktor: None,
-        einzelpreis_cents: None,
-        menge: None,
-        zahn_nr: None,
-        behandlungsdatum: None,
-        ust_prozent: None,
+        factor: None,
+        unit_price_cents: None,
+        quantity: None,
+        tooth_nr: None,
+        treatment_date: None,
+        vat_percent: None,
         material: None,
-        diagnose_begruendung: None,
+        diagnosis_reason: None,
     }
 }
 
@@ -32,16 +32,16 @@ fn test_invoice_goz_has_required_fields() {
         date: "2026-04-19".into(),
         recipient_name: "Patient".into(),
         recipient_address: vec!["Berlin".into()],
-        practice_name: "Praxis".into(),
+        practice_name: "Practice".into(),
         practice_address: vec!["Str. 1".into()],
-        lines: vec![sample_line("Leistung", 1000)],
+        lines: vec![sample_line("ServiceItem", 1000)],
         note: None,
-        behandler_name: Some("Dr. X".into()),
-        behandler_zanr: Some("123456789".into()),
-        praxis_bsnr: Some("987654321".into()),
-        bankverbindung: Some(vec!["IBAN DE00".into()]),
-        zahlungsziel_text: Some("Zahlbar innerhalb von 14 Tagen.".into()),
-        ust_hinweis: Some("Umsatzsteuerbefreit".into()),
+        clinician_name: Some("Dr. X".into()),
+        clinician_zanr: Some("123456789".into()),
+        practice_bsnr: Some("987654321".into()),
+        bank_details: Some(vec!["IBAN DE00".into()]),
+        payment_terms_text: Some("Payable within 14 days.".into()),
+        vat_notice: Some("Umsatzsteuerbefreit".into()),
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
@@ -50,7 +50,7 @@ fn test_invoice_goz_has_required_fields() {
         "Fak",
         "IBAN",
         "Umsatzsteuerbefreit",
-        "Zahlbar innerhalb",
+        "Payable within",
     ] {
         assert!(s.contains(needle), "missing {needle}");
     }
@@ -63,54 +63,54 @@ fn test_invoice_without_goz_still_works() {
         date: "2026-04-19".into(),
         recipient_name: "Patient".into(),
         recipient_address: vec!["Berlin".into()],
-        practice_name: "Praxis".into(),
+        practice_name: "Practice".into(),
         practice_address: vec!["Str. 1".into()],
         lines: vec![sample_line("Legacy line", 500)],
-        note: Some("Hinweis".into()),
-        behandler_name: None,
-        behandler_zanr: None,
-        praxis_bsnr: None,
-        bankverbindung: None,
-        zahlungsziel_text: None,
-        ust_hinweis: None,
+        note: Some("Note".into()),
+        clinician_name: None,
+        clinician_zanr: None,
+        practice_bsnr: None,
+        bank_details: None,
+        payment_terms_text: None,
+        vat_notice: None,
     };
     let pdf = render(&inv).expect("render");
     assert!(pdf.starts_with(b"%PDF-1.4"));
 }
 
 #[test]
-fn test_akte_pdf_has_praxis_header() {
-    let blocks = vec![AktePdfBlock {
-        title: "Praxis".into(),
+fn test_chart_pdf_has_practice_header() {
+    let blocks = vec![ChartPdfBlock {
+        title: "Practice".into(),
         body_lines: vec![],
         kv_pairs: vec![
-            ("Praxis".into(), "Testpraxis".into()),
+            ("Practice".into(), "Testpraxis".into()),
             ("BSNR".into(), "123456789".into()),
         ],
         table: None,
     }];
     let pdf =
-        render_akte_blocks("Akte", "2026-01-01", "Akte Test", &blocks, None).expect("akte pdf");
+        render_chart_blocks("Chart", "2026-01-01", "Chart Test", &blocks, None).expect("chart pdf");
     let s = String::from_utf8_lossy(&pdf);
-    assert!(s.contains("Praxis"));
+    assert!(s.contains("Practice"));
     assert!(s.contains("BSNR"));
     assert!(s.contains("Seite"));
 }
 
 #[test]
-fn test_clinical_attest_layout_markers() {
+fn test_clinical_certificate_layout_markers() {
     let doc = ClinicalPdfLayout {
-        kind: "attest".into(),
-        praxis_lines: vec!["Zahnarztpraxis Nord".into()],
+        kind: "certificate".into(),
+        practice_lines: vec!["Zahnarztpraxis Nord".into()],
         header_right_lines: vec!["Tel: 030 123456".into()],
         meta_lines: vec![],
         address_lines: vec![],
-        document_title: "ÄRZTLICHES ATTEST".into(),
+        document_title: "MEDICAL CERTIFICATE".into(),
         document_subtitle: None,
         intro_paragraphs: vec!["Hiermit wird bescheinigt, dass …".into()],
         label_value_rows: vec![LabelValue {
-            label: "Gültigkeitszeitraum".into(),
-            value: "01.01.2026 bis 07.01.2026".into(),
+            label: "Validity period".into(),
+            value: "01.01.2026 until 07.01.2026".into(),
         }],
         two_column: None,
         tables: vec![],
@@ -122,24 +122,24 @@ fn test_clinical_attest_layout_markers() {
             label: "Ausstellungsdatum".into(),
             value: "19.05.2026".into(),
         }],
-        behandler_berufsbezeichnung: None,
-        behandler_zanr: None,
-        behandler_bsnr: None,
+        clinician_professional_title: None,
+        clinician_zanr: None,
+        clinician_bsnr: None,
     };
-    let pdf = render_clinical_layout(&doc).expect("attest pdf");
+    let pdf = render_clinical_layout(&doc).expect("certificate pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
     for needle in ["Zahnarztpraxis Nord", "Ausstellungsdatum"] {
         assert!(s.contains(needle), "missing {needle}");
     }
     assert!(
-        s.contains("\\304") || s.contains("00C4") || s.contains("ÄRZTLICHES ATTEST"),
+        s.contains("\\304") || s.contains("00C4") || s.contains("MEDICAL CERTIFICATE"),
         "expected WinAnsi or UTF-16 encoding for Ä in title"
     );
 }
 
 #[test]
-fn test_akte_untersuchung_table_renders_full_psi() {
+fn test_chart_examination_table_renders_full_psi() {
     let json = r#"{
         "version": 1,
         "chiefComplaint": "Zahnfleischbluten",
@@ -147,22 +147,22 @@ fn test_akte_untersuchung_table_renders_full_psi() {
         "diagnosis": "Parodontitis",
         "plan": "CHX-Spülung"
     }"#;
-    let befund = format_untersuchung_for_akte_table(None, Some(json), None);
-    let blocks = vec![AktePdfBlock {
-        title: "Untersuchungen".into(),
+    let finding = format_examination_for_chart_table(None, Some(json), None);
+    let blocks = vec![ChartPdfBlock {
+        title: "Examinations".into(),
         body_lines: vec![],
         kv_pairs: vec![],
-        table: Some(AktePdfTable {
+        table: Some(ChartPdfTable {
             headers: vec![
-                "Datum".into(),
+                "Date".into(),
                 "Nr.".into(),
                 "Untersuchungsbefund (vollständig)".into(),
             ],
-            rows: vec![vec!["2026-05-19".into(), "U-001".into(), befund]],
+            rows: vec![vec!["2026-05-19".into(), "U-001".into(), finding]],
             column_weights: Some(vec![2, 1, 12]),
         }),
     }];
-    let pdf = render_akte_blocks("Akte", "2026-05-19", "Akte U", &blocks, None).expect("pdf");
+    let pdf = render_chart_blocks("Chart", "2026-05-19", "Chart U", &blocks, None).expect("pdf");
     let s = String::from_utf8_lossy(&pdf);
     for needle in [
         "Parodontalstatus",
@@ -177,19 +177,19 @@ fn test_akte_untersuchung_table_renders_full_psi() {
 }
 
 #[test]
-fn test_clinical_quittung_table_layout() {
+fn test_clinical_receipt_table_layout() {
     let doc = ClinicalPdfLayout {
-        kind: "quittung".into(),
-        praxis_lines: vec!["Praxis Süd".into()],
+        kind: "receipt".into(),
+        practice_lines: vec!["Practice Süd".into()],
         header_right_lines: vec![],
         meta_lines: vec![LabelValue {
-            label: "Quittung-Nr.".into(),
+            label: "Receipt-Nr.".into(),
             value: "Q-001".into(),
         }],
         address_lines: vec!["Max Mustermann".into()],
         document_title: "PATIENTENQUITTUNG".into(),
         document_subtitle: Some("für Max Mustermann".into()),
-        intro_paragraphs: vec!["Abgerechnete Leistung für 19.05.2026".into()],
+        intro_paragraphs: vec!["Billed service items for 19.05.2026".into()],
         label_value_rows: vec![LabelValue {
             label: "Patient/in".into(),
             value: "Max Mustermann".into(),
@@ -203,7 +203,7 @@ fn test_clinical_quittung_table_layout() {
                 "Q-001".into(),
                 "Kontrolle".into(),
             ]],
-            column_layout: TableColumnLayout::Quittung,
+            column_layout: TableColumnLayout::Receipt,
         }],
         detail_records: vec![],
         totals: vec![
@@ -212,51 +212,51 @@ fn test_clinical_quittung_table_layout() {
                 value: "50,00 €".into(),
             },
             LabelValue {
-                label: "Gesamt".into(),
+                label: "Total".into(),
                 value: "50,00 €".into(),
             },
         ],
         closing_paragraphs: vec![],
         signature_lines: vec![],
         footer_meta_lines: vec![],
-        behandler_berufsbezeichnung: None,
-        behandler_zanr: None,
-        behandler_bsnr: None,
+        clinician_professional_title: None,
+        clinician_zanr: None,
+        clinician_bsnr: None,
     };
-    let pdf = render_clinical_layout(&doc).expect("quittung pdf");
+    let pdf = render_clinical_layout(&doc).expect("receipt pdf");
     let s = String::from_utf8_lossy(&pdf);
     for needle in [
         "PATIENTENQUITTUNG",
         "Tag",
         "Kurzbeschreibung",
         "Honorar",
-        "Gesamt",
+        "Total",
     ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
 
 #[test]
-fn test_discharge_merkblatt_pdf_markers() {
-    let blocks = vec![AktePdfBlock::body(
-        "Hinweis",
+fn test_discharge_leaflet_pdf_markers() {
+    let blocks = vec![ChartPdfBlock::body(
+        "Note",
         vec![
-            "Dieses Merkblatt fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung."
+            "Dieses Leaflet fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung."
                 .into(),
-            "Bitte bringen Sie dieses Blatt zu Folgeterminen mit.".into(),
+            "Bitte bringen Sie dieses Blatt to Folgeterminen mit.".into(),
         ],
     )];
-    let pdf = render_akte_blocks(
-        "Entlassungs-Merkblatt / Nachsorge",
+    let pdf = render_chart_blocks(
+        "Entlassungs-Leaflet / Nachsorge",
         "2026-05-21",
-        "Entlassungs-Merkblatt — Testpatient",
+        "Entlassungs-Leaflet — Testpatient",
         &blocks,
         None,
     )
-    .expect("discharge merkblatt pdf");
+    .expect("discharge leaflet pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in ["Entlassungs-Merkblatt", "Praxissoftware", "Folgeterminen"] {
+    for needle in ["Entlassungs-Leaflet", "Praxissoftware", "Folgeterminen"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -266,21 +266,21 @@ fn test_financial_report_pdf_markers() {
     let input = ReportPdfInput {
         doc_title: "Bilanzbericht".into(),
         generated_at: "26.05.2026".into(),
-        practice_name: "Praxis Süd".into(),
+        practice_name: "Practice Süd".into(),
         practice_address: vec!["Str. 2".into()],
         summary: vec![
             ReportPdfSummaryRow {
-                label: "Einnahmen (bezahlt)".into(),
+                label: "Income (paid)".into(),
                 value: "8.500,00 €".into(),
             },
             ReportPdfSummaryRow {
-                label: "Ausstehend".into(),
+                label: "Outstanding".into(),
                 value: "1.200,00 €".into(),
             },
         ],
         sections: vec![ReportPdfSection {
             title: "Monatlicher Verlauf".into(),
-            headers: vec!["Monat".into(), "Einnahmen".into()],
+            headers: vec!["Monat".into(), "Income".into()],
             rows: vec![vec!["2026-05".into(), "8.500,00".into()]],
         }],
     };

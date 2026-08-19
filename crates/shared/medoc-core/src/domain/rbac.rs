@@ -12,15 +12,15 @@ use serde::{Deserialize, Serialize};
 /// Roles defined in the requirements (4 personae; 2 deferred for MVP — see `deferred_roles`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
-    Arzt,
-    Rezeption,
+    Physician,
+    Reception,
     // TODO(deferred-roles): re-enable login — docs/coordination/todos-deferred-roles.md
-    Steuerberater,
-    Pharmaberater,
+    TaxAdvisor,
+    PharmaConsultant,
 }
 
 /// Wire strings for advisor personae disabled in MVP UI/login.
-pub const DEFERRED_ROLE_WIRES: &[&str] = &["STEUERBERATER", "PHARMABERATER"];
+pub const DEFERRED_ROLE_WIRES: &[&str] = &["TAX_ADVISOR", "PHARMA_CONSULTANT"];
 
 pub fn is_deferred_role_wire(s: &str) -> bool {
     DEFERRED_ROLE_WIRES
@@ -28,7 +28,7 @@ pub fn is_deferred_role_wire(s: &str) -> bool {
         .any(|r| r.eq_ignore_ascii_case(s.trim()))
 }
 
-/// Active MVP login roles (`ARZT`, `REZEPTION`).
+/// Active MVP login roles (`PHYSICIAN`, `RECEPTION`).
 pub fn is_login_role_allowed(s: &str) -> bool {
     !is_deferred_role_wire(s)
 }
@@ -36,16 +36,16 @@ pub fn is_login_role_allowed(s: &str) -> bool {
 impl Role {
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_uppercase().as_str() {
-            "ARZT" => Some(Role::Arzt),
-            "REZEPTION" => Some(Role::Rezeption),
-            "STEUERBERATER" => Some(Role::Steuerberater),
-            "PHARMABERATER" => Some(Role::Pharmaberater),
+            "PHYSICIAN" => Some(Role::Physician),
+            "RECEPTION" => Some(Role::Reception),
+            "TAX_ADVISOR" => Some(Role::TaxAdvisor),
+            "PHARMA_CONSULTANT" => Some(Role::PharmaConsultant),
             _ => None,
         }
     }
 
     pub fn is_deferred(self) -> bool {
-        matches!(self, Role::Steuerberater | Role::Pharmaberater)
+        matches!(self, Role::TaxAdvisor | Role::PharmaConsultant)
     }
 }
 

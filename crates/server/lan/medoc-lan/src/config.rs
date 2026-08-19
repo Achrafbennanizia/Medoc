@@ -12,7 +12,7 @@ pub struct LanServerConfigV1 {
     pub bind_addr: String,
     pub http_port: u16,
     pub udp_discovery_port: u16,
-    /// Shown to clients during discovery (e.g. „Praxis Dr. Muster“).
+    /// Shown to clients during discovery (e.g. „Practice Dr. Muster“).
     pub instance_label: String,
     /// Start the LAN listener automatically when the desktop app launches (after DB init).
     pub auto_start_with_app: bool,
@@ -28,7 +28,7 @@ impl Default for LanServerConfigV1 {
             bind_addr: "0.0.0.0".into(),
             http_port: 8787,
             udp_discovery_port: 47_830,
-            instance_label: "MeDoc Praxis".into(),
+            instance_label: "MeDoc Practice".into(),
             auto_start_with_app: false,
             extra_cors_origins: vec![],
         }

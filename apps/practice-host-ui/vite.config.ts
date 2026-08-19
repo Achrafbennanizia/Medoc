@@ -13,7 +13,7 @@ const root = __dirname;
 const medocAliases = [
     { find: "@/lib/mac-window-drag", replacement: path.resolve(root, "src/platform/mac-window-drag.ts") },
     { find: "@/lib/desktop-window-controls", replacement: path.resolve(root, "src/platform/desktop-window-controls.ts") },
-    { find: "@/lib/akte-anlagen", replacement: path.resolve(root, "src/platform/akte-anlagen.ts") },
+    { find: "@/lib/chart-attachments", replacement: path.resolve(root, "src/platform/chart-attachments.ts") },
     {
         find: "@/lib/native-app-menu-bridge",
         replacement: path.resolve(root, "src/platform/native-app-menu-bridge.ts"),
@@ -97,7 +97,7 @@ export default defineConfig(async () => ({
                         "../../packages/app/practice-host/src/controllers/pairing.controller.test.ts",
                         "../../packages/server/lan/src/controllers/pairing-scan.controller.test.ts",
                         "../../packages/shared/src/lib/deployment-config.test.ts",
-                        "../../packages/shared/src/lib/quittung-export-flow.test.ts",
+                        "../../packages/shared/src/lib/receipt-export-flow.test.ts",
                     ],
                     coverage: {
                         provider: "v8",
@@ -108,7 +108,7 @@ export default defineConfig(async () => ({
                             "../../packages/app/practice-host/src/controllers/pairing.controller.ts",
                             "../../packages/server/lan/src/controllers/pairing-scan.controller.ts",
                             "../../packages/app/practice-host/src/lib/deployment-config.ts",
-                            "../../packages/shared/src/lib/quittung-export-flow.ts",
+                            "../../packages/shared/src/lib/receipt-export-flow.ts",
                         ],
                         thresholds: {
                             lines: 100,

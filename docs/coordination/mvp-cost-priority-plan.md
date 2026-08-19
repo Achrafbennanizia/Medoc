@@ -7,7 +7,7 @@
 
 | # | Excluded | ID | MVP substitute |
 |---|----------|-----|----------------|
-| 1 | Live TI / KIM / E-Rezept | GAP-13 | Local rezept/attest PDF + honest integration labels |
+| 1 | Live TI / KIM / E-Rezept | GAP-13 | Local prescription/certificate PDF + honest integration labels |
 | 2 | Mobile / tablet LAN client | GAP-14 | Desktop Tauri + optional `lan_client` on desktop browser |
 | 3 | Production vendor billing | GAP-15 | License v2 local + company server `_demo` stub |
 
@@ -38,7 +38,7 @@ Documented smoke path for first launch:
 
 1. **Fresh install** — Tauri starts → `LicenseAndPairingGate` if no valid license (`critical-flows.smoke.test.tsx`).
 2. **DB setup** — `get_db_setup_status` → passphrase setup/unlock before session.
-3. **Login** — TOTP for ARZT roles; session persisted in SQLCipher.
+3. **Login** — TOTP for PHYSICIAN roles; session persisted in SQLCipher.
 4. **Deployment default** — `practice_desktop` + `MASTER` until changed under Einstellungen → Deployment.
 
 Automated proxy: `bash tools/g21-verify-automated.sh` + `critical-flows.smoke.test.tsx` license gate test.

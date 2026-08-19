@@ -42,7 +42,7 @@ export function TimeSlotPicker({
     if (list.length === 0) {
         return (
             <p className="time-slot-grid-empty" style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>
-                {emptyLabel ?? t("termin.create.time_no_slots")}
+                {emptyLabel ?? t("appointment.create.time_no_slots")}
             </p>
         );
     }

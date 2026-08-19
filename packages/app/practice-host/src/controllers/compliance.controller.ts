@@ -29,7 +29,7 @@ export interface RiskScenario {
     mitigations: string[];
     residual_risk: RiskLevel | string;
 }
-export interface DSFA {
+export interface Dpia {
     generated_at: string;
     system: string;
     system_version: string;
@@ -50,8 +50,8 @@ export function generateVvt(): Promise<VVT> {
     return practiceSystem.invoke<VVT>("generate_vvt");
 }
 
-export function generateDsfa(): Promise<DSFA> {
-    return practiceSystem.invoke<DSFA>("generate_dsfa");
+export function generateDpia(): Promise<Dpia> {
+    return practiceSystem.invoke<Dpia>("generate_dpia");
 }
 
 export function enforceLogRetention(): Promise<LogRetentionReport> {

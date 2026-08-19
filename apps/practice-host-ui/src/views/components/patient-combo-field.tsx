@@ -8,10 +8,10 @@ const MAX_SHOWN_WHEN_NO_QUERY = 200;
 type PatientComboFieldProps = {
     id: string;
     label: string;
-    patienten: readonly Patient[];
+    patients: readonly Patient[];
     patientId: string;
     onPatientIdChange: (id: string) => void;
-    /** Optional: mirror typed query (e.g. datenschutz table filter). */
+    /** Optional: mirror typed query (e.g. privacy table filter). */
     onQueryChange?: (query: string) => void;
     disabled?: boolean;
     placeholder?: string;
@@ -23,7 +23,7 @@ type PatientComboFieldProps = {
 export function PatientComboField({
     id,
     label,
-    patienten,
+    patients,
     patientId,
     onPatientIdChange,
     onQueryChange,
@@ -40,30 +40,30 @@ export function PatientComboField({
 
     useEffect(() => {
         if (patientId) {
-            const p = patienten.find((x) => x.id === patientId);
+            const p = patients.find((x) => x.id === patientId);
             if (p) setQuery(p.name);
         }
-    }, [patientId, patienten]);
+    }, [patientId, patients]);
 
     useDismissibleLayer({ open, rootRef, onDismiss: () => setOpen(false) });
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) {
-            return patienten.length > MAX_SHOWN_WHEN_NO_QUERY
-                ? patienten.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
-                : [...patienten];
+            return patients.length > MAX_SHOWN_WHEN_NO_QUERY
+                ? patients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
+                : [...patients];
         }
-        return patienten.filter((p) => p.name.toLowerCase().includes(q));
-    }, [patienten, query]);
+        return patients.filter((p) => p.name.toLowerCase().includes(q));
+    }, [patients, query]);
 
-    function handleInputChange(v: string) {
+    function handleInputChange(version: string) {
         if (disabled) return;
-        setQuery(v);
-        onQueryChange?.(v);
+        setQuery(version);
+        onQueryChange?.(version);
         if (patientId) {
-            const p = patienten.find((x) => x.id === patientId);
-            if (p && v !== p.name) {
+            const p = patients.find((x) => x.id === patientId);
+            if (p && version !== p.name) {
                 onPatientIdChange("");
             }
         }
@@ -78,7 +78,7 @@ export function PatientComboField({
     }
 
     const noMatch = query.trim().length > 0 && filtered.length === 0;
-    const manyTotal = !query.trim() && patienten.length > MAX_SHOWN_WHEN_NO_QUERY;
+    const manyTotal = !query.trim() && patients.length > MAX_SHOWN_WHEN_NO_QUERY;
 
     return (
         <div ref={rootRef} className="patient-combo-field" style={{ marginBottom: 8 }}>
@@ -136,7 +136,7 @@ export function PatientComboField({
             </div>
             {manyTotal ? (
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "6px 0 0" }}>
-                    {tp("patient.combo.truncated", { max: MAX_SHOWN_WHEN_NO_QUERY, total: patienten.length })}
+                    {tp("patient.combo.truncated", { max: MAX_SHOWN_WHEN_NO_QUERY, total: patients.length })}
                 </p>
             ) : null}
         </div>

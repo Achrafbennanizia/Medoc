@@ -5,10 +5,10 @@ import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
 import { LicenseAndPairingGate } from "./views/components/license-and-pairing-gate";
-import { VerbundOnboardingGate } from "./views/components/verbund-onboarding-gate";
+import { ClusterOnboardingGate } from "./views/components/cluster-onboarding-gate";
 import { ClusterResetListener } from "./views/components/cluster-reset-listener";
 import { ReplicaSyncBackground } from "./views/components/replica-sync-background";
-import { PraxisArbeitszeitenBackground } from "./views/components/praxis-arbeitszeiten-background";
+import { PracticeWorkHoursBackground } from "./views/components/practice-work-hours-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
@@ -16,106 +16,106 @@ import { PageLoading } from "@/views/components/ui/page-status";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
-const TerminePage = lazy(async () => ({ default: (await import("./views/pages/termine")).TerminePage }));
-const TerminCreatePage = lazy(async () => ({ default: (await import("./views/pages/termin-create")).TerminCreatePage }));
-const PatientenPage = lazy(async () => ({ default: (await import("./views/pages/patienten")).PatientenPage }));
+const AppointmentsPage = lazy(async () => ({ default: (await import("./views/pages/appointments")).AppointmentsPage }));
+const AppointmentCreatePage = lazy(async () => ({ default: (await import("./views/pages/appointment-create")).AppointmentCreatePage }));
+const PatientsPage = lazy(async () => ({ default: (await import("./views/pages/patients")).PatientsPage }));
 const PatientDetailPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/patient-detail/patient-detail")).PatientDetailPage }));
-const AktenZuValidierenPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/akten-zu-validieren")).AktenZuValidierenPage,
+const ChartsToValidatePage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/charts-to-validate")).ChartsToValidatePage,
 }));
-const PraxisTicketsPage = lazy(async () => ({
-    default: (await import("./views/pages/praxis-tickets")).PraxisTicketsPage,
+const PracticeTicketsPage = lazy(async () => ({
+    default: (await import("./views/pages/practice-tickets")).PracticeTicketsPage,
 }));
-const PraxisAufgabeCreatePage = lazy(async () => ({
-    default: (await import("./views/pages/praxis-aufgabe-create")).PraxisAufgabeCreatePage,
+const PracticeTaskCreatePage = lazy(async () => ({
+    default: (await import("./views/pages/practice-task-create")).PracticeTaskCreatePage,
 }));
-const PraxisAufgabeEditPage = lazy(async () => ({
-    default: (await import("./views/pages/praxis-aufgabe-edit")).PraxisAufgabeEditPage,
+const PracticeTaskEditPage = lazy(async () => ({
+    default: (await import("./views/pages/practice-task-edit")).PracticeTaskEditPage,
 }));
-const FinanzenPage = lazy(async () => ({ default: (await import("./views/pages/finanzen")).FinanzenPage }));
-const FinanzenKassePage = lazy(async () => ({ default: (await import("./views/pages/finanzen-kasse")).FinanzenKassePage }));
-const ZahlungCreatePage = lazy(async () => ({ default: (await import("./views/pages/zahlung-create")).ZahlungCreatePage }));
-const ZahlungKasseCreatePage = lazy(async () => ({
-    default: (await import("./views/pages/zahlung-kasse-create")).ZahlungKasseCreatePage,
+const FinancePage = lazy(async () => ({ default: (await import("./views/pages/finance")).FinancePage }));
+const FinanceCashPage = lazy(async () => ({ default: (await import("./views/pages/finance-cash")).FinanceCashPage }));
+const PaymentCreatePage = lazy(async () => ({ default: (await import("./views/pages/payment-create")).PaymentCreatePage }));
+const PaymentCashCreatePage = lazy(async () => ({
+    default: (await import("./views/pages/payment-cash-create")).PaymentCashCreatePage,
 }));
-const LeistungenPage = lazy(async () => ({ default: (await import("./views/pages/leistungen")).LeistungenPage }));
-const ProduktePage = lazy(async () => ({ default: (await import("./views/pages/produkte")).ProduktePage }));
-const PersonalPage = lazy(async () => ({ default: (await import("./views/pages/personal")).PersonalPage }));
-const PersonalArbeitsplanPage = lazy(async () => ({
-    default: (await import("./views/pages/personal-arbeitsplan")).PersonalArbeitsplanPage,
+const ServicesPage = lazy(async () => ({ default: (await import("./views/pages/services")).ServicesPage }));
+const ProductsPage = lazy(async () => ({ default: (await import("./views/pages/products")).ProductsPage }));
+const StaffPage = lazy(async () => ({ default: (await import("./views/pages/staff")).StaffPage }));
+const StaffWorkPlanPage = lazy(async () => ({
+    default: (await import("./views/pages/staff-work-plan")).StaffWorkPlanPage,
 }));
-const ArbeitszeitTrackingPage = lazy(async () => ({
-    default: (await import("./views/pages/arbeitszeit-tracking")).ArbeitszeitTrackingPage,
+const WorkTimeTrackingPage = lazy(async () => ({
+    default: (await import("./views/pages/work-time-tracking")).WorkTimeTrackingPage,
 }));
-const ArbeitszeitTeamPage = lazy(async () => ({
-    default: (await import("./views/pages/arbeitszeit-team")).ArbeitszeitTeamPage,
+const WorkTimeTeamPage = lazy(async () => ({
+    default: (await import("./views/pages/work-time-team")).WorkTimeTeamPage,
 }));
-const StatistikPage = lazy(async () => ({ default: (await import("./views/pages/statistik")).StatistikPage }));
+const StatisticsPage = lazy(async () => ({ default: (await import("./views/pages/statistics")).StatisticsPage }));
 const AuditPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/audit")).AuditPage }));
 const LoggingPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/logging")).LoggingPage }));
 const OpsPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/ops")).OpsPage }));
 const CompliancePage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/compliance")).CompliancePage }));
-const RezeptePage = lazy(async () => ({ default: (await import("./views/pages/rezepte")).RezeptePage }));
-const AttestePage = lazy(async () => ({ default: (await import("./views/pages/atteste")).AttestePage }));
-const EinstellungenPage = lazy(async () => ({ default: (await import("./views/pages/einstellungen")).EinstellungenPage }));
-const DatenschutzPage = lazy(async () => ({ default: (await import("./views/pages/datenschutz")).DatenschutzPage }));
-const BilanzPage = lazy(async () => ({ default: (await import("./views/pages/bilanz")).BilanzPage }));
-const BilanzNeuPage = lazy(async () => ({ default: (await import("./views/pages/bilanz-neu")).BilanzNeuPage }));
-const VerwaltungPage = lazy(async () => ({ default: (await import("./views/pages/verwaltung")).VerwaltungPage }));
-const VerwaltungFinanzWerkzeugePage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-finanz-werkzeuge")).VerwaltungFinanzWerkzeugePage,
+const PrescriptionsPage = lazy(async () => ({ default: (await import("./views/pages/prescriptions")).PrescriptionsPage }));
+const CertificatesPage = lazy(async () => ({ default: (await import("./views/pages/certificates")).CertificatesPage }));
+const SettingsPage = lazy(async () => ({ default: (await import("./views/pages/settings")).SettingsPage }));
+const PrivacyPage = lazy(async () => ({ default: (await import("./views/pages/privacy")).PrivacyPage }));
+const BalanceSheetPage = lazy(async () => ({ default: (await import("./views/pages/balance-sheet")).BalanceSheetPage }));
+const BalanceSheetNewPage = lazy(async () => ({ default: (await import("./views/pages/balance-sheet-new")).BalanceSheetNewPage }));
+const AdministrationPage = lazy(async () => ({ default: (await import("./views/pages/administration")).AdministrationPage }));
+const AdministrationFinanceToolsPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-finance-tools")).AdministrationFinanceToolsPage,
 }));
-const VerwaltungFinanzenBerichtePage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-finanzen-berichte")).VerwaltungFinanzenBerichtePage,
+const AdministrationFinanceBerichtePage = lazy(async () => ({
+    default: (await import("./views/pages/administration-finance-reports")).AdministrationFinanceBerichtePage,
 }));
-const VerwaltungTeamPage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-team")).VerwaltungTeamPage,
+const AdministrationTeamPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-team")).AdministrationTeamPage,
 }));
-const TagesabschlussPage = lazy(async () => ({
-    default: (await import("./views/pages/tagesabschluss")).TagesabschlussPage,
+const DayClosePage = lazy(async () => ({
+    default: (await import("./views/pages/day-close")).DayClosePage,
 }));
-const VerwaltungLagerBestellwesenPage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-lager-bestellwesen")).VerwaltungLagerBestellwesenPage,
+const AdministrationInventoryOrderingPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-inventory-ordering")).AdministrationInventoryOrderingPage,
 }));
-const VerwaltungLeistungenKatalogeVorlagenPage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-leistungen-kataloge-vorlagen")).VerwaltungLeistungenKatalogeVorlagenPage,
+const AdministrationServicesKatalogeTemplatesPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-services-catalogs-templates")).AdministrationServicesKatalogeTemplatesPage,
 }));
-const VerwaltungVertraegePage = lazy(async () => ({
-    default: (await import("./views/pages/verwaltung-vertraege")).VerwaltungVertraegePage,
+const AdministrationContractsPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-contracts")).AdministrationContractsPage,
 }));
-const BehandlungsKatalogPage = lazy(async () => ({ default: (await import("./views/pages/behandlungs-katalog")).BehandlungsKatalogPage }));
-const KrankenbescheinigungFormPage = lazy(async () => ({
-    default: (await import("./views/pages/krankenbescheinigung-verwaltung")).KrankenbescheinigungFormPage,
+const TreatmentCatalogPage = lazy(async () => ({ default: (await import("./views/pages/treatment-catalog")).TreatmentCatalogPage }));
+const SickLeaveCertificateFormPage = lazy(async () => ({
+    default: (await import("./views/pages/sick-leave-certificate-administration")).SickLeaveCertificateFormPage,
 }));
-const BestellstammVerwaltungPage = lazy(async () => ({ default: (await import("./views/pages/bestellstamm-verwaltung")).BestellstammVerwaltungPage }));
-const ArbeitstagePage = lazy(async () => ({ default: (await import("./views/pages/arbeitstage")).ArbeitstagePage }));
-const PraxisplanungPage = lazy(async () => ({ default: (await import("./views/pages/praxisplanung")).PraxisplanungPage }));
-const ArbeitszeitenPage = lazy(async () => ({ default: (await import("./views/pages/arbeitszeiten")).ArbeitszeitenPage }));
-const SonderSperrzeitenPage = lazy(async () => ({ default: (await import("./views/pages/sonder-sperrzeiten")).SonderSperrzeitenPage }));
-const PraxisPraeferenzenPage = lazy(async () => ({ default: (await import("./views/pages/praxis-praeferenzen")).PraxisPraeferenzenPage }));
-const VorlagenRezepteAttestePage = lazy(async () => ({ default: (await import("./views/pages/vorlagen-rezepte-atteste")).VorlagenRezepteAttestePage }));
-const VorlageEditorPage = lazy(async () => ({ default: (await import("./views/pages/vorlage-editor")).VorlageEditorPage }));
+const OrderMasterAdministrationPage = lazy(async () => ({ default: (await import("./views/pages/order-master-administration")).OrderMasterAdministrationPage }));
+const WorkDaysPage = lazy(async () => ({ default: (await import("./views/pages/work-days")).WorkDaysPage }));
+const PracticePlanningPage = lazy(async () => ({ default: (await import("./views/pages/practice-planning")).PracticePlanningPage }));
+const WorkHoursPage = lazy(async () => ({ default: (await import("./views/pages/work-hours")).WorkHoursPage }));
+const SpecialBlockedTimesPage = lazy(async () => ({ default: (await import("./views/pages/special-blocks")).SpecialBlockedTimesPage }));
+const PracticePreferencesPage = lazy(async () => ({ default: (await import("./views/pages/practice-preferences")).PracticePreferencesPage }));
+const TemplatesPrescriptionsCertificatesPage = lazy(async () => ({ default: (await import("./views/pages/templates-prescriptions-certificates")).TemplatesPrescriptionsCertificatesPage }));
+const TemplateEditorPage = lazy(async () => ({ default: (await import("./views/pages/template-editor")).TemplateEditorPage }));
 const PatientCreatePage = lazy(async () => ({ default: (await import("./views/pages/patient-create")).PatientCreatePage }));
-const RezeptCreatePage = lazy(async () => ({ default: (await import("./views/pages/rezept-create")).RezeptCreatePage }));
-const RezeptEditPage = lazy(async () => ({ default: (await import("./views/pages/rezept-edit")).RezeptEditPage }));
-const BestellungenPage = lazy(async () => ({ default: (await import("./views/pages/bestellungen")).BestellungenPage }));
-const BestellungCreatePage = lazy(async () => ({ default: (await import("./views/pages/bestellung-create")).BestellungCreatePage }));
-const BestellungDetailPage = lazy(async () => ({ default: (await import("./views/pages/bestellung-detail")).BestellungDetailPage }));
+const PrescriptionCreatePage = lazy(async () => ({ default: (await import("./views/pages/prescription-create")).PrescriptionCreatePage }));
+const PrescriptionEditPage = lazy(async () => ({ default: (await import("./views/pages/prescription-edit")).PrescriptionEditPage }));
+const PurchaseOrdersPage = lazy(async () => ({ default: (await import("./views/pages/purchase-orders")).PurchaseOrdersPage }));
+const PurchaseOrderCreatePage = lazy(async () => ({ default: (await import("./views/pages/purchase-order-create")).PurchaseOrderCreatePage }));
+const PurchaseOrderDetailPage = lazy(async () => ({ default: (await import("./views/pages/purchase-order-detail")).PurchaseOrderDetailPage }));
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
-const HilfePage = lazy(async () => ({ default: (await import("./views/pages/hilfe")).HilfePage }));
-const LizenzAktivierenOnboardingPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/onboarding/lizenz-aktivieren")).LizenzAktivierenOnboardingPage,
+const HelpPage = lazy(async () => ({ default: (await import("./views/pages/help")).HelpPage }));
+const LicenseActivateOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/license-activate")).LicenseActivateOnboardingPage,
 }));
-const KontoEinrichtenOnboardingPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/onboarding/konto-einrichten")).KontoEinrichtenOnboardingPage,
+const AccountSetupOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/account-setup")).AccountSetupOnboardingPage,
 }));
-const AbonnementRegistrierenOnboardingPage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/onboarding/abonnement-registrieren"))
-        .AbonnementRegistrierenOnboardingPage,
+const SubscriptionRegisterOnboardingPage = lazy(async () => ({
+    default: (await import("@/systems/practice-host/pages/onboarding/subscription-register"))
+        .SubscriptionRegisterOnboardingPage,
 }));
-const VerbundBeitretenPage = lazy(async () => ({
-    default: (await import("@/systems/lan/pages/verbund-beitreten")).VerbundBeitretenPage,
+const ClusterJoinPage = lazy(async () => ({
+    default: (await import("@/systems/lan/pages/cluster-join")).ClusterJoinPage,
 }));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -140,42 +140,45 @@ export default function App() {
         <DesktopWindowFrame>
         <BrowserRouter>
         <ClusterResetListener />
-        <VerbundOnboardingGate>
+        <ClusterOnboardingGate>
             <Routes>
                 <Route
                     path="/onboarding"
-                    element={<Navigate to="/onboarding/lizenz" replace />}
+                    element={<Navigate to="/onboarding/license" replace />}
                 />
-                <Route path="/onboarding/aktivierung" element={<Navigate to="/onboarding/lizenz" replace />} />
+                <Route path="/onboarding/aktivierung" element={<Navigate to="/onboarding/license" replace />} />
+                <Route path="/onboarding/abonnement" element={<Navigate to="/onboarding/subscription" replace />} />
+                <Route path="/onboarding/konto" element={<Navigate to="/onboarding/account" replace />} />
+                <Route path="/onboarding/beitreten" element={<Navigate to="/onboarding/join" replace />} />
                 <Route
-                    path="/onboarding/abonnement"
+                    path="/onboarding/subscription"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <AbonnementRegistrierenOnboardingPage />
+                            <SubscriptionRegisterOnboardingPage />
                         </Suspense>
                     )}
                 />
                 <Route
-                    path="/onboarding/konto"
+                    path="/onboarding/account"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <KontoEinrichtenOnboardingPage />
+                            <AccountSetupOnboardingPage />
                         </Suspense>
                     )}
                 />
                 <Route
-                    path="/onboarding/lizenz"
+                    path="/onboarding/license"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <LizenzAktivierenOnboardingPage />
+                            <LicenseActivateOnboardingPage />
                         </Suspense>
                     )}
                 />
                 <Route
-                    path="/onboarding/beitreten"
+                    path="/onboarding/join"
                     element={(
                         <Suspense fallback={<RouteFallback />}>
-                            <VerbundBeitretenPage />
+                            <ClusterJoinPage />
                         </Suspense>
                     )}
                 />
@@ -193,173 +196,174 @@ export default function App() {
                         <ProtectedRoute>
                             <LicenseAndPairingGate>
                                 <ReplicaSyncBackground />
-                                <PraxisArbeitszeitenBackground />
+                                <PracticeWorkHoursBackground />
                                 <AppLayout />
                             </LicenseAndPairingGate>
                         </ProtectedRoute>
                     }
                 >
                     <Route index element={<RoleRoute routePath=""><DashboardPage /></RoleRoute>} />
-                    <Route path="termine" element={<RoleRoute routePath="termine"><TerminePage /></RoleRoute>} />
-                    <Route path="termine/neu" element={<RoleRoute routePath="termine/neu"><TerminCreatePage /></RoleRoute>} />
-                    <Route path="patienten" element={<RoleRoute routePath="patienten"><PatientenPage /></RoleRoute>} />
-                    <Route path="patienten/neu" element={<RoleRoute routePath="patienten/neu"><PatientCreatePage /></RoleRoute>} />
-                    <Route path="patienten/:id/rezept/neu" element={<RoleRoute routePath="patienten/:id/rezept/neu"><RezeptCreatePage /></RoleRoute>} />
-                    <Route path="patienten/:id/rezept/:rezeptId" element={<RoleRoute routePath="patienten/:id/rezept/:rezeptId"><RezeptEditPage /></RoleRoute>} />
-                    <Route path="patienten/:id" element={<RoleRoute routePath="patienten/:id"><PatientDetailPage /></RoleRoute>} />
+                    <Route path="appointments" element={<RoleRoute routePath="appointments"><AppointmentsPage /></RoleRoute>} />
+                    <Route path="appointments/new" element={<RoleRoute routePath="appointments/new"><AppointmentCreatePage /></RoleRoute>} />
+                    <Route path="patients" element={<RoleRoute routePath="patients"><PatientsPage /></RoleRoute>} />
+                    <Route path="patients/new" element={<RoleRoute routePath="patients/new"><PatientCreatePage /></RoleRoute>} />
+                    <Route path="patients/:id/prescription/new" element={<RoleRoute routePath="patients/:id/prescription/new"><PrescriptionCreatePage /></RoleRoute>} />
+                    <Route path="patients/:id/prescription/:prescriptionId" element={<RoleRoute routePath="patients/:id/prescription/:prescriptionId"><PrescriptionEditPage /></RoleRoute>} />
+                    <Route path="patients/:id" element={<RoleRoute routePath="patients/:id"><PatientDetailPage /></RoleRoute>} />
                     <Route
-                        path="akten/zu-validieren"
+                        path="charts/to-validate"
                         element={(
-                            <RoleRoute routePath="akten/zu-validieren">
-                                <AktenZuValidierenPage />
+                            <RoleRoute routePath="charts/to-validate">
+                                <ChartsToValidatePage />
                             </RoleRoute>
                         )}
                     />
-                    <Route path="tickets/neu" element={<RoleRoute routePath="tickets/neu"><PraxisAufgabeCreatePage /></RoleRoute>} />
-                    <Route path="tickets/:id/bearbeiten" element={<RoleRoute routePath="tickets/:id/bearbeiten"><PraxisAufgabeEditPage /></RoleRoute>} />
-                    <Route path="tickets" element={<RoleRoute routePath="tickets"><PraxisTicketsPage /></RoleRoute>} />
-                    <Route path="posteingang" element={<Navigate to="/tickets" replace />} />
-                    <Route path="finanzen" element={<RoleRoute routePath="finanzen"><FinanzenPage /></RoleRoute>} />
-                    <Route path="finanzen/kasse/neu" element={<RoleRoute routePath="finanzen/kasse/neu"><ZahlungKasseCreatePage /></RoleRoute>} />
-                    <Route path="finanzen/kasse" element={<RoleRoute routePath="finanzen/kasse"><FinanzenKassePage /></RoleRoute>} />
-                    <Route path="finanzen/neu" element={<RoleRoute routePath="finanzen/neu"><ZahlungCreatePage /></RoleRoute>} />
-                    <Route path="bestellungen" element={<RoleRoute routePath="bestellungen"><BestellungenPage /></RoleRoute>} />
-                    <Route path="bestellungen/neu" element={<RoleRoute routePath="bestellungen/neu"><BestellungCreatePage /></RoleRoute>} />
-                    <Route path="bestellungen/:id" element={<RoleRoute routePath="bestellungen/:id"><BestellungDetailPage /></RoleRoute>} />
-                    <Route path="bilanz" element={<RoleRoute routePath="bilanz"><BilanzPage /></RoleRoute>} />
-                    <Route path="bilanz/neu" element={<RoleRoute routePath="bilanz/neu"><BilanzNeuPage /></RoleRoute>} />
-                    <Route path="verwaltung" element={<RoleRoute routePath="verwaltung"><VerwaltungPage /></RoleRoute>} />
+                    <Route path="tickets/new" element={<RoleRoute routePath="tickets/new"><PracticeTaskCreatePage /></RoleRoute>} />
+                    <Route path="tickets/:id/bearbeiten" element={<RoleRoute routePath="tickets/:id/bearbeiten"><PracticeTaskEditPage /></RoleRoute>} />
+                    <Route path="tickets" element={<RoleRoute routePath="tickets"><PracticeTicketsPage /></RoleRoute>} />
+                    <Route path="inbox" element={<Navigate to="/tickets" replace />} />
+                    <Route path="finance" element={<RoleRoute routePath="finance"><FinancePage /></RoleRoute>} />
+                    <Route path="finance/cash/new" element={<RoleRoute routePath="finance/cash/new"><PaymentCashCreatePage /></RoleRoute>} />
+                    <Route path="finance/cash" element={<RoleRoute routePath="finance/cash"><FinanceCashPage /></RoleRoute>} />
+                    <Route path="finance/new" element={<RoleRoute routePath="finance/new"><PaymentCreatePage /></RoleRoute>} />
+                    <Route path="purchase-orders" element={<RoleRoute routePath="purchase-orders"><PurchaseOrdersPage /></RoleRoute>} />
+                    <Route path="purchase-orders/new" element={<RoleRoute routePath="purchase-orders/new"><PurchaseOrderCreatePage /></RoleRoute>} />
+                    <Route path="purchase-orders/:id" element={<RoleRoute routePath="purchase-orders/:id"><PurchaseOrderDetailPage /></RoleRoute>} />
+                    <Route path="balance-sheet" element={<RoleRoute routePath="balance-sheet"><BalanceSheetPage /></RoleRoute>} />
+                    <Route path="balance-sheet/new" element={<RoleRoute routePath="balance-sheet/new"><BalanceSheetNewPage /></RoleRoute>} />
+                    <Route path="administration" element={<RoleRoute routePath="administration"><AdministrationPage /></RoleRoute>} />
                     <Route
-                        path="verwaltung/team"
+                        path="administration/team"
                         element={(
-                            <RoleRoute routePath="verwaltung/team">
-                                <VerwaltungTeamPage />
-                            </RoleRoute>
-                        )}
-                    />
-                    <Route
-                        path="verwaltung/team/arbeitszeit"
-                        element={(
-                            <RoleRoute routePath="verwaltung/team/arbeitszeit">
-                                <ArbeitszeitTeamPage />
+                            <RoleRoute routePath="administration/team">
+                                <AdministrationTeamPage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="verwaltung/aufgaben"
+                        path="administration/team/work-time"
+                        element={(
+                            <RoleRoute routePath="administration/team/work-time">
+                                <WorkTimeTeamPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route
+                        path="administration/tasks"
                         element={<Navigate to="/tickets?tab=verwalten" replace />}
                     />
-                    <Route path="verwaltung/arbeitstage" element={<RoleRoute routePath="verwaltung/arbeitstage"><ArbeitstagePage /></RoleRoute>} />
-                    <Route path="verwaltung/praxisplanung" element={<RoleRoute routePath="verwaltung/praxisplanung"><PraxisplanungPage /></RoleRoute>} />
-                    <Route path="verwaltung/arbeitszeiten" element={<RoleRoute routePath="verwaltung/arbeitszeiten"><ArbeitszeitenPage /></RoleRoute>} />
-                    <Route path="verwaltung/sonder-sperrzeiten" element={<RoleRoute routePath="verwaltung/sonder-sperrzeiten"><SonderSperrzeitenPage /></RoleRoute>} />
-                    <Route path="verwaltung/praxis-praeferenzen" element={<RoleRoute routePath="verwaltung/praxis-praeferenzen"><PraxisPraeferenzenPage /></RoleRoute>} />
-                    <Route path="verwaltung/vorlagen" element={<RoleRoute routePath="verwaltung/vorlagen"><VorlagenRezepteAttestePage /></RoleRoute>} />
-                    <Route path="verwaltung/vorlagen/editor/:id" element={<RoleRoute routePath="verwaltung/vorlagen/editor"><VorlageEditorPage /></RoleRoute>} />
-                    <Route path="verwaltung/vorlagen/editor" element={<RoleRoute routePath="verwaltung/vorlagen/editor"><VorlageEditorPage /></RoleRoute>} />
-                    <Route path="verwaltung/behandlungs-katalog" element={<RoleRoute routePath="verwaltung/behandlungs-katalog"><BehandlungsKatalogPage /></RoleRoute>} />
-                    <Route path="verwaltung/bestellstamm" element={<RoleRoute routePath="verwaltung/bestellstamm"><BestellstammVerwaltungPage /></RoleRoute>} />
+                    <Route path="administration/work-days" element={<RoleRoute routePath="administration/work-days"><WorkDaysPage /></RoleRoute>} />
+                    <Route path="administration/practice-planning" element={<RoleRoute routePath="administration/practice-planning"><PracticePlanningPage /></RoleRoute>} />
+                    <Route path="administration/work-hours" element={<RoleRoute routePath="administration/work-hours"><WorkHoursPage /></RoleRoute>} />
+                    <Route path="administration/special-blocked-times" element={<RoleRoute routePath="administration/special-blocked-times"><SpecialBlockedTimesPage /></RoleRoute>} />
+                    <Route path="administration/practice-preferences" element={<RoleRoute routePath="administration/practice-preferences"><PracticePreferencesPage /></RoleRoute>} />
+                    <Route path="administration/templates" element={<RoleRoute routePath="administration/templates"><TemplatesPrescriptionsCertificatesPage /></RoleRoute>} />
+                    <Route path="administration/templates/editor/:id" element={<RoleRoute routePath="administration/templates/editor"><TemplateEditorPage /></RoleRoute>} />
+                    <Route path="administration/templates/editor" element={<RoleRoute routePath="administration/templates/editor"><TemplateEditorPage /></RoleRoute>} />
+                    <Route path="administration/treatment-catalog" element={<RoleRoute routePath="administration/treatment-catalog"><TreatmentCatalogPage /></RoleRoute>} />
+                    <Route path="administration/order-master" element={<RoleRoute routePath="administration/order-master"><OrderMasterAdministrationPage /></RoleRoute>} />
                     <Route
-                        path="verwaltung/finanzen-berichte"
+                        path="administration/finance-reports"
                         element={(
-                            <RoleRoute routePath="verwaltung/finanzen-berichte">
-                                <VerwaltungFinanzenBerichtePage />
+                            <RoleRoute routePath="administration/finance-reports">
+                                <AdministrationFinanceBerichtePage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="verwaltung/finanzen-berichte/tagesabschluss"
+                        path="administration/finance-reports/day-close"
                         element={(
-                            <RoleRoute routePath="verwaltung/finanzen-berichte/tagesabschluss">
-                                <TagesabschlussPage />
+                            <RoleRoute routePath="administration/finance-reports/day-close">
+                                <DayClosePage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="verwaltung/finanzen-berichte/rechnung"
+                        path="administration/finance-reports/invoice"
                         element={(
-                            <RoleRoute routePath="verwaltung/finanzen-berichte/rechnung">
-                                <VerwaltungFinanzWerkzeugePage />
+                            <RoleRoute routePath="administration/finance-reports/invoice">
+                                <AdministrationFinanceToolsPage />
                             </RoleRoute>
                         )}
                     />
-                    <Route path="verwaltung/tagesabschluss" element={<Navigate to="/verwaltung/finanzen-berichte/tagesabschluss" replace />} />
-                    <Route path="verwaltung/finanzen-werkzeuge" element={<Navigate to="/verwaltung/finanzen-berichte/rechnung" replace />} />
+                    <Route path="administration/day-close" element={<Navigate to="/administration/finance-reports/day-close" replace />} />
+                    <Route path="administration/finance-tools" element={<Navigate to="/administration/finance-reports/invoice" replace />} />
                     <Route
-                        path="verwaltung/lager-und-bestellwesen"
+                        path="administration/inventory-and-ordering"
                         element={(
-                            <RoleRoute routePath="verwaltung/lager-und-bestellwesen">
-                                <VerwaltungLagerBestellwesenPage />
-                            </RoleRoute>
-                        )}
-                    />
-                    <Route
-                        path="verwaltung/vertraege"
-                        element={(
-                            <RoleRoute routePath="verwaltung/vertraege">
-                                <VerwaltungVertraegePage />
+                            <RoleRoute routePath="administration/inventory-and-ordering">
+                                <AdministrationInventoryOrderingPage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="verwaltung/leistungen-kataloge-vorlagen"
+                        path="administration/contracts"
                         element={(
-                            <RoleRoute routePath="verwaltung/leistungen-kataloge-vorlagen">
-                                <VerwaltungLeistungenKatalogeVorlagenPage />
-                            </RoleRoute>
-                        )}
-                    />
-                    <Route path="rezepte" element={<RoleRoute routePath="rezepte"><RezeptePage /></RoleRoute>} />
-                    <Route path="atteste" element={<RoleRoute routePath="atteste"><AttestePage /></RoleRoute>} />
-                    <Route path="leistungen" element={<RoleRoute routePath="leistungen"><LeistungenPage /></RoleRoute>} />
-                    <Route
-                        path="leistungen/neu"
-                        element={(
-                            <RoleRoute routePath="leistungen/neu">
-                                <Navigate to="/leistungen?neu=1" replace />
-                            </RoleRoute>
-                        )}
-                    />
-                    <Route path="produkte" element={<RoleRoute routePath="produkte"><ProduktePage /></RoleRoute>} />
-                    <Route path="personal" element={<RoleRoute routePath="personal"><PersonalPage /></RoleRoute>} />
-                    <Route
-                        path="personal/arbeitsplan"
-                        element={(
-                            <RoleRoute routePath="personal/arbeitsplan">
-                                <PersonalArbeitsplanPage />
+                            <RoleRoute routePath="administration/contracts">
+                                <AdministrationContractsPage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="personal/arbeitszeit"
+                        path="administration/services-catalogs-templates"
                         element={(
-                            <RoleRoute routePath="personal/arbeitszeit">
-                                <ArbeitszeitTrackingPage />
+                            <RoleRoute routePath="administration/services-catalogs-templates">
+                                <AdministrationServicesKatalogeTemplatesPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route path="prescriptions" element={<RoleRoute routePath="prescriptions"><PrescriptionsPage /></RoleRoute>} />
+                    <Route path="certificates" element={<RoleRoute routePath="certificates"><CertificatesPage /></RoleRoute>} />
+                    <Route path="services" element={<RoleRoute routePath="services"><ServicesPage /></RoleRoute>} />
+                    <Route
+                        path="services/new"
+                        element={(
+                            <RoleRoute routePath="services/new">
+                                <Navigate to="/services?new=1" replace />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route path="products" element={<RoleRoute routePath="products"><ProductsPage /></RoleRoute>} />
+                    <Route path="staff" element={<RoleRoute routePath="staff"><StaffPage /></RoleRoute>} />
+                    <Route
+                        path="staff/work-plan"
+                        element={(
+                            <RoleRoute routePath="staff/work-plan">
+                                <StaffWorkPlanPage />
                             </RoleRoute>
                         )}
                     />
                     <Route
-                        path="verwaltung/krankenbescheinigung"
+                        path="staff/work-time"
                         element={(
-                            <RoleRoute routePath="verwaltung/krankenbescheinigung">
-                                <KrankenbescheinigungFormPage />
+                            <RoleRoute routePath="staff/work-time">
+                                <WorkTimeTrackingPage />
                             </RoleRoute>
                         )}
                     />
-                    <Route path="personal/neu" element={<RoleRoute routePath="personal/neu"><Navigate to="/personal?neu=1" replace /></RoleRoute>} />
-                    <Route path="statistik" element={<RoleRoute routePath="statistik"><StatistikPage /></RoleRoute>} />
+                    <Route
+                        path="administration/sick-leave-certificate"
+                        element={(
+                            <RoleRoute routePath="administration/sick-leave-certificate">
+                                <SickLeaveCertificateFormPage />
+                            </RoleRoute>
+                        )}
+                    />
+                    <Route path="staff/new" element={<RoleRoute routePath="staff/new"><Navigate to="/staff?new=1" replace /></RoleRoute>} />
+                    <Route path="statistics" element={<RoleRoute routePath="statistics"><StatisticsPage /></RoleRoute>} />
                     <Route path="audit" element={<RoleRoute routePath="audit"><AuditPage /></RoleRoute>} />
-                    <Route path="datenschutz" element={<RoleRoute routePath="datenschutz"><DatenschutzPage /></RoleRoute>} />
-                    <Route path="einstellungen" element={<RoleRoute routePath="einstellungen"><EinstellungenPage /></RoleRoute>} />
+                    <Route path="privacy" element={<RoleRoute routePath="privacy"><PrivacyPage /></RoleRoute>} />
+                    <Route path="settings" element={<RoleRoute routePath="settings"><SettingsPage /></RoleRoute>} />
                     <Route path="logs" element={<RoleRoute routePath="logs"><LoggingPage /></RoleRoute>} />
                     <Route path="ops" element={<RoleRoute routePath="ops"><OpsPage /></RoleRoute>} />
                     <Route path="compliance" element={<RoleRoute routePath="compliance"><CompliancePage /></RoleRoute>} />
-                    <Route path="hilfe" element={<RoleRoute routePath="hilfe"><Suspense fallback={<RouteFallback />}><HilfePage /></Suspense></RoleRoute>} />
+                    <Route path="help" element={<RoleRoute routePath="help"><Suspense fallback={<RouteFallback />}><HelpPage /></Suspense></RoleRoute>} />
+                    <Route path="hilfe" element={<Navigate to="/help" replace />} />
                     <Route path="feedback" element={<RoleRoute routePath="feedback"><FeedbackPage /></RoleRoute>} />
                     <Route path="migration" element={<RoleRoute routePath="migration"><MigrationWizardPage /></RoleRoute>} />
                 </Route>
             </Routes>
-        </VerbundOnboardingGate>
+        </ClusterOnboardingGate>
         </BrowserRouter>
         </DesktopWindowFrame>
         </SessionGate>

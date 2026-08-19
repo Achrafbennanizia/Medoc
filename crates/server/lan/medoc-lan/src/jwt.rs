@@ -33,7 +33,7 @@ pub fn issue_token(
         exp,
     };
     let mut header = Header::new(Algorithm::HS256);
-    header.typ = Some("JWT".into());
+    header.kind = Some("JWT".into());
     encode(&header, &claims, &EncodingKey::from_secret(secret))
         .map_err(|e| AppError::Internal(format!("JWT encode: {e}")))
 }
@@ -53,10 +53,10 @@ mod tests {
     #[test]
     fn roundtrip_token() {
         let secret = b"01234567890123456789012345678901";
-        let tok = issue_token(secret, "u1", "a@b.de", "REZEPTION").unwrap();
+        let tok = issue_token(secret, "u1", "a@b.de", "RECEPTION").unwrap();
         let c = verify_token(secret, &tok).unwrap();
         assert_eq!(c.sub, "u1");
-        assert_eq!(c.role, "REZEPTION");
+        assert_eq!(c.role, "RECEPTION");
         assert_eq!(c.iss, JWT_ISS);
     }
 }

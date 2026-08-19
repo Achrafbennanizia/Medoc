@@ -51,7 +51,7 @@ impl MetaRow {
 pub struct Letterhead<'a> {
     /// First line = practice name (bold); further lines = address, contact.
     /// Recommendation: max. 6 lines so the address block does not overlap.
-    pub praxis_lines: &'a [String],
+    pub practice_lines: &'a [String],
     /// Right column at top: small extras like "Tel: …", "Fax: …".
     /// Only when `meta_rows` is empty — otherwise use the meta block.
     pub header_right_lines: &'a [String],
@@ -76,7 +76,7 @@ const LEFT_HEADER_MIN_Y: i32 = M_TOP - 88;
 pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     // --- 1. Practice block top-left ---------------------------------------
     let mut left_y = M_TOP;
-    for (i, line) in lh.praxis_lines.iter().enumerate() {
+    for (i, line) in lh.practice_lines.iter().enumerate() {
         if left_y < LEFT_HEADER_MIN_Y {
             break;
         }
@@ -109,7 +109,7 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     // --- 3. Address window (window envelope) ------------------------------
     if !lh.address_lines.is_empty() {
         if lh.show_sender_hint {
-            let sender = sender_hint_line(lh.praxis_lines);
+            let sender = sender_hint_line(lh.practice_lines);
             if !sender.trim().is_empty() {
                 pb.y = SENDER_HINT_Y;
                 pb.text(M_LEFT + 6, 7, false, &sender);
@@ -143,9 +143,9 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
 
 /// Short header for continuation pages (practice name + document type only).
 /// Not part of `emit_letterhead`; call directly after `break_page()`.
-pub fn emit_continuation_header(pb: &mut PageBuilder, praxis_name: &str, doc_title: &str) {
+pub fn emit_continuation_header(pb: &mut PageBuilder, practice_name: &str, doc_title: &str) {
     pb.y = M_TOP;
-    pb.text(M_LEFT, 9, true, praxis_name);
+    pb.text(M_LEFT, 9, true, practice_name);
     pb.text_right(M_RIGHT, 9, false, &format!("{doc_title} (Fortsetzung)"));
     pb.y -= 4;
     pb.hline_at(M_LEFT, pb.y, M_RIGHT);
@@ -171,8 +171,8 @@ fn emit_meta_block(pb: &mut PageBuilder, rows: &[MetaRow], start_y: i32) -> i32 
     y
 }
 
-fn sender_hint_line(praxis_lines: &[String]) -> String {
-    praxis_lines
+fn sender_hint_line(practice_lines: &[String]) -> String {
+    practice_lines
         .iter()
         .take(3)
         .map(|s| s.trim())
@@ -193,8 +193,8 @@ fn sender_hint_line(praxis_lines: &[String]) -> String {
 /// ```
 pub fn emit_signature_block(
     pb: &mut PageBuilder,
-    behandler_name: Option<&str>,
-    berufsbezeichnung: Option<&str>,
+    clinician_name: Option<&str>,
+    professional_title: Option<&str>,
     zanr: Option<&str>,
     bsnr: Option<&str>,
     show_stempel_label: bool,
@@ -208,13 +208,13 @@ pub fn emit_signature_block(
     pb.hline_at(M_LEFT, pb.y, M_LEFT + 180);
     pb.advance(14);
 
-    if let Some(n) = behandler_name.filter(|s| !s.trim().is_empty()) {
+    if let Some(n) = clinician_name.filter(|s| !s.trim().is_empty()) {
         pb.text(M_LEFT, 10, true, n);
         pb.advance(12);
     }
 
     let mut subline = Vec::new();
-    if let Some(b) = berufsbezeichnung.filter(|s| !s.trim().is_empty()) {
+    if let Some(b) = professional_title.filter(|s| !s.trim().is_empty()) {
         subline.push(b.to_string());
     }
     if let Some(z) = zanr.filter(|s| !s.trim().is_empty()) {
@@ -230,18 +230,18 @@ pub fn emit_signature_block(
 
     if show_stempel_label {
         pb.advance(6);
-        pb.text(M_LEFT, 8, false, "(Praxisstempel)");
+        pb.text(M_LEFT, 8, false, "(Practice stamp)");
     }
 }
 
 /// Bank-details block for invoices.
-pub fn emit_bankverbindung(pb: &mut PageBuilder, lines: &[String]) {
+pub fn emit_bank_details(pb: &mut PageBuilder, lines: &[String]) {
     if lines.is_empty() {
         return;
     }
     pb.ensure_space(40 + lines.len() as i32 * 11);
     pb.advance(6);
-    pb.text(M_LEFT, 9, true, "Bankverbindung:");
+    pb.text(M_LEFT, 9, true, "Bank details:");
     pb.advance(11);
     for line in lines {
         pb.text(M_LEFT, 9, false, line);
@@ -257,7 +257,7 @@ pub fn emit_bankverbindung(pb: &mut PageBuilder, lines: &[String]) {
 mod tests {
     use super::*;
 
-    fn dummy_praxis() -> Vec<String> {
+    fn dummy_practice() -> Vec<String> {
         vec![
             "Zahnarztpraxis Dr. Mustermann".into(),
             "Hauptstraße 1".into(),
@@ -277,14 +277,14 @@ mod tests {
     #[test]
     fn letterhead_renders_without_panic() {
         let mut pb = PageBuilder::new();
-        let praxis = dummy_praxis();
+        let practice = dummy_practice();
         let addr = dummy_address();
         let meta = vec![
-            MetaRow::new("Rechnung-Nr.", "RE-2026-001"),
-            MetaRow::new("Datum", "19.04.2026"),
+            MetaRow::new("Invoice-Nr.", "RE-2026-001"),
+            MetaRow::new("Date", "19.04.2026"),
         ];
         let lh = Letterhead {
-            praxis_lines: &praxis,
+            practice_lines: &practice,
             meta_rows: &meta,
             address_lines: &addr,
             header_right_lines: &[],
@@ -299,9 +299,9 @@ mod tests {
     #[test]
     fn letterhead_without_address_compresses() {
         let mut pb = PageBuilder::new();
-        let praxis = dummy_praxis();
+        let practice = dummy_practice();
         let lh = Letterhead {
-            praxis_lines: &praxis,
+            practice_lines: &practice,
             meta_rows: &[],
             address_lines: &[],
             header_right_lines: &[],
@@ -315,9 +315,9 @@ mod tests {
     #[test]
     fn continuation_header_writes_practice_and_title() {
         let mut pb = PageBuilder::new();
-        emit_continuation_header(&mut pb, "Praxis A", "Rechnung");
+        emit_continuation_header(&mut pb, "Practice A", "Invoice");
         let pages = pb.finish();
-        assert!(pages[0].contains("Praxis A") || pages[0].contains("Rech"));
+        assert!(pages[0].contains("Practice A") || pages[0].contains("Rech"));
     }
 
     #[test]

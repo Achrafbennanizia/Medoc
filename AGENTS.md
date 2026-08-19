@@ -13,6 +13,10 @@ This file is the **single place for project-wide “master commands”** you add
 
 _Paste new master commands below. Prefer dated entries or numbered bullets so agents can refer to “Master command #N”._
 
+### 2026-08-19 — Swing conversion is English
+
+When converting frontend to **`/Users/achraf/pro/Medoc-swing`**: Java identifiers, commands, app JSON, i18n **keys**, and default UI copy are **English**. `LanDialect` **outgoing** wires match the English LAN server (`/patients`, `/appointments`, `password`, `PHYSICIAN`). German tokens are inbound fallbacks only. `messages_de.properties` **values** remain German. Default locale is English. See `.cursor/rules/swing-convert-english.mdc`.
+
 ### 2026-04-19 — Long-run coordination (ledgers + phase handoff)
 
 For any **multi-phase**, **multi-session**, or **audit-sized** coordination work, maintain persistent state under **`docs/coordination/`**:

@@ -21,7 +21,7 @@ async fn mesh_peer_vector_prevents_duplicate_peer_push() {
         "app_kv",
         "k1",
         "INSERT",
-        r#"{"key":"k1","value":"v"}"#,
+        r#"{"key":"k1","value":"version"}"#,
     )
     .await
     .expect("outbox");

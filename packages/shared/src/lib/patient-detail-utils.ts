@@ -1,91 +1,91 @@
-import { deriveAnlageDisplayName } from "./akte-anlagen";
+import { deriveAttachmentDisplayName } from "./chart-attachments";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
-import type { RezeptLine } from "@/lib/medikamente";
-import type { AttestComposerFormFields } from "@/lib/attest-composer";
-import type { Behandlung, BehandlungsKatalogItem } from "@/models/types";
-import { EXAMINATION_CATALOG_CATEGORY } from "./behandlungs-katalog-categories";
+import type { PrescriptionLine } from "@/lib/medications";
+import type { CertificateComposerFormFields } from "@/lib/certificate-composer";
+import type { Treatment, TreatmentCatalogItem } from "@/models/types";
+import { EXAMINATION_CATALOG_CATEGORY } from "./treatment-catalog-categories";
 
 type TFn = (key: string) => string;
 
-export function validateRezeptLine(line: RezeptLine, t: TFn): string | null {
-    if (!line.medikament.trim()) return t("page.rezepte.validation.med_required");
-    if (!line.dosierung.trim()) return t("page.rezepte.validation.dosage_required");
-    if (!line.dauer.trim()) return t("page.rezepte.validation.duration_required");
+export function validatePrescriptionLine(line: PrescriptionLine, t: TFn): string | null {
+    if (!line.medication.trim()) return t("page.prescriptions.validation.med_required");
+    if (!line.dosage.trim()) return t("page.prescriptions.validation.dosage_required");
+    if (!line.duration.trim()) return t("page.prescriptions.validation.duration_required");
     return null;
 }
 
-export function isPatientenakteMissingError(e: unknown): boolean {
+export function isPatientChartMissingError(e: unknown): boolean {
     const m = e instanceof Error ? e.message : String(e);
-    return m.includes("Patientenakte nicht gefunden") || /Patientenakte.*?nicht gefunden/i.test(m);
+    return m.includes("PatientChart not found") || /PatientChart.*?not found/i.test(m);
 }
 
-export const PATIENT_DETAIL_TAB_IDS = ["anam", "unter", "behand", "rezept", "anlage", "zahl"] as const;
-export type PatientDetailAkteTab = (typeof PATIENT_DETAIL_TAB_IDS)[number];
+export const PATIENT_DETAIL_TAB_IDS = ["anamnesis", "examination", "treatment", "prescription", "attachment", "payment"] as const;
+export type PatientDetailChartTab = (typeof PATIENT_DETAIL_TAB_IDS)[number];
 
-/** Default akte sub-nav tab when no hash is present (Stammdaten live in the hero header). */
-export function patientDetailDefaultTab(canViewClinical: boolean): PatientDetailAkteTab {
-    return canViewClinical ? "anam" : "rezept";
+/** Default chart sub-nav tab when no hash is present (MasterData live in the hero header). */
+export function patientDetailDefaultTab(canViewClinical: boolean): PatientDetailChartTab {
+    return canViewClinical ? "anamnesis" : "prescription";
 }
 
 /** Tabs that require `patient.read_medical` (GAP-01 / REZ need-to-know). */
-export const CLINICAL_PATIENT_DETAIL_TABS = ["anam", "unter", "behand"] as const satisfies readonly PatientDetailAkteTab[];
+export const CLINICAL_PATIENT_DETAIL_TABS = ["anamnesis", "examination", "treatment"] as const satisfies readonly PatientDetailChartTab[];
 
-export function patientDetailTabBlocked(tab: PatientDetailAkteTab, canViewClinical: boolean): boolean {
+export function patientDetailTabBlocked(tab: PatientDetailChartTab, canViewClinical: boolean): boolean {
     if (canViewClinical) return false;
-    return (CLINICAL_PATIENT_DETAIL_TABS as readonly PatientDetailAkteTab[]).includes(tab);
+    return (CLINICAL_PATIENT_DETAIL_TABS as readonly PatientDetailChartTab[]).includes(tab);
 }
 
-/** Whether the akte sub-nav tab should render (RBAC: hide blocked tabs for REZEPTION). */
-export function patientDetailTabVisible(tab: PatientDetailAkteTab, canViewClinical: boolean): boolean {
+/** Whether the chart sub-nav tab should render (RBAC: hide blocked tabs for RECEPTION). */
+export function patientDetailTabVisible(tab: PatientDetailChartTab, canViewClinical: boolean): boolean {
     return !patientDetailTabBlocked(tab, canViewClinical);
 }
 
-export type RezeptWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
-export type AttestWizardStep = null | "pick" | "compose" | "ask_vorlage" | "name_vorlage";
+export type PrescriptionWizardStep = null | "pick" | "compose" | "ask_template" | "name_template";
+export type CertificateWizardStep = null | "pick" | "compose" | "ask_template" | "name_template";
 
-/** Confirmation only for sensitive actions (templates + prescriptions, Anlagen). */
-export type AkteSavePending =
-    | { kind: "rezept_finalize_vorlage"; titel: string; lines: RezeptLine[]; shared: string }
-    | { kind: "attest_finalize_vorlage"; titel: string; fields: AttestComposerFormFields }
-    | { kind: "anlage_add"; file: File; documentKind?: string }
-    | { kind: "anlage_remove"; id: string; name: string };
+/** Confirmation only for sensitive actions (templates + prescriptions, Attachments). */
+export type ChartSavePending =
+    | { kind: "prescription_finalize_template"; title: string; lines: PrescriptionLine[]; shared: string }
+    | { kind: "certificate_finalize_template"; title: string; fields: CertificateComposerFormFields }
+    | { kind: "attachment_add"; file: File; documentKind?: string }
+    | { kind: "attachment_remove"; id: string; name: string };
 
 export const PATIENT_DETAIL_TOAST_UNDO_MS = 5200;
 
-export function akteSaveConfirmUi(p: AkteSavePending): { title: string; message: string; confirmLabel: string } {
+export function chartSaveConfirmUi(p: ChartSavePending): { title: string; message: string; confirmLabel: string } {
     const locale = useLocale.getState().locale;
     const tp = (key: string, params: Record<string, string | number>) =>
         translateLocaleParams(locale, key, params);
     switch (p.kind) {
-        case "rezept_finalize_vorlage":
+        case "prescription_finalize_template":
             return {
-                title: t("patient.detail.confirm.rezept_vorlage_title"),
-                message: tp("patient.detail.confirm.rezept_vorlage_message", {
-                    title: p.titel,
+                title: t("patient.detail.confirm.prescription_template_title"),
+                message: tp("patient.detail.confirm.prescription_template_message", {
+                    title: p.title,
                     count: p.lines.length,
                     suffix: p.lines.length === 1 ? "" : "n",
                 }),
                 confirmLabel: t("common.save"),
             };
-        case "attest_finalize_vorlage":
+        case "certificate_finalize_template":
             return {
-                title: t("patient.detail.confirm.attest_vorlage_title"),
-                message: tp("patient.detail.confirm.attest_vorlage_message", { title: p.titel }),
+                title: t("patient.detail.confirm.certificate_template_title"),
+                message: tp("patient.detail.confirm.certificate_template_message", { title: p.title }),
                 confirmLabel: t("common.save"),
             };
-        case "anlage_add":
+        case "attachment_add":
             return {
-                title: t("patient.detail.confirm.anlage_add_title"),
-                message: tp("patient.detail.confirm.anlage_add_message", {
-                    name: deriveAnlageDisplayName(p.file),
+                title: t("patient.detail.confirm.attachment_add_title"),
+                message: tp("patient.detail.confirm.attachment_add_message", {
+                    name: deriveAttachmentDisplayName(p.file),
                 }),
                 confirmLabel: t("common.add"),
             };
-        case "anlage_remove":
+        case "attachment_remove":
             return {
-                title: t("patient.detail.confirm.anlage_remove_title"),
-                message: tp("patient.detail.confirm.anlage_remove_message", { name: p.name }),
+                title: t("patient.detail.confirm.attachment_remove_title"),
+                message: tp("patient.detail.confirm.attachment_remove_message", { name: p.name }),
                 confirmLabel: t("common.remove"),
             };
         default:
@@ -97,42 +97,39 @@ export function akteSaveConfirmUi(p: AkteSavePending): { title: string; message:
     }
 }
 
-export function patientDetailTabFromHash(hash: string): PatientDetailAkteTab | null {
+export function patientDetailTabFromHash(hash: string): PatientDetailChartTab | null {
     const h = hash.replace(/^#/, "");
-    if (h === "stamm") return null;
-    return PATIENT_DETAIL_TAB_IDS.includes(h as PatientDetailAkteTab) ? (h as PatientDetailAkteTab) : null;
+    if (h === "master") return null;
+    return PATIENT_DETAIL_TAB_IDS.includes(h as PatientDetailChartTab) ? (h as PatientDetailChartTab) : null;
 }
 
-/** Resolves hash to tab id; legacy `#stamm` maps to the default tab. */
+/** Resolves hash to tab id; legacy `#master` maps to the default tab. */
 export function resolvePatientDetailTabFromHash(
     hash: string,
     canViewClinical: boolean,
-): PatientDetailAkteTab | null {
+): PatientDetailChartTab | null {
     const h = hash.replace(/^#/, "");
-    if (h === "stamm") return patientDetailDefaultTab(canViewClinical);
+    if (h === "master") return patientDetailDefaultTab(canViewClinical);
     return patientDetailTabFromHash(hash);
 }
 
-export function rezeptStatusDisplay(
+export function prescriptionStatusDisplay(
     status: string,
     t: TFn,
 ): { variant: "success" | "warning" | "default"; label: string } {
     const s = status.trim();
-    if (s === "AUSGESTELLT") return { variant: "success", label: t("enum.rezept_status.ausgestellt") };
-    if (s === "ENTWURF") return { variant: "warning", label: t("enum.rezept_status.entwurf") };
+    if (s === "ISSUED") return { variant: "success", label: t("enum.prescription_status.issued") };
+    if (s === "DRAFT") return { variant: "warning", label: t("enum.prescription_status.draft") };
     return { variant: "default", label: s || "—" };
 }
 
-/** @deprecated Use `EXAMINATION_CATALOG_CATEGORY` from `behandlungs-katalog-categories`. */
-export const UNTERSUCHUNG_KATALOG_KATEGORIE = EXAMINATION_CATALOG_CATEGORY;
-
 /** Default examination service from the treatment catalog (lowest `sort_order` in category). */
-export function resolveDefaultUntersuchungKatalogItem(
-    katalog: BehandlungsKatalogItem[],
-): BehandlungsKatalogItem | null {
-    const active = katalog.filter((k) => k.aktiv !== 0);
+export function resolveDefaultExaminationCatalogItem(
+    catalog: TreatmentCatalogItem[],
+): TreatmentCatalogItem | null {
+    const active = catalog.filter((k) => k.active !== 0);
     const category = EXAMINATION_CATALOG_CATEGORY.toLowerCase();
-    const inCategory = active.filter((k) => k.kategorie.trim().toLowerCase() === category);
+    const inCategory = active.filter((k) => k.category.trim().toLowerCase() === category);
     if (inCategory.length === 0) return null;
     return (
         [...inCategory].sort(
@@ -141,44 +138,44 @@ export function resolveDefaultUntersuchungKatalogItem(
     );
 }
 
-export function resolveKatalogIdForBehandlung(katalog: BehandlungsKatalogItem[], b: Behandlung): string {
-    const name = (b.leistungsname || b.beschreibung || "").trim();
+export function resolveCatalogIdForTreatment(catalog: TreatmentCatalogItem[], b: Treatment): string {
+    const name = (b.service_name || b.description || "").trim();
     if (!name) return "";
-    const exact = katalog.find((k) => k.name === name);
+    const exact = catalog.find((k) => k.name === name);
     if (exact) return exact.id;
-    const sub = katalog.find((k) => name.includes(k.name) || k.name.includes(name));
+    const sub = catalog.find((k) => name.includes(k.name) || k.name.includes(name));
     return sub?.id ?? "";
 }
 
-export function behandlungToUpdatePayload(b: Behandlung) {
+export function treatmentToUpdatePayload(b: Treatment) {
     return {
         id: b.id,
-        art: b.art,
-        beschreibung: b.beschreibung,
-        zaehne: b.zaehne,
+        kind: b.kind,
+        description: b.description,
+        teeth: b.teeth,
         material: b.material,
-        notizen: b.notizen,
-        kategorie: b.kategorie ?? null,
-        leistungsname: b.leistungsname ?? null,
-        behandlungsnummer: b.behandlungsnummer,
-        sitzung: b.sitzung,
-        behandlung_status: b.behandlung_status,
-        gesamtkosten: b.gesamtkosten,
-        termin_erforderlich: (b.termin_erforderlich ?? 0) === 1,
-        behandlung_datum: b.behandlung_datum,
+        notes: b.notes,
+        category: b.category ?? null,
+        service_name: b.service_name ?? null,
+        treatment_number: b.treatment_number,
+        session_number: b.session_number,
+        treatment_status: b.treatment_status,
+        total_cost: b.total_cost,
+        appointment_required: (b.appointment_required ?? 0) === 1,
+        treatment_date: b.treatment_date,
     };
 }
 
-export function behandlungContinueLabel(b: Behandlung): string {
-    const bn = (b.behandlungsnummer ?? "").trim() || "—";
-    const sitz = b.sitzung != null ? String(b.sitzung) : "?";
-    const titel = b.leistungsname || b.beschreibung || b.art;
-    const d = b.behandlung_datum ? formatDate(b.behandlung_datum) : formatDateTime(b.created_at);
-    return `${bn} · Session ${sitz} · ${titel} · ${d}`;
+export function treatmentContinueLabel(b: Treatment): string {
+    const bn = (b.treatment_number ?? "").trim() || "—";
+    const sitz = b.session_number != null ? String(b.session_number) : "?";
+    const title = b.service_name || b.description || b.kind;
+    const d = b.treatment_date ? formatDate(b.treatment_date) : formatDateTime(b.created_at);
+    return `${bn} · Session ${sitz} · ${title} · ${d}`;
 }
 
-export function alterAusGeburtsdatum(geburtsdatum: string): number | null {
-    const raw = geburtsdatum.slice(0, 10);
+export function alterAusDateOfBirth(date_of_birth: string): number | null {
+    const raw = date_of_birth.slice(0, 10);
     const d = new Date(`${raw}T12:00:00`);
     if (Number.isNaN(d.getTime())) return null;
     const t = new Date();

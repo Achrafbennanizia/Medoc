@@ -42,17 +42,17 @@ const toneFg: Record<Tone, string> = {
 
 function toneForKind(kind: string): Tone {
     if (kind === "plan_hint_fulfilled") return "green";
-    if (kind === "PRAXIS_AUFGABE_ZURUECK") return "orange";
-    if (kind === "PRAXIS_AUFGABE_ERLEDIGT") return "blue";
-    if (kind.includes("rezept") || kind.includes("pill")) return "orange";
-    if (kind.includes("lager") || kind.includes("bestell")) return "red";
+    if (kind === "PRACTICE_TASK_BACK") return "orange";
+    if (kind === "PRACTICE_TASK_DONE") return "blue";
+    if (kind.includes("prescription") || kind.includes("pill")) return "orange";
+    if (kind.includes("inventory") || kind.includes("order")) return "red";
     return "blue";
 }
 
 function iconForKind(kind: string): FC<{ size?: number }> {
     if (kind === "plan_hint_fulfilled") return CheckIcon;
-    if (kind.includes("rezept") || kind.includes("pill")) return PillIcon;
-    if (kind.includes("lager") || kind.includes("bestell")) return PackageIcon;
+    if (kind.includes("prescription") || kind.includes("pill")) return PillIcon;
+    if (kind.includes("inventory") || kind.includes("order")) return PackageIcon;
     return SparkleIcon;
 }
 
@@ -131,18 +131,18 @@ export function NotificationsPopover({
         try {
             if (row.raw.payload_json) {
                 const p = JSON.parse(row.raw.payload_json) as {
-                    termin_id?: string;
-                    aufgabeId?: string;
+                    appointment_id?: string;
+                    taskId?: string;
                 };
-                if (p.termin_id) {
+                if (p.appointment_id) {
                     onClose();
-                    navigate("/termine");
+                    navigate("/appointments");
                     return;
                 }
                 if (
-                    p.aufgabeId &&
-                    (row.raw.kind === "PRAXIS_AUFGABE_ERLEDIGT" ||
-                        row.raw.kind === "PRAXIS_AUFGABE_ZURUECK")
+                    p.taskId &&
+                    (row.raw.kind === "PRACTICE_TASK_DONE" ||
+                        row.raw.kind === "PRACTICE_TASK_BACK")
                 ) {
                     onClose();
                     navigate("/tickets");

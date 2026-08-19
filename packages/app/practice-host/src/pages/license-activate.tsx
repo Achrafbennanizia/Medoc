@@ -8,7 +8,7 @@ import { useT, useTParams } from "@/lib/i18n";
 
 import { useCallback, useEffect, useState } from "react";
 
-import { VerbundJoinFlow } from "@/systems/practice-host/components/verbund-join-flow";
+import { ClusterJoinFlow } from "@/systems/practice-host/components/cluster-join-flow";
 import {
     clearLicenseDeviceRole,
     readLicenseDeviceRole,
@@ -192,7 +192,7 @@ function SecondaryJoinPanel(props: { onActivated?: () => void; onBack: () => voi
     return (
         <section style={{ marginTop: 12 }}>
             <p className="card-sub">{t("license.activate.device_role.secondary_intro")}</p>
-            <VerbundJoinFlow onComplete={props.onActivated} onBack={props.onBack} />
+            <ClusterJoinFlow onComplete={props.onActivated} onBack={props.onBack} />
         </section>
     );
 }

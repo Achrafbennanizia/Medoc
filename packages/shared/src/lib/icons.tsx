@@ -109,13 +109,13 @@ export const SunIcon: FC<{ size?: number }> = ({ size = 18 }) => (
         <path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77" />
     </IconBase>
 );
-/** Einstellungen slider — workflows. */
+/** Settings slider — workflows. */
 export const SlidersHorizontalIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     <IconBase size={size}>
         <path d="M4 21v-6.5M4 10V3M12 21v-3M12 14V3M20 21v-9M20 8V3M9 10h6M14 17h7M7 17H5" />
     </IconBase>
 );
-/** Stethoskop — Praxis (an Lucide angelehnt). */
+/** Stethoskop — Practice (an Lucide angelehnt). */
 export const StethoscopeIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     <IconBase size={size}>
         <path d="M6 20v-2a4 4 0 014-4h1" />
@@ -151,7 +151,7 @@ export const WindowChromeRestoreIcon: FC<{ size?: number }> = ({ size = 12 }) =>
         <path d="M5 8h11v11H5V8z" />
     </IconBase>
 );
-/** Emergency / Notfall — von Lucide „ambulance“ inspiriert. Lizenz: `third_party/LICENSES.md` (ISC, Lucide). */
+/** Emergency / Notfall — from Lucide „ambulance“ inspiriert. License: `third_party/LICENSES.md` (ISC, Lucide). */
 export const AmbulanceIcon: FC<IconProps> = ({ size = 20, ...props }) => (
     <IconBase size={size} {...props}>
         <path d="M10 10H6" />
@@ -171,7 +171,7 @@ export const PackageIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase s
 const ChartIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M4 19V9M10 19V5M16 19v-7M22 19v-3" /></IconBase>;
 export const PillIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="4" y="8" width="16" height="8" rx="4" /><path d="M12 8v8" /></IconBase>;
 const DocIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></IconBase>;
-/** Verwaltung / building — inspired by Lucide "building"; license see `third_party/LICENSES.md`. */
+/** Administration / building — inspired by Lucide "building"; license see `third_party/LICENSES.md`. */
 const BuildingIcon: FC<{ size?: number }> = ({ size = 17 }) => (
     <IconBase size={size}>
         <path d="M6 22V10l6-4 6 4v12" />
@@ -183,7 +183,7 @@ export const ToothIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase siz
 export const ClipboardIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4.5h6" /></IconBase>;
 const ScrollIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M6 4h12v14a3 3 0 01-3 3H8a3 3 0 01-3-3V7a3 3 0 013-3z" /><path d="M9 9h6M9 13h6" /></IconBase>;
 export const SettingsIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" /></IconBase>;
-/** Schild — Einstellungen › Sicherheit (Outline). */
+/** Schild — Settings › Sicherheit (Outline). */
 export const ShieldIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /></IconBase>;
 const LockIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></IconBase>;
 const TruckIcon: FC<{ size?: number }> = ({ size = 17 }) => (
@@ -212,31 +212,31 @@ export const InfoIcon = HelpCircleIconImpl;
 /** Route paths only (`href`), consistent with sidebar. Name aliases see {@link NAV_ICON_ALIASES}. */
 export const NAV_ROUTE_ICONS: Record<string, FC<{ size?: number }>> = {
   "/": DashboardIcon,
-  "/termine": CalendarIcon,
-  "/patienten": UsersIcon,
-  "/akten/zu-validieren": ShieldCheckIcon,
-  "/posteingang": MailIcon,
+  "/appointments": CalendarIcon,
+  "/patients": UsersIcon,
+  "/charts/to-validate": ShieldCheckIcon,
+  "/inbox": MailIcon,
   "/tickets": ClipboardIcon,
-  "/finanzen": WalletIcon,
-  "/bilanz": ChartIcon,
-  "/rezepte": PillIcon,
-  "/atteste": DocIcon,
-  "/leistungen": ToothIcon,
-  "/produkte": PackageIcon,
-  "/personal": UsersIcon,
-  "/statistik": ChartIcon,
+  "/finance": WalletIcon,
+  "/balance-sheet": ChartIcon,
+  "/prescriptions": PillIcon,
+  "/certificates": DocIcon,
+  "/services": ToothIcon,
+  "/products": PackageIcon,
+  "/staff": UsersIcon,
+  "/statistics": ChartIcon,
   "/audit": ClipboardIcon,
   "/logs": ScrollIcon,
   "/ops": SettingsIcon,
   "/compliance": ShieldIcon,
-  "/datenschutz": LockIcon,
-    "/einstellungen": SettingsIcon,
-    "/bestellungen": TruckIcon,
-    "/hilfe": HelpCircleIconImpl,
-    "/verwaltung": BuildingIcon,
+  "/privacy": LockIcon,
+    "/settings": SettingsIcon,
+    "/purchase-orders": TruckIcon,
+    "/help": HelpCircleIconImpl,
+    "/administration": BuildingIcon,
 };
 
-/** Legacy keys from Verwaltung tiles / embedded modules — do not mix with route paths. */
+/** Legacy keys from Administration tiles / embedded modules — do not mix with route paths. */
 export const NAV_ICON_ALIASES: Record<string, FC<{ size?: number }>> = {
     Users: UsersIcon,
     Wallet: WalletIcon,
@@ -246,7 +246,7 @@ export const NAV_ICON_ALIASES: Record<string, FC<{ size?: number }>> = {
     Sparkle: SparkleIcon,
 };
 
-/** Sidebar + Verwaltung: routes + optional name aliases. */
+/** Sidebar + Administration: routes + optional name aliases. */
 export const NAV_ICONS: Record<string, FC<{ size?: number }>> = {
     ...NAV_ROUTE_ICONS,
     ...NAV_ICON_ALIASES,

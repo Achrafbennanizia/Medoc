@@ -4,7 +4,7 @@
 //!
 //! ```ignore
 //! // pub use super::clinical_pdf_layout::{ render_clinical_layout, ... };
-//! // pub use super::pdf::{ render, render_akte, ... };
+//! // pub use super::pdf::{ render, render_chart, ... };
 //! ```
 
 pub use crate::infrastructure::pdf::export::*;

@@ -11,9 +11,9 @@ import { invoke } from "@tauri-apps/api/core";
 
 function omitUndefinedValues(record: Record<string, unknown>): Record<string, unknown> {
     const o: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(record)) {
-        if (v !== undefined) {
-            o[k] = v;
+    for (const [k, version] of Object.entries(record)) {
+        if (version !== undefined) {
+            o[k] = version;
         }
     }
     return o;
@@ -31,19 +31,19 @@ function camelToSnake(ident: string): string {
 
 function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string, unknown> {
     const out: Record<string, unknown> = { ...args };
-    for (const [k, v] of Object.entries(args)) {
-        if (v === undefined) {
+    for (const [k, version] of Object.entries(args)) {
+        if (version === undefined) {
             continue;
         }
         if (k.includes("_")) {
             const camel = snakeToLowerCamel(k);
             if (!(camel in out)) {
-                out[camel] = v;
+                out[camel] = version;
             }
         } else if (/[a-z]/.test(k) && /[A-Z]/.test(k)) {
             const snake = camelToSnake(k);
             if (!(snake in out)) {
-                out[snake] = v;
+                out[snake] = version;
             }
         }
     }

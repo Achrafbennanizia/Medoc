@@ -19,7 +19,7 @@ sein.
 
 ## 3. Lebenszyklus
 ```
-NEU → TRIAGE → BESTÄTIGT → IN ARBEIT → IN REVIEW → BEHOBEN → VERIFIZIERT → GESCHLOSSEN
+NEW → TRIAGE → BESTÄTIGT → IN ARBEIT → IN REVIEW → BEHOBEN → VERIFIZIERT → GESCHLOSSEN
                             ↘ ABGEWIESEN (mit Begründung)
 ```
 

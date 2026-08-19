@@ -67,7 +67,7 @@ Created by `ensure_sync_replication_tables` in `medoc-core` migrations:
 
 `merge.rs` only applies:
 
-`patient`, `patientenakte`, `termin`, `behandlung`, `untersuchung`, `zahlung`, `app_kv`, `praxis_aufgabe`, `anamnesebogen`, `zahnbefund`, `rezept`, `attest`, `leistung`, `in_app_notification`, `praxis_ticket`
+`patient`, `patient_chart`, `appointment`, `treatment`, `examination`, `payment`, `app_kv`, `practice_task`, `anamnesis_form`, `dental_finding`, `prescription`, `certificate`, `serviceItem`, `in_app_notification`, `practice_ticket`
 
 Extend deliberately with domain review — not open SQL.
 

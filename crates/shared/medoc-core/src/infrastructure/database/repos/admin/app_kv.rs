@@ -13,7 +13,7 @@ pub async fn get(pool: &SqlitePool, key: &str) -> Result<Option<String>, AppErro
         .bind(key)
         .fetch_optional(pool)
         .await?;
-    Ok(row.map(|(v,)| v))
+    Ok(row.map(|(version,)| version))
 }
 
 pub async fn set(pool: &SqlitePool, key: &str, value: &str) -> Result<(), AppError> {

@@ -2,7 +2,7 @@
   {
     "key": "a11y.dismiss_notification",
     "en": "Dismiss notification",
-    "de": "Benachrichtigung schließen"
+    "de": "Notification schließen"
   },
   {
     "key": "account.menu_help",
@@ -12,7 +12,7 @@
   {
     "key": "app.native_menu.denied",
     "en": "This action is not available for your role.",
-    "de": "Diese Aktion ist für Ihre Rolle nicht freigeschaltet."
+    "de": "Diese Aktion ist für Ihre Role nicht freigeschaltet."
   },
   {
     "key": "app.notifications.show_dashboard",
@@ -20,7 +20,7 @@
     "de": "Zum Dashboard"
   },
   {
-    "key": "app.role_label.REZEPTION",
+    "key": "app.role_label.RECEPTION",
     "en": "Front desk & assistance",
     "de": "Empfang & Assistenz"
   },
@@ -50,29 +50,29 @@
     "de": "Anmelden"
   },
   {
-    "key": "behandlung.composer.status_done",
-    "en": "Durchgefuehrt",
+    "key": "treatment.composer.status_done",
+    "en": "Completed",
     "de": "Durchgeführt"
   },
   {
     "key": "breadcrumb.edit_prescription",
     "en": "Edit prescription",
-    "de": "Rezept bearbeiten"
+    "de": "Prescription bearbeiten"
   },
   {
     "key": "breadcrumb.new_task",
     "en": "New task",
-    "de": "Neue Aufgabe"
+    "de": "Neue Task"
   },
   {
     "key": "breadcrumb.sick_cert",
     "en": "Sick certificate",
-    "de": "Krankenbescheinigung"
+    "de": "SickLeaveCertificate"
   },
   {
     "key": "breadcrumb.work_days",
     "en": "Work days",
-    "de": "Arbeitstage"
+    "de": "WorkDays"
   },
   {
     "key": "common.confirm",
@@ -87,7 +87,7 @@
   {
     "key": "common.new",
     "en": "new",
-    "de": "neu"
+    "de": "new"
   },
   {
     "key": "common.reset",
@@ -100,32 +100,32 @@
     "de": "Typ"
   },
   {
-    "key": "dashboard.bestellungen.absagen",
+    "key": "dashboard.purchase_orders.absagen",
     "en": "Decline",
     "de": "Absagen"
   },
   {
-    "key": "dashboard.bestellungen.confirm_storno",
+    "key": "dashboard.purchase_orders.confirm_storno",
     "en": "Cancel this order permanently?",
-    "de": "Diese Bestellung wirklich stornieren?"
+    "de": "Diese PurchaseOrder wirklich stornieren?"
   },
   {
-    "key": "dashboard.bestellungen.empty_title",
+    "key": "dashboard.purchase_orders.empty_title",
     "en": "No open orders",
-    "de": "Keine offenen Bestellungen"
+    "de": "Keine offenen PurchaseOrders"
   },
   {
-    "key": "dashboard.bestellungen.status_late",
+    "key": "dashboard.purchase_orders.status_late",
     "en": "Overdue",
     "de": "Überfällig"
   },
   {
-    "key": "dashboard.bestellungen.title",
+    "key": "dashboard.purchase_orders.title",
     "en": "Review orders",
-    "de": "Bestellungen prüfen"
+    "de": "PurchaseOrders prüfen"
   },
   {
-    "key": "dashboard.bestellungen.zusagen",
+    "key": "dashboard.purchase_orders.zusagen",
     "en": "Confirm",
     "de": "Zusagen"
   },
@@ -137,22 +137,22 @@
   {
     "key": "dashboard.freigaben.empty_desc",
     "en": "No pending master-data approval among the patients checked. Scheduled appointments appear above when applicable.",
-    "de": "Keine ausstehende Stammdaten-Freigabe in den geprüften Patienten. Geplante Termine erscheinen oben, sobald welche anliegen."
+    "de": "Keine ausstehende MasterData-Freigabe in den geprüften Patients. Geplante Appointments erscheinen oben, sobald welche anliegen."
   },
   {
-    "key": "dashboard.freigaben.open_termine",
+    "key": "dashboard.freigaben.open_appointments",
     "en": "Calendar",
     "de": "Kalender"
   },
   {
     "key": "dashboard.freigaben.scanning",
     "en": "Checking patients for pending approvals…",
-    "de": "Patienten werden auf Freigabe geprüft…"
+    "de": "Patients werden auf Freigabe geprüft…"
   },
   {
     "key": "dashboard.freigaben.tag_plan",
     "en": "Appointment hint",
-    "de": "Termin-Hinweis"
+    "de": "Appointment-Hinweis"
   },
   {
     "key": "dashboard.freigaben.toast_approve_error",
@@ -162,7 +162,7 @@
   {
     "key": "dashboard.heute.empty",
     "en": "No appointments for today in the current list.",
-    "de": "Keine Termine für heute in der aktuellen Liste."
+    "de": "Keine Appointments für heute in der aktuellen Liste."
   },
   {
     "key": "dashboard.insights.cta_later",
@@ -170,7 +170,7 @@
     "de": "Später"
   },
   {
-    "key": "dashboard.kpi.lager_niedrig_sub",
+    "key": "dashboard.kpi.inventory_niedrig_sub",
     "en": "Items below reorder level",
     "de": "Artikel unter Meldebestand"
   },
@@ -182,7 +182,7 @@
   {
     "key": "dashboard.lists_load_error",
     "en": "Could not load appointments, patients, and orders",
-    "de": "Termine, Patienten und Bestellungen konnten nicht geladen werden"
+    "de": "Appointments, Patients und PurchaseOrders konnten nicht geladen werden"
   },
   {
     "key": "dashboard.reminders.in_minutes",
@@ -192,17 +192,17 @@
   {
     "key": "dashboard.reminders.toast_load_error",
     "en": "Could not load appointment reminders",
-    "de": "Termin-Erinnerungen konnten nicht geladen werden"
+    "de": "Appointment-Erinnerungen konnten nicht geladen werden"
   },
   {
-    "key": "dashboard.status.GEPLANT",
+    "key": "dashboard.status.PLANNED",
     "en": "Planned",
-    "de": "Geplant"
+    "de": "Planned"
   },
   {
-    "key": "dashboard.termine_heute_sub",
+    "key": "dashboard.appointments_heute_sub",
     "en": "appointments today (per statistics)",
-    "de": "Termine heute (laut Statistik)"
+    "de": "Appointments heute (laut Statistics)"
   },
   {
     "key": "enum.beruf.kieferorthopaede",
@@ -217,12 +217,12 @@
   {
     "key": "error.auth.totp_optional_role",
     "en": "Two-factor is optional for this role — set up after sign-in",
-    "de": "Zwei-Faktor ist für diese Rolle optional — bitte nach Anmeldung einrichten"
+    "de": "Zwei-Faktor ist für diese Role optional — bitte nach Anmeldung einrichten"
   },
   {
-    "key": "error.praxis_aufgabe.target_must_be_doctor",
+    "key": "error.practice_task.target_must_be_doctor",
     "en": "Target must be a doctor.",
-    "de": "Ziel muss ein Arzt sein."
+    "de": "Ziel muss ein Physician sein."
   },
   {
     "key": "error.work_time.no_paused_session",
@@ -232,12 +232,12 @@
   {
     "key": "error.work_time.session_not_running",
     "en": "Session is not active.",
-    "de": "Sitzung ist nicht aktiv."
+    "de": "Sitzung ist nicht active."
   },
   {
     "key": "license.activate.intro",
     "en": "This device is the master. Paste the license token we provided (format",
-    "de": "Dieses Gerät ist der Master. Bitte den von uns gelieferten Lizenz-Token einfügen (Format"
+    "de": "Dieses Gerät ist der Master. Bitte den from uns gelieferten License-Token einfügen (Format"
   },
   {
     "key": "login.brand_subtitle",
@@ -272,7 +272,7 @@
   {
     "key": "login.totp_enroll_body",
     "en": "Two-factor authentication is mandatory for doctors. Scan the key in your authenticator app (e.g. FreeOTP, Google Authenticator).",
-    "de": "Als Arzt ist die Zwei-Faktor-Authentifizierung Pflicht. Scannen Sie den Schlüssel in Ihrer Authenticator-App (z. B. FreeOTP, Google Authenticator)."
+    "de": "Als Physician ist die Zwei-Faktor-Authentifizierung Pflicht. Scannen Sie den Schlüssel in Ihrer Authenticator-App (z. B. FreeOTP, Google Authenticator)."
   },
   {
     "key": "login.totp_verify_body",
@@ -287,42 +287,42 @@
   {
     "key": "menubar.go",
     "en": "Go",
-    "de": "Gehe zu"
+    "de": "Gehe to"
   },
   {
-    "key": "menubar.termine_guide_body",
+    "key": "menubar.appointments_guide_body",
     "en": "Keyboard (when no input field is focused):\n\n• D — Day view\n• W — Week view\n• M — Month view\n• N — New appointment\n• T — Go to today\n• ← / → — previous/next day or week\n\nMouse:\n\n• Double-click a slot — create appointment\n• Right-click — context menu\n• Drag — change time (on the gutter) or day (in the column); can be turned off under Administration → Practice preferences or Settings → Workflows\n• Day view: drag at the edge switches the calendar day\n• Week view: drag left/right outside the grid switches the week (at most every 0.5 s)\n• Overlaps for the same practitioner are packed automatically.",
-    "de": "Tastatur (wenn kein Eingabefeld fokussiert ist):\n\n• D — Tagesansicht\n• W — Wochenansicht\n• M — Monatsansicht\n• N — Neuer Termin\n• T — Heute\n• ← / → — vorheriger/nächster Tag bzw. Woche\n\nKalender mit der Maus:\n\n• Doppelklick auf einen Slot — neuen Termin anlegen\n• Rechtsklick — Kontextmenü\n• Ziehen — Zeit an der Leiste bzw. Tag in der Spalte ändern (abschaltbar unter Verwaltung → Praxis-Präferenzen bzw. Einstellungen → Arbeitsabläufe)\n• Tagesansicht: am Rand ziehen wechselt den Kalendertag\n• Wochenansicht: links oder rechts außerhalb des Rasters wechselt die Woche (höchstens alle 0,5 s)\n• Überschneidungen desselben Behandlers werden automatisch nachgerückt."
+    "de": "Tastatur (wenn kein Eingabefeld fokussiert ist):\n\n• D — Tagesansicht\n• W — Wochenansicht\n• M — Monatsansicht\n• N — Neuer Appointment\n• T — Heute\n• ← / → — vorheriger/nächster Tag bzw. Woche\n\nKalender mit der Maus:\n\n• Doppelklick auf einen Slot — neuen Appointment anlegen\n• Rechtsklick — Kontextmenü\n• Ziehen — Time an der Leiste bzw. Tag in der Spalte ändern (abschaltbar unter Administration → Practice-Präferenzen bzw. Settings → Arbeitsabläufe)\n• Tagesansicht: am Rand ziehen wechselt den calendar day\n• Wochenansicht: links oder rechts außerhalb des Rasters wechselt die Woche (höchstens alle 0,5 s)\n• Überschneidungen desselben Behandlers werden automatisch nachgerückt."
   },
   {
-    "key": "nav.akten_zu_validieren",
+    "key": "nav.charts_to_validate",
     "en": "Records to validate",
-    "de": "Akten zu validieren"
+    "de": "Akten to validate"
   },
   {
-    "key": "nav.bilanz",
+    "key": "nav.balance-sheet",
     "en": "Balance",
-    "de": "Bilanz"
+    "de": "BalanceSheet"
   },
   {
-    "key": "nav.finanzen_reception",
+    "key": "nav.finance_reception",
     "en": "Cash entries",
     "de": "Kasseneingänge"
   },
   {
-    "key": "nav.help.finanzen",
+    "key": "nav.help.finance",
     "en": "Payments and billing",
-    "de": "Zahlungen und Abrechnung"
+    "de": "Payments und Billing"
   },
   {
-    "key": "nav.help.praxis_tickets",
+    "key": "nav.help.practice_tickets",
     "en": "Tasks between reception and physicians",
-    "de": "Aufgaben zwischen Rezeption und Ärzt:innen"
+    "de": "Aufgaben zwischen Reception und Ärzt:innen"
   },
   {
-    "key": "nav.help.verwaltung",
+    "key": "nav.help.administration",
     "en": "Staff, services, products, admin modules",
-    "de": "Personal, Finanzen, Lager, Leistungskataloge und Praxis-Module"
+    "de": "Staff, Finance, Inventory, Leistungskataloge und Practice-Module"
   },
   {
     "key": "nav.ops",
@@ -330,9 +330,9 @@
     "de": "Betrieb"
   },
   {
-    "key": "nav.praxis_tickets",
+    "key": "nav.practice_tickets",
     "en": "Practice tasks",
-    "de": "Praxis-Aufgaben"
+    "de": "Practice-Aufgaben"
   },
   {
     "key": "nav.search_short",
@@ -340,49 +340,49 @@
     "de": "Suchen…"
   },
   {
-    "key": "nav.verwaltung",
+    "key": "nav.administration",
     "en": "Administration",
-    "de": "Verwaltung"
+    "de": "Administration"
   },
   {
-    "key": "onboarding.arzt.atteste.title",
+    "key": "onboarding.physician.certificates.title",
     "en": "Certificates",
-    "de": "Atteste"
+    "de": "Certificates"
   },
   {
-    "key": "onboarding.arzt.home.body",
+    "key": "onboarding.physician.home.body",
     "en": "KPIs, open orders and approvals at a glance.",
-    "de": "KPIs, offene Bestellungen und Freigaben auf einen Blick."
+    "de": "KPIs, offene PurchaseOrders und Freigaben auf einen Blick."
   },
   {
-    "key": "onboarding.arzt.rezepte.title",
+    "key": "onboarding.physician.prescriptions.title",
     "en": "Prescriptions",
-    "de": "Rezepte"
+    "de": "Prescriptions"
   },
   {
-    "key": "onboarding.arzt.termine.title",
+    "key": "onboarding.physician.appointments.title",
     "en": "Appointments",
-    "de": "Termine"
+    "de": "Appointments"
   },
   {
-    "key": "onboarding.rezeption.bestellungen.body",
+    "key": "onboarding.reception.purchase-orders.body",
     "en": "Material orders and goods receipt — reception updates status; not e-prescription (MVP).",
-    "de": "Materialbestellungen und Wareneingang — Rezeption pflegt Status; kein E-Rezept (MVP)."
+    "de": "Materialbestellungen und Wareneingang — Reception pflegt Status; kein E-Prescription (MVP)."
   },
   {
-    "key": "onboarding.rezeption.finanzen.body",
+    "key": "onboarding.reception.finance.body",
     "en": "Payment recording (without physician service approval).",
-    "de": "Zahlungserfassung (ohne ärztliche Freigabe der Leistung)."
+    "de": "Zahlungserfassung (ohne ärztliche Freigabe der ServiceItem)."
   },
   {
-    "key": "onboarding.rezeption.patienten.title",
+    "key": "onboarding.reception.patients.title",
     "en": "Patients",
-    "de": "Patienten"
+    "de": "Patients"
   },
   {
-    "key": "onboarding.rezeption.tickets.title",
+    "key": "onboarding.reception.tickets.title",
     "en": "Practice tickets",
-    "de": "Praxis-Tickets"
+    "de": "Practice-Tickets"
   },
   {
     "key": "ops.page.audit_chain_ok",
@@ -390,377 +390,377 @@
     "de": "✓ Integrität OK"
   },
   {
-    "key": "page.akten_zu_validieren.empty_title",
+    "key": "page.charts_to_validate.empty_title",
     "en": "No records in the validation queue",
     "de": "Keine Akten in der Validierungs-Warteschlange"
   },
   {
-    "key": "page.akten_zu_validieren.validated_toast",
+    "key": "page.charts_to_validate.validated_toast",
     "en": "Record marked as validated.",
-    "de": "Akte als validiert gespeichert."
+    "de": "Chart als validated gespeichert."
   },
   {
-    "key": "page.arbeitsplan.all",
+    "key": "page.work_plan.all",
     "en": "All",
     "de": "Alle"
   },
   {
-    "key": "page.arbeitsplan.compose.add_hint",
+    "key": "page.work_plan.compose.add_hint",
     "en": "Period for the selected person. «Work period» = recurring target hours; «Block period» = full days off; «Single day» = work hours on one day.",
-    "de": "Zeitraum für die ausgewählte Person. «Arbeitszeitraum» = wiederkehrende Sollzeiten; «Sperrzeitraum» = ganze Tage frei; «Einzeltag» = Arbeitszeit an einem Tag."
+    "de": "Zeitraum für die ausgewählte Person. «Arbeitszeitraum» = wiederkehrende Sollzeiten; «Sperrzeitraum» = ganze Tage frei; «Einzeltag» = WorkTime an einem Tag."
   },
   {
-    "key": "page.arbeitsplan.compose.entry.add_day",
+    "key": "page.work_plan.compose.entry.add_day",
     "en": "Work {date} · {start}–{end}",
     "de": "Arbeit {date} · {start}–{end}"
   },
   {
-    "key": "page.arbeitsplan.compose.no_staff",
+    "key": "page.work_plan.compose.no_staff",
     "en": "Add staff in the team list first.",
     "de": "Zuerst Mitarbeiter in der Teamliste anlegen."
   },
   {
-    "key": "page.arbeitsplan.compose.title",
+    "key": "page.work_plan.compose.title",
     "en": "Build schedule",
-    "de": "Arbeitsplan bauen"
+    "de": "WorkPlan bauen"
   },
   {
-    "key": "page.arbeitsplan.day_short.di",
+    "key": "page.work_plan.day_short.di",
     "en": "Tue",
     "de": "Di"
   },
   {
-    "key": "page.arbeitsplan.day_short.mo",
+    "key": "page.work_plan.day_short.mo",
     "en": "Mon",
     "de": "Mo"
   },
   {
-    "key": "page.arbeitsplan.display",
+    "key": "page.work_plan.display",
     "en": "Display",
     "de": "Anzeige"
   },
   {
-    "key": "page.arbeitsplan.filter.break",
+    "key": "page.work_plan.filter.break",
     "en": "Break",
     "de": "Pause"
   },
   {
-    "key": "page.arbeitsplan.label.to",
+    "key": "page.work_plan.label.to",
     "en": "To",
     "de": "Bis"
   },
   {
-    "key": "page.arbeitsplan.loading",
+    "key": "page.work_plan.loading",
     "en": "Schedule…",
-    "de": "Arbeitsplan…"
+    "de": "WorkPlan…"
   },
   {
-    "key": "page.arbeitsplan.month.filter.work",
+    "key": "page.work_plan.month.filter.work",
     "en": "Work",
     "de": "Arbeit"
   },
   {
-    "key": "page.arbeitsplan.soll_table.col.net",
+    "key": "page.work_plan.soll_table.col.net",
     "en": "Net",
     "de": "Netto"
   },
   {
-    "key": "page.arbeitsplan.soll_table.title",
+    "key": "page.work_plan.soll_table.title",
     "en": "Staff work hours (target)",
     "de": "Arbeitszeiten der Mitarbeiter (Soll)"
   },
   {
-    "key": "page.arbeitsplan.time_tracking.auto_logout",
+    "key": "page.work_plan.time_tracking.auto_logout",
     "en": "Auto-end on logout",
     "de": "Automatisch beenden bei Abmeldung"
   },
   {
-    "key": "page.arbeitsplan.toast.auto_logout_off",
+    "key": "page.work_plan.toast.auto_logout_off",
     "en": "Auto end on logout disabled.",
     "de": "Automatisches Beenden bei Abmeldung aus."
   },
   {
-    "key": "page.arbeitsplan.toast.block_removed",
+    "key": "page.work_plan.toast.block_removed",
     "en": "Shift removed",
     "de": "Einsatz entfernt"
   },
   {
-    "key": "page.arbeitsplan.toast.err.grid",
+    "key": "page.work_plan.toast.err.grid",
     "en": "Outside the grid.",
     "de": "Außerhalb des Rasters."
   },
   {
-    "key": "page.arbeitsplan.view.aria",
+    "key": "page.work_plan.view.aria",
     "en": "View",
     "de": "Ansicht"
   },
   {
-    "key": "page.arbeitsplan.week.aria",
+    "key": "page.work_plan.week.aria",
     "en": "Weekly overview per person and day",
     "de": "Wochenübersicht je Person und Tag"
   },
   {
-    "key": "page.arbeitstage.a11y.edit",
+    "key": "page.workDays.a11y.edit",
     "en": "Edit",
     "de": "Bearbeiten"
   },
   {
-    "key": "page.arbeitstage.col.time",
+    "key": "page.workDays.col.time",
     "en": "Time",
     "de": "Uhrzeit"
   },
   {
-    "key": "page.arbeitstage.field.comment",
+    "key": "page.workDays.field.comment",
     "en": "Comment",
-    "de": "Kommentar"
+    "de": "Comment"
   },
   {
-    "key": "page.arbeitstage.field.to_time",
+    "key": "page.workDays.field.to_time",
     "en": "To time",
     "de": "Bis der Uhrzeit"
   },
   {
-    "key": "page.arbeitstage.toast.saved",
+    "key": "page.workDays.toast.saved",
     "en": "Entry saved",
     "de": "Eintrag gespeichert"
   },
   {
-    "key": "page.arbeitszeit.day_short.di",
+    "key": "page.workTime.day_short.di",
     "en": "Tue",
     "de": "Di"
   },
   {
-    "key": "page.arbeitszeit.day_short.mo",
+    "key": "page.workTime.day_short.mo",
     "en": "Mon",
     "de": "Mo"
   },
   {
-    "key": "page.arbeitszeit.footer.open_plan",
+    "key": "page.workTime.footer.open_plan",
     "en": "Open schedule",
-    "de": "Arbeitsplan öffnen"
+    "de": "WorkPlan öffnen"
   },
   {
-    "key": "page.arbeitszeit.status.none",
+    "key": "page.workTime.status.none",
     "en": "No active session",
     "de": "Keine laufende Sitzung"
   },
   {
-    "key": "page.arbeitszeit.team.calendar_week",
+    "key": "page.workTime.team.calendar_week",
     "en": "Calendar week {start} – {end}",
     "de": "Kalenderwoche {start} – {end}"
   },
   {
-    "key": "page.arbeitszeit.team.empty",
+    "key": "page.workTime.team.empty",
     "en": "No staff or no sessions this week.",
     "de": "Keine Mitarbeiter oder keine Sitzungen in dieser Woche."
   },
   {
-    "key": "page.arbeitszeit.team.subtitle",
+    "key": "page.workTime.team.subtitle",
     "en": "Overview of all staff — actual hours this week and today.",
     "de": "Übersicht aller Mitarbeiter — Ist-Stunden diese Woche und heute."
   },
   {
-    "key": "page.arbeitszeit.toast.focus_on",
+    "key": "page.workTime.toast.focus_on",
     "en": "Focus mode on — reduced navigation.",
-    "de": "Fokusmodus aktiv — reduzierte Navigation."
+    "de": "Fokusmodus active — reduzierte Navigation."
   },
   {
-    "key": "page.arbeitszeit.week_finished",
+    "key": "page.workTime.week_finished",
     "en": "This week (completed): {minutes}",
     "de": "Diese Woche (beendet): {minutes}"
   },
   {
-    "key": "page.arbeitszeiten.behandler_section_hint",
+    "key": "page.work_hours.clinician_section_hint",
     "en": "Choose the practice or a clinician. Each clinician can store their own weekday hours, break and slot length — without a saved profile the practice default applies.",
-    "de": "Wählen Sie die Praxis oder einen Behandler. Jeder Behandler kann eigene Wochenstunden, Pause und Slotdauer speichern — ohne Eintrag gilt der Praxis-Standard."
+    "de": "Wählen Sie die Practice oder einen Clinician. Jeder Clinician kann eigene Wochenstunden, Pause und Slotdauer speichern — ohne Eintrag gilt der Practice-Standard."
   },
   {
-    "key": "page.arbeitszeiten.day.di",
+    "key": "page.work_hours.day.di",
     "en": "Tuesday",
     "de": "Dienstag"
   },
   {
-    "key": "page.arbeitszeiten.day.mo",
+    "key": "page.work_hours.day.mo",
     "en": "Monday",
     "de": "Montag"
   },
   {
-    "key": "page.arbeitszeiten.default_arzt_label",
+    "key": "page.work_hours.default_physician_label",
     "en": "Default clinician (calendar)",
-    "de": "Standard-Behandler (Terminbuch)"
+    "de": "Standard-Clinician (Terminbuch)"
   },
   {
-    "key": "page.arbeitszeiten.err.invalid_time",
+    "key": "page.work_hours.err.invalid_time",
     "en": "{day}: Invalid time.",
     "de": "{day}: Ungültige Uhrzeit."
   },
   {
-    "key": "page.arbeitszeiten.err.segment_required",
+    "key": "page.work_hours.err.segment_required",
     "en": "{day}: At least one time range is required.",
-    "de": "{day}: Mindestens ein Zeitraum ist erforderlich."
+    "de": "{day}: Mindestens ein Zeitraum ist required."
   },
   {
-    "key": "page.arbeitszeiten.label_to",
+    "key": "page.work_hours.label_to",
     "en": "To ({n})",
     "de": "Bis ({n})"
   },
   {
-    "key": "page.arbeitszeiten.pause_to",
+    "key": "page.work_hours.pause_to",
     "en": "Break to",
-    "de": "Pause bis"
+    "de": "Pause until"
   },
   {
-    "key": "page.arbeitszeiten.remove_segment",
+    "key": "page.work_hours.remove_segment",
     "en": "Remove",
     "de": "Entfernen"
   },
   {
-    "key": "page.arbeitszeiten.slot_label",
+    "key": "page.work_hours.slot_label",
     "en": "Slot length (min)",
     "de": "Slotdauer (Min)"
   },
   {
-    "key": "page.arbeitszeiten.subtitle_readonly",
+    "key": "page.work_hours.subtitle_readonly",
     "en": "Read-only — choose „Edit“ to change values.",
     "de": "Nur lesen — „Bearbeiten“ öffnet die Eingaben."
   },
   {
-    "key": "page.behandlungs_katalog.col.name",
+    "key": "page.treatment_catalog.col.name",
     "en": "Service name",
     "de": "Leistungsname"
   },
   {
-    "key": "page.behandlungs_katalog.delete.title",
+    "key": "page.treatment_catalog.delete.title",
     "en": "Remove entry",
     "de": "Eintrag entfernen"
   },
   {
-    "key": "page.behandlungs_katalog.edit.title",
+    "key": "page.treatment_catalog.edit.title",
     "en": "Edit entry",
     "de": "Eintrag bearbeiten"
   },
   {
-    "key": "page.behandlungs_katalog.entry.subtitle",
+    "key": "page.treatment_catalog.entry.subtitle",
     "en": "Catalog entry",
     "de": "Katalogeintrag"
   },
   {
-    "key": "page.behandlungs_katalog.field.cost",
+    "key": "page.treatment_catalog.field.cost",
     "en": "Default cost (€)",
     "de": "Standard-Kosten (€)"
   },
   {
-    "key": "page.behandlungs_katalog.new.title",
+    "key": "page.treatment_catalog.new.title",
     "en": "New service",
-    "de": "Neue Leistung"
+    "de": "Neue ServiceItem"
   },
   {
-    "key": "page.behandlungs_katalog.select_hint_read",
+    "key": "page.treatment_catalog.select_hint_read",
     "en": "Select a row for details.",
     "de": "Wählen Sie eine Zeile für Details."
   },
   {
-    "key": "page.behandlungs_katalog.subtitle",
+    "key": "page.treatment_catalog.subtitle",
     "en": "Predefined categories and service names for the chart — list on the left, create and details on the right.",
-    "de": "Vordefinierte Kategorien und Leistungsnamen für die Akte — Liste links, anlegen und Details rechts."
+    "de": "Vordefinierte Kategorien und Leistungsnamen für die Chart — Liste links, anlegen und Details rechts."
   },
   {
-    "key": "page.behandlungs_katalog.toast.validation",
+    "key": "page.treatment_catalog.toast.validation",
     "en": "Category and service name are required.",
     "de": "Kategorie und Leistungsname sind Pflichtfelder."
   },
   {
-    "key": "page.bestellstamm.combo_hint",
+    "key": "page.order_master.combo_hint",
     "en": "Links a supplier with a contact — selectable as “Template” in New order.",
-    "de": "Verknüpft einen Lieferanten mit einem Kontakt — in Neue Bestellung als Dropdown „Vorlage“ wählbar."
+    "de": "Verknüpft einen Lieferanten mit einem Kontakt — in Neue PurchaseOrder als Dropdown „Template“ wählbar."
   },
   {
-    "key": "page.bestellstamm.delete.confirm",
+    "key": "page.order_master.delete.confirm",
     "en": "Remove",
     "de": "Entfernen"
   },
   {
-    "key": "page.bestellstamm.loading",
+    "key": "page.order_master.loading",
     "en": "Loading master data…",
-    "de": "Stammdaten werden geladen…"
+    "de": "MasterData werden geladen…"
   },
   {
-    "key": "page.bestellstamm.product_cancel",
+    "key": "page.order_master.product_cancel",
     "en": "Cancel",
     "de": "Abbrechen"
   },
   {
-    "key": "page.bestellstamm.product_new_btn",
+    "key": "page.order_master.product_new_btn",
     "en": "+ New product",
-    "de": "+ Neues Produkt"
+    "de": "+ Neues Product"
   },
   {
-    "key": "page.bestellstamm.save_combo",
+    "key": "page.order_master.save_combo",
     "en": "Save combination",
     "de": "Kombination speichern"
   },
   {
-    "key": "page.bestellstamm.suppliers",
+    "key": "page.order_master.suppliers",
     "en": "Suppliers",
     "de": "Lieferanten"
   },
   {
-    "key": "page.bestellstamm.toast.name_required",
+    "key": "page.order_master.toast.name_required",
     "en": "Enter a name.",
     "de": "Name eingeben."
   },
   {
-    "key": "page.bestellung.create.unit_ph",
+    "key": "page.purchase_order.create.unit_ph",
     "en": "z. B. Stueck, Pkg.",
     "de": "z. B. Stück, Pkg."
   },
   {
-    "key": "page.bestellungen.col.id",
+    "key": "page.purchase-orders.col.id",
     "en": "No.",
     "de": "Nr."
   },
   {
-    "key": "page.bestellungen.receive",
+    "key": "page.purchase-orders.receive",
     "en": "Mark delivered",
-    "de": "Als geliefert"
+    "de": "Als delivered"
   },
   {
-    "key": "page.bestellungen.subtitle",
+    "key": "page.purchase-orders.subtitle",
     "en": "Suppliers and deliveries at a glance",
     "de": "Lieferanten und offene Lieferungen im Überblick"
   },
   {
     "key": "page.company.portal.placeholder_practice_slug",
     "en": "demo-practice",
-    "de": "demo-praxis"
+    "de": "demo-practice"
   },
   {
-    "key": "page.datenschutz.empty_desc",
+    "key": "page.privacy.empty_desc",
     "en": "Create patients or adjust your search.",
-    "de": "Legen Sie Patienten an oder passen Sie die Suche an."
+    "de": "Legen Sie Patients an oder passen Sie die Suche an."
   },
   {
-    "key": "page.datenschutz.erase_request",
+    "key": "page.privacy.erase_request",
     "en": "Erasure request",
     "de": "Löschanfrage"
   },
   {
-    "key": "page.datenschutz.intro_prefix",
+    "key": "page.privacy.intro_prefix",
     "en": "Handling data-subject rights under GDPR Art. 15 (access), Art. 17 (erasure), and Art. 20 (portability). Clinical records remain under §630f BGB until retention expires and are ",
-    "de": "Bearbeitung von Betroffenenrechten nach DSGVO Art. 15 (Auskunft), Art. 17 (Löschung) und Art. 20 (Datenübertragbarkeit). Klinische Daten bleiben aufgrund §630f BGB bis zum Ablauf der Aufbewahrungsfrist erhalten und werden bei einer Löschanfrage "
+    "de": "Processing from Betroffenenrechten nach DSGVO Art. 15 (Auskunft), Art. 17 (Löschung) und Art. 20 (Datenübertragbarkeit). Klinische Daten bleiben aufgrund §630f BGB until zum Ablauf der Aufbewahrungsfrist erhalten und werden bei einer Löschanfrage "
   },
   {
-    "key": "page.datenschutz.nav_next",
+    "key": "page.privacy.nav_next",
     "en": "Next",
     "de": "Weiter"
   },
   {
-    "key": "page.datenschutz.report_records",
+    "key": "page.privacy.report_records",
     "en": "Affected records:",
     "de": "Betroffene Datensätze:"
   },
   {
-    "key": "page.datenschutz.toast_error_prefix",
+    "key": "page.privacy.toast_error_prefix",
     "en": "Error:",
     "de": "Fehler:"
   },
@@ -785,7 +785,7 @@
     "de": "Senden fehlgeschlagen."
   },
   {
-    "key": "page.finanzen.transactions",
+    "key": "page.finance.transactions",
     "en": "Transactions",
     "de": "Transaktionen"
   },
@@ -797,42 +797,42 @@
   {
     "key": "page.hilfe.kbd.cal_keys",
     "en": "Schedule",
-    "de": "Terminübersicht"
+    "de": "Appointmentübersicht"
   },
   {
     "key": "page.hilfe.kbd.question",
     "en": "Settings → Help & shortcuts",
-    "de": "Einstellungen → Hilfe & Kurzbefehle"
+    "de": "Settings → Hilfe & Kurzbefehle"
   },
   {
-    "key": "page.hilfe.link_termine",
+    "key": "page.hilfe.link_appointments",
     "en": "Schedule",
-    "de": "Terminübersicht"
+    "de": "Appointmentübersicht"
   },
   {
-    "key": "page.krankenbescheinigung.created",
+    "key": "page.sick_leave_certificate.created",
     "en": "Created {datetime}",
     "de": "Erstellt {datetime}"
   },
   {
-    "key": "page.krankenbescheinigung.err.file_read",
+    "key": "page.sick_leave_certificate.err.file_read",
     "en": "Could not read file",
     "de": "Datei konnte nicht gelesen werden"
   },
   {
-    "key": "page.krankenbescheinigung.label.note",
+    "key": "page.sick_leave_certificate.label.note",
     "en": "Note",
     "de": "Bemerkung"
   },
   {
-    "key": "page.krankenbescheinigung.save",
+    "key": "page.sick_leave_certificate.save",
     "en": "Save",
     "de": "Speichern"
   },
   {
-    "key": "page.krankenbescheinigung.toast.required",
+    "key": "page.sick_leave_certificate.toast.required",
     "en": "Staff and document are required.",
-    "de": "Mitarbeiter und Dokument sind Pflicht."
+    "de": "Mitarbeiter und Document sind Pflicht."
   },
   {
     "key": "page.lan.host.config_section",
@@ -865,229 +865,229 @@
     "de": "6 · Produktivstart und Monitoring"
   },
   {
-    "key": "page.praxis_tickets.aufgabe_done",
+    "key": "page.practice_tickets.task_done",
     "en": "Complete",
     "de": "Erledigen"
   },
   {
-    "key": "page.praxis_tickets.aufgabe_return_reason",
+    "key": "page.practice_tickets.task_return_reason",
     "en": "Reason *",
     "de": "Begründung *"
   },
   {
-    "key": "page.praxis_tickets.aufgabe_validate",
+    "key": "page.practice_tickets.task_validate",
     "en": "Validate & close",
-    "de": "Validieren & schließen"
+    "de": "Validate & schließen"
   },
   {
-    "key": "page.praxis_tickets.drawer_creator",
+    "key": "page.practice_tickets.drawer_creator",
     "en": "Created by",
-    "de": "Erstellt von"
+    "de": "Erstellt from"
   },
   {
-    "key": "page.praxis_tickets.empty_title",
+    "key": "page.practice_tickets.empty_title",
     "en": "No open tasks",
     "de": "Keine offenen Aufgaben"
   },
   {
-    "key": "page.praxis_tickets.kommentare_empty",
+    "key": "page.practice_tickets.comments_empty",
     "en": "No messages yet — start the exchange.",
     "de": "Noch keine Nachrichten — starten Sie den Austausch."
   },
   {
-    "key": "page.praxis_tickets.loading",
+    "key": "page.practice_tickets.loading",
     "en": "Loading tasks…",
     "de": "Aufgaben werden geladen…"
   },
   {
-    "key": "page.praxis_tickets.subtitle_arzt",
+    "key": "page.practice_tickets.subtitle_physician",
     "en": "Assigned tasks and validations — refreshes every 5 seconds.",
     "de": "Zugewiesene Aufgaben und Validierungen — Aktualisierung alle 5 Sekunden."
   },
   {
-    "key": "page.praxis_tickets.title",
+    "key": "page.practice_tickets.title",
     "en": "Practice tasks",
-    "de": "Praxis-Aufgaben"
+    "de": "Practice-Aufgaben"
   },
   {
-    "key": "page.rezepte.create.add_line_btn",
+    "key": "page.prescriptions.create.add_line_btn",
     "en": "+ Add line to list",
     "de": "+ Zeile zur Liste"
   },
   {
-    "key": "page.rezepte.create.insert_btn",
+    "key": "page.prescriptions.create.insert_btn",
     "en": "Insert into list",
     "de": "In Liste einfügen"
   },
   {
-    "key": "page.rezepte.create.template_empty_title",
+    "key": "page.prescriptions.create.template_empty_title",
     "en": "Template without medications",
-    "de": "Vorlage ohne Medikamente"
+    "de": "Template ohne Medikamente"
   },
   {
-    "key": "page.rezepte.create.verwaltung_link",
+    "key": "page.prescriptions.create.administration_link",
     "en": "Administration → Templates",
-    "de": "Verwaltung → Vorlagen"
+    "de": "Administration → Vorlagen"
   },
   {
-    "key": "page.rezepte.field.packungsgroesse",
+    "key": "page.prescriptions.field.pack_size",
     "en": "Pack size",
     "de": "Packungsgröße"
   },
   {
-    "key": "page.sonder_sperrzeiten.emergency_reason",
+    "key": "page.special_blocked_times.emergency_reason",
     "en": "Kurzfristige Praxisschliessung",
     "de": "Kurzfristige Praxisschließung"
   },
   {
-    "key": "page.statistik.arbeitszeit.description",
+    "key": "page.statistics.workTime.description",
     "en": "Actual hours, break share, team utilization.",
     "de": "Ist-Stunden, Pausenanteil, Team-Auslastung."
   },
   {
-    "key": "page.statistik.arbeitszeit.pause_week",
+    "key": "page.statistics.workTime.pause_week",
     "en": "Breaks (week)",
     "de": "Pausen (Woche)"
   },
   {
-    "key": "page.tagesabschluss.bar_match_bad",
+    "key": "page.day_close.bar_match_bad",
     "en": "Variance / not weighted",
     "de": "Abweichung / nicht gewichtet"
   },
   {
-    "key": "page.tagesabschluss.col.bar_match",
+    "key": "page.day_close.col.bar_match",
     "en": "Cash match",
     "de": "Bar-Abgleich"
   },
   {
-    "key": "page.tagesabschluss.col.protokolliert",
+    "key": "page.day_close.col.protokolliert",
     "en": "Logged",
     "de": "Protokolliert"
   },
   {
-    "key": "page.tagesabschluss.detail.subtitle",
+    "key": "page.day_close.detail.subtitle",
     "en": "Logged {date} — saved figures for reconciliation.",
     "de": "Protokolliert {date} — gespeicherte Kennzahlen zum Abgleich."
   },
   {
-    "key": "page.tagesabschluss.field.counted",
+    "key": "page.day_close.field.counted",
     "en": "Counted (register)",
     "de": "Gezählt (Kasse)"
   },
   {
-    "key": "page.tagesabschluss.field.protokolliert",
+    "key": "page.day_close.field.protokolliert",
     "en": "Logged",
     "de": "Protokolliert"
   },
   {
-    "key": "page.tagesabschluss.form.cash_check_title",
+    "key": "page.day_close.form.cash_check_title",
     "en": "Cash verification for day payments",
     "de": "Kassenprüfung der Tageszahlungen"
   },
   {
-    "key": "page.tagesabschluss.form.counted_label",
+    "key": "page.day_close.form.counted_label",
     "en": "Counted cash amount (register) — EUR",
     "de": "Gezählter Bargeldbetrag (Kasse) — EUR"
   },
   {
-    "key": "page.tagesabschluss.form.deviation_more",
+    "key": "page.day_close.form.deviation_more",
     "en": "{amount} more in the register than in the system.",
     "de": "{amount} mehr in der Kasse als im System."
   },
   {
-    "key": "page.tagesabschluss.form.mark_all",
+    "key": "page.day_close.form.mark_all",
     "en": "Mark all {count} day payments cash-verified",
     "de": "Alle {count} Tageszahlungen kassengeprüft markieren"
   },
   {
-    "key": "page.tagesabschluss.form.pdf_option_desc",
-    "en": "Report PDF: collective document for the as-of date — services and amounts grouped per patient (PDF blocks labelled “Patient: …”). Not addressed as a personal invoice to one person, but as a day overview for accounting/reconciliation. Same print pipeline as Invoice (PDF) / FA-FIN-INVOICE.",
-    "de": "Berichts-PDF: Sammelbeleg zum Stichtag — Leistungen und Beträge gruppiert pro Patient (im PDF mit „Patient: …“ je Block). Das Dokument ist nicht als persönliche Rechnung an eine Einzelperson adressiert, sondern als Tagesübersicht für Buchhaltung/Abgleich. Gleiche Druck-Pipeline wie Rechnung (PDF) / FA-FIN-INVOICE."
+    "key": "page.day_close.form.pdf_option_desc",
+    "en": "Report PDF: collective document for the as-of date — services and amounts grouped per patient (PDF blocks labelled “Patient: …”). Not addressed as a staff invoice to one person, but as a day overview for accounting/reconciliation. Same print pipeline as Invoice (PDF) / FA-FIN-INVOICE.",
+    "de": "Berichts-PDF: Sammelbeleg zum AsOfDate — Services und Beträge gruppiert pro Patient (im PDF mit „Patient: …“ je Block). Das Document ist nicht als persönliche Invoice an eine Einzelperson adressiert, sondern als Tagesübersicht für Buchhaltung/Abgleich. Gleiche Druck-Pipeline wie Invoice (PDF) / FA-FIN-INVOICE."
   },
   {
-    "key": "page.tagesabschluss.form.submit",
+    "key": "page.day_close.form.submit",
     "en": "Log daily close",
-    "de": "Tagesabschluss protokollieren"
+    "de": "DayClose protokollieren"
   },
   {
-    "key": "page.tagesabschluss.new_subtitle",
+    "key": "page.day_close.new_subtitle",
     "en": "Pick as-of date, reconcile cash, set cash verification, log — same pattern as other admin list/detail panels.",
-    "de": "Stichtag wählen, Kasse abgleichen, Kassenprüfung setzen, protokollieren — wie bei anderen Verwaltungslisten im rechten Panel."
+    "de": "AsOfDate wählen, Kasse abgleichen, Kassenprüfung setzen, protokollieren — wie bei anderen Verwaltungslisten im rechten Panel."
   },
   {
-    "key": "page.tagesabschluss.no_selection.desc",
+    "key": "page.day_close.no_selection.desc",
     "en": "Select a logged day in the list or start a new daily close.",
-    "de": "Wählen Sie einen protokollierten Tag in der Liste oder starten Sie einen neuen Tagesabschluss."
+    "de": "Wählen Sie einen protokollierten Tag in der Liste oder starten Sie einen neuen DayClose."
   },
   {
-    "key": "page.tagesabschluss.print",
+    "key": "page.day_close.print",
     "en": "Print",
     "de": "Drucken"
   },
   {
-    "key": "page.tagesabschluss.subtitle_part1",
+    "key": "page.day_close.subtitle_part1",
     "en": "Part of",
-    "de": "Teil von"
+    "de": "Teil from"
   },
   {
-    "key": "page.tagesabschluss.toast.pdf_fail",
+    "key": "page.day_close.toast.pdf_fail",
     "en": "Daily report (PDF) failed: {message}",
-    "de": "Tagesbericht (PDF) fehlgeschlagen: {message}"
+    "de": "DailyReport (PDF) fehlgeschlagen: {message}"
   },
   {
-    "key": "page.tagesabschluss.write_hint",
+    "key": "page.day_close.write_hint",
     "en": "Logging requires finance write permission.",
-    "de": "Nur mit Berechtigung Finanzen (Schreiben): neu protokollieren."
+    "de": "Nur mit Berechtigung Finance (Schreiben): new protokollieren."
   },
   {
-    "key": "page.vorlagen.col.title",
+    "key": "page.templates.col.title",
     "en": "Title",
     "de": "Titel"
   },
   {
-    "key": "page.vorlagen.detail.attest",
+    "key": "page.templates.detail.certificate",
     "en": "Certificate template",
-    "de": "Attest-Vorlage"
+    "de": "Certificate-Template"
   },
   {
-    "key": "page.vorlagen.editor.edit_rezept",
+    "key": "page.templates.editor.edit_prescription",
     "en": "Edit prescription template",
-    "de": "Rezept-Vorlage bearbeiten"
+    "de": "Prescription-Template bearbeiten"
   },
   {
-    "key": "page.vorlagen.empty.desc",
+    "key": "page.templates.empty.desc",
     "en": "Create one using the buttons above (opens the editor on the right on this page).",
     "de": "Legen Sie eine über die Buttons oben an (öffnet den Editor rechts auf dieser Seite)."
   },
   {
-    "key": "page.vorlagen.new_rezept",
+    "key": "page.templates.new_prescription",
     "en": "Configure prescriptions",
-    "de": "Rezept einstellen"
+    "de": "Prescription einstellen"
   },
   {
-    "key": "page.vorlagen.toast.deleted",
+    "key": "page.templates.toast.deleted",
     "en": "Template deleted",
-    "de": "Vorlage gelöscht"
+    "de": "Template gelöscht"
   },
   {
-    "key": "palette.cmd.atteste",
+    "key": "palette.cmd.certificates",
     "en": "Certificates",
-    "de": "Atteste"
+    "de": "Certificates"
   },
   {
-    "key": "palette.cmd.bilanz",
+    "key": "palette.cmd.balance-sheet",
     "en": "Balance sheet",
-    "de": "Bilanz"
+    "de": "BalanceSheet"
   },
   {
-    "key": "palette.cmd.einstellungen",
+    "key": "palette.cmd.settings",
     "en": "Settings",
-    "de": "Einstellungen"
+    "de": "Settings"
   },
   {
-    "key": "palette.cmd.finanzen-neu",
+    "key": "palette.cmd.finance-new",
     "en": "New payment",
-    "de": "Neue Zahlung"
+    "de": "Neue Payment"
   },
   {
     "key": "palette.cmd.logs",
@@ -1095,39 +1095,39 @@
     "de": "System-Logs"
   },
   {
-    "key": "palette.cmd.patienten-neu",
+    "key": "palette.cmd.patients-new",
     "en": "New patient",
     "de": "Neuer Patient"
   },
   {
-    "key": "palette.cmd.personal-neu",
+    "key": "palette.cmd.staff-new",
     "en": "New staff member",
-    "de": "Neues Personal"
+    "de": "Neues Staff"
   },
   {
-    "key": "palette.cmd.statistik",
+    "key": "palette.cmd.statistics",
     "en": "Statistics",
     "de": "Statistiken"
   },
   {
-    "key": "palette.cmd.verwaltung-arbeitstage",
+    "key": "palette.cmd.administration-workDays",
     "en": "Work days & leave",
-    "de": "Arbeitstage & Urlaub"
+    "de": "WorkDays & Urlaub"
   },
   {
-    "key": "palette.cmd.verwaltung-finanz-werkzeuge",
+    "key": "palette.cmd.administration-finance-tools",
     "en": "Invoice (PDF) (finance & reports)",
-    "de": "Rechnung (PDF) (Finanzen & Berichte)"
+    "de": "Invoice (PDF) (Finance & Berichte)"
   },
   {
-    "key": "palette.cmd.verwaltung-praeferenzen",
+    "key": "palette.cmd.administration-preferences",
     "en": "Practice preferences",
-    "de": "Praxis-Präferenzen"
+    "de": "Practice-Präferenzen"
   },
   {
-    "key": "palette.cmd.verwaltung-team-arbeitszeit",
+    "key": "palette.cmd.administration-team-workTime",
     "en": "Team work time (admin)",
-    "de": "Team-Arbeitszeit (Verwaltung)"
+    "de": "Team-WorkTime (Administration)"
   },
   {
     "key": "palette.hint",
@@ -1147,7 +1147,7 @@
   {
     "key": "patient.detail.back_patients",
     "en": "Patients",
-    "de": "Patienten"
+    "de": "Patients"
   },
   {
     "key": "patient.detail.tab.anam.field.drug_allergies",
@@ -1160,22 +1160,22 @@
     "de": "Keine strukturierte Vorschau — bitte Erfassung speichern."
   },
   {
-    "key": "patient.detail.tab.behand.billing_released",
+    "key": "patient.detail.tab.treatment.billing_released",
     "en": "Released",
     "de": "Freigegeben"
   },
   {
-    "key": "patient.detail.tab.behand.col.date",
+    "key": "patient.detail.tab.treatment.col.date",
     "en": "Date",
     "de": "Datum"
   },
   {
-    "key": "patient.detail.tab.behand.col.tooth",
+    "key": "patient.detail.tab.treatment.col.tooth",
     "en": "Tooth no.",
     "de": "Zahnnummer"
   },
   {
-    "key": "patient.detail.tab.behand.session_nr",
+    "key": "patient.detail.tab.treatment.session_nr",
     "en": "No. {number}",
     "de": "Nr. {number}"
   },
@@ -1192,7 +1192,7 @@
   {
     "key": "patient.detail.tab.unter.edit_aria",
     "en": "Edit examination",
-    "de": "Untersuchung bearbeiten"
+    "de": "Examination bearbeiten"
   },
   {
     "key": "patient.detail.tab.unter.edit_unlock_hint",
@@ -1212,7 +1212,7 @@
   {
     "key": "patient.detail.tab.unter.new_subtitle",
     "en": "Planned number: {number} — structured entry, appears in this record's history.",
-    "de": "Vorgesehene Nummer: {number} — strukturierte Erfassung, erscheint im Verlauf dieser Akte."
+    "de": "Vorgesehene Nummer: {number} — strukturierte Erfassung, erscheint im Verlauf dieser Chart."
   },
   {
     "key": "patient.detail.tab.unter.periodontal",
@@ -1220,89 +1220,89 @@
     "de": "Parodontal"
   },
   {
-    "key": "patient.detail.tab.zahl.amount_label",
+    "key": "patient.detail.tab.payment.amount_label",
     "en": "Amount (€) *",
     "de": "Betrag (€) *"
   },
   {
-    "key": "patient.detail.tab.zahl.behand_ref_short",
+    "key": "patient.detail.tab.payment.treatment_ref_short",
     "en": "Treatment",
-    "de": "Behandlung"
+    "de": "Treatment"
   },
   {
-    "key": "patient.detail.tab.zahl.col.action",
+    "key": "patient.detail.tab.payment.col.action",
     "en": "Action",
     "de": "Aktion"
   },
   {
-    "key": "patient.detail.tab.zahl.col.last_booking",
+    "key": "patient.detail.tab.payment.col.last_booking",
     "en": "Last booking",
     "de": "Letzte Buchung"
   },
   {
-    "key": "patient.detail.tab.zahl.col.should",
+    "key": "patient.detail.tab.payment.col.should",
     "en": "Due",
     "de": "Soll"
   },
   {
-    "key": "patient.detail.tab.zahl.cost_open_now",
+    "key": "patient.detail.tab.payment.cost_open_now",
     "en": "Open now",
     "de": "Offen jetzt"
   },
   {
-    "key": "patient.detail.tab.zahl.delete_message_generic",
+    "key": "patient.detail.tab.payment.delete_message_generic",
     "en": "Only pending or partially paid payments can be deleted. Continue?",
-    "de": "Nur ausstehende oder teilbezahlte Zahlungen können gelöscht werden. Fortfahren?"
+    "de": "Nur ausstehende oder teilbezahlte Payments können gelöscht werden. Fortfahren?"
   },
   {
-    "key": "patient.detail.tab.zahl.edit_title",
+    "key": "patient.detail.tab.payment.edit_title",
     "en": "Edit payment",
-    "de": "Zahlung bearbeiten"
+    "de": "Payment bearbeiten"
   },
   {
-    "key": "patient.detail.tab.zahl.history_empty_unter",
+    "key": "patient.detail.tab.payment.history_empty_unter",
     "en": "No payment for this examination yet.",
-    "de": "Noch keine Zahlung zu dieser Untersuchung."
+    "de": "Noch keine Payment to dieser Examination."
   },
   {
-    "key": "patient.detail.tab.zahl.max_hint_edit",
+    "key": "patient.detail.tab.payment.max_hint_edit",
     "en": "At most {amount} for this booking (costs minus other payments for the same treatment).",
-    "de": "Höchstens {amount} für diese Buchung (Kosten minus andere Zahlungen derselben Behandlung)."
+    "de": "Höchstens {amount} für diese Buchung (Kosten minus andere Payments derselben Treatment)."
   },
   {
-    "key": "patient.detail.tab.zahl.new_no_open",
+    "key": "patient.detail.tab.payment.new_no_open",
     "en": "No open assignment: all treatment balances are settled or clinical entries are missing. Use \"History\" to see past bookings.",
     "de": "Keine offene Zuordnung: alle Behandlungssollen sind ausgeglichen oder es fehlen klinische Einträge. Über „Historie“ sehen Sie vergangene Buchungen."
   },
   {
-    "key": "patient.detail.tab.zahl.no_summaries",
+    "key": "patient.detail.tab.payment.no_summaries",
     "en": "No summarizable assignments available.",
     "de": "Keine zusammenfassbaren Zuordnungen vorhanden."
   },
   {
-    "key": "patient.detail.tab.zahl.payment_amount_label",
+    "key": "patient.detail.tab.payment.payment_amount_label",
     "en": "Payment amount (€) *",
     "de": "Zahlbetrag (€) *"
   },
   {
-    "key": "patient.detail.tab.zahl.subtitle_empty",
+    "key": "patient.detail.tab.payment.subtitle_empty",
     "en": "No payments yet — a new open billing row is created with each new treatment or examination.",
-    "de": "Noch keine Zahlungen — bei neuer Behandlung oder Untersuchung wird eine offene Abrechnungszeile angelegt."
+    "de": "Noch keine Payments — bei neuer Treatment oder Examination wird eine offene Abrechnungszeile angelegt."
   },
   {
-    "key": "patient.detail.tab.zahl.unter_no_target",
+    "key": "patient.detail.tab.payment.unter_no_target",
     "en": "Examination (no target costs)",
-    "de": "Untersuchung (ohne Sollkosten)"
+    "de": "Examination (ohne Sollkosten)"
   },
   {
-    "key": "patient.detail.tab.zahl.unter_target_hint",
+    "key": "patient.detail.tab.payment.unter_target_hint",
     "en": "Individual bookings are tracked without a remaining balance against a due amount; the history shows all payments for this examination.",
-    "de": "Einzelbuchungen werden ohne Restbetrag gegen ein Soll geführt; der Verlauf zeigt alle Zahlungen zu dieser Untersuchung."
+    "de": "Einzelbuchungen werden ohne Restbetrag gegen ein Soll geführt; der Verlauf zeigt alle Payments to dieser Examination."
   },
   {
     "key": "patient.empty.description",
     "en": "Create the first patient.",
-    "de": "Legen Sie den ersten Patienten an."
+    "de": "Legen Sie den ersten Patients an."
   },
   {
     "key": "patient.export.description",
@@ -1315,19 +1315,19 @@
     "de": "Patientenliste exportieren (Format und Speicherort im Dialog)."
   },
   {
-    "key": "patient.filter.AKTE_OFFEN",
+    "key": "patient.filter.CHART_OPEN",
     "en": "Record open",
-    "de": "Akte offen"
+    "de": "Chart offen"
   },
   {
-    "key": "patient.filter.RECHNUNG_OFFEN",
+    "key": "patient.filter.INVOICE_OPEN",
     "en": "Invoice open",
-    "de": "Rechnung offen"
+    "de": "Invoice offen"
   },
   {
     "key": "patient.loading",
     "en": "Loading patients…",
-    "de": "Patienten werden geladen…"
+    "de": "Patients werden geladen…"
   },
   {
     "key": "patient.menu.delete",
@@ -1340,9 +1340,9 @@
     "de": "Rezeptansicht"
   },
   {
-    "key": "patient.pill.in_behandlung",
+    "key": "patient.pill.in_treatment",
     "en": "In treatment",
-    "de": "In Behandlung"
+    "de": "In Treatment"
   },
   {
     "key": "patient.search.clear",
@@ -1397,12 +1397,12 @@
   {
     "key": "settings.device_sessions.count_active",
     "en": "{count} active",
-    "de": "{count} aktiv"
+    "de": "{count} active"
   },
   {
     "key": "settings.device_sessions.dialog.last_active",
     "en": "Last active",
-    "de": "Zuletzt aktiv"
+    "de": "Zuletzt active"
   },
   {
     "key": "settings.device_sessions.dialog.title",
@@ -1427,7 +1427,7 @@
   {
     "key": "settings.device_sessions.toast.investigate_error",
     "en": "Investigation: {message}",
-    "de": "Untersuchung: {message}"
+    "de": "Examination: {message}"
   },
   {
     "key": "settings.device_sessions.toast.trust_error",
@@ -1472,7 +1472,7 @@
   {
     "key": "settings.license.cleared",
     "en": "License removed",
-    "de": "Lizenz entfernt"
+    "de": "License entfernt"
   },
   {
     "key": "settings.license.plan_label",
@@ -1497,7 +1497,7 @@
   {
     "key": "settings.notifications.title",
     "en": "Notifications",
-    "de": "Benachrichtigungen"
+    "de": "Notifications"
   },
   {
     "key": "settings.password.current",
@@ -1507,45 +1507,45 @@
   {
     "key": "settings.praef.saved",
     "en": "Appointment preferences saved (practice-wide in database)",
-    "de": "Termin-Präferenzen gespeichert (Praxis-weit in der Datenbank)"
+    "de": "Appointment-Präferenzen gespeichert (Practice-weit in der Datenbank)"
   },
   {
-    "key": "settings.praxis.billing_account_holder",
+    "key": "settings.practice.billing_account_holder",
     "en": "Account holder (if different)",
     "de": "Kontoinhaber (falls abweichend)"
   },
   {
-    "key": "settings.praxis.billing_behandler_placeholder",
+    "key": "settings.practice.billing_clinician_placeholder",
     "en": "Dr. Jane Doe",
     "de": "Dr. Max Mustermann"
   },
   {
-    "key": "settings.praxis.billing_chamber_section",
+    "key": "settings.practice.billing_chamber_section",
     "en": "Professional body",
     "de": "Standesrecht"
   },
   {
-    "key": "settings.praxis.billing_hint",
+    "key": "settings.practice.billing_hint",
     "en": "Clinician, registration, bank, professional law — for invoices & prescriptions",
-    "de": "Behandler, Zulassung, Bank, Standesrecht — für Rechnungen & Rezepte"
+    "de": "Clinician, Zulassung, Bank, Standesrecht — für Rechnungen & Prescriptions"
   },
   {
-    "key": "settings.praxis.billing_lanr",
+    "key": "settings.practice.billing_lanr",
     "en": "LANR (if different)",
     "de": "LANR (falls abweichend)"
   },
   {
-    "key": "settings.praxis.billing_vat_exempt",
+    "key": "settings.practice.billing_vat_exempt",
     "en": "VAT exemption note",
     "de": "USt-Befreiungshinweis"
   },
   {
-    "key": "settings.praxis.contact_web_tax_hint",
+    "key": "settings.practice.contact_web_tax_hint",
     "en": "Phone, email, VAT ID … for PDF header",
     "de": "Telefon, E-Mail, USt-IdNr. … für PDF-Kopf"
   },
   {
-    "key": "settings.praxis.name_label",
+    "key": "settings.practice.name_label",
     "en": "Practice name",
     "de": "Praxisname"
   },
@@ -1592,7 +1592,7 @@
   {
     "key": "settings.workflows.default_calendar_view",
     "en": "Default calendar view for Appointments",
-    "de": "Standard-Kalenderansicht für „Termine“"
+    "de": "Standard-Kalenderansicht für „Appointments“"
   },
   {
     "key": "settings.workflows.search_insurance_aria",
@@ -1602,195 +1602,195 @@
   {
     "key": "settings.workflows.subtitle_user",
     "en": "Appointments, end-of-day reminder, patient search",
-    "de": "Termine, Tagesabschluss-Erinnerung, Patientensuche"
+    "de": "Appointments, DayClose-Erinnerung, Patientensuche"
   },
   {
-    "key": "termin.art.BERATUNG",
+    "key": "appointment.kind.CONSULTATION",
     "en": "Consultation",
     "de": "Beratung"
   },
   {
-    "key": "termin.art.UNTERSUCHUNG",
+    "key": "appointment.kind.EXAMINATION",
     "en": "Examination",
-    "de": "Untersuchung"
+    "de": "Examination"
   },
   {
-    "key": "termin.calendar.day_subtitle",
+    "key": "appointment.calendar.day_subtitle",
     "en": "{planned} appointments · {confirmed} confirmed",
-    "de": "{planned} Termine · {confirmed} bestätigt"
+    "de": "{planned} Appointments · {confirmed} bestätigt"
   },
   {
-    "key": "termin.calendar.load.high",
+    "key": "appointment.calendar.load.high",
     "en": "high",
     "de": "hoch"
   },
   {
-    "key": "termin.calendar.month_prev",
+    "key": "appointment.calendar.month_prev",
     "en": "Previous month",
     "de": "Vorheriger Monat"
   },
   {
-    "key": "termin.calendar.no_appointments_day",
+    "key": "appointment.calendar.no_appointments_day",
     "en": "No appointments",
-    "de": "Keine Termine"
+    "de": "Keine Appointments"
   },
   {
-    "key": "termin.calendar.utilization",
+    "key": "appointment.calendar.utilization",
     "en": "Utilization",
     "de": "Auslastung"
   },
   {
-    "key": "termin.calendar.weekday.sun",
+    "key": "appointment.calendar.weekday.sun",
     "en": "SUN",
     "de": "SO"
   },
   {
-    "key": "termin.create.art.BEHANDLUNG",
+    "key": "appointment.create.kind.TREATMENT",
     "en": "Filling therapy / treatment",
-    "de": "Füllungstherapie / Behandlung"
+    "de": "Füllungstherapie / Treatment"
   },
   {
-    "key": "termin.create.art.UNTERSUCHUNG",
+    "key": "appointment.create.kind.EXAMINATION",
     "en": "Periodontology / examination",
-    "de": "Parodontologie / Untersuchung"
+    "de": "Periodontology / Examination"
   },
   {
-    "key": "termin.create.beschwerden.EMPFINDLICHKEIT",
+    "key": "appointment.create.chief_complaint.EMPFINDLICHKEIT",
     "en": "Sensitivity",
     "de": "Empfindlichkeit"
   },
   {
-    "key": "termin.create.beschwerden.ZAHNSCHMERZEN",
+    "key": "appointment.create.chief_complaint.ZAHNSCHMERZEN",
     "en": "Toothache",
     "de": "Zahnschmerzen"
   },
   {
-    "key": "termin.create.card_new",
+    "key": "appointment.create.card_new",
     "en": "Plan appointment",
-    "de": "Termin planen"
+    "de": "Appointment planen"
   },
   {
-    "key": "termin.create.doctor",
+    "key": "appointment.create.doctor",
     "en": "Clinician",
-    "de": "Behandler (Arzt)"
+    "de": "Clinician (Physician)"
   },
   {
-    "key": "termin.create.error_patient",
+    "key": "appointment.create.error_patient",
     "en": "Please select a patient.",
-    "de": "Bitte einen Patienten auswählen."
+    "de": "Bitte einen Patients auswählen."
   },
   {
-    "key": "termin.create.hint_plan_to_notes",
+    "key": "appointment.create.hint_plan_to_notes",
     "en": "To notes",
     "de": "In Notizen"
   },
   {
-    "key": "termin.create.patient_new",
+    "key": "appointment.create.patient_new",
     "en": "New patient",
     "de": "Neuer Patient"
   },
   {
-    "key": "termin.create.patient_search_records_more",
+    "key": "appointment.create.patient_search_records_more",
     "en": "Search records...",
     "de": "In Akten suchen..."
   },
   {
-    "key": "termin.create.save_changes",
+    "key": "appointment.create.save_changes",
     "en": "Save changes",
     "de": "Änderungen speichern"
   },
   {
-    "key": "termin.create.time_hint",
+    "key": "appointment.create.time_hint",
     "en": "Greyed-out times are blocked by existing appointments or practice planning (leave, half days, emergency closure).",
-    "de": "Ausgegraute Zeiten sind durch bestehende Termine oder Praxisplanung (Urlaub, halbe Tage, Notfall-Schließung) gesperrt."
+    "de": "Ausgegraute Zeiten sind durch bestehende Appointments oder PracticePlanning (Urlaub, halbe Tage, Notfall-Schließung) gesperrt."
   },
   {
-    "key": "termin.create.toast_conflict_alts",
+    "key": "appointment.create.toast_conflict_alts",
     "en": "Scheduling conflict. Free alternatives: {alts}",
     "de": "Terminkonflikt. Freie Alternativen: {alts}"
   },
   {
-    "key": "termin.drawer.appointment",
+    "key": "appointment.drawer.appointment",
     "en": "Appointment",
-    "de": "Termin"
+    "de": "Appointment"
   },
   {
-    "key": "termin.drawer.confirm",
+    "key": "appointment.drawer.confirm",
     "en": "Confirm",
     "de": "Bestätigen"
   },
   {
-    "key": "termin.drawer.edit",
+    "key": "appointment.drawer.edit",
     "en": "Edit",
     "de": "Bearbeiten"
   },
   {
-    "key": "termin.drawer.provider",
+    "key": "appointment.drawer.provider",
     "en": "Clinician",
-    "de": "Behandler"
+    "de": "Clinician"
   },
   {
-    "key": "termin.drawer.workflow.active",
+    "key": "appointment.drawer.workflow.active",
     "en": "Active",
     "de": "Aktiv"
   },
   {
-    "key": "termin.keyboard.hint",
+    "key": "appointment.keyboard.hint",
     "en": "D day · W week · M month · H today · N/P month ± · Ctrl+← back",
     "de": "D Tag · W Woche · M Monat · H Heute · N/P Monat ± · Strg+← zurück"
   },
   {
-    "key": "termine.filter.clear_all",
+    "key": "appointments.filter.clear_all",
     "en": "Remove all",
     "de": "Alle entfernen"
   },
   {
-    "key": "termine.filter.treatment_type",
+    "key": "appointments.filter.treatment_type",
     "en": "Treatment type",
     "de": "Behandlungsart"
   },
   {
-    "key": "termine.page.delete_title",
+    "key": "appointments.page.delete_title",
     "en": "Delete appointment",
-    "de": "Termin löschen"
+    "de": "Appointment löschen"
   },
   {
-    "key": "termine.page.empty_no_match",
+    "key": "appointments.page.empty_no_match",
     "en": "No matches for these filters",
     "de": "Keine Treffer für diese Filter"
   },
   {
-    "key": "termine.page.heute",
+    "key": "appointments.page.heute",
     "en": "Today {count}",
     "de": "Heute {count}"
   },
   {
-    "key": "termine.page.nav_forward",
+    "key": "appointments.page.nav_forward",
     "en": "Forward",
     "de": "Vor"
   },
   {
-    "key": "termine.page.planned_count",
+    "key": "appointments.page.planned_count",
     "en": "{count} appointments planned",
-    "de": "{count} Termine geplant"
+    "de": "{count} Appointments planned"
   },
   {
-    "key": "termine.page.search_clear",
+    "key": "appointments.page.search_clear",
     "en": "Clear search",
     "de": "Suche leeren"
   },
   {
-    "key": "termine.page.toast_moved_many",
+    "key": "appointments.page.toast_moved_many",
     "en": "{count} appointments adjusted (no overlap)",
-    "de": "{count} Termine angepasst (ohne Überschneidung)"
+    "de": "{count} Appointments angepasst (ohne Überschneidung)"
   },
   {
-    "key": "termine.page.toast_today",
+    "key": "appointments.page.toast_today",
     "en": "Today (day view).",
     "de": "Heute (Tagesansicht)."
   },
   {
-    "key": "termine.page.view.week",
+    "key": "appointments.page.view.week",
     "en": "Week",
     "de": "Woche"
   },
@@ -1800,12 +1800,12 @@
     "de": "Hersteller-Portal nicht konfiguriert — Rechnungen ggf. im klassischen Abo-Portal."
   },
   {
-    "key": "verwaltung.toc.col_section",
+    "key": "administration.toc.col_section",
     "en": "Section",
     "de": "Bereich"
   },
   {
-    "key": "zahlung.create.history_col_date",
+    "key": "payment.create.history_col_date",
     "en": "Date",
     "de": "Datum"
   }

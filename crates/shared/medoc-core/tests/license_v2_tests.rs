@@ -37,13 +37,13 @@ fn sign_inner(body_json: &str) -> String {
 fn build_v2_body(device_id: &str) -> String {
     let lic = LicenseV2 {
         version: 2,
-        customer_id: "praxis-test-001".into(),
+        customer_id: "practice-test-001".into(),
         edition: "PRO".into(),
         device_id: device_id.into(),
         activated_at: Utc.with_ymd_and_hms(2026, 5, 26, 10, 0, 0).unwrap(),
         max_users: 5,
         modules: vec!["dicom".into()],
-        edition_features: vec!["statistik.advanced".into()],
+        edition_features: vec!["statistics.advanced".into()],
     };
     serde_json::to_string(&lic).unwrap()
 }
@@ -60,7 +60,7 @@ fn v2_full_roundtrip_matches_device() {
     assert!(status.valid, "expected valid, got: {:?}", status.reason);
     let v2 = status.license_v2.expect("v2 payload present");
     assert_eq!(v2.device_id, device_id);
-    assert_eq!(v2.customer_id, "praxis-test-001");
+    assert_eq!(v2.customer_id, "practice-test-001");
     assert_eq!(v2.edition, "PRO");
     assert_eq!(status.format.as_deref(), Some("v2"));
 }

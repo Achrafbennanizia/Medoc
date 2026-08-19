@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useT, useTParams } from "@/lib/i18n";
-import type { Zahnbefund } from "@/models/types";
+import type { DentalFinding } from "@/models/types";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
@@ -8,13 +8,13 @@ import {
     DENTAL_TOOTH_SHAPES,
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
-    befundToStatusKey,
+    findingToStatusKey,
     dentalToothType,
     sortFdiTeeth,
 } from "@/lib/dental";
 
 type DentalToothPickerMiniProps = {
-    befunde: Zahnbefund[];
+    findings: DentalFinding[];
     /** Selected FDI numbers (e.g. `["14","16"]`). */
     selectedTeeth: string[];
     /** Toggle selection for one tooth (multi-select). */
@@ -24,11 +24,11 @@ type DentalToothPickerMiniProps = {
 };
 
 /**
- * Compact FDI tooth chart for forms (e.g. Termin „Zahnschmerzen“).
+ * Compact FDI tooth chart for forms (e.g. appointment toothache).
  * Smaller than full {@link DentalChart}; no nested cards.
  */
 export function DentalToothPickerMini({
-    befunde,
+    findings,
     selectedTeeth,
     onToggleTooth,
     hint,
@@ -37,9 +37,9 @@ export function DentalToothPickerMini({
     const tp = useTParams();
     const map = useMemo(() => {
         const m = new Map<number, string>();
-        befunde.forEach((b) => m.set(b.zahn_nummer, b.befund));
+        findings.forEach((b) => m.set(b.tooth_number, b.finding));
         return m;
-    }, [befunde]);
+    }, [findings]);
 
     const selectedSet = useMemo(() => new Set(selectedTeeth), [selectedTeeth]);
     const pickedLabel = useMemo(() => sortFdiTeeth(selectedTeeth), [selectedTeeth]);
@@ -47,7 +47,7 @@ export function DentalToothPickerMini({
     const renderTooth = (n: string) => {
         const type = dentalToothType(n);
         const shape = DENTAL_TOOTH_SHAPES[type];
-        const stateKey = befundToStatusKey(map.get(Number(n)));
+        const stateKey = findingToStatusKey(map.get(Number(n)));
         const state = DENTAL_STATES[stateKey];
         const isSel = selectedSet.has(n);
         return (

@@ -108,7 +108,7 @@ async fn fetch_latest_json(repo: &str, token: Option<&str>) -> Result<LatestJson
         .map_err(|e| AppError::Internal(format!("Invalid release metadata: {e}")))?;
     let assets = meta
         .get("assets")
-        .and_then(|v| v.as_array())
+        .and_then(|version| version.as_array())
         .ok_or_else(|| AppError::Internal("Release has no assets".into()))?;
     let asset = assets
         .iter()

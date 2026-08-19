@@ -1,26 +1,26 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
-import type { FeedbackKategorie, FeedbackStatus } from "@/models/types";
+import type { FeedbackCategory, FeedbackStatus } from "@/models/types";
 import { CreateFeedbackSchema, parseOrThrow } from "@/lib/schemas";
 
-export type { FeedbackKategorie, FeedbackStatus };
+export type { FeedbackCategory, FeedbackStatus };
 
 export interface FeedbackEntry {
     id: string;
     user_id: string;
-    kategorie: FeedbackKategorie;
-    betreff: string;
-    nachricht: string;
-    referenz: string | null;
+    category: FeedbackCategory;
+    subject: string;
+    message: string;
+    reference: string | null;
     status: FeedbackStatus;
     created_at: string;
     updated_at: string;
 }
 
 export interface CreateFeedback {
-    kategorie: FeedbackKategorie;
-    betreff: string;
-    nachricht: string;
-    referenz?: string | null;
+    category: FeedbackCategory;
+    subject: string;
+    message: string;
+    reference?: string | null;
 }
 
 export const submitFeedback = (data: CreateFeedback) => {

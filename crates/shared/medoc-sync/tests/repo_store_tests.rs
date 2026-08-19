@@ -36,9 +36,9 @@ async fn enable_serverless(pool: &SqlitePool, label: &str) {
 #[tokio::test]
 async fn synced_tables_includes_tier1_entities() {
     for table in [
-        "rezept",
-        "praxis_ticket",
-        "anamnesebogen",
+        "prescription",
+        "practice_ticket",
+        "anamnesis_form",
         "in_app_notification",
     ] {
         assert!(SYNCED_TABLES.contains(&table), "{table}");
@@ -62,7 +62,7 @@ async fn sync_record_or_noop_skips_practice_desktop_mode() {
 async fn sync_record_or_noop_skips_non_allowlisted_table() {
     let pool = fresh_pool().await;
     enable_serverless(&pool, "hook-tester").await;
-    sync_record_or_noop(&pool, "personal", "u-1", "INSERT", "{}")
+    sync_record_or_noop(&pool, "staff", "u-1", "INSERT", "{}")
         .await
         .expect("noop");
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sync_outbox")
@@ -224,10 +224,10 @@ async fn status_snapshot_reports_pending_outbox() {
     enable_serverless(&pool, "status-replica").await;
     sync_record_or_noop(
         &pool,
-        "praxis_ticket",
+        "practice_ticket",
         "tkt-1",
         "INSERT",
-        r#"{"id":"tkt-1","patient_id":"p","from_user_id":"u","to_arzt_id":"a","body":"hi","status":"OFFEN","created_at":"2026-06-06T12:00:00Z","updated_at":"2026-06-06T12:00:00Z"}"#,
+        r#"{"id":"tkt-1","patient_id":"p","from_user_id":"u","to_physician_id":"a","body":"hi","status":"OPEN","created_at":"2026-06-06T12:00:00Z","updated_at":"2026-06-06T12:00:00Z"}"#,
     )
     .await
     .expect("record");

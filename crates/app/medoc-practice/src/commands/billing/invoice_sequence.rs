@@ -13,7 +13,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::log_system;
 
-const KV_KEY: &str = "finanzen.document_counters.v1";
+const KV_KEY: &str = "finance.document_counters.v1";
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct CountersV1 {
@@ -48,7 +48,7 @@ fn compact_day(day_yyyy_mm_dd: &str) -> String {
 }
 
 /// Allocate the next RE / BR / QU number for calendar day `ymd` (yyyy-MM-dd).
-/// Persisted in `app_kv` under `finanzen.document_counters.v1`.
+/// Persisted in `app_kv` under `finance.document_counters.v1`.
 /// Uses a dedicated `acquire()` + single `BEGIN IMMEDIATE` (not `pool.begin()` + nested BEGIN).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -59,7 +59,7 @@ pub async fn allocate_invoice_document_number(
     ymd: String,
 ) -> Result<String, AppError> {
     rbac::require_authenticated(&session_state)?;
-    rbac::require(&session_state, "finanzen.write")?;
+    rbac::require(&session_state, "finance.write")?;
 
     let day_key = normalize_ymd(&ymd)?;
     let k = kind.to_uppercase();
@@ -80,7 +80,7 @@ pub async fn allocate_invoice_document_number(
             .await?;
 
         let mut doc: CountersV1 = raw
-            .and_then(|(v,)| serde_json::from_str(&v).ok())
+            .and_then(|(version,)| serde_json::from_str(&version).ok())
             .unwrap_or_default();
         doc.version = 1;
 

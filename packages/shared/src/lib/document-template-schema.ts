@@ -1,7 +1,7 @@
 /**
  * Typed document template structure (v1) — edited in UI, persisted as JSON, consumed by Rust PDF (no raw HTML).
  */
-export type PraxisFieldKey =
+export type PracticeFieldKey =
     | "name"
     | "address"
     | "phone"
@@ -11,73 +11,73 @@ export type PraxisFieldKey =
     | "kv"
     | "tax"
     | "hours"
-    | "behandler"
+    | "clinician"
     | "zanr"
     | "bsnr"
     | "bank"
     | "kammer"
     | "kzv"
-    | "zahlungsziel"
-    | "ust_hinweis"
-    | "notfall_tel";
+    | "payment_terms"
+    | "vat_notice"
+    | "emergency_phone";
 
 export type TextAlignment = "left" | "center" | "right";
 
 export type ExportTableColumnId =
     | "pos"
-    | "datum"
-    | "leistung"
+    | "date"
+    | "service_item"
     | "bNr"
-    | "menge"
-    | "einzelpreis"
-    | "gesamt"
-    | "ust";
+    | "quantity"
+    | "unit_price"
+    | "total"
+    | "vat";
 
-export type SignaturArt = "arzt" | "stempel" | "both";
+export type SignatureKind = "physician" | "stamp" | "both";
 
-export type SchriftartId = "Helvetica" | "Times" | "Arial";
+export type TemplateFontId = "Helvetica" | "Times" | "Arial";
 
-export type DichteId = "kompakt" | "normal" | "weit";
+export type TemplateDensityId = "compact" | "normal" | "spacious";
 
-export type DatumsformatId = "de" | "iso";
+export type DateFormatId = "de" | "iso";
 
 export interface DocumentTemplatePayloadV1 {
     version: 1;
-    kopf: {
+    header: {
         showLogo: boolean;
-        fieldsToShow: PraxisFieldKey[];
+        fieldsToShow: PracticeFieldKey[];
         alignment: TextAlignment;
     };
-    empfaenger: {
+    recipient: {
         visible: boolean;
         alignment: TextAlignment;
     };
     tableColumns: { id: ExportTableColumnId; enabled: boolean }[];
-    signatur: {
+    signature: {
         show: boolean;
-        labelArt: SignaturArt;
+        labelKind: SignatureKind;
     };
     /** Plain text, max 240 chars — enforced in editor */
-    fusszeile: string;
-    schriftart: SchriftartId;
+    footer: string;
+    font: TemplateFontId;
     bodyPt: number;
-    dichte: DichteId;
-    datumsformat: DatumsformatId;
+    density: TemplateDensityId;
+    dateFormat: DateFormatId;
 }
 
 export const EXPORT_TABLE_COLUMN_OPTIONS: { id: ExportTableColumnId; label: string }[] = [
     { id: "pos", label: "Item no." },
-    { id: "datum", label: "Date" },
-    { id: "leistung", label: "Service" },
+    { id: "date", label: "Date" },
+    { id: "service_item", label: "Service" },
     { id: "bNr", label: "Invoice no." },
-    { id: "menge", label: "Quantity" },
-    { id: "einzelpreis", label: "Unit price" },
-    { id: "gesamt", label: "Total" },
-    { id: "ust", label: "VAT" },
+    { id: "quantity", label: "Quantity" },
+    { id: "unit_price", label: "Unit price" },
+    { id: "total", label: "Total" },
+    { id: "vat", label: "VAT" },
 ];
 
-/** English fallback labels — UI should prefer `praxisFieldLabel(t, id)` from `document-template-i18n`. */
-export const PRAXIS_FIELD_OPTIONS: { id: PraxisFieldKey; label: string }[] = [
+/** English fallback labels — UI should prefer `practiceFieldLabel(t, id)` from `document-template-i18n`. */
+export const PRACTICE_FIELD_OPTIONS: { id: PracticeFieldKey; label: string }[] = [
     { id: "name", label: "Name" },
     { id: "address", label: "Address" },
     { id: "phone", label: "Phone" },
@@ -87,57 +87,57 @@ export const PRAXIS_FIELD_OPTIONS: { id: PraxisFieldKey; label: string }[] = [
     { id: "kv", label: "Health insurer no." },
     { id: "tax", label: "Tax no." },
     { id: "hours", label: "Opening hours" },
-    { id: "behandler", label: "Treating clinician" },
+    { id: "clinician", label: "Treating clinician" },
     { id: "zanr", label: "Dental license no." },
     { id: "bsnr", label: "Practice site no." },
     { id: "bank", label: "Bank details" },
     { id: "kammer", label: "Chamber" },
     { id: "kzv", label: "Regional dental association" },
-    { id: "zahlungsziel", label: "Payment terms" },
-    { id: "ust_hinweis", label: "VAT notice" },
-    { id: "notfall_tel", label: "Emergency phone" },
+    { id: "payment_terms", label: "Payment terms" },
+    { id: "vat_notice", label: "VAT notice" },
+    { id: "emergency_phone", label: "Emergency phone" },
 ];
 
 export function emptyDocumentTemplatePayloadV1(): DocumentTemplatePayloadV1 {
     return {
         version: 1,
-        kopf: {
+        header: {
             showLogo: false,
             fieldsToShow: ["name", "address"],
             alignment: "left",
         },
-        empfaenger: { visible: true, alignment: "left" },
+        recipient: { visible: true, alignment: "left" },
         tableColumns: EXPORT_TABLE_COLUMN_OPTIONS.map((c) => ({ id: c.id, enabled: true })),
-        signatur: { show: true, labelArt: "arzt" },
-        fusszeile: "",
-        schriftart: "Helvetica",
+        signature: { show: true, labelKind: "physician" },
+        footer: "",
+        font: "Helvetica",
         bodyPt: 11,
-        dichte: "normal",
-        datumsformat: "de",
+        density: "normal",
+        dateFormat: "de",
     };
 }
 
 export type DocumentKind =
-    | "quittung"
-    | "rezept"
-    | "attest"
-    | "rechnung"
-    | "tagesbericht"
-    | "akte"
+    | "receipt"
+    | "prescription"
+    | "certificate"
+    | "invoice"
+    | "daily_report"
+    | "chart"
     | "audit_list";
 
 /** English fallback labels — UI should prefer `documentKindLabel(t, kind)` from `document-template-i18n`. */
 export const DOCUMENT_KIND_LABEL: Record<DocumentKind, string> = {
-    quittung: "Receipt",
-    rezept: "Prescription",
-    attest: "Certificate",
-    rechnung: "Invoice",
-    tagesbericht: "Daily report",
-    akte: "Patient chart",
+    receipt: "Receipt",
+    prescription: "Prescription",
+    certificate: "Certificate",
+    invoice: "Invoice",
+    daily_report: "Daily report",
+    chart: "Patient chart",
     audit_list: "Audit / lists",
 };
 
-export type BuiltinTemplateId = "sachlich" | "praxis_logo" | "behoerdlich";
+export type BuiltinTemplateId = "plain" | "practice_logo" | "official";
 
 export interface BuiltinTemplateMeta {
     id: BuiltinTemplateId;
@@ -147,50 +147,55 @@ export interface BuiltinTemplateMeta {
 }
 
 function payloadVariant(base: DocumentTemplatePayloadV1, patch: Partial<DocumentTemplatePayloadV1>): DocumentTemplatePayloadV1 {
-    return { ...base, ...patch, kopf: { ...base.kopf, ...patch.kopf }, empfaenger: { ...base.empfaenger, ...patch.empfaenger } };
+    return {
+        ...base,
+        ...patch,
+        header: { ...base.header, ...patch.header },
+        recipient: { ...base.recipient, ...patch.recipient },
+    };
 }
 
 const base = emptyDocumentTemplatePayloadV1();
 
 export const BUILTIN_TEMPLATES_BY_KIND: Record<DocumentKind, BuiltinTemplateMeta[]> = {
-    quittung: [
+    receipt: [
         {
-            id: "sachlich",
+            id: "plain",
             name: "Plain standard",
             description: "Minimal, black and white",
-            payload: payloadVariant(base, { fusszeile: "Payment received.", dichte: "kompakt" }),
+            payload: payloadVariant(base, { footer: "Payment received.", density: "compact" }),
         },
         {
-            id: "praxis_logo",
+            id: "practice_logo",
             name: "Practice with logo",
             description: "Header with logo + address",
             payload: payloadVariant(base, {
-                kopf: { ...base.kopf, showLogo: true, fieldsToShow: ["name", "address", "phone", "email", "kv"] },
-                dichte: "normal",
+                header: { ...base.header, showLogo: true, fieldsToShow: ["name", "address", "phone", "email", "kv"] },
+                density: "normal",
             }),
         },
         {
-            id: "behoerdlich",
+            id: "official",
             name: "Formal / official",
             description: "Formal, GoBD-oriented",
             payload: payloadVariant(base, {
-                signatur: { show: true, labelArt: "both" },
-                fusszeile: "GoBD-compliant receipt printout — signature/stamp required.",
-                dichte: "weit",
+                signature: { show: true, labelKind: "both" },
+                footer: "GoBD-compliant receipt printout — signature/stamp required.",
+                density: "spacious",
             }),
         },
     ],
-    rezept: [],
-    attest: [],
-    rechnung: [],
-    tagesbericht: [],
-    akte: [],
+    prescription: [],
+    certificate: [],
+    invoice: [],
+    daily_report: [],
+    chart: [],
     audit_list: [],
 };
 
 /** Fill array references for kinds that share clinical/financial layouts */
-for (const k of ["rezept", "attest", "rechnung", "tagesbericht", "akte", "audit_list"] as DocumentKind[]) {
-    BUILTIN_TEMPLATES_BY_KIND[k] = BUILTIN_TEMPLATES_BY_KIND.quittung.map((t) => ({
+for (const k of ["prescription", "certificate", "invoice", "daily_report", "chart", "audit_list"] as DocumentKind[]) {
+    BUILTIN_TEMPLATES_BY_KIND[k] = BUILTIN_TEMPLATES_BY_KIND.receipt.map((t) => ({
         ...t,
         payload: structuredClone(t.payload),
     }));
@@ -200,11 +205,112 @@ export function templatePayloadToJson(p: DocumentTemplatePayloadV1): string {
     return `${JSON.stringify(p)}\n`;
 }
 
+const FIELD_ID_LEGACY: Record<string, PracticeFieldKey> = {
+    ust_hinweis: "vat_notice",
+    notfall_tel: "emergency_phone",
+};
+
+const COLUMN_ID_LEGACY: Record<string, ExportTableColumnId> = {
+    einzelpreis: "unit_price",
+    gesamt: "total",
+    ust: "vat",
+};
+
+const BUILTIN_ID_LEGACY: Record<string, BuiltinTemplateId> = {
+    sachlich: "plain",
+    behoerdlich: "official",
+};
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+    return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function migrateFieldId(id: unknown): PracticeFieldKey | null {
+    if (typeof id !== "string") return null;
+    if (PRACTICE_FIELD_OPTIONS.some((o) => o.id === id)) return id as PracticeFieldKey;
+    return FIELD_ID_LEGACY[id] ?? null;
+}
+
+function migrateColumnId(id: unknown): ExportTableColumnId | null {
+    if (typeof id !== "string") return null;
+    if (EXPORT_TABLE_COLUMN_OPTIONS.some((o) => o.id === id)) return id as ExportTableColumnId;
+    return COLUMN_ID_LEGACY[id] ?? null;
+}
+
+function migrateDensity(raw: unknown): TemplateDensityId {
+    if (raw === "compact" || raw === "kompakt") return "compact";
+    if (raw === "spacious" || raw === "weit") return "spacious";
+    return "normal";
+}
+
+function migrateSignatureKind(raw: unknown): SignatureKind {
+    if (raw === "stamp" || raw === "stempel") return "stamp";
+    if (raw === "both") return "both";
+    return "physician";
+}
+
+function migrateFont(raw: unknown): TemplateFontId {
+    if (raw === "Times" || raw === "Arial" || raw === "Helvetica") return raw;
+    return "Helvetica";
+}
+
+/** Map persisted builtin ids from older German wires. */
+export function migrateBuiltinTemplateId(id: string): BuiltinTemplateId | string {
+    return BUILTIN_ID_LEGACY[id] ?? id;
+}
+
+/**
+ * Parse stored template JSON. Accepts current English keys and leftover German wires
+ * (`kopf`, `fusszeile`, `einzelpreis`, …) so existing rows keep working.
+ */
 export function parseTemplatePayloadJson(raw: string): DocumentTemplatePayloadV1 | null {
     try {
-        const j = JSON.parse(raw) as DocumentTemplatePayloadV1;
-        if (j?.version !== 1 || !j.kopf || !j.empfaenger) return null;
-        return j;
+        const j = asRecord(JSON.parse(raw));
+        if (!j || j.version !== 1) return null;
+        const header = asRecord(j.header) ?? asRecord(j.kopf);
+        const recipient = asRecord(j.recipient) ?? asRecord(j.empfaenger);
+        if (!header || !recipient) return null;
+        const empty = emptyDocumentTemplatePayloadV1();
+        const fieldsRaw = header.fieldsToShow;
+        const fieldsToShow = Array.isArray(fieldsRaw)
+            ? fieldsRaw.map(migrateFieldId).filter((x): x is PracticeFieldKey => x != null)
+            : empty.header.fieldsToShow;
+        const colsRaw = j.tableColumns;
+        const tableColumns = Array.isArray(colsRaw)
+            ? colsRaw
+                  .map((c) => {
+                      const row = asRecord(c);
+                      const id = migrateColumnId(row?.id);
+                      if (!id) return null;
+                      return { id, enabled: row?.enabled !== false };
+                  })
+                  .filter((x): x is { id: ExportTableColumnId; enabled: boolean } => x != null)
+            : empty.tableColumns;
+        const signature = asRecord(j.signature) ?? asRecord(j.signatur);
+        const align = (v: unknown, fallback: TextAlignment): TextAlignment =>
+            v === "left" || v === "center" || v === "right" ? v : fallback;
+        return {
+            version: 1,
+            header: {
+                showLogo: header.showLogo === true,
+                fieldsToShow: fieldsToShow.length > 0 ? fieldsToShow : empty.header.fieldsToShow,
+                alignment: align(header.alignment, "left"),
+            },
+            recipient: {
+                visible: recipient.visible !== false,
+                alignment: align(recipient.alignment, "left"),
+            },
+            tableColumns: tableColumns.length > 0 ? tableColumns : empty.tableColumns,
+            signature: {
+                show: signature?.show !== false,
+                labelKind: migrateSignatureKind(signature?.labelKind),
+            },
+            footer: String(j.footer ?? j.fusszeile ?? "").slice(0, 240),
+            font: migrateFont(j.font ?? j.schriftart),
+            bodyPt: typeof j.bodyPt === "number" && Number.isFinite(j.bodyPt) ? Math.min(18, Math.max(8, j.bodyPt)) : 11,
+            density: migrateDensity(j.density ?? j.dichte),
+            dateFormat: j.dateFormat === "iso" || j.datumsformat === "iso" ? "iso" : "de",
+        };
     } catch {
         return null;
     }

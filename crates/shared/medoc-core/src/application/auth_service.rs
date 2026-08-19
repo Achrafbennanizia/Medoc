@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::personal_repo;
+use crate::infrastructure::database::staff_repo;
 // TODO(deferred-security): 2FA unwired
 // use crate::infrastructure::totp;
 // TODO(deferred-security): 2FA unwired
@@ -11,7 +11,7 @@ use sqlx::SqlitePool;
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub email: String,
-    pub passwort: String,
+    pub password: String,
     #[serde(default)]
     pub totp_code: Option<String>,
 }
@@ -28,7 +28,7 @@ pub struct Session {
     pub user_id: String,
     pub name: String,
     pub email: String,
-    pub rolle: String,
+    pub role: String,
     #[serde(default)]
     pub permission_overrides: Vec<PermissionOverride>,
     #[serde(default)]
@@ -37,21 +37,21 @@ pub struct Session {
 
 pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Session, AppError> {
     let email = req.email.trim();
-    let user = personal_repo::find_by_email(pool, email)
+    let user = staff_repo::find_by_email(pool, email)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    let valid = crypto::verify_password(&req.passwort, &user.passwort_hash)
+    let valid = crypto::verify_password(&req.password, &user.password_hash)
         .map_err(|_| AppError::Internal("Hash error".into()))?;
 
     if !valid {
         return Err(AppError::Unauthorized);
     }
 
-    if crypto::needs_rehash(&user.passwort_hash) {
+    if crypto::needs_rehash(&user.password_hash) {
         let new_hash =
-            crypto::hash_password(&req.passwort).map_err(|e| AppError::Internal(e.to_string()))?;
-        personal_repo::update_password_hash(pool, &user.id, &new_hash).await?;
+            crypto::hash_password(&req.password).map_err(|e| AppError::Internal(e.to_string()))?;
+        staff_repo::update_password_hash(pool, &user.id, &new_hash).await?;
     }
 
     // TODO(deferred-security): 2FA unwired — password-only login.
@@ -59,7 +59,7 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         user_id: user.id,
         name: user.name,
         email: user.email,
-        rolle: user.rolle,
+        role: user.role,
         permission_overrides: Vec::new(),
         device_session_id: None,
     })
@@ -68,7 +68,7 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
     if !mvp_security::TOTP_2FA_ENABLED {
         return Ok(Session { ... });
     }
-    let enrolled = personal_repo::is_totp_enrolled(&user);
+    let enrolled = staff_repo::is_totp_enrolled(&user);
     ...
     */
 }
@@ -77,12 +77,12 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
 pub async fn verify_credentials(
     pool: &SqlitePool,
     email: &str,
-    passwort: &str,
+    password: &str,
 ) -> Result<(), AppError> {
-    let user = personal_repo::find_by_email(pool, email.trim())
+    let user = staff_repo::find_by_email(pool, email.trim())
         .await?
         .ok_or(AppError::Unauthorized)?;
-    let valid = crypto::verify_password(passwort, &user.passwort_hash)
+    let valid = crypto::verify_password(password, &user.password_hash)
         .map_err(|_| AppError::Internal("Hash error".into()))?;
     if valid {
         Ok(())

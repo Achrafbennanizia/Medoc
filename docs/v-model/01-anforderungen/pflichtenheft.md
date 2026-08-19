@@ -41,7 +41,7 @@ zentrale Hersteller-Server.
 
 | Rolle | Kürzel | Typ | Beschreibung |
 |-------|--------|-----|-------------|
-| Arzt/Administrator | ARZT | Primär | Praxisinhaber, medizinische + administrative Verantwortung |
+| Arzt/Administrator | PHYSICIAN | Primär | Praxisinhaber, medizinische + administrative Verantwortung |
 | Rezeptionist:in | REZ | Primär | Patientenaufnahme, Terminvergabe, Zahlungsdokumentation |
 | Steuerberater:in | STB | Sekundär | Zugriff auf Finanzdokumente, Jahresabschluss |
 | Pharmaberater:in | PHB | Tertiär | Produktkataloge, Bestellabwicklung |
@@ -56,7 +56,7 @@ zentrale Hersteller-Server.
 |----|------------|-----------|-------------------|
 | FA-TERM-01 | Termine anlegen, bearbeiten, verschieben, löschen mit Konfliktprüfung | MUST | Doppelbuchung wird verhindert und Warnung angezeigt |
 | FA-TERM-02 | Visueller Kalender mit Tag/Woche/Monat/Jahr-Ansicht | MUST | Alle Ansichten sind wechselbar; Termine farblich nach Typ kodiert |
-| FA-TERM-03 | Terminstatus-Lebenszyklus: angefragt → bestätigt → durchgeführt → abgeschlossen / storniert | MUST | Statusübergänge sind nur in definierter Reihenfolge möglich |
+| FA-TERM-03 | Terminstatus-Lebenszyklus: angefragt → bestätigt → durchgeführt → abgeschlossen / cancelled | MUST | Statusübergänge sind nur in definierter Reihenfolge möglich |
 | FA-TERM-04 | Notfall-Terminmodus mit Sofort-Eingabe und Prioritätsflag | MUST | Notfalltermin in < 3 Klicks erstellbar |
 | FA-TERM-05 | Langfristige Terminplanung (Wochen/Monate voraus) | SHOULD | Kalender navigierbar über Monate/Jahre |
 | FA-TERM-06 | Arzt kann Tage/Zeiten blockieren (Nichtverfügbarkeit) | MUST | Rezeption kann keine Termine auf blockierten Slots vergeben |
@@ -81,7 +81,7 @@ zentrale Hersteller-Server.
 | FA-PAT-04 | Unterscheidung bei ähnlichen Namen (Geburtsdatum, Foto, Geschlecht) | MUST | Bei Namensähnlichkeit werden Zusatzattribute angezeigt |
 | FA-PAT-05 | Intelligente Suche mit Autovervollständigung und phonemischer Ähnlichkeit | MUST | Teilsuche und Fuzzy-Matching liefern Ergebnisse |
 | FA-PAT-06 | Digitaler Anamnesebogen mit Pflichtfeldern und Unterschrift | MUST | Standardisierte Fragen, ja/nein-Unterschrift |
-| FA-PAT-07 | Patientenstatus: neu, aktiv, validiert, read-only | SHOULD | Statusanzeige in Liste und Detailansicht |
+| FA-PAT-07 | Patientenstatus: neu, active, validiert, read-only | SHOULD | Statusanzeige in Liste und Detailansicht |
 | FA-PAT-08 | Profilfoto/Avatar pro Patient in Listen- und Detailansicht | SHOULD | Platzhalter-Avatar wenn kein Foto vorhanden |
 | FA-PAT-09 | Farbkodierte Statusbadges und Drei-Punkte-Aktionsmenü pro Zeile in Patientenliste | MUST | Aktionsmenü mit Bearbeiten, Löschen, Details-Optionen |
 | FA-PAT-10 | Spaltenköpfe der Patientenliste klickbar zum Sortieren (Name, Datum, Status) | MUST | Auf-/Absteigend pro Spalte sortierbar |
@@ -103,9 +103,9 @@ zentrale Hersteller-Server.
 | FA-AKTE-10 | Medizinische Vorgeschichte: Frühere Diagnosen, chronische Erkrankungen, psychische Erkrankungen, Allergien/Unverträglichkeiten in strukturierten Feldern | MUST | Strukturierte Eingabe und Anzeige pro Kategorie |
 | FA-AKTE-11 | Medikamentenerfassung: Aktuelle Medikamente mit Wirkstoff, Dosierung, Einnahmedauer | MUST | Liste aller Medikamente editier-/löschbar |
 | FA-AKTE-12 | Versicherungsdaten-Block: Kassenart (Gesetzlich/Privat-Toggle), Versicherungsname, Versicherungsnummer | MUST | Toggle-Auswahl für Kassenart; Pflichtfelder validiert |
-| FA-AKTE-13 | Buttons „Akte validieren" und „Neue erstellen" direkt in Aktenansicht (nur Arzt-Rolle) | MUST | Nur für Rolle ARZT sichtbar; Aktion mit Bestätigung |
-| FA-AKTE-14 | „Akte an Arzt weiterleiten"-Aktion (Liste/Dropdown, Mehrfachauswahl möglich); erzeugt einen Eintrag in der Validierungs-Queue (FA-AKTE-15) und im Audit-Log | SHOULD | Aktionsmenü oder Button in der Aktenansicht der Rezeption; Empfängerliste enthält alle Personal-Datensätze mit Rolle ARZT (WAAD 1.3.1) |
-| FA-AKTE-15 | Validierungs-Queue-Seite („Zu validieren") für Arzt-Rolle: Liste aller Akten / Einträge mit Status `IN_BEARBEITUNG`, sortiert nach Wartezeit; Klick öffnet die Akte | MUST | Eigene Route + Sidebar-Eintrag; sichtbar nur für ARZT; Anzahl der wartenden Einträge als Badge im Sidebar (WAAD 2.2.1) |
+| FA-AKTE-13 | Buttons „Akte validieren" und „Neue erstellen" direkt in Aktenansicht (nur Arzt-Rolle) | MUST | Nur für Rolle PHYSICIAN sichtbar; Aktion mit Bestätigung |
+| FA-AKTE-14 | „Akte an Arzt weiterleiten"-Aktion (Liste/Dropdown, Mehrfachauswahl möglich); erzeugt einen Eintrag in der Validierungs-Queue (FA-AKTE-15) und im Audit-Log | SHOULD | Aktionsmenü oder Button in der Aktenansicht der Rezeption; Empfängerliste enthält alle Personal-Datensätze mit Rolle PHYSICIAN (WAAD 1.3.1) |
+| FA-AKTE-15 | Validierungs-Queue-Seite („Zu validieren") für Arzt-Rolle: Liste aller Akten / Einträge mit Status `IN_PROGRESS`, sortiert nach Wartezeit; Klick öffnet die Akte | MUST | Eigene Route + Sidebar-Eintrag; sichtbar nur für PHYSICIAN; Anzahl der wartenden Einträge als Badge im Sidebar (WAAD 2.2.1) |
 | FA-AKTE-16 | Vollständigkeits-Indikator: jede Akte zeigt fehlende Pflichteinträge (z. B. Anamnesebogen, Versicherungsblock, Zahnschema-Initialbefund) mit „Springen zu …"-Link | NICE TO HAVE | Heuristik definiert in `app/src/lib/akte-completeness.ts`; Anzeige in Aktenkopf; Vorab-Durchführbarkeitsanalyse dokumentiert (WAAD 7.3.3) |
 
 ### 3.4 Zahnschema (FA-ZAHN)
@@ -131,13 +131,13 @@ zentrale Hersteller-Server.
 | FA-DOK-05 | Nachträgliche Ergänzung/Aktualisierung von Einträgen | MUST | Änderung mit Versionierung gespeichert |
 | FA-DOK-06 | Bild-/Dokumentenupload mit Drag-and-Drop, Bildvorschau und Kategorisierung (Typ, Referenznummer, Tags) | MUST | Drag-and-Drop-Upload funktioniert; Vorschau für Bilder sichtbar |
 | FA-DOK-07 | Scanner-Integration: Anamnesebogen und Papierdokumente scannen und der Akte zuordnen | MUST | Scan-Button startet Scanner; gescanntes Dokument erscheint in Akte |
-| FA-DOK-08 | Patienten-Nachsorge-Merkblatt („Discharge Summary") am Behandlungsende: druckbares PDF mit Medikation, Kontrolltermin, Facharztüberweisung, allgemeinen Verhaltenshinweisen | NICE TO HAVE | Generierung aus letzter Behandlung + offenen Rezepten/Atteste; Druck-/PDF-Button in der Akte sowie am Termin-Status `DURCHGEFUEHRT` (WAAD 5.1.1) |
+| FA-DOK-08 | Patienten-Nachsorge-Merkblatt („Discharge Summary") am Behandlungsende: druckbares PDF mit Medikation, Kontrolltermin, Facharztüberweisung, allgemeinen Verhaltenshinweisen | NICE TO HAVE | Generierung aus letzter Behandlung + offenen Rezepten/Atteste; Druck-/PDF-Button in der Akte sowie am Termin-Status `COMPLETED` (WAAD 5.1.1) |
 
 ### 3.6 Finanzverwaltung (FA-FIN)
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
-| FA-FIN-01 | Zahlungsdokumentation: Betrag, Zahlungsart, Zeitpunkt, Status | MUST | CRUD für Zahlungen; Status: bezahlt/offen/storniert |
+| FA-FIN-01 | Zahlungsdokumentation: Betrag, Zahlungsart, Zeitpunkt, Status | MUST | CRUD für Zahlungen; Status: bezahlt/offen/cancelled |
 | FA-FIN-02 | Rezeption dokumentiert alle Bareinnahmen | MUST | Tagesabschluss-Übersicht verfügbar |
 | FA-FIN-03 | Arzt gibt abrechenbare Leistungen frei | MUST | Leistung erst nach Freigabe verrechenbar |
 | FA-FIN-04 | Finanzübersicht: Einnahmen, Ausgaben, Gewinne, Verluste | MUST | Dashboard mit Zeitraum-Filterung |
@@ -168,22 +168,22 @@ zentrale Hersteller-Server.
 | FA-LEIST-02 | Leistungen mit Behandlungen in Akte verknüpfen | MUST | Zuordnung bei Dokumentation |
 | FA-LEIST-03 | Preisliste für Rezeption einsehbar | SHOULD | Read-only Ansicht für Rolle REZ |
 | FA-LEIST-04 | Leistungsliste mit Suche, Filter und Schnellaktionen (Bearbeiten, Löschen via Aktionsmenü) | MUST | Suche + Filter auf Liste vorhanden; Aktionsmenü pro Zeile |
-| FA-LEIST-05 | „Arzt-Freigabe" vor Abrechnung: **Behandlung** und **Untersuchung** tragen `freigegeben_von_arzt_id` + `freigegeben_am`; eine Zahlung mit Verknüpfung zu B/U wird ohne Freigabe abgelehnt (`pricing::require_released_for_billing`). Der **Behandlungskatalog** (`leistung`) dient nur der Preis-/Leistungsauswahl, nicht der Freigabe. | MUST | Backend: `release_behandlung_for_billing` / `release_untersuchung_for_billing`; `zahlung_repo::create` prüft Freigabe; FE: Freigabe-Buttons in Patient-Akte (Behandlung/Untersuchung), Hinweis in Zahl-Tab (`billing-release.ts`). WAAD 6.1.2, 6.2.4 |
-| FA-LEIST-06 | **Automatische offene Buchung nach Leistungseingabe:** Speichert ein **Arzt** eine **Behandlung** mit zugeordneter Leistung (`leistungsname` und/oder `gesamtkosten` > 0), öffnet das System den **Abrechnungsbereich** und stellt eine **offene Buchung** bereit. | MUST | **Backend:** `ensure_open_booking_for_billable_behandlung` + implizite Freigabe (`pricing::behandlung_has_billable_leistung`). **UI:** `openZahlTabAfterBillableBehandlung` nach Speichern (nur ARZT). Untersuchung mit Leistungsfeldern → **FA-LEIST-07**. |
-| FA-LEIST-07 | **Untersuchung — Preis/Leistung wie Behandlung:** Eine **Untersuchung** kann dieselben abrechnungsrelevanten Felder wie eine **Behandlung** tragen: `leistungsname` (aus Leistungskatalog), optional `leistung_id`, `kategorie`, `gesamtkosten` (Vorgabe aus Katalog-`preis`, manuell überschreibbar). | MUST | **Schema:** `untersuchung.kategorie`/`leistungsname`/`gesamtkosten` (`0001_initial_schema.sql` + legacy ALTER). **UI:** `UntersuchungBillingFields` auf Akten-Tab Untersuchung (create/edit). **Backend:** `ensure_open_booking_for_billable_untersuchung`; `zahlung_repo` Soll-Cap für `untersuchung_id`. **FE:** `zahlung-buchung.ts` Soll/offen für U-Zeilen; ARZT → Tab `zahl` nach billable save. **NOT OBSERVED:** live UI E2E. |
+| FA-LEIST-05 | „Arzt-Freigabe" vor Abrechnung: **Behandlung** und **Untersuchung** tragen `released_by_physician_id` + `released_at`; eine Zahlung mit Verknüpfung zu B/U wird ohne Freigabe abgelehnt (`pricing::require_released_for_billing`). Der **Behandlungskatalog** (`serviceItem`) dient nur der Preis-/Leistungsauswahl, nicht der Freigabe. | MUST | Backend: `release_treatment_for_billing` / `release_examination_for_billing`; `zahlung_repo::create` prüft Freigabe; FE: Freigabe-Buttons in Patient-Akte (Behandlung/Untersuchung), Hinweis in Zahl-Tab (`billing-release.ts`). WAAD 6.1.2, 6.2.4 |
+| FA-LEIST-06 | **Automatische offene Buchung nach Leistungseingabe:** Speichert ein **Arzt** eine **Behandlung** mit zugeordneter Leistung (`service_name` und/oder `total_cost` > 0), öffnet das System den **Abrechnungsbereich** und stellt eine **offene Buchung** bereit. | MUST | **Backend:** `ensure_open_booking_for_billable_behandlung` + implizite Freigabe (`pricing::behandlung_has_billable_leistung`). **UI:** `openZahlTabAfterBillableBehandlung` nach Speichern (nur PHYSICIAN). Untersuchung mit Leistungsfeldern → **FA-LEIST-07**. |
+| FA-LEIST-07 | **Untersuchung — Preis/Leistung wie Behandlung:** Eine **Untersuchung** kann dieselben abrechnungsrelevanten Felder wie eine **Behandlung** tragen: `service_name` (aus Leistungskatalog), optional `service_item_id`, `category`, `total_cost` (Vorgabe aus Katalog-`price`, manuell überschreibbar). | MUST | **Schema:** `examination.category`/`service_name`/`total_cost` (`0001_initial_schema.sql` + legacy ALTER). **UI:** `UntersuchungBillingFields` auf Akten-Tab Untersuchung (create/edit). **Backend:** `ensure_open_booking_for_billable_untersuchung`; `zahlung_repo` Soll-Cap für `examination_id`. **FE:** `payment-buchung.ts` Soll/offen für U-Zeilen; PHYSICIAN → Tab `zahl` nach billable save. **NOT OBSERVED:** live UI E2E. |
 
 ### 3.8b Praxis-Aufgaben Arzt ↔ Rezeption (FA-AUFG)
 
-> Erweitert **FA-PERS-08** (`praxis_ticket`, heute nur Rezeption → Arzt, Freetext, Arzt schließt ohne Rezeptions-Fulfillment-Schritt). Zielmodell: **bidirektionale, synchronisierte Aufgaben** mit klarer Erledigung durch Rezeption und **Validierung/Schließen** durch den Arzt. Diagramme: [`docs/uml/09-aufgaben-leistung-kollaboration.md`](../../uml/09-aufgaben-leistung-kollaboration.md).
+> Erweitert **FA-PERS-08** (`practice_ticket`, heute nur Rezeption → Arzt, Freetext, Arzt schließt ohne Rezeptions-Fulfillment-Schritt). Zielmodell: **bidirektionale, synchronisierte Aufgaben** mit klarer Erledigung durch Rezeption und **Validierung/Schließen** durch den Arzt. Diagramme: [`docs/uml/09-aufgaben-serviceItem-kollaboration.md`](../../uml/09-aufgaben-serviceItem-kollaboration.md).
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
-| FA-AUFG-01 | **Einheitliches Aufgabenmodell** (`praxis_aufgabe` oder Evolution von `praxis_ticket`): Felder u. a. `id`, `patient_id`, `typ`, `titel`, `body`, `assignee_role` / `assignee_user_id`, `created_by`, `behandlung_id?`, `untersuchung_id?`, `leistungsname?`, `gesamtkosten?`, `status`, Zeitstempel. Richtung **ARZT→REZEPTION** und **REZEPTION→ARZT**. | MUST | Tabelle + IPC CRUD; beide Rollen sehen nur eigene Posteingänge; Audit bei Statuswechsel. **Ist:** `praxis_ticket` nur REZ→ARZT — ◐ |
-| FA-AUFG-02 | **Arzt legt Aufgabe an** (manuell oder automatisch beim Speichern von B/U mit Leistung+Preis): Standardtypen z. B. `ABRECHNUNG`, `TERMIN`, `DRUCK`, `STAMMDATEN`, `SONSTIGES`; Pflicht `patient_id`; optional Verknüpfung `behandlung_id` / `untersuchung_id` inkl. Snapshot von Leistung und Betrag. | MUST | Nach Speichern B/U+Leistung: System erzeugt Aufgabe `ABRECHNUNG` („Zahlung erfassen: {Leistung}, {Betrag} €") an Rolle/Pool Rezeption. Manueller Dialog „Aufgabe an Rezeption“ in Patientenakte. |
-| FA-AUFG-03 | **Rezeption — Posteingang synchron:** Route `/posteingang` (oder erweitertes `/tickets`) listet **offene Aufgaben an Rezeption** in Echtzeit (**≤ 5 s** durch Polling `list_aufgaben_for_me` + Badge in Sidebar/Dashboard; optional später LAN-Push). Sortierung: OFFEN zuerst, dann `created_at`. | MUST | REZ kann Aufgabe öffnen → Patient/Akte/Abrechnung springen (Deep-Link). Kein separates „pro Patient suchen“ nötig für Standard-Workflow. |
-| FA-AUFG-04 | **Rezeption erledigt Aufgabe:** Status `IN_BEARBEITUNG` → `ERLEDIGT_REZEPTION`; Pflichtkurznotiz oder Verweis (z. B. `zahlung_id` bei ABRECHNUNG). System sendet **In-App-Benachrichtigung** (`PRAXIS_AUFGABE_ERLEDIGT`) an erstellenden Arzt. | MUST | `in_app_notification` + Badge auf Arzt-Dashboard; bei `ABRECHNUNG` Verknüpfung zur gebuchten Zahlung wenn vorhanden. |
-| FA-AUFG-05 | **Arzt validiert und schließt:** Arzt sieht erledigte Aufgaben; Aktionen **Validieren & schließen** (`VALIDIERT`) oder **Zurück an Rezeption** (`ZURUECK`) mit Begründung. Geschlossene Aufgaben sind read-only in der Historie. | MUST | Nur `ARZT` darf `VALIDIERT` / `ZURUECK` setzen; REZ sieht Rückgabe als neue Priorität in Posteingang. |
-| FA-AUFG-06 | **Statusmaschine** (verbindlich): `OFFEN` → `IN_BEARBEITUNG` (REZ) → `ERLEDIGT_REZEPTION` (REZ) → `VALIDIERT` (ARZT) \| `ZURUECK` (ARZT) → `OFFEN`. Legacy `praxis_ticket`-Status werden migriert. | MUST | `workflow_transitions::praxis_aufgabe_status_transition`; ungültige Übergänge → 400. |
+| FA-AUFG-01 | **Einheitliches Aufgabenmodell** (`practice_task` oder Evolution von `practice_ticket`): Felder u. a. `id`, `patient_id`, `kind`, `title`, `body`, `assignee_role` / `assignee_user_id`, `created_by`, `treatment_id?`, `examination_id?`, `service_name?`, `total_cost?`, `status`, Zeitstempel. Richtung **PHYSICIAN→RECEPTION** und **RECEPTION→PHYSICIAN**. | MUST | Tabelle + IPC CRUD; beide Rollen sehen nur eigene Posteingänge; Audit bei Statuswechsel. **Ist:** `practice_ticket` nur REZ→PHYSICIAN — ◐ |
+| FA-AUFG-02 | **Arzt legt Aufgabe an** (manuell oder automatisch beim Speichern von B/U mit Leistung+Preis): Standardtypen z. B. `ABRECHNUNG`, `TERMIN`, `DRUCK`, `STAMMDATEN`, `OTHER`; Pflicht `patient_id`; optional Verknüpfung `treatment_id` / `examination_id` inkl. Snapshot von Leistung und Betrag. | MUST | Nach Speichern B/U+Leistung: System erzeugt Aufgabe `ABRECHNUNG` („Zahlung erfassen: {Leistung}, {Betrag} €") an Rolle/Pool Rezeption. Manueller Dialog „Aufgabe an Rezeption“ in Patientenakte. |
+| FA-AUFG-03 | **Rezeption — Posteingang synchron:** Route `/inbox` (oder erweitertes `/tickets`) listet **offene Aufgaben an Rezeption** in Echtzeit (**≤ 5 s** durch Polling `list_aufgaben_for_me` + Badge in Sidebar/Dashboard; optional später LAN-Push). Sortierung: OPEN zuerst, dann `_created_at`. | MUST | REZ kann Aufgabe öffnen → Patient/Akte/Abrechnung springen (Deep-Link). Kein separates „pro Patient suchen“ nötig für Standard-Workflow. |
+| FA-AUFG-04 | **Rezeption erledigt Aufgabe:** Status `IN_PROGRESS` → `ERLEDIGT_REZEPTION`; Pflichtkurznotiz oder Verweis (z. B. `payment_id` bei ABRECHNUNG). System sendet **In-App-Benachrichtigung** (`PRAXIS_AUFGABE_ERLEDIGT`) an erstellenden Arzt. | MUST | `in_app_notification` + Badge auf Arzt-Dashboard; bei `ABRECHNUNG` Verknüpfung zur gebuchten Zahlung wenn vorhanden. |
+| FA-AUFG-05 | **Arzt validiert und schließt:** Arzt sieht erledigte Aufgaben; Aktionen **Validieren & schließen** (`VALIDATED`) oder **Zurück an Rezeption** (`ZURUECK`) mit Begründung. Geschlossene Aufgaben sind read-only in der Historie. | MUST | Nur `PHYSICIAN` darf `VALIDATED` / `ZURUECK` setzen; REZ sieht Rückgabe als neue Priorität in Posteingang. |
+| FA-AUFG-06 | **Statusmaschine** (verbindlich): `OPEN` → `IN_PROGRESS` (REZ) → `ERLEDIGT_REZEPTION` (REZ) → `VALIDATED` (PHYSICIAN) \| `ZURUECK` (PHYSICIAN) → `OPEN`. Legacy `practice_ticket`-Status werden migriert. | MUST | `workflow_transitions::praxis_aufgabe_status_transition`; ungültige Übergänge → 400. |
 
 ### 3.9 Personalverwaltung (FA-PERS)
 
@@ -195,8 +195,8 @@ zentrale Hersteller-Server.
 | FA-PERS-04 | Personalliste mit Kachel-/Listenansicht, Suchfeld und Statusfilter | MUST | Ansicht umschaltbar; Suche + Filter vorhanden |
 | FA-PERS-05 | Drei-Punkte-Aktionsmenü pro Mitarbeiter (Bearbeiten, Löschen, Details) | MUST | Menü öffnet sich bei Klick; alle Aktionen erreichbar |
 | FA-PERS-06 | Selbstlöschung des eigenen Kontos verhindern | MUST | Löschoption für eigenes Konto deaktiviert |
-| FA-PERS-07 | Granulare, pro-Personal-Datensatz konfigurierbare Berechtigungs-Overrides (z. B. „darf Patientenakten lesen", „darf Finanzberichte exportieren") zusätzlich zu den vier Basisrollen | SHOULD | Neue Tabelle `personal_permission_override (personal_id, action, allowed)`; UI in `personal-create.tsx` / Personalakte-Detail; Backend-`rbac::allowed_for_user` zieht Override vor Rollen-Default; Default-Rollen-Matrix bleibt unverändert (WAAD 1.2.2) |
-| FA-PERS-08 | Internes Ticket-/Notiz-System „Rezeption → Arzt" (Vorgänger von **FA-AUFG**): kurze Notizen an einen Arzt; Badge + `/tickets` | SHOULD | **◐ Implementiert:** `praxis_ticket`, `create_praxis_ticket` (nur REZ), `PRAXIS_TICKET`-Notification, Arzt setzt `ERLEDIGT` ohne REZ-Fulfillment/Validierung. **Soll:** durch FA-AUFG-01..06 ersetzen/erweitern (bidirektional + Validierung). WAAD 1.4 |
+| FA-PERS-07 | Granulare, pro-Personal-Datensatz konfigurierbare Berechtigungs-Overrides (z. B. „darf Patientenakten lesen", „darf Finanzberichte exportieren") zusätzlich zu den vier Basisrollen | SHOULD | Neue Tabelle `staff_permission_override (staff_id, action, allowed)`; UI in `staff-create.tsx` / Personalakte-Detail; Backend-`rbac::allowed_for_user` zieht Override vor Rollen-Default; Default-Rollen-Matrix bleibt unverändert (WAAD 1.2.2) |
+| FA-PERS-08 | Internes Ticket-/Notiz-System „Rezeption → Arzt" (Vorgänger von **FA-AUFG**): kurze Notizen an einen Arzt; Badge + `/tickets` | SHOULD | **◐ Implementiert:** `practice_ticket`, `create_practice_ticket` (nur REZ), `PRAXIS_TICKET`-Notification, Arzt setzt `DONE` ohne REZ-Fulfillment/Validierung. **Soll:** durch FA-AUFG-01..06 ersetzen/erweitern (bidirektional + Validierung). WAAD 1.4 |
 
 ### 3.10 Statistik & Reporting (FA-STAT)
 
@@ -208,7 +208,7 @@ zentrale Hersteller-Server.
 | FA-STAT-04 | Patientenstatistiken (Demografie, Besuche) | SHOULD | Filterbarer Report |
 | FA-STAT-05 | Export als PDF | SHOULD | Export-Button verfügbar |
 
-### 3.11 Rezeptverwaltung (FA-REZ) — NEU (Figma)
+### 3.11 Rezeptverwaltung (FA-REZ) — NEW (Figma)
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
@@ -218,7 +218,7 @@ zentrale Hersteller-Server.
 | FA-REZ-04 | Rezept drucken und als PDF exportieren | MUST | Druck- und PDF-Button in Rezeptansicht |
 | FA-REZ-05 | Rezeptliste mit Status und Filteroptionen innerhalb der Patientenakte | MUST | Filter nach Datum, Status; Liste innerhalb Akte sichtbar |
 
-### 3.12 Attestverwaltung (FA-ATT) — NEU (Figma)
+### 3.12 Attestverwaltung (FA-ATT) — NEW (Figma)
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
@@ -227,7 +227,7 @@ zentrale Hersteller-Server.
 | FA-ATT-03 | Attest drucken und als PDF exportieren | MUST | Druck- und PDF-Button in Attestansicht |
 | FA-ATT-04 | Attestliste mit Status und Filteroptionen innerhalb der Patientenakte | MUST | Filter nach Datum, Typ, Status |
 
-### 3.13 Authentifizierung (FA-AUTH) — NEU (Figma)
+### 3.13 Authentifizierung (FA-AUTH) — NEW (Figma)
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
@@ -236,7 +236,7 @@ zentrale Hersteller-Server.
 | FA-AUTH-03 | Session-Verwaltung mit automatischem Timeout (30 Min. Inaktivität) | MUST | Nach 30 Min. ohne Aktion wird Nutzer zur Login-Seite weitergeleitet |
 | FA-AUTH-04 | Benutzerprofil im Header: Avatar, Name und Rollenanzeige | MUST | Profildaten des angemeldeten Nutzers sichtbar auf jeder Seite |
 
-### 3.14 Einstellungen (FA-EINST) — NEU (Figma)
+### 3.14 Einstellungen (FA-EINST) — NEW (Figma)
 
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
@@ -255,7 +255,7 @@ MeDoc wird von einem Unternehmen (Hersteller) als kommerzielle Software mit **mo
 | FA-LIC-03 | Die Lizenz wird **periodisch validiert**: bei jedem App-Start und einmal pro Monat bei Internet-Verfügbarkeit. Offline-Karenzzeit: 30 Tage. | MUST | Nach 30 Tagen ohne erfolgreiche Validierung → Read-Only-Modus |
 | FA-LIC-04 | Bei Ablauf oder Kündigung des Abonnements wechselt die App in einen **Read-Only-Modus**: bestehende Daten einsehen und exportieren (PDF/CSV), aber keine neuen Einträge erstellen | MUST | Alle Schreiboperationen deaktiviert; Hinweis-Banner „Lizenz abgelaufen"; Datenexport bleibt möglich |
 | FA-LIC-05 | Der Arzt/Admin kann in den Einstellungen den **Lizenzstatus** einsehen: Abo-Stufe, Ablaufdatum, Geräte-Kontingent (belegt/verfügbar), Lizenzschlüssel (maskiert) | MUST | Lizenz-Tab in Einstellungen mit allen Informationen; Aktualisierung per Klick |
-| FA-LIC-06 | **Lizenzverlängerung und Abo-Stufenwechsel** (Upgrade/Downgrade) muss über ein Self-Service-Portal (Web) oder direkt in der App möglich sein | SHOULD | Link zum Portal in Einstellungen; nach Wechsel wird neuer Funktionsumfang beim nächsten Validierungs-Check aktiv |
+| FA-LIC-06 | **Lizenzverlängerung und Abo-Stufenwechsel** (Upgrade/Downgrade) muss über ein Self-Service-Portal (Web) oder direkt in der App möglich sein | SHOULD | Link zum Portal in Einstellungen; nach Wechsel wird neuer Funktionsumfang beim nächsten Validierungs-Check active |
 | FA-LIC-07 | Die Anzahl **gleichzeitig verbundener Geräte** wird durch die Abo-Stufe begrenzt und beim Lizenzserver geprüft | MUST | Bei Überschreitung wird die Verbindung des neuesten Geräts mit Hinweis abgelehnt |
 | FA-LIC-08 | Beim Lizenz-Downgrade dürfen **keine bestehenden Daten gelöscht** werden; Module, die im niedrigeren Tier nicht enthalten sind, werden Read-Only | MUST | Kein Datenverlust bei Downgrade; betroffene Module im Menü ausgegraut mit „Upgrade"-Badge |
 
@@ -361,7 +361,7 @@ MeDoc implementiert ein umfassendes Logging-System, das über den bestehenden Au
 | ID | Anforderung | Priorität | Akzeptanzkriterium |
 |----|------------|-----------|-------------------|
 | NFA-LOG-01 | **Strukturiertes Anwendungslog**: Alle Backend-Ereignisse werden im JSON-Format geloggt mit den Feldern `timestamp` (ISO 8601), `level` (ERROR/WARN/INFO/DEBUG/TRACE), `module`, `message`, `correlation_id`. Implementierung über Rust `tracing` Crate + `tracing-subscriber` (JSON-Layer + Datei-Appender). | MUST | Log-Einträge sind maschinenlesbar (JSON-parsebar); Log-Level zur Laufzeit konfigurierbar über Einstellungen → System |
-| NFA-LOG-02 | **Sicherheitslog**: Separate Logdatei für sicherheitsrelevante Ereignisse: fehlgeschlagene Login-Versuche (mit IP-Adresse, ohne Passwort), Brute-Force-Erkennung (> 5 Fehlversuche in 10 Min. → temporäre Sperre 15 Min. + Log-Eintrag), Session-Invalidierungen, Passwortwechsel, Lizenzvalidierungsergebnisse | MUST | Fehlgeschlagene Logins erscheinen in `security.log` mit IP und Zeitstempel; bei 6. Fehlversuch: Sperre aktiv + Log-Eintrag `BRUTE_FORCE_LOCKOUT` |
+| NFA-LOG-02 | **Sicherheitslog**: Separate Logdatei für sicherheitsrelevante Ereignisse: fehlgeschlagene Login-Versuche (mit IP-Adresse, ohne Passwort), Brute-Force-Erkennung (> 5 Fehlversuche in 10 Min. → temporäre Sperre 15 Min. + Log-Eintrag), Session-Invalidierungen, Passwortwechsel, Lizenzvalidierungsergebnisse | MUST | Fehlgeschlagene Logins erscheinen in `security.log` mit IP und Zeitstempel; bei 6. Fehlversuch: Sperre active + Log-Eintrag `BRUTE_FORCE_LOCKOUT` |
 | NFA-LOG-03 | **Systemlog**: Anwendungsstart/-stopp (mit Version + OS-Info), Konfigurationsänderungen (wer, was, wann), DB-Schema-Migrationen (von/nach Version), Update-Installationen (Version + Ergebnis), Backup-Operationen (Start/Ende/Erfolg/Fehler/Dateigröße) | MUST | Jeder App-Start erzeugt Eintrag mit Version, OS, DB-Schema-Version; jede Einstellungsänderung geloggt |
 | NFA-LOG-04 | **Gerätelog**: Alle Geräte-Kommunikationen: DICOM C-STORE/C-FIND/Worklist (Ergebnis, Dauer, Bildanzahl), GDT-Dateiaustausch (Richtung, Dateiname, Satzart), TWAIN/WIA-Captures (Gerät, Ergebnis), USB-Hotplug-Events (Gerät erkannt/entfernt), Gerätefehler (Timeout, Verbindungsabbruch) | MUST | DICOM-Import erzeugt Eintrag mit AE-Title, Bildanzahl, Dauer; Gerätefehler werden mit Fehlercode und Retry-Status geloggt |
 | NFA-LOG-05 | **Migrationslog**: Jede Import-Operation: Quellsystem, Importformat, Dateiname, Start-/Endzeitpunkt, importierte/übersprungene/fehlerhafte Datensätze, Validierungsergebnisse (Fehler + Warnungen), Dry-Run-Ergebnisse, Rollback-Events (Grund, Snapshot-ID) | MUST | Migrationsbericht (PDF) referenziert Log-Einträge; jeder fehlerhafte Datensatz einzeln geloggt mit Ursache |
@@ -396,7 +396,7 @@ MeDoc muss die **10 Nielsen-Heuristiken** als formale Qualitätskriterien erfül
 
 | ID | Prinzip | Anforderung | Priorität | Akzeptanzkriterium | Normbezug |
 |----|---------|------------|-----------|-------------------|-----------| 
-| NFA-USE-UE01 | **Learnability** (Erlernbarkeit) | Neue Benutzer müssen das System innerhalb der Einarbeitungszeit produktiv nutzen können. Rollenspezifische Startansichten, Onboarding-Wizard, konsistente Interaktionsmuster über alle Module. | MUST | Einarbeitungszeit ≤ 2 Monate (ARZT: inkl. Zahnschema, Befundung; REZEPTION: inkl. Termine, Patienten). Gemessen durch Usability-Test mit Neulingen. | ISO 9241-110 Erlernbarkeit |
+| NFA-USE-UE01 | **Learnability** (Erlernbarkeit) | Neue Benutzer müssen das System innerhalb der Einarbeitungszeit produktiv nutzen können. Rollenspezifische Startansichten, Onboarding-Wizard, konsistente Interaktionsmuster über alle Module. | MUST | Einarbeitungszeit ≤ 2 Monate (PHYSICIAN: inkl. Zahnschema, Befundung; RECEPTION: inkl. Termine, Patienten). Gemessen durch Usability-Test mit Neulingen. | ISO 9241-110 Erlernbarkeit |
 | NFA-USE-UE02 | **Efficiency** (Effizienz) | Erfahrene Benutzer müssen Routineaufgaben schnell erledigen können. Max. 2 Klicks zu jeder Hauptfunktion; Tastaturkürzel; Auto-Complete; Notfalltermin in < 3 Klicks; Bulk-Aktionen. | MUST | Aufgabenerledigungszeit für Standardworkflows (Termin buchen, Patient anlegen, Befund dokumentieren) sinkt um ≥ 20% nach 4 Wochen Nutzung | ISO 9241-11 Effizienz |
 | NFA-USE-UE03 | **Memorability** (Einprägsamkeit) | Nach ≥ 2 Wochen Abwesenheit muss der Benutzer das System ohne erneute Schulung bedienen können. Stabile Menüstruktur, erkennbare Icons, konsistente Navigation. | SHOULD | Recall-Test: Benutzer nach 2 Wochen Pause findet Hauptfunktionen in ≤ 30s ohne Hilfe | ISO 9241-110 Selbstbeschreibungsfähigkeit |
 | NFA-USE-UE04 | **Errors** (Fehlertoleranz) | Das System muss Benutzerfehler minimieren und Wiederherstellung ermöglichen. Bestätigungsdialoge, Undo, Validierung, Pflichtfeld-Markierung, Rollback. | MUST | Fehlerrate < 5% bei Standardaufgaben; kein Datenverlust durch Fehlbedienung; alle destruktiven Aktionen reversibel | ISO 9241-110 Fehlertoleranz |
@@ -435,9 +435,9 @@ MeDoc muss die **10 Nielsen-Heuristiken** als formale Qualitätskriterien erfül
 |----|------------|-----------|-------------------|-----------| 
 | NFA-NET-01 | Das Hauptsystem (Arzt-PC oder dedizierter Praxis-Server) muss als **TCP/HTTP-Host** fungieren und einen API-Server im lokalen Netzwerk (LAN) bereitstellen | MUST | Server startet automatisch mit der Anwendung; andere Clients im LAN können sich verbinden | ISO 25010 – Kompatibilität (Interoperabilität) |
 | NFA-NET-02 | Client-Geräte (Rezeption-Desktop) müssen sich per TCP/IP-Verbindung zum Host verbinden und alle für ihre Rolle freigegebenen Funktionen nutzen können | MUST | Rezeption-PC verbindet sich über konfigurierbare IP:Port und kann Termine/Patienten/Zahlungen verwalten | ISO 25010 – Kompatibilität (Interoperabilität) |
-| NFA-NET-03 | Das System muss auch als **dedizierter lokaler Server** (Headless-Modus) in der Praxis betrieben werden können, ohne dass ein Arzt-Desktop aktiv sein muss | SHOULD | Server-Binary startet ohne GUI; Clients verbinden sich; Datenbank bleibt konsistent | ISO 25010 – Übertragbarkeit (Anpassbarkeit) |
+| NFA-NET-03 | Das System muss auch als **dedizierter lokaler Server** (Headless-Modus) in der Praxis betrieben werden können, ohne dass ein Arzt-Desktop active sein muss | SHOULD | Server-Binary startet ohne GUI; Clients verbinden sich; Datenbank bleibt konsistent | ISO 25010 – Übertragbarkeit (Anpassbarkeit) |
 | NFA-NET-04 | Die Rezeption muss die Anwendung über einen **Webbrowser auf Smartphone oder Tablet** nutzen können. Der Host stellt dafür eine responsive Web-Oberfläche bereit. | MUST | Über `http://<host-ip>:<port>` erreichbar; alle Rezeptionsfunktionen auf 375px–768px bedienbar | ISO 9241-110 – Aufgabenangemessenheit |
-| NFA-NET-05 | Die mobile/Tablet-Web-Oberfläche muss **alle Funktionen der Rolle REZEPTION** vollständig abdecken: Terminverwaltung, Patientenaufnahme, Zahlungsdokumentation, Patientenliste, Suche | MUST | Feature-Parität mit Desktop-Rezeptionsansicht; kein Funktionsverlust auf mobilen Geräten | ISO 25010 – Funktionale Eignung (Vollständigkeit) |
+| NFA-NET-05 | Die mobile/Tablet-Web-Oberfläche muss **alle Funktionen der Rolle RECEPTION** vollständig abdecken: Terminverwaltung, Patientenaufnahme, Zahlungsdokumentation, Patientenliste, Suche | MUST | Feature-Parität mit Desktop-Rezeptionsansicht; kein Funktionsverlust auf mobilen Geräten | ISO 25010 – Funktionale Eignung (Vollständigkeit) |
 | NFA-NET-06 | Die Verbindung zwischen Client und Host muss über **authentifizierte Sitzungen** gesichert sein. Kein anonymer Zugriff auf den API-Server. | MUST | Login erforderlich; JWT- oder Session-Token-basierte Authentifizierung für jede API-Anfrage | ISO 27001 – A.9 Zugriffskontrolle, ISO 27799 |
 | NFA-NET-07 | Die Kommunikation zwischen Client und Host **muss** im LAN über **TLS 1.3-verschlüsselte Verbindungen** (HTTPS) erfolgen. TLS ist im Netzwerk-Modus **standardmäßig aktiviert und nicht deaktivierbar**. | MUST | TLS-Zertifikat (selbstsigniert beim Erststart oder CA-konfiguriert); HTTPS ist Pflicht; kein Fallback auf HTTP | ISO 27001 – A.10 Kryptographie, ISO 27799 |
 | NFA-NET-08 | Der Host muss eine **automatische Geräte-Erkennung** im LAN bereitstellen (mDNS/Bonjour oder konfigurierbare IP-Adresse) | SHOULD | Client findet Host automatisch oder über manuelle IP-Eingabe | ISO 9241-110 – Selbstbeschreibungsfähigkeit |
@@ -522,7 +522,7 @@ MeDoc wird im europäischen Gesundheitsmarkt vertrieben und muss allen relevante
 | NFA-EU-01 | Vollständige **DSGVO-Compliance** (EU 2016/679): Privacy by Design (Art. 25), Verarbeitungsverzeichnis (Art. 30), Recht auf Löschung (Art. 17), Datenübertragbarkeit (Art. 20), Datenschutz-Folgenabschätzung (Art. 35) für Gesundheitsdaten | MUST | DSFA-Dokument erstellt; VVT vollständig; Lösch- und Exportfunktionen implementiert | DSGVO (EU 2016/679) |
 | NFA-EU-02 | **MDR-Konformitätsprüfung** (EU 2017/745): MeDoc verarbeitet medizinische Befunddaten und interagiert mit Medizinprodukten. Klassifizierung nach Anhang VIII Regel 11 durchführen; ggf. als Klasse-I-Medizinprodukt (Software) bei zuständiger Behörde registrieren. | MUST | Klassifizierungsdokument erstellt; bei Klasse I: EU-Konformitätserklärung, technische Dokumentation, UDI-Registrierung | MDR (EU 2017/745) |
 | NFA-EU-03 | **CE-Kennzeichnung**: Falls MeDoc als Medizinprodukt-Software eingestuft wird → Konformitätsbewertung nach MDR Anhang IX, EU-Konformitätserklärung, CE-Kennzeichnung auf Software und Verpackung | MUST (bei Klassifizierung) | CE-Kennzeichnung sichtbar in About-Dialog und Installationsmedium; Konformitätserklärung abrufbar | MDR (EU 2017/745) Art. 20 |
-| NFA-EU-04 | **NIS2-Richtlinie** (EU 2022/2555): Gesundheitssektor = „wesentlicher Sektor". Pflicht zur Risikobewertung, Sicherheitsvorfallmeldung (72h an nationale Behörde), Lieferketten-Sicherheitsbewertung | SHOULD | Risikobewertungsdokument erstellt; Incident-Response-Plan mit 72h-Meldefrist definiert; SOUP-CVE-Monitoring aktiv | NIS2 (EU 2022/2555) |
+| NFA-EU-04 | **NIS2-Richtlinie** (EU 2022/2555): Gesundheitssektor = „wesentlicher Sektor". Pflicht zur Risikobewertung, Sicherheitsvorfallmeldung (72h an nationale Behörde), Lieferketten-Sicherheitsbewertung | SHOULD | Risikobewertungsdokument erstellt; Incident-Response-Plan mit 72h-Meldefrist definiert; SOUP-CVE-Monitoring active | NIS2 (EU 2022/2555) |
 | NFA-EU-05 | **eIDAS-Konformität** (EU 910/2014): Digitale Signaturen auf Rezepten und Attesten müssen den Anforderungen für fortgeschrittene/qualifizierte elektronische Signaturen entsprechen, sobald diese Funktion aktiviert wird | SHOULD | Signatur-Modul unterstützt qualifizierte Zertifikate; Signaturformat: PAdES (PDF) oder XAdES (XML) | eIDAS (EU 910/2014) |
 | NFA-EU-06 | **EU AI Act** (2024/1689): Falls KI-basierte Funktionen integriert werden (z.B. Karies-Erkennung, automatische Befundung), gelten diese als **Hochrisiko-KI** im Gesundheitsbereich. Pflicht: Transparenz, Erklärbarkeit, menschliche Aufsicht, Risikomanagement-System | NICE TO HAVE | Bei KI-Integration: Risikomanagement-Dokumentation, Transparenzhinweis im UI, menschliche Bestätigung vor Übernahme von KI-Befunden | EU AI Act (2024/1689) |
 | NFA-EU-07 | **EN ISO 13485:2016** QMS: Wenn MeDoc als Medizinprodukt klassifiziert wird → Qualitätsmanagementsystem nach EN ISO 13485 einrichten und aufrechterhalten | MUST (bei Klassifizierung) | QMS-Dokumentation vorhanden; interne Audits geplant; Korrekturmaßnahmen-Prozess definiert | EN ISO 13485:2016 |
@@ -584,28 +584,28 @@ Die folgenden Anforderungen ergeben sich aus der Analyse relevanter ISO-Normen u
 
 | Entität | Schlüsselattribute |
 |---------|-------------------|
-| Patient | name, geburtsdatum, geschlecht, versicherungsnummer, kontaktdaten, profilbild |
-| Termin | datum, uhrzeit, art, status, patientId, arztId, farbkodierung |
-| Patientenakte | patientenId, behandlungsverlauf, diagnose, befunde, notizen |
-| Untersuchung | beschwerden, ergebnisse, diagnose, bildmaterial, akteId |
+| Patient | name, date_of_birth, sex, insurance_number, kontaktdaten, profilbild |
+| Termin | date, time, kind, status, patientId, arztId, farbkodierung |
+| Patientenakte | patientenId, behandlungsverlauf, diagnosis, findings, notes |
+| Untersuchung | chief_complaint, results, diagnosis, bildmaterial, akteId |
 | Behandlung | behandlungsart, verlauf, materialien, erfolg, abbruchgrund, akteId |
-| Anamnesebogen | fragen, antworten, unterschrieben, patientId |
-| Zahlung | betrag, zahlungsart, zeitpunkt, status, patientId |
-| Leistung | name, kategorie, preis |
-| Personal | name, taetigkeitsbereich, rolle, email, telefon, verfuegbarkeit, fachrichtung |
-| Produkt | name, lieferant, menge, lieferstatus, hersteller |
-| Finanzdokument | typ, eingaben, ausgaben, zeitraum |
-| Steuerberater | firmenname, personenname, email, telefon, verfuegbarkeit |
+| Anamnesebogen | fragen, answers, signed, patientId |
+| Zahlung | amount, payment_method, zeitpunkt, status, patientId |
+| Leistung | name, category, price |
+| Personal | name, activity_area, role, email, phone, verfuegbarkeit, specialty |
+| Produkt | name, supplier, quantity, lieferstatus, hersteller |
+| Finanzdokument | kind, eingaben, expenses, period |
+| Steuerberater | firmenname, personenname, email, phone, verfuegbarkeit |
 | Rezept | patientId, arztId, medikamente[], ausstellungsdatum, status |
-| RezeptMedikament | medikament, wirkstoff, dosierung, haeufigkeit, dauer |
-| Attest | patientId, arztId, attesttyp, freitext, gueltigkeitsdauer, datum, status |
-| Bilanz | name, zeitraumVon, zeitraumBis, kategorien, einnahmen, ausgaben, saldo |
+| RezeptMedikament | medication, active_ingredient, dosage, haeufigkeit, duration |
+| Attest | patientId, arztId, attesttyp, freitext, gueltigkeitsdauer, date, status |
+| Bilanz | name, zeitraumVon, zeitraumBis, kategorien, income, expenses, saldo |
 | Einstellungen | userId, profilbild, email, passwortHash |
-| Pharmaberater | firmenname, personenname, taetigkeitsbereich, email, telefon |
-| **Lizenz** | **lizenzschluessel, abo_stufe (BASIS/PROFESSIONAL/ENTERPRISE), ablaufdatum, max_geraete, aktiviert_am, letzte_validierung, status (AKTIV/KARENZ/ABGELAUFEN/READONL)** |
-| **AbonnementZahlung** | **lizenzId, provider_token, betrag, waehrung, zahlungsart, status (BEZAHLT/FEHLGESCHLAGEN/AUSSTEHEND), rechnungs_pdf_url, datum** |
+| Pharmaberater | firmenname, personenname, activity_area, email, phone |
+| **Lizenz** | **lizenzschluessel, abo_stufe (BASIS/PROFESSIONAL/ENTERPRISE), ablaufdatum, max_geraete, aktiviert_am, letzte_validierung, status (ACTIVE/KARENZ/ABGELAUFEN/READONL)** |
+| **AbonnementZahlung** | **lizenzId, provider_token, amount, waehrung, payment_method, status (PAID/FEHLGESCHLAGEN/OUTSTANDING), rechnungs_pdf_url, date** |
 | **AppVersion** | **version (SemVer), installiert_am, vorherige_version, update_kanal, signatur_gueltig** |
-| **MigrationJob** | **quellsystem, importformat (VDDS/BDT/CSV/JSON/DICOM), status (GEPLANT/LAUFEND/ABGESCHLOSSEN/FEHLER), gestartet_am, beendet_am, datensaetze_importiert, datensaetze_fehlerhaft, bericht_pdf_url, snapshot_id** |
+| **MigrationJob** | **quellsystem, importformat (VDDS/BDT/CSV/JSON/DICOM), status (PLANNED/LAUFEND/ABGESCHLOSSEN/FEHLER), gestartet_am, beendet_am, datensaetze_importiert, datensaetze_fehlerhaft, bericht_pdf_url, snapshot_id** |
 | **MedizinischesBild** | **patientId, geraet_id, bildtyp (INTRAORAL/OPG/CBCT/FOTO/SCAN3D), dateiformat (DICOM/JPEG/TIFF/STL), aufnahmedatum, dicom_study_uid, dicom_series_uid, dateipfad_verschluesselt, kompression, annotationen[]** |
 | **Geraet** | **name, geraetetyp (ROENTGEN_INTRAORAL/OPG/CBCT/IOS/KAMERA/DENTALEINHEIT/CADCAM), hersteller, modell, schnittstelle (USB/ETHERNET/RS232/WIFI), protokoll (DICOM/TWAIN/GDT/VDDS_MEDIA/PROPRIETAER), ip_adresse, port, ae_title, com_port, baudrate, status (VERBUNDEN/GETRENNT/KONFIGURIERT)** |
 
@@ -631,4 +631,4 @@ Akzeptanzkriterium. Der Abnahmetest gilt als bestanden, wenn:
 12. EU-Regulatorische Dokumentation (MDR-Klassifizierung, DSFA, Risikomanagement-Akte) vorhanden und vollständig
 13. System Usability Scale (SUS) Score ≥ 72 (gemessen mit ≥ 10 Testpersonen)
 14. WCAG 2.1 Level AA Compliance: automatisierter Accessibility-Audit zeigt 0 kritische Verstöße
-15. Usability-Test mit ≥ 5 Personen pro Rolle (ARZT, REZEPTION) dokumentiert; kritische Findings behoben
+15. Usability-Test mit ≥ 5 Personen pro Rolle (PHYSICIAN, RECEPTION) dokumentiert; kritische Findings behoben

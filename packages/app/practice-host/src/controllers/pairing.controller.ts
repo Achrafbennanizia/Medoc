@@ -1,5 +1,5 @@
 /**
- * Master-side pairing controller — feeds the Einstellungen pairing inbox.
+ * Master-side pairing controller — feeds the Settings pairing inbox.
  *
  * All IPC calls require an authenticated session; mutating commands also
  * require the RBAC permission `ops.system`.
@@ -37,7 +37,7 @@ export type PairingMasterInfo = {
 };
 
 /** Optional read-only LAN actions (master must opt in per slave). */
-export const OPTIONAL_READ_ACTIONS = ["patient.read", "termin.read"] as const;
+export const OPTIONAL_READ_ACTIONS = ["patient.read", "appointment.read"] as const;
 
 /** Default action allow-list shown to the master operator when accepting a request. */
 export const DEFAULT_ALLOWED_ACTIONS = [

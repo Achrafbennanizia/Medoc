@@ -33,10 +33,10 @@ ISO 22600 unterstützt das RBAC-Modell als primäres Zugriffskontrollverfahren i
 
 | Rolle | Berechtigungsumfang | Begründung |
 |-------|---------------------|-----------|
-| ARZT | Vollzugriff auf alle Bereiche | Praxisinhaber, medizinische + administrative Verantwortung |
-| REZEPTION | Lesen/Schreiben: Termine, Patientenstammdaten, Zahlungen. Nur Lesen: medizinische Daten | Administrativer Bedarf, kein medizinischer Änderungsbedarf |
-| STEUERBERATER | Nur Lesen: Finanzdaten (anonymisiert/aggregiert) | Steuerrechtlicher Bedarf, kein Zugang zu Patientendaten |
-| PHARMABERATER | Nur Lesen: Produktkatalog | Lieferantenfunktion, kein Zugang zu Praxisdaten |
+| PHYSICIAN | Vollzugriff auf alle Bereiche | Praxisinhaber, medizinische + administrative Verantwortung |
+| RECEPTION | Lesen/Schreiben: Termine, Patientenstammdaten, Zahlungen. Nur Lesen: medizinische Daten | Administrativer Bedarf, kein medizinischer Änderungsbedarf |
+| TAX_ADVISOR | Nur Lesen: Finanzdaten (anonymisiert/aggregiert) | Steuerrechtlicher Bedarf, kein Zugang zu Patientendaten |
+| PHARMA_CONSULTANT | Nur Lesen: Produktkatalog | Lieferantenfunktion, kein Zugang zu Praxisdaten |
 
 #### Prinzip 2: Kontextbasierte Zugriffsentscheidungen
 ISO 22600 empfiehlt, Zugriffsentscheidungen kontextabhängig zu treffen:

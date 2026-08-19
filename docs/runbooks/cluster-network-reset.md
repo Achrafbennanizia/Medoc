@@ -1,10 +1,10 @@
 # Cluster network reset runbook
 
-Owner-only action: **Settings → System → Reset network** (`verbund_execute_cluster_reset` IPC).
+Owner-only action: **Settings → System → Reset network** (`cluster_execute_cluster_reset` IPC).
 
 ## Prerequisites
 
-- Role **ARZT** with `ops.system` on the **licensed owner admin** device.
+- Role **PHYSICIAN** with `ops.system` on the **licensed owner admin** device.
 - Password re-entry; TOTP if enrolled.
 - Typed confirmation: practice slug **or** `RESET-<first8 cluster_id>`.
 
@@ -43,7 +43,7 @@ Use in-app reset when testing network-only mode or multi-device notify without d
 2. Member online during reset → auto reload → join flow.
 3. Member offline → open later → reset within ~30s poll.
 4. Owner **full wipe** → empty DB; requires backup ack in UI.
-5. REZEPTION cannot see reset panel (no `ops.system`).
+5. RECEPTION cannot see reset panel (no `ops.system`).
 
 ## Security
 

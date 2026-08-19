@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { ExportIcon, ICON_SIZE_SM } from "@/lib/icons";
 import {
-    type FinanzTxRow,
+    type FinanceTxRow,
     type ReportBundle,
     type ReportExportFormat,
 } from "@/lib/report-export";
@@ -15,7 +15,7 @@ import { ReportExportPickerDialog } from "./report-export-picker-dialog";
 export type ReportExportToolbarProps = {
     /** Builds the report bundle at export time (may fetch from backend). */
     buildBundle: () => ReportBundle | null | Promise<ReportBundle | null>;
-    /** Dialog title, e.g. „Export — Statistik“. */
+    /** Dialog title, e.g. „Export — Statistics“. */
     dialogTitle: string;
     /** Initial format in the export dialog. */
     defaultFormat?: ReportExportFormat;
@@ -25,17 +25,17 @@ export type ReportExportToolbarProps = {
     showImport?: boolean;
     /**
      * When set with format `csv`, export legacy comma-separated transactions
-     * (Finanzen Excel compatibility) instead of semicolon report CSV.
+     * (Finance Excel compatibility) instead of semicolon report CSV.
      */
     legacyCsv?: {
-        rows: FinanzTxRow[];
+        rows: FinanceTxRow[];
         patientNames: Map<string, string>;
     };
 };
 
 /**
- * Export entry for Statistik, Bilanz, Finanzen, Compliance, Audit.
- * Opens the same picker dialog pattern as Patientenakte export.
+ * Export entry for Statistics, BalanceSheet, Finance, Compliance, Audit.
+ * Opens the same picker dialog pattern as PatientChart export.
  */
 export function ReportExportToolbar({
     buildBundle,

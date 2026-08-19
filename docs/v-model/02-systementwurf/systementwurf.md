@@ -93,8 +93,8 @@ Das System unterstützt drei Betriebsmodi:
 │                              │                                │
 │  ┌───────────────────────────▼──────────────────────────────┐ │
 │  │  Domänen-Services (Rust)                                  │ │
-│  │  termin, patient, akte, zahnbefund, behandlung,           │ │
-│  │  zahlung, leistung, produkt, personal, statistik, audit   │ │
+│  │  appointment, patient, akte, dental_finding, treatment,           │ │
+│  │  payment, serviceItem, product, staff, statistics, audit   │ │
 │  └──────────────────────────┬───────────────────────────────┘ │
 │                              │                                │
 ├──────────────────────────────┼────────────────────────────────┤
@@ -173,25 +173,25 @@ Das System unterstützt drei Betriebsmodi:
 MeDoc
 ├── auth/              # Authentifizierung & Autorisierung (JWT, Sessions)
 ├── dashboard/         # Startseite, KPIs, Übersicht
-├── termine/           # Terminverwaltung + Kalender
-├── patienten/         # Patientenverwaltung
-│   ├── akten/         # Elektronische Patientenakte
+├── appointments/           # Terminverwaltung + Kalender
+├── patients/         # Patientenverwaltung
+│   ├── charts/         # Elektronische Patientenakte
 │   ├── zahnschema/    # Interaktives 2D-Zahnschema (FDI)
-│   └── anamnesebogen/ # Digitaler Anamnesebogen
-├── behandlung/        # Untersuchung + Behandlung + Dokumentation
-├── finanzen/          # Zahlungen, Bilanz, Übersicht
-│   ├── zahlungen/     # Zahlungsdokumentation
-│   ├── bilanz/        # Bilanzierung
+│   └── anamnesis_form/ # Digitaler Anamnesebogen
+├── treatment/        # Untersuchung + Behandlung + Dokumentation
+├── finance/          # Zahlungen, Bilanz, Übersicht
+│   ├── payments/     # Zahlungsdokumentation
+│   ├── balance-sheet/        # Bilanzierung
 │   └── statistiken/   # Finanzstatistiken
-├── produkte/          # Produktkatalog + Bestellungen
-├── leistungen/        # Leistungskatalog
-├── personal/          # Personalverwaltung
-├── rezepte-atteste/   # Rezept-/Attesterstellung + PDF-Druck
-├── statistik/         # Praxisstatistiken + Reporting + Diagramme
+├── products/          # Produktkatalog + Bestellungen
+├── services/        # Leistungskatalog
+├── staff/          # Personalverwaltung
+├── prescriptions-certificates/   # Rezept-/Attesterstellung + PDF-Druck
+├── statistics/         # Praxisstatistiken + Reporting + Diagramme
 ├── lizenz/            # Lizenzaktivierung, Abo-Status, Geräte-Kontingent
 │   ├── aktivierung/   # Erstaktivierung, Lizenzschlüssel-Eingabe
 │   ├── validierung/   # Periodische Lizenzprüfung (online/offline)
-│   └── abo-verwaltung/# Abo-Stufe, Upgrade/Downgrade, Feature-Gating
+│   └── abo-administration/# Abo-Stufe, Upgrade/Downgrade, Feature-Gating
 ├── abonnement/        # Integriertes Zahlungssystem für Abo
 │   ├── payment/       # Payment-Provider-Integration (Stripe/Mollie)
 │   ├── rechnungen/    # Rechnungsgenerierung + PDF-Download
@@ -215,7 +215,7 @@ MeDoc
 │   ├── dicom-import/  # DICOM-Bildmigration aus Fremd-PACS
 │   ├── assistent/     # Geführter Migrations-Wizard (6 Schritte)
 │   └── validierung/   # Datenvalidierung, Dry-Run, Qualitätsbericht
-└── einstellungen/     # Systemeinstellungen, Backup, Netzwerk, Geräte
+└── settings/     # Systemeinstellungen, Backup, Netzwerk, Geräte
 ```
 
 ### 2.2 Technische Module
@@ -282,7 +282,7 @@ async function apiCall<T>(command: string, args: object): Promise<T> {
 
 ## 3. Rollenmatrix (RBAC)
 
-| Funktion | ARZT | REZ | STB | PHB |
+| Funktion | PHYSICIAN | REZ | STB | PHB |
 |----------|------|-----|-----|-----|
 | Dashboard anzeigen | ✓ | ✓ | ✓ (eingeschränkt) | ✗ |
 | **Termine** | | | | |
@@ -320,7 +320,7 @@ async function apiCall<T>(command: string, args: object): Promise<T> {
 
 ### 3.1 Rollenmatrix — Mobiler Zugriff (Rezeption)
 
-Die mobile Web-Oberfläche (Smartphone/Tablet) bildet **alle Funktionen der Rolle REZEPTION** vollständig ab:
+Die mobile Web-Oberfläche (Smartphone/Tablet) bildet **alle Funktionen der Rolle RECEPTION** vollständig ab:
 
 | Funktion | Desktop (REZ) | Mobil (REZ) | Anmerkung |
 |----------|:------------:|:-----------:|-----------|
@@ -523,13 +523,13 @@ Client                          API-Server (Host)
   │   { email, password }              │
   │                                    │── Argon2id verify
   │                                    │── JWT generieren (RS256)
-  │←── 200 { token, user, rolle } ────│
+  │←── 200 { token, user, role } ────│
   │                                    │
-  │── GET /api/termine ───────────────→│
+  │── GET /api/appointments ───────────────→│
   │   Authorization: Bearer <token>    │
   │                                    │── JWT validieren
   │                                    │── RBAC prüfen (Rolle → Endpunkt)
-  │←── 200 [termine...] ──────────────│
+  │←── 200 [appointments...] ──────────────│
   │                                    │
   │══ Ende TLS-Session ═══════════════════════════════════│
 ```
@@ -675,7 +675,7 @@ Client                          API-Server (Host)
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  ERSTSTART   │────→│   AKTIV      │────→│   KARENZ     │────→│  READ-ONLY   │
+│  ERSTSTART   │────→│   ACTIVE      │────→│   KARENZ     │────→│  READ-ONLY   │
 │              │     │              │     │  (30 Tage)   │     │              │
 │ Lizenzschlüs-│     │ Alle Funk-   │     │ Alle Funk-   │     │ Nur Lesen +  │
 │ sel eingeben │     │ tionen frei  │     │ tionen frei  │     │ Datenexport  │
@@ -732,7 +732,7 @@ Client                          API-Server (Host)
 - Kein PAN, IBAN oder CVV wird jemals lokal gespeichert (PCI-DSS)
 - Zahlungsformular wird vollständig vom Provider gerendert (gehostete Felder / Redirect)
 - Webhook-Endpunkt beim Hersteller verifiziert Provider-Signatur
-- Lokale DB speichert nur: `provider_token_id`, `betrag`, `status`, `rechnungs_pdf_url`
+- Lokale DB speichert nur: `provider_token_id`, `amount`, `status`, `rechnungs_pdf_url`
 
 ### 8.3 OTA-Update-Architektur
 
@@ -868,7 +868,7 @@ DICOM-Standardkonfiguration:
 [Zahnarzt erstellt Auftrag in MeDoc]
        │
        ▼
-[MeDoc MWL-SCP: Worklist-Eintrag aktiv]
+[MeDoc MWL-SCP: Worklist-Eintrag active]
        │
        ▼
 [OPG/CBCT sendet C-FIND → MeDoc liefert Worklist]
@@ -1117,7 +1117,7 @@ Alle dateibasierten Logs verwenden ein einheitliches JSON-Format:
 {
   "timestamp": "2026-04-19T14:32:05.123Z",
   "level": "INFO",
-  "module": "api::routes::patienten",
+  "module": "api::routes::patients",
   "correlation_id": "a1b2c3d4-e5f6-7890",
   "message": "Patient erstellt",
   "fields": {
@@ -1166,7 +1166,7 @@ Alle dateibasierten Logs verwenden ein einheitliches JSON-Format:
               │
               ├── ≤ 5 → Normaler Ablauf
               │
-              └── > 5 → security.log: BRUTE_FORCE_LOCKOUT {ip, dauer: 15min}
+              └── > 5 → security.log: BRUTE_FORCE_LOCKOUT {ip, duration: 15min}
                          │
                          ▼
                    [IP temporär gesperrt (15 Min.)]
@@ -1198,7 +1198,7 @@ Der Log-Sanitizer ist ein `tracing`-Layer, der vor dem Schreiben alle Einträge 
 | Datentyp | Maskierung | Beispiel |
 |----------|-----------|---------|
 | Patientenname | Entfernt | `patient_name: "***"` |
-| Geburtsdatum | Entfernt | `geburtsdatum: "***"` |
+| Geburtsdatum | Entfernt | `date_of_birth: "***"` |
 | Passwort | Entfernt | `password: "***"` |
 | JWT-Token | Gekürzt | `token: "eyJ...***"` |
 | Lizenzschlüssel | Gekürzt | `key: "MEDOC-****-****"` |
@@ -1312,7 +1312,7 @@ MeDoc setzt die **10 Nielsen-Heuristiken** und die **7 Usability-Engineering-Pri
 
 | Prinzip | Architekturentscheidung | Messmetrik |
 |---------|------------------------|-----------|
-| **Learnability** | Rollenspezifische Startansichten (ARZT → Dashboard mit heutigen Terminen + Patienten; REZEPTION → Kalender + Wartezimmer); Onboarding-Wizard; konsistente Interaktionsmuster (CRUD überall gleich) | Einarbeitungszeit ≤ 2 Monate; Task-Completion-Rate ≥ 90% bei Erstbenutzern nach Training |
+| **Learnability** | Rollenspezifische Startansichten (PHYSICIAN → Dashboard mit heutigen Terminen + Patienten; RECEPTION → Kalender + Wartezimmer); Onboarding-Wizard; konsistente Interaktionsmuster (CRUD überall gleich) | Einarbeitungszeit ≤ 2 Monate; Task-Completion-Rate ≥ 90% bei Erstbenutzern nach Training |
 | **Efficiency** | Max. 2-Klick-Navigation (Sidebar → Seite); Tastaturkürzel; Auto-Complete; Notfalltermin-Schnellerfassung (< 3 Klicks); Bulk-Aktionen in DataTable; Smart-Defaults (heutiges Datum vorausgewählt) | Aufgabenerledigungszeit sinkt ≥ 20% nach 4 Wochen |
 | **Memorability** | Stabile Menüstruktur zwischen Versionen; konsistente Iconografie (Lucide-Icons); `RecentItems` auf Dashboard; gleiches Layout-Pattern in allen Modulen | Recall-Test: Hauptfunktionen in ≤ 30s nach 2 Wochen Pause |
 | **Errors** | Zweistufige Bestätigungsdialoge (NFA-USE-03/07); Inline-Validierung vor Submit; `useUndoRedo()` für Texteingaben; DB-Snapshot vor Migration; kein irreversibler Datenverlust möglich | Fehlerrate < 5% bei Standardaufgaben |
@@ -1410,13 +1410,13 @@ Accessibility-Layer:
 | ST-12 | **Verbindungsverlust: Client verliert LAN-Verbindung** | Banner „Verbindung unterbrochen"; automatischer Reconnect |
 | ST-13 | **Standalone-Modus: System ohne Netzwerk** | Alle Funktionen lokal verfügbar; kein Fehler |
 | ST-14 | **Sicherheit: Unautorisierter API-Zugriff** | 401 Unauthorized bei fehlendem/abgelaufenem Token |
-| ST-15 | **Sicherheit: RBAC im Netzwerk-Modus** | REZ-Client kann keine ARZT-Endpunkte aufrufen (403) |
+| ST-15 | **Sicherheit: RBAC im Netzwerk-Modus** | REZ-Client kann keine PHYSICIAN-Endpunkte aufrufen (403) |
 | ST-16 | **Lizenz: Erstaktivierung mit gültigem Schlüssel** | Lizenz aktiviert; Abo-Stufe korrekt gesetzt; alle freigeschalteten Module verfügbar |
 | ST-17 | **Lizenz: Ablauf → Read-Only-Modus** | Nach Ablauf: Schreibzugriffe blockiert; Lesezugriff + Datenexport funktionieren |
 | ST-18 | **Lizenz: 30-Tage Offline-Karenz** | Ohne Internet: App funktioniert 30 Tage normal; ab Tag 31 → Read-Only |
 | ST-19 | **Lizenz: Geräte-Kontingent überschritten** | 3. Gerät bei Basis-Abo: Aktivierung verweigert mit klarer Fehlermeldung |
 | ST-20 | **Payment: Abo-Zahlung über Provider** | WebView/Redirect öffnet Zahlungsformular; nach Erfolg Lizenz verlängert |
-| ST-21 | **Payment: Fehlgeschlagene Zahlung + Karenz** | Zahlung fehlgeschlagen: 14-Tage-Karenz aktiv; danach → Read-Only |
+| ST-21 | **Payment: Fehlgeschlagene Zahlung + Karenz** | Zahlung fehlgeschlagen: 14-Tage-Karenz active; danach → Read-Only |
 | ST-22 | **Payment: Rechnungen abrufen** | Rechnungshistorie zeigt alle Zahlungen; PDF-Download funktioniert |
 | ST-23 | **Update: OTA-Update mit DB-Migration** | Update heruntergeladen; Signatur geprüft; Backup erstellt; Migration ausgeführt; App startet korrekt |
 | ST-24 | **Update: Rollback bei fehlgeschlagenem Update** | Update fehlschlägt: automatischer Rollback; DB-Backup wiederhergestellt; alte Version läuft |

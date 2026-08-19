@@ -7,7 +7,7 @@
 ### Regulated connectors
 
 1. Set capability `available: true` in [`integration-capabilities.ts`](../../packages/shared/src/lib/integration-capabilities.ts) when backend is production-ready.
-2. **E-Rezept An TI senden** — [`rezepte.tsx`](../../apps/practice-host-ui/src/views/pages/rezepte.tsx); wire `submit_eprescription` to TI.
+2. **E-Rezept An TI senden** — [`prescriptions.tsx`](../../apps/practice-host-ui/src/views/pages/prescriptions.tsx); wire `submit_eprescription` to TI.
 3. **KIM** — add UI only when `send_kim_message` is live.
 4. **Migration GDT/DICOM/Scanner** — set `MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED = true`.
 
@@ -35,7 +35,7 @@
 ### Patient Akte header (record)
 
 1. `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = true` in [`v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts)
-2. Manual QA: Task to reception (ARZT), Request review (ARZT/REZEPTION), Discharge sheet PDF
+2. Manual QA: Task to reception (PHYSICIAN), Request review (PHYSICIAN/RECEPTION), Discharge sheet PDF
 3. See [`geplant.md`](geplant.md) — Clinical / dental UI section
 
 ## Do NOT blind (has runtime effect)

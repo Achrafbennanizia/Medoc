@@ -2,7 +2,7 @@
 
 use medoc_lib::application::auth_service::{authenticate, LoginRequest};
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_lib::infrastructure::database::personal_repo;
+use medoc_lib::infrastructure::database::staff_repo;
 use medoc_lib::infrastructure::totp;
 
 async fn migrated_pool() -> sqlx::SqlitePool {
@@ -13,12 +13,12 @@ async fn migrated_pool() -> sqlx::SqlitePool {
 
 #[tokio::test]
 #[ignore = "2FA disabled for MVP"]
-async fn arzt_without_totp_requires_enrollment() {
+async fn physician_without_totp_requires_enrollment() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('a1', 'Dr', 'arzt@praxis.de', ?1, 'ARZT')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('a1', 'Dr', 'physician@practice.de', ?1, 'PHYSICIAN')",
     )
     .bind(&hash)
     .execute(&pool)
@@ -28,8 +28,8 @@ async fn arzt_without_totp_requires_enrollment() {
     let err = authenticate(
         &pool,
         &LoginRequest {
-            email: "arzt@praxis.de".into(),
-            passwort: "TestPass42".into(),
+            email: "physician@practice.de".into(),
+            password: "TestPass42".into(),
             totp_code: None,
         },
     )
@@ -43,13 +43,13 @@ async fn arzt_without_totp_requires_enrollment() {
 
 #[tokio::test]
 #[ignore = "2FA disabled for MVP"]
-async fn enrolled_arzt_requires_totp_code() {
+async fn enrolled_physician_requires_totp_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
-    let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
+    let (secret, _) = totp::generate_enrollment("physician@practice.de").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle, totp_secret, totp_enrolled_at)
-         VALUES ('a1', 'Dr', 'arzt@praxis.de', ?1, 'ARZT', ?2, datetime('now'))",
+        "INSERT INTO staff (id, name, email, password_hash, role, totp_secret, totp_enrolled_at)
+         VALUES ('a1', 'Dr', 'physician@practice.de', ?1, 'PHYSICIAN', ?2, datetime('now'))",
     )
     .bind(&hash)
     .bind(&secret)
@@ -60,8 +60,8 @@ async fn enrolled_arzt_requires_totp_code() {
     let err = authenticate(
         &pool,
         &LoginRequest {
-            email: "arzt@praxis.de".into(),
-            passwort: "TestPass42".into(),
+            email: "physician@practice.de".into(),
+            password: "TestPass42".into(),
             totp_code: None,
         },
     )
@@ -72,13 +72,13 @@ async fn enrolled_arzt_requires_totp_code() {
 
 #[tokio::test]
 #[ignore = "2FA disabled for MVP"]
-async fn enrolled_arzt_logs_in_with_valid_totp() {
+async fn enrolled_physician_logs_in_with_valid_totp() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
-    let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
+    let (secret, _) = totp::generate_enrollment("physician@practice.de").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle, totp_secret, totp_enrolled_at)
-         VALUES ('a1', 'Dr', 'arzt@praxis.de', ?1, 'ARZT', ?2, datetime('now'))",
+        "INSERT INTO staff (id, name, email, password_hash, role, totp_secret, totp_enrolled_at)
+         VALUES ('a1', 'Dr', 'physician@practice.de', ?1, 'PHYSICIAN', ?2, datetime('now'))",
     )
     .bind(&hash)
     .bind(&secret)
@@ -96,24 +96,24 @@ async fn enrolled_arzt_logs_in_with_valid_totp() {
     let session = authenticate(
         &pool,
         &LoginRequest {
-            email: "arzt@praxis.de".into(),
-            passwort: "TestPass42".into(),
+            email: "physician@practice.de".into(),
+            password: "TestPass42".into(),
             totp_code: Some(code),
         },
     )
     .await
     .expect("login");
-    assert_eq!(session.rolle, "ARZT");
+    assert_eq!(session.role, "PHYSICIAN");
 }
 
 #[tokio::test]
 #[ignore = "2FA disabled for MVP"]
-async fn rezeption_without_totp_can_login() {
+async fn reception_without_totp_can_login() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('r1', 'Empfang', 'rez@praxis.de', ?1, 'REZEPTION')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('r1', 'Empfang', 'rez@practice.de', ?1, 'RECEPTION')",
     )
     .bind(&hash)
     .execute(&pool)
@@ -123,8 +123,8 @@ async fn rezeption_without_totp_can_login() {
     authenticate(
         &pool,
         &LoginRequest {
-            email: "rez@praxis.de".into(),
-            passwort: "TestPass42".into(),
+            email: "rez@practice.de".into(),
+            password: "TestPass42".into(),
             totp_code: None,
         },
     )
@@ -137,16 +137,16 @@ async fn rezeption_without_totp_can_login() {
 async fn confirm_enrollment_persists() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
-    let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
+    let (secret, _) = totp::generate_enrollment("physician@practice.de").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('a1', 'Dr', 'arzt@praxis.de', ?1, 'ARZT')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('a1', 'Dr', 'physician@practice.de', ?1, 'PHYSICIAN')",
     )
     .bind(&hash)
     .execute(&pool)
     .await
     .unwrap();
-    personal_repo::set_totp_pending_secret(&pool, "a1", &secret)
+    staff_repo::set_totp_pending_secret(&pool, "a1", &secret)
         .await
         .unwrap();
     let totp_inst = {
@@ -156,14 +156,14 @@ async fn confirm_enrollment_persists() {
     };
     let code = totp_inst.generate_current().unwrap();
     assert!(totp::verify_code(&secret, &code).unwrap());
-    personal_repo::confirm_totp_enrollment(&pool, "a1")
+    staff_repo::confirm_totp_enrollment(&pool, "a1")
         .await
         .unwrap();
-    let user = personal_repo::find_by_id(&pool, "a1")
+    let user = staff_repo::find_by_id(&pool, "a1")
         .await
         .unwrap()
         .unwrap();
-    assert!(personal_repo::is_totp_enrolled(&user));
+    assert!(staff_repo::is_totp_enrolled(&user));
 }
 
 #[tokio::test]
@@ -171,10 +171,10 @@ async fn confirm_enrollment_persists() {
 async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
-    let (secret, _) = totp::generate_enrollment("arzt@praxis.de").unwrap();
+    let (secret, _) = totp::generate_enrollment("physician@practice.de").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle, totp_secret, totp_enrolled_at)
-         VALUES ('a1', 'Dr', 'arzt@praxis.de', ?1, 'ARZT', ?2, datetime('now'))",
+        "INSERT INTO staff (id, name, email, password_hash, role, totp_secret, totp_enrolled_at)
+         VALUES ('a1', 'Dr', 'physician@practice.de', ?1, 'PHYSICIAN', ?2, datetime('now'))",
     )
     .bind(&hash)
     .bind(&secret)
@@ -197,18 +197,18 @@ async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
         medoc_lib::application::totp_service::TotpDeactivateResult::Deactivated
     );
 
-    let user = personal_repo::find_by_id(&pool, "a1")
+    let user = staff_repo::find_by_id(&pool, "a1")
         .await
         .unwrap()
         .unwrap();
-    assert!(!personal_repo::is_totp_enrolled(&user));
+    assert!(!staff_repo::is_totp_enrolled(&user));
     assert!(user.totp_secret.is_none());
 
     let err = medoc_lib::application::auth_service::authenticate(
         &pool,
         &LoginRequest {
-            email: "arzt@praxis.de".into(),
-            passwort: "TestPass42".into(),
+            email: "physician@practice.de".into(),
+            password: "TestPass42".into(),
             totp_code: None,
         },
     )
@@ -225,16 +225,16 @@ async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
 async fn deactivate_totp_cancels_pending_without_code() {
     let pool = migrated_pool().await;
     let hash = medoc_lib::infrastructure::crypto::hash_password("TestPass42").unwrap();
-    let (secret, _) = totp::generate_enrollment("rez@praxis.de").unwrap();
+    let (secret, _) = totp::generate_enrollment("rez@practice.de").unwrap();
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('r1', 'Empfang', 'rez@praxis.de', ?1, 'REZEPTION')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('r1', 'Empfang', 'rez@practice.de', ?1, 'RECEPTION')",
     )
     .bind(&hash)
     .execute(&pool)
     .await
     .unwrap();
-    personal_repo::set_totp_pending_secret(&pool, "r1", &secret)
+    staff_repo::set_totp_pending_secret(&pool, "r1", &secret)
         .await
         .unwrap();
 
@@ -246,7 +246,7 @@ async fn deactivate_totp_cancels_pending_without_code() {
         medoc_lib::application::totp_service::TotpDeactivateResult::CancelledPending
     );
 
-    let user = personal_repo::find_by_id(&pool, "r1")
+    let user = staff_repo::find_by_id(&pool, "r1")
         .await
         .unwrap()
         .unwrap();

@@ -1,18 +1,211 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-20 (English leftover identifiers — helpers / i18n / PDF / template kind)
 
 ## Now
 
+- **Rust compile:** `cargo test` of PDF helpers + `document_template.kind` upgrade — **NOT RUN** (`cargo` not on PATH).
+- **Existing DBs:** `REZEPT`/`ATTEST` → `PRESCRIPTION`/`CERTIFICATE` via `ENUM_UPDATES` after German CHECK rebuild. Live `medoc.db` — **NOT OBSERVED**.
+- **Optional later:** invoice.practice.v1 German KV (needs Swing together); certificate payload `krankheiten` / `tage_anzahl` / `einschraenkung`.
+- **Swing prescriptions / invoice lines / day close:** patient prescriptions; billing line items; cash reconciliation. LAN prescription/line/day-close paths stay **null**. GUI walk after `./run` restart — **NOT OBSERVED**.
+- **Swing onboarding / month / invoice status / templates:** wizard in `practice.preferences.v1`; month list from day queries; demo Issue/Paid; template body editor. LAN `update_invoice` / `update_catalog` paths stay **null**. GUI walk after `./run` restart — **NOT OBSERVED**.
+- **Rust compile:** `cargo test` of invoice PDF + `pdf_document_tests` — **NOT RUN** (`cargo` not on PATH).
+- **Existing DBs:** upgrade is in `run_english_schema_upgrade` and runs on every open. Live `medoc.db` — **NOT OBSERVED**.
+- **Stored templates / prefs / invoice history:** dual-read leftover German keys; live reprint of old invoice JSON — **NOT OBSERVED**.
+- **Swing LAN:** `LanDialect` outgoing English (`/patients`, `/appointments`, `password`, `PHYSICIAN`). Live HTTPS **NOT OBSERVED**.
+- **`de` language option** currently duplicates English catalog values.
+- **Optional later:** invoice.practice.v1 German wire keys (needs Swing together); certificate template payload `krankheiten` / `tage_anzahl` / `einschraenkung`.
+- **Swing client (sibling `/Users/achraf/pro/Medoc-swing`):** sidebar + admin TOC + catalogs + privacy + cash + onboarding + month list + invoice status/lines + templates + patient prescriptions + day close. Catalog/GDPR/invoice/prescription/day-close writes are demo-mock only. Drag calendar / GOZ factor / e-prescription submit remain not started. Progress map: [`swing-conversion-checklist.md`](swing-conversion-checklist.md) and `Medoc-swing/CONVERSION.md`.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
+- **Deferred roles (MVP):** `TAX_ADVISOR` / `PHARMA_CONSULTANT` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
 
-**Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
+## Done (2026-08-20 — English leftover identifiers — helpers / i18n / PDF / template kind)
+
+- PDF helpers, i18n keys (`device_cluster`, `examination_*`, `enum.profession`, patient filters), PDF labels, `document_template.kind` PRESCRIPTION/CERTIFICATE with leftover dual-read + upgrade.
+- Vitest subset **97 PASS** / 16 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-20 — Swing prescriptions + invoice lines + day close)
+
+- Patient prescriptions page (create/delete). E-prescription submit stays desktop-only.
+- Invoice lines: add/remove; amount = line sum. Not a GOZ factor engine.
+- Day close: counted cash vs today’s cash total + variance. No PDF.
+- `./gradlew test --rerun-tasks` **PASS** — 66 tests / 17 classes.
+
+## Done (2026-08-20 — Swing onboarding + month + invoice status + templates)
+
+- Onboarding wizard writes `onboardingComplete` into `practice.preferences.v1` (merge-safe). License/pairing stay desktop copy.
+- Appointments month list from one LAN-safe day query per date; double-click opens day view (no drag).
+- Billing Issue / Mark paid (`update_invoice`). Template editor create/update (`update_catalog`). Both demo-mock; LAN paths **null**.
+- `./gradlew test --rerun-tasks` **PASS** — 64 tests / 16 classes.
+
+## Done (2026-08-20 — English leftover identifiers — invoice PDF IPC)
+
+- Invoice PDF IPC English (`factor`, `tooth_nr`, `treatment_date`, `vat_percent`, `bank_details`, `vat_notice`) with serde + TS dual-read of leftover German keys.
+- `validate_tooth_number`, `lineFromServiceItemChoice`, `allocateReceiptNumber`.
+- Vitest subset **95 PASS** / 15 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-20 — Swing privacy + cash + anamnesis)
+
+- Privacy demo JSON export and master-data anonymise (`PrivacyController`). LAN dsgvo commands stay unavailable.
+- Cash desk today-queue with KPI and patient (React `finance-cash.tsx` subset).
+- `/inbox` → tickets; `/finance` → billing; anamnesis note on new patient.
+- `./gradlew test --rerun-tasks` **PASS** — 61 tests / 16 classes.
+
+## Done (2026-08-20 — English leftover identifiers — appointments / numbering / i18n)
+
+- Duration / toothache / emergency identifiers English with leftover dual-read. Numbering `allocateReportNumber`. i18n emergency/changed/toothache keys. Day-close index rename.
+- Vitest subset **89 PASS** / 13 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-20 — English leftover identifiers — day-close)
+
+- `day_close_protocol`: `notiz` → `note`, mixed leftover columns → English (`day_payment_count`, `recorded_at`, …). IPC `set_payments_cash_verified`.
+- Vitest subset **76 PASS** / 10 files; day-close smoke **PASS**. `cargo` **NOT RUN**.
+
+## Done (2026-08-20 — English leftover identifiers — VVT / done_note / PDF)
+
+- VVT generator copy English. `practice_task.done_notiz` → `done_note` (IPC `doneNote`; serde aliases).
+- Chart / receipt / prescription PDF labels English; medications defaults English (`7 days`, dosage forms).
+- Vitest subset **68 PASS** / 9 files (inbox smoke skipped by flag). `cargo` **NOT RUN**.
+
+## Done (2026-08-20 — Swing nested catalogs)
+
+- Administration hubs (`AdminHubs`) matching React TOC: team, finance, inventory, services, planning, governance.
+- Reusable `CatalogListPage` + `CatalogController` for prescriptions, certificates, services, products, staff, work plan, treatment, templates, contracts, order master, day close, balance, work days, blocked times, work hours, audit, logs, ops, compliance, feedback, migration.
+- `PrivacyPage` static GDPR copy (no LAN export/erasure).
+- `./gradlew test --rerun-tasks` **PASS** — 59 tests / 15 classes.
+
+## Done (2026-08-20 — English leftover identifiers)
+
+- Prefs: `pufferMin` → `bufferMin`, calendar view `tag|woche|monat` → `day|week|month`, settings locals `praef` / `Oeffnungszeiten`.
+- Document templates: English JSON ids with dual-read; DPIA `generate_dpia` / `dpia.rs`.
+- Practice task kinds `TERMIN`/`DRUCK` → `APPOINTMENT`/`PRINT`.
+- Vitest subset **67 PASS** / 8 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-19 — Swing sidebar features)
+
+- Sidebar order: charts to validate, tickets, statistics, billing, cash, orders, work time, administration.
+- Demo mock: patient create/update, appointment create/update/delete, chart note tabs.
+- `./gradlew test` **PASS** — 54 tests / 13 classes. LAN write commands stay unavailable on HTTP.
+
+## Done (2026-08-19 — English leftover identifiers)
+
+- Cluster fns `list_geraete` / `*_kopplung_*` → `list_devices` / `*_pairing_*`. Help `/hilfe` → `/help`. Settings sections and onboarding paths English. Finance KPIs and statistics labels English. Vitest subset **60 PASS** / 6 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-19 — Swing practice logo)
+
+- Settings logo via LAN KV `practice.logo.v1` (`{ mime, data }` base64, max 750 KB). Remove uses `delete_app_kv`. `./gradlew test` **PASS** — 50 tests / 12 classes.
+
+## Done (2026-08-19 — English SQLite schema upgrade)
+
+- `serviceItem` / `purchaseOrder` SQL → `service_item` / `purchase_order` in schema + queries.
+- Cluster SQL `geraet_*` / `kopplung_state` → `device_*` / `pairing_state`.
+- Idempotent German→English table/column/enum upgrade; existing DBs run migrations on every open.
+- Specialty seed `Dentistry`.
+
+## Done (2026-08-19 — Swing invoice billing IDs)
+
+- Letterhead now also stores clinician name, professional title, ZANR, BSNR, LANR, IBAN/BIC/bank. Wire keys `zanr` / `bankverbindung_iban` stay in the KV blob. `./gradlew test` **PASS** — 47 tests / 12 classes.
+
+## Done (2026-08-19 — Swing practice letterhead)
+
+- Settings letterhead: name, address, phone, email, opening hours, KV number via `invoice.practice.v1`. Unknown wire fields (ZANR, IBAN, …) kept. `./gradlew test` **PASS** — 44 tests / 11 classes.
+
+## Done (2026-08-19 — Swing own profile)
+
+- Settings My account: `OwnProfileController` `get` / `update` via `GET|PATCH /api/v1/me` (name, email, phone). Password change still not on LAN.
+- `./gradlew test` **PASS** — 42 tests / 11 classes.
+
+## Done (2026-08-19 — leftover German copy + English de.json)
+
+- Errors, FIRST/FOLLOW_UP, ISSUED, catalog categories, dental status, chart tabs are English. Default locale `en`. `de.json` values = `en.json`.
+- Vitest subset **120 PASS** / 18 files.
+
+## Done (2026-08-19 — Swing LanDialect English LAN)
+
+- Outgoing dialect matches Medoc LAN: `/api/v1/patients`, `/api/v1/appointments?date=`, `password`, `PHYSICIAN` → `Role.DOCTOR`. German names kept as inbound fallbacks.
+
+## Done (2026-08-19 — Swing conversion checklist)
+
+- File-by-file React → Swing map: sibling `Medoc-swing/CONVERSION.md`. Pointer: [`swing-conversion-checklist.md`](swing-conversion-checklist.md).
+
+## Done (2026-08-19 — full English wires)
+
+- Converted remaining German wires: IPC commands, SQL, enum values, routes, RBAC, i18n keys. Fixed `_created_at` collateral. ipc-bridge is identity.
+- Vitest subset **111 PASS** / 16 files. `cargo` **NOT RUN**.
+
+## Done (2026-08-19 — Swing week appointments + help)
+
+- Appointments: Day / Week toggle. Week is seven LAN `list_appointments` calls (Monday–Sunday). No create/edit.
+- Help page. Remaining sidebar items open an honest LAN-unavailable stub.
+- `./gradlew test` 36 PASS.
+
+## Done (2026-08-19 — Swing settings English KV on the wire)
+
+- Swing GET/PUT uses English `practice.preferences.v1` with no German remapping.
+- LAN whitelist in `app_kv_policy.rs` accepts that key (legacy `practice.preferences.v1` kept for Tauri).
+- `./gradlew test` 35 PASS. `cargo test` **NOT RUN** (`cargo` not on PATH).
+
+## Done (2026-08-19 — Swing settings English KV key)
+
+- App code uses `practice.preferences.v1`. `LanDialect` maps it to the LAN stored key on GET/PUT. Adapter tests no longer contain the German literal.
+- `./gradlew test` 35 PASS.
+
+## Done (2026-08-19 — Swing settings slice)
+
+
+## Done (2026-08-19 — full identifier conversion)
+
+- TS + Rust identifiers converted token-aware (strings/comments skipped). Serde/sqlx/tauri rename keeps wires German.
+- Enum yaml type/variant names English; wire values unchanged.
+- Vitest subset 106 PASS. `cargo` **NOT RUN**.
+
+## Done (2026-08-19 — saldo / domain entity stems)
+
+- Glossary: `saldo`, `as_of_date`, `gezaehlt`, `laut`, `stimmt`, `zurueck`/`begruendung`, `geliefert`, `unterwegs`, `bearbeitung`.
+- `balance_cents` now in unique list (`balance_sheet_snapshot.rs:19`). Unique count **6872**.
+
+## Done (2026-08-19 — German-inventory cover-up)
+
+- Scanner prefix-match for fused compounds (`bestellstamm`, `Rezeptverwaltung`, `zahlungsziel`, …).
+- Rescan: **6811** unique identifiers; both JSON files in sync; family grep 0 missing; must-haves present.
+- Inventory only — no identifier renames.
+
+## Done (2026-08-19 — Swing dashboard slice)
+
+- `DashboardController` + `DashboardPage`: patient/new/in-care/today KPIs + today's appointment table. English keys; DE values only in `messages_de.properties`.
+- `./gradlew test` 30 PASS.
+
+## Done (2026-08-19 — Swing appointments slice)
+
+- Read-only day list: `AppointmentController` + `AppointmentsPage`; German LAN wires only in `LanDialect`.
+- Sidebar **Appointments** enabled. Double-click opens patient master data.
+- `./gradlew test` 28 PASS. Live LAN **NOT OBSERVED**.
+
+## Done (2026-08-19 — Swing Englishify rescan)
+
+- Isolated remaining German LAN wires in `LanDialect` (`password`, `role`/`PHYSICIAN`, `/api/v1/patients`, `date_of_birth`, …).
+- Gender labels via i18n (`patient.gender.*`); `showPassword` renamed; rate-limit uses `LanDialect.looksRateLimited`.
+- `./gradlew test` 21 PASS. Live LAN **NOT OBSERVED**.
+
+## Done (2026-08-19 — Englishify TS identifiers)
+
+- Rewrote live TS identifiers (types/functions/fields) German → English; IPC commands, routes, i18n keys unchanged.
+- `ipc-bridge.ts` maps English fields to German JSON. Regex + template-interpolation aware rewriter in `.englishify/ident_rewrite.py`.
+- Restored German RBAC route/section lookup keys (quoted). Vitest subset 96 PASS.
+
+## Done (2026-08-19 — Java Swing frontend slice)
+
+- External Gradle 8 / Java 21 Swing client at `/Users/achraf/pro/Medoc-swing`.
+- Hexagonal port + HTTP/mock adapters; login, sidebar, patient table, master-data detail.
+- Java identifiers Englishified (`Role`, `PatientsPage`, `dateOfBirth`, …). LAN JSON/command wires kept (`password`, `list_patients`).
+- `./gradlew test` 18 PASS. Live LAN **NOT OBSERVED**.
+
+**Last updated (prior):** 2026-08-19 (Englishify source filenames)
 
 ## Master plan
 
@@ -26,7 +219,7 @@ Active cost-priority delivery plan and test allow-list:
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 
-- `akte-anlagen` pure domain → `packages/shared/src/lib/akte-anlagen.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-anlagen.ts`.
+- `akte-attachments` pure domain → `packages/shared/src/lib/akte-attachments.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-attachments.ts`.
 - `desktop-window-frame` Tauri calls → `src/platform/desktop-window-controls.ts`.
 - ESLint `no-restricted-imports`: views/pages cannot import `@tauri-apps/*` or transport/registry directly.
 - `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
@@ -36,8 +229,8 @@ Active cost-priority delivery plan and test allow-list:
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
 - Schema + RBAC + extended work_time/krank/adjustment IPC (294 handlers).
-- Employee `/personal/arbeitszeit`, admin `/verwaltung/team/arbeitszeit`, Krankenbescheinigung Verwaltung, Statistik `sec-arbeitszeit`.
-- Per-user auto-record prefs; REZEPTION post-login → Arbeitszeit; focus-mode nav filter.
+- Employee `/staff/work-time`, admin `/administration/team/work-time`, Krankenbescheinigung Verwaltung, Statistik `sec-arbeitszeit`.
+- Per-user auto-record prefs; RECEPTION post-login → Arbeitszeit; focus-mode nav filter.
 
 ## Done (2026-06-16 — Admin installer + offline keygen)
 
@@ -52,7 +245,7 @@ Active cost-priority delivery plan and test allow-list:
 - **persist-plan-docs:** Master plan links in actions.md; W6 boot path in mvp-cost-priority-plan.md.
 - **w7-lan-client:** Playwright patient list RBAC; deployment hints; lan-client-deployment doc paths.
 - **w8-two-device:** `two-device-sync-smoke.sh` AUTO_ONLY default + Docker 17/17 proxy.
-- **ux-workflows:** Field hints (patient, termin, deployment, pairing); abandon confirm; export PDF smoke; P0 route smokes.
+- **ux-workflows:** Field hints (patient, appointment, deployment, pairing); abandon confirm; export PDF smoke; P0 route smokes.
 - **phase2-hardening:** Statistik Krankheitsbild empty state; release-gate automated ticks; coordination ledgers.
 
 ## Done (2026-06-07 — T-U1 medoc-sync tests)
@@ -72,23 +265,23 @@ Active cost-priority delivery plan and test allow-list:
 
 - **Break-Glass (re-enable):** Set `BREAK_GLASS_ENABLED = true` in `mvp_security.rs` + `mvp-security-config.ts` — checklist [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
 - **2FA / TOTP (re-enable):** Set `TOTP_2FA_ENABLED = true` — same checklist; un-ignore `totp_tests.rs`.
-- **Staff limit (raise or license-wire):** Adjust `MAX_ARZT` / `MAX_REZEPTION` / `MAX_TOTAL_PERSONAL` in `mvp_security.rs` — currently **1 ARZT + 4 REZEPTION**.
+- **Staff limit (raise or license-wire):** Adjust `MAX_ARZT` / `MAX_REZEPTION` / `MAX_TOTAL_PERSONAL` in `mvp_security.rs` — currently **1 PHYSICIAN + 4 RECEPTION**.
 
-- **Einstellungen → Benachrichtigungen (re-enable):** Set `BENACHRICHTIGUNGEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal push / notification microservices are deployed and `companyPortalFetchFeatureFlags` is production-ready. Panel: `einstellungen-benachrichtigungen-section.tsx`; gate: `settingsSectionVisible("benachrichtigungen", …)`.
+- **Einstellungen → Benachrichtigungen (re-enable):** Set `BENACHRICHTIGUNGEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal push / notification microservices are deployed and `companyPortalFetchFeatureFlags` is production-ready. Panel: `settings-benachrichtigungen-section.tsx`; gate: `settingsSectionVisible("benachrichtigungen", …)`.
 - **Einstellungen → System — ausgeblendete Panels (re-enable):** Flags in `settings-ui-flags.ts` — set `SYSTEM_SERVERLESS_FOCUS_ENABLED = false` to restore full System panel; or enable individually:
-  - `SYSTEM_APPEARANCE_TOGGLES_ENABLED` — Benutzeravatar, Tastenkürzel (`einstellungen-system-section.tsx` legacy block)
+  - `SYSTEM_APPEARANCE_TOGGLES_ENABLED` — Benutzeravatar, Tastenkürzel (`settings-system-section.tsx` legacy block)
   - `SYSTEM_AKTE_PHOTO_VIEWER_ENABLED` — externe App für Akten-Anlagen
   - `SYSTEM_DIAGNOSTICS_ENABLED` — Auto-Abmeldung, Health-Check, Performance-Schwelle
-  - `SYSTEM_LAN_HOST_PANEL_ENABLED` — vollständiges LAN-Host / Zweitgeräte-Panel (`einstellungen-lan-host.tsx`)
-  - `SYSTEM_COMPANY_PORTAL_ENABLED` — Hersteller-Portal (`einstellungen-company-portal-section.tsx`)
+  - `SYSTEM_LAN_HOST_PANEL_ENABLED` — vollständiges LAN-Host / Zweitgeräte-Panel (`settings-lan-host.tsx`)
+  - `SYSTEM_COMPANY_PORTAL_ENABLED` — Hersteller-Portal (`settings-company-portal-section.tsx`)
   - `SYSTEM_OPS_EXTRAS_ENABLED` — Backup jetzt, Ops-Vorschau, Weitere-Seiten-Links
   - `SYSTEM_LEGACY_DEPLOYMENT_MODES_ENABLED` — Betriebsmodi Praxis-Desktop + LAN-Client im Deployment-Select
   - `SYSTEM_MESH_SYNC_ENABLED` — experimenteller Mesh-Sync zwischen Replicas
-- **Posteingang (re-enable):** Aufgaben sind auf **`/tickets`** integriert (Praxis-Tickets & Aufgaben). Ein separater Posteingang-Nav-Eintrag ist nicht geplant — bei Bedarf nur Badge/Polling-Verhalten anpassen. Admin-CRUD bleibt unter **Verwaltung → Praxis-Aufgaben** (`/verwaltung/aufgaben`).
-- **Einstellungen → Darstellung → Dunkle Seitenleiste (re-enable):** Set `DARK_SIDEBAR_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when sidebar dark-tone styling is polished and QA’d across light/dark themes. Toggle: `einstellungen-darstellung-section.tsx`; runtime still reads `appearance.darkSidebar` via `applyAppearanceFromSettings`.
-- **Termin: Pause / Notfall-Werkzeuge (CAL2, re-enable):** Set `CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when Pause/Notfall toolbar dialogs in `termine.tsx` are product-ready. Settings toggle: `einstellungen-arbeitsablaeufe-section.tsx` (`workflows.calendarEmergencyToolbarEnabled`); Notfall-Filter in Termine stays available regardless.
-- **Einstellungen → Integrationen (re-enable):** Set `INTEGRATIONEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal integration status and local capability toggles are production-ready. Panel: `einstellungen-integrationen-section.tsx`; gate: `settingsSectionVisible("integrationen", …)`.
-- **Einstellungen → Migration (re-enable):** Set `MIGRATION_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when the dedicated Migration settings nav should appear again (CSV wizard remains at `/migration` via System → Datenmigration until then). Panel: `einstellungen-migration-section.tsx`; gate: `settingsSectionVisible("migration", …)`.
+- **Posteingang (re-enable):** Aufgaben sind auf **`/tickets`** integriert (Praxis-Tickets & Aufgaben). Ein separater Posteingang-Nav-Eintrag ist nicht geplant — bei Bedarf nur Badge/Polling-Verhalten anpassen. Admin-CRUD bleibt unter **Verwaltung → Praxis-Aufgaben** (`/administration/tasks`).
+- **Einstellungen → Darstellung → Dunkle Seitenleiste (re-enable):** Set `DARK_SIDEBAR_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when sidebar dark-tone styling is polished and QA’d across light/dark themes. Toggle: `settings-darstellung-section.tsx`; runtime still reads `appearance.darkSidebar` via `applyAppearanceFromSettings`.
+- **Termin: Pause / Notfall-Werkzeuge (CAL2, re-enable):** Set `CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when Pause/Notfall toolbar dialogs in `appointments.tsx` are product-ready. Settings toggle: `settings-arbeitsablaeufe-section.tsx` (`workflows.calendarEmergencyToolbarEnabled`); Notfall-Filter in Termine stays available regardless.
+- **Einstellungen → Integrationen (re-enable):** Set `INTEGRATIONEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal integration status and local capability toggles are production-ready. Panel: `settings-integrationen-section.tsx`; gate: `settingsSectionVisible("integrationen", …)`.
+- **Einstellungen → Migration (re-enable):** Set `MIGRATION_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when the dedicated Migration settings nav should appear again (CSV wizard remains at `/migration` via System → Datenmigration until then). Panel: `settings-migration-section.tsx`; gate: `settingsSectionVisible("migration", …)`.
 
 ## Done (2026-06-06 — Docker Wave V1 user run)
 
@@ -120,18 +313,18 @@ Active cost-priority delivery plan and test allow-list:
 
 - **Docs:** Plan + test scope linked; LAN client deployment guide; multi-device catalog Tier-1 rows.
 - **MS-5:** Company `GET /health` returns `_demo` banner JSON.
-- **Tier-1 hooks:** `rezept` + `praxis_ticket` in `sync_outbox_hooks_tests.rs`.
+- **Tier-1 hooks:** `prescription` + `practice_ticket` in `sync_outbox_hooks_tests.rs`.
 - **Port e2e:** `port_sync_rezept_push_applies_on_master`, `port_sync_praxis_ticket_push_applies_on_master`; mesh duplicate guard.
 - **W7/T-S3:** Playwright JWT login test; TLS/CORS doc.
 - **W8/T-S2:** `two-device-sync-smoke.sh` Tier-1 + live steps.
-- **UX:** Migration CSV MVP copy; REZ bestellungen policy in i18n/onboarding; export-preview unit test.
+- **UX:** Migration CSV MVP copy; REZ purchase-orders policy in i18n/onboarding; export-preview unit test.
 - **T-U2:** `pairing.controller.test.ts`, expanded `deployment-config.test.ts`.
 
 ## Done (2026-06-02 MVP serverless execution)
 
 - **Phase 0:** `mvp-cost-priority-plan.md`, `mvp-test-scope.md`; G21 verify GREEN; **188** Vitest.
 - **MS-3 Tier-1:** 7 synced tables + hooks; `sync_peer_vector` mesh delivery.
-- **MS-6:** `patient.read` / `termin.read` activation-token routes + pairing inbox.
+- **MS-6:** `patient.read` / `appointment.read` activation-token routes + pairing inbox.
 - **UX:** SyncStatusBadge, sync error toasts, pairing URL fallback.
 - **T-I1:** +6 Rust e2e (75+ total in-process).
 - **T-S2/T-S3:** `two-device-sync-smoke.sh`; Playwright LAN (opt-in).
@@ -140,7 +333,7 @@ Active cost-priority delivery plan and test allow-list:
 ## Done (2026-06-02 gap sweep)
 
 - **GAP-10:** Tagesabschluss in sidebar (`nav-sections.ts`).
-- **GAP-11:** Quittung from `/finanzen` + shared `quittung-export-flow.ts`.
+- **GAP-11:** Quittung from `/finance` + shared `quittung-export-flow.ts`.
 - **GAP-01/02:** Automated proxy closure — `collaboration-g21.test.ts` + Rust `rezeption_redact`.
 - **Deferrals doc:** [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) (skips 08/09/12; P3 deferred).
 - **Traceability refresh:** `01b-traceability-waad.md` reconciled for FA-AKTE-15, FA-DOK-08, FA-LEIST-06, etc.
@@ -232,7 +425,7 @@ Active cost-priority delivery plan and test allow-list:
   - `ConflictPolicy::MasterWinsWithFreshness` using `updated_at`.
   - Auto outbox hooks for the 8 allow-listed tables; 7 tests in
     `app/crates/medoc-core/tests/sync_outbox_hooks_tests.rs`.
-  - Frontend: replica `pairing-scan.tsx`, master `einstellungen-pairing-inbox.tsx`,
+  - Frontend: replica `pairing-scan.tsx`, master `settings-pairing-inbox.tsx`,
     `license-activate.tsx`, top-level `LicenseAndPairingGate`.
 
 ## Next
@@ -260,7 +453,7 @@ Active cost-priority delivery plan and test allow-list:
   (currently only `/sync/*` + `/pairing/peers` consume
   `allowed_actions[]`).
 - **Repository allow-list expansion** beyond the 8 outbox-hooked tables
-  (anamnesebogen, zahnbefund, etc.) — domain review required first.
+  (anamnesis_form, dental_finding, etc.) — domain review required first.
 - **mDNS pairing** instead of UDP broadcast (cross-subnet support).
 - Long-running: requirements-coverage audit per `AGENTS.md` Phase 1.6.
 
@@ -289,8 +482,8 @@ Active cost-priority delivery plan and test allow-list:
 ## Done (2026-05-22 three-system wave)
 
 - **`application/akte/pdf_export.rs`** — FA-AKTE-04 + FA-DOK-08; `akte_commands.rs` **~369** lines (thin IPC wrappers)
-- **Einstellungen sections** — `systems/practice-host/pages/einstellungen/` (12 modules); re-export stubs in `views/pages/`
-- **Company-portal section** — `systems/company-portal/pages/einstellungen-company-portal-section.tsx`; view stub retained
+- **Einstellungen sections** — `systems/practice-host/pages/settings/` (12 modules); re-export stubs in `views/pages/`
+- **Company-portal section** — `systems/company-portal/pages/settings-company-portal-section.tsx`; view stub retained
 - **LAN client login flow** — `http-practice.adapter.test.ts` (fetch mock + token persistence); live browser E2E **NOT RUN**
 
 ## Done (2026-05-21 three-system wave)
@@ -301,11 +494,11 @@ Active cost-priority delivery plan and test allow-list:
 - **`HttpPracticeAdapter` + `practice-transport` factory** — `systems/practice-host/adapters/`
 - **`application/akte/billing_release.rs`** — first akte use-case extraction from `akte_commands.rs`
 - **Clippy:** `needless_borrows` + `AbrechnungAufgabeParams` in DB repos (**PASS** `cargo clippy --lib`)
-- **LAN client UI** — `einstellungen-lan-host.tsx` (`medoc.lan.client.v1`, discovery → URL)
+- **LAN client UI** — `settings-lan-host.tsx` (`medoc.lan.client.v1`, discovery → URL)
 - **`application/akte/rezeption_redact.rs`** — REZ redaction extracted from `akte_commands.rs`
 - **`backup_tests`** — `tokio::sync::Mutex` (**PASS** `cargo clippy --all-targets`)
 - **`application/akte/clinical_line_persistence.rs`** — B/U CRUD + FA-LEIST-06/07 + FA-AUFG-02 side effects
-- **LAN UI** — `systems/lan/pages/einstellungen-lan-host.tsx` (re-export stub in `views/pages/`)
+- **LAN UI** — `systems/lan/pages/settings-lan-host.tsx` (re-export stub in `views/pages/`)
 
 ## Now (previous) (gap remediation — active)
 
@@ -315,27 +508,27 @@ Active cost-priority delivery plan and test allow-list:
 | ID | Action | Blocked by | Status |
 | -- | ------ | ---------- | ------ |
 | G0 | Reconcile `project-truth.md`, `06-validierung.md`, `phase-handoff.md` with code (close stale A-rows) | — | **Done** 2026-05-21 |
-| G1 | FA-AKTE-15 sidebar badge: `count_akten_zu_validieren` IPC + nav UI | — | **Done** 2026-05-21 |
+| G1 | FA-AKTE-15 sidebar badge: `count_charts_zu_validieren` IPC + nav UI | — | **Done** 2026-05-21 |
 | G2 | WAAD 9.1 restore: `restore_backup` + Ops UI + confirm dialog (scheduler in `lib.rs`) | — | **Done** 2026-05-21 |
-| G3 | Error surfacing: replace silent `.catch` on ops, gates, patient-detail, app-layout | — | **Done** 2026-05-21 (portal `null` documented offline-by-design in `einstellungen.tsx`) |
-| G4 | Discharge PDF test in `pdf_document_tests.rs` + DoD routes `/akten/zu-validieren`, `/tickets` | — | **Done** 2026-05-21 |
-| G5 | `patient-detail` shell further split (rezept tab / shell &lt;1200 lines) | P3h | **Done** 2026-05-21 (shell **~1029** lines; clinical/zahl/akte hooks + `patient-detail-overlays.tsx`) |
+| G3 | Error surfacing: replace silent `.catch` on ops, gates, patient-detail, app-layout | — | **Done** 2026-05-21 (portal `null` documented offline-by-design in `settings.tsx`) |
+| G4 | Discharge PDF test in `pdf_document_tests.rs` + DoD routes `/charts/to-validate`, `/tickets` | — | **Done** 2026-05-21 |
+| G5 | `patient-detail` shell further split (prescription tab / shell &lt;1200 lines) | P3h | **Done** 2026-05-21 (shell **~1029** lines; clinical/zahl/akte hooks + `patient-detail-overlays.tsx`) |
 | G6 | NFA-USE-09 onboarding wizard (`app_kv` + per-route coverage ≥80%) | Product copy | **Done** 2026-05-21 (coachmark, nested-route match, `ONBOARDING_MIN_COVERAGE_RATIO`, settings %) |
 | G7 | NFA-USE-10 configurable autocomplete + disable toggle (`app_kv`) | — | **Done** (already in `client-settings` + Arbeitsabläufe toggle) |
-| G8 | WAAD 9.5 / A10: Krankheitsbild-Verlauf charts + CSV in `statistik.tsx` | — | **Done** 2026-05-21 |
+| G8 | WAAD 9.5 / A10: Krankheitsbild-Verlauf charts + CSV in `statistics.tsx` | — | **Done** 2026-05-21 |
 | G9 | Termin reminders: dashboard panel MVP (full SMS/email deferred) | — | **Done** 2026-05-21 |
 | G10 | Integration capability matrix + disable/label stubs (TI/KIM/pay/DICOM) | Product D3 | **Done** 2026-05-21 |
 | G11 | A9 stress test harness (5 parallel clients) | CI budget | **Done** 2026-05-21 (`stress_tests.rs`) |
 | G12 | Per-patient RBAC spike (WAAD 2.1.1) | Product decision | **Deferred** |
-| G13 | FA-LEIST-05 doc rescope (B/U not catalog `leistung`) + billing UI hints | — | **Done** 2026-05-21 (`pflichtenheft.md`, traceability, zahl-tab + `billing-release.ts`) |
+| G13 | FA-LEIST-05 doc rescope (B/U not catalog `serviceItem`) + billing UI hints | — | **Done** 2026-05-21 (`pflichtenheft.md`, traceability, zahl-tab + `billing-release.ts`) |
 | CAL2 | Termin Pause/Notfall toolbar: re-enable OR formal feature flag (D1) | Product D1 | **Done** 2026-05-21 (flag + banner + settings toggle) |
 | N3 | E2E test: release B/U → Zahlung OK; without release → FA-LEIST-05 error | G13 | **Done** 2026-05-21 (`zahlung_repo_tests` + `billing-release-flow.test.ts`; full UI E2E **NOT RUN**) |
-| G14 | **FA-LEIST-06:** Nach B/U+Leistung → Tab `zahl` + offene Buchung (`AUSSTEHEND`); implizite `freigegeben_*` | G13 | **Done** 2026-05-21 (Behandlung; `ensure_open_booking_for_billable_behandlung` + `billing-open-booking.ts`) |
-| G15 | **FA-LEIST-07:** `untersuchung` + UI Leistung/Preis wie `behandlung`; `pricing`/`zahlung-buchung` | G14 | **Done** 2026-05-21 |
-| G16 | **FA-AUFG-01/06:** `praxis_aufgabe` + Statusmaschine + IPC + migrate `praxis_ticket` | Product | **Done** 2026-05-21 |
-| G17 | **FA-AUFG-02–05:** Posteingang REZ, erledigen→notify, Arzt VALIDIERT/ZURUECK; poll/badge | G16 | **Done** 2026-05-21 (`/posteingang`, 5s poll, `PRAXIS_AUFGABE_ERLEDIGT`) |
+| G14 | **FA-LEIST-06:** Nach B/U+Leistung → Tab `zahl` + offene Buchung (`OUTSTANDING`); implizite `freigegeben_*` | G13 | **Done** 2026-05-21 (Behandlung; `ensure_open_booking_for_billable_behandlung` + `billing-open-booking.ts`) |
+| G15 | **FA-LEIST-07:** `examination` + UI Leistung/Preis wie `treatment`; `pricing`/`payment-buchung` | G14 | **Done** 2026-05-21 |
+| G16 | **FA-AUFG-01/06:** `practice_task` + Statusmaschine + IPC + migrate `practice_ticket` | Product | **Done** 2026-05-21 |
+| G17 | **FA-AUFG-02–05:** Posteingang REZ, erledigen→notify, Arzt VALIDATED/ZURUECK; poll/badge | G16 | **Done** 2026-05-21 (`/inbox`, 5s poll, `PRAXIS_AUFGABE_ERLEDIGT`) |
 | G18 | Auto-Aufgabe `ABRECHNUNG` bei B/U+Leistung speichern (verknüpft G14+G17) | G14, G17 | **Done** 2026-05-21 (`ensure_abrechnung_aufgabe_for_clinical_line`) |
-| G19 | **FA-AUFG-02 manual:** „Aufgabe an Rezeption“ in Patientenakte (ARZT → `create_praxis_aufgabe`) | G17 | **Done** 2026-05-21 (`patient-akte-workflow-dialogs.tsx`, shell button) |
+| G19 | **FA-AUFG-02 manual:** „Aufgabe an Rezeption“ in Patientenakte (PHYSICIAN → `create_practice_task`) | G17 | **Done** 2026-05-21 (`patient-akte-workflow-dialogs.tsx`, shell button) |
 | G2b | **G2 fix:** restore backup → SQLCipher (`opens_with_sqlcipher_key` or plaintext migrate) | G2 | **Done** 2026-05-21 (`backup.rs`, `sqlcipher.rs`) |
 
 ### Gap register (P0–P3) — master audit
@@ -356,7 +549,7 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | ID | Action | Status | Notes |
 | -- | ------ | ------ | ----- |
 | A1 | NFA-SEC-08 SQLCipher | **Done** | `sqlcipher.rs`, `DbSetupGate` |
-| A2 | FA-PERS-07 permission overrides | **Done** | `personal.tsx` + RBAC session |
+| A2 | FA-PERS-07 permission overrides | **Done** | `staff.tsx` + RBAC session |
 | A3 | FA-DOK-08 discharge merkblatt PDF | **Done** | G4 adds PDF test |
 | A4 | FA-PERS-08 praxis tickets | **Done** | `/tickets`; verify audit-on-read if required |
 | A5 | FA-LEIST-05 physician release | **Done** | B/U `freigegeben_*`; G13 docs |
@@ -364,7 +557,7 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | A7 | FA-AKTE-16 completeness | **Done** (extend) | `akte-completeness.ts` |
 | A8 | Auto backup + restore UI | **Done** | scheduler `lib.rs` + **G2** restore + test |
 | A9 | Stress test | **Done** → **G11** | `five_parallel_clients_audit_inserts_remain_valid` |
-| A10 | Disease pattern statistik | **Done** → **G8** | Proxy from Behandlungsaggregaten |
+| A10 | Disease pattern statistics | **Done** → **G8** | Proxy from Behandlungsaggregaten |
 | A11 | FA-AKTE-14 forward akte | **Done** | `PatientAkteWorkflowDialogs` |
 | A12 | FA-AKTE-15 validation queue | **Done** | page + **G1** nav badge |
 | A13 | NFA-USE-10 autocomplete | **Done** → **G7** | |
@@ -380,8 +573,8 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 
 | ID | Action | Dependency | Priority |
 | -- | ------ | ---------- | -------- |
-| G20 | Deprecate `/tickets` → banner + nav; Posteingang in sidebar + `ROUTE_VISIBILITY` | — | **Done** 2026-05-21 (no full redirect — REZ→ARZT tickets remain FA-PERS-08) |
-| G21a | Automated G21: `collaboration-g21.test.ts`, `posteingang.smoke.test.tsx`, tab guard util | — | **Done** 2026-05-21 |
+| G20 | Deprecate `/tickets` → banner + nav; Posteingang in sidebar + `ROUTE_VISIBILITY` | — | **Done** 2026-05-21 (no full redirect — REZ→PHYSICIAN tickets remain FA-PERS-08) |
+| G21a | Automated G21: `collaboration-g21.test.ts`, `inbox.smoke.test.tsx`, tab guard util | — | **Done** 2026-05-21 |
 | G21b | Live Tauri checklist | G21a | **Pending** — [`g21-live-smoke-checklist.md`](g21-live-smoke-checklist.md) (manual) |
 | — | G12 per-patient RBAC | Product | **Deferred** |
 
@@ -393,11 +586,11 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | G21a | Collaboration unit + Posteingang poll smoke tests | 2026-05-21 |
 | G20, G17-fix | Posteingang sidebar + route guard; tickets→Posteingang banner | 2026-05-21 |
 | G19, G2b | Manual Aufgabe dialog; backup restore SQLCipher re-encrypt | 2026-05-21 |
-| G16–G18 | FA-AUFG praxis_aufgabe + Posteingang + auto ABRECHNUNG | 2026-05-21 |
+| G16–G18 | FA-AUFG practice_task + Posteingang + auto ABRECHNUNG | 2026-05-21 |
 | G15 | FA-LEIST-07 Untersuchung billing fields + open booking + zahl tab | 2026-05-21 |
 | G14 | FA-LEIST-06 auto open booking + zahl tab | 2026-05-21 |
 | N2, N6, G3 | CI tauri smoke; Verwaltung RBAC split; portal offline doc | 2026-05-21 |
-| N1, N4, N5 | README desktop-only; termin alt slots; invoice LS→app_kv | 2026-05-21 |
+| N1, N4, N5 | README desktop-only; appointment alt slots; invoice LS→app_kv | 2026-05-21 |
 | G6, G13, N3 | Onboarding ≥80 %, FA-LEIST-05 docs, billing IPC tests | 2026-05-21 |
 | G5 | patient-detail shell &lt;1200 lines + overlays | 2026-05-21 |
 | G1–G4, G2 restore | Gap remediation batch 1 | 2026-05-21 |

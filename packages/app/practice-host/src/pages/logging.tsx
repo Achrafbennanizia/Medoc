@@ -14,7 +14,7 @@ import { errorMessage } from "@/lib/utils";
 import { ExportIcon } from "@/lib/icons";
 import { DataExportPickerDialog } from "@/views/components/data-export-picker-dialog";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
-import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
+import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 
 const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 
@@ -93,7 +93,7 @@ export function LoggingPage() {
 
     if (initLoading) {
         return (
-            <div className="praxis-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in">
                 <WorkspacePageHeader title={t("logging.title")} />
                 <PageLoading label={t("logging.loading")} />
             </div>
@@ -101,7 +101,7 @@ export function LoggingPage() {
     }
     if (initError) {
         return (
-            <div className="praxis-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in">
                 <WorkspacePageHeader title={t("logging.title")} />
                 <PageLoadError message={initError} onRetry={() => void loadMeta()} />
             </div>
@@ -109,7 +109,7 @@ export function LoggingPage() {
     }
 
     return (
-        <div className="praxis-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in">
             <WorkspacePageHeader title={t("logging.title")} />
 
             <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

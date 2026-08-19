@@ -1,21 +1,21 @@
 /**
- * Clinical document PDFs (Attest, Rezept, receipt): structured template + domain body.
+ * Clinical document PDFs (Certificate, Prescription, receipt): structured template + domain body.
  *
  * Architecture (analogous to common document pattern): view/export builds a **data package** (body lines),
- * this layer adds the **letterhead** per template (`kopf.fieldsToShow`) and **privacy**
+ * this layer adds the **letterhead** per template (`header.fieldsToShow`) and **privacy**
  * (Settings › Practice) — Rust renders lines only, no raw HTML.
  */
 
-import type { DocumentTemplatePayloadV1, PraxisFieldKey } from "@/lib/document-template-schema";
-import type { InvoicePraxis } from "@/lib/invoice-leistung";
-import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
+import type { DocumentTemplatePayloadV1, PracticeFieldKey } from "@/lib/document-template-schema";
+import type { InvoicePractice } from "@/lib/invoice-service-item";
+import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import {
-    loadPraxisHeaderPrivacy,
-    maskPraxisExportToken,
-    type PraxisHeaderPrivacyV1,
-} from "@/lib/praxis-header-privacy";
+    loadPracticeHeaderPrivacy,
+    maskPracticeExportToken,
+    type PracticeHeaderPrivacyV1,
+} from "@/lib/practice-header-privacy";
 
-const KOPF_ORDER: PraxisFieldKey[] = [
+const HEADER_ORDER: PracticeFieldKey[] = [
     "name",
     "address",
     "phone",
@@ -25,144 +25,144 @@ const KOPF_ORDER: PraxisFieldKey[] = [
     "kv",
     "tax",
     "hours",
-    "behandler",
+    "clinician",
     "zanr",
     "bsnr",
     "bank",
     "kammer",
     "kzv",
-    "zahlungsziel",
-    "ust_hinweis",
-    "notfall_tel",
+    "payment_terms",
+    "vat_notice",
+    "emergency_phone",
 ];
 
-function formatWeb(p: InvoicePraxis): string {
+function formatWeb(p: InvoicePractice): string {
     return (p.web ?? "").trim().replace(/^https?:\/\//i, "");
 }
 
 /** Practice header lines for template PDF — selected fields only, masked like invoice PDF. */
-export function buildClinicalTemplateKopfLines(
+export function buildClinicalTemplateHeaderLines(
     payload: DocumentTemplatePayloadV1,
-    praxis: InvoicePraxis,
-    privacy: PraxisHeaderPrivacyV1,
+    practice: InvoicePractice,
+    privacy: PracticeHeaderPrivacyV1,
 ): string[] {
-    const want = new Set(payload.kopf.fieldsToShow);
+    const want = new Set(payload.header.fieldsToShow);
     const lines: string[] = [];
 
-    for (const key of KOPF_ORDER) {
+    for (const key of HEADER_ORDER) {
         if (!want.has(key)) continue;
         switch (key) {
             case "name": {
-                const n = (praxis.name ?? "").trim();
+                const n = (practice.name ?? "").trim();
                 if (n) lines.push(n);
                 break;
             }
             case "address": {
-                for (const raw of (praxis.addr ?? "").split(/\r?\n/)) {
+                for (const raw of (practice.addr ?? "").split(/\r?\n/)) {
                     const t = raw.trim();
                     if (t) lines.push(t);
                 }
                 break;
             }
             case "phone": {
-                const t = (praxis.telefon ?? "").trim();
+                const t = (practice.phone ?? "").trim();
                 if (!t) break;
-                lines.push(`Tel. ${privacy.tel ? t : maskPraxisExportToken(t)}`);
+                lines.push(`Tel. ${privacy.tel ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "fax": {
-                const t = (praxis.fax ?? "").trim();
+                const t = (practice.fax ?? "").trim();
                 if (!t) break;
-                lines.push(`Fax ${privacy.fax ? t : maskPraxisExportToken(t)}`);
+                lines.push(`Fax ${privacy.fax ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "web": {
-                const w = formatWeb(praxis);
+                const w = formatWeb(practice);
                 if (!w) break;
-                lines.push(privacy.web ? w : maskPraxisExportToken(w));
+                lines.push(privacy.web ? w : maskPracticeExportToken(w));
                 break;
             }
             case "email": {
-                const t = (praxis.email ?? "").trim();
+                const t = (practice.email ?? "").trim();
                 if (!t) break;
-                lines.push(`E-Mail ${privacy.email ? t : maskPraxisExportToken(t)}`);
+                lines.push(`E-Mail ${privacy.email ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "kv": {
-                const t = (praxis.kv_nummer ?? "").trim();
+                const t = (practice.kv_nummer ?? "").trim();
                 if (!t) break;
-                lines.push(`KV- / Betriebsnr. ${privacy.kv ? t : maskPraxisExportToken(t)}`);
+                lines.push(`KV- / Betriebsnr. ${privacy.kv ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "tax": {
-                const ust = (praxis.ust_id ?? "").trim();
-                if (ust) lines.push(`USt-IdNr. ${privacy.ust ? ust : maskPraxisExportToken(ust)}`);
-                const st = (praxis.steuernummer ?? "").trim();
-                if (st) lines.push(`St.-Nr. ${privacy.steuer ? st : maskPraxisExportToken(st)}`);
+                const ust = (practice.ust_id ?? "").trim();
+                if (ust) lines.push(`USt-IdNr. ${privacy.ust ? ust : maskPracticeExportToken(ust)}`);
+                const st = (practice.tax_number ?? "").trim();
+                if (st) lines.push(`St.-Nr. ${privacy.steuer ? st : maskPracticeExportToken(st)}`);
                 break;
             }
             case "hours": {
-                const t = (praxis.oeffnungszeiten ?? "").trim();
+                const t = (practice.opening_hours ?? "").trim();
                 if (!t) break;
-                lines.push(`Hrs: ${privacy.oz ? t : maskPraxisExportToken(t)}`);
+                lines.push(`Hrs: ${privacy.oz ? t : maskPracticeExportToken(t)}`);
                 break;
             }
-            case "behandler": {
-                const n = (praxis.behandler_name ?? "").trim();
+            case "clinician": {
+                const n = (practice.clinician_name ?? "").trim();
                 if (!n) break;
-                const beruf = (praxis.berufsbezeichnung ?? "").trim();
+                const beruf = (practice.professional_title ?? "").trim();
                 const label = beruf ? `${n}, ${beruf}` : n;
-                lines.push(`Behandler: ${privacy.behandler ? label : maskPraxisExportToken(label)}`);
+                lines.push(`Clinician: ${privacy.clinician ? label : maskPracticeExportToken(label)}`);
                 break;
             }
             case "zanr": {
-                const t = (praxis.zanr ?? "").trim();
+                const t = (practice.zanr ?? "").trim();
                 if (!t) break;
-                lines.push(`ZANR: ${privacy.zanr ? t : maskPraxisExportToken(t)}`);
+                lines.push(`ZANR: ${privacy.zanr ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "bsnr": {
-                const t = (praxis.bsnr ?? "").trim();
+                const t = (practice.bsnr ?? "").trim();
                 if (!t) break;
-                lines.push(`BSNR: ${privacy.bsnr ? t : maskPraxisExportToken(t)}`);
+                lines.push(`BSNR: ${privacy.bsnr ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "bank": {
-                const iban = (praxis.bankverbindung_iban ?? "").trim();
-                const bic = (praxis.bankverbindung_bic ?? "").trim();
-                const bank = (praxis.bankverbindung_bank ?? "").trim();
+                const iban = (practice.bankverbindung_iban ?? "").trim();
+                const bic = (practice.bankverbindung_bic ?? "").trim();
+                const bank = (practice.bankverbindung_bank ?? "").trim();
                 if (!iban && !bic && !bank) break;
-                if (iban) lines.push(`IBAN: ${privacy.bank ? iban : maskPraxisExportToken(iban)}`);
-                if (bic) lines.push(`BIC: ${privacy.bank ? bic : maskPraxisExportToken(bic)}`);
-                if (bank) lines.push(`Bank: ${privacy.bank ? bank : maskPraxisExportToken(bank)}`);
+                if (iban) lines.push(`IBAN: ${privacy.bank ? iban : maskPracticeExportToken(iban)}`);
+                if (bic) lines.push(`BIC: ${privacy.bank ? bic : maskPracticeExportToken(bic)}`);
+                if (bank) lines.push(`Bank: ${privacy.bank ? bank : maskPracticeExportToken(bank)}`);
                 break;
             }
             case "kammer": {
-                const t = (praxis.kammer ?? "").trim();
+                const t = (practice.kammer ?? "").trim();
                 if (!t) break;
                 lines.push(`Kammer: ${t}`);
                 break;
             }
             case "kzv": {
-                const t = (praxis.kzv ?? "").trim();
+                const t = (practice.kzv ?? "").trim();
                 if (!t) break;
                 lines.push(`KZV: ${t}`);
                 break;
             }
-            case "zahlungsziel": {
-                const days = praxis.zahlungsziel_tage ?? 14;
-                if (days > 0) lines.push(`Zahlungsziel: ${days} Tage`);
+            case "payment_terms": {
+                const days = practice.payment_terms_tage ?? 14;
+                if (days > 0) lines.push(`Payment terms: ${days} days`);
                 break;
             }
-            case "ust_hinweis": {
-                const t = (praxis.ust_befreiung_hinweis ?? "").trim();
+            case "vat_notice": {
+                const t = (practice.ust_befreiung_hinweis ?? "").trim();
                 if (t) lines.push(t);
                 break;
             }
-            case "notfall_tel": {
-                const t = (praxis.notfall_telefon ?? "").trim();
+            case "emergency_phone": {
+                const t = (practice.notfall_phone ?? "").trim();
                 if (!t) break;
-                lines.push(`Notfall: ${t}`);
+                lines.push(`Emergency: ${t}`);
                 break;
             }
             default:
@@ -177,9 +177,9 @@ export function buildClinicalTemplateKopfLines(
  * PDF lines for `preview_document_pdf`: optional header lines (template + privacy) + content.
  */
 export function composeClinicalDocumentPdfBodyLines(payload: DocumentTemplatePayloadV1, contentLines: string[]): string[] {
-    const praxis = getInvoicePraxisFromStorage();
-    const privacy = loadPraxisHeaderPrivacy();
-    const kopf = buildClinicalTemplateKopfLines(payload, praxis, privacy);
-    if (kopf.length === 0) return [...contentLines];
-    return [...kopf, "", ...contentLines];
+    const practice = getInvoicePracticeFromStorage();
+    const privacy = loadPracticeHeaderPrivacy();
+    const headerLines = buildClinicalTemplateHeaderLines(payload, practice, privacy);
+    if (headerLines.length === 0) return [...contentLines];
+    return [...headerLines, "", ...contentLines];
 }

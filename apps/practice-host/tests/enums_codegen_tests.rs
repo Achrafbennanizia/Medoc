@@ -1,16 +1,16 @@
 //! TASK 3.5 — domain enums generated from `config/enums.yaml`.
 
-use medoc_lib::domain::enums::{Geschlecht, TerminArt, TerminStatus, ZahlungsArt};
+use medoc_lib::domain::enums::{Sex, AppointmentKind, AppointmentStatus, PaymentMethod};
 
 const RUST_ENUMS: &[(&str, usize)] = &[
-    ("Rolle", 4),
-    ("Geschlecht", 3),
-    ("TerminArt", 5),
-    ("TerminStatus", 5),
+    ("Role", 4),
+    ("Sex", 3),
+    ("AppointmentKind", 5),
+    ("AppointmentStatus", 5),
     ("PatientStatus", 4),
-    ("AktenStatus", 4),
-    ("ZahlungsArt", 4),
-    ("ZahlungsStatus", 4),
+    ("ChartStatus", 4),
+    ("PaymentMethod", 4),
+    ("PaymentStatus", 4),
     ("AuditAction", 5),
 ];
 
@@ -28,11 +28,11 @@ fn yaml_rust_enum_variant_counts() {
             .unwrap_or_else(|| panic!("missing enum {name}"));
         let variants = def
             .get("variants")
-            .and_then(|v| v.as_sequence())
+            .and_then(|version| version.as_sequence())
             .unwrap_or_else(|| panic!("{name} variants"));
         let generate_rust = def
             .get("generate_rust")
-            .and_then(|v| v.as_bool())
+            .and_then(|version| version.as_bool())
             .unwrap_or(true);
         if generate_rust {
             assert_eq!(variants.len(), *expected, "update RUST_ENUMS for {name}");
@@ -43,19 +43,19 @@ fn yaml_rust_enum_variant_counts() {
 #[test]
 fn wire_values_roundtrip_json() {
     assert_eq!(
-        serde_json::to_string(&TerminStatus::NichtErschienen).unwrap(),
-        "\"NICHT_ERSCHIENEN\""
+        serde_json::to_string(&AppointmentStatus::NoShow).unwrap(),
+        "\"NO_SHOW\""
     );
     assert_eq!(
-        serde_json::from_str::<Geschlecht>("\"MAENNLICH\"").unwrap(),
-        Geschlecht::Maennlich
+        serde_json::from_str::<Sex>("\"MALE\"").unwrap(),
+        Sex::Male
     );
     assert_eq!(
-        serde_json::from_str::<TerminArt>("\"KONTROLLE\"").unwrap(),
-        TerminArt::Kontrolle
+        serde_json::from_str::<AppointmentKind>("\"CHECKUP\"").unwrap(),
+        AppointmentKind::Checkup
     );
     assert_eq!(
-        serde_json::from_str::<ZahlungsArt>("\"RECHNUNG\"").unwrap(),
-        ZahlungsArt::Rechnung
+        serde_json::from_str::<PaymentMethod>("\"INVOICE\"").unwrap(),
+        PaymentMethod::Invoice
     );
 }

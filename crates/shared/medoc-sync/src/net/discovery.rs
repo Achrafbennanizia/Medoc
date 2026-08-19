@@ -1,4 +1,4 @@
-//! L2/L4 mDNS discovery for `_medoc-verbund._tcp`.
+//! L2/L4 mDNS discovery for `_medoc-cluster._tcp`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -7,8 +7,8 @@ use std::time::Duration;
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use medoc_core::error::AppError;
 
-pub const SERVICE_TYPE: &str = "_medoc-verbund._tcp.local.";
-pub const SERVICE_NAME: &str = "MeDoc Verbund";
+pub const SERVICE_TYPE: &str = "_medoc-cluster._tcp.local.";
+pub const SERVICE_NAME: &str = "MeDoc Cluster";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +34,7 @@ impl MdnsResponder {
             .take(12)
             .collect::<String>();
         let slug = if slug.is_empty() {
-            "verbund".into()
+            "cluster".into()
         } else {
             slug
         };
@@ -71,7 +71,7 @@ pub fn scan_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
                 let cluster_id = info
                     .get_properties()
                     .get("cluster_id")
-                    .map(|v| v.val_str().to_string());
+                    .map(|version| version.val_str().to_string());
                 if let Ok(mut list) = found2.lock() {
                     list.push(AdminEndpoint {
                         host,

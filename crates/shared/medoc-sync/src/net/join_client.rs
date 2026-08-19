@@ -4,12 +4,12 @@ use medoc_core::discovery::primary_local_ipv4;
 use medoc_core::error::AppError;
 use tokio::net::TcpStream;
 
-use crate::verbund::SeatRolle;
-use crate::verbund::crypto::DeviceIdentity;
+use crate::cluster::SeatRole;
+use crate::cluster::crypto::DeviceIdentity;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_initiator;
-use super::wire::{SeatRolleWire, WireMessage};
+use super::wire::{SeatRoleWire, WireMessage};
 
 #[derive(Debug, Clone)]
 pub struct JoinOutcome {
@@ -31,12 +31,12 @@ pub async fn join_admin_endpoint(
     host: &str,
     port: u16,
     identity: &DeviceIdentity,
-    requested_role: SeatRolle,
+    requested_role: SeatRole,
 ) -> Result<JoinOutcome, AppError> {
     let addr = format!("{host}:{port}");
     let mut stream = TcpStream::connect(&addr)
         .await
-        .map_err(|e| AppError::Internal(format!("verbund connect {addr}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("cluster connect {addr}: {e}")))?;
 
     let (mut transport, transcript) = run_xx_initiator(&mut stream).await?;
 
@@ -48,7 +48,7 @@ pub async fn join_admin_endpoint(
         os: std::env::consts::OS.into(),
         app_version: env!("CARGO_PKG_VERSION").into(),
         ip,
-        requested_role: SeatRolleWire::from(requested_role),
+        requested_role: SeatRoleWire::from(requested_role),
     };
     send_wire_message(&mut stream, &mut transport, &join_msg).await?;
 
@@ -59,15 +59,15 @@ pub async fn join_admin_endpoint(
             handshake_transcript: transcript,
         }),
         WireMessage::Error { code, message } => Err(AppError::Validation(format!(
-            "verbund join rejected ({code}): {message}"
+            "cluster join rejected ({code}): {message}"
         ))),
         other => Err(AppError::Internal(format!(
-            "unexpected verbund response: {other:?}"
+            "unexpected cluster response: {other:?}"
         ))),
     }
 }
 
-/// Fetch owner staff directory after verbund join (for local login on member devices).
+/// Fetch owner staff directory after cluster join (for local login on member devices).
 pub async fn fetch_staff_directory(
     host: &str,
     port: u16,
@@ -76,7 +76,7 @@ pub async fn fetch_staff_directory(
     let addr = format!("{host}:{port}");
     let mut stream = TcpStream::connect(&addr)
         .await
-        .map_err(|e| AppError::Internal(format!("verbund connect {addr}: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("cluster connect {addr}: {e}")))?;
 
     let (mut transport, _transcript) = run_xx_initiator(&mut stream).await?;
 

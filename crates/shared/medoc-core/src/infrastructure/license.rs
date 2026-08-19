@@ -34,14 +34,14 @@
 // AES-GCM seed leaks. The body schema is:
 //
 // {
-//   "v": 2,
+//   "version": 2,
 //   "customer_id": "...",
 //   "edition": "BASIC|PRO|ENTERPRISE",
 //   "device_id": "<uuid bound at activation>",
 //   "activated_at": "2026-05-26T10:00:00Z",
 //   "modules": ["dicom", "vdds"],
 //   "max_users": 5,
-//   "edition_features": ["statistik.advanced"]
+//   "edition_features": ["statistics.advanced"]
 // }
 //
 // Perpetual: no `expires_at` — `activated_at` is informational only.
@@ -83,7 +83,6 @@ pub struct License {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LicenseV2 {
-    #[serde(rename = "v")]
     pub version: u32,
     #[serde(alias = "customer_id")]
     pub customer_id: String,
@@ -184,14 +183,14 @@ pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatu
         None => return invalid("Invalid v2 envelope — separator missing"),
     };
     let nonce_bytes = match STANDARD_NO_PAD.decode(nonce_b64) {
-        Ok(v) => v,
+        Ok(version) => version,
         Err(e) => return invalid(&format!("Nonce not decodable: {e}")),
     };
     if nonce_bytes.len() != 12 {
         return invalid("Invalid nonce length");
     }
     let ciphertext = match STANDARD_NO_PAD.decode(ct_b64) {
-        Ok(v) => v,
+        Ok(version) => version,
         Err(e) => return invalid(&format!("Ciphertext not decodable: {e}")),
     };
 
@@ -222,7 +221,7 @@ pub fn verify_v2_envelope(envelope: &str, local_device_id: &str) -> LicenseStatu
         Err(e) => return invalid(&format!("Invalid v2 license content: {e}")),
     };
     if license.version != 2 {
-        return invalid("Version mismatch — expected v=2");
+        return invalid("Version mismatch — expected version=2");
     }
     if license.device_id.trim() != local_device_id.trim() {
         return invalid(&format!(
@@ -307,7 +306,7 @@ pub fn mint_dev_v2_license_envelope(
         edition_features: if edition == "BASIC" {
             vec![]
         } else {
-            vec!["statistik.advanced".into()]
+            vec!["statistics.advanced".into()]
         },
     };
     let body = serde_json::to_string(&lic).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -351,7 +350,7 @@ mod tests {
 
     #[test]
     fn encrypt_v2_decrypts_only_with_same_device_id() {
-        let inner = r#"{"v":2,"customer_id":"c1","edition":"PRO","device_id":"dev-1","activated_at":"2026-01-01T00:00:00Z","max_users":3,"modules":[],"edition_features":[]}.dummy-sig"#;
+        let inner = r#"{"version":2,"customer_id":"c1","edition":"PRO","device_id":"dev-1","activated_at":"2026-01-01T00:00:00Z","max_users":3,"modules":[],"edition_features":[]}.dummy-sig"#;
         let env = encrypt_v2_for_device(inner, "dev-1").expect("encrypt ok");
         assert!(env.starts_with("v2."));
 

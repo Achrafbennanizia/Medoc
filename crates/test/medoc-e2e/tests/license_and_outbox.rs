@@ -5,7 +5,7 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{NaiveDate, TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::enums::Geschlecht;
+use medoc_core::domain::enums::Sex;
 use medoc_core::infrastructure::database::{app_kv_repo, connection, patient_repo};
 use medoc_core::infrastructure::license::{
     encrypt_v2_for_device, verify, LicenseV2, VENDOR_PUBKEY,
@@ -78,12 +78,12 @@ async fn outbox_hook_emits_on_patient_create_when_serverless_peer() {
         &pool,
         &CreatePatient {
             name: "E2E Patient".into(),
-            geburtsdatum: NaiveDate::from_ymd_opt(1985, 6, 15).unwrap(),
-            geschlecht: Geschlecht::Maennlich,
-            versicherungsnummer: "V-E2E-001".into(),
-            telefon: None,
+            date_of_birth: NaiveDate::from_ymd_opt(1985, 6, 15).unwrap(),
+            sex: Sex::Male,
+            insurance_number: "V-E2E-001".into(),
+            phone: None,
             email: None,
-            adresse: None,
+            address: None,
         },
     )
     .await
@@ -102,7 +102,7 @@ async fn lan_practice_data_readable_with_jwt_not_activation_token() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
 
-    let (status, patients) = lan.json("GET", "/api/v1/patienten", None, Some(&jwt)).await;
+    let (status, patients) = lan.json("GET", "/api/v1/patients", None, Some(&jwt)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(patients.is_array());
 }

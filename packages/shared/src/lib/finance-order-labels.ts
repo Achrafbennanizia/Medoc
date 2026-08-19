@@ -1,77 +1,77 @@
-import type { BestellStatus } from "./enums.generated";
+import type { OrderStatus } from "./enums.generated";
 
 type TFn = (key: string) => string;
 
-const ZAHLUNGSART_KEYS: Record<string, string> = {
-    BAR: "enum.zahlungsart.bar",
-    KARTE: "enum.zahlungsart.karte",
-    UEBERWEISUNG: "enum.zahlungsart.ueberweisung",
-    RECHNUNG: "enum.zahlungsart.rechnung",
+const PAYMENT_METHOD_KEYS: Record<string, string> = {
+    CASH: "enum.payment_method.cash",
+    CARD: "enum.payment_method.card",
+    BANK_TRANSFER: "enum.payment_method.bankTransfer",
+    INVOICE: "enum.payment_method.invoice",
 };
 
-const ZAHLUNG_STATUS_KEYS: Record<string, { variant: "success" | "warning" | "default"; key: string }> = {
-    BEZAHLT: { variant: "success", key: "enum.zahlung_status.bezahlt" },
-    TEILBEZAHLT: { variant: "warning", key: "enum.zahlung_status.teilbezahlt" },
-    AUSSTEHEND: { variant: "warning", key: "enum.zahlung_status.ausstehend" },
-    STORNIERT: { variant: "default", key: "enum.zahlung_status.storniert" },
+const PAYMENT_STATUS_KEYS: Record<string, { variant: "success" | "warning" | "default"; key: string }> = {
+    PAID: { variant: "success", key: "enum.payment_status.paid" },
+    PARTIALLY_PAID: { variant: "warning", key: "enum.payment_status.partiallyPaid" },
+    OUTSTANDING: { variant: "warning", key: "enum.payment_status.outstanding" },
+    CANCELLED: { variant: "default", key: "enum.payment_status.cancelled" },
 };
 
-const BESTELL_STATUS_KEYS: Record<BestellStatus, { variant: "success" | "warning" | "default"; key: string }> = {
-    OFFEN: { variant: "warning", key: "page.bestellungen.status.offen" },
-    UNTERWEGS: { variant: "warning", key: "page.bestellungen.status.unterwegs" },
-    GELIEFERT: { variant: "success", key: "page.bestellungen.status.geliefert" },
-    STORNIERT: { variant: "default", key: "page.bestellungen.status.storniert" },
+const ORDER_STATUS_KEYS: Record<OrderStatus, { variant: "success" | "warning" | "default"; key: string }> = {
+    OPEN: { variant: "warning", key: "page.purchase_orders.status.open" },
+    IN_TRANSIT: { variant: "warning", key: "page.purchase-orders.status.inTransit" },
+    DELIVERED: { variant: "success", key: "page.purchase-orders.status.delivered" },
+    CANCELLED: { variant: "default", key: "page.purchase-orders.status.cancelled" },
 };
 
-export function zahlungsartLabel(art: string, t: TFn): string {
-    const key = ZAHLUNGSART_KEYS[art];
-    return key ? t(key) : art;
+export function paymentMethodLabel(kind: string, t: TFn): string {
+    const key = PAYMENT_METHOD_KEYS[kind];
+    return key ? t(key) : kind;
 }
 
-export function zahlStatusDisplay(
+export function paymentStatusDisplay(
     status: string,
     t: TFn,
 ): { variant: "success" | "warning" | "default"; label: string } {
     const s = status.trim();
-    const row = ZAHLUNG_STATUS_KEYS[s];
+    const row = PAYMENT_STATUS_KEYS[s];
     if (row) return { variant: row.variant, label: t(row.key) };
     return { variant: "default", label: s || "—" };
 }
 
-export function bestellStatusDisplay(
+export function orderStatusDisplay(
     status: string,
     t: TFn,
 ): { variant: "success" | "warning" | "default"; label: string } {
-    const row = BESTELL_STATUS_KEYS[status as BestellStatus];
+    const row = ORDER_STATUS_KEYS[status as OrderStatus];
     if (row) return { variant: row.variant, label: t(row.key) };
     return { variant: "default", label: status };
 }
 
-export function bezugKurz(
-    z: { behandlung_id?: string | null; untersuchung_id?: string | null },
+export function referenceKurz(
+    z: { treatment_id?: string | null; examination_id?: string | null },
     t: TFn,
 ): string {
-    if (z.behandlung_id) return t("enum.bezug.behandlung");
-    if (z.untersuchung_id) return t("enum.bezug.untersuchung");
-    return t("enum.bezug.direktzahlung");
+    if (z.treatment_id) return t("enum.reference.treatment");
+    if (z.examination_id) return t("enum.reference.examination");
+    return t("enum.reference.direct_payment");
 }
 
 export function vorgangText(
-    z: { behandlung_id?: string | null; untersuchung_id?: string | null; beschreibung?: string | null },
+    z: { treatment_id?: string | null; examination_id?: string | null; description?: string | null },
     t: TFn,
 ): string {
-    const b = bezugKurz(z, t);
-    const note = (z.beschreibung ?? "").trim();
-    const direct = t("enum.bezug.direktzahlung");
+    const b = referenceKurz(z, t);
+    const note = (z.description ?? "").trim();
+    const direct = t("enum.reference.direct_payment");
     if (note) return b === direct ? note : `${b} — ${note}`;
     return b;
 }
 
-export const BESTELL_STATUS_OPTIONS: readonly BestellStatus[] = ["OFFEN", "UNTERWEGS", "GELIEFERT", "STORNIERT"];
+export const ORDER_STATUS_OPTIONS: readonly OrderStatus[] = ["OPEN", "IN_TRANSIT", "DELIVERED", "CANCELLED"];
 
-export function bestellStatusOptions(t: TFn): readonly { value: BestellStatus; label: string }[] {
-    return BESTELL_STATUS_OPTIONS.map((value) => ({
+export function orderStatusOptions(t: TFn): readonly { value: OrderStatus; label: string }[] {
+    return ORDER_STATUS_OPTIONS.map((value) => ({
         value,
-        label: bestellStatusDisplay(value, t).label,
+        label: orderStatusDisplay(value, t).label,
     }));
 }

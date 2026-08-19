@@ -1,11 +1,11 @@
 # Arzt ↔ Rezeption — Workflows (Use Case, Sequence, Activity)
 
 **Stand:** 2026-05-21  
-**Zweck:** Verbindliche Modellierung der **Zusammenarbeit** zwischen **ARZT** und **REZEPTION** — was heute im Code existiert, was geplant ist, und wo Lücken bleiben.
+**Zweck:** Verbindliche Modellierung der **Zusammenarbeit** zwischen **PHYSICIAN** und **RECEPTION** — was heute im Code existiert, was geplant ist, und wo Lücken bleiben.
 
 **Evidence:** `config/rbac.yaml`, `docs/reception-discovery.md`, `akte_workflow_commands.rs`, `akte_validation_commands.rs`, `akte_next_termin_commands.rs`, `domain/services/pricing.rs`, Pflichtenheft FA-AKTE-14/15, FA-LEIST-05/06, WAAD 1.3 / 2.2.
 
-**Erweiterung (Leistung/Preis + Aufgaben):** [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollaboration.md) — FA-LEIST-07, FA-AUFG-01..06.
+**Erweiterung (Leistung/Preis + Aufgaben):** [`09-aufgaben-serviceItem-kollaboration.md`](./09-aufgaben-serviceItem-kollaboration.md) — FA-LEIST-07, FA-AUFG-01..06.
 
 **Legende in Diagrammen**
 
@@ -24,8 +24,8 @@ Fokus: **gemeinsame** und **rollenexklusive** Anwendungsfälle plus **Übergaben
 ```mermaid
 flowchart TB
     subgraph Akteure
-        REZ["📋 Rezeption<br/>(REZEPTION)"]
-        ARZT["🩺 Arzt<br/>(ARZT)"]
+        REZ["📋 Rezeption<br/>(RECEPTION)"]
+        PHYSICIAN["🩺 Arzt<br/>(PHYSICIAN)"]
         PAT["👤 Patient<br/>(extern)"]
     end
 
@@ -51,8 +51,8 @@ flowchart TB
             UC15["UC-A05: Plan-next-Termin-Hinweis schreiben ✓"]
             UC16["UC-A06: Aktenabschnitte validieren ✓<br/>stamm / anam / anlage / zahl"]
             UC17["UC-A07: Akte an Ärzte weiterleiten ✓"]
-            UC18["UC-A08: Validierungs-Warteschlange ✓<br/>/akten/zu-validieren FA-AKTE-15"]
-            UC19["UC-A09: Patientenakte freigeben ✓<br/>Status → VALIDIERT"]
+            UC18["UC-A08: Validierungs-Warteschlange ✓<br/>/charts/to-validate FA-AKTE-15"]
+            UC19["UC-A09: Patientenakte freigeben ✓<br/>Status → VALIDATED"]
             UC20["UC-A10: Leistung zur Abrechnung freigeben ◐<br/>FA-LEIST-05"]
             UC21["UC-A11: Offene Buchung auto öffnen ○<br/>FA-LEIST-06"]
             UC24["UC-A12: Audit-Log einsehen ✓"]
@@ -69,8 +69,8 @@ flowchart TB
     REZ --> UC05 & UC06 & UC07
     REZ -.->|soll| UC10
 
-    ARZT --> UC02 & UC11 & UC12 & UC13 & UC14 & UC15 & UC16 & UC17 & UC18 & UC19 & UC20 & UC21 & UC24 & UC22 & UC23
-    ARZT --> UC05 & UC07
+    PHYSICIAN --> UC02 & UC11 & UC12 & UC13 & UC14 & UC15 & UC16 & UC17 & UC18 & UC19 & UC20 & UC21 & UC24 & UC22 & UC23
+    PHYSICIAN --> UC05 & UC07
 
     UC12 -.->|Leistung gespeichert| UC21
     UC21 -.->|offene Buchung| UC08
@@ -87,13 +87,13 @@ flowchart TB
 
 | ID | Akteur | Handoff an | Beschreibung |
 |----|--------|------------|--------------|
-| UC-R05 | REZ, ARZT | ARZT (In-App + Audit) | `forward_akte_to_physicians` → Notification `AKTE_FORWARD`; **kein** automatischer Queue-Eintrag ohne Statuswechsel |
-| UC-R06 | REZ | ARZT | `create_praxis_ticket` → Ticket + Notification |
-| UC-A15 → UC-R02 | ARZT | REZ | `set_akte_next_termin_hint` in SQLite; REZ sieht Hinweis in Aktenkopf / Termin anlegen |
-| UC-A16 | ARZT | — | `set_akte_section_validated` — bestätigt Empfangsdaten (Stammdaten/Anamnese) |
-| UC-A18/19 | ARZT | REZ (indirekt) | Queue `list_akten_zu_validieren` → `validate_patientenakte` (Status VALIDIERT) |
-| UC-A20 → UC-R08 | ARZT | REZ | `freigegeben_von_arzt_id` / `freigegeben_am` auf Behandlung; sonst `pricing::require_released_for_billing` blockiert |
-| UC-A11 → UC-R08 | ARZT | REZ | **FA-LEIST-06 (○):** Nach Leistung auf B/U → Tab Abrechnung + offene Buchung `AUSSTEHEND`; REZ übernimmt Zahlung |
+| UC-R05 | REZ, PHYSICIAN | PHYSICIAN (In-App + Audit) | `forward_chart_to_physicians` → Notification `AKTE_FORWARD`; **kein** automatischer Queue-Eintrag ohne Statuswechsel |
+| UC-R06 | REZ | PHYSICIAN | `create_practice_ticket` → Ticket + Notification |
+| UC-A15 → UC-R02 | PHYSICIAN | REZ | `set_chart_next_appointment_hint` in SQLite; REZ sieht Hinweis in Aktenkopf / Termin anlegen |
+| UC-A16 | PHYSICIAN | — | `set_chart_section_validated` — bestätigt Empfangsdaten (Stammdaten/Anamnese) |
+| UC-A18/19 | PHYSICIAN | REZ (indirekt) | Queue `list_charts_zu_validieren` → `validate_patient_chart` (Status VALIDATED) |
+| UC-A20 → UC-R08 | PHYSICIAN | REZ | `released_by_physician_id` / `released_at` auf Behandlung; sonst `pricing::require_released_for_billing` blockiert |
+| UC-A11 → UC-R08 | PHYSICIAN | REZ | **FA-LEIST-06 (○):** Nach Leistung auf B/U → Tab Abrechnung + offene Buchung `OUTSTANDING`; REZ übernimmt Zahlung |
 
 ---
 
@@ -105,7 +105,7 @@ flowchart TB
 sequenceDiagram
     actor PAT as Patient
     actor REZ as Rezeption
-    actor ARZT as Arzt
+    actor PHYSICIAN as Arzt
     participant UI as React Pages
     participant IPC as Tauri Commands
     participant RBAC as rbac.require
@@ -113,54 +113,54 @@ sequenceDiagram
     participant AUD as audit_repo
 
     PAT->>REZ: Kommt zur Anmeldung
-    REZ->>UI: /patienten suchen
-    UI->>IPC: search_patienten
+    REZ->>UI: /patients suchen
+    UI->>IPC: search_patients
     IPC->>RBAC: patient.read ✓
     IPC->>DB: SELECT patient
     DB-->>UI: Trefferliste
 
     alt Neuer Patient
-        REZ->>UI: /patienten/neu
+        REZ->>UI: /patients/new
         UI->>IPC: create_patient
-        IPC->>DB: INSERT patient + patientenakte
+        IPC->>DB: INSERT patient + patient_chart
         IPC->>AUD: CREATE Patient
     end
 
     REZ->>UI: Stammdaten / Anamnese (kein read_medical)
     UI->>IPC: update_patient, set_anamnese…
     IPC->>RBAC: patient.write ✓
-    Note over REZ,ARZT: Medizinische Tabs für REZ gesperrt (patient.read_medical)
+    Note over REZ,PHYSICIAN: Medizinische Tabs für REZ gesperrt (patient.read_medical)
 
     REZ->>UI: Termin heute bestätigen
-    UI->>IPC: update_termin (status)
-    IPC->>RBAC: termin.write ✓
+    UI->>IPC: update_appointment (status)
+    IPC->>RBAC: appointment.write ✓
 
-    REZ->>ARZT: Patient ist da (mündlich)
-    ARZT->>UI: /patienten/:id (medizinisch)
-    UI->>IPC: get_akte, list_behandlungen…
+    REZ->>PHYSICIAN: Patient ist da (mündlich)
+    PHYSICIAN->>UI: /patients/:id (medizinisch)
+    UI->>IPC: get_chart, list_treatments…
     IPC->>RBAC: patient.read_medical ✓
-    ARZT->>UI: Behandlung + Zahnschema dokumentieren
-    UI->>IPC: create_behandlung, upsert_zahnbefund
+    PHYSICIAN->>UI: Behandlung + Zahnschema dokumentieren
+    UI->>IPC: create_treatment, upsert_zahnbefund
     IPC->>AUD: CREATE Behandlung
 
-    ARZT->>UI: Plan-next-Termin-Hinweis speichern
-    UI->>IPC: set_akte_next_termin_hint
+    PHYSICIAN->>UI: Plan-next-Termin-Hinweis speichern
+    UI->>IPC: set_chart_next_appointment_hint
     IPC->>DB: app_kv / akte hint JSON
 
-    ARZT->>UI: Leistung freigeben (FA-LEIST-05)
-    UI->>IPC: update_behandlung (freigegeben_*)
-    IPC->>DB: UPDATE behandlung
+    PHYSICIAN->>UI: Leistung freigeben (FA-LEIST-05)
+    UI->>IPC: update_treatment (freigegeben_*)
+    IPC->>DB: UPDATE treatment
 
-    ARZT->>REZ: Patient zur Kasse (mündlich)
-    REZ->>UI: /finanzen/neu oder Patient Tab Zahlung
-    UI->>IPC: create_zahlung
-    IPC->>RBAC: finanzen.write ✓
+    PHYSICIAN->>REZ: Patient zur Kasse (mündlich)
+    REZ->>UI: /finance/new oder Patient Tab Zahlung
+    UI->>IPC: create_payment
+    IPC->>RBAC: finance.write ✓
     IPC->>IPC: require_released_for_billing
     alt Nicht freigegeben
         IPC-->>UI: Fehler FA-LEIST-05
         UI-->>REZ: Abrechnung blockiert → Arzt kontaktieren
     else Freigegeben
-        IPC->>DB: INSERT zahlung
+        IPC->>DB: INSERT payment
         IPC->>AUD: CREATE Zahlung
         UI-->>REZ: Zahlung erfasst
     end
@@ -171,7 +171,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor REZ as Rezeption
-    actor ARZT as Arzt
+    actor PHYSICIAN as Arzt
     participant UI as PatientDetail / Queue
     participant IPC as akte_workflow_commands
     participant NOTIF as in_app_notification
@@ -179,30 +179,30 @@ sequenceDiagram
     participant AUD as audit_repo
 
     REZ->>UI: „Akte an Arzt weiterleiten“
-    UI->>IPC: forward_akte_to_physicians
-    IPC->>IPC: RBAC patient.read, Rolle REZ|ARZT
+    UI->>IPC: forward_chart_to_physicians
+    IPC->>IPC: RBAC patient.read, Rolle REZ|PHYSICIAN
     loop je Ziel-Arzt
         IPC->>NOTIF: insert AKTE_FORWARD
     end
     IPC->>AUD: FORWARD_AKTE
 
-    ARZT->>UI: Notification oder /akten/zu-validieren
-    UI->>IPC: list_akten_zu_validieren
-    IPC->>IPC: patient.read_medical + Rolle ARZT
-    IPC->>DB: Akten IN_BEARBEITUNG / ENTWURF
+    PHYSICIAN->>UI: Notification oder /charts/to-validate
+    UI->>IPC: list_charts_zu_validieren
+    IPC->>IPC: patient.read_medical + Rolle PHYSICIAN
+    IPC->>DB: Akten IN_PROGRESS / DRAFT
     DB-->>UI: Warteschlange
 
-    ARZT->>UI: Patient öffnen, klinische Daten prüfen
-    ARZT->>UI: Abschnitte validieren (optional vorher)
-    UI->>IPC: set_akte_section_validated (stamm, anam, …)
+    PHYSICIAN->>UI: Patient öffnen, klinische Daten prüfen
+    PHYSICIAN->>UI: Abschnitte validieren (optional vorher)
+    UI->>IPC: set_chart_section_validated (stamm, anam, …)
     IPC->>DB: UPSERT akte_validation
 
-    ARZT->>UI: „Validieren“ in Queue
-    UI->>IPC: validate_patientenakte
+    PHYSICIAN->>UI: „Validieren“ in Queue
+    UI->>IPC: validate_patient_chart
     IPC->>IPC: patient.write_medical
-    IPC->>DB: status → VALIDIERT
+    IPC->>DB: status → VALIDATED
     IPC->>AUD: VALIDATE_AKTE
-    UI-->>ARZT: Badge / Nav-Zähler aktualisiert
+    UI-->>PHYSICIAN: Badge / Nav-Zähler aktualisiert
 
     Note over REZ: Kein dedizierter Posteingang „Akte freigegeben“ ○<br/>REZ erkennt Freigabe über Patientenstatus / manuell
 ```
@@ -211,27 +211,27 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor ARZT as Arzt
+    actor PHYSICIAN as Arzt
     actor REZ as Rezeption
     participant UI as Rezepte / PatientDetail
     participant IPC as rezept_commands
     participant RBAC as rbac
 
-    ARZT->>UI: Rezept erstellen
-    UI->>IPC: create_rezept
+    PHYSICIAN->>UI: Rezept erstellen
+    UI->>IPC: create_prescription
     IPC->>RBAC: patient.write_medical ✓
     IPC-->>UI: rezept_id
 
-    Note over ARZT,REZ: Soll-Prozess (○ Posteingang „rezept_zu_drucken“)
+    Note over PHYSICIAN,REZ: Soll-Prozess (○ Posteingang „rezept_zu_drucken“)
 
     REZ->>UI: Belege & Druck ○ / Patient Tab Rezepte
-    UI->>IPC: list_rezepte
+    UI->>IPC: list_prescriptions
     IPC->>RBAC: patient.read_medical
-    alt REZEPTION (Ist)
+    alt RECEPTION (Ist)
         RBAC-->>UI: 403 Unauthorized
         UI-->>REZ: Kein Zugriff — Handoff nur mündlich + Arzt-Druck
     else Soll (geplant)
-        RBAC-->>UI: print.rezept (nur Metadaten/PDF)
+        RBAC-->>UI: print.prescription (nur Metadaten/PDF)
         UI-->>REZ: Druckdialog
     end
 ```
@@ -262,7 +262,7 @@ flowchart TB
         REnd([Ende Schicht])
     end
 
-    subgraph ARZT["Swimlane: Arzt"]
+    subgraph PHYSICIAN["Swimlane: Arzt"]
         A0([Parallel: eigener Tagesplan])
         A1[Dashboard: Termine + Queue-Badge ✓]
         A2[Patient aufrufen — Akte öffnen]
@@ -271,7 +271,7 @@ flowchart TB
         A5[Rezept / Attest erstellen ✓]
         A6[Empfangsdaten validieren ✓<br/>akte_validation]
         A7{Akte klinisch vollständig?}
-        A8[Validierungs-Queue: VALIDIERT ✓]
+        A8[Validierungs-Queue: VALIDATED ✓]
         A9[Leistung zur Abrechnung freigeben ◐]
         A10([Freigabe für Kasse])
     end
@@ -281,7 +281,7 @@ flowchart TB
         H2((Notification:<br/>AKTE_FORWARD))
         H3((DB: Plan-Hinweis))
         H4((DB: freigegeben_*))
-        H5((Status: VALIDIERT))
+        H5((Status: VALIDATED))
     end
 
     R0 --> R1 --> R2
@@ -316,12 +316,12 @@ flowchart TB
 | Stammdaten schreiben | ✓ | ✓ | `patient.write` |
 | Anamnese erfassen | ✓ | ✓ | `patient.write` (kein `write_medical`) |
 | Diagnose / Befund / Zahnschema | — | ✓ | `patient.read_medical` / `write_medical` |
-| Termin CRUD | ✓ | ✓ | `termin.write` |
-| Akte weiterleiten | ✓ | ✓ | `forward_akte_to_physicians` |
-| Akte VALIDIERT setzen | — | ✓ | `validate_patientenakte` + Queue nur ARZT |
-| Zahlung | ✓ | ✓ | `finanzen.write` + Billing-Release |
+| Termin CRUD | ✓ | ✓ | `appointment.write` |
+| Akte weiterleiten | ✓ | ✓ | `forward_chart_to_physicians` |
+| Akte VALIDATED setzen | — | ✓ | `validate_patient_chart` + Queue nur PHYSICIAN |
+| Zahlung | ✓ | ✓ | `finance.write` + Billing-Release |
 | Rezept **autor** | — | ✓ | `write_medical` |
-| Rezept **drucken** (Soll) | ✓ | ◐ | **○** eigene Permission `print.rezept` |
+| Rezept **drucken** (Soll) | ✓ | ◐ | **○** eigene Permission `print.prescription` |
 
 ---
 
@@ -333,7 +333,7 @@ Diese Punkte sind **noch nicht** als ein durchgängiger UI-Workflow geschlossen 
 |---|--------|----------|---------------------------|
 | 1 | **Posteingang** für REZ? | Ein Queue vs. pro-Patient | Zentraler Posteingang (Plan-Hinweis, Druck, „zur Abrechnung“) |
 | 2 | **Medizinische Daten** bei Zahlungszuordnung | Voll-Behandlung vs. Billing-DTO | `akte_list_billing` ohne Diagnose/Befund-Text |
-| 3 | **REZ sieht Rezepte** | Gar nicht / nur Druck-PDF | `print.rezept` ohne Listen-Detail |
+| 3 | **REZ sieht Rezepte** | Gar nicht / nur Druck-PDF | `print.prescription` ohne Listen-Detail |
 | 4 | **Check-in** | Terminstatus vs. Warteschlange | Optional Wartezimmer-Queue |
 | 5 | **Nach VALIDIEREN** | Automatische REZ-Benachrichtigung | Notification `AKTE_FREIGEGEBEN` |
 
@@ -346,5 +346,5 @@ Diese Punkte sind **noch nicht** als ein durchgängiger UI-Workflow geschlossen 
 | RBAC | `config/rbac.yaml`, `docs/rbac-matrix.md` |
 | Reception Discovery | `docs/reception-discovery.md` |
 | IPC Workflow | `app/src-tauri/src/commands/akte_workflow_commands.rs` |
-| UI Queue | `app/src/views/pages/akten-zu-validieren.tsx` |
+| UI Queue | `app/src/views/pages/charts-zu-validieren.tsx` |
 | Billing Release | `app/src-tauri/src/domain/services/pricing.rs`, `app/src/lib/billing-release.ts` |

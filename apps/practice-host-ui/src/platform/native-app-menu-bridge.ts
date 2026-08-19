@@ -11,16 +11,16 @@ export type AppMenuPayload = {
 
 /** Tauri may deliver JSON objects or stringified JSON depending on runtime path. */
 export function normalizeAppMenuPayload(raw: unknown): AppMenuPayload | null {
-    let v: unknown = raw;
-    if (typeof v === "string") {
+    let version: unknown = raw;
+    if (typeof version === "string") {
         try {
-            v = JSON.parse(v) as unknown;
+            version = JSON.parse(version) as unknown;
         } catch {
             return null;
         }
     }
-    if (!v || typeof v !== "object") return null;
-    const o = v as Record<string, unknown>;
+    if (!version || typeof version !== "object") return null;
+    const o = version as Record<string, unknown>;
     if (typeof o.kind !== "string") return null;
     return o as AppMenuPayload;
 }

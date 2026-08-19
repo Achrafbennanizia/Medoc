@@ -102,15 +102,15 @@ fn render_rust(enums: &BTreeMap<String, EnumDef>) -> String {
         out.push_str(&format!("#[sqlx(rename_all = \"{rename}\")]\n"));
         out.push_str(&format!("#[serde(rename_all = \"{rename}\")]\n"));
         out.push_str(&format!("pub enum {name} {{\n"));
-        for v in &def.variants {
-            let rust = v
+        for version in &def.variants {
+            let rust = version
                 .rust
                 .as_ref()
                 .unwrap_or_else(|| panic!("enum {name}: variant missing rust name"));
-            // Always pin wire strings: serde `rename_all = "UPPERCASE"` ≠ SQLite (`NICHT_ERSCHIENEN`).
+            // Always pin wire strings: serde `rename_all = "UPPERCASE"` ≠ SQLite (`NO_SHOW`).
             out.push_str(&format!(
                 "    #[serde(rename = \"{}\")]\n    #[sqlx(rename = \"{}\")]\n",
-                v.wire, v.wire
+                version.wire, version.wire
             ));
             out.push_str(&format!("    {rust},\n"));
         }
@@ -131,7 +131,7 @@ fn render_ts(enums: &BTreeMap<String, EnumDef>) -> String {
             .ts_const
             .as_ref()
             .unwrap_or_else(|| panic!("enum {name}: missing ts_const"));
-        let wires: Vec<&str> = def.variants.iter().map(|v| v.wire.as_str()).collect();
+        let wires: Vec<&str> = def.variants.iter().map(|version| version.wire.as_str()).collect();
         let joined = wires
             .iter()
             .map(|w| format!("\"{w}\""))
@@ -185,7 +185,7 @@ fn render_sql_fragments(enums: &BTreeMap<String, EnumDef>) -> String {
         let Some(col) = &def.sql_column else {
             continue;
         };
-        let wires: Vec<&str> = def.variants.iter().map(|v| v.wire.as_str()).collect();
+        let wires: Vec<&str> = def.variants.iter().map(|version| version.wire.as_str()).collect();
         let in_list = wires
             .iter()
             .map(|w| format!("'{w}'"))

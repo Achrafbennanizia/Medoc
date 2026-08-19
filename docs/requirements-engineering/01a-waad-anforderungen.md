@@ -12,7 +12,7 @@ strukturierte, klassifizierte und priorisierte Originalfassung.
 Die Übersetzung in normierte Pflichtenheft-Anforderungen (FA-* / NFA-*) und der
 vollständige Implementierungsstatus stehen in
 `01b-traceability-waad.md` und im
-`docs/v-model/01-anforderungen/pflichtenheft.md`.
+`docs/version-model/01-anforderungen/pflichtenheft.md`.
 
 **Klassifikationsskala (MoSCoW + ISO 25010):**
 
@@ -196,7 +196,7 @@ vollständige Implementierungsstatus stehen in
 
 | Quell-ID | Anforderung | Klassifikation | Begründung | Bemerkung |
 |---|---|---|---|---|
-| **9.1** | Das System MUSS täglich automatisch eine Sicherungskopie aller Daten erstellen — lokal, extern und optional cloudbasiert. Die Backups MÜSSEN verschlüsselt sein und eine Wiederherstellungsfunktion bieten. | MUST · Nicht-Funktional (Sicherheit) | Datensicherheit bei Systemausfall oder Hardwaredefekt. | Speicherverbrauch und -verwaltung müssen skalierbar und überprüfbar bleiben. |
+| **9.1** | Das System MUSS täglich automatisch eine Sicherungskopie aller Daten erstellen — lokal, extern und optional cloudbasiert. Die Backups MÜSSEN verschlüsselt sein und eine Wiederherstellungsfunktion bieten. | MUST · Nicht-Funktional (Sicherheit) | Datensicherheit bei Systemausfall oder Hardwaredefekt. | Speicherverbrauch und -administration müssen skalierbar und überprüfbar bleiben. |
 | **9.2** | Das System MUSS eine zentrale, einheitliche Benutzeroberfläche („Dashboard") für alle ärztlichen Kernaufgaben bereitstellen (Akteneinsicht, Freigaben, Dokumentation, Kommunikation, Statistik). | MUST · Funktional | Erhöht Übersichtlichkeit, reduziert Klickpfade und Fehler. | — |
 | **9.3** | Das System DARF eine Cloud-Anbindung unterstützen, um bei lokalen Ausfällen weiterarbeiten zu können. Die Cloud-Speicherung MUSS DSGVO-konform erfolgen. | NICE TO HAVE · Nicht-Funktional (Verfügbarkeit) | Betriebssicherheit bei Hardwareausfällen, Mobilität. | — |
 | **9.4** | Das System DARF keine spürbaren Verzögerungen bei der Bedienung verursachen. Ladezeiten MÜSSEN < 2 Sekunden betragen, sonst wird die Nutzung als ineffizient bewertet. | NICE TO HAVE · Nicht-Funktional (Performance) | Schnelle Reaktionszeiten sichern Akzeptanz und Effizienz. | Systemladezeiten SOLLEN regelmäßig per Stresstest geprüft und dokumentiert werden. |
@@ -230,6 +230,6 @@ vollständige Implementierungsstatus stehen in
 - **Klassifikation & Strukturierung:** `02-klassifizierung.md`
 - **Priorisierung (MoSCoW):** `03-priorisierung.md`
 - **Spezifikation (FA-* / NFA-*):** `04-spezifikation.md`
-- **Verbindliches Pflichtenheft (Master):** `../v-model/01-anforderungen/pflichtenheft.md`
+- **Verbindliches Pflichtenheft (Master):** `../version-model/01-anforderungen/pflichtenheft.md`
 - **Traceability WAAD → FA/NFA:** `01b-traceability-waad.md`
 - **Fulfillment-Status (Code-Evidenz):** `06-validierung.md`

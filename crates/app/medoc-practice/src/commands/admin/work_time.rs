@@ -30,16 +30,16 @@ async fn sync_practice_auto_flags(
     login: Option<bool>,
     logout: Option<bool>,
 ) -> Result<(), AppError> {
-    if let Some(v) = login {
-        app_kv_repo::set(pool, AUTO_RECORD_KV, if v { "1" } else { "0" }).await?;
+    if let Some(version) = login {
+        app_kv_repo::set(pool, AUTO_RECORD_KV, if version { "1" } else { "0" }).await?;
     }
-    if let Some(v) = logout {
-        app_kv_repo::set(pool, AUTO_RECORD_LOGOUT_KV, if v { "1" } else { "0" }).await?;
+    if let Some(version) = logout {
+        app_kv_repo::set(pool, AUTO_RECORD_LOGOUT_KV, if version { "1" } else { "0" }).await?;
     }
     let login_val = practice_auto_record_on_login(pool).await?;
     let logout_val = practice_auto_record_on_logout(pool).await?;
     let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION')",
+        "SELECT id FROM staff WHERE UPPER(role) IN ('PHYSICIAN', 'RECEPTION')",
     )
     .fetch_all(pool)
     .await
@@ -47,7 +47,7 @@ async fn sync_practice_auto_flags(
     for (pid,) in rows {
         let _ = get_or_create_preference(pool, &pid).await?;
         sqlx::query(
-            "UPDATE work_time_preference SET auto_record_on_login = ?1, auto_record_on_logout = ?2 WHERE personal_id = ?3",
+            "UPDATE work_time_preference SET auto_record_on_login = ?1, auto_record_on_logout = ?2 WHERE staff_id = ?3",
         )
         .bind(login_val as i32)
         .bind(logout_val as i32)
@@ -63,7 +63,7 @@ async fn sync_practice_auto_flags(
 #[serde(rename_all = "camelCase")]
 pub struct WorkTimeSession {
     pub id: String,
-    pub personal_id: String,
+    pub staff_id: String,
     pub started_at: String,
     pub ended_at: Option<String>,
     pub pause_started_at: Option<String>,
@@ -102,7 +102,7 @@ pub struct WorkTimeActiveSession {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTimeTeamMemberRow {
-    pub personal_id: String,
+    pub staff_id: String,
     pub name: String,
     pub status: String,
     pub today_minutes: i64,
@@ -140,7 +140,7 @@ pub struct WorkTimePreferencePatch {
     pub focus_mode: Option<bool>,
     pub auto_record_on_login: Option<bool>,
     pub auto_record_on_logout: Option<bool>,
-    pub personal_id: Option<String>,
+    pub staff_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -149,15 +149,15 @@ pub struct WorkTimeReconcileReport {
     pub closed_stale_count: u32,
 }
 
-async fn open_session(pool: &SqlitePool, personal_id: &str) -> Result<Option<WorkTimeSession>, AppError> {
+async fn open_session(pool: &SqlitePool, staff_id: &str) -> Result<Option<WorkTimeSession>, AppError> {
     let row = sqlx::query_as::<_, WorkTimeSession>(
-        "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+        "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
-         WHERE personal_id = ?1 AND status IN ('RUNNING', 'PAUSED')
+         WHERE staff_id = ?1 AND status IN ('RUNNING', 'PAUSED')
          ORDER BY started_at DESC LIMIT 1",
     )
-    .bind(personal_id)
+    .bind(staff_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::Database)?;
@@ -224,13 +224,13 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
 
 pub async fn get_or_create_preference(
     pool: &SqlitePool,
-    personal_id: &str,
+    staff_id: &str,
 ) -> Result<WorkTimePreference, AppError> {
     let row: Option<(i64, i64, i64)> = sqlx::query_as(
         "SELECT focus_mode, auto_record_on_login, auto_record_on_logout
-         FROM work_time_preference WHERE personal_id = ?1",
+         FROM work_time_preference WHERE staff_id = ?1",
     )
-    .bind(personal_id)
+    .bind(staff_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::Database)?;
@@ -246,10 +246,10 @@ pub async fn get_or_create_preference(
     let auto_login = practice_auto_record_on_login(pool).await?;
     let auto_logout = practice_auto_record_on_logout(pool).await?;
     sqlx::query(
-        "INSERT INTO work_time_preference (personal_id, focus_mode, auto_record_on_login, auto_record_on_logout)
+        "INSERT INTO work_time_preference (staff_id, focus_mode, auto_record_on_login, auto_record_on_logout)
          VALUES (?1, 0, ?2, ?3)",
     )
-    .bind(personal_id)
+    .bind(staff_id)
     .bind(auto_login as i32)
     .bind(auto_logout as i32)
     .execute(pool)
@@ -264,10 +264,10 @@ pub async fn get_or_create_preference(
 
 pub async fn end_open_session_for_user(
     pool: &SqlitePool,
-    personal_id: &str,
+    staff_id: &str,
     reason: &str,
 ) -> Result<(), AppError> {
-    let Some(row) = open_session(pool, personal_id).await? else {
+    let Some(row) = open_session(pool, staff_id).await? else {
         return Ok(());
     };
     close_open_pause_segment(pool, &row.id).await?;
@@ -303,15 +303,15 @@ fn stale_close_ended_at(started_at: &str) -> String {
     Utc.from_utc_datetime(&end_naive).to_rfc3339()
 }
 
-async fn reconcile_stale_sessions(pool: &SqlitePool, personal_id: &str) -> Result<u32, AppError> {
+async fn reconcile_stale_sessions(pool: &SqlitePool, staff_id: &str) -> Result<u32, AppError> {
     let today = Utc::now().date_naive();
     let rows = sqlx::query_as::<_, WorkTimeSession>(
-        "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+        "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
-         WHERE personal_id = ?1 AND status IN ('RUNNING', 'PAUSED')",
+         WHERE staff_id = ?1 AND status IN ('RUNNING', 'PAUSED')",
     )
-    .bind(personal_id)
+    .bind(staff_id)
     .fetch_all(pool)
     .await
     .map_err(AppError::Database)?;
@@ -415,7 +415,7 @@ pub async fn work_time_start(
     let now = Utc::now().to_rfc3339();
     let auto = auto_recorded.unwrap_or(false);
     sqlx::query(
-        "INSERT INTO work_time_session (id, personal_id, started_at, status, auto_recorded, pause_minutes)
+        "INSERT INTO work_time_session (id, staff_id, started_at, status, auto_recorded, pause_minutes)
          VALUES (?1, ?2, ?3, 'RUNNING', ?4, 0)",
     )
     .bind(&id)
@@ -512,7 +512,7 @@ pub async fn work_time_end(
     .await
     .map_err(AppError::Database)?;
     sqlx::query_as::<_, WorkTimeSession>(
-        "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+        "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session WHERE id = ?1",
     )
@@ -538,10 +538,10 @@ pub async fn work_time_get_week_overview(
     let week_start = week_start_from(query.week_start.as_deref())?;
     let week_end = week_start + chrono::Duration::days(7);
     let sessions = sqlx::query_as::<_, WorkTimeSession>(
-        "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+        "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
-         WHERE personal_id = ?1 AND started_at >= ?2 AND started_at < ?3
+         WHERE staff_id = ?1 AND started_at >= ?2 AND started_at < ?3
          ORDER BY started_at ASC",
     )
     .bind(&session.user_id)
@@ -575,14 +575,14 @@ pub async fn work_time_get_team_overview(
     let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
 
     let staff: Vec<(String, String)> = sqlx::query_as(
-        "SELECT id, name FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION') ORDER BY name",
+        "SELECT id, name FROM staff WHERE UPPER(role) IN ('PHYSICIAN', 'RECEPTION') ORDER BY name",
     )
     .fetch_all(pool.inner())
     .await
     .map_err(AppError::Database)?;
 
     let sessions = sqlx::query_as::<_, WorkTimeSession>(
-        "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+        "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
          WHERE started_at >= ?1 AND started_at < ?2",
@@ -596,7 +596,7 @@ pub async fn work_time_get_team_overview(
     let now = Utc::now();
     let mut members = Vec::new();
     for (pid, name) in staff {
-        let mine: Vec<_> = sessions.iter().filter(|s| s.personal_id == pid).collect();
+        let mine: Vec<_> = sessions.iter().filter(|s| s.staff_id == pid).collect();
         let week_minutes: i64 = mine.iter().map(|s| session_work_minutes(s, now).0).sum();
         let today_minutes: i64 = mine
             .iter()
@@ -609,7 +609,7 @@ pub async fn work_time_get_team_overview(
             .map(|s| s.status.clone())
             .unwrap_or_else(|| "AUS".into());
         members.push(WorkTimeTeamMemberRow {
-            personal_id: pid,
+            staff_id: pid,
             name,
             status,
             today_minutes,
@@ -629,7 +629,7 @@ pub async fn work_time_get_statistics(
     session_state: State<'_, SessionState>,
 ) -> Result<WorkTimeStatistics, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    let role = Role::parse(&session.rolle).ok_or(AppError::Forbidden)?;
+    let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     let team = effective_allowed("work_time.team.read", role, &session.permission_overrides);
     let today = Utc::now().date_naive();
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
@@ -637,7 +637,7 @@ pub async fn work_time_get_statistics(
 
     let sessions = if team {
         sqlx::query_as::<_, WorkTimeSession>(
-            "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+            "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                     COALESCE(pause_minutes, 0) AS pause_minutes
              FROM work_time_session
              WHERE started_at >= ?1
@@ -649,10 +649,10 @@ pub async fn work_time_get_statistics(
         .map_err(AppError::Database)?
     } else {
         sqlx::query_as::<_, WorkTimeSession>(
-            "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+            "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                     COALESCE(pause_minutes, 0) AS pause_minutes
              FROM work_time_session
-             WHERE personal_id = ?1 AND started_at >= ?2
+             WHERE staff_id = ?1 AND started_at >= ?2
              ORDER BY started_at ASC",
         )
         .bind(&session.user_id)
@@ -685,7 +685,7 @@ pub async fn work_time_get_statistics(
 
     let by_person = if team {
         let staff: Vec<(String, String)> = sqlx::query_as(
-            "SELECT id, name FROM personal WHERE UPPER(rolle) IN ('ARZT', 'REZEPTION') ORDER BY name",
+            "SELECT id, name FROM staff WHERE UPPER(role) IN ('PHYSICIAN', 'RECEPTION') ORDER BY name",
         )
         .fetch_all(pool.inner())
         .await
@@ -694,7 +694,7 @@ pub async fn work_time_get_statistics(
         staff
             .into_iter()
             .map(|(pid, name)| {
-                let mine: Vec<_> = sessions.iter().filter(|s| s.personal_id == pid).collect();
+                let mine: Vec<_> = sessions.iter().filter(|s| s.staff_id == pid).collect();
                 let week_minutes: i64 = mine
                     .iter()
                     .filter(|s| {
@@ -713,7 +713,7 @@ pub async fn work_time_get_statistics(
                     .map(|s| s.status.clone())
                     .unwrap_or_else(|| "AUS".into());
                 WorkTimeTeamMemberRow {
-                    personal_id: pid,
+                    staff_id: pid,
                     name,
                     status,
                     today_minutes,
@@ -723,7 +723,7 @@ pub async fn work_time_get_statistics(
             .collect()
     } else {
         vec![WorkTimeTeamMemberRow {
-            personal_id: session.user_id.clone(),
+            staff_id: session.user_id.clone(),
             name: session.name.clone(),
             status: "SELF".into(),
             today_minutes: week_minutes,
@@ -744,10 +744,10 @@ pub async fn work_time_get_statistics(
 pub async fn work_time_get_preference(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
-    personal_id: Option<String>,
+    staff_id: Option<String>,
 ) -> Result<WorkTimePreference, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    let pid = if let Some(id) = personal_id {
+    let pid = if let Some(id) = staff_id {
         rbac::require(&session_state, "work_time.admin")?;
         id
     } else {
@@ -763,7 +763,7 @@ pub async fn work_time_set_preference(
     patch: WorkTimePreferencePatch,
 ) -> Result<WorkTimePreference, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
-    let pid = if let Some(id) = patch.personal_id {
+    let pid = if let Some(id) = patch.staff_id {
         rbac::require(&session_state, "work_time.admin")?;
         id
     } else {
@@ -771,7 +771,7 @@ pub async fn work_time_set_preference(
     };
     let _ = get_or_create_preference(&pool, &pid).await?;
     if let Some(f) = patch.focus_mode {
-        sqlx::query("UPDATE work_time_preference SET focus_mode = ?1 WHERE personal_id = ?2")
+        sqlx::query("UPDATE work_time_preference SET focus_mode = ?1 WHERE staff_id = ?2")
             .bind(f as i32)
             .bind(&pid)
             .execute(pool.inner())
@@ -779,7 +779,7 @@ pub async fn work_time_set_preference(
             .map_err(AppError::Database)?;
     }
     if let Some(l) = patch.auto_record_on_login {
-        sqlx::query("UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE personal_id = ?2")
+        sqlx::query("UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE staff_id = ?2")
             .bind(l as i32)
             .bind(&pid)
             .execute(pool.inner())
@@ -787,7 +787,7 @@ pub async fn work_time_set_preference(
             .map_err(AppError::Database)?;
     }
     if let Some(o) = patch.auto_record_on_logout {
-        sqlx::query("UPDATE work_time_preference SET auto_record_on_logout = ?1 WHERE personal_id = ?2")
+        sqlx::query("UPDATE work_time_preference SET auto_record_on_logout = ?1 WHERE staff_id = ?2")
             .bind(o as i32)
             .bind(&pid)
             .execute(pool.inner())
@@ -816,7 +816,7 @@ pub async fn work_time_get_practice_policy(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<WorkTimePracticePolicy, AppError> {
-    rbac::require(&session_state, "personal.write")?;
+    rbac::require(&session_state, "staff.write")?;
     Ok(WorkTimePracticePolicy {
         auto_record_on_login: practice_auto_record_on_login(&pool).await?,
         auto_record_on_logout: practice_auto_record_on_logout(&pool).await?,
@@ -829,7 +829,7 @@ pub async fn work_time_set_practice_policy(
     session_state: State<'_, SessionState>,
     patch: WorkTimePracticePolicyPatch,
 ) -> Result<WorkTimePracticePolicy, AppError> {
-    rbac::require(&session_state, "personal.write")?;
+    rbac::require(&session_state, "staff.write")?;
     if patch.auto_record_on_login.is_none() && patch.auto_record_on_logout.is_none() {
         return work_time_get_practice_policy(pool, session_state).await;
     }
@@ -848,7 +848,7 @@ pub async fn work_time_set_auto_record_on_login(
     session_state: State<'_, SessionState>,
     enabled: bool,
 ) -> Result<(), AppError> {
-    rbac::require(&session_state, "personal.write")?;
+    rbac::require(&session_state, "staff.write")?;
     sync_practice_auto_flags(&pool, Some(enabled), None).await
 }
 
@@ -857,7 +857,7 @@ pub async fn work_time_get_auto_record_on_login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<bool, AppError> {
-    rbac::require(&session_state, "personal.write")?;
+    rbac::require(&session_state, "staff.write")?;
     practice_auto_record_on_login(&pool).await
 }
 
@@ -887,16 +887,16 @@ mod tests {
     use super::*;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
-    async fn seed_personal(pool: &SqlitePool, id: &str) {
+    async fn seed_staff(pool: &SqlitePool, id: &str) {
         sqlx::query(
-            "INSERT INTO personal (id, name, email, rolle, passwort_hash, verfuegbar, created_at, updated_at)
-             VALUES (?1, 'Test', ?2, 'REZEPTION', 'x', 1, datetime('now'), datetime('now'))",
+            "INSERT INTO staff (id, name, email, role, password_hash, available, created_at, updated_at)
+             VALUES (?1, 'Test', ?2, 'RECEPTION', 'x', 1, datetime('now'), datetime('now'))",
         )
         .bind(id)
         .bind(format!("{id}@example.com"))
         .execute(pool)
         .await
-        .expect("seed personal");
+        .expect("seed staff");
     }
 
     #[tokio::test]
@@ -904,12 +904,12 @@ mod tests {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
         let pid = "p-work-time-1";
-        seed_personal(&pool, pid).await;
+        seed_staff(&pool, pid).await;
         let yesterday = (Utc::now().date_naive() - chrono::Duration::days(1))
             .format("%Y-%m-%d")
             .to_string();
         sqlx::query(
-            "INSERT INTO work_time_session (id, personal_id, started_at, status, auto_recorded, pause_minutes)
+            "INSERT INTO work_time_session (id, staff_id, started_at, status, auto_recorded, pause_minutes)
              VALUES ('s1', ?1, ?2, 'RUNNING', 1, 0)",
         )
         .bind(pid)
@@ -934,8 +934,8 @@ mod tests {
     async fn practice_policy_syncs_all_staff_preferences() {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
-        seed_personal(&pool, "p-a").await;
-        seed_personal(&pool, "p-b").await;
+        seed_staff(&pool, "p-a").await;
+        seed_staff(&pool, "p-b").await;
         sync_practice_auto_flags(&pool, Some(true), Some(true))
             .await
             .expect("sync");
@@ -953,10 +953,10 @@ mod tests {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
         let pid = "p-wt-2";
-        seed_personal(&pool, pid).await;
+        seed_staff(&pool, pid).await;
         let start = (Utc::now() - chrono::Duration::minutes(120)).to_rfc3339();
         sqlx::query(
-            "INSERT INTO work_time_session (id, personal_id, started_at, ended_at, status, auto_recorded, pause_minutes)
+            "INSERT INTO work_time_session (id, staff_id, started_at, ended_at, status, auto_recorded, pause_minutes)
              VALUES ('s2', ?1, ?2, ?3, 'ENDED', 0, 30)",
         )
         .bind(pid)
@@ -966,7 +966,7 @@ mod tests {
         .await
         .unwrap();
         let row: WorkTimeSession = sqlx::query_as(
-            "SELECT id, personal_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
+            "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                     COALESCE(pause_minutes, 0) AS pause_minutes
              FROM work_time_session WHERE id = 's2'",
         )

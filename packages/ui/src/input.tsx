@@ -265,7 +265,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         onClick={(e) => {
                             e.stopPropagation();
                             if (props.disabled) return;
-                            setOpen((v) => !v);
+                            setOpen((version) => !version);
                         }}
                         disabled={props.disabled}
                         aria-invalid={error ? true : undefined}

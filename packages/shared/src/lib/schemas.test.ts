@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
     CreatePatientSchema,
-    CreateTerminSchema,
-    CreateBestellungSchema,
+    CreateAppointmentSchema,
+    CreatePurchaseOrderSchema,
     CreateFeedbackSchema,
     zodErrorToMessage,
 } from "./schemas";
@@ -11,9 +11,9 @@ describe("CreatePatientSchema", () => {
     it("accepts a minimal valid payload", () => {
         const out = CreatePatientSchema.parse({
             name: "Max Mustermann",
-            geburtsdatum: "1970-01-01",
-            geschlecht: "MAENNLICH",
-            versicherungsnummer: "A123456789",
+            date_of_birth: "1970-01-01",
+            sex: "MALE",
+            insurance_number: "A123456789",
         });
         expect(out.name).toBe("Max Mustermann");
         expect(out.email).toBeNull();
@@ -22,9 +22,9 @@ describe("CreatePatientSchema", () => {
     it("rejects malformed birthdate", () => {
         const r = CreatePatientSchema.safeParse({
             name: "X",
-            geburtsdatum: "01.01.1970",
-            geschlecht: "MAENNLICH",
-            versicherungsnummer: "A123",
+            date_of_birth: "01.01.1970",
+            sex: "MALE",
+            insurance_number: "A123",
         });
         expect(r.success).toBe(false);
     });
@@ -32,55 +32,55 @@ describe("CreatePatientSchema", () => {
     it("treats empty email as null (not invalid)", () => {
         const out = CreatePatientSchema.parse({
             name: "X",
-            geburtsdatum: "1970-01-01",
-            geschlecht: "WEIBLICH",
-            versicherungsnummer: "A1",
+            date_of_birth: "1970-01-01",
+            sex: "FEMALE",
+            insurance_number: "A1",
             email: "",
         });
         expect(out.email).toBeNull();
     });
 });
 
-describe("CreateTerminSchema", () => {
+describe("CreateAppointmentSchema", () => {
     it("accepts ISO date + HH:MM time", () => {
-        const out = CreateTerminSchema.parse({
-            datum: "2026-04-25",
-            uhrzeit: "09:30",
-            art: "KONTROLLE",
+        const out = CreateAppointmentSchema.parse({
+            date: "2026-04-25",
+            time: "09:30",
+            kind: "CHECKUP",
             patient_id: "pat-1",
-            arzt_id: "arzt-1",
+            physician_id: "physician-1",
         });
-        expect(out.uhrzeit).toBe("09:30");
+        expect(out.time).toBe("09:30");
     });
 
-    it("rejects unknown Termin-Art", () => {
+    it("rejects unknown Appointment-Art", () => {
         expect(() =>
-            CreateTerminSchema.parse({
-                datum: "2026-04-25",
-                uhrzeit: "09:30",
-                art: "WURSTBROT",
+            CreateAppointmentSchema.parse({
+                date: "2026-04-25",
+                time: "09:30",
+                kind: "WURSTBROT",
                 patient_id: "pat-1",
-                arzt_id: "arzt-1",
+                physician_id: "physician-1",
             }),
         ).toThrow();
     });
 });
 
-describe("CreateBestellungSchema", () => {
-    it("requires positive integer menge", () => {
+describe("CreatePurchaseOrderSchema", () => {
+    it("requires positive integer quantity", () => {
         expect(() =>
-            CreateBestellungSchema.parse({ lieferant: "ACME", artikel: "X", menge: 0 }),
+            CreatePurchaseOrderSchema.parse({ supplier: "ACME", item: "X", quantity: 0 }),
         ).toThrow();
     });
 
-    it("treats empty erwartet_am as null", () => {
-        const out = CreateBestellungSchema.parse({
-            lieferant: "ACME",
-            artikel: "X",
-            menge: 5,
-            erwartet_am: "",
+    it("treats empty expected_on as null", () => {
+        const out = CreatePurchaseOrderSchema.parse({
+            supplier: "ACME",
+            item: "X",
+            quantity: 5,
+            expected_on: "",
         });
-        expect(out.erwartet_am).toBeNull();
+        expect(out.expected_on).toBeNull();
     });
 });
 
@@ -88,9 +88,9 @@ describe("CreateFeedbackSchema", () => {
     it("rejects too short subject", () => {
         expect(() =>
             CreateFeedbackSchema.parse({
-                kategorie: "feedback",
-                betreff: "Hi",
-                nachricht: "Eine ausreichend lange Nachricht.",
+                category: "feedback",
+                subject: "Hi",
+                message: "Eine ausreichend lange Nachricht.",
             }),
         ).toThrow();
     });
@@ -100,9 +100,9 @@ describe("parseOrThrow / zodErrorToMessage", () => {
     it("throws Error combining all Zod issues with semicolon", () => {
         const r = CreatePatientSchema.safeParse({
             name: "",
-            geburtsdatum: "bad",
-            geschlecht: "MAENNLICH",
-            versicherungsnummer: "x",
+            date_of_birth: "bad",
+            sex: "MALE",
+            insurance_number: "x",
         });
         expect(r.success).toBe(false);
         if (r.success) throw new Error("expected failure");

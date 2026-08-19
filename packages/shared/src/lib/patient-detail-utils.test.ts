@@ -1,51 +1,51 @@
 import { describe, expect, it } from "vitest";
 import {
-    resolveDefaultUntersuchungKatalogItem,
+    resolveDefaultExaminationCatalogItem,
 } from "./patient-detail-utils";
-import { EXAMINATION_CATALOG_CATEGORY } from "./behandlungs-katalog-categories";
-import type { BehandlungsKatalogItem } from "@/models/types";
+import { EXAMINATION_CATALOG_CATEGORY } from "./treatment-catalog-categories";
+import type { TreatmentCatalogItem } from "@/models/types";
 
 function item(
     id: string,
-    kategorie: string,
+    category: string,
     name: string,
     sort_order: number,
-    default_kosten: number | null = null,
-    aktiv = 1,
-): BehandlungsKatalogItem {
+    default_cost: number | null = null,
+    active = 1,
+): TreatmentCatalogItem {
     return {
         id,
-        kategorie,
+        category,
         name,
-        default_kosten,
+        default_cost,
         sort_order,
-        aktiv,
+        active,
         created_at: "2026-01-01T00:00:00Z",
     };
 }
 
-describe("resolveDefaultUntersuchungKatalogItem", () => {
-    it("picks lowest sort_order in Kontrolluntersuchung category", () => {
-        const katalog = [
+describe("resolveDefaultExaminationCatalogItem", () => {
+    it("picks lowest sort_order in Checkup category", () => {
+        const catalog = [
             item("b", EXAMINATION_CATALOG_CATEGORY, "Parodontalstatus", 20, 79),
             item("a", EXAMINATION_CATALOG_CATEGORY, "Recall / Kontrolle", 10, 49),
-            item("c", "Chirurgie", "Extraction", 5, 120),
+            item("c", "Surgery", "Extraction", 5, 120),
         ];
-        const resolved = resolveDefaultUntersuchungKatalogItem(katalog);
+        const resolved = resolveDefaultExaminationCatalogItem(catalog);
         expect(resolved?.id).toBe("a");
-        expect(resolved?.default_kosten).toBe(49);
+        expect(resolved?.default_cost).toBe(49);
     });
 
     it("ignores inactive catalog rows", () => {
-        const katalog = [
+        const catalog = [
             item("a", EXAMINATION_CATALOG_CATEGORY, "Recall", 10, 49, 0),
             item("b", EXAMINATION_CATALOG_CATEGORY, "Backup", 20, 39),
         ];
-        expect(resolveDefaultUntersuchungKatalogItem(katalog)?.id).toBe("b");
+        expect(resolveDefaultExaminationCatalogItem(catalog)?.id).toBe("b");
     });
 
     it("returns null when no examination category exists", () => {
-        const katalog = [item("c", "Chirurgie", "Extraction", 5, 120)];
-        expect(resolveDefaultUntersuchungKatalogItem(katalog)).toBeNull();
+        const catalog = [item("c", "Surgery", "Extraction", 5, 120)];
+        expect(resolveDefaultExaminationCatalogItem(catalog)).toBeNull();
     });
 });

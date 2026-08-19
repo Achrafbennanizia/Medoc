@@ -11,7 +11,7 @@ import { Badge } from "@/views/components/ui/badge";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { Button } from "@/views/components/ui/button";
-import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
+import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;

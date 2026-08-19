@@ -7,7 +7,7 @@ use medoc_core::error::AppError;
 
 use crate::api_key;
 
-const DEMO_SLUG: &str = "demo-praxis";
+const DEMO_SLUG: &str = "demo-practice";
 const DEMO_API_KEY: &str = "sk_demo_company_practice_key";
 
 pub async fn init_company_db(path: &std::path::Path) -> Result<SqlitePool, AppError> {
@@ -32,7 +32,7 @@ pub async fn init_company_db(path: &std::path::Path) -> Result<SqlitePool, AppEr
         .map_err(|e| AppError::Internal(format!("demo api key hash: {e}")))?;
     sqlx::query(
         "INSERT OR IGNORE INTO practice (slug, display_name, api_key_hash, plan_name)
-         VALUES (?1, 'Demo Praxis GmbH', ?2, 'MeDoc Praxis Pro')",
+         VALUES (?1, 'Demo Practice GmbH', ?2, 'MeDoc Practice Pro')",
     )
     .bind(DEMO_SLUG)
     .bind(&demo_hash)
@@ -65,12 +65,12 @@ async fn ensure_practice_table(pool: &SqlitePool) -> Result<(), AppError> {
             plan_name TEXT NOT NULL,
             monthly_fee_cents INTEGER NOT NULL DEFAULT 18900,
             next_billing_iso TEXT NOT NULL DEFAULT '2026-06-01',
-            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_PERSONAL
+            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_STAFF
             active_users INTEGER NOT NULL DEFAULT 1,
             storage_gb INTEGER NOT NULL DEFAULT 100,
             storage_used_gb REAL NOT NULL DEFAULT 12.4,
-            erezept_month_used INTEGER NOT NULL DEFAULT 142,
-            erezept_month_quota INTEGER NOT NULL DEFAULT -1
+            e_prescription_month_used INTEGER NOT NULL DEFAULT 142,
+            e_prescription_month_quota INTEGER NOT NULL DEFAULT -1
         )",
     )
     .execute(pool)
@@ -137,12 +137,12 @@ async fn rebuild_practice_without_plaintext_key(pool: &SqlitePool) -> Result<(),
             plan_name TEXT NOT NULL,
             monthly_fee_cents INTEGER NOT NULL DEFAULT 18900,
             next_billing_iso TEXT NOT NULL DEFAULT '2026-06-01',
-            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_PERSONAL
+            max_users INTEGER NOT NULL DEFAULT 5, -- MVP display default; enforced cap: mvp_security::MAX_TOTAL_STAFF
             active_users INTEGER NOT NULL DEFAULT 1,
             storage_gb INTEGER NOT NULL DEFAULT 100,
             storage_used_gb REAL NOT NULL DEFAULT 12.4,
-            erezept_month_used INTEGER NOT NULL DEFAULT 142,
-            erezept_month_quota INTEGER NOT NULL DEFAULT -1
+            e_prescription_month_used INTEGER NOT NULL DEFAULT 142,
+            e_prescription_month_quota INTEGER NOT NULL DEFAULT -1
         )",
     )
     .execute(pool)
@@ -153,7 +153,7 @@ async fn rebuild_practice_without_plaintext_key(pool: &SqlitePool) -> Result<(),
         "INSERT INTO practice (
             slug, display_name, api_key_hash, plan_name,
             monthly_fee_cents, next_billing_iso, max_users, active_users,
-            storage_gb, storage_used_gb, erezept_month_used, erezept_month_quota
+            storage_gb, storage_used_gb, e_prescription_month_used, e_prescription_month_quota
         )
         SELECT
             slug, display_name, api_key_hash, plan_name,

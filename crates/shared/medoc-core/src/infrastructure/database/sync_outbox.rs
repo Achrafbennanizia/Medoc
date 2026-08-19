@@ -25,20 +25,20 @@ const APP_KV_DEVICE_ID_KEY: &str = "sync.device_id.v1";
 /// Allow-listed entity tables that flow through the outbox.
 pub const SYNCED_TABLES: &[&str] = &[
     "patient",
-    "patientenakte",
-    "termin",
-    "behandlung",
-    "untersuchung",
-    "zahlung",
+    "patient_chart",
+    "appointment",
+    "treatment",
+    "examination",
+    "payment",
     "app_kv",
-    "praxis_aufgabe",
-    "anamnesebogen",
-    "zahnbefund",
-    "rezept",
-    "attest",
-    "leistung",
+    "practice_task",
+    "anamnesis_form",
+    "dental_finding",
+    "prescription",
+    "certificate",
+    "service_item",
     "in_app_notification",
-    "praxis_ticket",
+    "practice_ticket",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -182,7 +182,7 @@ mod tests {
         let pool = test_memory_pool().await.unwrap();
         run_migrations(&pool).await.unwrap();
         enable_serverless(&pool).await;
-        record_or_noop(&pool, "personal", "p1", "INSERT", "{}")
+        record_or_noop(&pool, "staff", "p1", "INSERT", "{}")
             .await
             .unwrap();
         assert_eq!(count_outbox(&pool).await, 0);
@@ -195,20 +195,20 @@ mod tests {
         enable_serverless(&pool).await;
         for table in [
             "patient",
-            "patientenakte",
-            "termin",
-            "behandlung",
-            "untersuchung",
-            "zahlung",
+            "patient_chart",
+            "appointment",
+            "treatment",
+            "examination",
+            "payment",
             "app_kv",
-            "praxis_aufgabe",
-            "anamnesebogen",
-            "zahnbefund",
-            "rezept",
-            "attest",
-            "leistung",
+            "practice_task",
+            "anamnesis_form",
+            "dental_finding",
+            "prescription",
+            "certificate",
+            "service_item",
             "in_app_notification",
-            "praxis_ticket",
+            "practice_ticket",
         ] {
             record_or_noop(&pool, table, "id-x", "INSERT", "{}")
                 .await

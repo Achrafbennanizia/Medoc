@@ -38,9 +38,9 @@ fn patient_entry(
         "payloadJson": serde_json::json!({
             "id": patient_id,
             "name": name,
-            "geburtsdatum": "1990-01-01",
-            "geschlecht": "MAENNLICH",
-            "versicherungsnummer": format!("V-{patient_id}"),
+            "date_of_birth": "1990-01-01",
+            "sex": "MALE",
+            "insurance_number": format!("V-{patient_id}"),
             "updated_at": updated_at,
         }).to_string(),
         "createdAt": updated_at,
@@ -98,7 +98,7 @@ async fn three_replicas_competing_freshness_last_newer_wins_on_master() {
         assert_eq!(status, StatusCode::OK, "push from {device}: {push:?}");
     }
 
-    let (status, patients) = lan.json("GET", "/api/v1/patienten", None, Some(&jwt)).await;
+    let (status, patients) = lan.json("GET", "/api/v1/patients", None, Some(&jwt)).await;
     assert_eq!(status, StatusCode::OK);
     let winner = patients
         .as_array()

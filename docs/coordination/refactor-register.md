@@ -70,8 +70,8 @@ ID:        R-004
 Type:      conflict
 Severity:  P1
 Location:  docs/ (~33 files cite app/src-tauri or app/src/)
-Finding:   Architecture and v-model docs describe retired app/src-tauri layout; contradict project-truth.md live paths.
-Evidence:  grep docs/: architecture-design.md, three-systems.md, v-model/00-uebersicht.md, 01b-traceability-waad.md, etc. CI/config already use apps/crates/packages (no build risk).
+Finding:   Architecture and version-model docs describe retired app/src-tauri layout; contradict project-truth.md live paths.
+Evidence:  grep docs/: architecture-design.md, three-systems.md, version-model/00-uebersicht.md, 01b-traceability-waad.md, etc. CI/config already use apps/crates/packages (no build risk).
 Action:    refactor (Phase C) — quarantine index at retired-paths.md; no broad sweep per plan §2.8
 Reuse?:    Reuse project-truth.md as canonical; link stale docs to quarantine banner.
 Status:    done
@@ -125,8 +125,8 @@ Status:    deferred
 ID:        R-008
 Type:      incompleteness
 Severity:  P2
-Location:  packages/shared/src/lib/{deferred-roles,datenschutz-config,posteingang-config}.ts
-Finding:   Feature flags disable Datenschutz UI, separate Posteingang nav, STEUERBERATER/PHARMABERATER roles.
+Location:  packages/shared/src/lib/{deferred-roles,privacy-config,inbox-config}.ts
+Finding:   Feature flags disable Datenschutz UI, separate Posteingang nav, TAX_ADVISOR/PHARMA_CONSULTANT roles.
 Evidence:  DEFERRED_ROLES_ENABLED=false, DATENSCHUTZ_UI_ENABLED=false, POSTEINGANG_UI_ENABLED=false.
 Action:    reject-and-document (actions.md / todos-deferred-*.md)
 Reuse?:    N/A — intentional MVP scope reduction.

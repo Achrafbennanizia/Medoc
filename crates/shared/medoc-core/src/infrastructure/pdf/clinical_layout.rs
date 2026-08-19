@@ -15,7 +15,7 @@ use crate::error::AppError;
 use serde::Deserialize;
 
 use super::core::{
-    emit_multipage_pdf, truncate_cell, wrap_de, wrap_soft, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
+    emit_multipage_pdf, truncate_cell, wrap_text, wrap_soft, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
     M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
@@ -39,11 +39,11 @@ pub struct LabelValue {
 #[serde(rename_all = "snake_case")]
 pub enum TableColumnLayout {
     /// Receipt: date (wide), description (wide), amount (narrow right).
-    Quittung,
+    Receipt,
     /// Prescription (single): med · strength · dose · duration · PZN
-    Rezept,
+    Prescription,
     /// Prescription (combo): pos · med · dose · duration · notes
-    RezeptCombo,
+    PrescriptionCombo,
     /// Even distribution (default).
     #[default]
     Even,
@@ -62,8 +62,8 @@ pub struct PdfTableSpec {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailRecord {
-    pub art: String,
-    pub zeitraum: String,
+    pub kind: String,
+    pub period: String,
     pub details: Vec<String>,
 }
 
@@ -81,11 +81,11 @@ pub struct TwoColumnBlock {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClinicalPdfLayout {
-    /// "attest" | "rezept" | "quittung" | otherwise default
+    /// "certificate" | "prescription" | "receipt" | otherwise default
     pub kind: String,
 
     /// Practice letterhead (line 1 bold = name).
-    pub praxis_lines: Vec<String>,
+    pub practice_lines: Vec<String>,
 
     /// Right column at top — only when `meta_lines` is empty.
     #[serde(default)]
@@ -140,11 +140,11 @@ pub struct ClinicalPdfLayout {
 
     /// Provider professional title for the default signature block.
     #[serde(default)]
-    pub behandler_berufsbezeichnung: Option<String>,
+    pub clinician_professional_title: Option<String>,
     #[serde(default)]
-    pub behandler_zanr: Option<String>,
+    pub clinician_zanr: Option<String>,
     #[serde(default)]
-    pub behandler_bsnr: Option<String>,
+    pub clinician_bsnr: Option<String>,
 }
 
 // ===========================================================================
@@ -156,17 +156,17 @@ fn table_column_xs(layout: TableColumnLayout, ncol: usize) -> Vec<i32> {
     let ncol = ncol.max(1);
     match layout {
         // Date narrow · position medium · short description wide (rest to right)
-        TableColumnLayout::Quittung if ncol >= 3 => {
+        TableColumnLayout::Receipt if ncol >= 3 => {
             vec![M_LEFT, M_LEFT + 72, M_LEFT + 198]
         }
-        TableColumnLayout::Rezept if ncol >= 5 => vec![
+        TableColumnLayout::Prescription if ncol >= 5 => vec![
             M_LEFT,
             M_LEFT + 130,
             M_LEFT + 220,
             M_LEFT + 295,
             M_LEFT + 365,
         ],
-        TableColumnLayout::RezeptCombo if ncol >= 5 => vec![
+        TableColumnLayout::PrescriptionCombo if ncol >= 5 => vec![
             M_LEFT,
             M_LEFT + 38,
             M_LEFT + 170,
@@ -209,9 +209,9 @@ pub fn render_clinical_layout(doc: &ClinicalPdfLayout) -> Result<Vec<u8>, AppErr
     let mut pb = PageBuilder::new();
 
     match doc.kind.as_str() {
-        "attest" => render_attest(&mut pb, doc),
-        "rezept" => render_rezept(&mut pb, doc),
-        "quittung" => render_quittung(&mut pb, doc),
+        "certificate" => render_certificate(&mut pb, doc),
+        "prescription" => render_prescription(&mut pb, doc),
+        "receipt" => render_receipt(&mut pb, doc),
         _ => render_generic(&mut pb, doc),
     }
 
@@ -226,7 +226,7 @@ pub fn render_clinical_layout(doc: &ClinicalPdfLayout) -> Result<Vec<u8>, AppErr
 pub fn render_plain_preview(
     kind: &str,
     template_name: &str,
-    fusszeile: &str,
+    footer: &str,
     body_pt: i32,
     body_lines: &[String],
 ) -> Result<Vec<u8>, AppError> {
@@ -238,16 +238,16 @@ pub fn render_plain_preview(
         .map(|l| crate::infrastructure::clinical_text_format::plain_text_for_pdf(l))
         .collect();
 
-    let praxis_lines: Vec<String> = cleaned
+    let practice_lines: Vec<String> = cleaned
         .first()
         .filter(|s| !s.trim().is_empty())
         .map(|s| vec![s.clone()])
         .unwrap_or_default();
-    let body_start = if praxis_lines.is_empty() { 0 } else { 1 };
+    let body_start = if practice_lines.is_empty() { 0 } else { 1 };
 
     let mut pb = PageBuilder::new();
     let lh = Letterhead {
-        praxis_lines: &praxis_lines,
+        practice_lines: &practice_lines,
         meta_rows: &[],
         address_lines: &[],
         header_right_lines: &[],
@@ -257,7 +257,7 @@ pub fn render_plain_preview(
 
     pb.text(M_LEFT, 14, true, template_name);
     pb.advance(18);
-    pb.text(M_LEFT, 9, false, &format!("Dokumenttyp: {kind}"));
+    pb.text(M_LEFT, 9, false, &format!("Document type: {kind}"));
     pb.advance(14);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(16);
@@ -270,11 +270,11 @@ pub fn render_plain_preview(
         pb.paragraph(raw, fs, wrap_cols, 0);
     }
 
-    if !fusszeile.trim().is_empty() {
+    if !footer.trim().is_empty() {
         pb.advance(8);
         pb.hline(M_LEFT, M_RIGHT);
         pb.advance(10);
-        for chunk in wrap_soft(fusszeile.trim(), wrap_cols) {
+        for chunk in wrap_soft(footer.trim(), wrap_cols) {
             pb.text(M_LEFT, 8, false, &chunk);
             pb.advance(11);
         }
@@ -287,7 +287,7 @@ pub fn render_plain_preview(
 }
 
 fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str) {
-    if kind == "quittung" {
+    if kind == "receipt" {
         return;
     }
     pb.ensure_space(40);
@@ -298,7 +298,7 @@ fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str) {
         M_LEFT,
         7,
         false,
-        "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an Berechtigte.",
+        "Vertrauliche Patientendaten gem. § 630f BGB / Kind. 9 DSGVO. Weitergabe nur an Berechtigte.",
     );
 }
 
@@ -306,12 +306,12 @@ fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str) {
 // ATTEST  (Muster-1-Stil)
 // ---------------------------------------------------------------------------
 
-fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_certificate(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     // Letterhead — certificates usually go to the patient directly, so
     // address_lines beachten
     let meta_rows = to_meta_rows(&doc.meta_lines);
     let lh = Letterhead {
-        praxis_lines: &doc.praxis_lines,
+        practice_lines: &doc.practice_lines,
         meta_rows: &meta_rows,
         address_lines: &doc.address_lines,
         header_right_lines: &doc.header_right_lines,
@@ -342,7 +342,7 @@ fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
             pb,
             table,
             (
-                doc.praxis_lines
+                doc.practice_lines
                     .first()
                     .map(|s| s.as_str())
                     .unwrap_or("MeDoc"),
@@ -366,10 +366,10 @@ fn render_attest(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 // REZEPT  (Muster-16-Stil — Privatrezept)
 // ---------------------------------------------------------------------------
 
-fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_prescription(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
     let lh = Letterhead {
-        praxis_lines: &doc.praxis_lines,
+        practice_lines: &doc.practice_lines,
         meta_rows: &meta_rows,
         address_lines: &[],
         header_right_lines: &[],
@@ -377,7 +377,7 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     };
     emit_letterhead(pb, &lh);
 
-    // Large "Rezept" title on the left, optional subtitle (private / statutory / BtM)
+    // Large "Prescription" title on the left, optional subtitle (private / statutory / BtM)
     pb.text(M_LEFT, 18, true, &doc.document_title);
     pb.advance(22);
     if let Some(sub) = doc
@@ -406,7 +406,7 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
                 pb,
                 table,
                 (
-                    doc.praxis_lines
+                    doc.practice_lines
                         .first()
                         .map(|s| s.as_str())
                         .unwrap_or("MeDoc"),
@@ -431,10 +431,10 @@ fn render_rezept(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 // QUITTUNG  (GoBD-konform)
 // ---------------------------------------------------------------------------
 
-fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_receipt(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
     let lh = Letterhead {
-        praxis_lines: &doc.praxis_lines,
+        practice_lines: &doc.practice_lines,
         meta_rows: &meta_rows,
         address_lines: &doc.address_lines,
         header_right_lines: &[],
@@ -461,18 +461,18 @@ fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     // Totals + service table as one contiguous block (uniform gray)
     if let Some(table) = doc.tables.first() {
         let cont = (
-            doc.praxis_lines
+            doc.practice_lines
                 .first()
                 .map(|s| s.as_str())
                 .unwrap_or("MeDoc"),
             doc.document_title.as_str(),
         );
-        emit_quittung_totals_and_table(pb, &doc.totals, table, cont);
+        emit_receipt_totals_and_table(pb, &doc.totals, table, cont);
         for extra in doc.tables.iter().skip(1) {
             emit_table(pb, extra, cont);
         }
     } else {
-        emit_quittung_totals(pb, &doc.totals);
+        emit_receipt_totals(pb, &doc.totals);
     }
 
     for p in &doc.closing_paragraphs {
@@ -491,7 +491,7 @@ fn render_quittung(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
     let lh = Letterhead {
-        praxis_lines: &doc.praxis_lines,
+        practice_lines: &doc.practice_lines,
         meta_rows: &meta_rows,
         address_lines: &doc.address_lines,
         header_right_lines: &doc.header_right_lines,
@@ -522,7 +522,7 @@ fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
             pb,
             table,
             (
-                doc.praxis_lines
+                doc.practice_lines
                     .first()
                     .map(|s| s.as_str())
                     .unwrap_or("MeDoc"),
@@ -554,7 +554,7 @@ fn render_intro(pb: &mut PageBuilder, paragraphs: &[String]) {
             continue;
         }
         // Heuristic: if the element is a colon headline
-        // ("Hinweise:", "Diagnose:") AND short AND no further colons
+        // ("Notee:", "Diagnosis:") AND short AND no further colons
         // inside, treat it as a section title.
         let trimmed = p.trim_end();
         let is_heading = trimmed.ends_with(':')
@@ -597,7 +597,7 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
                     pb.advance(6);
                     continue;
                 }
-                for chunk in wrap_de(raw, 84) {
+                for chunk in wrap_text(raw, 84) {
                     pb.ensure_space(30);
                     pb.text(M_LEFT + 4, 10, false, &chunk);
                     pb.advance(12);
@@ -629,7 +629,7 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
         M_LEFT + 8,
         9,
         true,
-        block.left_title.as_deref().unwrap_or("Patient:in"),
+        block.left_title.as_deref().unwrap_or("Patient"),
     );
     if let Some(t) = block.right_title.as_deref() {
         pb.text(mid_x + 4, 9, true, t);
@@ -704,17 +704,17 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
         pb.fill_rect(M_LEFT, box_bottom, CONTENT_WIDTH, total_h - 8, 0.97);
 
         pb.advance(2);
-        pb.text(M_LEFT + 6, 9, true, "Art");
+        pb.text(M_LEFT + 6, 9, true, "Type");
         pb.advance(12);
-        for chunk in wrap_soft(&rec.art, 80) {
+        for chunk in wrap_soft(&rec.kind, 80) {
             pb.text(M_LEFT + 6, 9, false, &chunk);
             pb.advance(11);
         }
         pb.advance(2);
 
-        pb.text(M_LEFT + 6, 9, true, "Zeitraum");
+        pb.text(M_LEFT + 6, 9, true, "Period");
         pb.advance(12);
-        for chunk in wrap_soft(&rec.zeitraum, 80) {
+        for chunk in wrap_soft(&rec.period, 80) {
             pb.text(M_LEFT + 6, 9, false, &chunk);
             pb.advance(11);
         }
@@ -733,12 +733,17 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
 }
 
 /// Uniform padding in receipt tables (totals + header + rows).
-const QUITTUNG_PAD: i32 = 10;
-const QUITTUNG_ROW_H: i32 = 14;
-const QUITTUNG_HEADER_H: i32 = 18;
-const QUITTUNG_BAND_GRAY: f64 = 0.93;
+const RECEIPT_PAD: i32 = 10;
+const RECEIPT_ROW_H: i32 = 14;
+const RECEIPT_HEADER_H: i32 = 18;
+const RECEIPT_BAND_GRAY: f64 = 0.93;
 
-fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
+fn is_total_label(label: &str) -> bool {
+    let l = label.to_ascii_lowercase();
+    l.contains("gesamt") || l.contains("endbetrag") || l.contains("total")
+}
+
+fn emit_receipt_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
     if totals.is_empty() {
         return;
     }
@@ -746,28 +751,28 @@ fn emit_quittung_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
     pb.advance(4);
     let mut y = pb.y - 4;
     for (i, row) in totals.iter().enumerate() {
-        let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+        let bold = is_total_label(&row.label);
         if bold {
             pb.fill_rect(
                 M_LEFT,
-                y - QUITTUNG_ROW_H + 2,
+                y - RECEIPT_ROW_H + 2,
                 CONTENT_WIDTH,
-                QUITTUNG_ROW_H,
-                QUITTUNG_BAND_GRAY,
+                RECEIPT_ROW_H,
+                RECEIPT_BAND_GRAY,
             );
         }
         pb.y = y;
-        pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
-        pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
+        pb.text(M_LEFT + RECEIPT_PAD, 10, bold, &format!("{}:", row.label));
+        pb.text_right(M_RIGHT - RECEIPT_PAD, 10, bold, &row.value);
         if i + 1 < totals.len() {
-            y -= QUITTUNG_ROW_H;
+            y -= RECEIPT_ROW_H;
         }
     }
-    pb.y = y - QUITTUNG_ROW_H - 6;
+    pb.y = y - RECEIPT_ROW_H - 6;
 }
 
 /// Totals block + table header in **one** gray band (no white gap between).
-fn emit_quittung_totals_and_table(
+fn emit_receipt_totals_and_table(
     pb: &mut PageBuilder,
     totals: &[LabelValue],
     table: &PdfTableSpec,
@@ -787,9 +792,9 @@ fn emit_quittung_totals_and_table(
     let totals_h = if totals.is_empty() {
         0
     } else {
-        totals_rows * QUITTUNG_ROW_H + 4
+        totals_rows * RECEIPT_ROW_H + 4
     };
-    let combined_h = totals_h + QUITTUNG_HEADER_H;
+    let combined_h = totals_h + RECEIPT_HEADER_H;
 
     if !totals.is_empty() {
         pb.advance(4);
@@ -799,21 +804,21 @@ fn emit_quittung_totals_and_table(
     let mut y = pb.y - 4;
     if !totals.is_empty() {
         for (i, row) in totals.iter().enumerate() {
-            let bold = row.label.contains("Gesamt") || row.label.contains("Endbetrag");
+            let bold = is_total_label(&row.label);
             if bold {
                 pb.fill_rect(
                     M_LEFT,
-                    y - QUITTUNG_ROW_H + 2,
+                    y - RECEIPT_ROW_H + 2,
                     CONTENT_WIDTH,
-                    QUITTUNG_ROW_H,
-                    QUITTUNG_BAND_GRAY,
+                    RECEIPT_ROW_H,
+                    RECEIPT_BAND_GRAY,
                 );
             }
             pb.y = y;
-            pb.text(M_LEFT + QUITTUNG_PAD, 10, bold, &format!("{}:", row.label));
-            pb.text_right(M_RIGHT - QUITTUNG_PAD, 10, bold, &row.value);
+            pb.text(M_LEFT + RECEIPT_PAD, 10, bold, &format!("{}:", row.label));
+            pb.text_right(M_RIGHT - RECEIPT_PAD, 10, bold, &row.value);
             if i + 1 < totals.len() {
-                y -= QUITTUNG_ROW_H;
+                y -= RECEIPT_ROW_H;
             }
         }
     }
@@ -821,12 +826,12 @@ fn emit_quittung_totals_and_table(
     let header_baseline = if totals.is_empty() {
         pb.y - 6
     } else {
-        band_bottom + QUITTUNG_HEADER_H - 6
+        band_bottom + RECEIPT_HEADER_H - 6
     };
     for (ci, h) in table.headers.iter().enumerate() {
         let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
         pb.y = header_baseline;
-        pb.text(x + QUITTUNG_PAD, 9, true, h);
+        pb.text(x + RECEIPT_PAD, 9, true, h);
     }
 
     pb.y = band_bottom;
@@ -836,7 +841,7 @@ fn emit_quittung_totals_and_table(
     emit_table_data_rows(pb, table, &col_xs, &col_chars, continuation);
 }
 
-/// Table rows without re-emitting the header band (after [`emit_quittung_totals_and_table`]).
+/// Table rows without re-emitting the header band (after [`emit_receipt_totals_and_table`]).
 fn emit_table_data_rows(
     pb: &mut PageBuilder,
     table: &PdfTableSpec,
@@ -869,7 +874,7 @@ fn emit_table_data_rows(
             pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
             for (ci, h) in table.headers.iter().enumerate() {
                 let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
-                pb.text(x + QUITTUNG_PAD, 9, true, h);
+                pb.text(x + RECEIPT_PAD, 9, true, h);
             }
             pb.advance(13);
             pb.hline(M_LEFT, M_RIGHT);
@@ -892,7 +897,7 @@ fn emit_table_data_rows(
                 if !chunk.is_empty() {
                     let prev = pb.y;
                     pb.y = base_y - li as i32 * 12;
-                    pb.text(x + QUITTUNG_PAD, 9, false, chunk);
+                    pb.text(x + RECEIPT_PAD, 9, false, chunk);
                     pb.y = prev;
                 }
             }
@@ -913,7 +918,7 @@ fn emit_totals_block(pb: &mut PageBuilder, totals: &[LabelValue]) {
     pb.hline(300, M_RIGHT);
     pb.advance(14);
     for row in totals {
-        let bold = row.label.contains("Endbetrag") || row.label.contains("Gesamt");
+        let bold = is_total_label(&row.label);
         pb.text_right(380, 10, bold, &format!("{}:", row.label));
         pb.text_right(M_RIGHT, 10, bold, &row.value);
         pb.advance(14);
@@ -931,9 +936,9 @@ fn emit_default_or_custom_signature(pb: &mut PageBuilder, doc: &ClinicalPdfLayou
         emit_signature_block(
             pb,
             None,
-            doc.behandler_berufsbezeichnung.as_deref(),
-            doc.behandler_zanr.as_deref(),
-            doc.behandler_bsnr.as_deref(),
+            doc.clinician_professional_title.as_deref(),
+            doc.clinician_zanr.as_deref(),
+            doc.clinician_bsnr.as_deref(),
             true,
         );
         emit_footer_meta(pb, &doc.footer_meta_lines);
@@ -954,7 +959,7 @@ fn emit_default_or_custom_signature(pb: &mut PageBuilder, doc: &ClinicalPdfLayou
         pb.advance(size + 2);
     }
     pb.advance(4);
-    pb.text(M_LEFT, 8, false, "(Praxisstempel)");
+    pb.text(M_LEFT, 8, false, "(Practice stamp)");
 
     emit_footer_meta(pb, &doc.footer_meta_lines);
 }
@@ -980,7 +985,7 @@ fn emit_footer_meta(pb: &mut PageBuilder, meta: &[LabelValue]) {
 mod tests {
     use super::*;
 
-    fn praxis() -> Vec<String> {
+    fn practice() -> Vec<String> {
         vec![
             "Zahnarztpraxis Dr. Test".into(),
             "Teststraße 1".into(),
@@ -992,36 +997,36 @@ mod tests {
     fn meta() -> Vec<LabelValue> {
         vec![
             LabelValue {
-                label: "Datum".into(),
+                label: "Date".into(),
                 value: "19.04.2026".into(),
             },
             LabelValue {
-                label: "Dokument-Nr.".into(),
+                label: "Document-Nr.".into(),
                 value: "AT-001".into(),
             },
         ]
     }
 
     #[test]
-    fn renders_attest() {
+    fn renders_certificate() {
         let doc = ClinicalPdfLayout {
-            kind: "attest".into(),
-            praxis_lines: praxis(),
+            kind: "certificate".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: meta(),
             address_lines: vec!["Max Mustermann".into(), "Musterstr. 1".into()],
-            document_title: "ÄRZTLICHES ATTEST".into(),
-            document_subtitle: Some("Arbeitsunfähigkeitsbescheinigung".into()),
+            document_title: "MEDICAL CERTIFICATE".into(),
+            document_subtitle: Some("SICK_LEAVE".into()),
             intro_paragraphs: vec![
-                "Hiermit wird bescheinigt, dass die unten genannte Person …".into()
+                "This certifies that the person named below …".into()
             ],
             label_value_rows: vec![
                 LabelValue {
-                    label: "Patient:in".into(),
+                    label: "Patient".into(),
                     value: "Max Mustermann".into(),
                 },
                 LabelValue {
-                    label: "Geburtsdatum".into(),
+                    label: "Date of birth".into(),
                     value: "01.01.1980".into(),
                 },
                 LabelValue {
@@ -1033,37 +1038,37 @@ mod tests {
             tables: vec![],
             detail_records: vec![],
             totals: vec![],
-            closing_paragraphs: vec!["Ort, Datum: Berlin, 19.04.2026".into()],
+            closing_paragraphs: vec!["Place, date: Berlin, 19.04.2026".into()],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: Some("Zahnärztin".into()),
-            behandler_zanr: Some("987654321".into()),
-            behandler_bsnr: Some("123456789".into()),
+            clinician_professional_title: Some("Zahnärztin".into()),
+            clinician_zanr: Some("987654321".into()),
+            clinician_bsnr: Some("123456789".into()),
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(pdf.ends_with(b"%%EOF\n"));
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("ATTEST") || text.contains("\\304"));
+        assert!(text.contains("CERTIFICATE") || text.contains("MEDICAL"));
     }
 
     #[test]
-    fn renders_rezept_with_two_column_panel() {
+    fn renders_prescription_with_two_column_panel() {
         let doc = ClinicalPdfLayout {
-            kind: "rezept".into(),
-            praxis_lines: praxis(),
+            kind: "prescription".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: meta(),
             address_lines: vec![],
-            document_title: "Rezept".into(),
+            document_title: "Prescription".into(),
             document_subtitle: Some("Privatrezept".into()),
             intro_paragraphs: vec![],
             label_value_rows: vec![LabelValue {
-                label: "Verordnungsdatum".into(),
+                label: "Prescription date".into(),
                 value: "19.04.2026".into(),
             }],
             two_column: Some(TwoColumnBlock {
-                left_title: Some("Patient:in".into()),
+                left_title: Some("Patient".into()),
                 left_lines: vec![
                     "Max Mustermann".into(),
                     "geb. 01.01.1980".into(),
@@ -1075,11 +1080,11 @@ mod tests {
             tables: vec![PdfTableSpec {
                 title: None,
                 headers: vec![
-                    "Medikament".into(),
-                    "Dosierung".into(),
-                    "Dauer".into(),
+                    "Medication".into(),
+                    "Dosage".into(),
+                    "Duration".into(),
                     "PZN".into(),
-                    "Hinweis".into(),
+                    "Note".into(),
                 ],
                 rows: vec![vec![
                     "Ibuprofen 600".into(),
@@ -1088,58 +1093,58 @@ mod tests {
                     "12345678".into(),
                     "aut idem".into(),
                 ]],
-                column_layout: TableColumnLayout::Rezept,
+                column_layout: TableColumnLayout::Prescription,
             }],
             detail_records: vec![],
             totals: vec![],
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: Some("Zahnarzt".into()),
-            behandler_zanr: Some("987654321".into()),
-            behandler_bsnr: Some("123456789".into()),
+            clinician_professional_title: Some("Zahnarzt".into()),
+            clinician_zanr: Some("987654321".into()),
+            clinician_bsnr: Some("123456789".into()),
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 
     #[test]
-    fn renders_quittung() {
+    fn renders_receipt() {
         let doc = ClinicalPdfLayout {
-            kind: "quittung".into(),
-            praxis_lines: praxis(),
+            kind: "receipt".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: vec![
                 LabelValue {
-                    label: "Quittung-Nr.".into(),
+                    label: "Receipt-Nr.".into(),
                     value: "QU-2026-0001".into(),
                 },
                 LabelValue {
-                    label: "Datum".into(),
+                    label: "Date".into(),
                     value: "19.04.2026".into(),
                 },
             ],
             address_lines: vec!["Max Mustermann".into()],
             document_title: "QUITTUNG".into(),
-            document_subtitle: Some("Zahlungsbeleg".into()),
+            document_subtitle: Some("Payment receipt".into()),
             intro_paragraphs: vec![
                 "Hiermit bestätigen wir den Erhalt des unten ausgewiesenen Betrages.".into(),
             ],
             label_value_rows: vec![
                 LabelValue {
-                    label: "Zahlungsart".into(),
+                    label: "Payment method".into(),
                     value: "Barzahlung".into(),
                 },
                 LabelValue {
-                    label: "Leistung".into(),
-                    value: "Kontrolluntersuchung".into(),
+                    label: "ServiceItem".into(),
+                    value: "Checkup".into(),
                 },
             ],
             two_column: None,
             tables: vec![],
             detail_records: vec![],
             totals: vec![LabelValue {
-                label: "Gesamtbetrag".into(),
+                label: "Total amount".into(),
                 value: "45,00 €".into(),
             }],
             closing_paragraphs: vec![
@@ -1148,25 +1153,25 @@ mod tests {
             ],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: None,
-            behandler_zanr: None,
-            behandler_bsnr: None,
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("QUITTUNG") || text.contains("Quittung") || text.contains("\\321"));
+        assert!(text.contains("QUITTUNG") || text.contains("Receipt") || text.contains("\\321"));
     }
 
     #[test]
     fn unknown_kind_falls_back_to_generic() {
         let doc = ClinicalPdfLayout {
             kind: "unknown_type".into(),
-            praxis_lines: praxis(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: vec![],
             address_lines: vec![],
-            document_title: "Sonstiges Dokument".into(),
+            document_title: "Other Document".into(),
             document_subtitle: None,
             intro_paragraphs: vec!["Inhalt".into()],
             label_value_rows: vec![],
@@ -1177,9 +1182,9 @@ mod tests {
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: None,
-            behandler_zanr: None,
-            behandler_bsnr: None,
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1188,8 +1193,8 @@ mod tests {
     #[test]
     fn table_with_long_cells_wraps_within_columns() {
         let doc = ClinicalPdfLayout {
-            kind: "attest".into(),
-            praxis_lines: praxis(),
+            kind: "certificate".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: vec![],
             address_lines: vec![],
@@ -1199,7 +1204,7 @@ mod tests {
             label_value_rows: vec![],
             two_column: None,
             tables: vec![PdfTableSpec {
-                title: Some("Befunde".into()),
+                title: Some("Findings".into()),
                 headers: vec!["Zahn".into(), "Befund".into(), "Notiz".into()],
                 rows: vec![vec![
                     "21".into(),
@@ -1215,9 +1220,9 @@ mod tests {
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: None,
-            behandler_zanr: None,
-            behandler_bsnr: None,
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1226,8 +1231,8 @@ mod tests {
     #[test]
     fn detail_records_box_sizes_to_content() {
         let doc = ClinicalPdfLayout {
-            kind: "attest".into(),
-            praxis_lines: praxis(),
+            kind: "certificate".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: vec![],
             address_lines: vec![],
@@ -1238,8 +1243,8 @@ mod tests {
             two_column: None,
             tables: vec![],
             detail_records: vec![DetailRecord {
-                art: "Arbeitsunfähigkeit".into(),
-                zeitraum: "19.04.2026 – 23.04.2026".into(),
+                kind: "SICK_LEAVE".into(),
+                period: "19.04.2026 – 23.04.2026".into(),
                 details: vec![
                     "Postoperative Wundheilung nach Weisheitszahn-Operation 38".into(),
                     "Körperliche Schonung empfohlen".into(),
@@ -1249,16 +1254,16 @@ mod tests {
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: None,
-            behandler_zanr: None,
-            behandler_bsnr: None,
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 
     #[test]
-    fn multi_page_quittung_renders() {
+    fn multi_page_receipt_renders() {
         // Generate many intro_paragraphs to force a page break
         let mut intros = Vec::new();
         for i in 0..40 {
@@ -1269,8 +1274,8 @@ mod tests {
             ));
         }
         let doc = ClinicalPdfLayout {
-            kind: "quittung".into(),
-            praxis_lines: praxis(),
+            kind: "receipt".into(),
+            practice_lines: practice(),
             header_right_lines: vec![],
             meta_lines: meta(),
             address_lines: vec!["Empfänger".into()],
@@ -1282,15 +1287,15 @@ mod tests {
             tables: vec![],
             detail_records: vec![],
             totals: vec![LabelValue {
-                label: "Gesamt".into(),
+                label: "Total".into(),
                 value: "100,00 €".into(),
             }],
             closing_paragraphs: vec![],
             signature_lines: vec![],
             footer_meta_lines: vec![],
-            behandler_berufsbezeichnung: None,
-            behandler_zanr: None,
-            behandler_bsnr: None,
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         let text = String::from_utf8_lossy(&pdf);
@@ -1306,21 +1311,21 @@ mod tests {
     #[test]
     fn plain_preview_uses_clinical_library_letterhead_and_footer() {
         let pdf = render_plain_preview(
-            "attest",
+            "certificate",
             "Standardvorlage",
             "Mit freundlichen Grüßen",
             11,
             &[
                 "Zahnarztpraxis Nord".into(),
                 "Patient: Max Mustermann".into(),
-                "Diagnose: K02.1".into(),
+                "Diagnosis: K02.1".into(),
             ],
         )
         .unwrap();
         let text = String::from_utf8_lossy(&pdf);
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(text.contains("Standardvorlage"));
-        assert!(text.contains("Seite 1 von 1") || text.contains("(Seite"));
+        assert!(text.contains("Seite 1 from 1") || text.contains("(Seite"));
         assert!(text.contains("630f") || text.contains("DSGVO"));
     }
 }

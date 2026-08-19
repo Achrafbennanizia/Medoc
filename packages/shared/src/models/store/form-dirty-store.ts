@@ -3,7 +3,7 @@ import { create } from "zustand";
 /** Lightweight global "unsaved changes" flag for beforeunload (NFA-USE-03). */
 interface FormDirtyState {
     dirty: boolean;
-    setDirty: (v: boolean) => void;
+    setDirty: (version: boolean) => void;
 }
 
 export const useFormDirtyStore = create<FormDirtyState>((set) => ({

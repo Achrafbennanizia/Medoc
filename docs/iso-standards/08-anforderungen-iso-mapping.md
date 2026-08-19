@@ -19,14 +19,14 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
-| ISO-62304-01: Software-Entwicklungsplan | ✅ | V-Modell-Dokumentation (docs/v-model/) | Plan über V-Modell-Phasen 1-4 dokumentiert |
+| ISO-62304-01: Software-Entwicklungsplan | ✅ | V-Modell-Dokumentation (docs/version-model/) | Plan über V-Modell-Phasen 1-4 dokumentiert |
 | ISO-62304-02: Formale Anforderungsdokumentation | ✅ | RE-Prozess (docs/requirements-engineering/) | 6 RE-Dokumente mit Traceability-Matrix |
 | ISO-62304-03: Architektur-Dokumentation | ✅ | architecture-design.md, Architekturentwurf | Clean Architecture + MVC dokumentiert |
 | ISO-62304-04: Unit-Implementierung und -Verifikation | ⚠️ | Rust-Tests (`app/src-tauri/tests/`, inline `#[test]`), Frontend-Smoke (`npm test`) | Erweiterung: Abdeckungsziele und Traceability FA→Test dokumentieren |
 | ISO-62304-05: Systemtests | ⚠️ | Akzeptanzkriterien definiert (04-spezifikation.md) | Testdurchführung steht aus |
 | ISO-62304-06: Formaler Freigabeprozess | ✅ | NFA-PROC-01; `docs/process/freigabeprozess.md` | Freigabeprozess dokumentiert; Umsetzung/Traceability im Projekt prüfen |
 | ISO-62304-07: SOUP-Dokumentation | ✅ | NFA-PROC-02; `docs/iso-standards/09-soup-liste.md` | SOUP-Liste vorhanden; bei neuen Abhängigkeiten aktualisieren |
-| ISO-62304-08: Konfigurationsmanagement (Git) | ✅ | Git-Repository vorhanden | Versionskontrolle aktiv |
+| ISO-62304-08: Konfigurationsmanagement (Git) | ✅ | Git-Repository vorhanden | Versionskontrolle active |
 | ISO-62304-09: Problemlösungsprozess | ✅ | NFA-PROC-03; `docs/process/bug-tracking.md` | Bug-Tracking dokumentiert |
 | ISO-62304-10: Software-Wartungsplan | ✅ | NFA-PROC-04; `docs/process/wartungsplan.md` | Wartungsplan dokumentiert |
 
@@ -36,7 +36,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 |-----------------|:------:|-------------------|-----------|
 | ISO-14971-01: Risikoanalyse dokumentiert | ⚠️ | Risikobewertung in 05-durchfuehrbarkeit.md | Muss auf ISO 14971-Format erweitert werden → **docs/iso-standards/02-iso-14971.md enthält jetzt die vollständige Risikoanalyse** |
 | ISO-14971-02: Hierarchie der Risikobeherrschung | ✅ | Design (Validierungspflicht), Schutz (RBAC), Info (Tooltips) | Hierarchie implizit umgesetzt |
-| ISO-14971-03: Verifikation der Maßnahmen | ⚠️ | Akzeptanzkriterien definiert | Verifikation durch Tests noch ausstehend |
+| ISO-14971-03: Verifikation der Maßnahmen | ⚠️ | Akzeptanzkriterien definiert | Verifikation durch Tests noch outstanding |
 | ISO-14971-04: Risikomanagementbericht | ⚠️ | In 02-iso-14971.md begonnen | Formaler Bericht nach Testphase erforderlich |
 | ISO-14971-05: Feedback aus Betrieb | ⚠️ | NFA-PROC-05; `docs/process/feedback-und-vigilanz.md`, `docs/post-market/` | Prozess skizziert; operative Evidenz (Tickets, Trends) nachziehen |
 
@@ -48,7 +48,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-82304-02: Risikomanagement nach ISO 14971 | ⚠️ | Siehe ISO 14971-Mapping | Risikoanalyse erweitert in 02-iso-14971.md |
 | ISO-82304-03: Dokumentierter Lebenszyklus | ✅ | V-Modell-Dokumentation | V-Modell-Phasen 1-4 dokumentiert |
 | ISO-82304-04: Benutzerhandbuch | ⚠️ | NFA-DOC-01; `docs/benutzerhandbuch.md` | Handbuch vorhanden (Stand siehe Deckblatt); fortlaufend gegen Produkt synchronisieren |
-| ISO-82304-05: Validierung vor Freigabe | ⚠️ | 06-validierung.md (Prototyp-Evaluation) | Systemvalidierung nach Implementierung noch ausstehend |
+| ISO-82304-05: Validierung vor Freigabe | ⚠️ | 06-validierung.md (Prototyp-Evaluation) | Systemvalidierung nach Implementierung noch outstanding |
 | ISO-82304-06: Nachmarktüberwachung | ⚠️ | NFA-PROC-06; `docs/post-market/` | PMS-Plan/CAPA dokumentiert; operative Nachweise ergänzen |
 | ISO-82304-07: Update-Mechanismus | ⚠️ | Tauri unterstützt Auto-Updates | Muss konfiguriert und dokumentiert werden |
 
@@ -62,7 +62,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-27001-04: Datenbank-Verschlüsselung (AES-256) | ⚠️ | SA-06 (verschlüsselte Speicherung) | SQLCipher muss aktiviert und getestet werden |
 | ISO-27001-05: Protokollierung aller Zugriffe auf Patientendaten | ⚠️ | NFA-SEC-04 (Audit-Log aller Schreiboperationen) | **ERWEITERUNG**: Auch Lesezugriffe auf Patientendaten müssen protokolliert werden |
 | ISO-27001-06: Manipulationssichere Audit-Logs | ⚠️ | NFA-SEC-04 | **ERWEITERUNG**: Audit-Logs dürfen keine Lösch-/Edit-Funktion haben |
-| ISO-27001-07: 10 Jahre Audit-Log-Aufbewahrung | ✅ | NFA-SEC-07 (`docs/v-model/01-anforderungen/pflichtenheft.md` §4.1) | Anforderung spezifiziert; technische Aufbewahrung prüfen |
+| ISO-27001-07: 10 Jahre Audit-Log-Aufbewahrung | ✅ | NFA-SEC-07 (`docs/version-model/01-anforderungen/pflichtenheft.md` §4.1) | Anforderung spezifiziert; technische Aufbewahrung prüfen |
 | ISO-27001-08: Verschlüsseltes Backup mit Wiederherstellungstest | ⚠️ | NFA-SEC-05 | **ERWEITERUNG**: Wiederherstellungsprozess muss dokumentiert und getestet werden |
 | ISO-27001-09: Session-Timeout 30 Min. | ✅ | In Konfliktauflösung K2 definiert | Bereits spezifiziert |
 | ISO-27001-10: Sicherheitsrichtlinien im Benutzerhandbuch | ⚠️ | `docs/benutzerhandbuch.md` §10 | Sicherheitshinweise beschrieben; bei Produktänderungen aktualisieren |
@@ -93,7 +93,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-9241-05: Konsistente UI, Fachterminologie | ✅ | NFA-USE-01, Deutsche Fachterminologie | FDI-Nomenklatur im Zahnschema |
 | ISO-9241-06: Bestätigungsdialoge, Abbruch möglich | ✅ | NFA-USE-03 | Spezifiziert |
 | ISO-9241-07: Fehlermeldungen mit Handlungsanweisung | ⚠️ | NFA-USE-04 | Verbesserungsbedarf erkannt (Usability-Problem #2) |
-| ISO-9241-08: Usability-Messung (Effektivität, Effizienz, Zufriedenheit) | ⚠️ | Nielsen-Evaluation durchgeführt | Formale Nutzertests mit Messung noch ausstehend |
+| ISO-9241-08: Usability-Messung (Effektivität, Effizienz, Zufriedenheit) | ⚠️ | Nielsen-Evaluation durchgeführt | Formale Nutzertests mit Messung noch outstanding |
 
 ### ISO 22600 + DSGVO – Zugriffskontrolle und Datenschutz
 
@@ -105,9 +105,9 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | DSGVO-01: Zweckbindung | ✅ | Implizit durch Praxisverwaltungszweck | Sollte explizit dokumentiert werden |
 | DSGVO-02: Datenminimierung | ⚠️ | Pflichtfelder definiert | **ERWEITERUNG**: Optionale vs. Pflichtfelder müssen in der UI klar markiert sein |
 | DSGVO-03: Verschlüsselung + Passwort-Hashing | ✅ | NFA-SEC-03, NFA-SEC-08 | Verschlüsselung at rest (SQLCipher laut Pflichtenheft); Passwort-Hashing Argon2id/bcrypt |
-| DSGVO-04: 10-Jahres-Aufbewahrung / Löschkonzept | ✅ | NFA-DATA-01 (`pflichtenheft.md` §4.13); Praxis-VVT `docs/datenschutz/verarbeitungsverzeichnis.md` | Fristenkonzept dokumentiert (Hinweis: §630f BGB / klinische Fristen im VVT/Benutzerhandbuch ggf. länger); Implementierung verifizieren |
+| DSGVO-04: 10-Jahres-Aufbewahrung / Löschkonzept | ✅ | NFA-DATA-01 (`pflichtenheft.md` §4.13); Praxis-VVT `docs/privacy/verarbeitungsverzeichnis.md` | Fristenkonzept dokumentiert (Hinweis: §630f BGB / klinische Fristen im VVT/Benutzerhandbuch ggf. länger); Implementierung verifizieren |
 | DSGVO-05: Privacy by Design | ✅ | RBAC, Verschlüsselung, Datenminimierung | Im Design verankert |
-| DSGVO-06: Verarbeitungsverzeichnis | ✅ | NFA-DOC-02; `docs/datenschutz/verarbeitungsverzeichnis.md` | VVT-Vorlage vorhanden; durch die Praxis zu individualisieren |
+| DSGVO-06: Verarbeitungsverzeichnis | ✅ | NFA-DOC-02; `docs/privacy/verarbeitungsverzeichnis.md` | VVT-Vorlage vorhanden; durch die Praxis zu individualisieren |
 | DSGVO-07: Audit-Log für Datenschutzvorfälle (72h) | ⚠️ | NFA-SEC-04 | Audit-Log vorhanden; Umfang muss erweitert werden (Lesezugriffe) |
 | DSGVO-08: Datenexport (Datenübertragbarkeit) | ⚠️ | FA-AKTE-04 (PDF-Export) | **ERWEITERUNG**: Maschinenlesbares Format (JSON/CSV) zusätzlich zu PDF |
 
@@ -115,7 +115,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 
 ## 2. Neue Anforderungen aus der ISO-Analyse
 
-> **Hinweis:** Die folgenden **NFA-**/**FA-**-IDs sind im **Pflichtenheft** (`docs/v-model/01-anforderungen/pflichtenheft.md`) als Soll-Anforderungen geführt. Abschnitt 2 dokumentiert die ursprüngliche ISO-Ableitung; Überschrift „NEU“ = *zur Normenabdeckung hinzugekommen*, nicht „fehlt im Pflichtenheft“.
+> **Hinweis:** Die folgenden **NFA-**/**FA-**-IDs sind im **Pflichtenheft** (`docs/version-model/01-anforderungen/pflichtenheft.md`) als Soll-Anforderungen geführt. Abschnitt 2 dokumentiert die ursprüngliche ISO-Ableitung; Überschrift „NEW“ = *zur Normenabdeckung hinzugekommen*, nicht „fehlt im Pflichtenheft“.
 
 ### Prozess-Anforderungen (NFA-PROC)
 
@@ -153,7 +153,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 |----|-------------|-----------|-----------|
 | NFA-USE-06 | Farbkodierungen (insb. Zahnschema) müssen zusätzlich Textlabels besitzen, um Barrierefreiheit zu gewährleisten | ISO 25010 – Barrierefreiheit | SHOULD |
 
-### Nielsen-Heuristiken & Usability-Engineering (NFA-USE-H / NFA-USE-UE) — NEU
+### Nielsen-Heuristiken & Usability-Engineering (NFA-USE-H / NFA-USE-UE) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -184,13 +184,13 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | NFA-USE-04 (Fehlermeldungen) | Fehlermeldungen müssen **die Fehlerursache benennen und eine konkrete Handlungsanweisung** geben | ISO 9241-110 Prinzip 6 |
 | FA-AKTE-04 / DSGVO-08 | Datenexport muss zusätzlich zum PDF auch in **maschinenlesbarem Format (JSON/CSV)** möglich sein | DSGVO Art. 20 |
 
-### Netzwerk & Multi-Device (NFA-NET) — NEU
+### Netzwerk & Multi-Device (NFA-NET) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
 | ISO-25010 Kompatibilität (Interoperabilität) | ✅ | NFA-NET-01, NFA-NET-02 | TCP/HTTP-basierte Client-Server-Kommunikation im LAN |
 | ISO-25010 Übertragbarkeit (Anpassbarkeit) | ✅ | NFA-NET-03 | Headless-Server-Modus (dedizierter Praxis-Server) |
-| ISO-25010 Funktionale Eignung (Vollständigkeit) | ✅ | NFA-NET-04, NFA-NET-05 | Mobile Web-UI mit Feature-Parität für Rolle REZEPTION |
+| ISO-25010 Funktionale Eignung (Vollständigkeit) | ✅ | NFA-NET-04, NFA-NET-05 | Mobile Web-UI mit Feature-Parität für Rolle RECEPTION |
 | ISO-27001 A.9 Zugriffskontrolle | ✅ | NFA-NET-06 | Authentifizierte Sitzungen (JWT) für alle Netzwerk-Clients |
 | ISO-27001 A.10 Kryptographie | ✅ | NFA-NET-07 | TLS 1.3 im LAN **verpflichtend** im Netzwerk-Modus (Pflichtenheft §4.4); nicht „optional“ |
 | ISO-9241-110 Selbstbeschreibungsfähigkeit | ✅ | NFA-NET-08 | Automatische Geräteerkennung (mDNS) oder manuelle IP |
@@ -199,7 +199,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-27001 A.13 Kommunikationssicherheit | ✅ | NFA-NET-11 | Rate-Limiting + IP-Whitelist |
 | ISO-25010 Zuverlässigkeit (Verfügbarkeit) | ✅ | NFA-NET-12 | Standalone-Modus ohne Netzwerk bleibt vollständig funktionsfähig |
 
-### Lizenzierung & Abonnement (NFA-LIC / FA-LIC / FA-PAY) — NEU
+### Lizenzierung & Abonnement (NFA-LIC / FA-LIC / FA-PAY) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -213,7 +213,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | PCI-DSS v4.0 Req. 6 (Sichere Systeme) | ✅ | FA-PAY-07 | Zahlungsformular via Provider-Hosted-Fields / Redirect (kein PAN-Handling) |
 | ISO-27001 A.12.4 Logging | ✅ | FA-PAY-05 | Zahlungsverlauf mit vollständiger Transaktionshistorie |
 
-### Update-Infrastruktur (NFA-UPD) — NEU
+### Update-Infrastruktur (NFA-UPD) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -226,7 +226,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-9241-110 Steuerbarkeit | ✅ | NFA-UPD-05, NFA-UPD-07 | Nutzer entscheidet über Zeitpunkt; Changelog-Anzeige vor/nach Update |
 | ISO-25010 Funktionale Eignung (Vollständigkeit) | ✅ | NFA-UPD-10 | Semantic Versioning (MAJOR.MINOR.PATCH) mit klarer Versionierungsstrategie |
 
-### Erweiterte Verschlüsselung (NFA-SEC-07 bis NFA-SEC-13) — NEU
+### Erweiterte Verschlüsselung (NFA-SEC-07 bis NFA-SEC-13) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -238,7 +238,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | DSGVO Art. 32 (Sicherheit der Verarbeitung) | ✅ | NFA-SEC-12 | Verschlüsselte Exporte (AES-256-GCM mit Benutzerpasswort) |
 | ISO-27799 Gesundheitsinformatik | ✅ | NFA-SEC-13 | Runtime-Memory-Security: zeroize nach Gebrauch; kein Klartext in Dumps/Swap |
 
-### Datenmigration (FA-MIG) — NEU
+### Datenmigration (FA-MIG) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -249,7 +249,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | ISO-27001 A.12.3 Datensicherung | ✅ | FA-MIG-08 | Automatischer DB-Snapshot vor Migration für Rollback |
 | IEC-62304 §5.5 Software-Integration | ✅ | FA-MIG-04, FA-MIG-10 | DICOM-Bildmigration + Quellsystem-spezifische Importprofile |
 
-### Geräteanbindung & Bildgebung (FA-DEV / NFA-DEV) — NEU
+### Geräteanbindung & Bildgebung (FA-DEV / NFA-DEV) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -262,7 +262,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | IEC-82304-1 §5.4 (Begleitdokumentation) | ✅ | NFA-DEV-05 | Systemvoraussetzungen (Hardware-Mindestanforderungen) dokumentiert |
 | ISO-25010 Kompatibilität (Koexistenz) | ✅ | NFA-DEV-03, NFA-DEV-06 | USB-Hotplug-Erkennung; RS-232-Legacy-Kompatibilität |
 
-### EU-Regulatorische Compliance (NFA-EU) — NEU
+### EU-Regulatorische Compliance (NFA-EU) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -276,7 +276,7 @@ Dieses Dokument stellt eine vollständige Nachverfolgbarkeit (Traceability) zwis
 | EN 62366-1:2015 — Gebrauchstauglichkeit | ✅ | NFA-EU-09 | Usability-Engineering-Akte; Studie mit repräsentativen Nutzern |
 | MDR Anhang I Kap. III 23.4 — Sprachliche Anforderungen | ✅ | NFA-EU-10 | Deutsche Lokalisierung mandatory; i18n-Architektur für EU-Sprachen |
 
-### Logging & Observability (NFA-LOG) — NEU
+### Logging & Observability (NFA-LOG) — NEW
 
 | ISO-Anforderung | Status | MeDoc-Anforderung | Anmerkung |
 |-----------------|:------:|-------------------|-----------|
@@ -314,7 +314,7 @@ Erweiterte Zuordnungstabellen in **§2** (NFA-NET, NFA-LOG, NFA-UPD, …) beschr
 Das Anforderungswerk von MeDoc deckt bereits **überwiegend** die ISO-Anforderungen ab (konkrete %-Zahl ist veraltet — siehe Tabellen §1 mit aktuellem Status). Wesentliche **Nachweise** ergänzen den reinen Pflichtenheft-Text:
 
 1. **Prozessdokumentation**: Freigabe, Bugs, Wartung, Feedback liegen unter `docs/process/`; Nachmarkt unter `docs/post-market/` — operative Evidenz (Reviews, Ticketexporte) kann ergänzt werden.
-2. **Benutzerdokumentation**: `docs/benutzerhandbuch.md` und **VVT** `docs/datenschutz/verarbeitungsverzeichnis.md` existieren — fortlaufende Abstimmung mit Produktreleases nötig.
+2. **Benutzerdokumentation**: `docs/benutzerhandbuch.md` und **VVT** `docs/privacy/verarbeitungsverzeichnis.md` existieren — fortlaufende Abstimmung mit Produktreleases nötig.
 3. **Datenschutz-Lebenszyklus / NFA-DATA-01**: im Pflichtenheft §4.13 beschrieben; Umsetzung und Praxisfälle sind in Code/UI zu verifizieren (kein Dokumentationsersatz).
 4. **Audit-Log-Erweiterung**: NFA-SEC-04 / Lesezugriffe weiterhin als **implementierungsrelevant** betrachten.
 

@@ -15,16 +15,16 @@ use support::{fresh_pool, seed_master_license};
 #[test]
 #[serial]
 fn sync_set_deployment_requires_ops_system_role() {
-    let role = Role::parse("ARZT").expect("arzt");
+    let role = Role::parse("PHYSICIAN").expect("physician");
     assert!(effective_allowed("ops.system", role, &[]));
-    let role = Role::parse("REZEPTION").expect("rezeption");
+    let role = Role::parse("RECEPTION").expect("reception");
     assert!(!effective_allowed("ops.system", role, &[]));
 }
 
 #[test]
 #[serial]
 fn sync_run_now_allows_any_authenticated_role() {
-    for role_str in ["ARZT", "REZEPTION"] {
+    for role_str in ["PHYSICIAN", "RECEPTION"] {
         let role = Role::parse(role_str).expect(role_str);
         assert!(effective_allowed("patient.read", role, &[]));
     }
@@ -131,7 +131,7 @@ async fn pairing_decide_accept_mints_activation_token() {
         PairingDecision {
             accept: true,
             allowed_actions: vec!["sync.push".into(), "sync.pull".into()],
-            decided_by: "seed-arzt-001".into(),
+            decided_by: "seed-physician-001".into(),
         },
         8787,
     )

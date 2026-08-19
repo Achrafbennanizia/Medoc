@@ -11,8 +11,8 @@ describe("export-preview-store", () => {
         const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
         openExportPreview({
             format: "pdf",
-            title: "Rezept PDF",
-            suggestedFilename: "rezept.pdf",
+            title: "Prescription PDF",
+            suggestedFilename: "prescription.pdf",
             binaryBody: bytes,
             hint: "Vorschau im eingebetteten Frame (Tauri WKWebView)",
         });

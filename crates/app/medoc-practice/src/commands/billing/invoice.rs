@@ -14,14 +14,19 @@ pub struct InvoiceLineDto {
     pub description: String,
     pub amount_cents: i64,
     pub goz_nr: Option<String>,
-    pub faktor: Option<f64>,
-    pub einzelpreis_cents: Option<i64>,
-    pub menge: Option<i32>,
-    pub zahn_nr: Option<String>,
-    pub behandlungsdatum: Option<String>,
-    pub ust_prozent: Option<f64>,
+    #[serde(alias = "faktor")]
+    pub factor: Option<f64>,
+    #[serde(alias = "einzelpreis_cents")]
+    pub unit_price_cents: Option<i64>,
+    pub quantity: Option<i32>,
+    #[serde(alias = "zahn_nr")]
+    pub tooth_nr: Option<String>,
+    #[serde(alias = "behandlungsdatum")]
+    pub treatment_date: Option<String>,
+    #[serde(alias = "ust_prozent")]
+    pub vat_percent: Option<f64>,
     pub material: Option<String>,
-    pub diagnose_begruendung: Option<String>,
+    pub diagnosis_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,12 +39,14 @@ pub struct InvoiceDto {
     pub practice_address: Vec<String>,
     pub lines: Vec<InvoiceLineDto>,
     pub note: Option<String>,
-    pub behandler_name: Option<String>,
-    pub behandler_zanr: Option<String>,
-    pub praxis_bsnr: Option<String>,
-    pub bankverbindung: Option<Vec<String>>,
-    pub zahlungsziel_text: Option<String>,
-    pub ust_hinweis: Option<String>,
+    pub clinician_name: Option<String>,
+    pub clinician_zanr: Option<String>,
+    pub practice_bsnr: Option<String>,
+    #[serde(alias = "bankverbindung")]
+    pub bank_details: Option<Vec<String>>,
+    pub payment_terms_text: Option<String>,
+    #[serde(alias = "ust_hinweis")]
+    pub vat_notice: Option<String>,
 }
 
 #[tauri::command]
@@ -48,7 +55,7 @@ pub fn render_invoice_pdf(
     session_state: State<'_, SessionState>,
     invoice: InvoiceDto,
 ) -> Result<Vec<u8>, AppError> {
-    rbac::require(&session_state, "finanzen.write")?;
+    rbac::require(&session_state, "finance.write")?;
     let model = Invoice {
         number: invoice.number,
         date: invoice.date,
@@ -63,23 +70,23 @@ pub fn render_invoice_pdf(
                 description: l.description,
                 amount_cents: l.amount_cents,
                 goz_nr: l.goz_nr,
-                faktor: l.faktor,
-                einzelpreis_cents: l.einzelpreis_cents,
-                menge: l.menge,
-                zahn_nr: l.zahn_nr,
-                behandlungsdatum: l.behandlungsdatum,
-                ust_prozent: l.ust_prozent,
+                factor: l.factor,
+                unit_price_cents: l.unit_price_cents,
+                quantity: l.quantity,
+                tooth_nr: l.tooth_nr,
+                treatment_date: l.treatment_date,
+                vat_percent: l.vat_percent,
                 material: l.material,
-                diagnose_begruendung: l.diagnose_begruendung,
+                diagnosis_reason: l.diagnosis_reason,
             })
             .collect(),
         note: invoice.note,
-        behandler_name: invoice.behandler_name,
-        behandler_zanr: invoice.behandler_zanr,
-        praxis_bsnr: invoice.praxis_bsnr,
-        bankverbindung: invoice.bankverbindung,
-        zahlungsziel_text: invoice.zahlungsziel_text,
-        ust_hinweis: invoice.ust_hinweis,
+        clinician_name: invoice.clinician_name,
+        clinician_zanr: invoice.clinician_zanr,
+        practice_bsnr: invoice.practice_bsnr,
+        bank_details: invoice.bank_details,
+        payment_terms_text: invoice.payment_terms_text,
+        vat_notice: invoice.vat_notice,
     };
     log_system!(info, event = "INVOICE_PDF", number = %model.number, total_cents = model.total_cents());
     render(&model)

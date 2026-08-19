@@ -4,7 +4,7 @@
 **Ziel:** Vollständige Abbildung von **Pflichtenheft (FA/NFA)** ↔ **Implementierung (Routes + IPC)** ↔ **Behavioral Diagrams**, inkl. **Lücken, Widersprüche und Umsetzungsroadmap**.
 
 **Quellen (gelesen / `rg`):**  
-`docs/v-model/01-anforderungen/pflichtenheft.md`, `app/src/App.tsx`, `app/src-tauri/src/commands/register.rs` (226 IPC), `config/rbac.yaml`, `docs/definition-of-done-pages.md`, `docs/reception-discovery.md`, `docs/requirements-engineering/06-validierung.md`, `app/src/lib/integration-capabilities.ts`, `docs/uml/08-*.md`, `docs/uml/09-*.md`.
+`docs/version-model/01-anforderungen/pflichtenheft.md`, `app/src/App.tsx`, `app/src-tauri/src/commands/register.rs` (226 IPC), `config/rbac.yaml`, `docs/definition-of-done-pages.md`, `docs/reception-discovery.md`, `docs/requirements-engineering/06-validierung.md`, `app/src/lib/integration-capabilities.ts`, `docs/uml/08-*.md`, `docs/uml/09-*.md`.
 
 **Legende Status**
 
@@ -23,8 +23,8 @@
 ```mermaid
 flowchart TB
     subgraph Users["Nutzer"]
-        ARZT[Arzt ARZT]
-        REZ[Rezeption REZEPTION]
+        PHYSICIAN[Arzt PHYSICIAN]
+        REZ[Rezeption RECEPTION]
         STB[Steuerberater]
         PHB[Pharmaberater]
     end
@@ -43,7 +43,7 @@ flowchart TB
         EXT[TI KIM DICOM GDT Scanner Pay]
     end
 
-    ARZT & REZ --> FE
+    PHYSICIAN & REZ --> FE
     STB & PHB -.-> FE
     FE <--> IPC --> RUST --> DB
     RUST --> FS
@@ -60,11 +60,11 @@ flowchart TB
 
 | Domain | Route / Modul | FA / NFA | IPC (Auszug) | Status | Gap / Problem |
 |--------|---------------|----------|--------------|--------|----------------|
-| Login / Session | `/login` | FA-AUTH-01..04, NFA-SEC-03 | `login`, `logout`, `get_session`, TOTP | ✅ | ARZT TOTP Pflicht; Brute-Force ✅ |
+| Login / Session | `/login` | FA-AUTH-01..04, NFA-SEC-03 | `login`, `logout`, `get_session`, TOTP | ✅ | PHYSICIAN TOTP Pflicht; Brute-Force ✅ |
 | DB Setup | `DbSetupGate` | NFA-SEC-08 | `get_db_setup_status`, `provision/unlock` | ✅ | — |
-| Einstellungen | `/einstellungen` | FA-EINST, FA-PAY, FA-LIC | portal, LAN, praxis KV, password | 🟡 | Abo-Zahlung über Company-Demo; kein Live-Stripe |
+| Einstellungen | `/settings` | FA-EINST, FA-PAY, FA-LIC | portal, LAN, praxis KV, password | 🟡 | Abo-Zahlung über Company-Demo; kein Live-Stripe |
 | Ops | `/ops` | NFA-SEC-05 | `create/list/restore_backup`, DSGVO | ✅ | Restore UI (G2) |
-| Compliance / DSGVO | `/datenschutz`, `/compliance` | NFA-DATA | `dsgvo_*`, `generate_vvt/dsfa` | 🟡 | VVT-Text kann Runtime hinterherhinken |
+| Compliance / DSGVO | `/privacy`, `/compliance` | NFA-DATA | `dsgvo_*`, `generate_vvt/dsfa` | 🟡 | VVT-Text kann Runtime hinterherhinken |
 | Migration | `/migration` | FA-MIG-01..10 | `import_patients_csv`, wizard UI | 🟡 | VDDS/BDT vollständig **🔴**; CSV ✅ |
 | Feedback | `/feedback` | — | `submit_feedback` | ✅ | — |
 | Hilfe | → Einstellungen tab | NFA-USE | — | 🟡 | Kein dediziertes Hilfe-CMS |
@@ -73,44 +73,44 @@ flowchart TB
 
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
-| Kalender | `/termine`, `/termine/neu` | FA-TERM-01..16 | 🟡 | Konflikt, Status, Farben ✅; **FA-TERM-11** SMS/E-Mail **🔴**; **FA-TERM-04** Notfall-Toolbar **Feature-Flag aus** (CAL2) |
-| Planung | `/verwaltung/arbeitstage`, `praxisplanung`, `arbeitszeiten`, `sonder-sperrzeiten` | FA-TERM-06, FA-PERS | ✅ | — |
+| Kalender | `/appointments`, `/appointments/new` | FA-TERM-01..16 | 🟡 | Konflikt, Status, Farben ✅; **FA-TERM-11** SMS/E-Mail **🔴**; **FA-TERM-04** Notfall-Toolbar **Feature-Flag aus** (CAL2) |
+| Planung | `/administration/work-days`, `praxisplanung`, `arbeitszeiten`, `sonder-sperrzeiten` | FA-TERM-06, FA-PERS | ✅ | — |
 | Dashboard Termine | `/` | FA-TERM, G9 | 🟡 | Upcoming panel ✅; keine Check-in-Queue |
 
 ### 2.3 Patienten & Akte
 
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
-| Patientenliste | `/patienten`, `/patienten/neu` | FA-PAT-01..11 | ✅ | Fuzzy-Suche ✅ |
-| Patientenakte | `/patienten/:id` (Tabs) | FA-AKTE, FA-ZAHN, FA-DOK | 🟡 | Tabs ✅; **FA-AKTE-03** Versionierung **🟡**; Timeline **🟡** |
-| Validierung Queue | `/akten/zu-validieren` | FA-AKTE-15 | ✅ | Badge + IPC ✅ |
+| Patientenliste | `/patients`, `/patients/new` | FA-PAT-01..11 | ✅ | Fuzzy-Suche ✅ |
+| Patientenakte | `/patients/:id` (Tabs) | FA-AKTE, FA-ZAHN, FA-DOK | 🟡 | Tabs ✅; **FA-AKTE-03** Versionierung **🟡**; Timeline **🟡** |
+| Validierung Queue | `/charts/to-validate` | FA-AKTE-15 | ✅ | Badge + IPC ✅ |
 | Weiterleitung | Dialog in Akte | FA-AKTE-14 | 🟡 | Notification ✅; Queue-Eintrag nicht automatisch |
 | Vollständigkeit | Aktenkopf | FA-AKTE-16 | 🟡 | `akte-completeness.ts` ✅ |
 | Zahnschema | Tab in Akte | FA-ZAHN-01..07 | ✅ | — |
-| Untersuchung | Composer | FA-DOK-01, FA-LEIST-07 | 🟡 | Klinisch ✅; **kein leistungsname/gesamtkosten** **🔴** |
+| Untersuchung | Composer | FA-DOK-01, FA-LEIST-07 | 🟡 | Klinisch ✅; **kein service_name/total_cost** **🔴** |
 | Behandlung | Tab Behandlung | FA-DOK-02, FA-LEIST-02 | ✅ | Leistung+Preis ✅ |
 | Anlagen / Scan | Tab Anlage | FA-DOK-06/07, FA-DEV | 🟡 | Upload ✅; Scanner Stub |
-| Rezept / Attest | Tabs + `/rezepte` `/atteste` | FA-REZ, FA-ATT | ✅ | REZ list **❌** RBAC vs patient-detail load |
+| Rezept / Attest | Tabs + `/prescriptions` `/certificates` | FA-REZ, FA-ATT | ✅ | REZ list **❌** RBAC vs patient-detail load |
 
 ### 2.4 Finanzen & Leistungen
 
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
-| Zahlungen | `/finanzen`, `/finanzen/neu`, Akte Tab `zahl` | FA-FIN-01..11, FA-LEIST-05 | 🟡 | CRUD ✅; Freigabe B/U ✅ |
+| Zahlungen | `/finance`, `/finance/new`, Akte Tab `zahl` | FA-FIN-01..11, FA-LEIST-05 | 🟡 | CRUD ✅; Freigabe B/U ✅ |
 | Auto offene Buchung | nach Behandlung save | FA-LEIST-06 | ✅ | Behandlung + Untersuchung (`ensure_open_booking_for_billable_*`, G14/G15) |
 | Untersuchung Preis | — | FA-LEIST-07 | ✅ | Schema + `UntersuchungBillingFields` + zahl tab (G15); live UI **NOT OBSERVED** |
-| Leistungskatalog | `/leistungen`, verwaltung | FA-LEIST-01..04 | ✅ | — |
-| GOZ Rechnung PDF | verwaltung finanz-werkzeuge | FA-FIN-06, FA-AKTE-06 | ✅ | Praxis completeness gate |
-| Bilanz | `/bilanz` | FA-FIN-07..10 | ✅ | Snapshots |
+| Leistungskatalog | `/services`, administration | FA-LEIST-01..04 | ✅ | — |
+| GOZ Rechnung PDF | administration finanz-werkzeuge | FA-FIN-06, FA-AKTE-06 | ✅ | Praxis completeness gate |
+| Bilanz | `/balance-sheet` | FA-FIN-07..10 | ✅ | Snapshots |
 | Tagesabschluss | `.../tagesabschluss` | FA-FIN-02 | ✅ | Sidebar + native Go menu (GAP-10, 2026-06-02); live UI **NOT OBSERVED** |
-| Statistik | `/statistik` | FA-STAT, WAAD 9.5 | 🟡 | Charts ✅; Krankheitsbild Proxy |
+| Statistik | `/statistics` | FA-STAT, WAAD 9.5 | 🟡 | Charts ✅; Krankheitsbild Proxy |
 
 ### 2.5 Kollaboration Arzt ↔ Rezeption
 
 | Domain | Route | FA | Status | Gap |
 |--------|-------|-----|--------|-----|
-| Tickets | `/tickets` | FA-PERS-08 | 🟡 | Legacy REZ→ARZT; banner → Posteingang (G20) |
-| Aufgaben | `/posteingang` | FA-AUFG-01..06 | ✅ | Bidirektional + notify + poll (G16–G19); live Tauri **NOT OBSERVED** |
+| Tickets | `/tickets` | FA-PERS-08 | 🟡 | Legacy REZ→PHYSICIAN; banner → Posteingang (G20) |
+| Aufgaben | `/inbox` | FA-AUFG-01..06 | ✅ | Bidirektional + notify + poll (G16–G19); live Tauri **NOT OBSERVED** |
 | Plan-next-Termin | Aktenkopf | NFA-USE / WAAD | 🟡 | SQLite ✅; REZ tab guards + redaction (GAP-01 mitigated) |
 | Benachrichtigungen | Header / Dashboard | — | ✅ | `PRAXIS_AUFGABE_ERLEDIGT` popover + Posteingang queue |
 
@@ -118,10 +118,10 @@ flowchart TB
 
 | Domain | Route | FA | Status |
 |--------|-------|-----|--------|
-| Personal | `/personal` | FA-PERS-01..07 | ✅ Overrides ✅ |
-| Produkte / Bestellungen | `/produkte`, `/bestellungen` | FA-PROD | 🟡 REZ kann Bestellungen anlegen (Policy-Mismatch) |
-| Verwaltung Hub | `/verwaltung/*` | diverse | ✅ |
-| Audit | `/audit` | NFA-SEC-04 | ✅ ARZT only |
+| Personal | `/staff` | FA-PERS-01..07 | ✅ Overrides ✅ |
+| Produkte / Bestellungen | `/products`, `/purchase-orders` | FA-PROD | 🟡 REZ kann Bestellungen anlegen (Policy-Mismatch) |
+| Verwaltung Hub | `/administration/*` | diverse | ✅ |
+| Audit | `/audit` | NFA-SEC-04 | ✅ PHYSICIAN only |
 | LAN Host | Einstellungen | NFA-NET | ✅ TLS fingerprint |
 
 ### 2.7 Integrationen (Stubs)
@@ -142,7 +142,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Actors
-        ARZT[Arzt]
+        PHYSICIAN[Arzt]
         REZ[Rezeption]
         STB[Steuerberater]
         PHB[Pharmaberater]
@@ -166,7 +166,7 @@ flowchart TB
     subgraph UC_Collab["Kollaboration ○"]
         UC10[Posteingang Aufgaben]
         UC11[Abrechnung auto ◐]
-        UC12[Ticket REZ→ARZT ◐]
+        UC12[Ticket REZ→PHYSICIAN ◐]
     end
 
     subgraph UC_Admin["Verwaltung & Finanzen"]
@@ -177,7 +177,7 @@ flowchart TB
         UC17[Bestellungen / Produkte]
     end
 
-    ARZT --> UC1 & UC5 & UC6 & UC7 & UC8 & UC9 & UC10 & UC11 & UC13 & UC14 & UC15 & UC16
+    PHYSICIAN --> UC1 & UC5 & UC6 & UC7 & UC8 & UC9 & UC10 & UC11 & UC13 & UC14 & UC15 & UC16
     REZ --> UC1 & UC5 & UC6 & UC10 & UC11 & UC12 & UC13 & UC17
     STB --> UC1 & UC13 & UC16
     PHB --> UC1 & UC17
@@ -210,7 +210,7 @@ flowchart TB
         A3[Auto: offene Buchung ◐ + Aufgabe REZ ○]
         A4[Rezept / Attest]
         A5[Aufgaben validieren ○]
-        A6[Akte VALIDIERT]
+        A6[Akte VALIDATED]
     end
 
     subgraph SYS["System"]
@@ -245,14 +245,14 @@ flowchart TB
 
 ### 5.2 Aufgabenzyklus (✅ implementiert, live smoke pending)
 
-Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollaboration.md) State + Sequence. Automated coverage: `collaboration-g21.test.ts`, `posteingang.smoke.test.tsx`, `praxis_aufgabe_tests.rs`.
+Siehe [`09-aufgaben-serviceItem-kollaboration.md`](./09-aufgaben-serviceItem-kollaboration.md) State + Sequence. Automated coverage: `collaboration-g21.test.ts`, `inbox.smoke.test.tsx`, `praxis_aufgabe_tests.rs`.
 
 ### 5.3 Rezeption ohne Medizin (❌ Widerspruch)
 
 | Anforderung | Code-Ist | Problem |
 |-------------|----------|---------|
 | NFA-SEC-02 REZ kein medical write | ✅ `write_medical` denied | OK |
-| REZ keine Diagnose sehen | 🟡 `get_akte` redacted | OK |
+| REZ keine Diagnose sehen | 🟡 `get_chart` redacted | OK |
 | REZ Zahlung Zuordnung | 🟡 mitigated | `redact_*_for_rezeption` + unit tests (`gap01`); live REZ audit **NOT OBSERVED** |
 | REZ Rezept-Tab | 🟡 mitigated | `canViewClinical` tab guards; live REZ audit **NOT OBSERVED** |
 
@@ -266,14 +266,14 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 |----|-----|-----|-----|
 | GAP-01 | REZ sieht klinische Texte in Behandlung-Listen für Zahlung | NFA-SEC-02 | **Done (proxy)** — `rezeption_redact.rs` + `collaboration-g21.test.ts` + Rust tests |
 | GAP-02 | REZ patient-detail lädt Rezepte/Atteste (medical IPC) | FA-REZ/ATT | **Done (proxy)** — `read_documents` for print; clinical gated on `read_medical`; tab guards |
-| GAP-03 | Kein Posteingang; verteilte Signale | FA-AUFG-03 | **Done** — `/posteingang` + poll + nav (G17) |
-| GAP-04 | Arzt→REZ Aufgaben fehlen | FA-AUFG-02..05 | **Done** — `praxis_aufgabe` + notify (G16–G19) |
+| GAP-03 | Kein Posteingang; verteilte Signale | FA-AUFG-03 | **Done** — `/inbox` + poll + nav (G17) |
+| GAP-04 | Arzt→REZ Aufgaben fehlen | FA-AUFG-02..05 | **Done** — `practice_task` + notify (G16–G19) |
 
 ### P1 — Abrechnung & Leistung (Ihr Fokus)
 
 | ID | Gap | FA | Fix |
 |----|-----|-----|-----|
-| GAP-05 | Untersuchung ohne `gesamtkosten`/`leistungsname` | FA-LEIST-07 | **Done** (G15) |
+| GAP-05 | Untersuchung ohne `total_cost`/`service_name` | FA-LEIST-07 | **Done** (G15) |
 | GAP-06 | LEIST-06 nur Behandlung | FA-LEIST-06/07 | **Done** (G14/G15) |
 | GAP-07 | Auto-Aufgabe ABRECHNUNG bei Leistung | FA-AUFG-02, G18 | **Done** (G18) |
 
@@ -284,7 +284,7 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 | GAP-08 | Termin SMS/E-Mail | FA-TERM-11 | **Skipped v0.1** — see [`gap-deferrals-v0.1.md`](../coordination/gap-deferrals-v0.1.md) |
 | GAP-09 | Notfall-Termin <3 Klicks | FA-TERM-04 | **Skipped v0.1** — CAL2 flag |
 | GAP-10 | REZ Tagesabschluss nicht in Sidebar | FA-FIN-02 | **Done** — `nav-sections.ts` + `NAV_ITEM_DEFINITIONS` (2026-06-02) |
-| GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | **Done** — `/finanzen` + Patientenakte Tab `zahl` via `quittung-export-flow.ts` (2026-06-02) |
+| GAP-11 | Quittung aus Zahlung dediziert | FA-AKTE-06 | **Done** — `/finance` + Patientenakte Tab `zahl` via `quittung-export-flow.ts` (2026-06-02) |
 | GAP-12 | VDDS/BDT Migration | FA-MIG-01/02 | **Skipped v0.1** — CSV ✅; BDT stub |
 
 ### P3 — Stubs / später
@@ -302,9 +302,9 @@ Siehe [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollabora
 | # | Dokument sagt | Code sagt | Severity |
 |---|---------------|-----------|----------|
 | M1 | `06-validierung.md` viele Gruppen ✅ | WAAD-Matrix 🟡/🔴 für LEIST/AUFG | **Resolved 2026-06-02** — LEIST/AUFG done; doc rows updated |
-| M2 | `architecture-design.md` SQLCipher „ausstehend“ | `sqlcipher.rs` + `DbSetupGate` ✅ | Mittel — Archivdoc |
+| M2 | `architecture-design.md` SQLCipher „outstanding“ | `sqlcipher.rs` + `DbSetupGate` ✅ | Mittel — Archivdoc |
 | M3 | ISO doc REZ „medizinisch lesen“ | Produktziel: REZ minimiert | **Hoch** — Policy |
-| M4 | FA-PERS-08 = vollständiges Ticket-System | Nur REZ→ARZT, kein VALIDIERT durch Arzt nach REZ | Mittel |
+| M4 | FA-PERS-08 = vollständiges Ticket-System | Nur REZ→PHYSICIAN, kein VALIDATED durch Arzt nach REZ | Mittel |
 | M5 | FA-AKTE-14 → Validierungs-Queue | Nur `AKTE_FORWARD` Notification | Niedrig |
 | M6 | `register.rs` 226 vs ältere Docs „224“ | Drift | Niedrig |
 
@@ -343,8 +343,8 @@ flowchart LR
 | [`02-use-case-diagram.md`](./02-use-case-diagram.md) | Legacy generisch — **ersetzen durch §3 hier** für Reviews |
 | [`03-sequence-diagram.md`](./03-sequence-diagram.md) | Veraltet (bcrypt) — Soll-Sequenzen in **§5 + 09** |
 | [`04-activity-diagram.md`](./04-activity-diagram.md) | Generisch — **§4** ist Praxistag-Soll |
-| [`08-arzt-rezeption-kollaboration.md`](./08-arzt-rezeption-kollaboration.md) | Rolle ARZT/REZ Handoffs |
-| [`09-aufgaben-leistung-kollaboration.md`](./09-aufgaben-leistung-kollaboration.md) | LEIST-06/07 + AUFG |
+| [`08-arzt-rezeption-kollaboration.md`](./08-arzt-rezeption-kollaboration.md) | Rolle PHYSICIAN/REZ Handoffs |
+| [`09-aufgaben-serviceItem-kollaboration.md`](./09-aufgaben-serviceItem-kollaboration.md) | LEIST-06/07 + AUFG |
 | **Dieses Dokument `10`** | **Master** Inventar + Gaps + Roadmap |
 
 **Regel:** Jede geschlossene GAP-* → Status in §2 + Legende ○→✅ + `06-validierung.md` WAAD-Zeile anpassen.
@@ -356,7 +356,7 @@ flowchart LR
 Wenn das Ziel „**kompletter Workflow implementieren**“ ist, starten Sie mit **Phase 1 + 2** (höchster Nutzen, geringstes Risiko):
 
 1. `akte_list_billing` + REZ-safe patient detail load  
-2. `untersuchung` migration + LEIST fields + `ensure_open_booking` für U  
-3. Dann **Phase 3** `praxis_aufgabe` (kleinster Vertical Slice: nur `ABRECHNUNG`-Typ)
+2. `examination` migration + LEIST fields + `ensure_open_booking` für U  
+3. Dann **Phase 3** `practice_task` (kleinster Vertical Slice: nur `ABRECHNUNG`-Typ)
 
 Sagen Sie, welche Phase als erstes codiert werden soll — die Anforderungen und Diagramme sind dafür vorbereitet.

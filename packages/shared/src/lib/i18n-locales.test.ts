@@ -28,7 +28,7 @@ describe("i18n locale parity", () => {
     });
 
     it("all locales resolve core nav keys", () => {
-        const keys = ["nav.settings", "nav.rezepte", "common.loading"];
+        const keys = ["nav.settings", "nav.prescriptions", "common.loading"];
         for (const loc of LOCALES) {
             for (const key of keys) {
                 expect(translateLocale(loc, key)).not.toBe(key);
@@ -38,7 +38,7 @@ describe("i18n locale parity", () => {
 
     it("Arabic critical keys use Arabic script", () => {
         const arabicRe = /[\u0600-\u06FF]/;
-        for (const key of ["auth.login", "auth.logout", "common.save", "nav.patienten"]) {
+        for (const key of ["auth.login", "auth.logout", "common.save", "nav.patients"]) {
             expect(arabicRe.test(translateLocale("ar", key))).toBe(true);
         }
     });

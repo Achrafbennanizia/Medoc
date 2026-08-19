@@ -35,7 +35,7 @@ async fn require_practice_auth(
     let slug = req
         .headers()
         .get("X-Practice-Slug")
-        .and_then(|v| v.to_str().ok())
+        .and_then(|version| version.to_str().ok())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "X-Practice-Slug required").into_response())?;
     let brute_key = match BruteKey::from_subject(slug, &peer_ip) {
         Ok(k) => k,
@@ -56,7 +56,7 @@ async fn require_practice_auth(
     let auth = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
+        .and_then(|version| version.to_str().ok())
         .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Authorization required").into_response())?;
     let raw = auth
         .strip_prefix("Bearer ")
@@ -147,9 +147,9 @@ struct RegisterPracticeBody {
 
 fn plan_details(plan: &str) -> (&'static str, i64, i64) {
     match plan.trim().to_uppercase().as_str() {
-        "BASIC" => ("MeDoc Praxis Basis", 4900, 2),
-        "ENTERPRISE" => ("MeDoc Praxis Enterprise", 17900, 99),
-        _ => ("MeDoc Praxis Pro", 9900, 5),
+        "BASIC" => ("MeDoc Practice Basis", 4900, 2),
+        "ENTERPRISE" => ("MeDoc Practice Enterprise", 17900, 99),
+        _ => ("MeDoc Practice Pro", 9900, 5),
     }
 }
 
@@ -244,7 +244,7 @@ async fn summary(
     Extension(slug): Extension<String>,
 ) -> Result<Json<serde_json::Value>, Response> {
     let row: Option<PracticeSummaryRow> = sqlx::query_as(
-        "SELECT slug, display_name, monthly_fee_cents, next_billing_iso, max_users, active_users, storage_gb, storage_used_gb, erezept_month_used, erezept_month_quota FROM practice WHERE slug = ?1",
+        "SELECT slug, display_name, monthly_fee_cents, next_billing_iso, max_users, active_users, storage_gb, storage_used_gb, e_prescription_month_used, e_prescription_month_quota FROM practice WHERE slug = ?1",
     )
     .bind(&slug)
     .fetch_optional(&state.pool)
@@ -259,8 +259,8 @@ async fn summary(
         active_users,
         storage_gb,
         storage_used_gb,
-        erezept_month_used,
-        erezept_month_quota,
+        e_prescription_month_used,
+        e_prescription_month_quota,
     )) = row
     else {
         return Err((StatusCode::NOT_FOUND, "practice").into_response());
@@ -268,26 +268,26 @@ async fn summary(
     Ok(Json(json!({
         "practice_slug": slug,
         "display_name": display_name,
-        "plan_name": "MeDoc Praxis Pro",
+        "plan_name": "MeDoc Practice Pro",
         "monthly_fee_cents": monthly_fee_cents,
         "next_billing_iso": next_billing_iso,
         "max_users": max_users,
         "active_users": active_users,
         "storage_gb": storage_gb,
         "storage_used_gb": storage_used_gb,
-        "erezept_month_used": erezept_month_used,
-        "erezept_month_quota": erezept_month_quota,
+        "e_prescription_month_used": e_prescription_month_used,
+        "e_prescription_month_quota": e_prescription_month_quota,
     })))
 }
 
 async fn integrations_status() -> Json<serde_json::Value> {
     Json(json!({
         "_demo": true,
-        "eprescription": { "status": "disconnected", "detail": "Gematik-Anbindung — Konfiguration ausstehend" },
+        "eprescription": { "status": "disconnected", "detail": "Gematik-Anbindung — Konfiguration outstanding" },
         "datev": { "status": "beta", "detail": "DATEV-Export vorbereitet" },
         "doccheck_sso": { "status": "disconnected", "detail": "Nicht verbunden" },
         "kim_tk": { "status": "disconnected", "detail": "KIM — nicht angebunden" },
-        "labor_dental_union": { "status": "beta", "detail": "Beta" },
+        "lab_dental_union": { "status": "beta", "detail": "Beta" },
         "card_reader": { "status": "disconnected", "detail": "Kein Kartenleser erkannt" },
     }))
 }

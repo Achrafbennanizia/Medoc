@@ -112,8 +112,8 @@ pub async fn fetch_update_manifest(
 
 pub async fn post_billing_portal_url(cfg: &CompanyPortalConfig) -> Result<String, AppError> {
     let (base, c) = require_callable(cfg)?;
-    let v = post_json(&base, "/v1/billing/portal-session", &c, json!({})).await?;
-    v.get("url")
+    let version = post_json(&base, "/v1/billing/portal-session", &c, json!({})).await?;
+    version.get("url")
         .and_then(|x| x.as_str())
         .map(str::to_string)
         .ok_or_else(|| AppError::Internal("Vendor portal: response missing url".into()))

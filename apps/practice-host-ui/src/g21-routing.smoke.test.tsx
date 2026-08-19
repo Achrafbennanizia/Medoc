@@ -7,7 +7,7 @@ import { useAuthStore } from "@/models/store/auth-store";
 import App from "@/App";
 import { setDeploymentModeCache } from "@/systems/practice-host/adapters/practice-transport";
 import { tauriInvoke } from "@/services/tauri.service";
-import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
+import { CLUSTER_STATUS_READY } from "@/models/store/cluster-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
@@ -16,8 +16,8 @@ vi.mock("@/services/tauri.service", () => ({
 const REZ_SESSION: Session = {
     user_id: "u-rez-g21",
     name: "Aya M.",
-    email: "aya@praxis.de",
-    rolle: "REZEPTION",
+    email: "aya@practice.de",
+    role: "RECEPTION",
 };
 
 const SYNC_STATUS = {
@@ -46,7 +46,7 @@ function resetAuthStore() {
     useAuthStore.setState({ session: null, sessionChecked: false });
 }
 
-function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
+function mockAuthedReceptionIpc(sessionHold: { current: Session | null }) {
     vi.mocked(tauriInvoke).mockImplementation(async (cmd: string) => {
         switch (cmd) {
             case "get_db_setup_status":
@@ -76,27 +76,27 @@ function mockAuthedRezeptionIpc(sessionHold: { current: Session | null }) {
                 return SYNC_STATUS;
             case "current_license_status":
                 return { valid: true, format: "v2" };
-            case "verbund_status_cmd":
-                return VERBUND_STATUS_READY;
+            case "cluster_status_cmd":
+                return CLUSTER_STATUS_READY;
             case "get_dashboard_stats":
                 return {
-                    patienten_gesamt: 0,
-                    termine_heute: 0,
-                    einnahmen_monat: 0,
-                    produkte_niedrig: 0,
+                    patients_total: 0,
+                    appointments_today: 0,
+                    revenue_month: 0,
+                    products_low: 0,
                 };
-            case "list_termine":
-            case "list_patienten":
-            case "list_bestellungen":
+            case "list_appointments":
+            case "list_patients":
+            case "list_purchase_orders":
                 return [];
-            case "count_open_praxis_aufgaben_for_me":
+            case "count_open_practice_tasks_for_me":
                 return 0;
             case "count_unread_in_app_notifications":
                 return 0;
-            case "list_praxis_aufgaben_for_me":
-            case "list_praxis_tickets_for_me":
+            case "list_practice_tasks_for_me":
+            case "list_practice_tickets_for_me":
                 return [];
-            case "list_aufgabe_team_directory":
+            case "list_task_team_directory":
                 return [];
             case "work_time_reconcile_on_login":
                 return { closedStaleCount: 0 };
@@ -125,17 +125,17 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         sessionHold.current = null;
         resetAuthStore();
         setDeploymentModeCache("practice_desktop");
-        mockAuthedRezeptionIpc(sessionHold);
+        mockAuthedReceptionIpc(sessionHold);
     });
 
-    it("REZEPTION can open Praxis-Tickets (Aufgaben integriert) without access denied", async () => {
+    it("RECEPTION can open Practice-Tickets (Aufgaben integriert) without access denied", async () => {
         const user = userEvent.setup();
         render(<App />);
 
         expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 
         await user.type(screen.getByLabelText("Email"), REZ_SESSION.email);
-        const pw = document.querySelector<HTMLInputElement>("#passwort");
+        const pw = document.querySelector<HTMLInputElement>("#password");
         expect(pw).toBeTruthy();
         await user.type(pw!, "secret123");
         await user.click(screen.getByRole("button", { name: /Sign in$/ }));
@@ -150,7 +150,7 @@ describe("G21 routing smoke (row 1 proxy)", () => {
 
         await waitFor(() => {
             const cmds = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);
-            expect(cmds).toContain("list_praxis_aufgaben_for_me");
+            expect(cmds).toContain("list_practice_tasks_for_me");
         });
     });
 });

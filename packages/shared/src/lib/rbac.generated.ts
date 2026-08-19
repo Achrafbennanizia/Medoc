@@ -3,9 +3,9 @@
 export function baseAllowedGenerated(action: string, role: string): boolean {
     switch (action) {
         case "audit.read":
-        case "aufgabe.status.admin":
-        case "finanzen.read":
-        case "finanzen.tagesabschluss.write":
+        case "task.status.admin":
+        case "finance.read":
+        case "finance.day_close.write":
         case "ops.audit_chain_ack":
         case "ops.backup":
         case "ops.dsgvo":
@@ -14,44 +14,44 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "ops.system":
         case "patient.read_medical":
         case "patient.write_medical":
-        case "personal.read":
-        case "personal.write":
-        case "statistik.read":
-        case "verwaltung.praxisplanung.read":
-        case "verwaltung.praxisplanung.write":
-        case "verwaltung.read":
-        case "verwaltung.team.read":
-        case "verwaltung.vorlagen.read":
-        case "verwaltung.vorlagen.write":
-        case "vorlagen.read":
-        case "vorlagen.write":
+        case "staff.read":
+        case "staff.write":
+        case "statistics.read":
+        case "administration.practice_planning.read":
+        case "administration.practice_planning.write":
+        case "administration.read":
+        case "administration.team.read":
+        case "administration.templates.read":
+        case "administration.templates.write":
+        case "templates.read":
+        case "templates.write":
         case "work_time.admin":
         case "work_time.team.read":
-            return role === "ARZT";
-        case "aufgabe.status.fulfill":
-        case "bestellung.read":
-        case "bestellung.write":
+            return role === "PHYSICIAN";
+        case "task.status.fulfill":
+        case "purchase_order.read":
+        case "purchase_order.write":
         case "dashboard.read":
-        case "finanzen.write":
-        case "patient.behandlungen_list_for_zahlung":
+        case "finance.write":
+        case "patient.treatments_list_for_payment":
         case "patient.read":
         case "patient.read_documents":
         case "patient.write":
-        case "produkt.read":
-        case "produkt.write":
-        case "termin.list_aerzte":
-        case "termin.read":
-        case "termin.write":
-        case "verwaltung.kataloge.read":
-        case "verwaltung.kataloge.write":
-        case "verwaltung.lager.read":
-        case "verwaltung.lager.write":
-        case "verwaltung.vertraege.read":
-        case "verwaltung.vertraege.write":
+        case "product.read":
+        case "product.write":
+        case "appointment.list_physicians":
+        case "appointment.read":
+        case "appointment.write":
+        case "administration.catalogs.read":
+        case "administration.catalogs.write":
+        case "administration.inventory.read":
+        case "administration.inventory.write":
+        case "administration.contracts.read":
+        case "administration.contracts.write":
         case "work_time.self":
-            return role === "ARZT" || role === "REZEPTION";
-        case "finanzen.reception.view":
-            return role === "REZEPTION";
+            return role === "PHYSICIAN" || role === "RECEPTION";
+        case "finance.reception.view":
+            return role === "RECEPTION";
         default:
             return false;
     }
@@ -60,49 +60,49 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
 /** All actions declared in `config/rbac.yaml` (stable order). */
 export const RBAC_ALL_ACTIONS = [
     "audit.read",
-    "aufgabe.status.admin",
-    "aufgabe.status.fulfill",
-    "bestellung.read",
-    "bestellung.write",
+    "task.status.admin",
+    "task.status.fulfill",
+    "purchase_order.read",
+    "purchase_order.write",
     "dashboard.read",
-    "finanzen.read",
-    "finanzen.reception.view",
-    "finanzen.tagesabschluss.write",
-    "finanzen.write",
+    "finance.read",
+    "finance.reception.view",
+    "finance.day_close.write",
+    "finance.write",
     "ops.audit_chain_ack",
     "ops.backup",
     "ops.dsgvo",
     "ops.logs",
     "ops.migration",
     "ops.system",
-    "patient.behandlungen_list_for_zahlung",
+    "patient.treatments_list_for_payment",
     "patient.read",
     "patient.read_documents",
     "patient.read_medical",
     "patient.write",
     "patient.write_medical",
-    "personal.read",
-    "personal.write",
-    "produkt.read",
-    "produkt.write",
-    "statistik.read",
-    "termin.list_aerzte",
-    "termin.read",
-    "termin.write",
-    "verwaltung.kataloge.read",
-    "verwaltung.kataloge.write",
-    "verwaltung.lager.read",
-    "verwaltung.lager.write",
-    "verwaltung.praxisplanung.read",
-    "verwaltung.praxisplanung.write",
-    "verwaltung.read",
-    "verwaltung.team.read",
-    "verwaltung.vertraege.read",
-    "verwaltung.vertraege.write",
-    "verwaltung.vorlagen.read",
-    "verwaltung.vorlagen.write",
-    "vorlagen.read",
-    "vorlagen.write",
+    "staff.read",
+    "staff.write",
+    "product.read",
+    "product.write",
+    "statistics.read",
+    "appointment.list_physicians",
+    "appointment.read",
+    "appointment.write",
+    "administration.catalogs.read",
+    "administration.catalogs.write",
+    "administration.inventory.read",
+    "administration.inventory.write",
+    "administration.practice_planning.read",
+    "administration.practice_planning.write",
+    "administration.read",
+    "administration.team.read",
+    "administration.contracts.read",
+    "administration.contracts.write",
+    "administration.templates.read",
+    "administration.templates.write",
+    "templates.read",
+    "templates.write",
     "work_time.admin",
     "work_time.self",
     "work_time.team.read",

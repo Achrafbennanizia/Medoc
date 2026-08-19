@@ -1,4 +1,4 @@
-use crate::domain::enums::{Geschlecht, PatientStatus};
+use crate::domain::enums::{Sex, PatientStatus};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 pub struct Patient {
     pub id: String,
     pub name: String,
-    pub geburtsdatum: NaiveDate,
-    pub geschlecht: String,
-    pub versicherungsnummer: String,
-    pub telefon: Option<String>,
+    pub date_of_birth: NaiveDate,
+    pub sex: String,
+    pub insurance_number: String,
+    pub phone: Option<String>,
     pub email: Option<String>,
-    pub adresse: Option<String>,
+    pub address: Option<String>,
     pub status: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -20,19 +20,19 @@ pub struct Patient {
 #[derive(Debug, Deserialize)]
 pub struct CreatePatient {
     pub name: String,
-    pub geburtsdatum: NaiveDate,
-    pub geschlecht: Geschlecht,
-    pub versicherungsnummer: String,
-    pub telefon: Option<String>,
+    pub date_of_birth: NaiveDate,
+    pub sex: Sex,
+    pub insurance_number: String,
+    pub phone: Option<String>,
     pub email: Option<String>,
-    pub adresse: Option<String>,
+    pub address: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePatient {
     pub name: Option<String>,
-    pub telefon: Option<String>,
+    pub phone: Option<String>,
     pub email: Option<String>,
-    pub adresse: Option<String>,
+    pub address: Option<String>,
     pub status: Option<PatientStatus>,
 }

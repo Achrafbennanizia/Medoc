@@ -4,11 +4,11 @@
  */
 
 export function isReleasedForBilling(
-    freigegebenVonArztId: string | null | undefined,
-    freigegebenAm: string | null | undefined,
+    releasedByPhysicianId: string | null | undefined,
+    releasedAt: string | null | undefined,
 ): boolean {
-    const vid = (freigegebenVonArztId ?? "").trim();
-    const vam = (freigegebenAm ?? "").trim();
+    const vid = (releasedByPhysicianId ?? "").trim();
+    const vam = (releasedAt ?? "").trim();
     return vid.length > 0 && vam.length > 0;
 }
 
@@ -25,12 +25,12 @@ export function billingReleaseErrorDe(entityLabel: string): string {
 }
 
 export function requireReleasedForBilling(
-    freigegebenVonArztId: string | null | undefined,
-    freigegebenAm: string | null | undefined,
+    releasedByPhysicianId: string | null | undefined,
+    releasedAt: string | null | undefined,
     entityLabel: string,
     t?: TParamsFn,
 ): void {
-    if (!isReleasedForBilling(freigegebenVonArztId, freigegebenAm)) {
+    if (!isReleasedForBilling(releasedByPhysicianId, releasedAt)) {
         const msg = t
             ? billingReleaseError(t, entityLabel)
             : billingReleaseErrorDe(entityLabel);

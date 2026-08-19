@@ -30,7 +30,7 @@ pub fn run() {
             Arc::new(application::break_glass::BreakGlassState::new()),
         ))
         .manage(commands::lan_commands::LanServerControl::default())
-        .manage(commands::network::verbund::VerbundListenerControl::default())
+        .manage(commands::network::cluster::ClusterListenerControl::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -69,20 +69,20 @@ pub fn run() {
                 Ok(pool) => {
                     #[cfg(debug_assertions)]
                     {
-                        if std::env::args().any(|a| a == "--dev-seed-vertraege") {
+                        if std::env::args().any(|a| a == "--dev-seed-contracts") {
                             if let Err(e) = tauri::async_runtime::block_on(
-                                database::vertrag_repo::dev_seed_demo(&pool),
+                                database::contract_repo::dev_seed_demo(&pool),
                             ) {
                                 tracing::warn!(
                                     target: "medoc::system",
-                                    event = "DEV_VERTRAG_SEED_FAILED",
+                                    event = "DEV_CONTRACT_SEED_FAILED",
                                     error = %e
                                 );
                             } else {
                                 tracing::info!(
                                     target: "medoc::system",
-                                    event = "DEV_VERTRAG_SEED_OK",
-                                    hint = "flag --dev-seed-vertraege (debug builds only)"
+                                    event = "DEV_CONTRACT_SEED_OK",
+                                    hint = "flag --dev-seed-contracts (debug builds only)"
                                 );
                             }
                         }
@@ -194,16 +194,16 @@ pub fn run() {
                             )
                             .await;
                         }
-                        if let Some(verbund_ctrl) =
-                            auto_app.try_state::<commands::network::verbund::VerbundListenerControl>()
+                        if let Some(cluster_ctrl) =
+                            auto_app.try_state::<commands::network::cluster::ClusterListenerControl>()
                         {
-                            commands::network::verbund::auto_start_verbund_if_ready(
+                            commands::network::cluster::auto_start_cluster_if_ready(
                                 &auto_pool,
-                                &verbund_ctrl,
+                                &cluster_ctrl,
                             )
                             .await;
                         }
-                        commands::network::verbund::spawn_member_cluster_watch_task(
+                        commands::network::cluster::spawn_member_cluster_watch_task(
                             auto_app.clone(),
                             auto_pool.clone(),
                         );
@@ -241,7 +241,7 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             {
-                use tauri::TitleBarStyle;
+                use tauri::TitleCashStyle;
                 if let Some(w) = app_handle.get_webview_window("main") {
                     if let Err(e) = w.set_decorations(true) {
                         tracing::warn!(
@@ -250,10 +250,10 @@ pub fn run() {
                             error = %e
                         );
                     }
-                    if let Err(e) = w.set_title_bar_style(TitleBarStyle::Overlay) {
+                    if let Err(e) = w.set_title_cash_style(TitleCashStyle::Overlay) {
                         tracing::warn!(
                             target: "medoc::system",
-                            event = "MAC_WINDOW_TITLE_BAR_OVERLAY",
+                            event = "MAC_WINDOW_TITLE_CASH_OVERLAY",
                             error = %e
                         );
                     }

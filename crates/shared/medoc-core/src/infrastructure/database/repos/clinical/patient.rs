@@ -21,11 +21,11 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Patient>, 
 pub async fn search(
     pool: &SqlitePool,
     query: &str,
-    include_versicherungsnummer: bool,
+    include_insurance_number: bool,
 ) -> Result<Vec<Patient>, AppError> {
     let pattern = format!("%{}%", query);
-    let sql = if include_versicherungsnummer {
-        "SELECT * FROM patient WHERE name LIKE ?1 OR versicherungsnummer LIKE ?1 ORDER BY name"
+    let sql = if include_insurance_number {
+        "SELECT * FROM patient WHERE name LIKE ?1 OR insurance_number LIKE ?1 ORDER BY name"
     } else {
         "SELECT * FROM patient WHERE name LIKE ?1 ORDER BY name"
     };
@@ -38,38 +38,38 @@ pub async fn search(
 
 pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
-    let geschlecht = serde_json::to_string(&data.geschlecht)
+    let sex = serde_json::to_string(&data.sex)
         .map_err(|e| AppError::Internal(format!("Serialize gender: {e}")))?
         .trim_matches('"')
         .to_uppercase();
 
     sqlx::query(
-        "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer, telefon, email, adresse)
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, phone, email, address)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
     )
     .bind(&id)
     .bind(&data.name)
-    .bind(data.geburtsdatum.to_string())
-    .bind(&geschlecht)
-    .bind(&data.versicherungsnummer)
-    .bind(&data.telefon)
+    .bind(data.date_of_birth.to_string())
+    .bind(&sex)
+    .bind(&data.insurance_number)
+    .bind(&data.phone)
     .bind(&data.email)
-    .bind(&data.adresse)
+    .bind(&data.address)
     .execute(pool)
     .await?;
 
-    // Auto-create Patientenakte
-    let akte_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO patientenakte (id, patient_id) VALUES (?1, ?2)")
-        .bind(&akte_id)
+    // Auto-create PatientChart
+    let chart_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO patient_chart (id, patient_id) VALUES (?1, ?2)")
+        .bind(&chart_id)
         .bind(&id)
         .execute(pool)
         .await?;
 
     let anam_id = uuid::Uuid::new_v4().to_string();
-    let empty_anam = r#"{"version":1,"vorerkrankungen":{},"medikation":{},"allergien":{}}"#;
+    let empty_anam = r#"{"version":1,"preExisting":{},"medication":{},"allergies":{}}"#;
     sqlx::query(
-        "INSERT INTO anamnesebogen (id, patient_id, antworten, unterschrieben) VALUES (?1, ?2, ?3, 0)",
+        "INSERT INTO anamnesis_form (id, patient_id, answers, signed) VALUES (?1, ?2, ?3, 0)",
     )
     .bind(&anam_id)
     .bind(&id)
@@ -87,10 +87,10 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
     .await?;
     crate::infrastructure::database::sync_outbox::record_or_noop(
         pool,
-        "patientenakte",
-        &akte_id,
+        "patient_chart",
+        &chart_id,
         "INSERT",
-        &format!("{{\"id\":\"{akte_id}\",\"patient_id\":\"{id}\"}}"),
+        &format!("{{\"id\":\"{chart_id}\",\"patient_id\":\"{id}\"}}"),
     )
     .await?;
     Ok(inserted)
@@ -115,13 +115,13 @@ pub async fn update(
     };
 
     sqlx::query(
-        "UPDATE patient SET name = ?1, telefon = ?2, email = ?3, adresse = ?4,
+        "UPDATE patient SET name = ?1, phone = ?2, email = ?3, address = ?4,
          status = ?5, updated_at = CURRENT_TIMESTAMP WHERE id = ?6",
     )
     .bind(name)
-    .bind(data.telefon.as_deref().or(existing.telefon.as_deref()))
+    .bind(data.phone.as_deref().or(existing.phone.as_deref()))
     .bind(data.email.as_deref().or(existing.email.as_deref()))
-    .bind(data.adresse.as_deref().or(existing.adresse.as_deref()))
+    .bind(data.address.as_deref().or(existing.address.as_deref()))
     .bind(&status)
     .bind(id)
     .execute(pool)
@@ -138,9 +138,9 @@ pub async fn update(
     Ok(updated)
 }
 
-/// FA-PAT-03: NEU marks first-time visitors with initial appointment(s).
-/// Status expires automatically when their first appointment is completed (`DURCHGEFUEHRT`).
-pub async fn expire_neu_status_after_completed_termin(
+/// FA-PAT-03: NEW marks first-time visitors with initial appointment(s).
+/// Status expires automatically when their first appointment is completed (`COMPLETED`).
+pub async fn expire_new_status_after_completed_appointment(
     pool: &SqlitePool,
     patient_id: &str,
 ) -> Result<bool, AppError> {
@@ -148,12 +148,12 @@ pub async fn expire_neu_status_after_completed_termin(
     let Some(p) = existing else {
         return Ok(false);
     };
-    if !p.status.eq_ignore_ascii_case("NEU") {
+    if !p.status.eq_ignore_ascii_case("NEW") {
         return Ok(false);
     }
 
     let result = sqlx::query(
-        "UPDATE patient SET status = 'AKTIV', updated_at = CURRENT_TIMESTAMP WHERE id = ?1 AND status = 'NEU'",
+        "UPDATE patient SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = ?1 AND status = 'NEW'",
     )
     .bind(patient_id)
     .execute(pool)

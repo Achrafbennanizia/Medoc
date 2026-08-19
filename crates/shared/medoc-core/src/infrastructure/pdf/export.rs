@@ -6,7 +6,7 @@
 
 pub use super::clinical_layout::{render_clinical_layout, render_plain_preview, ClinicalPdfLayout};
 pub use super::render::{
-    render, render_akte, render_akte_blocks, render_report_pdf, render_template_preview_pdf,
-    AkteHeaderContext, AktePdfBlock, AktePdfTable, Invoice, InvoiceLine, ReportPdfInput,
+    render, render_chart, render_chart_blocks, render_report_pdf, render_template_preview_pdf,
+    ChartHeaderContext, ChartPdfBlock, ChartPdfTable, Invoice, InvoiceLine, ReportPdfInput,
     ReportPdfSection, ReportPdfSummaryRow,
 };

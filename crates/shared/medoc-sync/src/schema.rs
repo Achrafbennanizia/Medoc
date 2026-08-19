@@ -130,7 +130,7 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
 
     migrate_pairing_pin_columns(pool).await?;
 
-    medoc_core::infrastructure::database::migrations::ensure_verbund_tables(pool).await?;
+    medoc_core::infrastructure::database::migrations::ensure_cluster_tables(pool).await?;
 
     Ok(())
 }

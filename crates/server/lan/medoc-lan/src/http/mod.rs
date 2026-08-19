@@ -25,12 +25,12 @@ use medoc_core::application::auth_service::{self, LoginRequest};
 use medoc_core::application::own_profile::{self, OwnProfileDto};
 use medoc_core::application::rbac::{self, Role};
 use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
-use medoc_core::domain::entities::personal::UpdateOwnProfile;
-use medoc_core::domain::entities::{Patient, Termin};
+use medoc_core::domain::entities::staff::UpdateOwnProfile;
+use medoc_core::domain::entities::{Patient, Appointment};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::company_portal::load_company_portal_config;
 use medoc_core::infrastructure::cors_policy::{self, CorsGate};
-use medoc_core::infrastructure::database::{app_kv_repo, patient_repo, termin_repo};
+use medoc_core::infrastructure::database::{app_kv_repo, patient_repo, appointment_repo};
 use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
 use medoc_sync::pairing::ActivationTokenPayload;
 
@@ -80,14 +80,14 @@ impl From<AppError> for ApiError {
 pub struct LoginBody {
     pub email: String,
     #[serde(alias = "password")]
-    pub passwort: String,
+    pub password: String,
     #[serde(default)]
     pub totp_code: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct TermineQuery {
-    pub datum: Option<String>,
+pub struct AppointmentsQuery {
+    pub date: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -124,7 +124,7 @@ pub struct LoginUserDto {
     pub user_id: String,
     pub email: String,
     pub name: String,
-    pub rolle: String,
+    pub role: String,
 }
 
 fn unauthorized(msg: &'static str) -> Response {
@@ -139,7 +139,7 @@ async fn jwt_auth_middleware(
     let auth = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
+        .and_then(|version| version.to_str().ok())
         .ok_or_else(|| unauthorized("Authorization header required"))?;
     let raw = auth
         .strip_prefix("Bearer ")
@@ -190,8 +190,8 @@ pub fn build_router(state: LanHttpState) -> Router {
         .with_state(state.clone());
 
     let protected = Router::new()
-        .route("/patienten", get(list_patienten))
-        .route("/termine", get(list_termine))
+        .route("/patients", get(list_patients))
+        .route("/appointments", get(list_appointments))
         .route("/me", get(me_get).patch(me_patch))
         .route(
             "/app-kv",
@@ -268,7 +268,7 @@ async fn login(
 
     let req = LoginRequest {
         email: body.email.clone(),
-        passwort: body.passwort,
+        password: body.password,
         totp_code: body.totp_code.clone(),
     };
 
@@ -295,7 +295,7 @@ async fn login(
         state.jwt_secret.as_ref(),
         &session.user_id,
         &session.email,
-        &session.rolle,
+        &session.role,
     )
     .map_err(|e| ApiError(e).into_response())?;
 
@@ -307,7 +307,7 @@ async fn login(
             user_id: session.user_id,
             email: session.email.clone(),
             name: session.name,
-            rolle: session.rolle.clone(),
+            role: session.role.clone(),
         },
     }))
 }
@@ -331,7 +331,7 @@ async fn me_patch(
     Ok(Json(OwnProfileDto::from(&updated)))
 }
 
-async fn list_patienten(
+async fn list_patients(
     State(state): State<LanHttpState>,
     req: axum::extract::Request,
 ) -> Result<Json<Vec<Patient>>, ApiError> {
@@ -352,16 +352,16 @@ async fn list_patienten(
     Ok(Json(rows))
 }
 
-async fn list_termine(
+async fn list_appointments(
     State(state): State<LanHttpState>,
-    Query(q): Query<TermineQuery>,
+    Query(q): Query<AppointmentsQuery>,
     req: axum::extract::Request,
-) -> Result<Json<Vec<Termin>>, ApiError> {
-    let datum = q
-        .datum
+) -> Result<Json<Vec<Appointment>>, ApiError> {
+    let date = q
+        .date
         .unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
     if req.extensions().get::<ActivationTokenPayload>().is_some() {
-        let rows = termin_repo::find_by_date(&state.pool, &datum).await?;
+        let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
         return Ok(Json(rows));
     }
     let claims = req
@@ -370,10 +370,10 @@ async fn list_termine(
         .cloned()
         .ok_or(AppError::Unauthorized)?;
     let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("termin.read", role) {
+    if !rbac::allowed("appointment.read", role) {
         return Err(AppError::Forbidden.into());
     }
-    let rows = termin_repo::find_by_date(&state.pool, &datum).await?;
+    let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
     Ok(Json(rows))
 }
 
@@ -418,8 +418,8 @@ async fn company_summary_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
-    Ok(Json(v))
+    let version = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
+    Ok(Json(version))
 }
 
 async fn company_integrations_get(
@@ -428,8 +428,8 @@ async fn company_integrations_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
-    Ok(Json(v))
+    let version = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
+    Ok(Json(version))
 }
 
 async fn company_feature_flags_get(
@@ -438,8 +438,8 @@ async fn company_feature_flags_get(
 ) -> Result<Json<Value>, ApiError> {
     require_ops_system_claims(&claims)?;
     let cfg = load_company_portal_config(&state.pool).await;
-    let v = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
-    Ok(Json(v))
+    let version = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
+    Ok(Json(version))
 }
 
 async fn company_billing_portal_post(

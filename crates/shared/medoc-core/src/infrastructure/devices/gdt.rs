@@ -20,8 +20,8 @@ pub struct GdtRecord {
     pub patient_id: Option<String>,         // 3000
     pub patient_name: Option<String>,       // 3101
     pub patient_first_name: Option<String>, // 3102
-    pub geburtsdatum: Option<String>,       // 3103
-    pub befund: Option<String>,             // 6220
+    pub date_of_birth: Option<String>,       // 3103
+    pub finding: Option<String>,             // 6220
     pub raw_lines: Vec<(String, String)>,   // (field-id, content)
 }
 
@@ -52,8 +52,8 @@ pub fn parse(content: &str) -> GdtRecord {
             "3000" => rec.patient_id = Some(value.clone()),
             "3101" => rec.patient_name = Some(value.clone()),
             "3102" => rec.patient_first_name = Some(value.clone()),
-            "3103" => rec.geburtsdatum = Some(value.clone()),
-            "6220" => rec.befund = Some(value.clone()),
+            "3103" => rec.date_of_birth = Some(value.clone()),
+            "6220" => rec.finding = Some(value.clone()),
             _ => {}
         }
         rec.raw_lines.push((field.to_string(), value));

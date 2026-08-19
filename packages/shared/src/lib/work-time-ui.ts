@@ -1,5 +1,5 @@
 import { getISODay, parseISO } from "date-fns";
-import type { WochenarbeitsRegel } from "./personal-arbeitsplan";
+import type { WochenarbeitsRegel } from "./staff-work-plan";
 
 export type WorkTimeDaySummaryLite = {
     date: string;
@@ -32,13 +32,13 @@ export function formatStaffShortName(name: string): string {
 }
 
 export function sollMinutesForDay(
-    personalId: string,
+    staffId: string,
     dateYmd: string,
     weeklyRules: readonly WochenarbeitsRegel[],
 ): number {
     const weekday = getISODay(parseISO(dateYmd)) as WochenarbeitsRegel["weekday"];
     return weeklyRules
-        .filter((r) => r.personalId === personalId && r.weekday === weekday)
+        .filter((r) => r.staffId === staffId && r.weekday === weekday)
         .reduce((sum, r) => sum + Math.max(0, r.endMin - r.startMin), 0);
 }
 
@@ -73,7 +73,7 @@ export type WeekBarDay = {
 export function buildWeekBarDays(
     weekDays: string[],
     dayLabels: string[],
-    personalId: string,
+    staffId: string,
     weeklyRules: readonly WochenarbeitsRegel[],
     overviewDays: WorkTimeDaySummaryLite[],
     activeSession: WorkTimeSessionLite | null,
@@ -93,7 +93,7 @@ export function buildWeekBarDays(
         return {
             date,
             label: dayLabels[i] ?? date,
-            sollMinutes: sollMinutesForDay(personalId, date, weeklyRules),
+            sollMinutes: sollMinutesForDay(staffId, date, weeklyRules),
             workedMinutes: endedWorked,
             pauseMinutes: summary?.pauseMinutes ?? 0,
             openMinutes: isActiveDay ? openMinutes : 0,

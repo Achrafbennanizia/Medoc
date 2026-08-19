@@ -24,7 +24,7 @@ interface ToastState {
     toasts: Toast[];
     /** True while pointer is inside the toast stack region — pauses all dismiss timers (WCAG 2.2.1). */
     toastStackPointerInside: boolean;
-    setToastStackPointerInside: (v: boolean) => void;
+    setToastStackPointerInside: (version: boolean) => void;
     add: (
         message: string,
         type?: ToastType,
@@ -36,7 +36,7 @@ interface ToastState {
 export const useToastStore = create<ToastState>((set) => ({
     toasts: [],
     toastStackPointerInside: false,
-    setToastStackPointerInside: (v) => set({ toastStackPointerInside: v }),
+    setToastStackPointerInside: (version) => set({ toastStackPointerInside: version }),
     add: (message, type = "success", options) => {
         const id = crypto.randomUUID();
         const durationMs = options?.durationMs ?? DURATION[type];

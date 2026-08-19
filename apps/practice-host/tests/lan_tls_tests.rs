@@ -52,7 +52,7 @@ async fn https_health_returns_ok() {
     let res = client.get(&url).send().await.expect("https get");
     assert!(res.status().is_success());
     let body: serde_json::Value = res.json().await.unwrap();
-    assert_eq!(body.get("status").and_then(|v| v.as_str()), Some("ok"));
+    assert_eq!(body.get("status").and_then(|version| version.as_str()), Some("ok"));
 
     shutdown.store(true, Ordering::SeqCst);
     let _ = tokio::time::timeout(Duration::from_secs(5), serve).await;

@@ -1,37 +1,37 @@
 /** Sidebar section ordering — keys must exist in {@link NAV_ITEM_DEFINITIONS} (`rbac.ts`). */
-import { POSTEINGANG_UI_ENABLED } from "./posteingang-config";
+import { INBOX_UI_ENABLED } from "./inbox-config";
 import {
-    LEISTUNGEN_MENU_ENABLED,
-    REZEPTE_ATTESTE_MENU_ENABLED,
+    SERVICES_MENU_ENABLED,
+    PRESCRIPTIONS_CERTIFICATES_MENU_ENABLED,
 } from "./catalog-menu-flags";
 
 export type NavSectionDefinition = { labelKey: string; items: string[] };
 
-const BEHANDLUNG_ITEMS: string[] = [
-    "/patienten",
-    "/akten/zu-validieren",
-    ...(POSTEINGANG_UI_ENABLED ? ["/posteingang"] : []),
+const TREATMENT_ITEMS: string[] = [
+    "/patients",
+    "/charts/to-validate",
+    ...(INBOX_UI_ENABLED ? ["/inbox"] : []),
     "/tickets",
-    ...(REZEPTE_ATTESTE_MENU_ENABLED ? ["/rezepte"] : []),
-    "/statistik",
+    ...(PRESCRIPTIONS_CERTIFICATES_MENU_ENABLED ? ["/prescriptions"] : []),
+    "/statistics",
 ];
 
 export const NAV_SECTIONS: NavSectionDefinition[] = [
-    { labelKey: "nav.section.overview", items: ["/", "/termine"] },
+    { labelKey: "nav.section.overview", items: ["/", "/appointments"] },
     {
         labelKey: "nav.section.clinical",
-        items: BEHANDLUNG_ITEMS,
+        items: TREATMENT_ITEMS,
     },
     {
         labelKey: "nav.section.practice",
         items: [
-            "/finanzen",
-            "/finanzen/kasse",
-            "/bestellungen",
-            ...(LEISTUNGEN_MENU_ENABLED ? ["/leistungen"] : []),
-            "/personal/arbeitszeit",
-            "/verwaltung",
-            "/einstellungen",
+            "/finance",
+            "/finance/cash",
+            "/purchase-orders",
+            ...(SERVICES_MENU_ENABLED ? ["/services"] : []),
+            "/staff/work-time",
+            "/administration",
+            "/settings",
         ],
     },
 ];

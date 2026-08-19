@@ -3,10 +3,10 @@
 // Format expected (header row mandatory, semicolon delimiter — matches the
 // german convention used by most legacy PVS exports):
 //
-//   name;geburtsdatum;geschlecht;versicherungsnummer;telefon;email;adresse
+//   name;date_of_birth;sex;insurance_number;phone;email;address
 //
-// `geburtsdatum` is parsed as `YYYY-MM-DD` or `DD.MM.YYYY`.
-// `geschlecht` accepts M/W/D (case-insensitive) and is normalised to MAENNLICH/WEIBLICH/DIVERS.
+// `date_of_birth` is parsed as `YYYY-MM-DD` or `DD.MM.YYYY`.
+// `sex` accepts M/W/D (case-insensitive) and is normalised to MALE/FEMALE/DIVERSE.
 
 use chrono::NaiveDate;
 use serde::Serialize;
@@ -44,9 +44,9 @@ pub async fn import_patients(
     let mut lines = content.lines();
     let header = lines.next().unwrap_or("");
     let cols: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
-    if !cols.contains(&"name") || !cols.contains(&"geburtsdatum") {
+    if !cols.contains(&"name") || !cols.contains(&"date_of_birth") {
         return Err(AppError::Validation(
-            "CSV header must contain at least 'name' and 'geburtsdatum'".into(),
+            "CSV header must contain at least 'name' and 'date_of_birth'".into(),
         ));
     }
     let idx = |key: &str| cols.iter().position(|c| *c == key);
@@ -73,13 +73,13 @@ pub async fn import_patients(
                 continue;
             }
         };
-        let gebstr = match get("geburtsdatum") {
+        let gebstr = match get("date_of_birth") {
             Some(g) => g,
             None => {
                 report.failed += 1;
                 report
                     .errors
-                    .push(format!("Row {lineno}: geburtsdatum missing"));
+                    .push(format!("Row {lineno}: date_of_birth missing"));
                 continue;
             }
         };
@@ -94,11 +94,11 @@ pub async fn import_patients(
                 continue;
             }
         };
-        let geschlecht = normalise_geschlecht(get("geschlecht").as_deref().unwrap_or("D"));
-        let vnr = get("versicherungsnummer").unwrap_or_else(|| format!("UNBEKANNT-{lineno}"));
-        let telefon = get("telefon");
+        let sex = normalise_sex(get("sex").as_deref().unwrap_or("D"));
+        let vnr = get("insurance_number").unwrap_or_else(|| format!("UNBEKANNT-{lineno}"));
+        let phone = get("phone");
         let email = get("email");
-        let adresse = get("adresse");
+        let address = get("address");
 
         if dry_run {
             report.imported += 1;
@@ -107,18 +107,18 @@ pub async fn import_patients(
 
         let id = uuid::Uuid::new_v4().to_string();
         let res = sqlx::query(
-            "INSERT INTO patient (id, name, geburtsdatum, geschlecht,
-                versicherungsnummer, telefon, email, adresse, status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'AKTIV')",
+            "INSERT INTO patient (id, name, date_of_birth, sex,
+                insurance_number, phone, email, address, status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'ACTIVE')",
         )
         .bind(&id)
         .bind(&name)
         .bind(geb)
-        .bind(geschlecht)
+        .bind(sex)
         .bind(&vnr)
-        .bind(&telefon)
+        .bind(&phone)
         .bind(&email)
-        .bind(&adresse)
+        .bind(&address)
         .execute(pool)
         .await;
 
@@ -154,10 +154,10 @@ fn parse_date(s: &str) -> Option<NaiveDate> {
         .ok()
 }
 
-fn normalise_geschlecht(s: &str) -> &'static str {
+fn normalise_sex(s: &str) -> &'static str {
     match s.trim().to_uppercase().as_str() {
-        "M" | "MAENNLICH" | "MÄNNLICH" => "MAENNLICH",
-        "W" | "F" | "WEIBLICH" => "WEIBLICH",
-        _ => "DIVERS",
+        "M" | "MALE" | "MÄNNLICH" => "MALE",
+        "W" | "F" | "FEMALE" => "FEMALE",
+        _ => "DIVERSE",
     }
 }

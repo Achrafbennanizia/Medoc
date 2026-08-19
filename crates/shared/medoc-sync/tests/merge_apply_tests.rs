@@ -32,9 +32,9 @@ fn entry(device: &str, seq: i64, table: &str, id: &str, op: &str, payload: &str)
 
 async fn seed_patient(pool: &SqlitePool, id: &str, name: &str, updated_at: &str) {
     sqlx::query(
-        "INSERT INTO patient (id, name, geburtsdatum, geschlecht, versicherungsnummer,
-                              telefon, email, adresse, status, created_at, updated_at)
-         VALUES (?1, ?2, '1990-01-01', 'MAENNLICH', 'V-1', NULL, NULL, NULL, 'AKTIV',
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number,
+                              phone, email, address, status, created_at, updated_at)
+         VALUES (?1, ?2, '1990-01-01', 'MALE', 'V-1', NULL, NULL, NULL, 'ACTIVE',
                  '2099-01-01 00:00:00', ?3)",
     )
     .bind(id)
@@ -113,7 +113,7 @@ async fn apply_skips_when_already_applied() {
         "app_kv",
         "k5",
         "INSERT",
-        r#"{"key":"k5","value":"v"}"#,
+        r#"{"key":"k5","value":"version"}"#,
     );
     mark_applied(&pool, "remote", 5).await.unwrap();
     assert!(
@@ -129,8 +129,8 @@ async fn apply_inserts_new_patient_from_remote() {
     let pool = fresh_pool().await;
     let id = "00000000-0000-0000-0000-000000000002";
     let payload = format!(
-        r#"{{"id":"{id}","name":"Remote New","geburtsdatum":"1991-02-02","geschlecht":"WEIBLICH",
-            "versicherungsnummer":"V-2","status":"AKTIV","created_at":"2099-01-01 00:00:00",
+        r#"{{"id":"{id}","name":"Remote New","date_of_birth":"1991-02-02","sex":"FEMALE",
+            "insurance_number":"V-2","status":"ACTIVE","created_at":"2099-01-01 00:00:00",
             "updated_at":"2099-02-01T00:00:00Z"}}"#
     );
     let e = entry("remote", 6, "patient", id, "INSERT", &payload);
@@ -192,7 +192,7 @@ async fn apply_sqlite_timestamp_format_in_payload() {
 #[tokio::test]
 async fn apply_rejects_disallowed_table() {
     let pool = fresh_pool().await;
-    let e = entry("remote", 9, "personal", "p1", "INSERT", r#"{"id":"p1"}"#);
+    let e = entry("remote", 9, "staff", "p1", "INSERT", r#"{"id":"p1"}"#);
     let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("bad table");
@@ -392,9 +392,9 @@ async fn apply_insert_coerces_json_scalar_types() {
     let pool = fresh_pool().await;
     let id = "00000000-0000-0000-0000-000000000010";
     let payload = format!(
-        r#"{{"id":"{id}","name":"Typed","geburtsdatum":"1992-03-03","geschlecht":"MAENNLICH",
-            "versicherungsnummer":"V-T","status":"AKTIV","created_at":"2099-01-01 00:00:00",
-            "updated_at":"2099-04-01T00:00:00Z","telefon":null,"email":true}}"#
+        r#"{{"id":"{id}","name":"Typed","date_of_birth":"1992-03-03","sex":"MALE",
+            "insurance_number":"V-T","status":"ACTIVE","created_at":"2099-01-01 00:00:00",
+            "updated_at":"2099-04-01T00:00:00Z","phone":null,"email":true}}"#
     );
     let e = entry("remote", 17, "patient", id, "INSERT", &payload);
     assert!(
@@ -402,13 +402,13 @@ async fn apply_insert_coerces_json_scalar_types() {
             .await
             .unwrap()
     );
-    let telefon: Option<String> = sqlx::query_scalar("SELECT telefon FROM patient WHERE id = ?1")
+    let phone: Option<String> = sqlx::query_scalar("SELECT phone FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_optional(&pool)
         .await
         .unwrap()
         .flatten();
-    assert!(telefon.is_none() || telefon.as_deref() == Some(""));
+    assert!(phone.is_none() || phone.as_deref() == Some(""));
 }
 
 #[tokio::test]
@@ -420,7 +420,7 @@ async fn apply_does_not_mark_applied_when_entry_not_applied() {
         "app_kv",
         "k18",
         "INSERT",
-        r#"{"key":"k18","value":"v"}"#,
+        r#"{"key":"k18","value":"version"}"#,
     );
     mark_applied(&pool, "remote", 18).await.unwrap();
     assert!(
@@ -435,8 +435,8 @@ async fn apply_json_number_and_bool_in_payload() {
     let pool = fresh_pool().await;
     let id = "00000000-0000-0000-0000-000000000011";
     let payload = format!(
-        r#"{{"id":"{id}","name":"Nums","geburtsdatum":"1992-03-03","geschlecht":"MAENNLICH",
-            "versicherungsnummer":"V-N","status":"AKTIV","created_at":"2099-01-01 00:00:00",
+        r#"{{"id":"{id}","name":"Nums","date_of_birth":"1992-03-03","sex":"MALE",
+            "insurance_number":"V-N","status":"ACTIVE","created_at":"2099-01-01 00:00:00",
             "updated_at":"2099-04-01T00:00:00Z"}}"#
     );
     let e = entry("remote", 19, "patient", id, "INSERT", &payload);

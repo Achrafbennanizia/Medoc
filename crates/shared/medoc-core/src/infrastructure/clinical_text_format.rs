@@ -1,42 +1,42 @@
-//! Human-readable text for clinical PDF exports (anamnese JSON, Untersuchung V1, …).
+//! Human-readable text for clinical PDF exports (anamnesis JSON, Examination V1, …).
 
 use serde_json::Value;
 
-fn anamnese_label(key: &str) -> &str {
+fn anamnesis_label(key: &str) -> &str {
     match key {
-        "versicherungsstatus" => "Versicherungsstatus",
-        "krankenkasse" => "Krankenkasse / Versicherer",
-        "chronisch" => "Chronische Erkrankungen",
-        "frueherDiagnosen" => "Frühere Diagnosen",
-        "operationen" => "Operationen",
-        "krankenhaus" => "Krankenhausaufenthalte",
-        "psychisch" => "Psychische Vorgeschichte",
-        "regelmaessig" => "Regelmäßige Medikation",
-        "einnahme" => "Einnahmeschema",
-        "selbst" => "Selbstmedikation / Nahrungsergänzung",
-        "vergessen" => "Vergessene Einnahmen",
-        "nebenwirkungen" => "Nebenwirkungen",
-        "medikamente" => "Medikamentenallergien",
-        "lebensmittel" => "Lebensmittelallergien",
-        "sonstige" => "Sonstige Allergien",
-        "material" => "Materialunverträglichkeiten",
-        "impfreaktionen" => "Impfreaktionen",
+        "insuranceStatus" => "Insurance status",
+        "health_insurance" => "Health insurer",
+        "chronic" => "Chronic conditions",
+        "previousDiagnoses" => "Previous diagnoses",
+        "surgeries" => "Surgeries",
+        "hospital" => "Hospital stays",
+        "mental" => "Mental health history",
+        "regular" => "Regular medication",
+        "dosing" => "Dosing schedule",
+        "selbst" => "Self-medication / supplements",
+        "vergessen" => "Missed doses",
+        "sideEffects" => "Side effects",
+        "medications" => "Medication allergies",
+        "foods" => "Food allergies",
+        "other" => "Other allergies",
+        "material" => "Material intolerances",
+        "vaccineReactions" => "Vaccine reactions",
         _ => key,
     }
 }
 
 fn push_section_map(lines: &mut Vec<String>, title: &str, map: &serde_json::Map<String, Value>) {
     let mut entries: Vec<(String, String)> = Vec::new();
-    for (k, v) in map {
-        let text = match v {
+    for (k, version) in map {
+        let text = match version {
             Value::String(s) => s.trim().to_string(),
             Value::Null => String::new(),
-            _ => v.to_string(),
+            _ => version.to_string(),
         };
         if text.is_empty() {
             continue;
         }
-        entries.push((anamnese_label(k).to_string(), text));
+        entries.push((anamnesis_label(k).to_string(), text));
     }
     if entries.is_empty() {
         return;
@@ -49,10 +49,10 @@ fn push_section_map(lines: &mut Vec<String>, title: &str, map: &serde_json::Map<
 }
 
 /// Format stored anamnesis JSON (V1) for PDF/record — no raw JSON lines.
-pub fn format_anamnese_antworten(json: &str) -> Vec<String> {
+pub fn format_anamnesis_answers(json: &str) -> Vec<String> {
     let trimmed = json.trim();
     if trimmed.is_empty() {
-        return vec!["(keine Angaben)".to_string()];
+        return vec!["(none recorded)".to_string()];
     }
 
     let Ok(Value::Object(root)) = serde_json::from_str::<Value>(trimmed) else {
@@ -61,37 +61,37 @@ pub fn format_anamnese_antworten(json: &str) -> Vec<String> {
 
     let mut lines: Vec<String> = Vec::new();
 
-    if let Some(v) = root.get("versicherungsstatus").and_then(Value::as_str) {
-        let t = v.trim();
+    if let Some(version) = root.get("insuranceStatus").and_then(Value::as_str) {
+        let t = version.trim();
         if !t.is_empty() {
-            lines.push(format!("Versicherungsstatus: {t}"));
+            lines.push(format!("Insurance status: {t}"));
         }
     }
-    if let Some(v) = root.get("krankenkasse").and_then(Value::as_str) {
-        let t = v.trim();
+    if let Some(version) = root.get("health_insurance").and_then(Value::as_str) {
+        let t = version.trim();
         if !t.is_empty() {
-            lines.push(format!("Krankenkasse / Versicherer: {t}"));
+            lines.push(format!("Health insurer: {t}"));
         }
     }
     if !lines.is_empty() {
         lines.push(String::new());
     }
 
-    if let Some(Value::Object(m)) = root.get("vorerkrankungen") {
-        push_section_map(&mut lines, "Vorerkrankungen", m);
+    if let Some(Value::Object(m)) = root.get("preExisting") {
+        push_section_map(&mut lines, "Pre-existing conditions", m);
     }
-    if let Some(Value::Object(m)) = root.get("medikation") {
-        push_section_map(&mut lines, "Medikation", m);
+    if let Some(Value::Object(m)) = root.get("medication") {
+        push_section_map(&mut lines, "Medication", m);
     }
-    if let Some(Value::Object(m)) = root.get("allergien") {
-        push_section_map(&mut lines, "Allergien / Unverträglichkeiten", m);
+    if let Some(Value::Object(m)) = root.get("allergies") {
+        push_section_map(&mut lines, "Allergies / intolerances", m);
     }
 
     while lines.last().map(|s| s.is_empty()).unwrap_or(false) {
         lines.pop();
     }
     if lines.is_empty() {
-        lines.push("(keine Angaben)".to_string());
+        lines.push("(none recorded)".to_string());
     }
     lines
 }
@@ -111,13 +111,13 @@ fn nested_str(obj: &serde_json::Map<String, Value>, group: &str, key: &str) -> S
 }
 
 fn push_label_line(lines: &mut Vec<String>, label: &str, value: &str) {
-    let v = value.trim();
-    if !v.is_empty() {
-        lines.push(format!("{label}: {v}"));
+    let version = value.trim();
+    if !version.is_empty() {
+        lines.push(format!("{label}: {version}"));
     }
 }
 
-fn is_untersuchung_v1(root: &serde_json::Map<String, Value>) -> bool {
+fn is_examination_v_1(root: &serde_json::Map<String, Value>) -> bool {
     root.get("version") == Some(&Value::from(1))
         || root.contains_key("chiefComplaint")
         || root.contains_key("psi")
@@ -126,8 +126,8 @@ fn is_untersuchung_v1(root: &serde_json::Map<String, Value>) -> bool {
         || root.contains_key("intraoral")
 }
 
-/// All fields from examination V1 (`ergebnisse` JSON) as PDF lines.
-fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
+/// All fields from examination V1 (`results` JSON) as PDF lines.
+fn examination_v_1_lines_from_json(json: &str) -> Vec<String> {
     let trimmed = json.trim();
     if trimmed.is_empty() {
         return Vec::new();
@@ -135,7 +135,7 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     let Ok(Value::Object(root)) = serde_json::from_str::<Value>(trimmed) else {
         return vec![trimmed.to_string()];
     };
-    if !is_untersuchung_v1(&root) {
+    if !is_examination_v_1(&root) {
         return vec![trimmed.to_string()];
     }
 
@@ -143,30 +143,30 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
 
     push_label_line(
         &mut lines,
-        "Hauptbeschwerde",
+        "Chief complaint",
         &str_field(&root, "chiefComplaint"),
     );
 
     let pain = str_field(&root, "painVas");
     let loc = str_field(&root, "painLocation");
     if !pain.is_empty() || !loc.is_empty() {
-        let schmerz = format!(
-            "Schmerz VAS {} {}",
+        let pain_line = format!(
+            "Pain VAS {} {}",
             if pain.is_empty() { "—" } else { &pain },
             loc
         )
         .trim()
         .to_string();
-        lines.push(format!("Schmerz: {schmerz}"));
+        lines.push(format!("Pain: {pain_line}"));
     }
 
     lines.push(String::new());
     lines.push("Extraoral".into());
     for (label, val) in [
-        ("Asymmetrie", nested_str(&root, "extraoral", "asymmetry")),
-        ("Lymphknoten", nested_str(&root, "extraoral", "lymphNodes")),
-        ("Kiefergelenk", nested_str(&root, "extraoral", "tmj")),
-        ("Muskulatur", nested_str(&root, "extraoral", "muscles")),
+        ("Asymmetry", nested_str(&root, "extraoral", "asymmetry")),
+        ("Lymph nodes", nested_str(&root, "extraoral", "lymphNodes")),
+        ("TMJ", nested_str(&root, "extraoral", "tmj")),
+        ("Muscles", nested_str(&root, "extraoral", "muscles")),
     ] {
         push_label_line(&mut lines, &format!("  {label}"), &val);
     }
@@ -174,10 +174,10 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     lines.push(String::new());
     lines.push("Intraoral".into());
     for (label, val) in [
-        ("Mukosa", nested_str(&root, "intraoral", "mucosa")),
-        ("Zunge", nested_str(&root, "intraoral", "tongue")),
+        ("Mucosa", nested_str(&root, "intraoral", "mucosa")),
+        ("Tongue", nested_str(&root, "intraoral", "tongue")),
         ("Gingiva", nested_str(&root, "intraoral", "gingiva")),
-        ("Speicheldrüsen", nested_str(&root, "intraoral", "salivary")),
+        ("Salivary glands", nested_str(&root, "intraoral", "salivary")),
     ] {
         push_label_line(&mut lines, &format!("  {label}"), &val);
     }
@@ -192,18 +192,18 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
             ("s5", "Sextant V"),
             ("s6", "Sextant VI"),
         ] {
-            let v = psi
+            let version = psi
                 .get(key)
                 .and_then(Value::as_str)
                 .map(|s| s.trim())
                 .unwrap_or("");
-            if !v.is_empty() {
-                psi_entries.push(format!("{label}: {v}"));
+            if !version.is_empty() {
+                psi_entries.push(format!("{label}: {version}"));
             }
         }
         if !psi_entries.is_empty() {
             lines.push(String::new());
-            lines.push("Parodontalstatus (PSI)".into());
+            lines.push("Periodontal status (PSI)".into());
             lines.extend(psi_entries);
         }
     }
@@ -213,19 +213,19 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     let hygiene = str_field(&root, "hygieneScore");
     if !bop.is_empty() || !plaque.is_empty() || !hygiene.is_empty() {
         lines.push(String::new());
-        lines.push("Parodontal — Kennzahlen".into());
+        lines.push("Periodontal metrics".into());
         push_label_line(&mut lines, "  BOP", &bop);
         push_label_line(&mut lines, "  Plaque-Index", &plaque);
-        push_label_line(&mut lines, "  Mundhygiene", &hygiene);
+        push_label_line(&mut lines, "  Oral hygiene", &hygiene);
     }
 
     lines.push(String::new());
-    lines.push("Funktion / Okklusion".into());
+    lines.push("Function / occlusion".into());
     for (label, val) in [
         ("CMD", nested_str(&root, "function", "cmd")),
         ("Bruxismus", nested_str(&root, "function", "bruxism")),
-        ("Schiene", nested_str(&root, "function", "splint")),
-        ("Notizen", nested_str(&root, "function", "notes")),
+        ("Splint", nested_str(&root, "function", "splint")),
+        ("Notes", nested_str(&root, "function", "notes")),
     ] {
         push_label_line(&mut lines, &format!("  {label}"), &val);
     }
@@ -234,14 +234,14 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
     let img_findings = nested_str(&root, "imaging", "findings");
     if !img_ordered.is_empty() || !img_findings.is_empty() {
         lines.push(String::new());
-        lines.push("Bildgebung".into());
-        push_label_line(&mut lines, "  Verordnet", &img_ordered);
-        push_label_line(&mut lines, "  Befund", &img_findings);
+        lines.push("Imaging".into());
+        push_label_line(&mut lines, "  Ordered", &img_ordered);
+        push_label_line(&mut lines, "  Finding", &img_findings);
     }
 
     lines.push(String::new());
-    push_label_line(&mut lines, "Diagnose", &str_field(&root, "diagnosis"));
-    push_label_line(&mut lines, "Therapieplan", &str_field(&root, "plan"));
+    push_label_line(&mut lines, "Diagnosis", &str_field(&root, "diagnosis"));
+    push_label_line(&mut lines, "Treatment plan", &str_field(&root, "plan"));
 
     while lines.last().map(|s| s.is_empty()).unwrap_or(false) {
         lines.pop();
@@ -250,35 +250,35 @@ fn untersuchung_v1_lines_from_json(json: &str) -> Vec<String> {
 }
 
 /// Full examination data for record PDF (multiline, all V1 fields).
-pub fn format_untersuchung_detail_lines(
-    beschwerden: Option<&str>,
-    ergebnisse_json: Option<&str>,
-    diagnose_spalte: Option<&str>,
+pub fn format_examination_detail_lines(
+    chief_complaint: Option<&str>,
+    results_json: Option<&str>,
+    diagnosis_spalte: Option<&str>,
 ) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
 
-    if let Some(b) = beschwerden.filter(|s| !s.trim().is_empty()) {
+    if let Some(b) = chief_complaint.filter(|s| !s.trim().is_empty()) {
         let t = normalize_whitespace_for_pdf(b);
         if !t.is_empty() && t != "—" {
-            push_label_line(&mut lines, "Beschwerden (Akte)", &t);
+            push_label_line(&mut lines, "Chief complaint (chart)", &t);
         }
     }
 
-    if let Some(json) = ergebnisse_json.filter(|s| !s.trim().is_empty()) {
+    if let Some(json) = results_json.filter(|s| !s.trim().is_empty()) {
         if !lines.is_empty() {
             lines.push(String::new());
         }
-        lines.extend(untersuchung_v1_lines_from_json(json));
+        lines.extend(examination_v_1_lines_from_json(json));
     }
 
-    if let Some(d) = diagnose_spalte.filter(|s| !s.trim().is_empty() && s.trim() != "-") {
+    if let Some(d) = diagnosis_spalte.filter(|s| !s.trim().is_empty() && s.trim() != "-") {
         let t = normalize_whitespace_for_pdf(d);
-        let already = lines.iter().any(|l| l.starts_with("Diagnose:"));
+        let already = lines.iter().any(|l| l.starts_with("Diagnosis:"));
         if !already && !t.is_empty() {
             if !lines.is_empty() {
                 lines.push(String::new());
             }
-            push_label_line(&mut lines, "Diagnose (Spalte)", &t);
+            push_label_line(&mut lines, "Diagnosis (column)", &t);
         }
     }
 
@@ -286,23 +286,23 @@ pub fn format_untersuchung_detail_lines(
         lines.pop();
     }
     if lines.is_empty() {
-        lines.push("(keine Untersuchungsdaten)".into());
+        lines.push("(no examination data)".into());
     }
     lines
 }
 
 /// Multiline cell text for the record table (line breaks between sections).
-pub fn format_untersuchung_for_akte_table(
-    beschwerden: Option<&str>,
-    ergebnisse_json: Option<&str>,
-    diagnose_spalte: Option<&str>,
+pub fn format_examination_for_chart_table(
+    chief_complaint: Option<&str>,
+    results_json: Option<&str>,
+    diagnosis_spalte: Option<&str>,
 ) -> String {
-    format_untersuchung_detail_lines(beschwerden, ergebnisse_json, diagnose_spalte).join("\n")
+    format_examination_detail_lines(chief_complaint, results_json, diagnosis_spalte).join("\n")
 }
 
-/// Short summary of examination V1 (`ergebnisse` JSON) for tables and prose.
-pub fn format_untersuchung_ergebnisse(json: &str) -> String {
-    let lines = untersuchung_v1_lines_from_json(json);
+/// Short summary of examination V1 (`results` JSON) for tables and prose.
+pub fn format_examination_results(json: &str) -> String {
+    let lines = examination_v_1_lines_from_json(json);
     if lines.is_empty() {
         return "—".to_string();
     }
@@ -344,25 +344,25 @@ fn normalize_whitespace_for_pdf(input: &str) -> String {
     lines.join("\n")
 }
 
-/// Wandelt Zell-/Feldtext um: strukturiertes JSON → lesbare Zeile(n).
+/// Convert cell/field text: structured JSON → readable line(s).
 pub fn plain_text_for_pdf(raw: &str) -> String {
     let t = raw.trim();
     if t.is_empty() {
         return "—".to_string();
     }
     let text = if t.starts_with('{') {
-        if let Ok(v) = serde_json::from_str::<Value>(t) {
-            if v.get("versicherungsstatus").is_some()
-                || v.get("allergien").is_some()
-                || v.get("vorerkrankungen").is_some()
+        if let Ok(version) = serde_json::from_str::<Value>(t) {
+            if version.get("insuranceStatus").is_some()
+                || version.get("allergies").is_some()
+                || version.get("preExisting").is_some()
             {
-                format_anamnese_antworten(t).join("\n")
-            } else if (v.get("version") == Some(&Value::from(1))
-                && v.get("chiefComplaint").is_some())
-                || v.get("psi").is_some()
-                || v.get("diagnosis").is_some()
+                format_anamnesis_answers(t).join("\n")
+            } else if (version.get("version") == Some(&Value::from(1))
+                && version.get("chiefComplaint").is_some())
+                || version.get("psi").is_some()
+                || version.get("diagnosis").is_some()
             {
-                format_untersuchung_ergebnisse(t)
+                format_examination_results(t)
             } else {
                 t.to_string()
             }
@@ -385,14 +385,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn anamnese_formats_sections_not_raw_json() {
+    fn anamnesis_formats_sections_not_raw_json() {
         let json =
-            r#"{"version":1,"versicherungsstatus":"GKV","allergien":{"medikamente":"Penicillin"}}"#;
-        let lines = format_anamnese_antworten(json);
+            r#"{"version":1,"insuranceStatus":"GKV","allergies":{"medications":"Penicillin"}}"#;
+        let lines = format_anamnesis_answers(json);
         let joined = lines.join("\n");
-        assert!(joined.contains("Versicherungsstatus: GKV"));
-        assert!(joined.contains("Medikamentenallergien: Penicillin"));
-        assert!(!joined.contains("\"allergien\""));
+        assert!(joined.contains("Insurance status: GKV"));
+        assert!(joined.contains("Medication allergies: Penicillin"));
+        assert!(!joined.contains("\"allergies\""));
     }
 
     #[test]
@@ -402,15 +402,15 @@ mod tests {
     }
 
     #[test]
-    fn untersuchung_summary_from_v1_json() {
+    fn examination_summary_from_v_1_json() {
         let json = r#"{"version":1,"chiefComplaint":"Schmerz","diagnosis":"Karies"}"#;
-        let s = format_untersuchung_ergebnisse(json);
-        assert!(s.contains("Hauptbeschwerde"));
+        let s = format_examination_results(json);
+        assert!(s.contains("Chief complaint"));
         assert!(s.contains("Karies"));
     }
 
     #[test]
-    fn untersuchung_detail_includes_psi_and_function() {
+    fn examination_detail_includes_psi_and_function() {
         let json = r#"{
             "version": 1,
             "chiefComplaint": "Empfindlichkeit",
@@ -421,26 +421,26 @@ mod tests {
             "diagnosis": "Gingivitis",
             "plan": "PZR"
         }"#;
-        let lines = format_untersuchung_detail_lines(None, Some(json), None);
+        let lines = format_examination_detail_lines(None, Some(json), None);
         let joined = lines.join("\n");
         for needle in [
-            "Parodontalstatus (PSI)",
+            "Periodontal status (PSI)",
             "Sextant I: 2",
             "Sextant III: 4",
             "BOP",
             "CMD: Klicken rechts",
             "Bruxismus: ja",
-            "Verordnet: OPG",
-            "Therapieplan: PZR",
+            "Ordered: OPG",
+            "Treatment plan: PZR",
         ] {
             assert!(joined.contains(needle), "missing {needle}");
         }
     }
 
     #[test]
-    fn untersuchung_for_akte_table_uses_newlines() {
+    fn examination_for_chart_table_uses_newlines() {
         let json = r#"{"version":1,"diagnosis":"Karies","psi":{"s2":"1"}}"#;
-        let cell = format_untersuchung_for_akte_table(None, Some(json), None);
+        let cell = format_examination_for_chart_table(None, Some(json), None);
         assert!(cell.contains('\n'));
         assert!(cell.contains("Sextant II: 1"));
     }

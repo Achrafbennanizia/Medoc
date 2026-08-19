@@ -2,7 +2,7 @@
 
 use axum::http::StatusCode;
 use medoc_e2e::harness::{slave_pubkey_b64, slave_signing_key, LanHarness};
-use medoc_e2e::port_client::{praxis_ticket_insert_entry, rezept_insert_entry};
+use medoc_e2e::port_client::{practice_ticket_insert_entry, prescription_insert_entry};
 use medoc_sync::repo::OutboxEntry;
 
 async fn pair_replica(lan: &mut LanHarness, jwt: &str, seed: u8, device_id: &str) -> String {
@@ -41,49 +41,49 @@ async fn push_one(lan: &mut LanHarness, token: &str, device_id: &str, entry: Out
 }
 
 #[tokio::test]
-async fn tier1_rezept_push_applies_on_master() {
+async fn tier_1_prescription_push_applies_on_master() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
-    let device = "tier1-rezept";
+    let device = "tier1-prescription";
     let token = pair_replica(&mut lan, &jwt, 51, device).await;
-    let id = "tier1-rezept-001";
-    let entry = rezept_insert_entry(
+    let id = "tier1-prescription-001";
+    let entry = prescription_insert_entry(
         device,
         1,
         id,
         "seed-pat-001",
-        "seed-arzt-001",
-        "Tier1 E2E Rezept",
+        "seed-physician-001",
+        "Tier1 E2E Prescription",
         "2026-06-02T12:00:00Z",
     );
     assert_eq!(push_one(&mut lan, &token, device, entry).await, 1);
-    let med: Option<String> = sqlx::query_scalar("SELECT medikament FROM rezept WHERE id = ?1")
+    let med: Option<String> = sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
         .bind(id)
         .fetch_optional(&lan.pool)
         .await
         .unwrap();
-    assert_eq!(med.as_deref(), Some("Tier1 E2E Rezept"));
+    assert_eq!(med.as_deref(), Some("Tier1 E2E Prescription"));
 }
 
 #[tokio::test]
-async fn tier1_praxis_ticket_push_applies_on_master() {
+async fn tier_1_practice_ticket_push_applies_on_master() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
     let device = "tier1-ticket";
     let token = pair_replica(&mut lan, &jwt, 52, device).await;
     let id = "tier1-ticket-001";
-    let entry = praxis_ticket_insert_entry(
+    let entry = practice_ticket_insert_entry(
         device,
         1,
         id,
         "seed-pat-001",
         "seed-rez-001",
-        "seed-arzt-001",
+        "seed-physician-001",
         "Tier1 ticket body",
         "2026-06-02T12:00:00Z",
     );
     assert_eq!(push_one(&mut lan, &token, device, entry).await, 1);
-    let body: Option<String> = sqlx::query_scalar("SELECT body FROM praxis_ticket WHERE id = ?1")
+    let body: Option<String> = sqlx::query_scalar("SELECT body FROM practice_ticket WHERE id = ?1")
         .bind(id)
         .fetch_optional(&lan.pool)
         .await
@@ -92,61 +92,61 @@ async fn tier1_praxis_ticket_push_applies_on_master() {
 }
 
 #[tokio::test]
-async fn tier1_attest_push_applies_on_master() {
+async fn tier_1_certificate_push_applies_on_master() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
-    let device = "tier1-attest";
+    let device = "tier1-certificate";
     let token = pair_replica(&mut lan, &jwt, 53, device).await;
-    let id = "tier1-attest-001";
+    let id = "tier1-certificate-001";
     let ts = "2026-06-02T12:00:00Z";
     let entry = OutboxEntry {
         id: format!("att-{device}-1"),
         device_id: device.into(),
         seq: 1,
-        entity_table: "attest".into(),
+        entity_table: "certificate".into(),
         entity_id: id.into(),
         op: "INSERT".into(),
         payload_json: format!(
-            r#"{{"id":"{id}","patient_id":"seed-pat-001","arzt_id":"seed-arzt-001","typ":"AU","inhalt":"Tier1 attest","gueltig_von":"2026-06-02","gueltig_bis":"2026-06-09","ausgestellt_am":"2026-06-02","created_at":"{ts}"}}"#
+            r#"{{"id":"{id}","patient_id":"seed-pat-001","physician_id":"seed-physician-001","kind":"AU","body_text":"Tier1 certificate","valid_from":"2026-06-02","valid_until":"2026-06-09","issued_at":"2026-06-02","created_at":"{ts}"}}"#
         ),
         created_at: ts.into(),
     };
     assert_eq!(push_one(&mut lan, &token, device, entry).await, 1);
-    let typ: Option<String> = sqlx::query_scalar("SELECT typ FROM attest WHERE id = ?1")
+    let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM certificate WHERE id = ?1")
         .bind(id)
         .fetch_optional(&lan.pool)
         .await
         .unwrap();
-    assert_eq!(typ.as_deref(), Some("AU"));
+    assert_eq!(kind.as_deref(), Some("AU"));
 }
 
 #[tokio::test]
-async fn tier1_leistung_push_applies_on_master() {
+async fn tier_1_service_item_push_applies_on_master() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
-    let device = "tier1-leistung";
+    let device = "tier1-service_item";
     let token = pair_replica(&mut lan, &jwt, 54, device).await;
-    let id = "tier1-leistung-001";
+    let id = "tier1-service_item-001";
     let ts = "2026-06-02T12:00:00Z";
     let entry = OutboxEntry {
         id: format!("lei-{device}-1"),
         device_id: device.into(),
         seq: 1,
-        entity_table: "leistung".into(),
+        entity_table: "service_item".into(),
         entity_id: id.into(),
         op: "INSERT".into(),
         payload_json: format!(
-            r#"{{"id":"{id}","name":"Tier1 Leistung","beschreibung":null,"kategorie":"GOZ","preis":45.0,"aktiv":true,"created_at":"{ts}","updated_at":"{ts}"}}"#
+            r#"{{"id":"{id}","name":"Tier1 ServiceItem","description":null,"category":"GOZ","price":45.0,"active":true,"created_at":"{ts}","updated_at":"{ts}"}}"#
         ),
         created_at: ts.into(),
     };
     assert_eq!(push_one(&mut lan, &token, device, entry).await, 1);
-    let name: Option<String> = sqlx::query_scalar("SELECT name FROM leistung WHERE id = ?1")
+    let name: Option<String> = sqlx::query_scalar("SELECT name FROM service_item WHERE id = ?1")
         .bind(id)
         .fetch_optional(&lan.pool)
         .await
         .unwrap();
-    assert_eq!(name.as_deref(), Some("Tier1 Leistung"));
+    assert_eq!(name.as_deref(), Some("Tier1 ServiceItem"));
 }
 
 #[tokio::test]
@@ -165,7 +165,7 @@ async fn tier1_in_app_notification_push_applies_on_master() {
         entity_id: id.into(),
         op: "INSERT".into(),
         payload_json: format!(
-            r#"{{"id":"{id}","user_id":"seed-arzt-001","kind":"SYNC","title":"Tier1","body":"hello","payload_json":null,"read_at":null,"created_at":"{ts}"}}"#
+            r#"{{"id":"{id}","user_id":"seed-physician-001","kind":"SYNC","title":"Tier1","body":"hello","payload_json":null,"read_at":null,"created_at":"{ts}"}}"#
         ),
         created_at: ts.into(),
     };

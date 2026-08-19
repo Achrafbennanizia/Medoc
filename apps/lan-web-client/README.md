@@ -15,7 +15,7 @@ cargo run -p medoc-lan-server
 ## Architecture
 
 - **Transport:** `HttpPracticeAdapter` via `src/practice-http-shim.ts` (Vite alias replaces Tauri adapters).
-- **Features:** login, session restore, patient list + detail, termine by date, own profile (`/me`), logout.
+- **Features:** login, session restore, patient list + detail, appointments by date, own profile (`/me`), logout.
 - **Packages:** `@medoc/system-practice`, `@medoc/system-lan`, `@medoc/shared`, `@medoc/ui`.
 - **Styles:** reuses `apps/practice-host-ui/src/index.css`.
 

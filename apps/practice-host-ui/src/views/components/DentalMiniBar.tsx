@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Behandlung, Zahnbefund } from "@/models/types";
+import type { Treatment, DentalFinding } from "@/models/types";
 import { useT, useTParams } from "@/lib/i18n";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
@@ -11,9 +11,9 @@ import {
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
     type DentalStatusKey,
-    befundToStatusKey,
-    befundeForTooth,
-    behandlungenForTooth,
+    findingToStatusKey,
+    findingsForTooth,
+    treatmentsForTooth,
     dentalStatusLabel,
     dentalToothType,
 } from "@/lib/dental";
@@ -29,17 +29,17 @@ type PopState = {
 };
 
 type DentalMiniBarProps = {
-    befunde: Zahnbefund[];
-    behandlungen: Behandlung[];
+    findings: DentalFinding[];
+    treatments: Treatment[];
     /** When false, render nothing (e.g. non-clinical role). */
     visible?: boolean;
 };
 
 /**
  * Compact two-row FDI odontogram for patient header.
- * Hover shows diagnoses (Zahnbefunde) and treatments (Behandlungen) for that tooth.
+ * Hover shows diagnoses (DentalFindings) and treatments (Treatments) for that tooth.
  */
-export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalMiniBarProps) {
+export function DentalMiniBar({ findings, treatments, visible = true }: DentalMiniBarProps) {
     const t = useT();
     const tp = useTParams();
     const [pop, setPop] = useState<PopState | null>(null);
@@ -82,13 +82,13 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
 
     const map = useMemo(() => {
         const m = new Map<number, string>();
-        befunde.forEach((b) => m.set(b.zahn_nummer, b.befund));
+        findings.forEach((b) => m.set(b.tooth_number, b.finding));
         return m;
-    }, [befunde]);
+    }, [findings]);
 
-    const popBefunde = pop ? befundeForTooth(befunde, pop.fdi) : [];
-    const popBehand = pop ? behandlungenForTooth(behandlungen, pop.fdi) : [];
-    const popStatus: DentalStatusKey = pop ? befundToStatusKey(map.get(Number(pop.fdi))) : "healthy";
+    const popFindings = pop ? findingsForTooth(findings, pop.fdi) : [];
+    const popTreatment = pop ? treatmentsForTooth(treatments, pop.fdi) : [];
+    const popStatus: DentalStatusKey = pop ? findingToStatusKey(map.get(Number(pop.fdi))) : "healthy";
     const popLayout = useMemo(() => {
         if (!pop) return { left: 0, top: 0, width: 280, maxHeight: 360, placement: "below" as const };
         const safety = 12; // outer margin to the viewport edges
@@ -115,9 +115,9 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
     const renderMini = (fdi: string) => {
         const type = dentalToothType(fdi);
         const shape = DENTAL_TOOTH_SHAPES[type];
-        const stateKey = befundToStatusKey(map.get(Number(fdi)));
+        const stateKey = findingToStatusKey(map.get(Number(fdi)));
         const st = DENTAL_STATES[stateKey];
-        const hasHistory = befundeForTooth(befunde, fdi).length > 0 || behandlungenForTooth(behandlungen, fdi).length > 0;
+        const hasHistory = findingsForTooth(findings, fdi).length > 0 || treatmentsForTooth(treatments, fdi).length > 0;
         return (
             <div
                 key={fdi}
@@ -158,15 +158,15 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
             <div className="tooth-popover-meta">{dentalStatusLabel(t, popStatus)}</div>
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">{t("dental.mini.findings_heading")}</div>
-                {popBefunde.length === 0 ? (
+                {popFindings.length === 0 ? (
                     <div className="tooth-popover-empty">{t("dental.mini.no_findings")}</div>
                 ) : (
                     <ul className="tooth-popover-list">
-                        {popBefunde.map((b) => (
+                        {popFindings.map((b) => (
                             <li key={b.id}>
-                                <span className="tooth-popover-pill">{b.befund}</span>
-                                {b.diagnose ? <span className="tooth-popover-sub">{b.diagnose}</span> : null}
-                                {b.notizen ? <span className="tooth-popover-sub">{b.notizen}</span> : null}
+                                <span className="tooth-popover-pill">{b.finding}</span>
+                                {b.diagnosis ? <span className="tooth-popover-sub">{b.diagnosis}</span> : null}
+                                {b.notes ? <span className="tooth-popover-sub">{b.notes}</span> : null}
                                 <span className="tooth-popover-date">{formatDateTime(b.created_at)}</span>
                             </li>
                         ))}
@@ -175,16 +175,16 @@ export function DentalMiniBar({ befunde, behandlungen, visible = true }: DentalM
             </div>
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">{t("dental.mini.treatments_heading")}</div>
-                {popBehand.length === 0 ? (
+                {popTreatment.length === 0 ? (
                     <div className="tooth-popover-empty">{t("dental.mini.no_treatments")}</div>
                 ) : (
                     <ul className="tooth-popover-list">
-                        {popBehand.map((b) => (
+                        {popTreatment.map((b) => (
                             <li key={b.id}>
-                                <strong>{b.leistungsname || b.art}</strong>
-                                {b.kategorie ? <span className="tooth-popover-sub">{b.kategorie}</span> : null}
+                                <strong>{b.service_name || b.kind}</strong>
+                                {b.category ? <span className="tooth-popover-sub">{b.category}</span> : null}
                                 <span className="tooth-popover-date">
-                                    {b.behandlung_datum ? formatDate(b.behandlung_datum) : formatDateTime(b.created_at)}
+                                    {b.treatment_date ? formatDate(b.treatment_date) : formatDateTime(b.created_at)}
                                 </span>
                             </li>
                         ))}

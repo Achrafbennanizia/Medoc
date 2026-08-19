@@ -1,77 +1,77 @@
-import type { AkteCompletenessGap } from "@/lib/akte-completeness";
+import type { ChartCompletenessGap } from "@/lib/chart-completeness";
 import { CalendarIcon, EditIcon, ExportIcon, ICON_SIZE_MD, MailIcon, PhoneIcon, PinIcon, ShieldCheckIcon } from "@/lib/icons";
-import { WorkspacePageHeader } from "@/views/components/verwaltung-page-header";
-import { emptyPlanNextTermin, planNextHasContent, type PlanNextTerminV2 } from "@/lib/plan-next-termin";
-import { alterAusGeburtsdatum } from "@/lib/patient-detail-utils";
-import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
-import type { ValidationRecord } from "@/lib/akte-validation";
-import type { PatientStatus, Patient, Patientenakte, Zahnbefund, Behandlung, Untersuchung, Zahlung, Rolle } from "@/models/types";
+import { WorkspacePageHeader } from "@/views/components/administration-page-header";
+import { emptyPlanNextAppointment, planNextHasContent, type PlanNextAppointmentV2 } from "@/lib/plan-next-appointment";
+import { alterAusDateOfBirth } from "@/lib/patient-detail-utils";
+import type { PatientDetailChartTab } from "@/lib/patient-detail-utils";
+import type { ValidationRecord } from "@/lib/chart-validation";
+import type { PatientStatus, Patient, PatientChart, DentalFinding, Treatment, Examination, Payment, Role } from "@/models/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { DentalMiniBar } from "@/views/components/DentalMiniBar";
-import { PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED } from "@/lib/v1-ui-flags";
-import { AkteEditFormOrInline, ConfirmOrInline } from "@/views/components/akte-confirm-presentation";
+import { PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED } from "@/lib/v1-ui-flags";
+import { ChartEditFormOrInline, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
 import { useT, useTParams } from "@/lib/i18n";
 
-export type PatientStammEditForm = {
+export type PatientMasterEditForm = {
     name: string;
-    telefon: string;
+    phone: string;
     email: string;
-    adresse: string;
+    address: string;
 };
 
 export type PatientDetailShellHeaderProps = {
     patient: Patient;
     validationPendingTotal: number;
-    completenessGaps: AkteCompletenessGap[];
-    validationStamm: ValidationRecord | undefined;
+    completenessGaps: ChartCompletenessGap[];
+    validationMaster: ValidationRecord | undefined;
     canWriteMedical: boolean;
     showPlanTip: boolean;
-    planNext: PlanNextTerminV2;
+    planNext: PlanNextAppointmentV2;
     canViewClinical: boolean;
-    role: Rolle | null;
+    role: Role | null;
     patientId: string;
-    akte: Patientenakte | null;
-    befunde: Zahnbefund[];
-    behandlungen: Behandlung[];
-    untersuchungen: Untersuchung[];
-    zahlungen: Zahlung[];
+    chart: PatientChart | null;
+    findings: DentalFinding[];
+    treatments: Treatment[];
+    examinations: Examination[];
+    payments: Payment[];
     patientDeleteOpen: boolean;
     patientDeleteBusy: boolean;
     showEditPatient: boolean;
-    editForm: PatientStammEditForm;
-    onEditFormChange: (patch: Partial<PatientStammEditForm>) => void;
+    editForm: PatientMasterEditForm;
+    onEditFormChange: (patch: Partial<PatientMasterEditForm>) => void;
     onOpenEdit: () => void;
     onOpenDelete: () => void;
     onCloseDelete: () => void;
     onConfirmDelete: () => void | Promise<void>;
     onCloseEdit: () => void;
     onSavePatient: () => void | Promise<void>;
-    onValidateStamm: () => void | Promise<void>;
-    onRevokeStammValidation: () => void | Promise<void>;
+    onValidateMaster: () => void | Promise<void>;
+    onRevokeMasterValidation: () => void | Promise<void>;
     onNavigateBack: () => void;
     onTogglePlanTip: () => void;
-    onPersistPlanNext: (next: PlanNextTerminV2) => void;
+    onPersistPlanNext: (next: PlanNextAppointmentV2) => void;
     onOpenExport: () => void;
     onOpenTicket: () => void;
-    onOpenAufgabe: () => void;
+    onOpenTask: () => void;
     onOpenForward: () => void;
-    onOpenDischargeMerkblatt: () => void;
-    onOpenTermin: () => void;
-    onGoTab: (tab: PatientDetailAkteTab) => void;
+    onOpenDischargeLeaflet: () => void;
+    onOpenAppointment: () => void;
+    onGoTab: (tab: PatientDetailChartTab) => void;
 };
 
 function patientStatusLabel(status: PatientStatus, tr: (key: string) => string): string {
     switch (status) {
-        case "NEU":
-            return tr("enum.patient_status.neu");
-        case "AKTIV":
-            return tr("enum.patient_status.aktiv");
-        case "VALIDIERT":
-            return tr("enum.patient_status.validiert");
+        case "NEW":
+            return tr("enum.patient_status.new");
+        case "ACTIVE":
+            return tr("enum.patient_status.active");
+        case "VALIDATED":
+            return tr("enum.patient_status.validated");
         case "READONLY":
             return tr("enum.patient_status.readonly");
         default:
@@ -83,18 +83,18 @@ export function PatientDetailShellHeader({
     patient,
     validationPendingTotal,
     completenessGaps,
-    validationStamm,
+    validationMaster,
     canWriteMedical,
     showPlanTip,
     planNext,
     canViewClinical,
     role,
     patientId,
-    akte,
-    befunde,
-    behandlungen,
-    untersuchungen: _untersuchungen,
-    zahlungen,
+    chart,
+    findings,
+    treatments,
+    examinations: _examinations,
+    payments,
     patientDeleteOpen,
     patientDeleteBusy,
     showEditPatient,
@@ -106,17 +106,17 @@ export function PatientDetailShellHeader({
     onConfirmDelete,
     onCloseEdit,
     onSavePatient,
-    onValidateStamm,
-    onRevokeStammValidation,
+    onValidateMaster,
+    onRevokeMasterValidation,
     onNavigateBack,
     onTogglePlanTip,
     onPersistPlanNext,
     onOpenExport,
     onOpenTicket,
-    onOpenAufgabe,
+    onOpenTask,
     onOpenForward,
-    onOpenDischargeMerkblatt,
-    onOpenTermin,
+    onOpenDischargeLeaflet,
+    onOpenAppointment,
     onGoTab,
 }: PatientDetailShellHeaderProps) {
     const t = useT();
@@ -202,7 +202,7 @@ export function PatientDetailShellHeader({
                         <ExportIcon size={ICON_SIZE_MD} />
                         {t("patient.detail.header.export_button")}
                     </button>
-                    {role === "REZEPTION" ? (
+                    {role === "RECEPTION" ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
@@ -212,18 +212,18 @@ export function PatientDetailShellHeader({
                             {t("patient.detail.header.ticket_doctor_button")}
                         </button>
                     ) : null}
-                    {/* MVP blind — Task to reception / Request review / Discharge sheet (`PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED`) */}
-                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && role === "ARZT" ? (
+                    {/* MVP blind — Task to reception / Request review / Discharge sheet (`PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED`) */}
+                    {PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED && role === "PHYSICIAN" ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
-                            onClick={onOpenAufgabe}
+                            onClick={onOpenTask}
                             title={t("patient.detail.header.task_reception_title")}
                         >
                             {t("patient.detail.header.task_reception_button")}
                         </button>
                     ) : null}
-                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && (role === "ARZT" || role === "REZEPTION") ? (
+                    {PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED && (role === "PHYSICIAN" || role === "RECEPTION") ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
@@ -233,20 +233,20 @@ export function PatientDetailShellHeader({
                             {t("patient.detail.header.review_request_button")}
                         </button>
                     ) : null}
-                    {PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED && canViewClinical ? (
+                    {PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED && canViewClinical ? (
                         <button
                             type="button"
                             className="btn btn-subtle"
-                            onClick={onOpenDischargeMerkblatt}
+                            onClick={onOpenDischargeLeaflet}
                             disabled={!patientId}
                             title={t("patient.detail.header.discharge_title")}
                         >
                             {t("patient.detail.header.discharge_button")}
                         </button>
                     ) : null}
-                    <button type="button" className="btn btn-accent" onClick={onOpenTermin}>
+                    <button type="button" className="btn btn-accent" onClick={onOpenAppointment}>
                         <CalendarIcon size={ICON_SIZE_MD} />
-                        {t("patient.detail.header.termin_button")}
+                        {t("patient.detail.header.appointment_button")}
                     </button>
                 </div>
                 }
@@ -258,7 +258,7 @@ export function PatientDetailShellHeader({
                     ariaLabel={t("patient.detail.header.completeness.aria")}
                     title={t("patient.detail.header.completeness.title")}
                     subtitle={t("patient.detail.header.completeness.subtitle")}
-                    dismissKey={`akte-gaps-${patientId}-${completenessGaps.map((g) => g.id).sort().join("-")}`}
+                    dismissKey={`chart-gaps-${patientId}-${completenessGaps.map((g) => g.id).sort().join("-")}`}
                     actions={
                         <>
                             {completenessGaps.map((g) =>
@@ -267,7 +267,7 @@ export function PatientDetailShellHeader({
                                         key={g.id}
                                         type="button"
                                         className="btn btn-subtle btn-sm"
-                                        onClick={() => onGoTab(g.tab as PatientDetailAkteTab)}
+                                        onClick={() => onGoTab(g.tab as PatientDetailChartTab)}
                                     >
                                         {g.label}
                                     </button>
@@ -297,25 +297,25 @@ export function PatientDetailShellHeader({
                         <div className="patient-hero-identity-text">
                             <h2 className="patient-hero-name">{patient.name}</h2>
                             <div className="patient-hero-badges">
-                                {patient.status === "NEU" ? (
-                                    <span title={t("patient.status.neu.explanation")}>
+                                {patient.status === "NEW" ? (
+                                    <span title={t("patient.status.new.explanation")}>
                                         <Badge variant="primary">{patientStatusLabel(patient.status, t)}</Badge>
                                     </span>
                                 ) : (
                                     <Badge variant="primary">{patientStatusLabel(patient.status, t)}</Badge>
                                 )}
-                                {zahlungen.some(
+                                {payments.some(
                                     (z) =>
-                                        z.patient_id === patient.id && (z.status === "AUSSTEHEND" || z.status === "TEILBEZAHLT"),
+                                        z.patient_id === patient.id && (z.status === "OUTSTANDING" || z.status === "PARTIALLY_PAID"),
                                 ) ? (
                                     <Badge variant="warning">{t("patient.detail.header.badge.invoice_open")}</Badge>
                                 ) : null}
                             </div>
                         </div>
                     </div>
-                    {canViewClinical && akte ? (
+                    {canViewClinical && chart ? (
                         <div className="patient-hero-dental">
-                            <DentalMiniBar befunde={befunde} behandlungen={behandlungen} visible />
+                            <DentalMiniBar findings={findings} treatments={treatments} visible />
                         </div>
                     ) : null}
                 </div>
@@ -323,9 +323,9 @@ export function PatientDetailShellHeader({
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.birthday")}>
                         <CalendarIcon size={12} aria-hidden />
                         <span className="patient-hero-contact__text">
-                            {formatDate(patient.geburtsdatum)}
+                            {formatDate(patient.date_of_birth)}
                             {(() => {
-                                const alter = alterAusGeburtsdatum(patient.geburtsdatum);
+                                const alter = alterAusDateOfBirth(patient.date_of_birth);
                                 return alter != null ? (
                                     <>
                                         <span className="patient-hero-contact__sep"> · </span>
@@ -337,38 +337,38 @@ export function PatientDetailShellHeader({
                     </span>
                     <span className="patient-hero-contact" title={t("common.phone")}>
                         <PhoneIcon size={12} aria-hidden />
-                        <span className="patient-hero-contact__text">{patient.telefon || "—"}</span>
+                        <span className="patient-hero-contact__text">{patient.phone || "—"}</span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.email_insurance")}>
                         <MailIcon size={12} aria-hidden />
                         <span className="patient-hero-contact__text">
                             {patient.email || "—"}
-                            {patient.versicherungsnummer ? (
+                            {patient.insurance_number ? (
                                 <>
                                     <span className="patient-hero-contact__sep"> · </span>
-                                    {t("patient.detail.header.insurance_prefix")} {patient.versicherungsnummer}
+                                    {t("patient.detail.header.insurance_prefix")} {patient.insurance_number}
                                 </>
                             ) : null}
                         </span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.gender")}>
-                        <span className="patient-hero-contact__text">{patient.geschlecht || "—"}</span>
+                        <span className="patient-hero-contact__text">{patient.sex || "—"}</span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.address")}>
                         <PinIcon size={12} aria-hidden />
-                        <span className="patient-hero-contact__text">{patient.adresse || "—"}</span>
+                        <span className="patient-hero-contact__text">{patient.address || "—"}</span>
                     </span>
                 </div>
                 <div className="patient-hero-actions">
                     <div className="patient-hero-actions__hint">
-                        {validationStamm ? (
+                        {validationMaster ? (
                             <span className="card-sub">
-                                {tp("patient.detail.header.stamm_validated", {
-                                    datetime: formatDateTime(validationStamm.validatedAt),
+                                {tp("patient.detail.header.master_validated", {
+                                    datetime: formatDateTime(validationMaster.validatedAt),
                                 })}
                             </span>
                         ) : canViewClinical ? (
-                            <span className="card-sub">{t("patient.detail.header.stamm_pending")}</span>
+                            <span className="card-sub">{t("patient.detail.header.master_pending")}</span>
                         ) : null}
                     </div>
                     <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -377,12 +377,12 @@ export function PatientDetailShellHeader({
                             {t("common.edit")}
                         </Button>
                         {canViewClinical ? (
-                            validationStamm ? (
-                                <Button size="sm" variant="ghost" onClick={() => void onRevokeStammValidation()}>
+                            validationMaster ? (
+                                <Button size="sm" variant="ghost" onClick={() => void onRevokeMasterValidation()}>
                                     {t("patient.detail.header.revoke_validation")}
                                 </Button>
                             ) : (
-                                <Button size="sm" variant="primary" onClick={() => void onValidateStamm()}>
+                                <Button size="sm" variant="primary" onClick={() => void onValidateMaster()}>
                                     <ShieldCheckIcon size={ICON_SIZE_MD} />
                                     {t("patient.detail.header.validate")}
                                 </Button>
@@ -390,7 +390,7 @@ export function PatientDetailShellHeader({
                         ) : null}
                         {canWriteMedical ? (
                             <Button size="sm" variant="danger" onClick={onOpenDelete}>
-                                {t("patient.detail.header.delete_akte")}
+                                {t("patient.detail.header.delete_chart")}
                             </Button>
                         ) : null}
                     </div>
@@ -398,7 +398,7 @@ export function PatientDetailShellHeader({
             </div>
             {patientDeleteOpen && canWriteMedical ? (
                 <ConfirmOrInline
-                    area="patient_akte_patient_delete"
+                    area="patient_chart_patient_delete"
                     open={patientDeleteOpen && canWriteMedical}
                     inlineId="ak-patient-delete-panel"
                     title={t("patient.detail.header.delete_confirm.title")}
@@ -411,8 +411,8 @@ export function PatientDetailShellHeader({
                 />
             ) : null}
             {showEditPatient ? (
-                <AkteEditFormOrInline
-                    area="patient_akte_patient_edit"
+                <ChartEditFormOrInline
+                    area="patient_chart_patient_edit"
                     open={showEditPatient}
                     onClose={onCloseEdit}
                     title={t("patient.detail.header.edit.title")}
@@ -439,8 +439,8 @@ export function PatientDetailShellHeader({
                     <Input
                         id="ed-tel"
                         label={t("common.phone")}
-                        value={editForm.telefon}
-                        onChange={(e) => onEditFormChange({ telefon: e.target.value })}
+                        value={editForm.phone}
+                        onChange={(e) => onEditFormChange({ phone: e.target.value })}
                     />
                     <Input
                         id="ed-mail"
@@ -451,10 +451,10 @@ export function PatientDetailShellHeader({
                     <Textarea
                         id="ed-addr"
                         label={t("patient.detail.header.contact.address")}
-                        value={editForm.adresse}
-                        onChange={(e) => onEditFormChange({ adresse: e.target.value })}
+                        value={editForm.address}
+                        onChange={(e) => onEditFormChange({ address: e.target.value })}
                     />
-                </AkteEditFormOrInline>
+                </ChartEditFormOrInline>
             ) : null}
         </>
     );
@@ -466,9 +466,9 @@ function PlanNextTipCard({
     onPersistPlanNext,
     onClose,
 }: {
-    planNext: PlanNextTerminV2;
+    planNext: PlanNextAppointmentV2;
     canViewClinical: boolean;
-    onPersistPlanNext: (next: PlanNextTerminV2) => void;
+    onPersistPlanNext: (next: PlanNextAppointmentV2) => void;
     onClose: () => void;
 }) {
     const t = useT();
@@ -487,7 +487,7 @@ function PlanNextTipCard({
                     id="plan-urgency"
                     label={t("patient.detail.plan_next.urgency")}
                     value={planNext.urgency}
-                    onChange={(e) => onPersistPlanNext({ ...planNext, urgency: e.target.value as PlanNextTerminV2["urgency"] })}
+                    onChange={(e) => onPersistPlanNext({ ...planNext, urgency: e.target.value as PlanNextAppointmentV2["urgency"] })}
                     options={[
                         { value: "routine", label: t("patient.detail.plan_next.urgency.routine") },
                         { value: "bald", label: t("patient.detail.plan_next.urgency.soon") },
@@ -495,17 +495,17 @@ function PlanNextTipCard({
                     ]}
                 />
                 <Select
-                    id="plan-art"
-                    label={t("patient.detail.plan_next.art_hint")}
-                    value={planNext.terminArtHint}
-                    onChange={(e) => onPersistPlanNext({ ...planNext, terminArtHint: e.target.value })}
+                    id="plan-kind"
+                    label={t("patient.detail.plan_next.kind_hint")}
+                    value={planNext.appointmentKindHint}
+                    onChange={(e) => onPersistPlanNext({ ...planNext, appointmentKindHint: e.target.value })}
                     options={[
-                        { value: "", label: t("patient.detail.plan_next.art_open") },
-                        { value: "KONTROLLE", label: t("termin.art.KONTROLLE") },
-                        { value: "BEHANDLUNG", label: t("termin.art.BEHANDLUNG") },
-                        { value: "UNTERSUCHUNG", label: t("termin.art.UNTERSUCHUNG") },
-                        { value: "BERATUNG", label: t("termin.art.BERATUNG") },
-                        { value: "ERSTBESUCH", label: t("termin.art.ERSTBESUCH") },
+                        { value: "", label: t("patient.detail.plan_next.kind_open") },
+                        { value: "CHECKUP", label: t("appointment.kind.CHECKUP") },
+                        { value: "TREATMENT", label: t("appointment.kind.TREATMENT") },
+                        { value: "EXAMINATION", label: t("appointment.kind.EXAMINATION") },
+                        { value: "CONSULTATION", label: t("appointment.kind.CONSULTATION") },
+                        { value: "FIRST_VISIT", label: t("appointment.kind.FIRST_VISIT") },
                     ]}
                 />
                 <Input
@@ -568,7 +568,7 @@ function PlanNextTipCard({
             </details>
             <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
                 {planNextHasContent(planNext) ? (
-                    <Button size="sm" variant="ghost" onClick={() => onPersistPlanNext(emptyPlanNextTermin())}>
+                    <Button size="sm" variant="ghost" onClick={() => onPersistPlanNext(emptyPlanNextAppointment())}>
                         {t("patient.detail.plan_next.clear")}
                     </Button>
                 ) : null}

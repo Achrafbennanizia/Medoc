@@ -12,7 +12,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
 use http_body_util::BodyExt;
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::enums::Geschlecht;
+use medoc_core::domain::enums::Sex;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
 use medoc_core::infrastructure::license_repo;
@@ -88,18 +88,18 @@ pub async fn seed_test_master_license(pool: &SqlitePool) {
         .expect("store license");
 }
 
-/// Seed demo Arzt TOTP so LAN login accepts code `123456` (enrollment uses fixed test path).
-pub async fn enroll_seed_arzt_totp(pool: &SqlitePool) {
+/// Seed demo Physician TOTP so LAN login accepts code `123456` (enrollment uses fixed test path).
+pub async fn enroll_seed_physician_totp(pool: &SqlitePool) {
     if !medoc_core::mvp_security::TOTP_2FA_ENABLED {
         return;
     }
-    use medoc_core::infrastructure::database::personal_repo;
+    use medoc_core::infrastructure::database::staff_repo;
     use medoc_core::infrastructure::totp;
-    let (secret, _) = totp::generate_enrollment("ahmed@praxis.de").expect("totp enroll");
-    personal_repo::set_totp_pending_secret(pool, "seed-arzt-001", &secret)
+    let (secret, _) = totp::generate_enrollment("ahmed@practice.de").expect("totp enroll");
+    staff_repo::set_totp_pending_secret(pool, "seed-physician-001", &secret)
         .await
         .expect("pending totp");
-    personal_repo::confirm_totp_enrollment(pool, "seed-arzt-001")
+    staff_repo::confirm_totp_enrollment(pool, "seed-physician-001")
         .await
         .expect("confirm totp");
 }
@@ -116,10 +116,10 @@ pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
         .await
         .expect("init_db_headless");
     seed_test_master_license(&pool).await;
-    enroll_seed_arzt_totp(&pool).await;
+    enroll_seed_physician_totp(&pool).await;
     let portal_cfg = serde_json::json!({
         "base_url": "",
-        "practice_slug": "demo-praxis",
+        "practice_slug": "demo-practice",
         "api_key": ""
     });
     medoc_core::infrastructure::database::app_kv_repo::set(
@@ -145,12 +145,12 @@ pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
         &pool,
         &CreatePatient {
             name: PORT_MASTER_SEED_PATIENT_NAME.into(),
-            geburtsdatum: NaiveDate::from_ymd_opt(1985, 4, 21).unwrap(),
-            geschlecht: Geschlecht::Weiblich,
-            versicherungsnummer: "V-PORT-PULL-1".into(),
-            telefon: None,
+            date_of_birth: NaiveDate::from_ymd_opt(1985, 4, 21).unwrap(),
+            sex: Sex::Female,
+            insurance_number: "V-PORT-PULL-1".into(),
+            phone: None,
             email: None,
-            adresse: None,
+            address: None,
         },
     )
     .await
@@ -429,9 +429,9 @@ impl LanHarness {
     pub fn ops_jwt(&self) -> String {
         medoc_lan::jwt::issue_token(
             self.jwt_secret.as_ref(),
-            "seed-arzt-001",
-            "ahmed@praxis.de",
-            "ARZT",
+            "seed-physician-001",
+            "ahmed@practice.de",
+            "PHYSICIAN",
         )
         .expect("issue jwt")
     }
@@ -467,8 +467,8 @@ impl LanHarness {
                 "POST",
                 "/api/v1/auth/login",
                 Some(&serde_json::json!({
-                    "email": "ahmed@praxis.de",
-                    "passwort": "passwort123",
+                    "email": "ahmed@practice.de",
+                    "password": "password123",
                     "totp_code": totp_code
                 })),
                 None,

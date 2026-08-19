@@ -8,7 +8,7 @@ Definiert die Systemfunktionalität aus Benutzersicht. Zeigt Akteure (4 Rollen) 
 ```mermaid
 graph TB
     subgraph Akteure
-        ARZT["🩺 Arzt"]
+        PHYSICIAN["🩺 Arzt"]
         REZ["📋 Rezeption"]
         STB["📊 Steuerberater"]
         PHB["💊 Pharmaberater"]
@@ -61,12 +61,12 @@ graph TB
         end
     end
 
-    ARZT --> UC_TERM_1 & UC_TERM_2 & UC_TERM_3 & UC_TERM_5
-    ARZT --> UC_PAT_1 & UC_PAT_2 & UC_PAT_3 & UC_PAT_4
-    ARZT --> UC_MED_1 & UC_MED_2 & UC_MED_3 & UC_MED_4 & UC_MED_5 & UC_MED_6
-    ARZT --> UC_FIN_1 & UC_FIN_2 & UC_FIN_3 & UC_FIN_4
-    ARZT --> UC_LEIST_1 & UC_PROD_1 & UC_PROD_2
-    ARZT --> UC_ADM_1 & UC_ADM_2 & UC_ADM_3 & UC_ADM_4 & UC_ADM_5
+    PHYSICIAN --> UC_TERM_1 & UC_TERM_2 & UC_TERM_3 & UC_TERM_5
+    PHYSICIAN --> UC_PAT_1 & UC_PAT_2 & UC_PAT_3 & UC_PAT_4
+    PHYSICIAN --> UC_MED_1 & UC_MED_2 & UC_MED_3 & UC_MED_4 & UC_MED_5 & UC_MED_6
+    PHYSICIAN --> UC_FIN_1 & UC_FIN_2 & UC_FIN_3 & UC_FIN_4
+    PHYSICIAN --> UC_LEIST_1 & UC_PROD_1 & UC_PROD_2
+    PHYSICIAN --> UC_ADM_1 & UC_ADM_2 & UC_ADM_3 & UC_ADM_4 & UC_ADM_5
 
     REZ --> UC_TERM_1 & UC_TERM_2 & UC_TERM_3
     REZ --> UC_PAT_1 & UC_PAT_2 & UC_PAT_3 & UC_PAT_4
@@ -118,8 +118,8 @@ graph TB
 | Feld | Beschreibung |
 |------|-------------|
 | **Akteur** | Arzt (exklusiv) |
-| **Vorbedingung** | Akte Status = IN_BEARBEITUNG |
-| **Hauptszenario** | 1. Akte öffnen 2. Alle Befunde prüfen 3. Validierung bestätigen 4. Status → VALIDIERT |
+| **Vorbedingung** | Akte Status = IN_PROGRESS |
+| **Hauptszenario** | 1. Akte öffnen 2. Alle Befunde prüfen 3. Validierung bestätigen 4. Status → VALIDATED |
 | **Nachbedingung** | Akte validiert, validiertVon und validiertAm gesetzt, Audit-Log |
 
 ### UC-16: Zahlung erfassen
@@ -129,14 +129,14 @@ graph TB
 | **Akteur** | Arzt, Rezeption |
 | **Vorbedingung** | Patient existiert |
 | **Hauptszenario** | 1. Patient wählen 2. Optional Leistung zuordnen (Preis wird übernommen) 3. Betrag eingeben/bestätigen 4. Zahlungsart wählen 5. Speichern |
-| **Nachbedingung** | Zahlung mit Status OFFEN gespeichert, Audit-Log |
+| **Nachbedingung** | Zahlung mit Status OPEN gespeichert, Audit-Log |
 
 ### UC-25: Audit-Log einsehen
 
 | Feld | Beschreibung |
 |------|-------------|
 | **Akteur** | Arzt (exklusiv) |
-| **Vorbedingung** | Rolle = ARZT |
+| **Vorbedingung** | Rolle = PHYSICIAN |
 | **Hauptszenario** | 1. Audit-Log öffnen 2. Chronologische Liste aller Aktionen 3. Filter nach Benutzer/Aktion/Entität |
 | **Nachbedingung** | Audit-Einträge angezeigt (max 100) |
 

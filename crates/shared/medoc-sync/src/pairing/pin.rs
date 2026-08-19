@@ -5,7 +5,7 @@ use rand::Rng;
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
-use crate::verbund::crypto::sas::{derive_sas_from_transcript, SAS_LEN};
+use crate::cluster::crypto::sas::{derive_sas_from_transcript, SAS_LEN};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -32,7 +32,7 @@ pub fn generate_confirm_pin() -> String {
 
 /// Device-cluster path: always derive from handshake transcript.
 #[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (device-cluster phase 5)
-pub fn generate_confirm_pin_for_verbund(transcript: &[u8]) -> String {
+pub fn generate_confirm_pin_for_cluster(transcript: &[u8]) -> String {
     generate_confirm_pin_from_transcript(transcript)
 }
 

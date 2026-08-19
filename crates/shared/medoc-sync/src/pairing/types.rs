@@ -67,7 +67,6 @@ pub struct PairingDecision {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivationTokenPayload {
-    #[serde(rename = "v")]
     pub version: u32,
     pub device_id: String,
     pub slave_label: String,

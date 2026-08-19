@@ -3,80 +3,80 @@
 const APP = "breadcrumb.app";
 
 export function breadcrumbKeysForPath(pathname: string): string[] {
-    if (pathname === "/termine/neu") return [APP, "nav.termine", "palette.cmd.termine-neu"];
-    if (pathname === "/finanzen/kasse") return [APP, "nav.finanzen_reception"];
-    if (pathname === "/finanzen/kasse/neu") return [APP, "nav.finanzen_reception", "palette.cmd.finanzen-neu"];
-    if (pathname === "/finanzen/neu") return [APP, "nav.finanzen", "palette.cmd.finanzen-neu"];
-    if (pathname === "/bestellungen/neu") return [APP, "nav.bestellungen", "palette.cmd.bestellungen-neu"];
-    if (pathname === "/patienten/neu") return [APP, "nav.patienten", "palette.cmd.patienten-neu"];
-    if (pathname === "/bilanz/neu") return [APP, "nav.bilanz", "palette.cmd.bilanz-neu"];
-    if (pathname === "/akten/zu-validieren") return [APP, "nav.patienten", "nav.akten_zu_validieren"];
-    if (pathname === "/posteingang") return [APP, "nav.posteingang"];
-    if (pathname === "/tickets") return [APP, "nav.praxis_tickets"];
-    if (pathname === "/tickets/neu") return [APP, "nav.praxis_tickets", "breadcrumb.new_task"];
-    if (/^\/tickets\/[^/]+\/bearbeiten$/.test(pathname)) return [APP, "nav.praxis_tickets", "breadcrumb.edit"];
-    if (pathname === "/verwaltung") return [APP, "nav.verwaltung"];
-    if (pathname === "/verwaltung/arbeitstage") return [APP, "nav.verwaltung", "breadcrumb.work_days"];
-    if (pathname === "/verwaltung/praxisplanung") return [APP, "nav.verwaltung", "palette.cmd.verwaltung-praxisplanung"];
-    if (pathname === "/verwaltung/arbeitszeiten") return [APP, "nav.verwaltung", "palette.cmd.verwaltung-arbeitszeiten"];
-    if (pathname === "/verwaltung/sonder-sperrzeiten") return [APP, "nav.verwaltung", "palette.cmd.verwaltung-sonder-sperrzeiten"];
-    if (pathname === "/verwaltung/praxis-praeferenzen") return [APP, "nav.verwaltung", "palette.cmd.verwaltung-praeferenzen"];
-    if (pathname === "/verwaltung/vorlagen") return [APP, "nav.verwaltung", "breadcrumb.templates"];
-    if (pathname === "/verwaltung/behandlungs-katalog") return [APP, "nav.verwaltung", "breadcrumb.treatment_catalog"];
-    if (pathname === "/verwaltung/bestellstamm") return [APP, "nav.verwaltung", "breadcrumb.order_master"];
-    if (pathname === "/verwaltung/finanzen-berichte") return [APP, "nav.verwaltung", "breadcrumb.finance_reports"];
-    if (pathname === "/verwaltung/team") return [APP, "nav.verwaltung", "breadcrumb.team"];
-    if (pathname === "/verwaltung/team/arbeitszeit") return [APP, "nav.verwaltung", "breadcrumb.team", "breadcrumb.work_time"];
-    if (pathname === "/personal/arbeitszeit") return [APP, "nav.arbeitszeit"];
-    if (pathname === "/verwaltung/krankenbescheinigung") return [APP, "nav.verwaltung", "breadcrumb.sick_cert"];
-    if (pathname === "/verwaltung/finanzen-berichte/tagesabschluss") {
-        return [APP, "nav.verwaltung", "breadcrumb.finance_reports", "breadcrumb.daily_close"];
+    if (pathname === "/appointments/new") return [APP, "nav.appointments", "palette.cmd.appointments-new"];
+    if (pathname === "/finance/cash") return [APP, "nav.finance_reception"];
+    if (pathname === "/finance/cash/new") return [APP, "nav.finance_reception", "palette.cmd.finance-new"];
+    if (pathname === "/finance/new") return [APP, "nav.finance", "palette.cmd.finance-new"];
+    if (pathname === "/purchase-orders/new") return [APP, "nav.purchase-orders", "palette.cmd.purchase-orders-new"];
+    if (pathname === "/patients/new") return [APP, "nav.patients", "palette.cmd.patients-new"];
+    if (pathname === "/balance-sheet/new") return [APP, "nav.balance-sheet", "palette.cmd.balance-sheet-new"];
+    if (pathname === "/charts/to-validate") return [APP, "nav.patients", "nav.charts_to_validate"];
+    if (pathname === "/inbox") return [APP, "nav.inbox"];
+    if (pathname === "/tickets") return [APP, "nav.practice_tickets"];
+    if (pathname === "/tickets/new") return [APP, "nav.practice_tickets", "breadcrumb.new_task"];
+    if (/^\/tickets\/[^/]+\/bearbeiten$/.test(pathname)) return [APP, "nav.practice_tickets", "breadcrumb.edit"];
+    if (pathname === "/administration") return [APP, "nav.administration"];
+    if (pathname === "/administration/work-days") return [APP, "nav.administration", "breadcrumb.work_days"];
+    if (pathname === "/administration/practice-planning") return [APP, "nav.administration", "palette.cmd.administration-practicePlanning"];
+    if (pathname === "/administration/work-hours") return [APP, "nav.administration", "palette.cmd.administration-work_hours"];
+    if (pathname === "/administration/special-blocked-times") return [APP, "nav.administration", "palette.cmd.administration-special-blockedTimes"];
+    if (pathname === "/administration/practice-preferences") return [APP, "nav.administration", "palette.cmd.administration-preferences"];
+    if (pathname === "/administration/templates") return [APP, "nav.administration", "breadcrumb.templates"];
+    if (pathname === "/administration/treatment-catalog") return [APP, "nav.administration", "breadcrumb.treatment_catalog"];
+    if (pathname === "/administration/order-master") return [APP, "nav.administration", "breadcrumb.order_master"];
+    if (pathname === "/administration/finance-reports") return [APP, "nav.administration", "breadcrumb.finance_reports"];
+    if (pathname === "/administration/team") return [APP, "nav.administration", "breadcrumb.team"];
+    if (pathname === "/administration/team/work-time") return [APP, "nav.administration", "breadcrumb.team", "breadcrumb.work_time"];
+    if (pathname === "/staff/work-time") return [APP, "nav.workTime"];
+    if (pathname === "/administration/sick-leave-certificate") return [APP, "nav.administration", "breadcrumb.sick_cert"];
+    if (pathname === "/administration/finance-reports/day-close") {
+        return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.daily_close"];
     }
-    if (pathname === "/verwaltung/finanzen-berichte/rechnung") {
-        return [APP, "nav.verwaltung", "breadcrumb.finance_reports", "breadcrumb.invoice_pdf"];
+    if (pathname === "/administration/finance-reports/invoice") {
+        return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.invoice_pdf"];
     }
-    if (pathname === "/verwaltung/lager-und-bestellwesen") return [APP, "nav.verwaltung", "breadcrumb.stock_orders"];
-    if (pathname === "/verwaltung/vertraege") return [APP, "nav.verwaltung", "breadcrumb.stock_orders", "breadcrumb.contracts"];
-    if (pathname === "/verwaltung/leistungen-kataloge-vorlagen") {
-        return [APP, "nav.verwaltung", "breadcrumb.services_catalogs"];
+    if (pathname === "/administration/inventory-and-ordering") return [APP, "nav.administration", "breadcrumb.stock_orders"];
+    if (pathname === "/administration/contracts") return [APP, "nav.administration", "breadcrumb.stock_orders", "breadcrumb.contracts"];
+    if (pathname === "/administration/services-catalogs-templates") {
+        return [APP, "nav.administration", "breadcrumb.services_catalogs"];
     }
-    if (pathname === "/verwaltung/finanzen-werkzeuge") return [APP, "nav.verwaltung", "breadcrumb.finance_reports", "breadcrumb.invoice_pdf"];
-    if (pathname === "/verwaltung/tagesabschluss") return [APP, "nav.verwaltung", "breadcrumb.finance_reports", "breadcrumb.daily_close"];
-    if (pathname.startsWith("/verwaltung/vorlagen/editor")) return [APP, "nav.verwaltung", "breadcrumb.templates", "breadcrumb.editor"];
-    if (pathname === "/personal/neu") return [APP, "nav.verwaltung", "palette.cmd.personal-neu"];
-    if (pathname === "/personal/arbeitsplan") return [APP, "nav.verwaltung", "nav.personal", "breadcrumb.shift_plan"];
-    if (pathname.startsWith("/patienten/") && pathname !== "/patienten/neu") {
-        if (/\/rezept\/neu$/.test(pathname)) {
-            return [APP, "nav.patienten", "breadcrumb.record", "breadcrumb.new_prescription"];
+    if (pathname === "/administration/finance-tools") return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.invoice_pdf"];
+    if (pathname === "/administration/day-close") return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.daily_close"];
+    if (pathname.startsWith("/administration/templates/editor")) return [APP, "nav.administration", "breadcrumb.templates", "breadcrumb.editor"];
+    if (pathname === "/staff/new") return [APP, "nav.administration", "palette.cmd.staff-new"];
+    if (pathname === "/staff/work-plan") return [APP, "nav.administration", "nav.staff", "breadcrumb.shift_plan"];
+    if (pathname.startsWith("/patients/") && pathname !== "/patients/new") {
+        if (/\/prescription\/new$/.test(pathname)) {
+            return [APP, "nav.patients", "breadcrumb.record", "breadcrumb.new_prescription"];
         }
-        if (/\/rezept\//.test(pathname) && !/\/rezept\/neu$/.test(pathname)) {
-            return [APP, "nav.patienten", "breadcrumb.record", "breadcrumb.edit_prescription"];
+        if (/\/prescription\//.test(pathname) && !/\/prescription\/new$/.test(pathname)) {
+            return [APP, "nav.patients", "breadcrumb.record", "breadcrumb.edit_prescription"];
         }
-        return [APP, "nav.patienten", "breadcrumb.record"];
+        return [APP, "nav.patients", "breadcrumb.record"];
     }
     return CRUMB_KEYS[pathname] ?? [APP, "breadcrumb.dashboard"];
 }
 
 const CRUMB_KEYS: Record<string, string[]> = {
     "/": [APP, "nav.dashboard"],
-    "/termine": [APP, "nav.termine"],
-    "/patienten": [APP, "nav.patienten"],
-    "/finanzen": [APP, "nav.finanzen"],
-    "/bestellungen": [APP, "nav.bestellungen"],
-    "/bilanz": [APP, "nav.bilanz"],
-    "/rezepte": [APP, "nav.rezepte"],
-    "/atteste": [APP, "nav.atteste"],
-    "/leistungen": [APP, "nav.leistungen"],
-    "/produkte": [APP, "nav.produkte"],
-    "/personal": [APP, "nav.verwaltung", "breadcrumb.team", "nav.personal"],
-    "/statistik": [APP, "nav.statistik"],
+    "/appointments": [APP, "nav.appointments"],
+    "/patients": [APP, "nav.patients"],
+    "/finance": [APP, "nav.finance"],
+    "/purchase-orders": [APP, "nav.purchase-orders"],
+    "/balance-sheet": [APP, "nav.balance-sheet"],
+    "/prescriptions": [APP, "nav.prescriptions"],
+    "/certificates": [APP, "nav.certificates"],
+    "/services": [APP, "nav.services"],
+    "/products": [APP, "nav.products"],
+    "/staff": [APP, "nav.administration", "breadcrumb.team", "nav.staff"],
+    "/statistics": [APP, "nav.statistics"],
     "/audit": [APP, "nav.audit"],
-    "/datenschutz": [APP, "nav.datenschutz"],
-    "/einstellungen": [APP, "nav.settings"],
+    "/privacy": [APP, "nav.privacy"],
+    "/settings": [APP, "nav.settings"],
     "/logs": [APP, "nav.logs"],
     "/ops": [APP, "nav.ops"],
     "/compliance": [APP, "nav.compliance"],
-    "/hilfe": [APP, "nav.hilfe"],
+    "/help": [APP, "nav.help"],
     "/feedback": [APP, "nav.feedback"],
     "/migration": [APP, "nav.migration"],
 };

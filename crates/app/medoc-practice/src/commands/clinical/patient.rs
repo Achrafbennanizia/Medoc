@@ -3,13 +3,13 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use crate::infrastructure::database::{akte_anlage_repo, audit_repo, patient_repo};
+use crate::infrastructure::database::{chart_attachment_repo, audit_repo, patient_repo};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn list_patienten(
+pub async fn list_patients(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<Patient>, AppError> {
@@ -79,7 +79,7 @@ pub async fn update_patient(
 ) -> Result<Patient, AppError> {
     let session = rbac::require(&session_state, "patient.write")?;
 
-    // FA-PAT-03: Status workflow NEU -> AKTIV -> VALIDIERT -> READONLY (forward only).
+    // FA-PAT-03: Status workflow NEW -> ACTIVE -> VALIDATED -> READONLY (forward only).
     if let Some(new_status) = &data.status {
         let current = patient_repo::find_by_id(&pool, &id)
             .await?
@@ -87,7 +87,7 @@ pub async fn update_patient(
         let new_str = serde_json::to_string(new_status)
             .map(|s| s.trim_matches('"').to_string())
             .unwrap_or_default();
-        let order = ["NEU", "AKTIV", "VALIDIERT", "READONLY"];
+        let order = ["NEW", "ACTIVE", "VALIDATED", "READONLY"];
         let cur_idx = order.iter().position(|s| *s == current.status.as_str());
         let new_idx = order.iter().position(|s| *s == new_str.as_str());
         match (cur_idx, new_idx) {
@@ -128,14 +128,14 @@ pub async fn delete_patient(
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
-    let akte_ids: Vec<(String,)> =
-        sqlx::query_as("SELECT id FROM patientenakte WHERE patient_id = ?1")
+    let chart_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM patient_chart WHERE patient_id = ?1")
             .bind(&id)
             .fetch_all(&*pool)
             .await?;
     patient_repo::delete(&pool, &id).await?;
-    for (aid,) in akte_ids {
-        akte_anlage_repo::remove_storage_dir_best_effort(&app_dir, &aid);
+    for (aid,) in chart_ids {
+        chart_attachment_repo::remove_storage_dir_best_effort(&app_dir, &aid);
     }
     audit_repo::create(
         &pool,
@@ -152,14 +152,14 @@ pub async fn delete_patient(
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, query))]
-pub async fn search_patienten(
+pub async fn search_patients(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     query: String,
-    include_versicherungsnummer: Option<bool>,
+    include_insurance_number: Option<bool>,
 ) -> Result<Vec<Patient>, AppError> {
     let session = rbac::require(&session_state, "patient.read")?;
-    let include_vn = include_versicherungsnummer.unwrap_or(true);
+    let include_vn = include_insurance_number.unwrap_or(true);
     let rows = patient_repo::search(&pool, &query, include_vn).await?;
     // NFA-SEC-04 ext.: searches against patient PII are auditable. The query
     // string itself is omitted so we don't echo possibly-private input back.
@@ -180,11 +180,11 @@ pub async fn search_patienten(
 #[macro_export]
 macro_rules! register_patient_commands {
     () => {
-        $crate::commands::patient_commands::list_patienten,
+        $crate::commands::patient_commands::list_patients,
         $crate::commands::patient_commands::get_patient,
         $crate::commands::patient_commands::create_patient,
         $crate::commands::patient_commands::update_patient,
         $crate::commands::patient_commands::delete_patient,
-        $crate::commands::patient_commands::search_patienten,
+        $crate::commands::patient_commands::search_patients,
     };
 }

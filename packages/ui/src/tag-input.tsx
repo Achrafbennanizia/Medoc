@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from "react";
 import { XIcon } from "@/lib/icons";
 import { useT, useTParams } from "@/lib/i18n";
 
-const TAG_COLORS = ["#30D158", "#FF453A", "#0A84FF", "#AF52DE", "#FF9F0A"] as const;
+const DAY_COLORS = ["#30D158", "#FF453A", "#0A84FF", "#AF52DE", "#FF9F0A"] as const;
 
 type TagInputProps = {
     label: string;
@@ -65,8 +65,8 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
                             fontSize: 12.5,
                             fontWeight: 600,
                             color: "#111",
-                            background: `${TAG_COLORS[i % TAG_COLORS.length]}26`,
-                            border: `1px solid ${TAG_COLORS[i % TAG_COLORS.length]}55`,
+                            background: `${DAY_COLORS[i % DAY_COLORS.length]}26`,
+                            border: `1px solid ${DAY_COLORS[i % DAY_COLORS.length]}55`,
                         }}
                     >
                         {tag}

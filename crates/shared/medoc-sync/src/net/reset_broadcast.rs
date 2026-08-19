@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_initiator;
-use super::listener::DEFAULT_VERBUND_PORT;
+use super::listener::DEFAULT_CLUSTER_PORT;
 use super::wire::WireMessage;
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ pub async fn broadcast_cluster_reset(
             Ok(()) => {
                 result.notified += 1;
                 tracing::info!(
-                    target: "medoc::verbund",
+                    target: "medoc::cluster",
                     event = "CLUSTER_RESET_PUSH_OK",
                     fingerprint = %target.fingerprint,
                     ip = %target.ip,
@@ -42,7 +42,7 @@ pub async fn broadcast_cluster_reset(
             }
             Err(e) => {
                 tracing::warn!(
-                    target: "medoc::verbund",
+                    target: "medoc::cluster",
                     event = "CLUSTER_RESET_PUSH_FAIL",
                     fingerprint = %target.fingerprint,
                     ip = %target.ip,
@@ -60,11 +60,11 @@ async fn push_reset_to_member(
     token_json: &str,
     signature_b64: &str,
 ) -> Result<(), AppError> {
-    let addr = format!("{ip}:{DEFAULT_VERBUND_PORT}");
+    let addr = format!("{ip}:{DEFAULT_CLUSTER_PORT}");
     let connect = tokio::time::timeout(Duration::from_secs(3), TcpStream::connect(&addr)).await;
     let mut stream = connect
-        .map_err(|_| AppError::Internal(format!("verbund reset connect timeout {addr}")))?
-        .map_err(|e| AppError::Internal(format!("verbund reset connect {addr}: {e}")))?;
+        .map_err(|_| AppError::Internal(format!("cluster reset connect timeout {addr}")))?
+        .map_err(|e| AppError::Internal(format!("cluster reset connect {addr}: {e}")))?;
 
     let (mut transport, _transcript) = run_xx_initiator(&mut stream).await?;
     send_wire_message(

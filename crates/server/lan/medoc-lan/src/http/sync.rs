@@ -127,7 +127,7 @@ pub async fn sync_status(
 /// BEST-EFFORT scope (Slice "best_effort_rbac"): activation tokens are
 /// **only** accepted on the small list of sync-related routes returned by
 /// [`action_for_path`]. Any other protected route requires a legacy JWT;
-/// replicas presenting an mt2 token to `/patienten`, `/me`, etc. get a 403.
+/// replicas presenting an mt2 token to `/patients`, `/me`, etc. get a 403.
 pub async fn verify_activation_for_path(
     state: &LanHttpState,
     token: &str,
@@ -186,10 +186,10 @@ fn action_for_path(path: &str) -> &'static str {
         "sync.status"
     } else if path.ends_with("/pairing/peers") {
         "pairing.peers"
-    } else if path.ends_with("/patienten") {
+    } else if path.ends_with("/patients") {
         "patient.read"
-    } else if path.ends_with("/termine") {
-        "termin.read"
+    } else if path.ends_with("/appointments") {
+        "appointment.read"
     } else {
         ""
     }
@@ -205,8 +205,8 @@ mod sync_route_tests {
         assert_eq!(action_for_path("/api/v1/sync/pull"), "sync.pull");
         assert_eq!(action_for_path("/api/v1/sync/status"), "sync.status");
         assert_eq!(action_for_path("/api/v1/pairing/peers"), "pairing.peers");
-        assert_eq!(action_for_path("/api/v1/patienten"), "patient.read");
-        assert_eq!(action_for_path("/api/v1/termine"), "termin.read");
+        assert_eq!(action_for_path("/api/v1/patients"), "patient.read");
+        assert_eq!(action_for_path("/api/v1/appointments"), "appointment.read");
         assert_eq!(action_for_path("/api/v1/me"), "");
     }
 }

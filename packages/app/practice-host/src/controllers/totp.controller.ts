@@ -28,11 +28,11 @@
  * export const deactivateTotp = (code?: string) =>
  *     practiceSystem.invoke<void>("deactivate_totp", { code: code ?? null });
  *
- * export const startTotpEnrollmentLogin = (email: string, passwort: string) =>
- *     practiceSystem.invoke<TotpEnrollment>("start_totp_enrollment_login", { email, passwort });
+ * export const startTotpEnrollmentLogin = (email: string, password: string) =>
+ *     practiceSystem.invoke<TotpEnrollment>("start_totp_enrollment_login", { email, password });
  *
- * export const confirmTotpEnrollmentLogin = (email: string, passwort: string, code: string) =>
- *     practiceSystem.invoke<void>("confirm_totp_enrollment_login", { email, passwort, code });
+ * export const confirmTotpEnrollmentLogin = (email: string, password: string, code: string) =>
+ *     practiceSystem.invoke<void>("confirm_totp_enrollment_login", { email, password, code });
  */
 
 export {};

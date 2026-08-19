@@ -25,7 +25,7 @@
         "paths": {
             "@/lib/mac-window-drag": ["./src/platform/mac-window-drag.ts"],
             "@/lib/desktop-window-controls": ["./src/platform/desktop-window-controls.ts"],
-            "@/lib/akte-anlagen": ["./src/platform/akte-anlagen.ts"],
+            "@/lib/chart-attachments": ["./src/platform/chart-attachments.ts"],
             "@/lib/native-app-menu-bridge": ["./src/platform/native-app-menu-bridge.ts"],
             "@/lib/*": ["../../packages/shared/src/lib/*"],
             "@/models/*": ["../../packages/shared/src/models/*"],

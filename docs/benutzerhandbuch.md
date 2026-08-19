@@ -31,7 +31,7 @@ Beobachtungen, die durch zugelassenes Fachpersonal erstellt werden.
 | Bildschirm | 1366×768 | 1920×1080 |
 | Berechtigung | Lokales Benutzerkonto mit Schreibrechten auf `~/medoc-data/` | – |
 
-Eine Internetverbindung ist für den **lokalen Kernbetrieb** nicht erforderlich; sämtliche Patientendaten bleiben standardmäßig **lokal**. Optionale Funktionen gemäß Produktpflichtenheft (z. B. Lizenzvalidierung, Update-Server, Zahlungsabwicklung für Abonnements oder LAN-Gast-Clients) können ein zeitweiliges Internet bzw. ein Praxis-LAN erfordern — siehe **`docs/v-model/01-anforderungen/pflichtenheft.md`** und **`docs/v-model/02-systementwurf/systementwurf.md`**.
+Eine Internetverbindung ist für den **lokalen Kernbetrieb** nicht erforderlich; sämtliche Patientendaten bleiben standardmäßig **lokal**. Optionale Funktionen gemäß Produktpflichtenheft (z. B. Lizenzvalidierung, Update-Server, Zahlungsabwicklung für Abonnements oder LAN-Gast-Clients) können ein zeitweiliges Internet bzw. ein Praxis-LAN erfordern — siehe **`docs/version-model/01-anforderungen/pflichtenheft.md`** und **`docs/version-model/02-systementwurf/systementwurf.md`**.
 
 ---
 

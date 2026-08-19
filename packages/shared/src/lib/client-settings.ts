@@ -17,8 +17,8 @@ export { normalizeFontStack } from "./font-stack-preset";
 
 export type DensityId = "compact" | "cozy" | "spacious";
 
-/** Default Termin overview view (`/termine`). */
-export type TermineKalenderAnsicht = "tag" | "woche" | "monat";
+/** Default Appointment overview view (`/appointments`). */
+export type AppointmentCalendarView = "day" | "week" | "month";
 
 /** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
@@ -42,19 +42,19 @@ export type ClientSettingsV1 = {
     };
     /** Calendar, appointments, day-end closing */
     workflows?: {
-        /** Open `/termine` with this view */
-        termineDefaultView?: TermineKalenderAnsicht;
+        /** Open `/appointments` with this view */
+        appointmentsDefaultView?: AppointmentCalendarView;
         /** Preset duration in "New appointment" (minutes). */
-        defaultTerminDauerMin?: number;
+        defaultAppointmentDurationMin?: number;
         /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
-        tagesabschlussReminderTime?: string;
+        dayCloseReminderTime?: string;
         /** CAL2: pause/emergency toolbar in calendar (experimental). */
         calendarEmergencyToolbarEnabled?: boolean;
     };
     /** Search */
     search?: {
         /** When false: patient name only (backend); when true: name or insurance number. */
-        patientIncludeVersicherungsnummer?: boolean;
+        patientIncludeInsuranceNumber?: boolean;
         /** NFA-USE-10: Levenshtein "did you mean" hints (patient list, quick access). Off when false. */
         autocompleteSuggestionsEnabled?: boolean;
     };
@@ -77,7 +77,7 @@ export type ClientSettingsV1 = {
         datev?: boolean;
     };
     /** Patient record → open attachments externally: empty = recommended first app; "__SYSTEM__" = OS default only. */
-    akte?: {
+    chart?: {
         openImagesWithApp?: string;
     };
 };
@@ -96,13 +96,13 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         showKeyboardHints: true,
     },
     workflows: {
-        termineDefaultView: "monat",
-        defaultTerminDauerMin: 30,
-        tagesabschlussReminderTime: "18:00",
+        appointmentsDefaultView: "month",
+        defaultAppointmentDurationMin: 30,
+        dayCloseReminderTime: "18:00",
         calendarEmergencyToolbarEnabled: false,
     },
     search: {
-        patientIncludeVersicherungsnummer: true,
+        patientIncludeInsuranceNumber: true,
         autocompleteSuggestionsEnabled: true,
     },
     security: {
@@ -118,7 +118,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     integrations: {
         datev: true,
     },
-    akte: {
+    chart: {
         openImagesWithApp: "",
     },
 };
@@ -130,13 +130,13 @@ function mergeClient(a: ClientSettingsV1, b: Partial<ClientSettingsV1>): ClientS
         workflows: { ...a.workflows!, ...b.workflows },
         search: { ...a.search!, ...b.search },
         security: { ...a.security!, ...b.security },
-        akte: { ...a.akte!, ...b.akte },
+        chart: { ...a.chart!, ...b.chart },
         notifications: { ...a.notifications!, ...b.notifications },
         integrations: { ...a.integrations!, ...b.integrations },
     };
 }
 
-/** Teil-Update relativ zu einem geladenen Stand (z. B. React state). */
+/** Teil-Update relativ to einem geladenen Stand (z. B. React state). */
 export function mergeClientSettingsPatch(base: ClientSettingsV1, patch: Partial<ClientSettingsV1>): ClientSettingsV1 {
     return mergeClient(base, patch);
 }
@@ -146,13 +146,25 @@ export function normalizeColorScheme(raw: unknown): ColorSchemeId {
     return raw === "dark" || raw === "system" || raw === "light" ? raw : "light";
 }
 
+export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalendarView {
+    if (raw === "day" || raw === "tag") return "day";
+    if (raw === "week" || raw === "woche") return "week";
+    if (raw === "month" || raw === "monat") return "month";
+    return "month";
+}
+
 function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     const base = mergeClient(DEFAULT_CLIENT_SETTINGS, j);
     const cs = base.appearance?.colorScheme;
+    let out = base;
     if (cs != null && cs !== "light" && cs !== "dark" && cs !== "system") {
-        return mergeClient(base, { appearance: { ...base.appearance!, colorScheme: "light" } });
+        out = mergeClient(out, { appearance: { ...out.appearance!, colorScheme: "light" } });
     }
-    return base;
+    const view = normalizeAppointmentCalendarView(j.workflows?.appointmentsDefaultView);
+    if (out.workflows?.appointmentsDefaultView !== view) {
+        out = mergeClient(out, { workflows: { ...out.workflows!, appointmentsDefaultView: view } });
+    }
+    return out;
 }
 
 /** Resolved theme for UI incl. system preference. */

@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 fn skip_enforcement() -> bool {
     std::env::var("MEDOC_SKIP_MASTER_LICENSE")
         .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .is_some_and(|version| version == "1" || version.eq_ignore_ascii_case("true"))
 }
 
 async fn acts_as_sync_master(pool: &SqlitePool) -> Result<bool, AppError> {

@@ -9,11 +9,11 @@ export const BREAK_GLASS_ENABLED = false;
 /** TOTP two-factor authentication — disabled and unwired for MVP. */
 export const TOTP_2FA_ENABLED = false;
 
-/** Max ARZT accounts (admin slot). */
-export const MAX_ARZT = 1;
+/** Max PHYSICIAN accounts (admin slot). */
+export const MAX_PHYSICIAN = 1;
 
-/** Max REZEPTION accounts (user slots). */
-export const MAX_REZEPTION = 4;
+/** Max RECEPTION accounts (user slots). */
+export const MAX_RECEPTION = 4;
 
-/** Max total staff accounts. Must match `mvp_security::MAX_TOTAL_PERSONAL` in Rust. */
-export const MAX_TOTAL_PERSONAL = 5;
+/** Max total staff accounts. Must match `mvp_security::MAX_TOTAL_STAFF` in Rust. */
+export const MAX_TOTAL_STAFF = 5;

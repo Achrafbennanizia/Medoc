@@ -10,13 +10,13 @@
 
 use chrono::NaiveDate;
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::entities::praxis_aufgabe::CreatePraxisAufgabe;
-use medoc_core::domain::entities::rezept::CreateRezept;
-use medoc_core::domain::entities::termin::{CreateTermin, UpdateTermin};
-use medoc_core::domain::enums::{Geschlecht, TerminArt};
+use medoc_core::domain::entities::practice_task::CreatePracticeTask;
+use medoc_core::domain::entities::prescription::CreatePrescription;
+use medoc_core::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
+use medoc_core::domain::enums::{Sex, AppointmentKind};
 use medoc_core::infrastructure::database::{
-    akte_repo, app_kv_repo, connection, patient_repo, praxis_aufgabe_repo, praxis_ticket_repo,
-    rezept_repo, termin_repo, zahlung_repo,
+    chart_repo, app_kv_repo, connection, patient_repo, practice_task_repo, practice_ticket_repo,
+    prescription_repo, appointment_repo, payment_repo,
 };
 use sqlx::SqlitePool;
 
@@ -47,12 +47,12 @@ async fn outbox_count(pool: &SqlitePool, table: &str) -> i64 {
 fn sample_patient(name: &str) -> CreatePatient {
     CreatePatient {
         name: name.into(),
-        geburtsdatum: NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
-        geschlecht: Geschlecht::Maennlich,
-        versicherungsnummer: format!("V-{}", name),
-        telefon: None,
+        date_of_birth: NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+        sex: Sex::Male,
+        insurance_number: format!("V-{}", name),
+        phone: None,
         email: None,
-        adresse: None,
+        address: None,
     }
 }
 
@@ -66,11 +66,11 @@ async fn patient_create_emits_one_outbox_row_per_table() {
         .expect("create patient");
 
     assert_eq!(outbox_count(&pool, "patient").await, 1);
-    assert_eq!(outbox_count(&pool, "patientenakte").await, 1);
-    // `anamnesebogen` is Tier-1 allow-listed but patient create inserts inline without outbox hook.
-    assert_eq!(outbox_count(&pool, "anamnesebogen").await, 0);
-    // `personal` is not on SYNCED_TABLES.
-    assert_eq!(outbox_count(&pool, "personal").await, 0);
+    assert_eq!(outbox_count(&pool, "patient_chart").await, 1);
+    // `anamnesis_form` is Tier-1 allow-listed but patient create inserts inline without outbox hook.
+    assert_eq!(outbox_count(&pool, "anamnesis_form").await, 0);
+    // `staff` is not on SYNCED_TABLES.
+    assert_eq!(outbox_count(&pool, "staff").await, 0);
 
     let _ = p.id;
 }
@@ -89,9 +89,9 @@ async fn patient_update_and_delete_each_record_one_row() {
         &p.id,
         &medoc_core::domain::entities::patient::UpdatePatient {
             name: Some("beta-updated".into()),
-            telefon: None,
+            phone: None,
             email: None,
-            adresse: None,
+            address: None,
             status: None,
         },
     )
@@ -113,64 +113,64 @@ async fn no_outbox_rows_when_mode_is_practice_desktop() {
         .expect("create patient");
 
     assert_eq!(outbox_count(&pool, "patient").await, 0);
-    assert_eq!(outbox_count(&pool, "patientenakte").await, 0);
+    assert_eq!(outbox_count(&pool, "patient_chart").await, 0);
 }
 
 #[tokio::test]
-async fn termin_lifecycle_emits_three_outbox_rows() {
+async fn appointment_lifecycle_emits_three_outbox_rows() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
-    // Need a patient for the FK on termin (the create handler computes
-    // patient label via JOIN — but the create_termin function only needs
+    // Need a patient for the FK on appointment (the create handler computes
+    // patient label via JOIN — but the create_appointment function only needs
     // the patient id to exist).
     let p = patient_repo::create(&pool, &sample_patient("delta"))
         .await
         .expect("create patient");
 
-    // Seed a `personal` row so the `arzt_id` FK resolves.
+    // Seed a `staff` row so the `physician_id` FK resolves.
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-1', 'Dr. Test', 'arzt@test', 'x', 'ARZT')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('physician-1', 'Dr. Test', 'physician@test', 'x', 'PHYSICIAN')",
     )
     .execute(&pool)
     .await
     .ok();
 
-    let create = CreateTermin {
+    let create = CreateAppointment {
         patient_id: p.id.clone(),
-        datum: "2099-01-01".into(),
-        uhrzeit: "09:00".into(),
-        art: TerminArt::Kontrolle,
-        notizen: None,
-        beschwerden: None,
-        arzt_id: "arzt-1".into(),
+        date: "2099-01-01".into(),
+        time: "09:00".into(),
+        kind: AppointmentKind::Checkup,
+        notes: None,
+        chief_complaint: None,
+        physician_id: "physician-1".into(),
     };
-    let t = termin_repo::create(&pool, &create).await.expect("create");
+    let t = appointment_repo::create(&pool, &create).await.expect("create");
 
-    termin_repo::update(
+    appointment_repo::update(
         &pool,
         &t.id,
-        &UpdateTermin {
-            datum: Some("2099-01-02".into()),
-            uhrzeit: None,
-            art: None,
+        &UpdateAppointment {
+            date: Some("2099-01-02".into()),
+            time: None,
+            kind: None,
             status: None,
-            notizen: None,
-            beschwerden: None,
-            arzt_id: None,
+            notes: None,
+            chief_complaint: None,
+            physician_id: None,
         },
     )
     .await
     .expect("update");
 
-    termin_repo::delete(&pool, &t.id).await.expect("delete");
+    appointment_repo::delete(&pool, &t.id).await.expect("delete");
 
-    assert_eq!(outbox_count(&pool, "termin").await, 3);
+    assert_eq!(outbox_count(&pool, "appointment").await, 3);
 }
 
 #[tokio::test]
-async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
+async fn practice_task_insert_and_status_emit_two_rows() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
@@ -178,38 +178,38 @@ async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
         .await
         .expect("create patient");
 
-    // Seed a `personal` row so the `created_by` FK resolves.
+    // Seed a `staff` row so the `created_by` FK resolves.
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-1', 'Frau Test', 'rez@test', 'x', 'REZEPTION')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('rez-1', 'Frau Test', 'rez@test', 'x', 'RECEPTION')",
     )
     .execute(&pool)
     .await
     .ok();
 
-    let aufgabe = praxis_aufgabe_repo::insert(
+    let task = practice_task_repo::insert(
         &pool,
-        &CreatePraxisAufgabe {
+        &CreatePracticeTask {
             patient_id: Some(p.id.clone()),
-            typ: "ABRECHNUNG".into(),
-            titel: "Test".into(),
+            kind: "BILLING".into(),
+            title: "Test".into(),
             body: Some("Test body".into()),
-            assignee_role: Some("REZEPTION".into()),
+            assignee_role: Some("RECEPTION".into()),
             assignee_user_id: None,
-            behandlung_id: None,
-            untersuchung_id: None,
-            leistungsname: None,
-            gesamtkosten: None,
+            treatment_id: None,
+            examination_id: None,
+            service_name: None,
+            total_cost: None,
         },
         "rez-1",
     )
     .await
-    .expect("insert aufgabe");
+    .expect("insert task");
 
-    praxis_aufgabe_repo::update_status(
+    practice_task_repo::update_status(
         &pool,
-        &aufgabe.id,
-        "ERLEDIGT_REZEPTION",
+        &task.id,
+        "DONE_RECEPTION",
         Some("done"),
         None,
         None,
@@ -217,7 +217,7 @@ async fn praxis_aufgabe_insert_and_status_emit_two_rows() {
     .await
     .expect("update status");
 
-    assert_eq!(outbox_count(&pool, "praxis_aufgabe").await, 2);
+    assert_eq!(outbox_count(&pool, "practice_task").await, 2);
 }
 
 #[tokio::test]
@@ -245,9 +245,9 @@ async fn app_kv_set_excludes_internal_sync_keys_but_records_practice_settings() 
 }
 
 #[tokio::test]
-async fn zahlung_lifecycle_emits_outbox_rows() {
-    use medoc_core::domain::entities::zahlung::CreateZahlung;
-    use medoc_core::domain::enums::ZahlungsArt;
+async fn payment_lifecycle_emits_outbox_rows() {
+    use medoc_core::domain::entities::payment::CreatePayment;
+    use medoc_core::domain::enums::PaymentMethod;
 
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
@@ -256,78 +256,78 @@ async fn zahlung_lifecycle_emits_outbox_rows() {
         .await
         .expect("create patient");
 
-    let z = zahlung_repo::create(
+    let z = payment_repo::create(
         &pool,
-        &CreateZahlung {
+        &CreatePayment {
             patient_id: p.id.clone(),
-            betrag: 50.0,
-            zahlungsart: ZahlungsArt::Bar,
-            leistung_id: None,
-            beschreibung: Some("Test".into()),
-            behandlung_id: None,
-            untersuchung_id: None,
-            betrag_erwartet: None,
+            amount: 50.0,
+            payment_method: PaymentMethod::Cash,
+            service_item_id: None,
+            description: Some("Test".into()),
+            treatment_id: None,
+            examination_id: None,
+            amount_expected: None,
         },
     )
     .await
-    .expect("create zahlung");
+    .expect("create payment");
 
-    zahlung_repo::update_status(&pool, &z.id, "BEZAHLT")
+    payment_repo::update_status(&pool, &z.id, "PAID")
         .await
         .expect("update status");
 
-    // INSERT + UPDATE = 2 rows on `zahlung`.
-    assert_eq!(outbox_count(&pool, "zahlung").await, 2);
+    // INSERT + UPDATE = 2 rows on `payment`.
+    assert_eq!(outbox_count(&pool, "payment").await, 2);
 
-    // Akte side-effect: each B/U-less Zahlung does not trigger akte writes.
-    let _ = akte_repo::find_akte_by_patient(&pool, &p.id).await.ok();
+    // Chart side-effect: each B/U-less Payment does not trigger chart writes.
+    let _ = chart_repo::find_chart_by_patient(&pool, &p.id).await.ok();
 }
 
 #[tokio::test]
-async fn rezept_create_emits_one_outbox_row() {
+async fn prescription_create_emits_one_outbox_row() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
-    let p = patient_repo::create(&pool, &sample_patient("rezept-hook"))
+    let p = patient_repo::create(&pool, &sample_patient("prescription-hook"))
         .await
         .expect("create patient");
 
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('arzt-rezept', 'Dr. Rezept', 'rezept@test', 'x', 'ARZT')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('physician-prescription', 'Dr. Prescription', 'prescription@test', 'x', 'PHYSICIAN')",
     )
     .execute(&pool)
     .await
     .ok();
 
-    rezept_repo::create(
+    prescription_repo::create(
         &pool,
-        &CreateRezept {
+        &CreatePrescription {
             patient_id: p.id.clone(),
-            arzt_id: "arzt-rezept".into(),
-            medikament: "Ibuprofen 600mg".into(),
-            wirkstoff: Some("Ibuprofen".into()),
-            dosierung: "1-0-1".into(),
-            dauer: "5 Tage".into(),
-            hinweise: None,
+            physician_id: "physician-prescription".into(),
+            medication: "Ibuprofen 600mg".into(),
+            active_ingredient: Some("Ibuprofen".into()),
+            dosage: "1-0-1".into(),
+            duration: "5 Tage".into(),
+            instructions: None,
             pzn: None,
-            darreichungsform: None,
-            packungsgroesse: None,
-            menge: None,
+            dosage_form: None,
+            pack_size: None,
+            quantity: None,
             aut_idem: Some(true),
-            rezept_typ: None,
+            prescription_type: None,
             icd10_code: None,
-            verordnender_arzt_id: None,
+            prescribing_physician_id: None,
         },
     )
     .await
-    .expect("create rezept");
+    .expect("create prescription");
 
-    assert_eq!(outbox_count(&pool, "rezept").await, 1);
+    assert_eq!(outbox_count(&pool, "prescription").await, 1);
 }
 
 #[tokio::test]
-async fn praxis_ticket_insert_emits_one_outbox_row() {
+async fn practice_ticket_insert_emits_one_outbox_row() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
 
@@ -336,23 +336,23 @@ async fn praxis_ticket_insert_emits_one_outbox_row() {
         .expect("create patient");
 
     sqlx::query(
-        "INSERT INTO personal (id, name, email, passwort_hash, rolle)
-         VALUES ('rez-ticket', 'Frau Rezeption', 'rez@test', 'x', 'REZEPTION'),
-               ('arzt-ticket', 'Dr. Ticket', 'arzt@test', 'x', 'ARZT')",
+        "INSERT INTO staff (id, name, email, password_hash, role)
+         VALUES ('rez-ticket', 'Frau Reception', 'rez@test', 'x', 'RECEPTION'),
+               ('physician-ticket', 'Dr. Ticket', 'physician@test', 'x', 'PHYSICIAN')",
     )
     .execute(&pool)
     .await
     .ok();
 
-    praxis_ticket_repo::insert(
+    practice_ticket_repo::insert(
         &pool,
         &p.id,
         "rez-ticket",
-        "arzt-ticket",
+        "physician-ticket",
         "Port hook ticket",
     )
     .await
     .expect("insert ticket");
 
-    assert_eq!(outbox_count(&pool, "praxis_ticket").await, 1);
+    assert_eq!(outbox_count(&pool, "practice_ticket").await, 1);
 }

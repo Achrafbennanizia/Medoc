@@ -6,7 +6,7 @@ import {
     breakGlassActive,
     type BreakGlassEntry,
 } from "@/systems/practice-host/controllers/break-glass.controller";
-import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import type { Patient } from "@/models/types";
 import { DismissibleNotice } from "./ui/dismissible-notice";
 
@@ -35,7 +35,7 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
             return;
         }
         try {
-            const all: Patient[] = await listPatienten();
+            const all: Patient[] = await listPatients();
             const m = new Map<string, string>();
             for (const p of all) {
                 if (ids.includes(p.id)) m.set(p.id, p.name);

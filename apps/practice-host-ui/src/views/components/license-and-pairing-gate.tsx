@@ -21,7 +21,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/lib/utils";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
 import { currentLicenseStatus } from "@/systems/practice-host/controllers/system.controller";
-import { verbundGetStatus } from "@/systems/practice-host/controllers/verbund.controller";
+import { clusterGetStatus } from "@/systems/practice-host/controllers/cluster.controller";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
 
@@ -47,8 +47,8 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
                 setDecision("ok");
                 return;
             }
-            const verbund = await verbundGetStatus().catch(() => null);
-            if (verbund?.provisioned && !verbund.isOwner) {
+            const cluster = await clusterGetStatus().catch(() => null);
+            if (cluster?.provisioned && !cluster.isOwner) {
                 setDecision("ok");
                 return;
             }

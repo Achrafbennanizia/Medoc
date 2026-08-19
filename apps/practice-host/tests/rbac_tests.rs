@@ -3,59 +3,59 @@ use medoc_lib::application::rbac::{allowed, effective_allowed, Role};
 
 #[test]
 fn role_parse_round_trip() {
-    assert_eq!(Role::parse("ARZT"), Some(Role::Arzt));
-    assert_eq!(Role::parse("REZEPTION"), Some(Role::Rezeption));
-    assert_eq!(Role::parse("STEUERBERATER"), Some(Role::Steuerberater));
-    assert_eq!(Role::parse("PHARMABERATER"), Some(Role::Pharmaberater));
+    assert_eq!(Role::parse("PHYSICIAN"), Some(Role::Physician));
+    assert_eq!(Role::parse("RECEPTION"), Some(Role::Reception));
+    assert_eq!(Role::parse("TAX_ADVISOR"), Some(Role::TaxAdvisor));
+    assert_eq!(Role::parse("PHARMA_CONSULTANT"), Some(Role::PharmaConsultant));
     assert_eq!(Role::parse("HACKER"), None);
 }
 
 #[test]
-fn arzt_can_do_everything_clinical_and_admin() {
+fn physician_can_do_everything_clinical_and_admin() {
     for action in [
         "patient.read_medical",
         "patient.write_medical",
         "patient.write",
-        "termin.write",
-        "termin.list_aerzte",
-        "personal.write",
+        "appointment.write",
+        "appointment.list_physicians",
+        "staff.write",
         "audit.read",
         "ops.backup",
         "ops.dsgvo",
         "ops.logs",
         "dashboard.read",
-        "finanzen.write",
+        "finance.write",
     ] {
         assert!(
-            allowed(action, Role::Arzt),
-            "Arzt should be allowed {action}"
+            allowed(action, Role::Physician),
+            "Physician should be allowed {action}"
         );
     }
 }
 
 #[test]
-fn rezeption_cannot_read_medical_records_or_audit() {
-    assert!(!allowed("patient.read_medical", Role::Rezeption));
-    assert!(!allowed("patient.write_medical", Role::Rezeption));
-    assert!(allowed("patient.read_documents", Role::Rezeption));
-    assert!(!allowed("audit.read", Role::Rezeption));
-    assert!(!allowed("personal.read", Role::Rezeption));
-    assert!(!allowed("verwaltung.team.read", Role::Rezeption));
-    assert!(!allowed("verwaltung.praxisplanung.read", Role::Rezeption));
-    assert!(!allowed("verwaltung.praxisplanung.write", Role::Rezeption));
-    assert!(!allowed("ops.backup", Role::Rezeption));
-    assert!(allowed("termin.list_aerzte", Role::Rezeption));
-    assert!(!allowed("verwaltung.read", Role::Rezeption));
-    assert!(allowed("verwaltung.kataloge.read", Role::Rezeption));
-    assert!(!allowed("verwaltung.vorlagen.read", Role::Rezeption));
+fn reception_cannot_read_medical_records_or_audit() {
+    assert!(!allowed("patient.read_medical", Role::Reception));
+    assert!(!allowed("patient.write_medical", Role::Reception));
+    assert!(allowed("patient.read_documents", Role::Reception));
+    assert!(!allowed("audit.read", Role::Reception));
+    assert!(!allowed("staff.read", Role::Reception));
+    assert!(!allowed("administration.team.read", Role::Reception));
+    assert!(!allowed("administration.practice_planning.read", Role::Reception));
+    assert!(!allowed("administration.practice_planning.write", Role::Reception));
+    assert!(!allowed("ops.backup", Role::Reception));
+    assert!(allowed("appointment.list_physicians", Role::Reception));
+    assert!(!allowed("administration.read", Role::Reception));
+    assert!(allowed("administration.catalogs.read", Role::Reception));
+    assert!(!allowed("administration.templates.read", Role::Reception));
 }
 
-// TODO(deferred-roles): re-enable steuerberater_only_finanzen — docs/coordination/todos-deferred-roles.md
-// TODO(deferred-roles): re-enable pharmaberater_only_inventory
+// TODO(deferred-roles): re-enable tax_advisor_only_finance — docs/coordination/todos-deferred-roles.md
+// TODO(deferred-roles): re-enable pharma_consultant_only_inventory
 
 #[test]
 fn all_roles_can_read_dashboard_aggregates() {
-    for role in [Role::Arzt, Role::Rezeption] {
+    for role in [Role::Physician, Role::Reception] {
         assert!(
             allowed("dashboard.read", role),
             "{role:?} should see dashboard KPIs"
@@ -64,15 +64,15 @@ fn all_roles_can_read_dashboard_aggregates() {
 }
 
 #[test]
-fn ops_logs_arzt_only() {
-    assert!(allowed("ops.logs", Role::Arzt));
-    assert!(!allowed("ops.logs", Role::Rezeption));
+fn ops_logs_physician_only() {
+    assert!(allowed("ops.logs", Role::Physician));
+    assert!(!allowed("ops.logs", Role::Reception));
 }
 
 #[test]
 fn unknown_action_denied_by_default() {
-    assert!(!allowed("evil.shell", Role::Arzt));
-    assert!(!allowed("", Role::Arzt));
+    assert!(!allowed("evil.shell", Role::Physician));
+    assert!(!allowed("", Role::Physician));
 }
 
 #[test]
@@ -81,8 +81,8 @@ fn effective_allow_grants_action_denied_by_role() {
         action: "audit.read".into(),
         effect: "ALLOW".into(),
     }];
-    assert!(!allowed("audit.read", Role::Rezeption));
-    assert!(effective_allowed("audit.read", Role::Rezeption, &o));
+    assert!(!allowed("audit.read", Role::Reception));
+    assert!(effective_allowed("audit.read", Role::Reception, &o));
 }
 
 #[test]
@@ -91,6 +91,6 @@ fn effective_deny_blocks_action_allowed_by_role() {
         action: "dashboard.read".into(),
         effect: "DENY".into(),
     }];
-    assert!(allowed("dashboard.read", Role::Rezeption));
-    assert!(!effective_allowed("dashboard.read", Role::Rezeption, &o));
+    assert!(allowed("dashboard.read", Role::Reception));
+    assert!(!effective_allowed("dashboard.read", Role::Reception, &o));
 }

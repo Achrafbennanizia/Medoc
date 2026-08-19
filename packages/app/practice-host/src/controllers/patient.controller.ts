@@ -6,32 +6,32 @@ import {
     parseOrThrow,
 } from "@/lib/schemas";
 
-export async function listPatienten(): Promise<Patient[]> {
-    return practiceSystem.invoke<Patient[]>("list_patienten");
+export async function listPatients(): Promise<Patient[]> {
+    return practiceSystem.invoke<Patient[]>("list_patients");
 }
 
 export async function getPatient(id: string): Promise<Patient> {
     return practiceSystem.invoke<Patient>("get_patient", { id });
 }
 
-export async function searchPatienten(
+export async function searchPatients(
     query: string,
-    opts?: { includeVersicherungsnummer?: boolean },
+    opts?: { includeInsuranceNumber?: boolean },
 ): Promise<Patient[]> {
-    return practiceSystem.invoke<Patient[]>("search_patienten", {
+    return practiceSystem.invoke<Patient[]>("search_patients", {
         query,
-        include_versicherungsnummer: opts?.includeVersicherungsnummer !== false,
+        include_insurance_number: opts?.includeInsuranceNumber !== false,
     });
 }
 
 export async function createPatient(data: {
     name: string;
-    geburtsdatum: string;
-    geschlecht: string;
-    versicherungsnummer: string;
-    telefon?: string;
+    date_of_birth: string;
+    sex: string;
+    insurance_number: string;
+    phone?: string;
     email?: string;
-    adresse?: string;
+    address?: string;
 }): Promise<Patient> {
     const safe = parseOrThrow(CreatePatientSchema, data);
     return practiceSystem.invoke<Patient>("create_patient", { data: safe });

@@ -17,7 +17,7 @@ export interface ListParams {
     sortBy?: string;
     /** Sort direction. */
     sortDir?: "asc" | "desc";
-    /** Optional, command-specific filter (e.g. status = "AKTIV"). Always typed. */
+    /** Optional, command-specific filter (e.g. status = "ACTIVE"). Always typed. */
     filter?: Record<string, string | number | boolean | null>;
 }
 

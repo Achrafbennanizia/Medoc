@@ -1,7 +1,7 @@
 # Geräteverbund — Two-Device Acceptance Runbook
 
 **Stand:** 2026-06-10  
-**Spec:** [`docs/v-model/03-architektur/feature-geraeteverbund.md`](../v-model/03-architektur/feature-geraeteverbund.md)
+**Spec:** [`docs/version-model/03-architektur/feature-geraeteverbund.md`](../version-model/03-architektur/feature-geraeteverbund.md)
 
 ## Prerequisites
 

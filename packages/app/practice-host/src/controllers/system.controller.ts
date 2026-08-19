@@ -192,8 +192,8 @@ export interface GdtRecord {
     patient_id: string | null;
     patient_name: string | null;
     patient_first_name: string | null;
-    geburtsdatum: string | null;
-    befund: string | null;
+    date_of_birth: string | null;
+    finding: string | null;
     raw_lines: [string, string][];
 }
 
@@ -231,21 +231,21 @@ export const scannerAttach = (src: string, archiveRoot: string, patientId: strin
         patient_id: patientId,
     });
 
-export const scannerAttachVertrag = (src: string, archiveRoot: string, vertragId: string) =>
-    practiceSystem.invoke<string>("scanner_attach_vertrag", {
+export const scannerAttachContract = (src: string, archiveRoot: string, contractId: string) =>
+    practiceSystem.invoke<string>("scanner_attach_contract", {
         src,
         archive_root: archiveRoot,
-        vertrag_id: vertragId,
+        contract_id: contractId,
     });
 
-/** Copy into ~/medoc-data/vertraege/{vertragId}/ (or ./medoc-data if no home). */
-export const scannerAttachVertragAppData = (src: string, vertragId: string) =>
-    practiceSystem.invoke<string>("scanner_attach_vertrag_app_data", {
+/** Copy into ~/medoc-data/contracts/{contractId}/ (or ./medoc-data if no home). */
+export const scannerAttachContractAppData = (src: string, contractId: string) =>
+    practiceSystem.invoke<string>("scanner_attach_contract_app_data", {
         src,
-        vertrag_id: vertragId,
+        contract_id: contractId,
     });
 
-export const pickVertragPdfFile = () => practiceSystem.invoke<string | null>("pick_vertrag_pdf_file");
+export const pickContractPdfFile = () => practiceSystem.invoke<string | null>("pick_contract_pdf_file");
 
 /* ─────────────────── Card / SEPA processing (FA-FIN-PAY) ──────────────── */
 

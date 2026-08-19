@@ -18,22 +18,22 @@ fn ipv4_broadcast(addr: Ipv4Addr, netmask: Ipv4Addr) -> Option<Ipv4Addr> {
 }
 
 fn discovery_targets(discovery_port: u16) -> Vec<SocketAddr> {
-    let mut v = vec![SocketAddr::from((Ipv4Addr::BROADCAST, discovery_port))];
+    let mut version = vec![SocketAddr::from((Ipv4Addr::BROADCAST, discovery_port))];
     for iface in if_addrs::get_if_addrs().unwrap_or_default() {
         if let IfAddr::V4(v4) = iface.addr {
             if v4.ip.is_loopback() {
                 continue;
             }
             if let Some(bc) = v4.broadcast {
-                v.push(SocketAddr::from((bc, discovery_port)));
+                version.push(SocketAddr::from((bc, discovery_port)));
             } else if let Some(bc) = ipv4_broadcast(v4.ip, v4.netmask) {
-                v.push(SocketAddr::from((bc, discovery_port)));
+                version.push(SocketAddr::from((bc, discovery_port)));
             }
         }
     }
-    v.sort_by_key(|s| s.to_string());
-    v.dedup();
-    v
+    version.sort_by_key(|s| s.to_string());
+    version.dedup();
+    version
 }
 
 /// Broadcast discovery probe and collect JSON beacon replies for `listen_window`.

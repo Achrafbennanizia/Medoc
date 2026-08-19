@@ -8,7 +8,7 @@
 | ID | Gap | Reason | Evidence |
 | -- | --- | ------ | -------- |
 | GAP-08 | Termin SMS/E-Mail | No outbound connector; dashboard MVP only (G9) | `notifications.rs` scaffold; settings culled in `docs/settings-cull.md` |
-| GAP-09 | Notfall toolbar default | CAL2 feature flag — intentional experiment toggle | `einstellungen-arbeitsablaeufe-section.tsx` |
+| GAP-09 | Notfall toolbar default | CAL2 feature flag — intentional experiment toggle | `settings-arbeitsablaeufe-section.tsx` |
 | GAP-12 | VDDS/BDT full migration | Parser/wizard stub; CSV import ✅ | `migration-wizard.tsx` notes stub adapters |
 
 ## P3 — deferred (honest stubs)
@@ -24,7 +24,7 @@
 | IDs | Summary |
 | --- | ------- |
 | GAP-01/02 | REZ redaction + tab/load gates — Rust `rezeption_redact.rs`, FE `patient-detail.tsx`, `collaboration-g21.test.ts` |
-| GAP-03/04 | Posteingang + `praxis_aufgabe` (G16–G19) |
+| GAP-03/04 | Posteingang + `practice_task` (G16–G19) |
 | GAP-05–07 | LEIST-06/07 + auto ABRECHNUNG (G14–G18) |
 | GAP-10/11 | Tagesabschluss sidebar + Quittung from Finanzen (2026-06-02) |
 

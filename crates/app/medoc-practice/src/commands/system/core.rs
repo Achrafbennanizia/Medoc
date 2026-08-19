@@ -8,7 +8,7 @@ use crate::infrastructure::license::{self, LicenseStatus};
 use crate::infrastructure::license_repo;
 use crate::infrastructure::perf;
 use crate::log_system;
-use medoc_sync::verbund::services::ClusterResetMode;
+use medoc_sync::cluster::services::ClusterResetMode;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
@@ -97,7 +97,7 @@ pub async fn clear_license(
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
 
-    medoc_sync::verbund::services::wipe_desktop_network_state(
+    medoc_sync::cluster::services::wipe_desktop_network_state(
         &pool,
         &app_data_dir,
         ClusterResetMode::NetworkOnly,
@@ -170,22 +170,22 @@ pub async fn check_for_updates(
         {
             let latest = m
                 .get("latest_version")
-                .and_then(|v| v.as_str())
+                .and_then(|version| version.as_str())
                 .unwrap_or(&current)
                 .to_string();
             let update_available = m
                 .get("update_available")
-                .and_then(|v| v.as_bool())
+                .and_then(|version| version.as_bool())
                 .unwrap_or(false);
             let channel = m
                 .get("channel")
-                .and_then(|v| v.as_str())
+                .and_then(|version| version.as_str())
                 .unwrap_or("stable")
                 .to_string();
             let release_notes = m
                 .get("release_notes")
                 .or_else(|| m.get("notes"))
-                .and_then(|v| v.as_str())
+                .and_then(|version| version.as_str())
                 .unwrap_or("")
                 .to_string();
             return Ok(UpdateInfo {

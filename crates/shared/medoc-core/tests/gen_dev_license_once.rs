@@ -51,7 +51,7 @@ fn build_tokens(device_id: &str) -> (String, String) {
         activated_at: Utc.with_ymd_and_hms(2026, 5, 28, 12, 0, 0).unwrap(),
         max_users: 99,
         modules: vec!["dicom".into()],
-        edition_features: vec!["statistik.advanced".into()],
+        edition_features: vec!["statistics.advanced".into()],
     };
     let v2_body = serde_json::to_string(&lic).unwrap();
     let v2_signed = sign_json(&v2_body);

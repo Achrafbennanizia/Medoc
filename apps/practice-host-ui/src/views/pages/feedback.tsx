@@ -8,16 +8,16 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import {
     submitFeedback,
-    type FeedbackKategorie,
+    type FeedbackCategory,
 } from "@/systems/practice-host/controllers/feedback.controller";
-import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 export function FeedbackPage() {
     const t = useT();
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
-    const [category, setCategory] = useState<FeedbackKategorie>("feedback");
+    const [category, setCategory] = useState<FeedbackCategory>("feedback");
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
     const [ref, setRef] = useState("");
@@ -32,10 +32,10 @@ export function FeedbackPage() {
         setSubmitting(true);
         try {
             await submitFeedback({
-                kategorie: category,
-                betreff: subject.trim(),
-                nachricht: body.trim(),
-                referenz: ref.trim() || null,
+                category: category,
+                subject: subject.trim(),
+                message: body.trim(),
+                reference: ref.trim() || null,
             });
             toast(t("page.feedback.toast_sent"), "success");
             setSubject("");
@@ -49,7 +49,7 @@ export function FeedbackPage() {
     }
 
     return (
-        <div className="praxis-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in">
             <WorkspacePageHeader
                 titleLevel="h1"
                 title={t("page.feedback.title")}
@@ -71,7 +71,7 @@ export function FeedbackPage() {
                     <Select
                         label={t("page.feedback.field_category")}
                         value={category}
-                        onChange={(e) => setCategory(e.target.value as FeedbackKategorie)}
+                        onChange={(e) => setCategory(e.target.value as FeedbackCategory)}
                         options={[
                             { value: "feedback", label: t("page.feedback.cat.feedback") },
                             { value: "vigilance", label: t("page.feedback.cat.vigilance") },
@@ -95,7 +95,7 @@ export function FeedbackPage() {
                     />
                     <div className="row" style={{ gap: 10, marginTop: 12 }}>
                         <Button type="submit" disabled={submitting} loading={submitting}>{t("page.feedback.submit")}</Button>
-                        <Button type="button" variant="ghost" onClick={() => navigate("/hilfe")}>
+                        <Button type="button" variant="ghost" onClick={() => navigate("/help")}>
                             {t("page.feedback.back_help")}
                         </Button>
                     </div>

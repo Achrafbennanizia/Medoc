@@ -320,7 +320,7 @@ fn extract_bearer(req: &axum::extract::Request) -> Result<&str, AppError> {
     let raw = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
+        .and_then(|version| version.to_str().ok())
         .ok_or(AppError::Unauthorized)?;
     let token = raw
         .strip_prefix("Bearer ")

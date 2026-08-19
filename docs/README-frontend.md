@@ -30,7 +30,7 @@ See `docs/architecture/three-systems.md` for boundaries, SOLID, and the Gang-of-
 ## RBAC and routing
 
 - **Capabilities** — `src/lib/rbac.ts` (`allowed()`, `ROUTE_VISIBILITY`, `routeChildPathAllowed`). Mirrors `app/src-tauri/src/application/rbac.rs` for IPC enforcement.
-- **Route guard** — `views/components/role-route.tsx` uses `routeChildPathAllowed(routePath, rolle)` to block deep links.
+- **Route guard** — `views/components/role-route.tsx` uses `routeChildPathAllowed(routePath, role)` to block deep links.
 - **Session** — `views/components/session-gate.tsx` hydrates Zustand via `get_session` on startup. `models/store/auth-store.ts` holds `session` + `sessionChecked`.
 
 ## Stores (Zustand) and cross-cutting UI
@@ -54,15 +54,15 @@ Keep new screens consistent with existing spacing, typography tokens (`page-titl
 Authoritative clinical data lives in **SQLite** (Tauri app data dir). **localStorage / sessionStorage** are used only for:
 
 - **Device UX** — locale (`medoc-locale`), accent (`medoc-accent-preset`), UI zoom (`medoc-ui-zoom` in sessionStorage), pending native menu intents.
-- **Optional PII** — remember-email flags/values on login; termin drafts; per-patient legacy keys (being phased toward DB — see `lib/patient-browser-storage.ts` and audit §D in `docs/audit-2026-05.md`).
+- **Optional PII** — remember-email flags/values on login; appointment drafts; per-patient legacy keys (being phased toward DB — see `lib/patient-browser-storage.ts` and audit §D in `docs/audit-2026-05.md`).
 - **Caches / dev-centric blobs** — practice planning caches, invoice history (legacy), client settings (`lib/client-settings.ts`).
 
-On **DSGVO erase**, `clearPatientScopedBrowserStorage` plus backend pseudonymization runs from `views/pages/datenschutz.tsx` (`ops.controller.ts`).
+On **DSGVO erase**, `clearPatientScopedBrowserStorage` plus backend pseudonymization runs from `views/pages/privacy.tsx` (`ops.controller.ts`).
 
 ## Tests
 
 - **Unit / lib** — `src/lib/*.test.ts` (node environment).
-- **Critical flows** — `src/critical-flows.smoke.test.tsx` (jsdom) mocks IPC for login shell, termin/zahlung/patient sequences, Tagesabschluss form, DSGVO page. See `docs/definition-of-done-pages.md` for route ↔ smoke mapping.
+- **Critical flows** — `src/critical-flows.smoke.test.tsx` (jsdom) mocks IPC for login shell, appointment/payment/patient sequences, Tagesabschluss form, DSGVO page. See `docs/definition-of-done-pages.md` for route ↔ smoke mapping.
 
 ## Related docs
 

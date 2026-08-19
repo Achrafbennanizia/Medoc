@@ -1,5 +1,5 @@
 //! Serverful (`lan_client`) end-to-end flows: admin operating the LAN
-//! server + user (REZEPTION / ARZT) JWT depth + RBAC + activation-token
+//! server + user (RECEPTION / PHYSICIAN) JWT depth + RBAC + activation-token
 //! vs JWT auth boundaries.
 //!
 //! Serverful in this codebase = `DeploymentMode::LanClient`: a thin
@@ -9,49 +9,49 @@
 //!
 //! Coverage gaps closed here:
 //!
-//! - REZEPTION JWT *can* read `/api/v1/patienten` (`patient.read` allowed)
+//! - RECEPTION JWT *can* read `/api/v1/patients` (`patient.read` allowed)
 //!   but *cannot* fetch the company portal endpoints (`ops.system`).
-//! - REZEPTION JWT *cannot* decide pairing requests (admin-only).
-//! - ARZT JWT (with `ops.system`) *can* list pending pairing requests.
+//! - RECEPTION JWT *cannot* decide pairing requests (admin-only).
+//! - PHYSICIAN JWT (with `ops.system`) *can* list pending pairing requests.
 //! - JWT must not be accepted on `/api/v1/sync/*` (activation token only).
 //! - Activation token must not be accepted on `/api/v1/me` (JWT only).
-//! - `/api/v1/termine?datum=` query parses and returns array.
+//! - `/api/v1/appointments?date=` query parses and returns array.
 //! - `/api/v1/app-kv` GET on a whitelisted key.
 //! - Login brute-force lockout on repeated bad password.
 
 use axum::http::StatusCode;
 use medoc_e2e::harness::LanHarness;
 
-fn arzt_jwt(lan: &LanHarness) -> String {
+fn physician_jwt(lan: &LanHarness) -> String {
     medoc_lan::jwt::issue_token(
         lan.jwt_secret.as_ref(),
-        "seed-arzt-001",
-        "ahmed@praxis.de",
-        "ARZT",
+        "seed-physician-001",
+        "ahmed@practice.de",
+        "PHYSICIAN",
     )
-    .expect("arzt jwt")
+    .expect("physician jwt")
 }
 
 fn rez_jwt(lan: &LanHarness) -> String {
     medoc_lan::jwt::issue_token(
         lan.jwt_secret.as_ref(),
         "seed-rez-001",
-        "aya@praxis.de",
-        "REZEPTION",
+        "aya@practice.de",
+        "RECEPTION",
     )
     .expect("rez jwt")
 }
 
 #[tokio::test]
-async fn rezeption_jwt_reads_patienten_but_not_company_endpoints() {
+async fn reception_jwt_reads_patients_but_not_company_endpoints() {
     let mut lan = LanHarness::new().await;
     let rez = rez_jwt(&lan);
 
-    let (status, body) = lan.json("GET", "/api/v1/patienten", None, Some(&rez)).await;
+    let (status, body) = lan.json("GET", "/api/v1/patients", None, Some(&rez)).await;
     assert_eq!(
         status,
         StatusCode::OK,
-        "REZEPTION may patient.read: {body:?}"
+        "RECEPTION may patient.read: {body:?}"
     );
     assert!(body.is_array());
 
@@ -61,7 +61,7 @@ async fn rezeption_jwt_reads_patienten_but_not_company_endpoints() {
     assert_eq!(
         status,
         StatusCode::FORBIDDEN,
-        "REZEPTION must not reach company portal (ops.system)"
+        "RECEPTION must not reach company portal (ops.system)"
     );
 
     let (status, _) = lan
@@ -81,7 +81,7 @@ async fn rezeption_jwt_reads_patienten_but_not_company_endpoints() {
 }
 
 #[tokio::test]
-async fn rezeption_jwt_cannot_decide_pairing_requests() {
+async fn reception_jwt_cannot_decide_pairing_requests() {
     let mut lan = LanHarness::new().await;
     let rez = rez_jwt(&lan);
 
@@ -96,7 +96,7 @@ async fn rezeption_jwt_cannot_decide_pairing_requests() {
     assert_eq!(
         status,
         StatusCode::FORBIDDEN,
-        "REZEPTION JWT lacks ops.system for /pairing/decide"
+        "RECEPTION JWT lacks ops.system for /pairing/decide"
     );
 
     let (status, _) = lan
@@ -116,18 +116,18 @@ async fn rezeption_jwt_cannot_decide_pairing_requests() {
 }
 
 #[tokio::test]
-async fn arzt_jwt_lists_pending_and_all_pairing_requests() {
+async fn physician_jwt_lists_pending_and_all_pairing_requests() {
     let mut lan = LanHarness::new().await;
-    let arzt = arzt_jwt(&lan);
+    let physician = physician_jwt(&lan);
 
     let (status, pending) = lan
-        .json("GET", "/api/v1/pairing/pending", None, Some(&arzt))
+        .json("GET", "/api/v1/pairing/pending", None, Some(&physician))
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(pending.is_array());
 
     let (status, all) = lan
-        .json("GET", "/api/v1/pairing/all", None, Some(&arzt))
+        .json("GET", "/api/v1/pairing/all", None, Some(&physician))
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(all.is_array());
@@ -136,10 +136,10 @@ async fn arzt_jwt_lists_pending_and_all_pairing_requests() {
 #[tokio::test]
 async fn jwt_is_not_accepted_on_sync_routes_only_activation_token() {
     let mut lan = LanHarness::new().await;
-    let arzt = arzt_jwt(&lan);
+    let physician = physician_jwt(&lan);
 
     let (status, _) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&arzt))
+        .json("GET", "/api/v1/sync/status", None, Some(&physician))
         .await;
     // The `verify_activation_for_path` middleware only fires for `mt2.*`
     // tokens; plain JWT passes through and `master_license::require_master_license`
@@ -153,25 +153,25 @@ async fn jwt_is_not_accepted_on_sync_routes_only_activation_token() {
 }
 
 #[tokio::test]
-async fn termin_query_param_parses_and_returns_array() {
+async fn appointment_query_param_parses_and_returns_array() {
     let mut lan = LanHarness::new().await;
-    let arzt = arzt_jwt(&lan);
+    let physician = physician_jwt(&lan);
 
     let (status, body) = lan
-        .json("GET", "/api/v1/termine?datum=2099-01-01", None, Some(&arzt))
+        .json("GET", "/api/v1/appointments?date=2099-01-01", None, Some(&physician))
         .await;
-    assert_eq!(status, StatusCode::OK, "termine ?datum=: {body:?}");
+    assert_eq!(status, StatusCode::OK, "appointments ?date=: {body:?}");
     assert!(body.is_array());
 }
 
 #[tokio::test]
-async fn app_kv_get_set_delete_round_trip_with_arzt_jwt() {
+async fn app_kv_get_set_delete_round_trip_with_physician_jwt() {
     let mut lan = LanHarness::new().await;
-    let arzt = arzt_jwt(&lan);
+    let physician = physician_jwt(&lan);
 
-    // `praxis.preferences.v1` is whitelisted in `app_kv_policy::permission_for_app_kv_key`
-    // and requires `dashboard.read`, which ARZT has (see config/rbac.yaml: `dashboard.read: everyone`).
-    let key = "praxis.preferences.v1";
+    // `practice.preferences.v1` is whitelisted in `app_kv_policy::permission_for_app_kv_key`
+    // and requires `dashboard.read`, which PHYSICIAN has (see config/rbac.yaml: `dashboard.read: everyone`).
+    let key = "practice.preferences.v1";
     let value = r#"{"theme":"light"}"#;
 
     let (status, body) = lan
@@ -179,13 +179,13 @@ async fn app_kv_get_set_delete_round_trip_with_arzt_jwt() {
             "PUT",
             "/api/v1/app-kv",
             Some(&serde_json::json!({ "key": key, "value": value })),
-            Some(&arzt),
+            Some(&physician),
         )
         .await;
     assert_eq!(
         status,
         StatusCode::NO_CONTENT,
-        "app-kv PUT for whitelisted dashboard.read key with ARZT JWT must succeed: {body:?}"
+        "app-kv PUT for whitelisted dashboard.read key with PHYSICIAN JWT must succeed: {body:?}"
     );
 
     let (status, body) = lan
@@ -193,7 +193,7 @@ async fn app_kv_get_set_delete_round_trip_with_arzt_jwt() {
             "GET",
             &format!("/api/v1/app-kv?key={key}"),
             None,
-            Some(&arzt),
+            Some(&physician),
         )
         .await;
     assert_eq!(status, StatusCode::OK);
@@ -205,7 +205,7 @@ async fn app_kv_get_set_delete_round_trip_with_arzt_jwt() {
             "PUT",
             "/api/v1/app-kv",
             Some(&serde_json::json!({ "key": "no.such.key.v1", "value": "x" })),
-            Some(&arzt),
+            Some(&physician),
         )
         .await;
     assert_eq!(
@@ -219,7 +219,7 @@ async fn app_kv_get_set_delete_round_trip_with_arzt_jwt() {
             "DELETE",
             &format!("/api/v1/app-kv?key={key}"),
             None,
-            Some(&arzt),
+            Some(&physician),
         )
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT, "DELETE for whitelisted key");
@@ -234,8 +234,8 @@ async fn login_with_wrong_password_returns_unauthorized() {
             "POST",
             "/api/v1/auth/login",
             Some(&serde_json::json!({
-                "email": "ahmed@praxis.de",
-                "passwort": "wrong-password-x"
+                "email": "ahmed@practice.de",
+                "password": "wrong-password-x"
             })),
             None,
         )
@@ -256,7 +256,7 @@ async fn login_for_unknown_user_does_not_leak_existence() {
             "/api/v1/auth/login",
             Some(&serde_json::json!({
                 "email": "ghost@example.invalid",
-                "passwort": "passwort123"
+                "password": "password123"
             })),
             None,
         )
@@ -294,7 +294,7 @@ async fn me_route_requires_jwt_not_activation_token() {
 #[tokio::test]
 async fn protected_route_without_bearer_returns_401_with_json_error() {
     let mut lan = LanHarness::new().await;
-    let (status, body) = lan.json("GET", "/api/v1/patienten", None, None).await;
+    let (status, body) = lan.json("GET", "/api/v1/patients", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert!(
         body["error"].is_string(),

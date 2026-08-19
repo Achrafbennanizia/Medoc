@@ -37,9 +37,9 @@ describe("HttpPracticeAdapter", () => {
                 access_token: "jwt-from-lan-server",
                 user: {
                     user_id: "u-lan-1",
-                    email: "arzt@praxis.de",
+                    email: "physician@practice.de",
                     name: "Dr. LAN",
-                    rolle: "ARZT",
+                    role: "PHYSICIAN",
                 },
             }),
         });
@@ -50,14 +50,14 @@ describe("HttpPracticeAdapter", () => {
             user_id: string;
             email: string;
             name: string;
-            rolle: string;
-        }>("login", { email: "arzt@praxis.de", passwort: "geheim" });
+            role: string;
+        }>("login", { email: "physician@practice.de", password: "geheim" });
 
         expect(session).toEqual({
             user_id: "u-lan-1",
-            email: "arzt@praxis.de",
+            email: "physician@practice.de",
             name: "Dr. LAN",
-            rolle: "ARZT",
+            role: "PHYSICIAN",
         });
         expect(fetchMock).toHaveBeenCalledOnce();
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -65,8 +65,8 @@ describe("HttpPracticeAdapter", () => {
         expect(init.method).toBe("POST");
         expect(init.body).toBe(
             JSON.stringify({
-                email: "arzt@praxis.de",
-                passwort: "geheim",
+                email: "physician@practice.de",
+                password: "geheim",
                 totp_code: null,
             }),
         );

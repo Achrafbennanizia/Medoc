@@ -1,4 +1,4 @@
 //! IPC commands — scheduling domain.
 
-pub mod praxis_aufgabe;
-pub mod termin;
+pub mod practice_task;
+pub mod appointment;

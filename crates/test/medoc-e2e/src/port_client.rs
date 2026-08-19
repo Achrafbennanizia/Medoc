@@ -62,8 +62,8 @@ impl PortE2eClient {
         if let Some(token) = bearer {
             req = req.bearer_auth(token);
         }
-        for (k, v) in extra_headers {
-            req = req.header(*k, *v);
+        for (k, version) in extra_headers {
+            req = req.header(*k, *version);
         }
         if let Some(json) = body {
             req = req.json(json);
@@ -82,7 +82,7 @@ impl PortE2eClient {
     pub async fn wait_health(&self, max_attempts: u32) {
         for _ in 0..max_attempts {
             if let Ok((200, body)) = self.try_health().await {
-                if body.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                if body.get("status").and_then(|version| version.as_str()) == Some("ok") {
                     return;
                 }
             }
@@ -100,14 +100,14 @@ impl PortE2eClient {
         Ok((status, value))
     }
 
-    pub async fn login_arzt_totp(&self, totp_code: &str) -> String {
+    pub async fn login_physician_totp(&self, totp_code: &str) -> String {
         let (status, body) = self
             .json(
                 "POST",
                 "/api/v1/auth/login",
                 Some(&serde_json::json!({
-                    "email": "ahmed@praxis.de",
-                    "passwort": "passwort123",
+                    "email": "ahmed@practice.de",
+                    "password": "password123",
                     "totp_code": totp_code
                 })),
                 None,
@@ -194,10 +194,10 @@ pub fn patient_insert_entry(
     let payload = serde_json::json!({
         "id": patient_id,
         "name": name,
-        "geburtsdatum": "1990-01-01",
-        "geschlecht": "MAENNLICH",
-        "versicherungsnummer": versicherung,
-        "status": "AKTIV",
+        "date_of_birth": "1990-01-01",
+        "sex": "MALE",
+        "insurance_number": versicherung,
+        "status": "ACTIVE",
         "created_at": "2026-01-01 00:00:00",
         "updated_at": updated_at_iso,
     });
@@ -274,34 +274,34 @@ pub async fn sync_push_raw(
         .await
 }
 
-pub fn rezept_insert_entry(
+pub fn prescription_insert_entry(
     device_id: &str,
     seq: i64,
-    rezept_id: &str,
+    prescription_id: &str,
     patient_id: &str,
-    arzt_id: &str,
-    medikament: &str,
+    physician_id: &str,
+    medication: &str,
     created_at_iso: &str,
 ) -> OutboxEntry {
     let payload = serde_json::json!({
-        "id": rezept_id,
+        "id": prescription_id,
         "patient_id": patient_id,
-        "arzt_id": arzt_id,
-        "medikament": medikament,
-        "dosierung": "1-0-1",
-        "dauer": "7 Tage",
-        "ausgestellt_am": "2026-06-02",
-        "status": "AUSGESTELLT",
+        "physician_id": physician_id,
+        "medication": medication,
+        "dosage": "1-0-1",
+        "duration": "7 Tage",
+        "issued_at": "2026-06-02",
+        "status": "ISSUED",
         "created_at": created_at_iso,
         "aut_idem": true,
-        "rezept_typ": "PRIVAT",
+        "prescription_type": "PRIVAT",
     });
     OutboxEntry {
         id: format!("rez-{device_id}-{seq}"),
         device_id: device_id.into(),
         seq,
-        entity_table: "rezept".into(),
-        entity_id: rezept_id.into(),
+        entity_table: "prescription".into(),
+        entity_id: prescription_id.into(),
         op: "INSERT".into(),
         payload_json: payload.to_string(),
         created_at: created_at_iso.into(),
@@ -309,13 +309,13 @@ pub fn rezept_insert_entry(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn praxis_ticket_insert_entry(
+pub fn practice_ticket_insert_entry(
     device_id: &str,
     seq: i64,
     ticket_id: &str,
     patient_id: &str,
     from_user_id: &str,
-    to_arzt_id: &str,
+    to_physician_id: &str,
     body: &str,
     created_at_iso: &str,
 ) -> OutboxEntry {
@@ -323,9 +323,9 @@ pub fn praxis_ticket_insert_entry(
         "id": ticket_id,
         "patient_id": patient_id,
         "from_user_id": from_user_id,
-        "to_arzt_id": to_arzt_id,
+        "to_physician_id": to_physician_id,
         "body": body,
-        "status": "OFFEN",
+        "status": "OPEN",
         "created_at": created_at_iso,
         "updated_at": created_at_iso,
     });
@@ -333,7 +333,7 @@ pub fn praxis_ticket_insert_entry(
         id: format!("tkt-{device_id}-{seq}"),
         device_id: device_id.into(),
         seq,
-        entity_table: "praxis_ticket".into(),
+        entity_table: "practice_ticket".into(),
         entity_id: ticket_id.into(),
         op: "INSERT".into(),
         payload_json: payload.to_string(),

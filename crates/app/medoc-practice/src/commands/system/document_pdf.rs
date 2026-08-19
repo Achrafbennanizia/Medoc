@@ -28,15 +28,16 @@ pub fn preview_document_pdf(
     args: PreviewDocumentPdfArgs,
 ) -> Result<String, AppError> {
     rbac::require_authenticated(&session_state)?;
-    let v: serde_json::Value = serde_json::from_str(&args.template_payload_json)
+    let version: serde_json::Value = serde_json::from_str(&args.template_payload_json)
         .map_err(|e| AppError::Validation(format!("Template JSON: {e}")))?;
-    let body_pt = v
+    let body_pt = version
         .get("bodyPt")
         .and_then(|x| x.as_u64())
         .map(|n| n.clamp(8, 18) as i32)
         .unwrap_or(11);
-    let fuss = v
-        .get("fusszeile")
+    let fuss = version
+        .get("footer")
+        .or_else(|| version.get("fusszeile"))
         .and_then(|x| x.as_str())
         .unwrap_or("")
         .chars()

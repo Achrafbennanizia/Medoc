@@ -28,8 +28,8 @@ describe("pairing.controller", () => {
         expect(DEFAULT_ALLOWED_ACTIONS).toContain("pairing.peers");
     });
 
-    it("OPTIONAL_READ_ACTIONS lists patient and termin read scopes", () => {
-        expect(OPTIONAL_READ_ACTIONS).toEqual(["patient.read", "termin.read"]);
+    it("OPTIONAL_READ_ACTIONS lists patient and appointment read scopes", () => {
+        expect(OPTIONAL_READ_ACTIONS).toEqual(["patient.read", "appointment.read"]);
     });
 
     it("pairingListPending invokes pairing_list_pending", async () => {
@@ -56,7 +56,7 @@ describe("pairing.controller", () => {
             activationToken: null,
             requestedAt: "2026-06-02T12:00:00Z",
             decidedAt: "2026-06-02T12:01:00Z",
-            decidedBy: "seed-arzt-001",
+            decidedBy: "seed-physician-001",
             awaitingPin: true,
         };
         vi.mocked(practiceSystem.invoke).mockResolvedValueOnce({

@@ -339,7 +339,7 @@ async fn push_to_master_prefers_activation_token_over_jwt() {
     assert!(reqs[0]
         .headers
         .get("authorization")
-        .is_some_and(|v| { v.to_str().unwrap_or("").contains("activation-bearer") }));
+        .is_some_and(|version| { version.to_str().unwrap_or("").contains("activation-bearer") }));
 }
 
 #[tokio::test]
@@ -471,7 +471,7 @@ async fn pull_from_master_counts_skipped_already_applied() {
         "entityTable": "app_kv",
         "entityId": "skip.key",
         "op": "INSERT",
-        "payloadJson": r#"{"key":"skip.key","value":"v"}"#,
+        "payloadJson": r#"{"key":"skip.key","value":"version"}"#,
         "createdAt": "2099-01-01T00:00:00Z"
     });
     mark_applied(&pool, "master-device", 1).await.unwrap();

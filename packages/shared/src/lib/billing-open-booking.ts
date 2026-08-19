@@ -1,82 +1,86 @@
 /**
- * FA-LEIST-06 — mirrors `pricing::behandlung_has_billable_leistung` + patient-detail UX.
+ * FA-LEIST-06 — mirrors `pricing::treatment_has_billable_service_item` + patient-detail UX.
  */
-import type { ZahlungsArt } from "@/models/types";
-import type { PatientDetailAkteTab } from "@/lib/patient-detail-utils";
+import type { PaymentMethod } from "@/models/types";
+import type { PatientDetailChartTab } from "@/lib/patient-detail-utils";
 
-/** FA-LEIST-06/07 — same rule for Behandlung and Untersuchung. */
-export function behandlungHasBillableLeistung(
-    leistungsname: string | null | undefined,
-    gesamtkosten: number | null | undefined,
+/** FA-LEIST-06/07 — same rule for Treatment and Examination. */
+export function treatmentHasBillableServiceItem(
+    service_name: string | null | undefined,
+    total_cost: number | null | undefined,
 ): boolean {
-    if ((leistungsname ?? "").trim().length > 0) return true;
-    const g = gesamtkosten;
+    if ((service_name ?? "").trim().length > 0) return true;
+    const g = total_cost;
     return g != null && Number.isFinite(g) && g > 0.005;
 }
 
-export const untersuchungHasBillableLeistung = behandlungHasBillableLeistung;
+export const examinationHasBillableServiceItem = treatmentHasBillableServiceItem;
 
-/** FA-LEIST-05 — physician billing release recorded on Behandlung / Untersuchung rows. */
+/** FA-LEIST-05 — physician billing release recorded on Treatment / Examination rows. */
 export function isReleasedForBilling(entry: {
-    freigegeben_von_arzt_id?: string | null;
-    freigegeben_am?: string | null;
+    released_by_physician_id?: string | null;
+    released_at?: string | null;
+    released_by_physician_id?: string | null;
+    released_at?: string | null;
 }): boolean {
-    return Boolean(entry.freigegeben_von_arzt_id) && (entry.freigegeben_am ?? "").trim() !== "";
+    const by = entry.released_by_physician_id ?? entry.released_by_physician_id;
+    const at = entry.released_at ?? entry.released_at;
+    return Boolean(by) && (at ?? "").trim() !== "";
 }
 
-export type ZahlNewFormState = {
-    linkKind: "" | "behand" | "unter";
+export type PaymentNewFormState = {
+    linkKind: "" | "treatment" | "examination";
     linkId: string;
-    betrag: string;
-    zahlungsart: ZahlungsArt;
-    beschreibung: string;
+    amount: string;
+    payment_method: PaymentMethod;
+    description: string;
 };
 
-export type OpenZahlTabAfterBehandlungArgs = {
-    behandlungId: string;
-    gesamtkosten: number | null;
-    goTab: (tab: PatientDetailAkteTab) => void;
-    setShowZahlComposer: (show: boolean) => void;
-    setZahlNewForm: (form: ZahlNewFormState) => void;
+export type OpenPaymentTabAfterTreatmentArgs = {
+    treatmentId: string;
+    total_cost: number | null;
+    goTab: (tab: PatientDetailChartTab) => void;
+    setShowPaymentComposer: (show: boolean) => void;
+    setPaymentNewForm: (form: PaymentNewFormState) => void;
 };
 
-/** Patient Akte → billing tab, form "Neue Buchung" pre-filled. */
-export function openZahlTabAfterBillableBehandlung(args: OpenZahlTabAfterBehandlungArgs): void {
-    const betrag =
-        args.gesamtkosten != null && Number.isFinite(args.gesamtkosten) && args.gesamtkosten > 0
-            ? String(args.gesamtkosten)
+/** Patient Chart → billing tab, form "Neue Buchung" pre-filled. */
+export function openPaymentTabAfterBillableTreatment(args: OpenPaymentTabAfterTreatmentArgs): void {
+    const amount =
+        args.total_cost != null && Number.isFinite(args.total_cost) && args.total_cost > 0
+            ? String(args.total_cost)
             : "";
-    args.goTab("zahl");
-    args.setZahlNewForm({
-        linkKind: "behand",
-        linkId: args.behandlungId,
-        betrag,
-        zahlungsart: "BAR",
-        beschreibung: "",
+    args.goTab("payment");
+    args.setPaymentNewForm({
+        linkKind: "treatment",
+        linkId: args.treatmentId,
+        amount,
+        payment_method: "CASH",
+        description: "",
     });
-    args.setShowZahlComposer(true);
+    args.setShowPaymentComposer(true);
 }
 
-export type OpenZahlTabAfterUntersuchungArgs = {
-    untersuchungId: string;
-    gesamtkosten: number | null;
-    goTab: (tab: PatientDetailAkteTab) => void;
-    setShowZahlComposer: (show: boolean) => void;
-    setZahlNewForm: (form: ZahlNewFormState) => void;
+export type OpenPaymentTabAfterExaminationArgs = {
+    examinationId: string;
+    total_cost: number | null;
+    goTab: (tab: PatientDetailChartTab) => void;
+    setShowPaymentComposer: (show: boolean) => void;
+    setPaymentNewForm: (form: PaymentNewFormState) => void;
 };
 
-export function openZahlTabAfterBillableUntersuchung(args: OpenZahlTabAfterUntersuchungArgs): void {
-    const betrag =
-        args.gesamtkosten != null && Number.isFinite(args.gesamtkosten) && args.gesamtkosten > 0
-            ? String(args.gesamtkosten)
+export function openPaymentTabAfterBillableExamination(args: OpenPaymentTabAfterExaminationArgs): void {
+    const amount =
+        args.total_cost != null && Number.isFinite(args.total_cost) && args.total_cost > 0
+            ? String(args.total_cost)
             : "";
-    args.goTab("zahl");
-    args.setZahlNewForm({
-        linkKind: "unter",
-        linkId: args.untersuchungId,
-        betrag,
-        zahlungsart: "BAR",
-        beschreibung: "",
+    args.goTab("payment");
+    args.setPaymentNewForm({
+        linkKind: "examination",
+        linkId: args.examinationId,
+        amount,
+        payment_method: "CASH",
+        description: "",
     });
-    args.setShowZahlComposer(true);
+    args.setShowPaymentComposer(true);
 }

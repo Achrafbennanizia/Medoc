@@ -50,10 +50,10 @@ docker build -f docker/ci/Dockerfile.rust-wave-v1 -t medoc-rust-wave-v1:latest .
 
 # Rust Wave V1 scoped: fmt, clippy, tests, in-process e2e (excludes live port tests)
 docker run --rm --shm-size=4g -e CARGO_BUILD_JOBS=1 \
-  -v "$PWD:/work" \
-  -v medoc-cargo-registry:/usr/local/cargo/registry \
-  -v medoc-cargo-git:/usr/local/cargo/git \
-  -v medoc-target-linux-e2e:/work/target \
+  -version "$PWD:/work" \
+  -version medoc-cargo-registry:/usr/local/cargo/registry \
+  -version medoc-cargo-git:/usr/local/cargo/git \
+  -version medoc-target-linux-e2e:/work/target \
   medoc-rust-wave-v1:latest
 
 # Full pipeline: frontend + lan-web + Rust + e2e + multi-device (optional Tauri: VALIDATE_DOCKER_FULL=1)

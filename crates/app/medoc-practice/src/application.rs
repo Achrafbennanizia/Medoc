@@ -1,8 +1,8 @@
 //! Practice-host application facade (re-exports medoc-core + Tauri RBAC guards).
 
 pub use medoc_core::application::{
-    akte, app_kv_policy, audit_chain_guard, auth_service, break_glass, device_session_service,
-    own_profile, praxis_aufgabe_notify, termin_hint_fulfillment, totp_service,
+    chart, app_kv_policy, audit_chain_guard, auth_service, break_glass, device_session_service,
+    own_profile, practice_task_notify, appointment_hint_fulfillment, totp_service,
 };
 pub use medoc_core::mvp_security;
 

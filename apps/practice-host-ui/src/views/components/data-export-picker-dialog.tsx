@@ -143,7 +143,7 @@ export function DataExportPickerDialog({
             open={open}
             onClose={onClose}
             title={title}
-            className="modal--akte-export modal--wide"
+            className="modal--chart-export modal--wide"
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
@@ -155,8 +155,8 @@ export function DataExportPickerDialog({
                 </>
             )}
         >
-            <div className="akte-export-dialog-layout">
-                <div className="akte-export-dialog-form-col">
+            <div className="chart-export-dialog-layout">
+                <div className="chart-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
                         {resolvedDescription}
                     </p>
@@ -199,9 +199,9 @@ export function DataExportPickerDialog({
                         />
                     </div>
                 </div>
-                <div className="akte-export-dialog-preview-col">
+                <div className="chart-export-dialog-preview-col">
                     <div className="text-label">{t("common.preview")}</div>
-                    <div className="akte-export-pdf-preview-box">
+                    <div className="chart-export-pdf-preview-box">
                         {loading ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.loading_data")}</p>
                         ) : !payload ? (

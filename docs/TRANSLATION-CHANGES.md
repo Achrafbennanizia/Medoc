@@ -37,15 +37,15 @@ English (`en`) is the **source/fallback** locale. Catalog: [`packages/shared/loc
 
 | Category | Examples | Reason |
 |----------|----------|--------|
-| Enum / serialized values | `OFFEN`, `IN_BEARBEITUNG`, `AUSGESTELLT`, `ENTWURF`, `Arbeitsunfähigkeitsbescheinigung` | Backend / DB / API |
+| Enum / serialized values | `OPEN`, `IN_PROGRESS`, `AUSGESTELLT`, `DRAFT`, `Arbeitsunfähigkeitsbescheinigung` | Backend / DB / API |
 | DTO / type names | `Patient`, `Termin`, `Zahnbefund`, `PraxisAufgabe`, `Behandlung` | TypeScript domain model |
-| DB fields | `zahn_nummer`, `befund`, `patient_id`, `passwort`, `versicherungsnummer` | Schema-coupled |
-| Backend-keyed map keys | `st["Durchgeführt"]` in [`statistik.tsx`](apps/practice-host-ui/src/views/pages/statistik.tsx) | Stats API keys |
-| German route segments | `/einstellungen`, `/verwaltung` | URL identifiers, not display |
-| Persisted clinical payloads | `(Zähne …)` in [`termin-create.tsx`](apps/practice-host-ui/src/views/pages/termin-create.tsx) | Stored in records |
+| DB fields | `tooth_number`, `finding`, `patient_id`, `password`, `insurance_number` | Schema-coupled |
+| Backend-keyed map keys | `st["Durchgeführt"]` in [`statistics.tsx`](apps/practice-host-ui/src/views/pages/statistics.tsx) | Stats API keys |
+| German route segments | `/settings`, `/administration` | URL identifiers, not display |
+| Persisted clinical payloads | `(Zähne …)` in [`appointment-create.tsx`](apps/practice-host-ui/src/views/pages/appointment-create.tsx) | Stored in records |
 | Generated PDF/print (Rust + TS layout) | German column labels in [`report-export.ts`](packages/shared/src/lib/report-export.ts), [`clinical-document-pdf.ts`](packages/shared/src/lib/clinical-document-pdf.ts) | Out of interactive UI scope |
 | Demo / seed data | `DEFAULT_KATEGORIEN`, `DEMO_VERTRAEGE` | Not production UI copy |
-| Filename heuristics | `Foto-`, `Anlage-` in [`akte-anlagen.ts`](apps/practice-host-ui/src/platform/akte-anlagen.ts) | Persisted filenames |
+| Filename heuristics | `Foto-`, `Anlage-` in [`akte-attachments.ts`](apps/practice-host-ui/src/platform/akte-attachments.ts) | Persisted filenames |
 
 ---
 
@@ -70,8 +70,8 @@ Keys: `dental.status.*` (8), `dental.mini.title`, `dental.mini.findings_heading`
 | Module | Pattern | Call sites updated |
 |--------|---------|-------------------|
 | [`praxis-completeness.ts`](packages/shared/src/lib/praxis-completeness.ts) | `missingFields` → `{ field, labelKey }`; `praxisReadinessDialogBody(t, tp, kind, missing)` | [`praxis-readiness-dialog.tsx`](apps/practice-host-ui/src/views/components/praxis-readiness-dialog.tsx) |
-| [`patient-detail-utils.ts`](packages/shared/src/lib/patient-detail-utils.ts) | `validateRezeptLine(line, t)`, `rezeptStatusDisplay(status, t)` | [`use-patient-detail-rezept-tab.ts`](packages/app/practice-host/src/pages/patient-detail/use-patient-detail-rezept-tab.ts), [`patient-detail-rezept-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-rezept-tab-panel.tsx) |
-| [`zahlung-buchung.ts`](packages/shared/src/lib/zahlung-buchung.ts) | `zahlungsartLabel(art, t)`, `zahlStatusDisplay(status, t)`, `zahlungArtSelectOptions(t)`, `buildZahlLinkSelectOptions(behandlungen, untersuchungen, t, tp)`, `buildOpenZahlLinkSelectOptions(..., t, tp)` | [`zahlung-create-panel.tsx`](apps/practice-host-ui/src/views/pages/zahlung-create-panel.tsx), [`use-patient-detail-zahl-actions.ts`](packages/app/practice-host/src/pages/patient-detail/use-patient-detail-zahl-actions.ts), [`patient-detail.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail.tsx), [`verwaltung-finanz-werkzeuge.tsx`](apps/practice-host-ui/src/views/pages/verwaltung-finanz-werkzeuge.tsx) |
+| [`patient-detail-utils.ts`](packages/shared/src/lib/patient-detail-utils.ts) | `validateRezeptLine(line, t)`, `rezeptStatusDisplay(status, t)` | [`use-patient-detail-prescription-tab.ts`](packages/app/practice-host/src/pages/patient-detail/use-patient-detail-prescription-tab.ts), [`patient-detail-prescription-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-prescription-tab-panel.tsx) |
+| [`payment-buchung.ts`](packages/shared/src/lib/payment-buchung.ts) | `zahlungsartLabel(kind, t)`, `zahlStatusDisplay(status, t)`, `zahlungArtSelectOptions(t)`, `buildZahlLinkSelectOptions(treatments, examinations, t, tp)`, `buildOpenZahlLinkSelectOptions(..., t, tp)` | [`payment-create-panel.tsx`](apps/practice-host-ui/src/views/pages/payment-create-panel.tsx), [`use-patient-detail-zahl-actions.ts`](packages/app/practice-host/src/pages/patient-detail/use-patient-detail-zahl-actions.ts), [`patient-detail.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail.tsx), [`administration-finanz-werkzeuge.tsx`](apps/practice-host-ui/src/views/pages/administration-finanz-werkzeuge.tsx) |
 | [`photo-viewer-apps.ts`](packages/shared/src/lib/photo-viewer-apps.ts) | `photoViewerAppOptionsForSelect(apps, t)` | Consumer gated by `SYSTEM_AKTE_PHOTO_VIEWER_ENABLED` (currently false) |
 | [`billing-release.ts`](packages/shared/src/lib/billing-release.ts) | `billingReleaseError(t, entityLabel)` | Optional `t` on `requireReleasedForBilling` |
 
@@ -83,23 +83,23 @@ New keys: `enum.rezept_status.*`, `praxis.readiness.body`, `praxis.readiness.kin
 
 | File | Resolution |
 |------|------------|
-| [`vorlage-editor.tsx`](apps/practice-host-ui/src/views/pages/vorlage-editor.tsx) | `vorlage.suggestion.illness.*` keys; shared with attest composer |
-| [`attest-composer.ts`](packages/shared/src/lib/attest-composer.ts) | `attestTypSelectOptions(t)`, `illnessSuggestionLabels(t)`, `validateAttestComposer(fields, t)`; serialized `ATTEST_TYP_VALUES` unchanged |
-| [`patient-detail-rezept-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-rezept-tab-panel.tsx) | Attest type select + illness datalist via `t` |
-| [`datenschutz.tsx`](apps/practice-host-ui/src/views/pages/datenschutz.tsx) | `page.datenschutz.export_bundle_hint` with `{name}` |
+| [`vorlage-editor.tsx`](apps/practice-host-ui/src/views/pages/vorlage-editor.tsx) | `vorlage.suggestion.illness.*` keys; shared with certificate composer |
+| [`certificate-composer.ts`](packages/shared/src/lib/certificate-composer.ts) | `attestTypSelectOptions(t)`, `illnessSuggestionLabels(t)`, `validateAttestComposer(fields, t)`; serialized `ATTEST_TYP_VALUES` unchanged |
+| [`patient-detail-prescription-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-prescription-tab-panel.tsx) | Attest type select + illness datalist via `t` |
+| [`privacy.tsx`](apps/practice-host-ui/src/views/pages/privacy.tsx) | `page.privacy.export_bundle_hint` with `{name}` |
 | [`http-practice.adapter.ts`](packages/app/practice-host/src/adapters/http-practice.adapter.ts) | English throws + `formatLanPracticeError` at [`lan-client-app.tsx`](apps/lan-web-client/src/lan-client-app.tsx) catch sites |
-| [`termine.tsx`](apps/practice-host-ui/src/views/pages/termine.tsx) | Commented `DISABLED` blocks unchanged; active UI externalized |
-| [`termin-availability.ts`](packages/shared/src/lib/termin-availability.ts) | `terminSchedulingBlockReason(..., t)`, `validateTerminSchedulingUpdates(..., t)`, `formatAlternativeSlots(slots, tp)`; `formatAlternativeSlotsDe` deprecated | [`termine.tsx`](apps/practice-host-ui/src/views/pages/termine.tsx), [`termin-create.tsx`](apps/practice-host-ui/src/views/pages/termin-create.tsx) |
-| [`verwaltung-hierarchy.ts`](packages/shared/src/lib/verwaltung-hierarchy.ts) | `VerwaltungBackTarget.labelKey` replaces hardcoded `label` | [`verwaltung-back-button.tsx`](apps/practice-host-ui/src/views/components/verwaltung-back-button.tsx) |
+| [`appointments.tsx`](apps/practice-host-ui/src/views/pages/appointments.tsx) | Commented `DISABLED` blocks unchanged; active UI externalized |
+| [`appointment-availability.ts`](packages/shared/src/lib/appointment-availability.ts) | `terminSchedulingBlockReason(..., t)`, `validateTerminSchedulingUpdates(..., t)`, `formatAlternativeSlots(slots, tp)`; `formatAlternativeSlotsDe` deprecated | [`appointments.tsx`](apps/practice-host-ui/src/views/pages/appointments.tsx), [`appointment-create.tsx`](apps/practice-host-ui/src/views/pages/appointment-create.tsx) |
+| [`administration-hierarchy.ts`](packages/shared/src/lib/administration-hierarchy.ts) | `VerwaltungBackTarget.labelKey` replaces hardcoded `label` | [`administration-back-button.tsx`](apps/practice-host-ui/src/views/components/administration-back-button.tsx) |
 | [`export-settings.ts`](packages/shared/src/lib/export-settings.ts) | `describeResolvedExportPath(cfg, t)` | [`export-picker-dialog.tsx`](apps/practice-host-ui/src/views/components/export-picker-dialog.tsx), [`report-export-picker-dialog.tsx`](apps/practice-host-ui/src/views/components/report-export-picker-dialog.tsx), [`data-export-picker-dialog.tsx`](apps/practice-host-ui/src/views/components/data-export-picker-dialog.tsx) |
 
-Keys: `error.lan.config_missing_url`, `error.lan.config_incomplete`, `error.lan.command_unavailable`, `error.lan.http_error`, `vorlage.suggestion.illness.*`, `page.datenschutz.export_bundle_hint`, `verwaltung.back.*`, `termine.scheduling.*`, `zahlung.link.*`, `export.path.*`.
+Keys: `error.lan.config_missing_url`, `error.lan.config_incomplete`, `error.lan.command_unavailable`, `error.lan.http_error`, `vorlage.suggestion.illness.*`, `page.privacy.export_bundle_hint`, `administration.back.*`, `appointments.scheduling.*`, `payment.link.*`, `export.path.*`.
 
 ### 2D. RTL / logical CSS
 
-- [`index.css`](apps/practice-host-ui/src/index.css) — calendar/grid/arbeitsplan (prior pass).
+- [`index.css`](apps/practice-host-ui/src/index.css) — calendar/grid/work_plan (prior pass).
 - **Inline TSX** (~20 files): `marginLeft`/`marginRight` → `marginInlineStart`/`marginInlineEnd`; `paddingLeft` → `paddingInlineStart`; table `textAlign: "right"` → `"end"`.
-- [`termine.tsx`](apps/practice-host-ui/src/views/pages/termine.tsx) filter popover: `insetInlineStart` + RTL-aware anchor positioning via `isRtlLocale()`.
+- [`appointments.tsx`](apps/practice-host-ui/src/views/pages/appointments.tsx) filter popover: `insetInlineStart` + RTL-aware anchor positioning via `isRtlLocale()`.
 
 ---
 
@@ -109,26 +109,26 @@ Keys: `error.lan.config_missing_url`, `error.lan.config_incomplete`, `error.lan.
 
 | Helper | New signature | Call sites |
 |--------|---------------|------------|
-| `passwordPolicyError` | `(t, password)` | [`personal.tsx`](apps/practice-host-ui/src/views/pages/personal.tsx), [`einstellungen.tsx`](apps/practice-host-ui/src/views/pages/einstellungen.tsx) |
+| `passwordPolicyError` | `(t, password)` | [`staff.tsx`](apps/practice-host-ui/src/views/pages/staff.tsx), [`settings.tsx`](apps/practice-host-ui/src/views/pages/settings.tsx) |
 | `evaluatePasswordPolicy` | rules expose `id` only | [`password-policy-hints.tsx`](apps/practice-host-ui/src/views/components/password-policy-hints.tsx) |
-| `buildSystemEntries` | `(aufgabe, personal, t)` | [`praxis-aufgabe-kommentare.tsx`](apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-kommentare.tsx) |
-| `labelForAkteDocumentKind` | `(t, id)` | [`akte-anlagen-panel.tsx`](apps/practice-host-ui/src/views/components/akte-anlagen-panel.tsx) |
+| `buildSystemEntries` | `(aufgabe, staff, t)` | [`praxis-aufgabe-kommentare.tsx`](apps/practice-host-ui/src/views/components/praxis-aufgaben/praxis-aufgabe-kommentare.tsx) |
+| `labelForAkteDocumentKind` | `(t, id)` | [`akte-attachments-panel.tsx`](apps/practice-host-ui/src/views/components/akte-attachments-panel.tsx) |
 | `validateAnlageFile` | `(t, file)` | [`patient-detail.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail.tsx) |
-| `validateRezeptLine` | `(line, t)` | rezept tab hook + panel |
-| `rezeptStatusDisplay` | `(status, t)` | rezept tab panel |
-| `zahlungsartLabel` / `zahlStatusDisplay` | `(value, t)` | zahlung panels, print HTML (via `docT`) |
-| `zahlungArtSelectOptions` | `(t)` replaces `ZAHLUNG_ART_SELECT` | zahlung-create, patient-detail-zahl-tab |
+| `validateRezeptLine` | `(line, t)` | prescription tab hook + panel |
+| `rezeptStatusDisplay` | `(status, t)` | prescription tab panel |
+| `zahlungsartLabel` / `zahlStatusDisplay` | `(value, t)` | payment panels, print HTML (via `docT`) |
+| `zahlungArtSelectOptions` | `(t)` replaces `ZAHLUNG_ART_SELECT` | payment-create, patient-detail-zahl-tab |
 | `praxisReadinessDialogBody` | `(t, tp, documentKind, missing)` | praxis-readiness-dialog |
 | `billingReleaseError` | `(t, entityLabel)` | optional on `requireReleasedForBilling` |
-| `validateAttestComposer` | `(fields, t)` | rezept tab hook, `patient-detail-rezept-actions` |
-| `attestTypSelectOptions` / `illnessSuggestionLabels` | `(t)` | attest tab panel, vorlage editor |
-| `emptyAttestComposerForm` | `(today, t)` | rezept tab hook |
+| `validateAttestComposer` | `(fields, t)` | prescription tab hook, `patient-detail-prescription-actions` |
+| `attestTypSelectOptions` / `illnessSuggestionLabels` | `(t)` | certificate tab panel, vorlage editor |
+| `emptyAttestComposerForm` | `(today, t)` | prescription tab hook |
 | `dentalStatusLabel` | `(t, key)` | DentalMiniBar, DentalChart |
-| `getVerwaltungBackTarget` | returns `{ path, labelKey }` (was `label`) | verwaltung-back-button |
-| `terminSchedulingBlockReason` | `(praxisCfg, abwesenheiten, isoDate, startMin, endMin, t)` | termine, termin-create |
-| `validateTerminSchedulingUpdates` | `(termine, updates, slotDurMin, praxisCfg, abwesenheiten, t)` | termine drag/pack |
-| `formatAlternativeSlots` | `(slots, tp)` replaces `formatAlternativeSlotsDe` | termine conflict hints |
-| `buildZahlLinkSelectOptions` | `(behandlungen, untersuchungen, t, tp)` | zahlung-create, patient-detail, finanz-werkzeuge |
+| `getVerwaltungBackTarget` | returns `{ path, labelKey }` (was `label`) | administration-back-button |
+| `terminSchedulingBlockReason` | `(praxisCfg, abwesenheiten, isoDate, startMin, endMin, t)` | appointments, appointment-create |
+| `validateTerminSchedulingUpdates` | `(appointments, updates, slotDurMin, praxisCfg, abwesenheiten, t)` | appointments drag/pack |
+| `formatAlternativeSlots` | `(slots, tp)` replaces `formatAlternativeSlotsDe` | appointments conflict hints |
+| `buildZahlLinkSelectOptions` | `(treatments, examinations, t, tp)` | payment-create, patient-detail, finanz-werkzeuge |
 | `buildOpenZahlLinkSelectOptions` | extended with `t`, `tp` | patient-detail zahl actions |
 | `describeResolvedExportPath` | `(cfg, t)` | export picker dialogs |
 
@@ -136,14 +136,14 @@ Keys: `error.lan.config_missing_url`, `error.lan.config_incomplete`, `error.lan.
 
 | Location | Reason |
 |----------|--------|
-| [`atteste.tsx`](apps/practice-host-ui/src/views/pages/atteste.tsx) attest type `value` strings | Serialized backend type |
-| [`statistik.tsx`](apps/practice-host-ui/src/views/pages/statistik.tsx) `st["Durchgeführt"]` etc. | Backend stats keys |
-| [`termine.tsx`](apps/practice-host-ui/src/views/pages/termine.tsx) commented emergency/pause blocks | Disabled UI |
-| [`patient-detail-rezept-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-rezept-tab-panel.tsx) `.includes("Arbeitsunfähig")` | Matches stored German types |
+| [`certificates.tsx`](apps/practice-host-ui/src/views/pages/certificates.tsx) certificate type `value` strings | Serialized backend type |
+| [`statistics.tsx`](apps/practice-host-ui/src/views/pages/statistics.tsx) `st["Durchgeführt"]` etc. | Backend stats keys |
+| [`appointments.tsx`](apps/practice-host-ui/src/views/pages/appointments.tsx) commented emergency/pause blocks | Disabled UI |
+| [`patient-detail-prescription-tab-panel.tsx`](packages/app/practice-host/src/pages/patient-detail/patient-detail-prescription-tab-panel.tsx) `.includes("Arbeitsunfähig")` | Matches stored German types |
 | PDF/print Rust + layout TS | Generated document scope |
 | `*.smoke.test.tsx` German fixtures | Test data only |
 | [`http-practice.adapter.ts`](packages/app/practice-host/src/adapters/http-practice.adapter.ts) throw literals | English for logs; UI uses `formatLanPracticeError` |
-| `formatZahlungBezugLine` in [`zahlung-buchung.ts`](packages/shared/src/lib/zahlung-buchung.ts) | Still inline `B-Nr.`/`U-Nr.` German abbreviations — optional follow-up |
+| `formatZahlungBezugLine` in [`payment-buchung.ts`](packages/shared/src/lib/payment-buchung.ts) | Still inline `B-Nr.`/`U-Nr.` German abbreviations — optional follow-up |
 
 ---
 
@@ -159,4 +159,4 @@ Keys: `error.lan.config_missing_url`, `error.lan.config_incomplete`, `error.lan.
 | Phase 1 umlaut throw/console sweep | PASS — 0 hits |
 | `npm run check -w medoc` | FAIL — pre-existing ESLint (`break-glass-banner.tsx` conditional hooks; React Compiler memoization warnings) — unchanged |
 
-**Manual**: Settings → Appearance → `ar`; spot-check calendar week grid, aufgaben table, dental mini bar popover, termine filter popover mirroring.
+**Manual**: Settings → Appearance → `ar`; spot-check calendar week grid, aufgaben table, dental mini bar popover, appointments filter popover mirroring.

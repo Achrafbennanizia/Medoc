@@ -11,12 +11,12 @@ import { isTauriApp } from "@/lib/save-download";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
 import {
     buildReportPdfBytes,
-    finanzenTransactionsToLegacyCsv,
+    financeTransactionsToLegacyCsv,
     reportBundleToCsv,
     reportBundleToJson,
     reportBundleToXml,
     reportFilename,
-    type FinanzTxRow,
+    type FinanceTxRow,
     type ReportBundle,
     type ReportExportFormat,
 } from "@/lib/report-export";
@@ -32,12 +32,12 @@ const REPORT_FORMAT_OPTS = (t: (key: string) => string): { value: ReportExportFo
 export type ReportExportPickerDialogProps = {
     open: boolean;
     onClose: () => void;
-    /** Dialog title, e.g. „Export — Statistik“. */
+    /** Dialog title, e.g. „Export — Statistics“. */
     title: string;
     buildBundle: () => ReportBundle | null | Promise<ReportBundle | null>;
     defaultFormat?: ReportExportFormat;
     legacyCsv?: {
-        rows: FinanzTxRow[];
+        rows: FinanceTxRow[];
         patientNames: Map<string, string>;
     };
 };
@@ -172,7 +172,7 @@ export function ReportExportPickerDialog({
         if (!bundle || format !== "csv") return [] as string[][];
         const text =
             legacyCsv && useLegacyCsv
-                ? finanzenTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames)
+                ? financeTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames)
                 : reportBundleToCsv(bundle);
         return parseDelimitedGrid(text).rows.slice(0, 40);
     }, [bundle, format, legacyCsv, useLegacyCsv]);
@@ -201,7 +201,7 @@ export function ReportExportPickerDialog({
                     hint: t("export.report.csv_excel_hint"),
                     suggestedFilename: finalName,
                     mime: "text/csv;charset=utf-8",
-                    textBody: finanzenTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames),
+                    textBody: financeTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames),
                     folderOverride: destFolder,
                 });
             } else if (format === "pdf") {
@@ -259,7 +259,7 @@ export function ReportExportPickerDialog({
             open={open}
             onClose={onClose}
             title={title}
-            className="modal--akte-export modal--wide"
+            className="modal--chart-export modal--wide"
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
@@ -276,8 +276,8 @@ export function ReportExportPickerDialog({
                 </>
             )}
         >
-            <div className="akte-export-dialog-layout">
-                <div className="akte-export-dialog-form-col">
+            <div className="chart-export-dialog-layout">
+                <div className="chart-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
                         {t("export.report.hint")}
                     </p>
@@ -330,9 +330,9 @@ export function ReportExportPickerDialog({
                         />
                     </div>
                 </div>
-                <div className="akte-export-dialog-preview-col">
+                <div className="chart-export-dialog-preview-col">
                     <div className="text-label">{t("common.preview")}</div>
-                    <div className="akte-export-pdf-preview-box">
+                    <div className="chart-export-pdf-preview-box">
                         {bundleLoading ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.loading_data")}</p>
                         ) : !bundle ? (

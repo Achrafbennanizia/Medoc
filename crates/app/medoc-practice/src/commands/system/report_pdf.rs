@@ -14,7 +14,7 @@ pub fn render_report_pdf_command(
     session_state: State<'_, SessionState>,
     input: ReportPdfInput,
 ) -> Result<Vec<u8>, AppError> {
-    rbac::require(&session_state, "finanzen.read")?;
+    rbac::require(&session_state, "finance.read")?;
     render_report_pdf(&input)
 }
 

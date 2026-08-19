@@ -20,13 +20,13 @@
 | # | Baseline finding | Status | Evidence |
 |---|------------------|--------|----------|
 | A1 | **TerminArt** Zod/TS/Rust/DB mismatch (`ROUTINE`/`NOTFALL` vs backend) | **Resolved** | `app/src/models/types.ts` lines 10–12: `TERMIN_ART_VALUES` matches Rust `TerminArt` (five arts, no `NOTFALL`); `app/src/lib/schemas.ts` lines 76–77: `TerminArtSchema` uses `TERMIN_ART_VALUES`; `app/src-tauri/src/domain/enums.rs` lines 23–29: same variant set. |
-| A2 | **TerminStatus** `NICHTERSCHIENEN` vs `NICHT_ERSCHIENEN` serde/SQLite | **Resolved** | `app/src/models/types.ts` line 15: `NICHT_ERSCHIENEN`; `app/src-tauri/src/domain/enums.rs` lines 37–40: `#[serde(rename = "NICHT_ERSCHIENEN")]` + `termin_status_serde_tests`; `app/src/lib/schemas.ts` line 77: `TerminStatusSchema` from `TERMIN_STATUS_VALUES`. |
+| A2 | **TerminStatus** `NICHTERSCHIENEN` vs `NO_SHOW` serde/SQLite | **Resolved** | `app/src/models/types.ts` line 15: `NO_SHOW`; `app/src-tauri/src/domain/enums.rs` lines 37–40: `#[serde(rename = "NO_SHOW")]` + `termin_status_serde_tests`; `app/src/lib/schemas.ts` line 77: `TerminStatusSchema` from `TERMIN_STATUS_VALUES`. |
 
 ### A. Other baseline §A items (non-blockers)
 
 | # | Finding | Status | Note |
 |---|---------|--------|------|
-| A3 | ZahlungsArt `VERSICHERUNG` in Zod | **Resolved** | `ZAHLUNGS_ART_VALUES` in `types.ts` line 24 is `RECHNUNG` (no `VERSICHERUNG`); schema uses same tuple (`schemas.ts` 126). |
+| A3 | ZahlungsArt `VERSICHERUNG` in Zod | **Resolved** | `ZAHLUNGS_ART_VALUES` in `types.ts` line 24 is `INVOICE` (no `VERSICHERUNG`); schema uses same tuple (`schemas.ts` 126). |
 | A4 | ZahlungsStatus ordering TS vs Zod | **Open / cosmetic** | Values match; ordering only. **Won’t fix** unless churn is justified. |
 | A5 | `CreateLeistungSchema` vs Rust | **Deferred** | Schema now uses `name` + Rust-shaped fields (`schemas.ts` 179–184). Baseline “unused” risk reduced; full Rust DTO parity **not re-audited line-by-line** this session. |
 | A6 | Geschlecht / Patient string read | **No change** | As baseline — acceptable pattern. |
@@ -46,8 +46,8 @@
 | # | Baseline | Status | Note |
 |---|----------|--------|------|
 | C1 | TS vs Rust alignment | **Assumed OK** | Not re-diffed line-by-line; no regression tests added for full parity. |
-| C2 | Command palette `hilfe` vs `einstellungen` coupling | **Open (Minor)** | **Won’t fix** in this verification pass — product nav acceptable; baseline said low risk. |
-| C3 | `personal.read` broad on Verwaltung subtree | **Open (Major)** | **Won’t fix** here — requires product decision + new capability strings + Rust mirror. |
+| C2 | Command palette `hilfe` vs `settings` coupling | **Open (Minor)** | **Won’t fix** in this verification pass — product nav acceptable; baseline said low risk. |
+| C3 | `staff.read` broad on Verwaltung subtree | **Open (Major)** | **Won’t fix** here — requires product decision + new capability strings + Rust mirror. |
 
 ---
 
@@ -55,7 +55,7 @@
 
 | Status |
 |--------|
-| **Qualitative only** (as baseline). Erasure path: UI uses `clearPatientScopedBrowserStorage` after `dsgvo_erase_patient` (`datenschutz.tsx`); Rust integration test `app/src-tauri/tests/dsgvo_erasure_tests.rs`. |
+| **Qualitative only** (as baseline). Erasure path: UI uses `clearPatientScopedBrowserStorage` after `dsgvo_erase_patient` (`privacy.tsx`); Rust integration test `app/src-tauri/tests/dsgvo_erasure_tests.rs`. |
 
 ---
 
@@ -77,7 +77,7 @@
 | `npm test` | `app/` | **PASS** — 90 tests (includes `critical-flows.smoke.test.tsx`). |
 | `npm run build` | `app/` | **PASS** (esbuild CSS warning on `index.css` line ~3549: `-: TZ.;` — pre-existing, non-blocking). |
 | `cargo test` | `app/src-tauri/` | **PASS** when `CARGO_TARGET_DIR` points under workspace (e.g. `app/src-tauri/target`); default sandbox/cursor cache path hit **`libsqlite3-sys` build artifact missing** in one environment. **Recommendation:** use a stable local `CARGO_TARGET_DIR` in CI/docs if seen. |
-| `npm run lint` | `app/` | **FAIL** (pre-existing): `schemas.test.ts` unused import; `patient-detail.tsx` react compiler memo warnings; `verwaltung-vertraege.tsx` hooks ordering — **not introduced by verification deliverables**. |
+| `npm run lint` | `app/` | **FAIL** (pre-existing): `schemas.test.ts` unused import; `patient-detail.tsx` react compiler memo warnings; `administration-vertraege.tsx` hooks ordering — **not introduced by verification deliverables**. |
 
 **NOT RUN:** full instrumented Tauri E2E in packaged app; manual click-through of every page.
 

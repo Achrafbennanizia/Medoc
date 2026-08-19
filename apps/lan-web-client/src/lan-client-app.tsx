@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { checkSession, login, logout } from "@/systems/practice-host/controllers/auth.controller";
-import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
-import { getOwnProfile, type OwnProfileDto } from "@/systems/practice-host/controllers/personal.controller";
-import { listTermineByDate } from "@/systems/practice-host/controllers/termin.controller";
+import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { getOwnProfile, type OwnProfileDto } from "@/systems/practice-host/controllers/staff.controller";
+import { listAppointmentsByDate } from "@/systems/practice-host/controllers/appointment.controller";
 import {
     EMPTY_LAN_CLIENT_CONFIG,
     isLanClientActive,
@@ -11,11 +11,11 @@ import {
 } from "@/systems/lan/lib/lan-client-config";
 import { formatLanPracticeError } from "@medoc/system-practice/adapters/http-practice.adapter";
 import { useT, useTParams } from "@/lib/i18n";
-import type { Patient, Session, Termin } from "@/models/types";
+import type { Patient, Session, Appointment } from "@/models/types";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 
-type ActiveView = "patienten" | "termine" | "profil";
+type ActiveView = "patients" | "appointments" | "profil";
 
 function todayIsoLocal(): string {
     const d = new Date();
@@ -39,15 +39,15 @@ export function LanClientApp() {
     const stored = loadLanClientConfig();
     const [baseUrl, setBaseUrl] = useState(stored.baseUrl || "https://127.0.0.1:8787");
     const [email, setEmail] = useState("");
-    const [passwort, setPasswort] = useState("");
+    const [password, setPassword] = useState("");
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<OwnProfileDto | null>(null);
     const [patients, setPatients] = useState<Patient[] | null>(null);
-    const [termine, setTermine] = useState<Termin[] | null>(null);
-    const [terminDatum, setTerminDatum] = useState(todayIsoLocal());
+    const [appointments, setAppointments] = useState<Appointment[] | null>(null);
+    const [appointmentDate, setAppointmentDate] = useState(todayIsoLocal());
     const [patientFilter, setPatientFilter] = useState("");
     const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-    const [activeView, setActiveView] = useState<ActiveView>("patienten");
+    const [activeView, setActiveView] = useState<ActiveView>("patients");
     const [loggedIn, setLoggedIn] = useState(isLanClientActive(stored));
     const [bootstrapping, setBootstrapping] = useState(isLanClientActive(stored));
     const [error, setError] = useState<string | null>(null);
@@ -56,18 +56,18 @@ export function LanClientApp() {
     const canBrowse = loggedIn && !busy && !bootstrapping;
 
     const reloadPatients = useCallback(async () => {
-        const rows = await listPatienten();
+        const rows = await listPatients();
         setPatients(rows);
-        setActiveView("patienten");
+        setActiveView("patients");
         setSelectedPatientId((prev) => (prev && rows.some((p) => p.id === prev) ? prev : null));
     }, []);
 
-    const loadTermine = useCallback(async () => {
-        const rows = await listTermineByDate(terminDatum);
-        setTermine(rows);
-        setActiveView("termine");
+    const loadAppointments = useCallback(async () => {
+        const rows = await listAppointmentsByDate(appointmentDate);
+        setAppointments(rows);
+        setActiveView("appointments");
         setSelectedPatientId(null);
-    }, [terminDatum]);
+    }, [appointmentDate]);
 
     const loadProfile = useCallback(async () => {
         const dto = await getOwnProfile();
@@ -84,7 +84,7 @@ export function LanClientApp() {
             setSession(null);
             setProfile(null);
             setPatients(null);
-            setTermine(null);
+            setAppointments(null);
             return false;
         }
         setSession(restored);
@@ -114,7 +114,7 @@ export function LanClientApp() {
                     setSession(null);
                     setProfile(null);
                     setPatients(null);
-                    setTermine(null);
+                    setAppointments(null);
                     setError(formatLanPracticeError(e, t, tp));
                 }
             } finally {
@@ -137,20 +137,20 @@ export function LanClientApp() {
                 baseUrl: baseUrl.replace(/\/$/, ""),
                 accessToken: loadLanClientConfig().accessToken,
             });
-            const s = await login(email, passwort);
+            const s = await login(email, password);
             setSession(s);
             setLoggedIn(true);
             await reloadPatients();
         } catch (e) {
             setError(formatLanPracticeError(e, t, tp));
             setPatients(null);
-            setTermine(null);
+            setAppointments(null);
             setLoggedIn(false);
             setSession(null);
         } finally {
             setBusy(false);
         }
-    }, [baseUrl, email, passwort, reloadPatients]);
+    }, [baseUrl, email, password, reloadPatients]);
 
     const disconnect = useCallback(async () => {
         setError(null);
@@ -164,7 +164,7 @@ export function LanClientApp() {
             setSession(null);
             setProfile(null);
             setPatients(null);
-            setTermine(null);
+            setAppointments(null);
             setSelectedPatientId(null);
             setBusy(false);
         }
@@ -177,7 +177,7 @@ export function LanClientApp() {
         return patients.filter(
             (p) =>
                 p.name.toLowerCase().includes(q) ||
-                p.versicherungsnummer.toLowerCase().includes(q) ||
+                p.insurance_number.toLowerCase().includes(q) ||
                 (p.email?.toLowerCase().includes(q) ?? false),
         );
     }, [patients, patientFilter]);
@@ -188,8 +188,8 @@ export function LanClientApp() {
     );
 
     const viewLabel = useMemo(() => {
-        if (activeView === "patienten") return t("lan.client.nav_patients");
-        if (activeView === "termine") return t("lan.client.nav_appointments");
+        if (activeView === "patients") return t("lan.client.nav_patients");
+        if (activeView === "appointments") return t("lan.client.nav_appointments");
         return t("lan.client.nav_profile");
     }, [activeView, t]);
 
@@ -227,8 +227,8 @@ export function LanClientApp() {
                         {t("lan.client.password")}
                         <Input
                             type="password"
-                            value={passwort}
-                            onChange={(e) => setPasswort(e.target.value)}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
                         />
                     </label>
@@ -242,7 +242,7 @@ export function LanClientApp() {
                         {session ? (
                             <>
                                 {t("lan.client.logged_in_as")} <span className="text-on-surface">{session.name}</span> (
-                                {session.rolle})
+                                {session.role})
                             </>
                         ) : null}
                     </p>
@@ -252,7 +252,7 @@ export function LanClientApp() {
                     <div className="flex flex-wrap gap-2">
                         <Button
                             type="button"
-                            variant={activeView === "patienten" ? "primary" : "secondary"}
+                            variant={activeView === "patients" ? "primary" : "secondary"}
                             disabled={!canBrowse}
                             onClick={() => void reloadPatients()}
                         >
@@ -260,9 +260,9 @@ export function LanClientApp() {
                         </Button>
                         <Button
                             type="button"
-                            variant={activeView === "termine" ? "primary" : "secondary"}
+                            variant={activeView === "appointments" ? "primary" : "secondary"}
                             disabled={!canBrowse}
-                            onClick={() => void loadTermine()}
+                            onClick={() => void loadAppointments()}
                         >
                             {t("lan.client.nav_appointments")}
                         </Button>
@@ -278,17 +278,17 @@ export function LanClientApp() {
                             {t("lan.client.sign_out")}
                         </Button>
                     </div>
-                    {activeView === "termine" ? (
+                    {activeView === "appointments" ? (
                         <>
                             <label className="flex flex-col gap-1 text-sm">
                                 {t("lan.client.date")}
                                 <Input
                                     type="date"
-                                    value={terminDatum}
-                                    onChange={(e) => setTerminDatum(e.target.value)}
+                                    value={appointmentDate}
+                                    onChange={(e) => setAppointmentDate(e.target.value)}
                                 />
                             </label>
-                            <Button type="button" disabled={!canBrowse} onClick={() => void loadTermine()}>
+                            <Button type="button" disabled={!canBrowse} onClick={() => void loadAppointments()}>
                                 {t("lan.client.load_appointments")}
                             </Button>
                         </>
@@ -298,7 +298,7 @@ export function LanClientApp() {
 
             {error ? <p className="text-sm text-error">{error}</p> : null}
 
-            {activeView === "patienten" && filteredPatients ? (
+            {activeView === "patients" && filteredPatients ? (
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4">
                     <h2 className="mb-2 text-sm font-medium">
                         {viewLabel} ({filteredPatients.length}
@@ -335,43 +335,43 @@ export function LanClientApp() {
                 </section>
             ) : null}
 
-            {activeView === "patienten" && selectedPatient ? (
+            {activeView === "patients" && selectedPatient ? (
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4 text-sm">
                     <h2 className="mb-3 font-medium">{selectedPatient.name}</h2>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                         <dt className="text-on-surface-variant">{t("lan.client.birth_date")}</dt>
-                        <dd>{selectedPatient.geburtsdatum}</dd>
+                        <dd>{selectedPatient.date_of_birth}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.gender")}</dt>
-                        <dd>{selectedPatient.geschlecht}</dd>
+                        <dd>{selectedPatient.sex}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.insurance_no")}</dt>
-                        <dd>{selectedPatient.versicherungsnummer}</dd>
+                        <dd>{selectedPatient.insurance_number}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
-                        <dd>{selectedPatient.telefon ?? "—"}</dd>
+                        <dd>{selectedPatient.phone ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.email")}</dt>
                         <dd>{selectedPatient.email ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.address")}</dt>
-                        <dd>{selectedPatient.adresse ?? "—"}</dd>
+                        <dd>{selectedPatient.address ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.status")}</dt>
                         <dd>{selectedPatient.status}</dd>
                     </dl>
                 </section>
             ) : null}
 
-            {activeView === "termine" && termine ? (
+            {activeView === "appointments" && appointments ? (
                 <section className="rounded-lg border border-surface-overlay bg-surface-container p-4">
                     <h2 className="mb-2 text-sm font-medium">
-                        {tp("lan.client.appointments_on_date", { view: viewLabel, date: terminDatum })} ({termine.length})
+                        {tp("lan.client.appointments_on_date", { view: viewLabel, date: appointmentDate })} ({appointments.length})
                     </h2>
                     <ul className="max-h-80 space-y-2 overflow-auto text-sm">
-                        {termine.length === 0 ? (
+                        {appointments.length === 0 ? (
                             <li className="text-on-surface-variant">{t("lan.client.no_appointments")}</li>
                         ) : (
-                            termine.map((termin) => (
-                                <li key={termin.id} className="rounded border border-surface-overlay px-2 py-1">
-                                    <span className="font-medium">{termin.uhrzeit}</span> — {termin.art}{" "}
-                                    <span className="text-on-surface-variant">({termin.status})</span>
-                                    {termin.notizen ? (
-                                        <p className="mt-1 text-on-surface-variant">{termin.notizen}</p>
+                            appointments.map((appointment) => (
+                                <li key={appointment.id} className="rounded border border-surface-overlay px-2 py-1">
+                                    <span className="font-medium">{appointment.time}</span> — {appointment.kind}{" "}
+                                    <span className="text-on-surface-variant">({appointment.status})</span>
+                                    {appointment.notes ? (
+                                        <p className="mt-1 text-on-surface-variant">{appointment.notes}</p>
                                     ) : null}
                                 </li>
                             ))
@@ -389,13 +389,13 @@ export function LanClientApp() {
                         <dt className="text-on-surface-variant">{t("lan.client.email")}</dt>
                         <dd>{profile.email}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.role")}</dt>
-                        <dd>{profile.rolle}</dd>
+                        <dd>{profile.role}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.activity_area")}</dt>
-                        <dd>{profile.taetigkeitsbereich ?? "—"}</dd>
+                        <dd>{profile.activity_area ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.specialty")}</dt>
-                        <dd>{profile.fachrichtung ?? "—"}</dd>
+                        <dd>{profile.specialty ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
-                        <dd>{profile.telefon ?? "—"}</dd>
+                        <dd>{profile.phone ?? "—"}</dd>
                     </dl>
                 </section>
             ) : null}

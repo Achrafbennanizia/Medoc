@@ -3,8 +3,8 @@ use crate::application::device_session_service;
 use crate::application::mvp_security;
 use crate::application::rbac;
 use crate::error::AppError;
-use crate::infrastructure::database::personal_repo;
-use crate::infrastructure::database::{audit_repo, device_session_repo, personal_permission_repo};
+use crate::infrastructure::database::staff_repo;
+use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo};
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
@@ -51,13 +51,13 @@ fn redact_login_identifier(raw: &str) -> String {
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-#[tracing::instrument(level = "info", skip(pool, session_state, brute_force, passwort), fields(subject = %redact_login_identifier(&email)))]
+#[tracing::instrument(level = "info", skip(pool, session_state, brute_force, password), fields(subject = %redact_login_identifier(&email)))]
 pub async fn login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     brute_force: State<'_, BruteForceState>,
     email: String,
-    passwort: String,
+    password: String,
     #[allow(unused_variables)]
     totp_code: Option<String>,
     device_label: Option<String>,
@@ -79,7 +79,7 @@ pub async fn login(
 
     let req = LoginRequest {
         email: email.clone(),
-        passwort,
+        password,
         totp_code: None, // TODO(deferred-security): 2FA unwired
     };
     let mut session = match auth_service::authenticate(&pool, &req).await {
@@ -104,16 +104,16 @@ pub async fn login(
             return Err(e);
         }
     };
-    // TODO(deferred-roles): remove when STEUERBERATER / PHARMABERATER are re-enabled.
-    if !rbac::Role::parse(&session.rolle)
+    // TODO(deferred-roles): remove when TAX_ADVISOR / PHARMA_CONSULTANT are re-enabled.
+    if !rbac::Role::parse(&session.role)
         .map(|r| !r.is_deferred())
         .unwrap_or(false)
-        || !rbac::is_login_role_allowed(&session.rolle)
+        || !rbac::is_login_role_allowed(&session.role)
     {
         log_security!(warn,
             event = "LOGIN_BLOCKED_DEFERRED_ROLE",
             subject = %redact_login_identifier(&email),
-            role = %session.rolle,
+            role = %session.role,
         );
         return Err(AppError::Unauthorized);
     }
@@ -128,13 +128,13 @@ pub async fn login(
     );
 
     session.permission_overrides =
-        personal_permission_repo::list_for_personal(&pool, &session.user_id).await?;
+        staff_permission_repo::list_for_staff(&pool, &session.user_id).await?;
 
     audit_repo::create(
         &pool,
         &session.user_id,
         "LOGIN",
-        "Personal",
+        "Staff",
         Some(&session.user_id),
         None,
     )
@@ -159,7 +159,7 @@ pub async fn login(
         user_id: session.user_id.clone(),
         name: session.name.clone(),
         email: session.email.clone(),
-        rolle: session.rolle.clone(),
+        role: session.role.clone(),
         permission_overrides: session.permission_overrides.clone(),
         device_session_id: Some(ds_id),
     };
@@ -373,42 +373,42 @@ pub async fn set_my_device_session_trusted(
 /*
 // TODO(deferred-security): 2FA login enrollment IPC — re-enable with TOTP_2FA_ENABLED.
 
-/// Start TOTP enrollment before a session exists (ARZT first login).
+/// Start TOTP enrollment before a session exists (PHYSICIAN first login).
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, passwort), fields(email = %redact_login_identifier(&email)))]
+#[tracing::instrument(level = "info", skip(pool, password), fields(email = %redact_login_identifier(&email)))]
 pub async fn start_totp_enrollment_login(
     pool: State<'_, SqlitePool>,
     email: String,
-    passwort: String,
+    password: String,
 ) -> Result<TotpEnrollmentDto, AppError> {
     mvp_security::require_totp_enabled()?;
-    auth_service::verify_credentials(&pool, &email, &passwort).await?;
-    let user = personal_repo::find_by_email(&pool, &email)
+    auth_service::verify_credentials(&pool, &email, &password).await?;
+    let user = staff_repo::find_by_email(&pool, &email)
         .await?
         .ok_or(AppError::Unauthorized)?;
-    if !personal_repo::totp_required_for_role(&user.rolle) {
+    if !staff_repo::totp_required_for_role(&user.role) {
         return Err(AppError::validation_code("error.auth.totp_optional_role"));
     }
-    if personal_repo::is_totp_enrolled(&user) {
+    if staff_repo::is_totp_enrolled(&user) {
         return Err(AppError::Conflict("Two-factor authentication is already active".into()));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
-    personal_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
+    staff_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
     Ok(dto)
 }
 
-/// Confirm TOTP enrollment before a session exists; completes ARZT onboarding.
+/// Confirm TOTP enrollment before a session exists; completes PHYSICIAN onboarding.
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, passwort, code), fields(email = %redact_login_identifier(&email)))]
+#[tracing::instrument(level = "info", skip(pool, password, code), fields(email = %redact_login_identifier(&email)))]
 pub async fn confirm_totp_enrollment_login(
     pool: State<'_, SqlitePool>,
     email: String,
-    passwort: String,
+    password: String,
     code: String,
 ) -> Result<(), AppError> {
     mvp_security::require_totp_enabled()?;
-    auth_service::verify_credentials(&pool, &email, &passwort).await?;
-    let user = personal_repo::find_by_email(&pool, &email)
+    auth_service::verify_credentials(&pool, &email, &password).await?;
+    let user = staff_repo::find_by_email(&pool, &email)
         .await?
         .ok_or(AppError::Unauthorized)?;
     let secret = user
@@ -418,7 +418,7 @@ pub async fn confirm_totp_enrollment_login(
     if !totp::verify_code(secret, &code)? {
         return Err(AppError::validation_code("error.auth.totp_invalid_code"));
     }
-    personal_repo::confirm_totp_enrollment(&pool, &user.id).await?;
+    staff_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())
 }
 */

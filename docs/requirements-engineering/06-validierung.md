@@ -95,19 +95,19 @@ Code-Stand**. Die vollständige Trace-Matrix mit Datei-/Zeilennachweisen liegt i
 | Kategorie (WAAD) | WAAD-IDs | Mapped FA/NFA | Status | Bemerkung / Nachweis |
 |---|---|---|---|---|
 | 1 Patientenaufnahme | 1.1.1, 1.1.2, 1.2.1, 1.5 | FA-PAT-01 … 10, FA-AUTH-01..04, NFA-USE-09 | ✅ / 🟡 (1.5) | Stammdaten + RBAC; `OnboardingCoachmark` + `app_kv` `onboarding.progress.v1.*` (G6, 2026-05-21) |
-| 1 Patientenaufnahme (Zugriff/Notiz) | 1.2.2, 1.3.1, 1.4 | FA-PERS-07, FA-AKTE-14, FA-PERS-08 | ✅ VERIFIED | `personal.tsx` overrides; `PatientAkteWorkflowDialogs`; `/tickets` (2026-05-21) |
-| 2 Akten-Validierung | 2.1.1, 2.1.2, 2.2.1 | FA-AKTE-12/13/15, FA-AUDIT-01 | ✅ VERIFIED | `/akten/zu-validieren`, `count_akten_zu_validieren`, nav badge (G1, 2026-05-21) |
+| 1 Patientenaufnahme (Zugriff/Notiz) | 1.2.2, 1.3.1, 1.4 | FA-PERS-07, FA-AKTE-14, FA-PERS-08 | ✅ VERIFIED | `staff.tsx` overrides; `PatientAkteWorkflowDialogs`; `/tickets` (2026-05-21) |
+| 2 Akten-Validierung | 2.1.1, 2.1.2, 2.2.1 | FA-AKTE-12/13/15, FA-AUDIT-01 | ✅ VERIFIED | `/charts/to-validate`, `count_charts_zu_validieren`, nav badge (G1, 2026-05-21) |
 | 3 Medizinische Dokumentation | 3.1, 3.2, 3.3, 3.4 | FA-AKTE-01..09, FA-ZAHN-01..07, FA-DOK-01..06 | ✅ VERIFIED | Anamnese, Zahnschema, Behandlungs-Erfassung implementiert (`patient-detail.tsx`, `DentalChart.tsx`, `UntersuchungComposer.tsx`) |
 | 4 Termine | 4.1, 4.2, 4.3 | FA-TERM-01..16 | ✅ VERIFIED | Konfliktprüfung, Notfall, Erinnerung (Pipeline `notifications.rs`) |
 | 5 Discharge / Nachsorge | 5.1.1 | FA-DOK-08 | ✅ VERIFIED | `discharge-merkblatt-dialog.tsx`; PDF test `test_discharge_merkblatt_pdf_markers` (G4) |
 | 6 Kostenverwaltung | 6.1.1, 6.1.2, 6.2.1..4 | FA-FIN-01..08, FA-LEIST-01..07, FA-AUFG-01..06 | ✅ VERIFIED | **FA-LEIST-05/06/07 ✅** (G14–G15); **FA-AUFG ✅** (G16–G19); live UI E2E **NOT OBSERVED** |
 | 7 UI/UX | 7.1, 7.2, 7.3.1..3, 7.4 | NFA-USE-01..10, FA-AKTE-16 | 🟡 PARTIAL | Design/Toast/i18n; `akte-completeness.ts`; autocomplete toggle (G7); onboarding coachmark (G6) |
 | 8 IT-Sicherheit | 8.1, 8.2, 8.3, 8.4 | NFA-SEC-01..09, NFA-DATA-01 | ✅ / 🟡 | SQLCipher + `DbSetupGate` (A1); RBAC, audit chain, backup+restore (G2); VVT text may lag runtime |
-| 9 Performance / Plattform | 9.1, 9.2, 9.3, 9.4, 9.5 | NFA-PERF-01..06, SA-01..08 | ✅ / 🟡 | 9.1 restore UI; 9.5 Krankheitsbild panel (`statistik.tsx` G8); 9.4 Last-Test → G11 |
+| 9 Performance / Plattform | 9.1, 9.2, 9.3, 9.4, 9.5 | NFA-PERF-01..06, SA-01..08 | ✅ / 🟡 | 9.1 restore UI; 9.5 Krankheitsbild panel (`statistics.tsx` G8); 9.4 Last-Test → G11 |
 
 > **Cross-Reference:** Jeder Eintrag verweist auf die ausführliche Trace-Zeile in
 > [`01b-traceability-waad.md`](./01b-traceability-waad.md). Pflichtenheft-Quelle ist
-> [`../v-model/01-anforderungen/pflichtenheft.md`](../v-model/01-anforderungen/pflichtenheft.md).
+> [`../version-model/01-anforderungen/pflichtenheft.md`](../version-model/01-anforderungen/pflichtenheft.md).
 
 ## 6.4 ISO-Normen-Validierung
 

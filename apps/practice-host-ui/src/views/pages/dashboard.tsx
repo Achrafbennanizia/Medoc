@@ -1,34 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistik.controller";
-import { listTermine } from "@/systems/practice-host/controllers/termin.controller";
-import { listPatienten } from "@/systems/practice-host/controllers/patient.controller";
-import { listBestellungen, updateBestellungStatus, type Bestellung } from "@/systems/practice-host/controllers/bestellung.controller";
-import { listAkteValidation, rowsToValidationMaps, setAkteSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
-import { listAkteNextTerminHintsPending } from "@/systems/practice-host/controllers/plan-next-termin.controller";
-import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser } from "@/lib/plan-next-termin";
+import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistics.controller";
+import { listAppointments } from "@/systems/practice-host/controllers/appointment.controller";
+import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPurchaseOrders, updatePurchaseOrderStatus, type PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
+import { listChartValidation, rowsToValidationMaps, setChartSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
+import { listChartNextAppointmentHintsPending } from "@/systems/practice-host/controllers/plan-next-appointment.controller";
+import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser } from "@/lib/plan-next-appointment";
 import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
-import type { Patient, Termin } from "../../models/types";
+import type { Patient, Appointment } from "../../models/types";
 import { allowed, parseRole, routeChildPathAllowed } from "@/lib/rbac";
 import { CheckIcon, FilterIcon, NAV_ICONS, PackageIcon, PlusIcon, SparkleIcon, XIcon } from "@/lib/icons";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
-import { terminIstNotfallMarkiert } from "@/lib/termin-domain";
-import { terminArtLabel } from "@/lib/termin-calendar-ui";
+import { appointmentIsEmergencyMarked } from "@/lib/appointment-domain";
+import { appointmentKindLabel } from "@/lib/appointment-calendar-ui";
 import { useLocale, useT, useTParams, useCollatorLocale, bcp47ForLocale } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
-import { WorkspacePageHeader } from "../components/verwaltung-page-header";
+import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
 const PRUEF_PATIENT_CAP = 100;
-const DASHBOARD_BESTELLUNGEN_MAX = 10;
-const AKTE_VALIDATION_BATCH = 20;
+const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
+const CHART_VALIDATION_BATCH = 20;
 const PLAN_NEXT_FREIGABEN_CAP = 25;
 const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
 
@@ -44,24 +44,24 @@ function todayISO(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-function bestellungIsOverdue(b: Bestellung): boolean {
-    if (!b.erwartet_am) return false;
-    if (b.status === "GELIEFERT" || b.status === "STORNIERT") return false;
-    return b.erwartet_am < todayISO();
+function purchaseOrderIsOverdue(b: PurchaseOrder): boolean {
+    if (!b.expected_on) return false;
+    if (b.status === "DELIVERED" || b.status === "CANCELLED") return false;
+    return b.expected_on < todayISO();
 }
 
-function bestellungWirePill(b: Bestellung, t: (k: string) => string): { label: string; cls: string } {
-    const od = bestellungIsOverdue(b);
-    if (od) return { label: `● ${t("dashboard.bestellungen.status_late")}`, cls: "dashboard-wire-pill-status--late" };
-    if (b.status === "UNTERWEGS")
-        return { label: `● ${t("dashboard.bestellungen.status_transit")}`, cls: "dashboard-wire-pill-status--transit" };
-    return { label: `● ${t("dashboard.bestellungen.status_open")}`, cls: "dashboard-wire-pill-status--open" };
+function purchaseOrderWirePill(b: PurchaseOrder, t: (k: string) => string): { label: string; cls: string } {
+    const od = purchaseOrderIsOverdue(b);
+    if (od) return { label: `● ${t("dashboard.purchase_orders.status_late")}`, cls: "dashboard-wire-pill-status--late" };
+    if (b.status === "IN_TRANSIT")
+        return { label: `● ${t("dashboard.purchase_orders.status_transit")}`, cls: "dashboard-wire-pill-status--transit" };
+    return { label: `● ${t("dashboard.purchase_orders.status_open")}`, cls: "dashboard-wire-pill-status--open" };
 }
 
-function terminStatusLabel(status: string, t: (key: string) => string): string {
+function appointmentStatusLabel(status: string, t: (key: string) => string): string {
     const key = `dashboard.status.${status}`;
-    const v = t(key);
-    return v === key ? status : v;
+    const version = t(key);
+    return version === key ? status : version;
 }
 
 function initialsFromName(name: string): string {
@@ -78,17 +78,17 @@ export function DashboardPage() {
     const sortLocale = useCollatorLocale();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
-    const [termine, setTermine] = useState<Termin[]>([]);
-    const [patienten, setPatienten] = useState<Patient[]>([]);
-    const [bestellungen, setBestellungen] = useState<Bestellung[]>([]);
-    const [pruefStammPendingIds, setPruefStammPendingIds] = useState<string[]>([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [pruefMasterPendingIds, setPruefMasterPendingIds] = useState<string[]>([]);
     const [pruefScanLoading, setPruefScanLoading] = useState(false);
     const [dismissedFreigabe, setDismissedFreigabe] = useState<Record<string, true>>({});
     const [approveBusyId, setApproveBusyId] = useState<string | null>(null);
     const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
-    const [stornoConfirmBestellung, setStornoConfirmBestellung] = useState<Bestellung | null>(null);
+    const [stornoConfirmPurchaseOrder, setStornoConfirmPurchaseOrder] = useState<PurchaseOrder | null>(null);
     const [listsError, setListsError] = useState<string | null>(null);
-    const [upcomingTermine, setUpcomingTermine] = useState<UpcomingAppointment[]>([]);
+    const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [planNextPending, setPlanNextPending] = useState<{ patientId: string; hintJson: string }[]>([]);
@@ -123,22 +123,22 @@ export function DashboardPage() {
         let cancelled = false;
         listsErrorToastSent.current = false;
         setListsError(null);
-        Promise.all([listTermine(), listPatienten(), listBestellungen()])
-            .then(([termineList, patientList, bestellungenList]) => {
+        Promise.all([listAppointments(), listPatients(), listPurchaseOrders()])
+            .then(([appointmentsList, patientList, purchaseOrdersList]) => {
                 if (!cancelled) {
-                    setTermine(termineList);
-                    setPatienten(patientList);
-                    setBestellungen(bestellungenList);
+                    setAppointments(appointmentsList);
+                    setPatients(patientList);
+                    setPurchaseOrders(purchaseOrdersList);
                     setListsError(null);
                 }
             })
             .catch((e) => {
                 if (!cancelled) {
                     const msg = errorMessage(e);
-                    console.error("[Dashboard] listTermine/listPatienten/listBestellungen failed:", e);
-                    setTermine([]);
-                    setPatienten([]);
-                    setBestellungen([]);
+                    console.error("[Dashboard] listAppointments/listPatients/listPurchaseOrders failed:", e);
+                    setAppointments([]);
+                    setPatients([]);
+                    setPurchaseOrders([]);
                     setListsError(msg);
                     if (!listsErrorToastSent.current) {
                         listsErrorToastSent.current = true;
@@ -153,34 +153,34 @@ export function DashboardPage() {
 
     useEffect(() => {
         let cancelled = false;
-        const r = parseRole(session?.rolle ?? undefined);
-        if (!r || !allowed("termin.read", r)) {
-            setUpcomingTermine([]);
+        const r = parseRole(session?.role ?? undefined);
+        if (!r || !allowed("appointment.read", r)) {
+            setUpcomingAppointments([]);
             return;
         }
         void listUpcomingAppointments(24 * 60)
             .then((rows) => {
-                if (!cancelled) setUpcomingTermine(rows);
+                if (!cancelled) setUpcomingAppointments(rows);
             })
             .catch((e) => {
                 if (!cancelled) {
-                    setUpcomingTermine([]);
+                    setUpcomingAppointments([]);
                     toast(`${t("dashboard.reminders.toast_load_error")}: ${errorMessage(e)}`, "error");
                 }
             });
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, session?.rolle, toast]);
+    }, [reloadToken, session?.role, toast]);
 
     useEffect(() => {
         let cancelled = false;
-        const r = parseRole(session?.rolle ?? undefined);
+        const r = parseRole(session?.role ?? undefined);
         if (!r || !allowed("patient.read", r)) {
             setPlanNextPending([]);
             return;
         }
-        void listAkteNextTerminHintsPending()
+        void listChartNextAppointmentHintsPending()
             .then((rows) => {
                 if (!cancelled) setPlanNextPending(rows);
             })
@@ -193,50 +193,50 @@ export function DashboardPage() {
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, session?.rolle, toast]);
+    }, [reloadToken, session?.role, toast]);
 
     useEffect(() => {
         let cancelled = false;
-        const role = parseRole(session?.rolle ?? undefined);
+        const role = parseRole(session?.role ?? undefined);
         if (!role || !allowed("patient.read", role) || !allowed("patient.read_medical", role)) {
-            setPruefStammPendingIds([]);
+            setPruefMasterPendingIds([]);
             setPruefScanLoading(false);
             return;
         }
-        const slice = patienten.slice(0, PRUEF_PATIENT_CAP);
+        const slice = patients.slice(0, PRUEF_PATIENT_CAP);
         if (slice.length === 0) {
-            setPruefStammPendingIds([]);
+            setPruefMasterPendingIds([]);
             setPruefScanLoading(false);
             return;
         }
         setPruefScanLoading(true);
-        setPruefStammPendingIds([]);
+        setPruefMasterPendingIds([]);
         void (async () => {
             const pending: string[] = [];
-            for (let i = 0; i < slice.length && !cancelled; i += AKTE_VALIDATION_BATCH) {
-                const batch = slice.slice(i, i + AKTE_VALIDATION_BATCH);
+            for (let i = 0; i < slice.length && !cancelled; i += CHART_VALIDATION_BATCH) {
+                const batch = slice.slice(i, i + CHART_VALIDATION_BATCH);
                 const results = await Promise.all(
-                    batch.map((p) => listAkteValidation(p.id).then((rows) => ({ id: p.id, rows }))),
+                    batch.map((p) => listChartValidation(p.id).then((rows) => ({ id: p.id, rows }))),
                 );
                 if (cancelled) return;
                 for (const { id, rows } of results) {
                     const { sections } = rowsToValidationMaps(rows);
-                    if (!sections.stamm) pending.push(id);
+                    if (!sections.master) pending.push(id);
                 }
             }
             if (!cancelled) {
-                setPruefStammPendingIds(pending);
+                setPruefMasterPendingIds(pending);
                 setPruefScanLoading(false);
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [patienten, session?.rolle, reloadToken]);
+    }, [patients, session?.role, reloadToken]);
 
-    /** Tagesabschluss-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
+    /** DayClose-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
     useEffect(() => {
-        const raw = (loadClientSettings().workflows?.tagesabschlussReminderTime ?? "18:00").trim();
+        const raw = (loadClientSettings().workflows?.dayCloseReminderTime ?? "18:00").trim();
         const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
         if (!m) return;
         const th = Number(m[1]);
@@ -253,7 +253,7 @@ export function DashboardPage() {
             } catch {
                 return;
             }
-            toast(t("dashboard.tagesabschluss.toast"), "info");
+            toast(t("dashboard.day_close.toast"), "info");
         };
         check();
         const id = window.setInterval(check, 30_000);
@@ -261,38 +261,38 @@ export function DashboardPage() {
     }, [toast]);
 
     const todayIso = format(new Date(), "yyyy-MM-dd");
-    const patientNameById = useMemo(() => new Map(patienten.map((p) => [p.id, p.name])), [patienten]);
-    const role = useMemo(() => parseRole(session?.rolle ?? undefined), [session?.rolle]);
+    const patientNameById = useMemo(() => new Map(patients.map((p) => [p.id, p.name])), [patients]);
+    const role = useMemo(() => parseRole(session?.role ?? undefined), [session?.role]);
 
-    const heuteGeplantCount = useMemo(() => {
-        if (!role || !allowed("termin.read", role)) return 0;
-        return termine.filter((x) => x.datum === todayIso && x.status === "GEPLANT").length;
-    }, [termine, todayIso, role]);
+    const heutePlannedCount = useMemo(() => {
+        if (!role || !allowed("appointment.read", role)) return 0;
+        return appointments.filter((x) => x.date === todayIso && x.status === "PLANNED").length;
+    }, [appointments, todayIso, role]);
 
-    const pruefStammRows = useMemo(() => {
-        return [...pruefStammPendingIds].sort((a, b) =>
+    const pruefMasterRows = useMemo(() => {
+        return [...pruefMasterPendingIds].sort((a, b) =>
             (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", sortLocale, { sensitivity: "base" }),
         );
-    }, [pruefStammPendingIds, patientNameById]);
+    }, [pruefMasterPendingIds, patientNameById]);
 
-    const dashboardBestellungen = useMemo(() => {
-        return bestellungen
-            .filter((b) => b.status === "OFFEN" || b.status === "UNTERWEGS")
+    const dashboardPurchaseOrders = useMemo(() => {
+        return purchase_orders
+            .filter((b) => b.status === "OPEN" || b.status === "IN_TRANSIT")
             .sort((a, b) => {
-                const od = (bestellungIsOverdue(b) ? 1 : 0) - (bestellungIsOverdue(a) ? 1 : 0);
+                const od = (purchaseOrderIsOverdue(b) ? 1 : 0) - (purchaseOrderIsOverdue(a) ? 1 : 0);
                 if (od !== 0) return od;
                 return b.created_at.localeCompare(a.created_at);
             })
-            .slice(0, DASHBOARD_BESTELLUNGEN_MAX);
-    }, [bestellungen]);
+            .slice(0, DASHBOARD_PURCHASE_ORDERS_MAX);
+    }, [purchase_orders]);
 
     const showAuditCta = role != null && allowed("audit.read", role);
-    const showGeplantFreigabe = role != null && allowed("termin.read", role) && heuteGeplantCount > 0;
+    const showPlannedFreigabe = role != null && allowed("appointment.read", role) && heutePlannedCount > 0;
 
-    const patientById = useMemo(() => new Map(patienten.map((p) => [p.id, p])), [patienten]);
+    const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
 
     const planNextFreigabeRows = useMemo(() => {
-        const known = new Set(patienten.map((p) => p.id));
+        const known = new Set(patients.map((p) => p.id));
         const out: { patientId: string; name: string; teaser: string }[] = [];
         for (const row of planNextPending) {
             if (!known.has(row.patientId)) continue;
@@ -307,35 +307,35 @@ export function DashboardPage() {
             if (out.length >= PLAN_NEXT_FREIGABEN_CAP) break;
         }
         return out;
-    }, [planNextPending, patienten, patientNameById, t]);
+    }, [planNextPending, patients, patientNameById, t]);
 
-    const filteredStammRows = useMemo(
-        () => pruefStammRows.filter((id) => !dismissedFreigabe[`stamm:${id}`]),
-        [pruefStammRows, dismissedFreigabe],
+    const filteredMasterRows = useMemo(
+        () => pruefMasterRows.filter((id) => !dismissedFreigabe[`master:${id}`]),
+        [pruefMasterRows, dismissedFreigabe],
     );
-    const showGeplantRow = showGeplantFreigabe && !dismissedFreigabe["geplant"];
+    const showPlannedRow = showPlannedFreigabe && !dismissedFreigabe["planned"];
 
     const filteredPlanNextRows = useMemo(
         () => planNextFreigabeRows.filter((r) => !dismissedFreigabe[`plan:${r.patientId}`]),
         [planNextFreigabeRows, dismissedFreigabe],
     );
 
-    const freigabenItemCount = filteredStammRows.length + (showGeplantRow ? 1 : 0) + filteredPlanNextRows.length;
+    const freigabenItemCount = filteredMasterRows.length + (showPlannedRow ? 1 : 0) + filteredPlanNextRows.length;
     const freigabenLeer = !pruefScanLoading && freigabenItemCount === 0 && !listsError;
 
     const canPatientWrite = role != null && allowed("patient.write", role);
     const canViewClinical = role != null && allowed("patient.read_medical", role);
     const canReadPatients = role != null && allowed("patient.read", role);
-    const canReadTermine = role != null && allowed("termin.read", role);
-    const canReadFinanzen = role != null && allowed("finanzen.read", role);
-    const canBestellungWrite = role != null && allowed("bestellung.write", role);
-    const showStatistik = role != null && routeChildPathAllowed("statistik", role);
+    const canReadAppointments = role != null && allowed("appointment.read", role);
+    const canReadFinance = role != null && allowed("finance.read", role);
+    const canPurchaseOrderWrite = role != null && allowed("purchase_order.write", role);
+    const showStatistics = role != null && routeChildPathAllowed("statistics", role);
 
-    const heuteTermine = useMemo(() => {
-        return termine
-            .filter((x) => x.datum === todayIso && x.status !== "ABGESAGT")
-            .sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
-    }, [termine, todayIso]);
+    const heuteAppointments = useMemo(() => {
+        return appointments
+            .filter((x) => x.date === todayIso && x.status !== "CANCELLED")
+            .sort((a, b) => a.time.localeCompare(b.time));
+    }, [appointments, todayIso]);
 
     const dismissInsights = useCallback(() => {
         setInsightsDismissed(true);
@@ -351,7 +351,7 @@ export function DashboardPage() {
         setDismissedFreigabe((p) => ({ ...p, [key]: true }));
     }, []);
 
-    const handleApproveStamm = useCallback(
+    const handleApproveMaster = useCallback(
         async (patientId: string) => {
             if (!session?.user_id) {
                 toast(t("dashboard.freigaben.toast_no_session"), "error");
@@ -359,8 +359,8 @@ export function DashboardPage() {
             }
             setApproveBusyId(patientId);
             try {
-                await setAkteSectionValidated(patientId, "stamm", session.user_id);
-                setPruefStammPendingIds((prev) => prev.filter((id) => id !== patientId));
+                await setChartSectionValidated(patientId, "master", session.user_id);
+                setPruefMasterPendingIds((prev) => prev.filter((id) => id !== patientId));
                 toast(t("dashboard.freigaben.toast_approved"), "success");
             } catch (e) {
                 toast(`${t("dashboard.freigaben.toast_approve_error")}: ${errorMessage(e)}`, "error");
@@ -372,15 +372,15 @@ export function DashboardPage() {
     );
 
     const handleOrderZusagen = useCallback(
-        async (b: Bestellung) => {
+        async (b: PurchaseOrder) => {
             setOrderBusyId(b.id);
             try {
-                const next = b.status === "OFFEN" ? "UNTERWEGS" : "GELIEFERT";
-                const updated = await updateBestellungStatus(b.id, next);
-                setBestellungen((list) => list.map((row) => (row.id === b.id ? updated : row)));
-                toast(t("dashboard.bestellungen.toast_status_updated"), "success");
+                const next = b.status === "OPEN" ? "IN_TRANSIT" : "DELIVERED";
+                const updated = await updatePurchaseOrderStatus(b.id, next);
+                setPurchaseOrders((list) => list.map((row) => (row.id === b.id ? updated : row)));
+                toast(t("dashboard.purchase_orders.toast_status_updated"), "success");
             } catch (e) {
-                toast(`${t("dashboard.bestellungen.toast_status_error")}: ${errorMessage(e)}`, "error");
+                toast(`${t("dashboard.purchase_orders.toast_status_error")}: ${errorMessage(e)}`, "error");
             } finally {
                 setOrderBusyId(null);
             }
@@ -388,25 +388,25 @@ export function DashboardPage() {
         [t, toast],
     );
 
-    const handleOrderAbsagen = useCallback((b: Bestellung) => {
-        setStornoConfirmBestellung(b);
+    const handleOrderAbsagen = useCallback((b: PurchaseOrder) => {
+        setStornoConfirmPurchaseOrder(b);
     }, []);
 
     const confirmOrderStorno = useCallback(async () => {
-        const b = stornoConfirmBestellung;
+        const b = stornoConfirmPurchaseOrder;
         if (!b) return;
-        setStornoConfirmBestellung(null);
+        setStornoConfirmPurchaseOrder(null);
         setOrderBusyId(b.id);
         try {
-            const updated = await updateBestellungStatus(b.id, "STORNIERT");
-            setBestellungen((list) => list.map((row) => (row.id === b.id ? updated : row)));
-            toast(t("dashboard.bestellungen.toast_storno"), "success");
+            const updated = await updatePurchaseOrderStatus(b.id, "CANCELLED");
+            setPurchaseOrders((list) => list.map((row) => (row.id === b.id ? updated : row)));
+            toast(t("dashboard.purchase_orders.toast_storno"), "success");
         } catch (e) {
-            toast(`${t("dashboard.bestellungen.toast_status_error")}: ${errorMessage(e)}`, "error");
+            toast(`${t("dashboard.purchase_orders.toast_status_error")}: ${errorMessage(e)}`, "error");
         } finally {
             setOrderBusyId(null);
         }
-    }, [stornoConfirmBestellung, t, toast]);
+    }, [stornoConfirmPurchaseOrder, t, toast]);
 
     if (statsError) {
         return <PageLoadError message={statsError} onRetry={reload} />;
@@ -437,7 +437,7 @@ export function DashboardPage() {
                 subtitle={
                     <>
                         <p className="page-sub" style={{ marginTop: 0 }}>
-                            {today} · {stats.termine_heute ?? 0} {t("dashboard.termine_heute_sub")}
+                            {today} · {stats.appointments_today ?? 0} {t("dashboard.appointments_heute_sub")}
                         </p>
                         <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--fg-3)", maxWidth: 560, lineHeight: 1.45 }}>
                             {t("dashboard.page_hub")}
@@ -446,11 +446,11 @@ export function DashboardPage() {
                 }
                 actions={
                     <>
-                        {showStatistik ? (
-                            <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistik")}><FilterIcon />{t("dashboard.filter_stats")}</button>
+                        {showStatistics ? (
+                            <button type="button" className="btn btn-subtle" onClick={() => navigate("/statistics")}><FilterIcon />{t("dashboard.filter_stats")}</button>
                         ) : null}
                         {canPatientWrite ? (
-                            <button type="button" className="btn btn-accent" onClick={() => navigate("/patienten/neu")}><PlusIcon />{t("dashboard.new_action")}</button>
+                            <button type="button" className="btn btn-accent" onClick={() => navigate("/patients/new")}><PlusIcon />{t("dashboard.new_action")}</button>
                         ) : null}
                     </>
                 }
@@ -472,43 +472,43 @@ export function DashboardPage() {
                 </DismissibleNotice>
             ) : null}
             <div className="dashboard-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-                {stats.patienten_gesamt != null && canReadPatients && (
+                {stats.patients_total != null && canReadPatients && (
                     <StatCard
-                        label={t("dashboard.kpi.patienten_gesamt")}
-                        value={String(stats.patienten_gesamt)}
+                        label={t("dashboard.kpi.patients_total")}
+                        value={String(stats.patients_total)}
                         icon="Users"
                         accent="var(--accent)"
-                        sub={t("dashboard.kpi.patienten_gesamt_sub")}
+                        sub={t("dashboard.kpi.patients_total_sub")}
                         trend="neutral"
                     />
                 )}
-                {stats.termine_heute != null && canReadTermine && (
+                {stats.appointments_today != null && canReadAppointments && (
                     <StatCard
-                        label={t("dashboard.kpi.termine_heute")}
-                        value={String(stats.termine_heute)}
+                        label={t("dashboard.kpi.appointments_today")}
+                        value={String(stats.appointments_today)}
                         icon="Calendar"
                         accent="#AF52DE"
-                        sub={t("dashboard.kpi.termine_heute_sub")}
+                        sub={t("dashboard.kpi.appointments_heute_sub")}
                         trend="neutral"
                     />
                 )}
-                {stats.einnahmen_monat != null && canReadFinanzen && (
+                {stats.revenue_month != null && canReadFinance && (
                     <StatCard
                         label={t("dashboard.kpi.umsatz_mtd")}
-                        value={formatCurrency(stats.einnahmen_monat)}
+                        value={formatCurrency(stats.revenue_month)}
                         icon="Wallet"
                         accent="#0A84FF"
                         sub={t("dashboard.kpi.umsatz_mtd_sub")}
                         trend="neutral"
                     />
                 )}
-                {stats.produkte_niedrig != null && (
+                {stats.products_low != null && (
                     <StatCard
-                        label={t("dashboard.kpi.lager_niedrig")}
-                        value={String(stats.produkte_niedrig)}
+                        label={t("dashboard.kpi.inventory_niedrig")}
+                        value={String(stats.products_low)}
                         icon="Package"
                         accent="#FF9500"
-                        sub={t("dashboard.kpi.lager_niedrig_sub")}
+                        sub={t("dashboard.kpi.inventory_niedrig_sub")}
                         trend="neutral"
                     />
                 )}
@@ -527,7 +527,7 @@ export function DashboardPage() {
                                         {t("dashboard.freigaben.cta")}
                                     </button>
                                 ) : null}
-                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/patienten")}>
+                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/patients")}>
                                     {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
                             </div>
@@ -536,19 +536,19 @@ export function DashboardPage() {
                             {pruefScanLoading && freigabenItemCount === 0 ? (
                                 <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("dashboard.freigaben.scanning")}</div>
                             ) : null}
-                            {showGeplantRow ? (
+                            {showPlannedRow ? (
                                 <div className="dashboard-wire-row">
                                     <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
-                                        {heuteGeplantCount > 9 ? "9+" : String(heuteGeplantCount)}
+                                        {heutePlannedCount > 9 ? "9+" : String(heutePlannedCount)}
                                     </div>
                                     <div className="dashboard-wire-row-main">
                                         <div className="dashboard-wire-name-line">
                                             <span className="dashboard-wire-name">
-                                                {t("dashboard.freigaben.row_geplant").replace("{{count}}", String(heuteGeplantCount))}
+                                                {t("dashboard.freigaben.row_planned").replace("{{count}}", String(heutePlannedCount))}
                                             </span>
-                                            <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_termine")}</span>
+                                            <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_appointments")}</span>
                                         </div>
-                                        <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_termine")}</div>
+                                        <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_appointments")}</div>
                                     </div>
                                     <div className="dashboard-wire-row-aside">
                                         <div className="dashboard-wire-date">{formatDate(todayIso)}</div>
@@ -558,23 +558,23 @@ export function DashboardPage() {
                                                 className="dashboard-wire-icon-btn"
                                                 title={t("dashboard.freigaben.dismiss")}
                                                 aria-label={t("dashboard.freigaben.dismiss")}
-                                                onClick={() => dismissFreigabe("geplant")}
+                                                onClick={() => dismissFreigabe("planned")}
                                             >
                                                 <XIcon size={16} />
                                             </button>
                                             <button
                                                 type="button"
                                                 className="dashboard-wire-approve-btn"
-                                                onClick={() => navigate("/termine")}
+                                                onClick={() => navigate("/appointments")}
                                             >
-                                                {t("dashboard.freigaben.open_termine")}
+                                                {t("dashboard.freigaben.open_appointments")}
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             ) : null}
                             {filteredPlanNextRows.map((row) => {
-                                const canTw = role != null && allowed("termin.write", role);
+                                const canTw = role != null && allowed("appointment.write", role);
                                 return (
                                     <div key={`plan-${row.patientId}`} className="dashboard-wire-row">
                                         <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
@@ -605,14 +605,14 @@ export function DashboardPage() {
                                                 </button>
                                                 {canTw ? (
                                                     <Link
-                                                        to={`/termine/neu?patient_id=${encodeURIComponent(row.patientId)}&apply_plan=1`}
+                                                        to={`/appointments/new?patient_id=${encodeURIComponent(row.patientId)}&apply_plan=1`}
                                                         className="dashboard-wire-approve-btn"
                                                     >
-                                                        {t("dashboard.freigaben.open_neu_termin")}
+                                                        {t("dashboard.freigaben.open_new_appointment")}
                                                     </Link>
                                                 ) : (
                                                     <Link
-                                                        to={`/patienten/${encodeURIComponent(row.patientId)}`}
+                                                        to={`/patients/${encodeURIComponent(row.patientId)}`}
                                                         className="dashboard-wire-approve-btn"
                                                     >
                                                         {t("dashboard.freigaben.open_patient")}
@@ -623,8 +623,8 @@ export function DashboardPage() {
                                     </div>
                                 );
                             })}
-                            {filteredStammRows.map((pid) => {
-                                const name = patientNameById.get(pid) ?? t("termin.calendar.patient_fallback");
+                            {filteredMasterRows.map((pid) => {
+                                const name = patientNameById.get(pid) ?? t("appointment.calendar.patient_fallback");
                                 const patient = patientById.get(pid);
                                 const dateStr = patient ? formatDate(patient.created_at.slice(0, 10)) : "—";
                                 const busy = approveBusyId === pid;
@@ -636,9 +636,9 @@ export function DashboardPage() {
                                         <div className="dashboard-wire-row-main">
                                             <div className="dashboard-wire-name-line">
                                                 <span className="dashboard-wire-name">{name}</span>
-                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_stamm")}</span>
+                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_master")}</span>
                                             </div>
-                                            <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_stamm")}</div>
+                                            <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_master")}</div>
                                         </div>
                                         <div className="dashboard-wire-row-aside">
                                             <div className="dashboard-wire-date">{dateStr}</div>
@@ -649,7 +649,7 @@ export function DashboardPage() {
                                                     title={t("dashboard.freigaben.dismiss")}
                                                     aria-label={t("dashboard.freigaben.dismiss")}
                                                     disabled={busy}
-                                                    onClick={() => dismissFreigabe(`stamm:${pid}`)}
+                                                    onClick={() => dismissFreigabe(`master:${pid}`)}
                                                 >
                                                     <XIcon size={16} />
                                                 </button>
@@ -658,13 +658,13 @@ export function DashboardPage() {
                                                         type="button"
                                                         className="dashboard-wire-approve-btn"
                                                         disabled={busy}
-                                                        onClick={() => void handleApproveStamm(pid)}
+                                                        onClick={() => void handleApproveMaster(pid)}
                                                     >
                                                         <CheckIcon size={15} />
                                                         {t("dashboard.freigaben.approve")}
                                                     </button>
                                                 ) : (
-                                                    <Link to={`/patienten/${pid}#anam`} className="dashboard-wire-approve-btn">
+                                                    <Link to={`/patients/${pid}#anam`} className="dashboard-wire-approve-btn">
                                                         {t("dashboard.freigaben.open_patient")}
                                                     </Link>
                                                 )}
@@ -673,7 +673,7 @@ export function DashboardPage() {
                                     </div>
                                 );
                             })}
-                            {patienten.length > PRUEF_PATIENT_CAP && role != null && allowed("patient.read", role) ? (
+                            {patients.length > PRUEF_PATIENT_CAP && role != null && allowed("patient.read", role) ? (
                                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 20px 12px", lineHeight: 1.45 }}>
                                     {t("dashboard.freigaben.scan_cap_note").replace("{{cap}}", String(PRUEF_PATIENT_CAP))}
                                 </p>
@@ -686,25 +686,25 @@ export function DashboardPage() {
                     <div className="card dashboard-card-fill">
                         <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                             <div style={{ minWidth: 0 }}>
-                                <div className="card-title">{t("dashboard.bestellungen.title")}</div>
-                                <div className="card-sub">{t("dashboard.bestellungen.sub")}</div>
+                                <div className="card-title">{t("dashboard.purchase_orders.title")}</div>
+                                <div className="card-sub">{t("dashboard.purchase_orders.sub")}</div>
                             </div>
                             <div className="dashboard-wire-head-actions">
-                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/produkte")}>
-                                    {t("dashboard.bestellungen.cta_produkte")}
+                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/products")}>
+                                    {t("dashboard.purchase_orders.cta_products")}
                                 </button>
-                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/bestellungen")}>
-                                    {t("dashboard.bestellungen.show_all")} <span className="nav-chevron" aria-hidden>›</span>
+                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/purchase-orders")}>
+                                    {t("dashboard.purchase_orders.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
                             </div>
                         </div>
                         <div className="dashboard-card-list" style={{ padding: 0 }}>
-                            {dashboardBestellungen.length === 0 ? (
-                                <EmptyState icon="📦" title={t("dashboard.bestellungen.empty_title")} description={t("dashboard.bestellungen.empty_desc")} />
+                            {dashboardPurchaseOrders.length === 0 ? (
+                                <EmptyState icon="📦" title={t("dashboard.purchase_orders.empty_title")} description={t("dashboard.purchase_orders.empty_desc")} />
                             ) : (
-                                dashboardBestellungen.map((b) => {
-                                    const pill = bestellungWirePill(b, t);
-                                    const bestellRef = b.bestellnummer?.trim() || "—";
+                                dashboardPurchaseOrders.map((b) => {
+                                    const pill = purchaseOrderWirePill(b, t);
+                                    const orderRef = b.order_number?.trim() || "—";
                                     const obusy = orderBusyId === b.id;
                                     return (
                                         <div key={b.id} className="dashboard-wire-order">
@@ -715,65 +715,65 @@ export function DashboardPage() {
                                                 <div className="dashboard-wire-order-body">
                                                     <div className="dashboard-wire-order-title-row">
                                                         <div style={{ minWidth: 0 }}>
-                                                            <div className="dashboard-wire-order-title">{b.artikel}</div>
+                                                            <div className="dashboard-wire-order-title">{b.item}</div>
                                                             <div className="dashboard-wire-order-meta">
-                                                                {b.lieferant} · {bestellRef}
+                                                                {b.supplier} · {orderRef}
                                                             </div>
                                                         </div>
                                                         <span className={`dashboard-wire-pill-status ${pill.cls}`}>{pill.label}</span>
                                                     </div>
                                                     <div className="dashboard-wire-kpis">
                                                         <div>
-                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_menge")}</div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.purchase_orders.col_quantity")}</div>
                                                             <div className="dashboard-wire-kpi-val">
-                                                                {b.menge}
-                                                                {b.einheit ? ` ${b.einheit}` : ""}
+                                                                {b.quantity}
+                                                                {b.unit ? ` ${b.unit}` : ""}
                                                             </div>
                                                         </div>
                                                         <div>
-                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_bestellt")}</div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.purchase_orders.col_ordered")}</div>
                                                             <div className="dashboard-wire-kpi-val">{formatDate(b.created_at.slice(0, 10))}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.bestellungen.col_lieferung")}</div>
+                                                            <div className="dashboard-wire-kpi-label">{t("dashboard.purchase_orders.col_delivery")}</div>
                                                             <div className="dashboard-wire-kpi-val">
-                                                                {b.erwartet_am ? formatDate(b.erwartet_am) : "—"}
+                                                                {b.expected_on ? formatDate(b.expected_on) : "—"}
                                                             </div>
                                                         </div>
                                                     </div>
                                                     <div className="dashboard-wire-order-actions">
-                                                        {canBestellungWrite ? (
+                                                        {canPurchaseOrderWrite ? (
                                                             <button
                                                                 type="button"
                                                                 className="dashboard-wire-btn-secondary"
                                                                 disabled={obusy}
                                                                 onClick={() => handleOrderAbsagen(b)}
                                                             >
-                                                                {t("dashboard.bestellungen.absagen")}
+                                                                {t("dashboard.purchase_orders.decline")}
                                                             </button>
                                                         ) : null}
-                                                        {canBestellungWrite ? (
+                                                        {canPurchaseOrderWrite ? (
                                                             <button
                                                                 type="button"
                                                                 className="dashboard-wire-btn-primary"
                                                                 title={
-                                                                    b.status === "OFFEN"
-                                                                        ? t("dashboard.bestellungen.zusagen_hint_open")
-                                                                        : t("dashboard.bestellungen.zusagen_hint_transit")
+                                                                    b.status === "OPEN"
+                                                                        ? t("dashboard.purchase_orders.confirm_hint_open")
+                                                                        : t("dashboard.purchase_orders.confirm_hint_transit")
                                                                 }
                                                                 disabled={obusy}
                                                                 onClick={() => void handleOrderZusagen(b)}
                                                             >
-                                                                {t("dashboard.bestellungen.zusagen")}
+                                                                {t("dashboard.purchase_orders.confirm")}
                                                             </button>
                                                         ) : (
                                                             <button
                                                                 type="button"
                                                                 className="dashboard-wire-btn-primary"
                                                                 disabled={obusy}
-                                                                onClick={() => navigate(`/bestellungen?bestellung=${encodeURIComponent(b.id)}`)}
+                                                                onClick={() => navigate(`/purchase-orders?purchase_order=${encodeURIComponent(b.id)}`)}
                                                             >
-                                                                {t("dashboard.bestellungen.details")}
+                                                                {t("dashboard.purchase_orders.details")}
                                                             </button>
                                                         )}
                                                     </div>
@@ -788,7 +788,7 @@ export function DashboardPage() {
                 </div>
                 <div className="col dashboard-col-secondary">
                     <div className="dashboard-col-secondary__schedule">
-                    {role != null && allowed("termin.read", role) ? (
+                    {role != null && allowed("appointment.read", role) ? (
                         <div className="card dashboard-card-fill">
                             <div className="card-head">
                                 <div>
@@ -799,24 +799,24 @@ export function DashboardPage() {
                                 </div>
                             </div>
                             <div className="dashboard-card-list">
-                                {upcomingTermine.length === 0 ? (
+                                {upcomingAppointments.length === 0 ? (
                                     <p style={{ padding: "16px 20px", margin: 0, color: "var(--fg-3)", fontSize: 14 }}>
                                         {t("dashboard.reminders.empty")}
                                     </p>
                                 ) : (
-                                    upcomingTermine.slice(0, 12).map((u) => (
-                                        <div key={u.termin_id} className="dashboard-timeline-row">
+                                    upcomingAppointments.slice(0, 12).map((u) => (
+                                        <div key={u.appointment_id} className="dashboard-timeline-row">
                                             <div>
                                                 <div className="schedule-day-time-primary">
-                                                    {u.datum} {u.uhrzeit.slice(0, 5)}
+                                                    {u.date} {u.time.slice(0, 5)}
                                                 </div>
                                                 <div className="schedule-day-time-meta">
-                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {terminArtLabel(u.art)}
+                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })} · {appointmentKindLabel(u.kind)}
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: "end", fontSize: 13 }}>
                                                 <div style={{ fontWeight: 600 }}>{u.patient_name}</div>
-                                                <Link to={`/patienten/${u.patient_id}`} className="dashboard-wire-head-link">
+                                                <Link to={`/patients/${u.patient_id}`} className="dashboard-wire-head-link">
                                                     {t("dashboard.reminders.open_patient")}
                                                 </Link>
                                             </div>
@@ -840,22 +840,22 @@ export function DashboardPage() {
                             </span>
                         </div>
                         <div className="dashboard-card-list">
-                            {heuteTermine.length === 0 ? (
+                            {heuteAppointments.length === 0 ? (
                                 <div style={{ padding: "20px 20px 28px" }}>
                                     <p style={{ color: "var(--fg-3)", margin: 0, fontSize: 14 }}>{t("dashboard.heute.empty")}</p>
-                                    <button type="button" className="btn btn-accent" style={{ marginTop: 14 }} onClick={() => navigate("/termine")}>
-                                        {t("dashboard.heute.cta_termine")}
+                                    <button type="button" className="btn btn-accent" style={{ marginTop: 14 }} onClick={() => navigate("/appointments")}>
+                                        {t("dashboard.heute.cta_appointments")}
                                     </button>
                                 </div>
                             ) : (
-                                heuteTermine.map((r) => {
-                                    const name = patientNameById.get(r.patient_id) ?? t("termin.calendar.patient_fallback");
-                                    const tone = terminIstNotfallMarkiert(r) ? "yellow" : r.status === "BESTAETIGT" ? "blue" : "green";
+                                heuteAppointments.map((r) => {
+                                    const name = patientNameById.get(r.patient_id) ?? t("appointment.calendar.patient_fallback");
+                                    const tone = appointmentIsEmergencyMarked(r) ? "yellow" : r.status === "CONFIRMED" ? "blue" : "green";
                                     return (
                                         <div key={r.id} className="dashboard-timeline-row">
                                             <div>
-                                                <div className="schedule-day-time-primary">{r.uhrzeit.slice(0, 5)}</div>
-                                                <div className="schedule-day-time-meta">{terminIstNotfallMarkiert(r) ? t("dashboard.termine.notfall") : terminArtLabel(r.art)}</div>
+                                                <div className="schedule-day-time-primary">{r.time.slice(0, 5)}</div>
+                                                <div className="schedule-day-time-meta">{appointmentIsEmergencyMarked(r) ? t("dashboard.appointments.emergency") : appointmentKindLabel(r.kind)}</div>
                                             </div>
                                             <div className="row" style={{ gap: 12 }}>
                                                 <div
@@ -867,10 +867,10 @@ export function DashboardPage() {
                                                 />
                                                 <div>
                                                     <div className="schedule-day-name">{name}</div>
-                                                    <div className="schedule-day-meta-line">{terminStatusLabel(r.status, t)}</div>
+                                                    <div className="schedule-day-meta-line">{appointmentStatusLabel(r.status, t)}</div>
                                                 </div>
                                             </div>
-                                            <span className={`pill ${tone === "green" ? "green" : tone === "yellow" ? "yellow" : "blue"}`}>{terminStatusLabel(r.status, t)}</span>
+                                            <span className={`pill ${tone === "green" ? "green" : tone === "yellow" ? "yellow" : "blue"}`}>{appointmentStatusLabel(r.status, t)}</span>
                                         </div>
                                     );
                                 })
@@ -890,7 +890,7 @@ export function DashboardPage() {
                                     <button
                                         type="button"
                                         className="btn dashboard-insights-card__btn-primary"
-                                        onClick={() => navigate("/patienten")}
+                                        onClick={() => navigate("/patients")}
                                     >
                                         {t("dashboard.insights.cta_primary")}
                                     </button>
@@ -909,12 +909,12 @@ export function DashboardPage() {
             </div>
 
             <ConfirmDialog
-                open={stornoConfirmBestellung !== null}
-                onClose={() => setStornoConfirmBestellung(null)}
+                open={stornoConfirmPurchaseOrder !== null}
+                onClose={() => setStornoConfirmPurchaseOrder(null)}
                 onConfirm={() => void confirmOrderStorno()}
-                title={t("dashboard.bestellungen.absagen")}
-                message={t("dashboard.bestellungen.confirm_storno")}
-                confirmLabel={t("dashboard.bestellungen.absagen")}
+                title={t("dashboard.purchase_orders.decline")}
+                message={t("dashboard.purchase_orders.confirm_cancel")}
+                confirmLabel={t("dashboard.purchase_orders.decline")}
             />
         </div>
     );

@@ -15,9 +15,9 @@ sequenceDiagram
     participant Audit as AuditService
 
     Benutzer->>View: E-Mail + Passwort eingeben
-    View->>Controller: login(email, passwort)
-    Controller->>Service: authenticate(email, passwort)
-    Service->>DB: SELECT * FROM personal WHERE email = ?
+    View->>Controller: login(email, password)
+    Controller->>Service: authenticate(email, password)
+    Service->>DB: SELECT * FROM staff WHERE email = ?
     DB-->>Service: Personal | None
 
     alt Benutzer nicht gefunden
@@ -25,12 +25,12 @@ sequenceDiagram
         Controller-->>View: Fehlermeldung anzeigen
         View-->>Benutzer: "Ungültige E-Mail oder Passwort"
     else Benutzer gefunden
-        Service->>Service: bcrypt::verify(passwort, hash)
+        Service->>Service: bcrypt::verify(password, hash)
         alt Passwort falsch
             Service-->>Controller: Err("Ungültige Anmeldedaten")
             Controller-->>View: Fehlermeldung anzeigen
         else Passwort korrekt
-            Service->>Service: JWT-Token generieren (id, rolle)
+            Service->>Service: JWT-Token generieren (id, role)
             Service->>Audit: log(user_id, LOGIN, "Personal", details)
             Audit->>DB: INSERT INTO audit_log (...)
             Service-->>Controller: Ok(token, user)
@@ -55,14 +55,14 @@ sequenceDiagram
     View->>View: Formular anzeigen (Patient, Arzt, Datum, Uhrzeit, Art)
     Rezeption->>View: Formulardaten eingeben + Absenden
 
-    View->>Controller: create_termin(data)
+    View->>Controller: create_appointment(data)
     Controller->>Controller: validate(data) mit Zod/Schema
 
     alt Validierung fehlgeschlagen
         Controller-->>View: Validierungsfehler anzeigen
     else Validierung OK
-        Controller->>Service: create_termin(validated_data)
-        Service->>DB: SELECT * FROM termin WHERE arzt_id = ? AND datum = ? AND uhrzeit = ?
+        Controller->>Service: create_appointment(validated_data)
+        Service->>DB: SELECT * FROM appointment WHERE physician_id = ? AND date = ? AND time = ?
         DB-->>Service: Vec<Termin>
 
         alt Konflikt erkannt
@@ -70,11 +70,11 @@ sequenceDiagram
             Controller-->>View: Fehlermeldung
             View-->>Rezeption: Konfliktwarnung mit Details
         else Kein Konflikt
-            Service->>DB: INSERT INTO termin (...)
-            DB-->>Service: Ok(termin)
-            Service->>Audit: log(user_id, CREATE, "Termin", termin_id)
+            Service->>DB: INSERT INTO appointment (...)
+            DB-->>Service: Ok(appointment)
+            Service->>Audit: log(user_id, CREATE, "Termin", appointment_id)
             Audit->>DB: INSERT INTO audit_log (...)
-            Service-->>Controller: Ok(termin)
+            Service-->>Controller: Ok(appointment)
             Controller-->>View: Erfolgsmeldung + Liste aktualisieren
             View-->>Rezeption: "Termin erfolgreich angelegt"
         end
@@ -92,8 +92,8 @@ sequenceDiagram
     participant DB as SQLite
 
     Arzt->>View: Zahnschema öffnen (Patient-ID)
-    View->>Controller: load_zahnschema(akte_id)
-    Controller->>DB: SELECT * FROM zahnbefund WHERE akte_id = ?
+    View->>Controller: load_zahnschema(chart_id)
+    Controller->>DB: SELECT * FROM dental_finding WHERE chart_id = ?
     DB-->>Controller: Vec<Zahnbefund>
     Controller-->>View: Zahnschema mit Befunden rendern
 
@@ -103,11 +103,11 @@ sequenceDiagram
     Arzt->>View: Befund = "karioes", Diagnose eingeben
     Arzt->>View: "Speichern" klicken
 
-    View->>Controller: update_zahnbefund(akte_id, 36, data)
+    View->>Controller: update_dental_finding(chart_id, 36, data)
     Controller->>Service: upsert_zahnbefund(data)
-    Service->>DB: INSERT OR REPLACE INTO zahnbefund (akte_id, zahn_nummer, ...) VALUES (...)
-    DB-->>Service: Ok(zahnbefund)
-    Service-->>Controller: Ok(zahnbefund)
+    Service->>DB: INSERT OR REPLACE INTO dental_finding (chart_id, tooth_number, ...) VALUES (...)
+    DB-->>Service: Ok(dental_finding)
+    Service-->>Controller: Ok(dental_finding)
     Controller-->>View: Zahn 36 rot einfärben + Erfolgsmeldung
     View-->>Arzt: "Zahn 36 aktualisiert"
 ```
@@ -125,20 +125,20 @@ sequenceDiagram
     Rezeption->>View: "Neue Zahlung" klicken
     View->>Controller: load_form_data()
     Controller->>DB: SELECT id, name FROM patient ORDER BY name
-    Controller->>DB: SELECT id, name, preis FROM leistung WHERE aktiv = true
-    DB-->>Controller: patienten, leistungen
+    Controller->>DB: SELECT id, name, price FROM serviceItem WHERE active = true
+    DB-->>Controller: patients, services
     Controller-->>View: Formular mit Dropdowns
 
     Rezeption->>View: Patient wählen
     Rezeption->>View: Leistung "Professionelle Zahnreinigung" wählen
     View->>View: Betrag automatisch auf 80.00€ setzen
-    Rezeption->>View: Zahlungsart = "KARTE", Absenden
+    Rezeption->>View: Zahlungsart = "CARD", Absenden
 
-    View->>Controller: create_zahlung(data)
-    Controller->>Service: create_zahlung(validated_data)
-    Service->>DB: INSERT INTO zahlung (patient_id, betrag, zahlungsart, status='OFFEN', leistung_id)
-    DB-->>Service: Ok(zahlung)
-    Service-->>Controller: Ok(zahlung)
+    View->>Controller: create_payment(data)
+    Controller->>Service: create_payment(validated_data)
+    Service->>DB: INSERT INTO payment (patient_id, amount, payment_method, status='OPEN', service_item_id)
+    DB-->>Service: Ok(payment)
+    Service-->>Controller: Ok(payment)
     Controller-->>View: Erfolgsmeldung + Tabelle aktualisieren
     View-->>Rezeption: "Zahlung erfasst: 80.00€"
 ```
@@ -156,9 +156,9 @@ sequenceDiagram
 
     Arzt->>View: Patientenakte öffnen
     View->>Controller: load_akte(patient_id)
-    Controller->>DB: SELECT akte + untersuchungen + behandlungen + zahnbefunde
+    Controller->>DB: SELECT akte + examinations + treatments + dentalFindings
     DB-->>Controller: akte_mit_details
-    Controller-->>View: Akte anzeigen (Status: IN_BEARBEITUNG)
+    Controller-->>View: Akte anzeigen (Status: IN_PROGRESS)
 
     Arzt->>View: Alle Befunde prüfen
     Arzt->>View: "Akte validieren" klicken
@@ -166,13 +166,13 @@ sequenceDiagram
     View->>View: Bestätigungsdialog: "Akte endgültig freigeben?"
     Arzt->>View: "Ja, validieren" bestätigen
 
-    View->>Controller: validate_akte(akte_id)
-    Controller->>Service: validate_akte(akte_id, arzt_id)
-    Service->>DB: UPDATE patientenakte SET status='VALIDIERT', validiert_von=?, validiert_am=NOW()
+    View->>Controller: validate_akte(chart_id)
+    Controller->>Service: validate_akte(chart_id, physician_id)
+    Service->>DB: UPDATE patient_chart SET status='VALIDATED', validiert_von=?, validiert_am=NOW()
     DB-->>Service: Ok
-    Service->>Audit: log(arzt_id, UPDATE, "Patientenakte", akte_id, "Status→VALIDIERT")
+    Service->>Audit: log(physician_id, UPDATE, "Patientenakte", chart_id, "Status→VALIDATED")
     Audit->>DB: INSERT INTO audit_log (...)
     Service-->>Controller: Ok
     Controller-->>View: "Akte validiert" + Status-Badge aktualisieren
-    View-->>Arzt: Akte nun im VALIDIERT-Status
+    View-->>Arzt: Akte nun im VALIDATED-Status
 ```

@@ -16,8 +16,8 @@ use crate::infrastructure::company_portal::config::{
 use crate::infrastructure::company_portal::register_practice_onboarding;
 use crate::infrastructure::database::app_kv_repo;
 use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
-use medoc_core::domain::enums::Rolle;
-use medoc_sync::verbund::services::{sync_staff_from_stored_admin_endpoint, sync_staff_from_stored_admin_endpoint_required, verbund_status};
+use medoc_core::domain::enums::Role;
+use medoc_sync::cluster::services::{sync_staff_from_stored_admin_endpoint, sync_staff_from_stored_admin_endpoint_required, cluster_status};
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
@@ -151,7 +151,7 @@ pub struct OnboardingSubscriptionStatus {
     pub needs_admin_account: bool,
     /// Login emails when `needs_admin_account` is false (reuse existing staff).
     pub existing_account_emails: Vec<String>,
-    pub personal_count: i64,
+    pub staff_count: i64,
     /// Licensed owner device still needs full practice initialization.
     pub needs_practice_setup: bool,
     /// Joined member device still needs account choice (create or sign in).
@@ -186,7 +186,7 @@ async fn mark_onboarding_setup_complete(pool: &SqlitePool) -> Result<(), AppErro
 
 async fn compute_needs_practice_setup(
     pool: &SqlitePool,
-    vs: &medoc_sync::verbund::services::lizenz_service::VerbundStatus,
+    vs: &medoc_sync::cluster::services::license_service::ClusterStatus,
 ) -> Result<bool, AppError> {
     if !vs.licensed || !vs.is_owner {
         return Ok(false);
@@ -199,7 +199,7 @@ async fn compute_needs_practice_setup(
 pub async fn reset_onboarding_after_owner_license_activation(
     pool: &SqlitePool,
 ) -> Result<(), AppError> {
-    let vs = verbund_status(pool).await?;
+    let vs = cluster_status(pool).await?;
     if !vs.licensed || !vs.is_owner {
         return Ok(());
     }
@@ -210,8 +210,8 @@ pub async fn reset_onboarding_after_owner_license_activation(
     Ok(())
 }
 
-async fn count_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
-    let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM personal")
+async fn count_staff_rows(pool: &SqlitePool) -> Result<i64, AppError> {
+    let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM staff")
         .fetch_one(pool)
         .await
         .map_err(AppError::Database)?;
@@ -219,9 +219,9 @@ async fn count_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
 }
 
 /// Demo seed rows (`seed-*`) must not suppress the admin password form after license reset.
-async fn count_non_seed_personal_rows(pool: &SqlitePool) -> Result<i64, AppError> {
+async fn count_non_seed_staff_rows(pool: &SqlitePool) -> Result<i64, AppError> {
     let (n,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM personal WHERE id NOT LIKE 'seed-%'",
+        "SELECT COUNT(*) FROM staff WHERE id NOT LIKE 'seed-%'",
     )
     .fetch_one(pool)
     .await
@@ -231,7 +231,7 @@ async fn count_non_seed_personal_rows(pool: &SqlitePool) -> Result<i64, AppError
 
 async fn list_existing_login_emails(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
     let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT email FROM personal WHERE id NOT LIKE 'seed-%' ORDER BY email COLLATE NOCASE",
+        "SELECT email FROM staff WHERE id NOT LIKE 'seed-%' ORDER BY email COLLATE NOCASE",
     )
     .fetch_all(pool)
     .await
@@ -241,7 +241,7 @@ async fn list_existing_login_emails(pool: &SqlitePool) -> Result<Vec<String>, Ap
 
 async fn list_login_ready_emails(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
     let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT email FROM personal ORDER BY email COLLATE NOCASE",
+        "SELECT email FROM staff ORDER BY email COLLATE NOCASE",
     )
     .fetch_all(pool)
     .await
@@ -249,9 +249,9 @@ async fn list_login_ready_emails(pool: &SqlitePool) -> Result<Vec<String>, AppEr
     Ok(rows.into_iter().map(|(e,)| e).collect())
 }
 
-async fn find_seed_arzt_id(pool: &SqlitePool) -> Result<Option<String>, AppError> {
+async fn find_seed_physician_id(pool: &SqlitePool) -> Result<Option<String>, AppError> {
     let row: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM personal WHERE id LIKE 'seed-%' AND rolle = 'ARZT' LIMIT 1",
+        "SELECT id FROM staff WHERE id LIKE 'seed-%' AND role = 'PHYSICIAN' LIMIT 1",
     )
     .fetch_optional(pool)
     .await
@@ -260,7 +260,7 @@ async fn find_seed_arzt_id(pool: &SqlitePool) -> Result<Option<String>, AppError
 }
 
 async fn needs_onboarding_admin_account(pool: &SqlitePool) -> Result<bool, AppError> {
-    Ok(count_non_seed_personal_rows(pool).await? == 0)
+    Ok(count_non_seed_staff_rows(pool).await? == 0)
 }
 
 async fn ensure_portal_config_for_onboarding_skip(pool: &SqlitePool) -> Result<(), AppError> {
@@ -272,7 +272,7 @@ async fn ensure_portal_config_for_onboarding_skip(pool: &SqlitePool) -> Result<(
     if dev_seed {
         let base = default_onboarding_base_url();
         let api_key = format!("dev-local-{}", uuid::Uuid::new_v4());
-        return persist_portal_config(pool, base, "dev-praxis".into(), api_key).await;
+        return persist_portal_config(pool, base, "dev-practice".into(), api_key).await;
     }
     Err(AppError::Validation(
         "Please complete practice details or link an existing subscription.".into(),
@@ -431,12 +431,12 @@ async fn register_portal_subscription(
         Ok(resp) => {
             let practice_slug = resp
                 .get("practice_slug")
-                .and_then(|v| v.as_str())
+                .and_then(|version| version.as_str())
                 .ok_or_else(|| AppError::Internal("Registration missing practice_slug.".into()))?
                 .to_string();
             let api_key = resp
                 .get("api_key")
-                .and_then(|v| v.as_str())
+                .and_then(|version| version.as_str())
                 .ok_or_else(|| AppError::Internal("Registration missing api_key.".into()))?
                 .to_string();
             persist_portal_config(pool, base, practice_slug, api_key).await
@@ -459,34 +459,34 @@ async fn create_onboarding_staff_account(
     name: &str,
     email: &str,
     password: &str,
-    rolle: Rolle,
+    role: Role,
 ) -> Result<(), AppError> {
-    use medoc_core::domain::entities::personal::CreatePersonal;
+    use medoc_core::domain::entities::staff::CreateStaff;
 
-    if medoc_core::infrastructure::database::personal_repo::find_by_email(pool, email)
+    if medoc_core::infrastructure::database::staff_repo::find_by_email(pool, email)
         .await?
         .is_some()
     {
-        return Err(AppError::validation_code("error.personal.email_taken"));
+        return Err(AppError::validation_code("error.staff.email_taken"));
     }
     crate::infrastructure::crypto::validate_password_policy(password)?;
     let hash = crate::infrastructure::crypto::hash_password(password)
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    let fachrichtung = if matches!(rolle, Rolle::Arzt) {
-        Some("Zahnmedizin".into())
+    let specialty = if matches!(role, Role::Physician) {
+        Some("Dentistry".into())
     } else {
         None
     };
-    let data = CreatePersonal {
+    let data = CreateStaff {
         name: name.to_string(),
         email: email.to_string(),
-        passwort: password.to_string(),
-        rolle,
-        taetigkeitsbereich: None,
-        fachrichtung,
-        telefon: None,
+        password: password.to_string(),
+        role,
+        activity_area: None,
+        specialty,
+        phone: None,
     };
-    medoc_core::infrastructure::database::personal_repo::create_with_quota(pool, &data, &hash)
+    medoc_core::infrastructure::database::staff_repo::create_with_quota(pool, &data, &hash)
         .await?;
     Ok(())
 }
@@ -502,17 +502,17 @@ async fn create_onboarding_admin_account(
         admin_name,
         admin_email,
         admin_password,
-        Rolle::Arzt,
+        Role::Physician,
     )
     .await
 }
 
-async fn ensure_dev_demo_rezeption_account(pool: &SqlitePool) -> Result<(), AppError> {
+async fn ensure_dev_demo_reception_account(pool: &SqlitePool) -> Result<(), AppError> {
     if std::env::var("MEDOC_DEV_SEED").ok().as_deref() != Some("1") {
         return Ok(());
     }
     let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM personal WHERE UPPER(rolle) = 'REZEPTION'",
+        "SELECT COUNT(*) FROM staff WHERE UPPER(role) = 'RECEPTION'",
     )
     .fetch_one(pool)
     .await
@@ -520,11 +520,11 @@ async fn ensure_dev_demo_rezeption_account(pool: &SqlitePool) -> Result<(), AppE
     if count.0 > 0 {
         return Ok(());
     }
-    let hash = crate::infrastructure::crypto::hash_password("passwort123")
+    let hash = crate::infrastructure::crypto::hash_password("password123")
         .map_err(|e| AppError::Internal(e.to_string()))?;
     sqlx::query(
-        "INSERT OR IGNORE INTO personal (id, name, email, passwort_hash, rolle, verfuegbar)
-         VALUES ('seed-rez-001', 'Aya M.', 'aya@praxis.de', ?1, 'REZEPTION', 1)",
+        "INSERT OR IGNORE INTO staff (id, name, email, password_hash, role, available)
+         VALUES ('seed-rez-001', 'Aya M.', 'aya@practice.de', ?1, 'RECEPTION', 1)",
     )
     .bind(&hash)
     .execute(pool)
@@ -533,7 +533,7 @@ async fn ensure_dev_demo_rezeption_account(pool: &SqlitePool) -> Result<(), AppE
     Ok(())
 }
 
-/// Create admin or reuse the demo `seed-arzt-001` slot when staff quota is already taken.
+/// Create admin or reuse the demo `seed-physician-001` slot when staff quota is already taken.
 async fn assign_onboarding_admin_account(
     pool: &SqlitePool,
     admin_name: &str,
@@ -541,10 +541,10 @@ async fn assign_onboarding_admin_account(
     admin_password: &str,
 ) -> Result<(), AppError> {
     if let Some(existing) =
-        medoc_core::infrastructure::database::personal_repo::find_by_email(pool, admin_email).await?
+        medoc_core::infrastructure::database::staff_repo::find_by_email(pool, admin_email).await?
     {
         if !existing.id.starts_with("seed-") {
-            return Err(AppError::validation_code("error.personal.email_taken"));
+            return Err(AppError::validation_code("error.staff.email_taken"));
         }
     }
 
@@ -552,32 +552,32 @@ async fn assign_onboarding_admin_account(
     let hash = crate::infrastructure::crypto::hash_password(admin_password)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    if let Some(seed_id) = find_seed_arzt_id(pool).await? {
-        use medoc_core::domain::entities::personal::UpdatePersonal;
-        medoc_core::infrastructure::database::personal_repo::update(
+    if let Some(seed_id) = find_seed_physician_id(pool).await? {
+        use medoc_core::domain::entities::staff::UpdateStaff;
+        medoc_core::infrastructure::database::staff_repo::update(
             pool,
             &seed_id,
-            &UpdatePersonal {
+            &UpdateStaff {
                 name: Some(admin_name.to_string()),
                 email: Some(admin_email.to_string()),
-                rolle: None,
-                taetigkeitsbereich: None,
-                fachrichtung: None,
-                telefon: None,
-                verfuegbar: None,
+                role: None,
+                activity_area: None,
+                specialty: None,
+                phone: None,
+                available: None,
             },
         )
         .await?;
-        medoc_core::infrastructure::database::personal_repo::update_password_hash(
+        medoc_core::infrastructure::database::staff_repo::update_password_hash(
             pool, &seed_id, &hash,
         )
         .await?;
-        ensure_dev_demo_rezeption_account(pool).await?;
+        ensure_dev_demo_reception_account(pool).await?;
         return Ok(());
     }
 
     create_onboarding_admin_account(pool, admin_name, admin_email, admin_password).await?;
-    ensure_dev_demo_rezeption_account(pool).await
+    ensure_dev_demo_reception_account(pool).await
 }
 
 /// Pre-login onboarding: whether vendor-portal credentials were stored.
@@ -586,10 +586,10 @@ pub async fn onboarding_subscription_status(
     pool: State<'_, SqlitePool>,
 ) -> Result<OnboardingSubscriptionStatus, AppError> {
     if std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1") {
-        let _ = ensure_dev_demo_rezeption_account(&pool).await;
+        let _ = ensure_dev_demo_reception_account(&pool).await;
     }
     let cfg = load_company_portal_config(&pool).await;
-    let personal_count = count_personal_rows(&pool).await?;
+    let staff_count = count_staff_rows(&pool).await?;
     let needs_admin_account = needs_onboarding_admin_account(&pool).await?;
     let login_ready_emails = list_login_ready_emails(&pool).await?;
     let existing_account_emails = if needs_admin_account {
@@ -597,12 +597,12 @@ pub async fn onboarding_subscription_status(
     } else {
         list_existing_login_emails(&pool).await?
     };
-    let vs = verbund_status(&pool).await?;
+    let vs = cluster_status(&pool).await?;
     let needs_practice_setup = compute_needs_practice_setup(&pool, &vs).await?;
     let needs_member_account = vs.provisioned && !vs.is_owner
         && !onboarding_setup_complete(&pool).await?;
     let can_skip_to_login =
-        needs_practice_setup && vs.licensed && vs.is_owner && personal_count > 0;
+        needs_practice_setup && vs.licensed && vs.is_owner && staff_count > 0;
     Ok(OnboardingSubscriptionStatus {
         registered: is_portal_configured(&cfg),
         practice_slug: if cfg.practice_slug.trim().is_empty() {
@@ -613,7 +613,7 @@ pub async fn onboarding_subscription_status(
         setup_complete: onboarding_setup_complete(&pool).await?,
         needs_admin_account,
         existing_account_emails,
-        personal_count,
+        staff_count,
         needs_practice_setup,
         needs_member_account,
         can_skip_to_login,
@@ -626,7 +626,7 @@ pub async fn onboarding_subscription_status(
 pub async fn onboarding_skip_practice_setup(
     pool: State<'_, SqlitePool>,
 ) -> Result<OnboardingSkipResult, AppError> {
-    let vs = verbund_status(&pool).await?;
+    let vs = cluster_status(&pool).await?;
     if !vs.licensed || !vs.is_owner {
         return Err(AppError::Validation(
             "Skip is only allowed on the licensed primary device.".into(),
@@ -655,20 +655,20 @@ pub struct OnboardingMemberAccountRequest {
     pub name: String,
     pub email: String,
     pub password: String,
-    #[serde(default = "default_member_rolle")]
-    pub rolle: String,
+    #[serde(default = "default_member_role")]
+    pub role: String,
 }
 
-fn default_member_rolle() -> String {
-    "REZEPTION".into()
+fn default_member_role() -> String {
+    "RECEPTION".into()
 }
 
-fn parse_member_rolle(raw: &str) -> Result<Rolle, AppError> {
+fn parse_member_role(raw: &str) -> Result<Role, AppError> {
     match raw.trim().to_uppercase().as_str() {
-        "ARZT" => Ok(Rolle::Arzt),
-        "REZEPTION" => Ok(Rolle::Rezeption),
+        "PHYSICIAN" => Ok(Role::Physician),
+        "RECEPTION" => Ok(Role::Reception),
         _ => Err(AppError::Validation(
-            "Role must be ARZT or REZEPTION.".into(),
+            "Role must be PHYSICIAN or RECEPTION.".into(),
         )),
     }
 }
@@ -680,7 +680,7 @@ pub async fn register_onboarding_member_account(
     pool: State<'_, SqlitePool>,
     request: OnboardingMemberAccountRequest,
 ) -> Result<(), AppError> {
-    let vs = verbund_status(&pool).await?;
+    let vs = cluster_status(&pool).await?;
     if !vs.provisioned || vs.is_owner {
         return Err(AppError::Validation(
             "New account only after joining an existing practice.".into(),
@@ -700,15 +700,15 @@ pub async fn register_onboarding_member_account(
             "Password required (min. 8 characters).".into(),
         ));
     }
-    let rolle = parse_member_rolle(&request.rolle)?;
-    create_onboarding_staff_account(&pool, name, email, password, rolle).await?;
+    let role = parse_member_role(&request.role)?;
+    create_onboarding_staff_account(&pool, name, email, password, role).await?;
     mark_onboarding_setup_complete(&pool).await
 }
 
 /// Pre-login: member chose to sign in with an existing account (skip account creation).
 #[tauri::command]
 pub async fn onboarding_use_existing_account(pool: State<'_, SqlitePool>) -> Result<(), AppError> {
-    let vs = verbund_status(&pool).await?;
+    let vs = cluster_status(&pool).await?;
     if !vs.provisioned || vs.is_owner {
         return Err(AppError::Validation(
             "Member devices only after joining the practice network.".into(),
@@ -729,17 +729,17 @@ fn resolve_onboarding_practice_defaults(
     } else if admin_name.trim().len() >= 2 {
         admin_name.trim().to_string()
     } else {
-        "MeDoc Praxis".to_string()
+        "MeDoc Practice".to_string()
     };
     let mut slug = normalize_slug(practice_slug);
     if slug.len() < 3 {
         slug = normalize_slug(&name);
     }
     if slug.len() < 3 {
-        slug = normalize_slug(admin_email.split('@').next().unwrap_or("praxis"));
+        slug = normalize_slug(admin_email.split('@').next().unwrap_or("practice"));
     }
     if slug.len() < 3 {
-        slug = "praxis".into();
+        slug = "practice".into();
     }
     (name, slug)
 }
@@ -773,7 +773,7 @@ pub async fn register_onboarding_subscription(
         ));
     }
 
-    let vs = verbund_status(&pool).await?;
+    let vs = cluster_status(&pool).await?;
     if !vs.licensed || !vs.is_owner {
         return Err(AppError::Validation(
             "Practice setup only on the licensed primary device.".into(),
@@ -814,9 +814,9 @@ pub async fn register_onboarding_subscription(
     let cfg = load_company_portal_config(&pool).await;
     let practice_slug = cfg.practice_slug.clone();
     let plan_name = match plan.as_str() {
-        "BASIC" => "MeDoc Praxis Basis",
-        "ENTERPRISE" => "MeDoc Praxis Enterprise",
-        _ => "MeDoc Praxis Pro",
+        "BASIC" => "MeDoc Practice Basis",
+        "ENTERPRISE" => "MeDoc Practice Enterprise",
+        _ => "MeDoc Practice Pro",
     }
     .to_string();
 

@@ -13,7 +13,7 @@ use crate::error::AppError;
 fn token_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(r"(?i)(password|passwort|token|secret|api[_-]?key|license|lizenz)\s*[:=]\s*\S+")
+        Regex::new(r"(?i)(password|password|token|secret|api[_-]?key|license|license)\s*[:=]\s*\S+")
             .ok()
     })
     .as_ref()

@@ -12,7 +12,7 @@ use crate::error::AppError as TauriAppError;
 pub(crate) async fn require_master_license_cmd(pool: &SqlitePool) -> Result<(), AppError> {
     if std::env::var("MEDOC_SKIP_MASTER_LICENSE")
         .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .is_some_and(|version| version == "1" || version.eq_ignore_ascii_case("true"))
     {
         return Ok(());
     }

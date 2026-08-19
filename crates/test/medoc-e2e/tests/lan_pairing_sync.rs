@@ -19,14 +19,14 @@ async fn lan_health_and_ping_are_public() {
     assert_eq!(body["ok"], true);
 }
 
-async fn enroll_seed_arzt_totp(pool: &sqlx::SqlitePool) {
-    use medoc_core::infrastructure::database::personal_repo;
+async fn enroll_seed_physician_totp(pool: &sqlx::SqlitePool) {
+    use medoc_core::infrastructure::database::staff_repo;
     use medoc_core::infrastructure::totp;
-    let (secret, _) = totp::generate_enrollment("ahmed@praxis.de").expect("totp enroll");
-    personal_repo::set_totp_pending_secret(pool, "seed-arzt-001", &secret)
+    let (secret, _) = totp::generate_enrollment("ahmed@practice.de").expect("totp enroll");
+    staff_repo::set_totp_pending_secret(pool, "seed-physician-001", &secret)
         .await
         .expect("pending totp");
-    personal_repo::confirm_totp_enrollment(pool, "seed-arzt-001")
+    staff_repo::confirm_totp_enrollment(pool, "seed-physician-001")
         .await
         .expect("confirm totp");
 }
@@ -34,13 +34,13 @@ async fn enroll_seed_arzt_totp(pool: &sqlx::SqlitePool) {
 #[tokio::test]
 async fn lan_login_and_me_profile() {
     let mut lan = LanHarness::new().await;
-    enroll_seed_arzt_totp(&lan.pool).await;
+    enroll_seed_physician_totp(&lan.pool).await;
     let jwt = lan.login_via_http_with_totp("1234").await;
 
     let (status, body) = lan.json("GET", "/api/v1/me", None, Some(&jwt)).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["email"], "ahmed@praxis.de");
-    assert_eq!(body["rolle"], "ARZT");
+    assert_eq!(body["email"], "ahmed@practice.de");
+    assert_eq!(body["role"], "PHYSICIAN");
 }
 
 #[tokio::test]
@@ -208,7 +208,7 @@ async fn pairing_reject_flow() {
 }
 
 #[tokio::test]
-async fn activation_token_cannot_access_patienten() {
+async fn activation_token_cannot_access_patients() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
     let slave_pubkey = slave_pubkey_b64(&slave_signing_key(11));
@@ -234,7 +234,7 @@ async fn activation_token_cannot_access_patienten() {
         .await;
 
     let (status, _body) = lan
-        .json("GET", "/api/v1/patienten", None, Some(&token))
+        .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }

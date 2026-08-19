@@ -1,6 +1,6 @@
 // Break-glass emergency access (NFA-SEC-EMERGENCY).
 //
-// Allows an Arzt to acknowledge an emergency and perform read-only access
+// Allows an Physician to acknowledge an emergency and perform read-only access
 // to medical records that would otherwise be restricted (e.g. accessing a
 // patient outside the assigned doctor's caseload). Every break-glass event
 // is recorded in the audit log + security log and times out automatically.
@@ -29,9 +29,9 @@ impl BreakGlassState {
     }
 
     pub fn grant(&self, grant: BreakGlassGrant) {
-        let mut v = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        self.prune(&mut v);
-        v.push(grant);
+        let mut version = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        self.prune(&mut version);
+        version.push(grant);
     }
 
     pub fn is_active(&self, user_id: &str, patient_id: Option<&str>) -> bool {
@@ -46,22 +46,22 @@ impl BreakGlassState {
         entity: &str,
         entity_id: Option<&str>,
     ) -> Option<String> {
-        let mut v = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        self.prune(&mut v);
-        v.iter()
+        let mut version = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        self.prune(&mut version);
+        version.iter()
             .find(|g| g.user_id == user_id && grant_matches_audit(g, entity, entity_id))
             .map(|g| g.reason.clone())
     }
 
     pub fn list(&self) -> Vec<BreakGlassGrant> {
-        let mut v = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        self.prune(&mut v);
-        v.clone()
+        let mut version = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        self.prune(&mut version);
+        version.clone()
     }
 
-    fn prune(&self, v: &mut Vec<BreakGlassGrant>) {
+    fn prune(&self, version: &mut Vec<BreakGlassGrant>) {
         let now = Instant::now();
-        v.retain(|g| now.duration_since(g.granted_at) < BREAK_GLASS_DURATION);
+        version.retain(|g| now.duration_since(g.granted_at) < BREAK_GLASS_DURATION);
     }
 }
 

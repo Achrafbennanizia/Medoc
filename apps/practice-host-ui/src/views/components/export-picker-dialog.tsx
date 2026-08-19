@@ -5,20 +5,20 @@ import { Button } from "./ui/button";
 import { Input, Select } from "./ui/input";
 import type { Patient } from "@/models/types";
 import type { ExportFormat } from "@/models/store/export-preview-store";
-import { exportAktePdf } from "@/systems/practice-host/controllers/akte.controller";
+import { exportChartPdf } from "@/systems/practice-host/controllers/chart.controller";
 import { useToastStore } from "./ui/toast-store";
 import {
-    AKTE_EXPORT_SECTION_META,
-    akteExportSectionLabel,
-    type AkteExportFileFormat,
-    type AkteExportSectionsState,
-    buildAkteExportCsvFromInterop,
-    buildAkteExportXmlInterop,
-    buildInteroperableAkteJson,
-    defaultAkteExportSections,
-    loadAkteExportSnapshot,
-    suggestAkteExportFilenames,
-} from "@/lib/akte-export";
+    CHART_EXPORT_SECTION_META,
+    chartExportSectionLabel,
+    type ChartExportFileFormat,
+    type ChartExportSectionsState,
+    buildChartExportCsvFromInterop,
+    buildChartExportXmlInterop,
+    buildInteroperableChartJson,
+    defaultChartExportSections,
+    loadChartExportSnapshot,
+    suggestChartExportFilenames,
+} from "@/lib/chart-export";
 import {
     describeResolvedExportPath,
     loadExportFormatsConfig,
@@ -30,14 +30,15 @@ import {
 } from "@/lib/export-settings";
 import {
     pickExportDirectory,
-    listDokumentTemplatesForKind,
+    listDocumentTemplatesForKind,
     previewDocumentPdf,
-    type DokumentTemplateDto,
+    type DocumentTemplateDto,
 } from "@/systems/practice-host/controllers/document-template.controller";
 import { finishExportWithSettings } from "@/lib/export";
 import {
     BUILTIN_TEMPLATES_BY_KIND,
     emptyDocumentTemplatePayloadV1,
+    migrateBuiltinTemplateId,
     parseTemplatePayloadJson,
     type DocumentKind,
     type DocumentTemplatePayloadV1,
@@ -48,66 +49,66 @@ import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { composeClinicalDocumentPdfBodyLines } from "@/lib/clinical-document-pdf";
 import { isTauriApp } from "@/lib/save-download";
-import { getInvoicePraxisFromStorage } from "@/lib/invoice-leistung";
-import { checkPraxisDocumentReadiness } from "@/lib/praxis-completeness";
-import { PraxisReadinessDialog } from "./praxis-readiness-dialog";
+import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
+import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
+import { PracticeReadinessDialog } from "./practice-readiness-dialog";
 
-export type ExportPickerAkteProps = {
+export type ExportPickerChartProps = {
     open: boolean;
     onClose: () => void;
     patientId: string;
     patient: Patient | null;
     canViewClinical: boolean;
     canReadDocuments: boolean;
-    canReadFinanzen: boolean;
+    canReadFinance: boolean;
     canAuditRead: boolean;
 };
 
-/** Unified export dialog (Phase 3): Akte; more document types can be added. */
-export function ExportPickerDialog(props: ExportPickerAkteProps) {
-    return <AkteExportPickerInner {...props} />;
+/** Unified export dialog (Phase 3): Chart; more document types can be added. */
+export function ExportPickerDialog(props: ExportPickerChartProps) {
+    return <ChartExportPickerInner {...props} />;
 }
 
-/** @deprecated Alias — same surface as ExportPickerDialog (Akte). */
-export const AkteExportDialog = ExportPickerDialog;
-export type AkteExportDialogProps = ExportPickerAkteProps;
+/** @deprecated Alias — same surface as ExportPickerDialog (Chart). */
+export const ChartExportDialog = ExportPickerDialog;
+export type ChartExportDialogProps = ExportPickerChartProps;
 
-function extForFormat(f: AkteExportFileFormat): string {
+function extForFormat(f: ChartExportFileFormat): string {
     return f;
 }
 
-function AkteExportPickerInner({
+function ChartExportPickerInner({
     open,
     onClose,
     patientId,
     patient,
     canViewClinical,
     canReadDocuments,
-    canReadFinanzen,
+    canReadFinance,
     canAuditRead,
-}: ExportPickerAkteProps) {
+}: ExportPickerChartProps) {
     const t = useT();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
-    const [sections, setSections] = useState<AkteExportSectionsState>(() => defaultAkteExportSections());
-    const [format, setFormat] = useState<AkteExportFileFormat>("pdf");
+    const [sections, setSections] = useState<ChartExportSectionsState>(() => defaultChartExportSections());
+    const [format, setFormat] = useState<ChartExportFileFormat>("pdf");
     const [fileName, setFileName] = useState("");
     const [busy, setBusy] = useState(false);
     const [pathCfg, setPathCfg] = useState<ExportPathConfigV1 | null>(null);
     const [folderOnce, setFolderOnce] = useState<string | null>(null);
     const [tplChoice, setTplChoice] = useState<string>("__default__");
-    const [userTpl, setUserTpl] = useState<DokumentTemplateDto[]>([]);
+    const [userTpl, setUserTpl] = useState<DocumentTemplateDto[]>([]);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewBusy, setPreviewBusy] = useState(false);
     const previewUrlRef = useRef<string | null>(null);
-    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
-    const praxisReadiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), "akte");
+    const [practiceGuardOpen, setPracticeGuardOpen] = useState(false);
+    const practiceReadiness = checkPracticeDocumentReadiness(getInvoicePracticeFromStorage(), "chart");
 
-    const builtins = BUILTIN_TEMPLATES_BY_KIND.akte;
+    const builtins = BUILTIN_TEMPLATES_BY_KIND.chart;
 
     const filenameSuggestions = useMemo(() => {
         if (!patient) return [] as string[];
-        return suggestAkteExportFilenames(patient, extForFormat(format));
+        return suggestChartExportFilenames(patient, extForFormat(format));
     }, [patient, format]);
 
     useEffect(() => {
@@ -126,7 +127,7 @@ function AkteExportPickerInner({
         if (!open) return;
         void (async () => {
             try {
-                const rows = await listDokumentTemplatesForKind("akte");
+                const rows = await listDocumentTemplatesForKind("chart");
                 setUserTpl(rows);
                 const def = rows.find((r) => r.isDefault);
                 setTplChoice(def?.id ?? "__default__");
@@ -138,22 +139,22 @@ function AkteExportPickerInner({
 
     useEffect(() => {
         if (!open || !patient) return;
-        const d = defaultAkteExportSections();
-        for (const row of AKTE_EXPORT_SECTION_META) {
+        const d = defaultChartExportSections();
+        for (const row of CHART_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) d[row.key] = false;
             if (row.needsDocuments && !canReadDocuments) d[row.key] = false;
-            if (row.needsFinanzen && !canReadFinanzen) d[row.key] = false;
+            if (row.needsFinance && !canReadFinance) d[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) d[row.key] = false;
         }
         setSections(d);
         setFormat("pdf");
-        setFileName(suggestAkteExportFilenames(patient, "pdf")[0]);
+        setFileName(suggestChartExportFilenames(patient, "pdf")[0]);
         setFolderOnce(null);
-    }, [open, patient, canViewClinical, canReadDocuments, canReadFinanzen, canAuditRead]);
+    }, [open, patient, canViewClinical, canReadDocuments, canReadFinance, canAuditRead]);
 
     useEffect(() => {
         if (!patient || !open) return;
-        setFileName(suggestAkteExportFilenames(patient, extForFormat(format))[0]);
+        setFileName(suggestChartExportFilenames(patient, extForFormat(format))[0]);
     }, [format, patient, open]);
 
     const anySelected = Object.values(sections).some(Boolean);
@@ -164,7 +165,7 @@ function AkteExportPickerInner({
         return "…";
     }, [folderOnce, pathCfg, t]);
 
-    const toggle = (key: keyof AkteExportSectionsState) => {
+    const toggle = (key: keyof ChartExportSectionsState) => {
         setSections((p) => ({ ...p, [key]: !p[key] }));
     };
 
@@ -190,18 +191,18 @@ function AkteExportPickerInner({
             revokePreview();
             return;
         }
-        const secForRust: AkteExportSectionsState = { ...sections };
-        for (const row of AKTE_EXPORT_SECTION_META) {
+        const secForRust: ChartExportSectionsState = { ...sections };
+        for (const row of CHART_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) secForRust[row.key] = false;
             if (row.needsDocuments && !canReadDocuments) secForRust[row.key] = false;
-            if (row.needsFinanzen && !canReadFinanzen) secForRust[row.key] = false;
+            if (row.needsFinance && !canReadFinance) secForRust[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) secForRust[row.key] = false;
         }
         const t = window.setTimeout(() => {
             void (async () => {
                 setPreviewBusy(true);
                 try {
-                    const b64 = await exportAktePdf(patientId, secForRust);
+                    const b64 = await exportChartPdf(patientId, secForRust);
                     const bin = atob(b64);
                     const bytes = new Uint8Array(bin.length);
                     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -229,7 +230,7 @@ function AkteExportPickerInner({
         sections,
         canViewClinical,
         canReadDocuments,
-        canReadFinanzen,
+        canReadFinance,
         canAuditRead,
         patient,
         toast,
@@ -245,55 +246,55 @@ function AkteExportPickerInner({
             toast(t("export.picker.pick_section"), "info");
             return;
         }
-        if (format === "pdf" && !praxisReadiness.ready) {
-            setPraxisGuardOpen(true);
+        if (format === "pdf" && !practiceReadiness.ready) {
+            setPracticeGuardOpen(true);
             return;
         }
 
-        const secForRust: AkteExportSectionsState = { ...sections };
-        for (const row of AKTE_EXPORT_SECTION_META) {
+        const secForRust: ChartExportSectionsState = { ...sections };
+        for (const row of CHART_EXPORT_SECTION_META) {
             if (row.needsMedical && !canViewClinical) secForRust[row.key] = false;
             if (row.needsDocuments && !canReadDocuments) secForRust[row.key] = false;
-            if (row.needsFinanzen && !canReadFinanzen) secForRust[row.key] = false;
+            if (row.needsFinance && !canReadFinance) secForRust[row.key] = false;
             if (row.needsAuditRead && !canAuditRead) secForRust[row.key] = false;
         }
 
-        const name = fileName.trim() || suggestAkteExportFilenames(patient, extForFormat(format))[0];
+        const name = fileName.trim() || suggestChartExportFilenames(patient, extForFormat(format))[0];
         const destFolder = folderOnce?.trim() || null;
 
         setBusy(true);
         try {
             if (format === "pdf") {
-                const b64 = await exportAktePdf(patientId, secForRust);
+                const b64 = await exportChartPdf(patientId, secForRust);
                 const bin = atob(b64);
                 const bytes = new Uint8Array(bin.length);
                 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                 const fn = name.endsWith(".pdf") ? name : `${name}.pdf`;
                 await finishExportWithSettings({
                     format: "pdf",
-                    title: t("export.picker.akte_export_title"),
+                    title: t("export.picker.chart_export_title"),
                     hint:
                         tplChoice !== "__default__"
-                            ? t("export.picker.hint_akte_template")
-                            : t("export.picker.hint_akte_pdf"),
+                            ? t("export.picker.hint_chart_template")
+                            : t("export.picker.hint_chart_pdf"),
                     suggestedFilename: fn,
                     mime: "application/pdf",
                     binaryBody: bytes,
                     folderOverride: destFolder,
                 });
             } else {
-                const snap = await loadAkteExportSnapshot(patientId, { loadClinical: canViewClinical });
-                const interop = buildInteroperableAkteJson(snap, secForRust);
+                const snap = await loadChartExportSnapshot(patientId, { loadClinical: canViewClinical });
+                const interop = buildInteroperableChartJson(snap, secForRust);
                 let text: string;
                 let prevFmt: ExportFormat;
                 if (format === "json") {
                     text = `${JSON.stringify(interop, null, 2)}\n`;
                     prevFmt = "json";
                 } else if (format === "xml") {
-                    text = `${buildAkteExportXmlInterop(interop)}\n`;
+                    text = `${buildChartExportXmlInterop(interop)}\n`;
                     prevFmt = "xml";
                 } else {
-                    text = `${buildAkteExportCsvFromInterop(interop)}\n`;
+                    text = `${buildChartExportCsvFromInterop(interop)}\n`;
                     prevFmt = "csv";
                 }
                 const ext = extForFormat(format);
@@ -301,7 +302,7 @@ function AkteExportPickerInner({
                 const finalName = name.toLowerCase().endsWith(`.${ext}`) ? name : `${base}.${ext}`;
                 await finishExportWithSettings({
                     format: prevFmt,
-                    title: t("export.picker.akte_export_title"),
+                    title: t("export.picker.chart_export_title"),
                     hint:
                         format === "csv"
                             ? t("export.picker.hint_csv")
@@ -340,8 +341,8 @@ function AkteExportPickerInner({
         <Dialog
             open={open}
             onClose={onClose}
-            title={t("export.picker.akte_title")}
-            className="modal--akte-export modal--wide"
+            title={t("export.picker.chart_title")}
+            className="modal--chart-export modal--wide"
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
@@ -353,16 +354,16 @@ function AkteExportPickerInner({
                 </>
             )}
         >
-            <div className="akte-export-dialog-layout">
-                <div className="akte-export-dialog-form-col">
+            <div className="chart-export-dialog-layout">
+                <div className="chart-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
-                        {t("export.picker.akte_sections_hint")}
+                        {t("export.picker.chart_sections_hint")}
                     </p>
                     <Select
-                        id="export-picker-akte-format"
+                        id="export-picker-chart-format"
                         label={t("export.picker.format")}
                         value={format}
-                        onChange={(e) => setFormat(e.target.value as AkteExportFileFormat)}
+                        onChange={(e) => setFormat(e.target.value as ChartExportFileFormat)}
                         options={[
                             { value: "pdf", label: t("export.picker.format_pdf") },
                             { value: "json", label: t("common.format_json") },
@@ -372,7 +373,7 @@ function AkteExportPickerInner({
                     />
                     {PDF_LAYOUT_TEMPLATE_PICKER_ENABLED ? (
                     <Select
-                        id="export-picker-akte-template"
+                        id="export-picker-chart-template"
                         label={t("export.picker.template_pdf_layout")}
                         value={tplChoice}
                         onChange={(e) => setTplChoice(e.target.value)}
@@ -401,14 +402,14 @@ function AkteExportPickerInner({
                     <div>
                         <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
                         <Input
-                            id="export-picker-akte-filename"
+                            id="export-picker-chart-filename"
                             value={fileName}
                             onChange={(e) => setFileName(e.target.value)}
-                            list="export-picker-akte-filename-suggestions"
+                            list="export-picker-chart-filename-suggestions"
                             className="input-edit"
                             autoComplete="off"
                         />
-                        <datalist id="export-picker-akte-filename-suggestions">
+                        <datalist id="export-picker-chart-filename-suggestions">
                             {filenameSuggestions.map((s) => (
                                 <option key={s} value={s} />
                             ))}
@@ -417,10 +418,10 @@ function AkteExportPickerInner({
                     <fieldset style={{ border: "1px solid var(--border-1)", borderRadius: 8, padding: "12px 14px", margin: 0 }}>
                         <legend className="text-label" style={{ padding: "0 6px" }}>{t("export.picker.contents")}</legend>
                         <div className="col" style={{ gap: 10 }}>
-                            {AKTE_EXPORT_SECTION_META.map((row) => {
+                            {CHART_EXPORT_SECTION_META.map((row) => {
                                 const disMed = row.needsMedical && !canViewClinical;
                                 const disDoc = row.needsDocuments && !canReadDocuments;
-                                const disFin = row.needsFinanzen && !canReadFinanzen;
+                                const disFin = row.needsFinance && !canReadFinance;
                                 const disAudit = row.needsAuditRead && !canAuditRead;
                                 const dis = disMed || disDoc || disFin || disAudit;
                                 return (
@@ -443,7 +444,7 @@ function AkteExportPickerInner({
                                             }}
                                         />
                                         <span className="text-body" style={{ fontSize: 13 }}>
-                                            {akteExportSectionLabel(row.key, t)}
+                                            {chartExportSectionLabel(row.key, t)}
                                             {dis ? (
                                                 <span className="text-caption text-on-surface-variant">
                                                     {" "}
@@ -457,9 +458,9 @@ function AkteExportPickerInner({
                         </div>
                     </fieldset>
                 </div>
-                <div className="akte-export-dialog-preview-col">
+                <div className="chart-export-dialog-preview-col">
                     <div className="text-label">{t("common.preview_pdf")}</div>
-                    <div className="akte-export-pdf-preview-box">
+                    <div className="chart-export-pdf-preview-box">
                         {format !== "pdf" ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.preview_pdf_only")}</p>
                         ) : previewBusy ? (
@@ -472,17 +473,17 @@ function AkteExportPickerInner({
                     </div>
                 </div>
             </div>
-            <PraxisReadinessDialog
-                open={praxisGuardOpen}
-                documentKind="akte"
-                result={praxisReadiness}
-                onClose={() => setPraxisGuardOpen(false)}
+            <PracticeReadinessDialog
+                open={practiceGuardOpen}
+                documentKind="chart"
+                result={practiceReadiness}
+                onClose={() => setPracticeGuardOpen(false)}
             />
         </Dialog>
     );
 }
 
-export type HtmlExportDocumentKind = Extract<DocumentKind, "attest" | "rezept" | "quittung">;
+export type HtmlExportDocumentKind = Extract<DocumentKind, "certificate" | "prescription" | "receipt">;
 
 const CLINICAL_EXPORT_FORMAT_OPTS = (t: (key: string) => string): { value: ExportFileFormat; label: string }[] => [
     { value: "pdf", label: t("export.picker.format_pdf") },
@@ -552,19 +553,19 @@ function HtmlDocumentExportPickerInner({
     const [formatsCfg, setFormatsCfg] = useState<ExportFormatsConfigV1 | null>(null);
     const [folderOnce, setFolderOnce] = useState<string | null>(null);
     const [tplChoice, setTplChoice] = useState<string>("__default__");
-    const [userTpl, setUserTpl] = useState<DokumentTemplateDto[]>([]);
+    const [userTpl, setUserTpl] = useState<DocumentTemplateDto[]>([]);
     const [format, setFormat] = useState<ExportFileFormat>("pdf");
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewBusy, setPdfPreviewBusy] = useState(false);
     const pdfPreviewUrlRef = useRef<string | null>(null);
-    const [praxisGuardOpen, setPraxisGuardOpen] = useState(false);
-    const praxisReadiness = checkPraxisDocumentReadiness(getInvoicePraxisFromStorage(), templateKind);
+    const [practiceGuardOpen, setPracticeGuardOpen] = useState(false);
+    const practiceReadiness = checkPracticeDocumentReadiness(getInvoicePracticeFromStorage(), templateKind);
 
     const builtins = BUILTIN_TEMPLATES_BY_KIND[templateKind];
 
     const resolvedTpl = useMemo((): { payload: DocumentTemplatePayloadV1; displayName: string } => {
         if (tplChoice.startsWith("builtin:")) {
-            const id = tplChoice.slice("builtin:".length);
+            const id = migrateBuiltinTemplateId(tplChoice.slice("builtin:".length));
             const b = builtins.find((x) => x.id === id);
             if (b) return { payload: structuredClone(b.payload), displayName: b.name };
         }
@@ -608,7 +609,7 @@ function HtmlDocumentExportPickerInner({
         if (!open) return;
         void (async () => {
             try {
-                const rows = await listDokumentTemplatesForKind(templateKind);
+                const rows = await listDocumentTemplatesForKind(templateKind);
                 setUserTpl(rows);
                 const def = rows.find((r) => r.isDefault);
                 setTplChoice(def?.id ?? "__default__");
@@ -718,8 +719,8 @@ function HtmlDocumentExportPickerInner({
             toast(t("export.picker.no_document"), "error");
             return;
         }
-        if (format === "pdf" && !praxisReadiness.ready) {
-            setPraxisGuardOpen(true);
+        if (format === "pdf" && !practiceReadiness.ready) {
+            setPracticeGuardOpen(true);
             return;
         }
         const baseNoExt = clinicalFilenameBase(fileName, suggestedBasename);
@@ -802,7 +803,7 @@ function HtmlDocumentExportPickerInner({
             open={open}
             onClose={onClose}
             title={dialogTitle}
-            className="modal--akte-export modal--wide"
+            className="modal--chart-export modal--wide"
             footer={(
                 <>
                     <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
@@ -814,8 +815,8 @@ function HtmlDocumentExportPickerInner({
                 </>
             )}
         >
-            <div className="akte-export-dialog-layout">
-                <div className="akte-export-dialog-form-col">
+            <div className="chart-export-dialog-layout">
+                <div className="chart-export-dialog-form-col">
                     <p className="text-body text-on-surface-variant" style={{ margin: 0, fontSize: 13 }}>
                         {t("export.picker.clinical_hint")}
                     </p>
@@ -870,9 +871,9 @@ function HtmlDocumentExportPickerInner({
                         />
                     </div>
                 </div>
-                <div className="akte-export-dialog-preview-col">
+                <div className="chart-export-dialog-preview-col">
                     <div className="text-label">{t("common.preview")}</div>
-                    <div className="akte-export-pdf-preview-box">
+                    <div className="chart-export-pdf-preview-box">
                         {!hasContent ? (
                             <p className="card-pad card-sub" style={{ margin: 0 }}>{t("common.empty")}</p>
                         ) : format === "pdf" ? (
@@ -910,11 +911,11 @@ function HtmlDocumentExportPickerInner({
                     </div>
                 </div>
             </div>
-            <PraxisReadinessDialog
-                open={praxisGuardOpen}
+            <PracticeReadinessDialog
+                open={practiceGuardOpen}
                 documentKind={templateKind}
-                result={praxisReadiness}
-                onClose={() => setPraxisGuardOpen(false)}
+                result={practiceReadiness}
+                onClose={() => setPracticeGuardOpen(false)}
             />
         </Dialog>
     );

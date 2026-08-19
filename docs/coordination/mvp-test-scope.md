@@ -14,7 +14,7 @@
 | `crates/server/lan/medoc-lan/src/master_license.rs` | License gate on LAN |
 | `crates/shared/medoc-core/src/infrastructure/database/sync_outbox.rs` | Outbox hooks |
 | `crates/shared/medoc-core/src/infrastructure/license*.rs` | License v2 |
-| Repos with sync hooks (patient, akte, termin, zahlung, praxis_aufgabe, rezept, attest, leistung, ticket, notification) | Tier-1 replication |
+| Repos with sync hooks (patient, akte, appointment, payment, practice_task, prescription, certificate, serviceItem, ticket, notification) | Tier-1 replication |
 | `crates/app/medoc-practice/src/commands/network/sync_commands.rs` | IPC sync |
 | `crates/app/medoc-practice/src/commands/network/pairing_commands.rs` | IPC pairing |
 
