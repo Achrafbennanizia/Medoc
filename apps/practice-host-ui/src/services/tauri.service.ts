@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { logWorkflowOutcome, logWorkflowPrimaryAction } from "@/services/workflow.service";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -52,10 +53,39 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    if (cmd !== "workflow_log_event") {
+        void logWorkflowPrimaryAction(cmd);
+    }
     if (args == null) {
-        return invoke<T>(cmd, {});
+        try {
+            const result = await invoke<T>(cmd, {});
+            if (cmd !== "workflow_log_event") {
+                void logWorkflowOutcome("success", cmd);
+            }
+            return result;
+        } catch (error) {
+            if (cmd !== "workflow_log_event") {
+                const message = error instanceof Error ? error.message : String(error ?? "");
+                const looksLikeCancel = /\bcancel(l(ed)?)?\b|\babort(ed)?\b/i.test(message);
+                void logWorkflowOutcome(looksLikeCancel ? "cancel" : "error", cmd, message);
+            }
+            throw error;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== "workflow_log_event") {
+            void logWorkflowOutcome("success", cmd);
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== "workflow_log_event") {
+            const message = error instanceof Error ? error.message : String(error ?? "");
+            const looksLikeCancel = /\bcancel(l(ed)?)?\b|\babort(ed)?\b/i.test(message);
+            void logWorkflowOutcome(looksLikeCancel ? "cancel" : "error", cmd, message);
+        }
+        throw error;
+    }
 }
