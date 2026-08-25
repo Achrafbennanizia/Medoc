@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-25 (CI/CD pipeline tier migration)
 
 ## Now
 
@@ -23,6 +23,15 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-25 — CI/CD pipeline tier migration)
+
+- Removed stale `.github/workflows/ci.yml` (retired path assumptions).
+- Added `.github/workflows/verify.yml` (blocking verify tier, reusable for release gate).
+- Added `.github/workflows/autofix.yml` (PR-only deterministic autofix with bot loop guard).
+- Added `.github/workflows/fix-proposal.yml` (manual/red-main proposal branch + draft PR workflow with sensitive-path label stop).
+- Replaced `.github/workflows/release.yml` with verify-gated, protected-environment signed release flow.
+- Added `docs/coordination/ci-cd-plan.md`; updated `validation.md`, `project-truth.md`, and `phase-handoff.md`.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

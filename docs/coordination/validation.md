@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (CI/CD pipeline gating migration)
+
+## CI/CD pipeline migration — verified (2026-08-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load(...)` over `.github/workflows/*.yml` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parsed |
+| Retired path scan in workflows | `rg "app/src-tauri|\\bapp/" .github/workflows` | **PASS** — no matches (exit code 1 expected for empty result set) |
+| Workspace modifications snapshot | `git status --short` | **PASS** — expected workflow/doc changes only |
+
+**Delivered:** Removed stale `.github/workflows/ci.yml`; added Tier 1 `verify.yml`, Tier 2 `autofix.yml`, Tier 3 `fix-proposal.yml`, and rewired Tier 4 `release.yml` to gate on reusable verify + protected release environment. Added `docs/coordination/ci-cd-plan.md`.
+
+**NOT RUN:** Full local `cargo`/`npm` validation suite on host for this change set (workflow and coordination docs only; runtime behavior must be validated by GitHub Actions execution).
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

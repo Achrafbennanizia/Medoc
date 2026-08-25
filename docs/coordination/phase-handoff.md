@@ -1,7 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline gating migration (2026-08-25)  
+**Last closed:** Replaced stale CI paths with the 4-tier verify/autofix/fix-proposal/release workflow stack and added a coordination plan ledger entry.
+
+### Verified (2026-08-25 — CI/CD pipeline gating migration)
+
+- **Tier 1 verify:** Added `.github/workflows/verify.yml` with Rust gates (`fmt --check`, `clippy -D warnings`, `test`, `cargo audit`), lockfile-driven JS manager detection, lint/typecheck/test/build, and axe-core critical WCAG 2.1 A/AA gate against built UI.
+- **Tier 2 autofix:** Added `.github/workflows/autofix.yml` on `pull_request` only, deterministic-only (`cargo fmt`, optional `lint:fix`, optional `format`), with `github-actions[bot]` loop guard and commit-if-changed behavior.
+- **Tier 3 fix proposal:** Added `.github/workflows/fix-proposal.yml` for manual dispatch and failed `verify` on `main`; attempts targeted non-deterministic fixes on proposal branch, opens draft PR, and labels/stops on `security|audit|crypto|rbac` touches.
+- **Tier 4 release:** Replaced `.github/workflows/release.yml` so release first calls `verify.yml`, then builds signed cross-platform artifacts under protected `environment: release`; no source mutation steps.
+- **Legacy workflow migration:** Removed stale `.github/workflows/ci.yml` and documented the new design in `docs/coordination/ci-cd-plan.md`.
+- **Validation:** Workflow YAML parse **PASS** for all four workflows; stale-path grep (`app/src-tauri` or `app/`) in workflows returned no matches.
+
+### Remains unverified
+
+- Live GitHub Actions execution of all new workflows in this repository (including branch protection wiring).
+- Tier 3 runtime behavior on an actual failed `verify` run (draft PR creation + sensitive-path labeling).
+- Tag-driven release execution against real signing secrets and release environment approval flow.
+
+### Next
+
+1. Run one PR through `autofix` + `verify` to validate loop guard and re-run behavior.
+2. Trigger `fix-proposal` manually for each target mode (`test`, `advisory`, `typecheck`) and verify draft-PR evidence output.
+3. Execute a dry-run release (`workflow_dispatch`) with release approvers to validate environment gating and artifact upload.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
