@@ -1,7 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-08-25)  
+**Last closed:** Four-tier GitHub Actions split (`verify`, `autofix`, `fix-proposal`, `release`) with guardrails and coordination-ledger updates.
+
+### Verified (2026-08-25 — CI/CD tier migration)
+
+- Legacy `.github/workflows/ci.yml` removed; tiered workflows added:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- CI paths now target active repo-root workspaces (`apps/*`, `crates/*`, `packages/*`) and no longer rely on retired monolith assumptions.
+- Tier guardrails encoded in workflow logic:
+  - verify is zero-mutation and blocking
+  - autofix is PR-only with bot loop guard
+  - fix-proposal opens draft PRs and labels sensitive diffs `needs-human-review`
+  - release reuses verify gate and builds signed artifacts under protected `release` environment.
+- Workflow linting evidence:
+  - initial `actionlint` run failed due to untrusted inline use of `github.head_ref`
+  - follow-up patch moved branch ref to env var and `actionlint` then passed.
+
+### Remains unverified
+
+- First live PR execution outcome for `verify.yml` + `autofix.yml` in GitHub Actions.
+- First `fix-proposal.yml` dispatch outcome (draft PR creation + labeling behavior) on this branch.
+- First tag/dispatch `release.yml` run through protected `release` environment approval gate.
+
+### Next
+
+1. Run one real PR cycle to verify blocking checks + deterministic autofix behavior.
+2. Run one `fix-proposal.yml` manual dispatch and validate draft-PR evidence payload.
+3. Run one release dry-run (`workflow_dispatch` or tag) to confirm signed artifact paths and environment approval flow.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
