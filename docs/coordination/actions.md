@@ -1,6 +1,33 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-25 (application quality logger/workflow audit run)
+
+## Now (2026-08-25 quality run carry-over)
+
+- Resolve baseline blockers preventing mandatory green matrix:
+  - `cargo clippy --workspace --all-targets -- -D warnings` (3 pre-existing lints in `medoc-core`)
+  - `cargo test --workspace --tests` (`auth_session_audit_tests` ARZT-seat failure)
+  - `npm run test` (Vitest OOM on full suite)
+  - `npm run build` (pre-existing TS2322 / TS6133 errors)
+- Keep fixture-based Playwright accessibility audit (`e2e-playwright/fixtures/axe.min.js`) until npm workspace can reliably host package-based axe integration.
+- Manual/live verification still pending: runtime `workflow.log` rotation under real Tauri session; G21b manual checklist rows 1–9.
+
+## Done (2026-08-25 quality run)
+
+- Step 1 instrumentation landed:
+  - Dedicated `medoc::workflow` channel in core logging stack.
+  - Sanitizing writer wrapper for file appenders.
+  - Workflow event bridge (`workflow_log_event`) and invoke-level workflow logging.
+  - Domain transition logging hooks in `workflow_transitions`.
+- Step 3 behavior tests added/passed:
+  - `src/services/tauri.service.test.ts`
+  - `packages/ui/src/dialog.workflow.test.tsx`
+- Step 4/5 audits added/passed:
+  - `ui-geometry.spec.ts` at 375/768/1259
+  - `ui-accessibility.spec.ts` (0 critical violations on login route)
+  - arbitrary-spacing lint script + package scripts.
+- Step 6 fix completed from register:
+  - Replaced `min-h-[72px]` with tokenized `min-h-18` and added `spacing.18 = "72px"` in Tailwind config.
 
 ## Now
 

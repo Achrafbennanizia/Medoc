@@ -1,6 +1,55 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (Application quality run: logger + workflow/component/geometry/a11y audits)
+
+## Application quality run — verified (2026-08-25)
+
+### Step 1 — logger extension and instrumentation
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Core sanitizer writer tests | `cargo test -p medoc-core sanitizing_writer` | **PASS** (2 tests) |
+| Workflow command validation | `cargo test -p medoc-practice workflow_log_event_requires_step` | **PASS** |
+| Invoke registry (practice crate) | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (`EXPECTED_INVOKE_COMMAND_COUNT = 303`) |
+| Invoke registry (host crate) | `cargo test -p medoc --test invoke_registration_tests` | **PASS** (`expected_invoke_command_count_documented`) |
+
+### Step 2 — workflow map + non-terminable detection register
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-2026-08-25-01 | `apps/practice-host-ui` CI/unit workflow | Full frontend workflow suite is not terminating under default memory budget (OOM near ~4 GB heap). | `npm run test` (2026-08-25) failed with `FATAL ERROR: Ineffective mark-compacts near heap limit` after >800s. | **P1** | Keep as open infrastructure blocker; split test execution or raise Node heap in CI runner profile. |
+| WF-2026-08-25-02 | Rust auth/session test flow | `auth_session_audit_tests` fails due ARZT quota/admin seat guard, blocking full green matrix. | `cargo test --workspace --tests` failed at `authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled` with sqlite error `Maximal 1 Arzt-Konto erlaubt`. | **P1** | Keep as open product/test-fixture contradiction; requires dedicated fix outside logger/audit slice. |
+| WF-2026-08-25-03 | Tailwind spacing policy | Arbitrary spacing class bypassed token policy (`min-h-[72px]`). | `npm run lint:tailwind-spacing` initially failed on `behandlung-akte-composer-panel.tsx:265`. | **P2** | **Fixed in this run:** added `spacing.18 = "72px"` in Tailwind config and replaced class with `min-h-18`; lint now passes. |
+
+### Step 3 — component event tests
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Workflow logging wrapper tests | `npm test -w medoc -- src/services/tauri.service.test.ts` | **PASS** (2) |
+| Dialog keyboard/cancel behavior (UI package + app copy) | `npm test -w medoc -- ../../packages/ui/src/dialog.workflow.test.tsx src/views/components/ui/dialog.workflow.test.tsx` | **PASS** (8) |
+
+### Step 4/5 — geometry + accessibility audits
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Geometry/spacing audit (375/768/1259) | `npx playwright test e2e-playwright/ui-geometry.spec.ts` | **PASS** (3/3) |
+| Accessibility audit (axe runtime, login route) | `npx playwright test e2e-playwright/ui-accessibility.spec.ts` | **PASS** (0 critical WCAG violations on audited route) |
+| Arbitrary spacing lint | `npm run lint:tailwind-spacing` | **PASS** after tokenized fix |
+
+### Full matrix status (required gates)
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| Rust fmt | `cargo fmt --all -- --check` | **FAIL** — pre-existing wide repo formatting drift (many files outside this slice). |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — pre-existing `useless_format` (2x) in `pdf_export.rs`, `result_large_err` in `cors_policy.rs`. |
+| Rust workspace tests | `cargo test --workspace --tests` | **FAIL** — `auth_session_audit_tests` single failing case above. |
+| Frontend tests | `npm run test` | **FAIL** — OOM near heap limit after most suites pass. |
+| Frontend build | `npm run build` | **FAIL** — pre-existing TS2322/TS6133 errors in shared `document-print-html` / `termin-*`. |
+
+### Notes
+
+- Workflow logging now has a dedicated channel target (`medoc::workflow`) and IPC/UI/domain transition emission paths in code.
+- Runtime `workflow.log` file creation/rotation under a live Tauri session was **NOT OBSERVED** in this run (instrumentation validated via code + unit/integration tests above).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

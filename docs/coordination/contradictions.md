@@ -10,6 +10,8 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C9 | Required green gate matrix vs current baseline | Current quality run requires `cargo fmt/clippy/test` + `npm test/build` green per step | Multiple baseline gates still fail (`cargo clippy` 3 lints, `cargo test` auth-seat failure, `npm test` OOM, `npm build` TS errors) | High friction: full-step completion blocked until baseline debt is resolved or quarantined. | Keep as explicit baseline blocker for next fix phase; avoid masking with slice-specific changes. |
+| C10 | Accessibility dependency path vs offline runner constraints | Step 5 asks axe-core validation in browser tests | Direct package-based axe integration was unstable in this workspace; audit is currently run with a vendored local `axe.min.js` fixture under Playwright | Moderate: testing remains valid, but dependency strategy is non-standard. | Keep fixture-based runtime for now; revisit package-based integration when npm workspace behavior is stable. |
 
 ## Resolved (recent)
 

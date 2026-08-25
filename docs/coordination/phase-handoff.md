@@ -1,28 +1,46 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Application quality run — logger + workflow/component/geometry/a11y audits (2026-08-25)  
+**Last closed:** Workflow logging instrumentation, targeted behavior tests, geometry/a11y Playwright audits, spacing-token lint + fix.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-08-25 — quality run)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Logger instrumentation:** `workflow` log channel added in core logging (`workflow.log` target), app filter exclusion, sanitizer writer wrapper, Tauri invoke-level workflow event emission, UI bridge command `workflow_log_event`, and domain transition logging hooks.
+- **Targeted validation PASS:**  
+  - `cargo test -p medoc-core sanitizing_writer`  
+  - `cargo test -p medoc-practice workflow_log_event_requires_step`  
+  - `cargo test -p medoc-practice --test invoke_command_registry_tests`  
+  - `cargo test -p medoc --test invoke_registration_tests`
+- **Workflow/UI behavior tests PASS:** `src/services/tauri.service.test.ts`, `packages/ui/src/dialog.workflow.test.tsx`, `src/views/components/ui/dialog.workflow.test.tsx`.
+- **Geometry + accessibility audits PASS:** `ui-geometry.spec.ts` (375/768/1259) and `ui-accessibility.spec.ts` (0 critical violations on `/e2e/login-layout`).
+- **Spacing-policy fix shipped:** `min-h-[72px]` replaced with tokenized `min-h-18`; Tailwind `spacing.18 = "72px"`; `npm run lint:tailwind-spacing` now **PASS**.
 
-### Remains unverified
+### Remains unverified / failing
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- **Full matrix still red (baseline blockers):**
+  - `cargo fmt --all -- --check` (repo-wide formatting drift)
+  - `cargo clippy --workspace --all-targets -- -D warnings` (3 pre-existing medoc-core lints)
+  - `cargo test --workspace --tests` (`auth_session_audit_tests` ARZT-seat failure)
+  - `npm run test` (Vitest OOM near heap limit)
+  - `npm run build` (pre-existing TS2322 / TS6133 failures)
+- Runtime creation/rotation of `workflow.log` in a live Tauri session is **NOT OBSERVED** in this run.
 
-### Next
+### Understanding delta
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+- Workflow/audit instrumentation is now broad enough to trace route-enter, IPC primary actions, and dialog/domain transitions with sanitizer coverage.
+- Accessibility automation is stable via a local `axe.min.js` fixture under Playwright (dependency-free execution path).
+- Primary blockers have shifted from missing instrumentation to baseline CI/gate debt (OOM/TypeScript/clippy/test-fixture failures).
+
+### Must happen next (ordered)
+
+1. Resolve or quarantine baseline matrix blockers (clippy lints, auth-seat test fixture, Vitest OOM, TS build failures).
+2. Run live Tauri smoke to verify `workflow.log` runtime file output + rotation behavior.
+3. Continue Step 2 breadth audit on remaining route families not yet covered by Playwright login-focused checks.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ---
 
