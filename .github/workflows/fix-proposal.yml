@@ -1,0 +1,237 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why a fix proposal is requested"
+        required: false
+        default: "manual-dispatch"
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager"; exit 1 ;;
+          esac
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+      - name: Capture failing-before baseline
+        shell: bash
+        run: |
+          mkdir -p .github/fix-proposal
+          set +e
+
+          cargo test --workspace > .github/fix-proposal/before-cargo-test.log 2>&1
+          CARGO_TEST_EXIT=$?
+          cargo audit > .github/fix-proposal/before-cargo-audit.log 2>&1
+          CARGO_AUDIT_EXIT=$?
+
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run test > .github/fix-proposal/before-js-test.log 2>&1 ;;
+            yarn) yarn run test > .github/fix-proposal/before-js-test.log 2>&1 ;;
+            npm) npm run test > .github/fix-proposal/before-js-test.log 2>&1 ;;
+          esac
+          JS_TEST_EXIT=$?
+
+          npx --yes tsc --noEmit -p apps/practice-host-ui/tsconfig.json > .github/fix-proposal/before-typecheck.log 2>&1
+          TYPECHECK_EXIT=$?
+
+          {
+            echo "cargo_test=${CARGO_TEST_EXIT}"
+            echo "cargo_audit=${CARGO_AUDIT_EXIT}"
+            echo "js_test=${JS_TEST_EXIT}"
+            echo "typecheck=${TYPECHECK_EXIT}"
+          } > .github/fix-proposal/before-status.env
+      - name: Attempt automated proposal fix
+        shell: bash
+        run: |
+          set +e
+
+          # Proposal tier may attempt non-deterministic remediations on a new draft-PR branch.
+          cargo update -w
+          cargo fmt --all
+
+          if [ -f package-lock.json ]; then
+            npm audit fix || true
+          fi
+
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm run lint -- --fix || true
+              pnpm run format || true
+              ;;
+            yarn)
+              yarn run lint -- --fix || true
+              yarn run format || true
+              ;;
+            npm)
+              npm run lint -- --fix || true
+              npm run format --if-present || true
+              ;;
+          esac
+      - name: Capture passing-after baseline
+        shell: bash
+        run: |
+          set +e
+
+          cargo test --workspace > .github/fix-proposal/after-cargo-test.log 2>&1
+          CARGO_TEST_EXIT=$?
+          cargo audit > .github/fix-proposal/after-cargo-audit.log 2>&1
+          CARGO_AUDIT_EXIT=$?
+
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run test > .github/fix-proposal/after-js-test.log 2>&1 ;;
+            yarn) yarn run test > .github/fix-proposal/after-js-test.log 2>&1 ;;
+            npm) npm run test > .github/fix-proposal/after-js-test.log 2>&1 ;;
+          esac
+          JS_TEST_EXIT=$?
+
+          npx --yes tsc --noEmit -p apps/practice-host-ui/tsconfig.json > .github/fix-proposal/after-typecheck.log 2>&1
+          TYPECHECK_EXIT=$?
+
+          {
+            echo "cargo_test=${CARGO_TEST_EXIT}"
+            echo "cargo_audit=${CARGO_AUDIT_EXIT}"
+            echo "js_test=${JS_TEST_EXIT}"
+            echo "typecheck=${TYPECHECK_EXIT}"
+          } > .github/fix-proposal/after-status.env
+      - name: Prepare draft PR metadata
+        id: proposal
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+          git diff --name-only > .github/fix-proposal/changed-files.txt
+          git status --porcelain > .github/fix-proposal/git-status.txt
+
+          if rg -i "(security|audit|crypto|rbac|auth|secret|key|permission|role)" .github/fix-proposal/changed-files.txt >/dev/null; then
+            echo "security_touched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "security_touched=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "## CI fix proposal (draft)"
+            echo
+            echo "This workflow attempted automated remediation on a new branch after a failed verify run (or manual dispatch)."
+            echo
+            echo "### Trigger"
+            echo
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo "- Reason: \`${{ github.event.inputs.reason || 'verify-main-failure' }}\`"
+            echo "- Source run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "### Changed files"
+            echo
+            echo "\`\`\`text"
+            cat .github/fix-proposal/changed-files.txt
+            echo "\`\`\`"
+            echo
+            echo "### Failing-before evidence"
+            echo
+            echo "\`\`\`text"
+            cat .github/fix-proposal/before-status.env
+            echo "\`\`\`"
+            echo
+            echo "### Passing-after evidence"
+            echo
+            echo "\`\`\`text"
+            cat .github/fix-proposal/after-status.env
+            echo "\`\`\`"
+            echo
+            echo "### Notes"
+            echo
+            echo "- This proposal never auto-merges."
+            echo "- Human review is required before merge."
+          } > .github/fix-proposal/pr-body.md
+      - name: Open draft pull request with proposed fix
+        id: cpr
+        if: steps.proposal.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          commit-message: "ci: draft fix proposal from automated remediation"
+          title: "ci: draft fix proposal for verify failure"
+          body-path: .github/fix-proposal/pr-body.md
+          labels: |
+            ci
+            fix-proposal
+          draft: true
+      - name: Label sensitive proposals for human review
+        if: steps.proposal.outputs.has_changes == 'true' && steps.proposal.outputs.security_touched == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+      - name: Stop when sensitive areas changed
+        if: steps.proposal.outputs.has_changes == 'true' && steps.proposal.outputs.security_touched == 'true'
+        run: |
+          echo "Security/audit/crypto/RBAC-related paths changed; labeled needs-human-review and stopped."
+          exit 1
+      - name: Report when no proposal diff was produced
+        if: steps.proposal.outputs.has_changes != 'true'
+        run: echo "No automated remediation diff was produced; no draft PR opened."
