@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-08-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Add a11y dependency | `npm install -D @axe-core/playwright -w medoc` | **PASS** |
+| Workflow YAML syntax | `python3 -c 'import glob,yaml; paths=sorted(glob.glob("/workspace/.github/workflows/*.yml")); [yaml.safe_load(open(p, "r", encoding="utf-8")) for p in paths]'` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` parse clean |
+| Retired path scan (`app/src-tauri`) | `rg "app/src-tauri" .github/workflows` | **PASS** — no matches |
+| Retired path scan (`app/`) | `rg "\\bapp/" .github/workflows` | **PASS** — no matches |
+| A11y runner syntax | `node --check scripts/ci/test-a11y.mjs` | **PASS** |
+| JS typecheck gate | `npm run typecheck` | **FAIL** — pre-existing TypeScript and dependency-resolution errors (e.g. `document-print-html.ts` nullability, unresolved `i18next`/`react-i18next`, unused symbols in `termin-*`) |
+| Workflow linter | `actionlint` | **NOT RUN** — command unavailable (`actionlint: command not found`) |
+
+**Implemented:** Tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`), PM autodetection (`pnpm`/`yarn`/`npm`), deterministic PR-only autofix loop guard, sensitive-path mutation block in tier2, draft fix-proposal flow with evidence logs and `needs-human-review` label for `security|audit|crypto|rbac` path touches, release verify gate reuse via `workflow_call`, and axe-core critical WCAG gate script (`scripts/ci/test-a11y.mjs`).
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

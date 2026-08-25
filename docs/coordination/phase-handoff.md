@@ -1,5 +1,30 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-08-25)  
+**Last closed:** Four-tier workflow split (`verify`, `autofix`, `fix-proposal`, `release`) + docs and validation updates.
+
+### Verified (2026-08-25 — CI/CD tiered pipeline migration)
+
+- **Tiered workflows:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` created/updated; legacy `ci.yml` removed.
+- **Workspace detection:** PM autodetect (`pnpm`/`yarn`/`npm`) used in verify/autofix/release/fix-proposal workflows.
+- **Guardrails encoded:** verify non-mutating; autofix PR-only + bot loop guard + sensitive-path mutation block; fix-proposal draft-only + `needs-human-review` label on `security|audit|crypto|rbac` path touches; release gated through reusable verify workflow and protected `release` environment.
+- **A11y gate:** `scripts/ci/test-a11y.mjs` added; verify `a11y` job builds UI, installs Chromium, and fails on critical axe-core WCAG 2.1 A/AA violations.
+- **Docs:** `docs/coordination/ci-cd-plan.md` added; validation evidence logged in `docs/coordination/validation.md`.
+
+### Remains unverified
+
+- End-to-end runtime behavior on GitHub Actions runners for the new workflows (**NOT OBSERVED** in this session).
+- `npm run typecheck` currently fails on pre-existing TypeScript/dependency issues (see `validation.md` 2026-08-25 section).
+- `actionlint` unavailable in this environment (`command not found`).
+
+### Next
+
+1. Run the new workflows in GitHub Actions (PR + push + manual dispatch) and confirm status checks/labels.
+2. Resolve pre-existing `typecheck` failures so Tier 1 verify can become fully green.
+3. Execute a tag or `workflow_dispatch` release dry run against protected `release` environment approval.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
