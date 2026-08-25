@@ -129,3 +129,33 @@ pub fn log_workflow_event(input: WorkflowEventInput) -> Result<(), AppError> {
     );
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_text_masks_known_secret_patterns() {
+        let cleaned = sanitize_text("  password=hunter2 token=abc123  ", MAX_FIELD_CHARS);
+        assert!(cleaned.contains("password=***"));
+        assert!(cleaned.contains("token=***"));
+        assert!(!cleaned.contains("hunter2"));
+        assert!(!cleaned.contains("abc123"));
+    }
+
+    #[test]
+    fn sanitize_route_style_metadata_filters_invalid_keys() {
+        let mut meta = BTreeMap::new();
+        meta.insert("ok.key".into(), "value".into());
+        meta.insert("bad key".into(), "drop-me".into());
+        let cleaned = sanitize_metadata(meta);
+        assert_eq!(cleaned.get("ok.key").map(String::as_str), Some("value"));
+        assert!(cleaned.get("badkey").is_some());
+    }
+
+    #[test]
+    fn sanitize_opt_field_drops_blank_values() {
+        assert_eq!(sanitize_opt_field(Some("   ".into())), None);
+        assert_eq!(sanitize_opt_field(None), None);
+    }
+}
