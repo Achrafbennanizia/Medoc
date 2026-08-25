@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { logWorkflowCancel } from "@/services/workflow.service";
 
 interface DialogProps {
     open: boolean;
@@ -32,6 +33,9 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const t = useT();
+    const reportCancel = (action: string) => {
+        void logWorkflowCancel(action, title);
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -47,6 +51,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
+                reportCancel("dialog_escape");
                 onCloseRef.current();
                 return;
             }
@@ -123,7 +128,14 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div
+            className="modal-backdrop"
+            onClick={() => {
+                reportCancel("dialog_backdrop");
+                onClose();
+            }}
+            role="presentation"
+        >
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +149,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => {
+                            reportCancel("dialog_close_button");
+                            onClose();
+                        }}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +172,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    reportCancel("dialog_close_button");
+                                    onClose();
+                                }}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
@@ -213,6 +231,13 @@ export function IosConfirmActions({
     const t = useT();
     const busy = disabled || loading;
     const cancel = cancelLabel ?? t("common.cancel");
+    const onConfirmKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+        if (busy) return;
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onConfirm();
+        }
+    };
     return (
         <div className="ios-confirm-actions" role="group" aria-label={t("a11y.dialog_actions")}>
             <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={busy}>
@@ -223,6 +248,7 @@ export function IosConfirmActions({
                 type="button"
                 className={`ios-confirm-btn ios-confirm-btn--primary${destructive ? " ios-confirm-btn--destructive" : ""}`}
                 onClick={onConfirm}
+                onKeyDown={onConfirmKeyDown}
                 disabled={busy}
             >
                 {loading ? "…" : confirmLabel}
@@ -261,7 +287,10 @@ export function ConfirmDialog({
     const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
     const handleClose = () => {
-        if (!loading) onClose();
+        if (!loading) {
+            void logWorkflowCancel("confirm_dialog_cancel", title);
+            onClose();
+        }
     };
     return (
         <Dialog

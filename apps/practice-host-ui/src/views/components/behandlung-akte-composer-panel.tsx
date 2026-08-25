@@ -262,7 +262,7 @@ export function BehandlungAkteComposerPanel({
                         disabled={behandFieldsLocked}
                         onChange={(e) => setBehandForm({ ...behandForm, notizen: e.target.value })}
                         placeholder={t("behandlung.composer.notes_ph")}
-                        className="min-h-[72px] mt-2"
+                        className="min-h-18 mt-2"
                     />
                 </details>
             </div>

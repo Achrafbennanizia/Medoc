@@ -17,7 +17,7 @@ use crate::infrastructure::company_portal::register_practice_onboarding;
 use crate::infrastructure::database::app_kv_repo;
 use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::enums::Rolle;
-use medoc_sync::verbund::services::{sync_staff_from_stored_admin_endpoint, sync_staff_from_stored_admin_endpoint_required, verbund_status};
+use medoc_sync::verbund::services::{sync_staff_from_stored_admin_endpoint_required, verbund_status};
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
