@@ -1,0 +1,76 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    name: Deterministic PR autofix
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Rust autofix (format only)
+        run: cargo fmt --all
+      - name: JS autofix (deterministic only)
+        run: |
+          set +e
+          ${{ steps.pm.outputs.pm }} run lint:fix
+          lint_fix_status=$?
+          ${{ steps.pm.outputs.pm }} run format
+          format_status=$?
+          set -e
+          if [ "$lint_fix_status" -ne 0 ]; then
+            echo "lint:fix script unavailable or failed; continuing by policy."
+          fi
+          if [ "$format_status" -ne 0 ]; then
+            echo "format script unavailable or failed; continuing by policy."
+          fi
+      - name: Commit deterministic fixes
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic formatting and lint fixes"
+            git push origin "HEAD:${PR_HEAD_REF}"
+          else
+            echo "No deterministic autofixes were required."
+          fi

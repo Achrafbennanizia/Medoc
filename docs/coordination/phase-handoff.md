@@ -1,7 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline (2026-08-25)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows migrated to live `apps/` + `crates/` workspace paths with guardrails.
+
+### Verified (2026-08-25 — CI/CD tiered pipeline)
+
+- **Tiered workflows:** Added `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`; rewired `.github/workflows/release.yml`; retired `.github/workflows/ci.yml`.
+- **Verify gate policy:** `verify.yml` is zero-mutation (fmt/clippy/tests/audit + web lint/typecheck/test/build + axe-core a11y), with `concurrency.cancel-in-progress` and per-job timeouts.
+- **Autofix guardrails:** `autofix.yml` runs on `pull_request` only, skips bot loops (`github.actor != github-actions[bot]`), limits changes to deterministic format/lint commands, and commits only to PR head branch.
+- **Fix proposal guardrails:** `fix-proposal.yml` creates a new proposal branch and draft PR with failing-before/passing-after evidence; sensitive path touches (`security|audit|crypto|rbac`) get `needs-human-review` label and forced stop.
+- **Release gate:** `release.yml` calls reusable `verify.yml` as gate, then builds signed cross-platform artifacts under protected `release` environment, with source immutability check (`git diff --exit-code`).
+- **Workspace script support:** root `package.json` now exposes `typecheck`, `lint:fix`, `format`, `test:a11y`; `apps/practice-host-ui/package.json` adds `typecheck`, `lint:fix`, `format`; `scripts/ci/test-a11y.mjs` runs axe-core against built UI and fails on critical WCAG 2.1 A/AA violations.
+- **Local syntax validation:** workflow YAML parse **PASS** (`python3 + yaml.safe_load`), a11y script parse **PASS** (`node --check`), npm script exposure **PASS** (`npm run`).
+
+### Remains unverified
+
+- GitHub-hosted execution of new workflows (`verify`, `autofix`, `fix-proposal`, `release`) on real PR/tag events.
+- Tier-3 automatic red-main proposal path without manual input when no `scripts/ci/fix-proposal.sh` strategy exists.
+- Protected `release` environment approvals/secrets correctness in live repository settings.
+
+### Understanding delta
+
+- CI/CD moved from a monolithic CI + release workflow pair to explicit four-tier governance with separate mutation boundaries.
+- Accessibility gate is now formalized in CI (`test:a11y`) rather than implicit/manual.
+- Tier-3 fixes are explicitly review-gated draft proposals with sensitive-code stop labels rather than silent branch mutation.
+
+### Next
+
+1. Open a test PR to exercise `verify.yml` + `autofix.yml` end-to-end.
+2. Run a manual `workflow_dispatch` of `fix-proposal.yml` with explicit `verify_command`/`fix_command` to validate draft PR evidence flow.
+3. Trigger a tag or manual `release.yml` run to verify environment approval and signed artifact upload path.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

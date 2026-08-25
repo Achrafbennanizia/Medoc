@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-25 (CI/CD tiered pipeline migration)
 
 ## Now
 
@@ -11,6 +11,20 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-25 — CI/CD tiered pipeline migration)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (blocking verify, zero mutation, a11y gate)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + loop guard)
+  - `.github/workflows/fix-proposal.yml` (draft PR proposal flow + sensitive-path review label)
+  - `.github/workflows/release.yml` (verify gate + protected signed cross-platform release build)
+- Retired `.github/workflows/ci.yml` to avoid overlap with tiered pipeline.
+- Added CI script wiring:
+  - root scripts `typecheck`, `lint:fix`, `format`, `test:a11y`
+  - `apps/practice-host-ui` scripts `typecheck`, `lint:fix`, `format`
+  - `scripts/ci/test-a11y.mjs` for axe-core critical WCAG 2.1 A/AA gating
+- Added plan doc: `docs/coordination/ci-cd-plan.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
