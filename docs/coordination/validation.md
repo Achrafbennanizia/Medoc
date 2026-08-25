@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (CI/CD tier migration)
+
+## CI/CD pipeline migration — verified (2026-08-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Target branch | `git branch --show-current` | **PASS** — `cursor/medoc-ci-cd-pipeline-4e10` |
+| Workflow migration commit | `git show --name-status --pretty=oneline 9ed21ad` | **PASS** — added `verify.yml`, `autofix.yml`, `fix-proposal.yml`, replaced `release.yml`, removed legacy `ci.yml`, added `docs/coordination/ci-cd-plan.md` |
+| Workflow lint (first pass) | `go install github.com/rhysd/actionlint/cmd/actionlint@latest && $HOME/go/bin/actionlint` | **FAIL** — `autofix.yml` used untrusted `github.head_ref` directly in inline shell |
+| Workflow lint (after guard fix) | `$HOME/go/bin/actionlint` | **PASS** — no findings |
+| Rust/npm application test suites | **NOT RUN** | **NOT RUN** — this phase changed workflow and coordination files; runtime verification is delegated to the updated CI gates |
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

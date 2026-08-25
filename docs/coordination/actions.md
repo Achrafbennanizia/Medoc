@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-25 (CI/CD tier migration)
 
 ## Now
 
@@ -11,6 +11,7 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **CI/CD proving run:** execute one PR through `verify.yml` + `autofix.yml`, then run one tag/dispatch release dry-run through protected `release` environment.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
@@ -23,6 +24,16 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-25 — CI/CD tier migration)
+
+- Replaced legacy `.github/workflows/ci.yml` with four-tier pipeline:
+  - `verify.yml`
+  - `autofix.yml`
+  - `fix-proposal.yml`
+  - `release.yml`
+- Added `docs/coordination/ci-cd-plan.md` with guardrails, triggers, and mutation boundaries.
+- Added `actionlint`-driven workflow validation and fixed untrusted-inline context usage in `autofix.yml`.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

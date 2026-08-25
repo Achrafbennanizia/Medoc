@@ -1,0 +1,215 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust workspace gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt check
+        run: cargo fmt --all --check
+      - name: clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: workspace tests
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: Web lint/typecheck/test/build gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager"; exit 1 ;;
+          esac
+      - name: Run lint (no autofix)
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run lint ;;
+            yarn) yarn run lint ;;
+            npm) npm run lint ;;
+          esac
+      - name: Run TypeScript type checks
+        run: |
+          npx --yes tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+          npx --yes tsc --noEmit -p apps/lan-web-client/tsconfig.json
+      - name: Run tests
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run test ;;
+            yarn) yarn run test ;;
+            npm) npm run test ;;
+          esac
+      - name: Run build
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+
+  a11y:
+    name: axe-core WCAG 2.1 AA critical gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager"; exit 1 ;;
+          esac
+      - name: Build web UI
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+      - name: Run axe-core and fail on critical violations
+        shell: bash
+        run: |
+          npx --yes http-server ./apps/practice-host-ui/dist -p 4173 --silent &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:4173" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo "A11y server failed to start."
+            exit 1
+          fi
+
+          AXE_EXIT=0
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" \
+            --tags wcag2a,wcag2aa \
+            --save axe-results.json || AXE_EXIT=$?
+
+          if [ ! -f axe-results.json ]; then
+            echo "axe-core did not produce axe-results.json"
+            exit "${AXE_EXIT:-1}"
+          fi
+
+          node <<'NODE'
+          const fs = require("fs");
+          const report = JSON.parse(fs.readFileSync("axe-results.json", "utf8"));
+          const pages = Array.isArray(report) ? report : [report];
+          const critical = [];
+          for (const page of pages) {
+            const violations = Array.isArray(page.violations) ? page.violations : [];
+            for (const violation of violations) {
+              if (violation.impact === "critical") {
+                critical.push({
+                  url: page.url || "unknown",
+                  id: violation.id,
+                  impact: violation.impact,
+                  help: violation.help,
+                  helpUrl: violation.helpUrl,
+                  nodes: (violation.nodes || []).length
+                });
+              }
+            }
+          }
+          if (critical.length > 0) {
+            console.error("Critical WCAG 2.1 A/AA violations detected:");
+            console.error(JSON.stringify(critical, null, 2));
+            process.exit(1);
+          }
+          console.log("No critical WCAG 2.1 A/AA violations reported by axe-core.");
+          NODE
+
+          if [ "${AXE_EXIT}" -ne 0 ]; then
+            echo "axe-core exited with code ${AXE_EXIT}; continuing because this gate only blocks critical findings."
+          fi
