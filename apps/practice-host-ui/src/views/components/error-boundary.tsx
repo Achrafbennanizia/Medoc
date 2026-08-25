@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { emitWorkflowEventFireAndForget, workflowErrorDetail } from "@/services/workflow-logger.service";
 
 interface Props {
     children: ReactNode;
@@ -20,6 +21,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, info: ErrorInfo) {
         console.error("[medoc] uncaught render error", error, info);
+        emitWorkflowEventFireAndForget({
+            step: "error",
+            action: "react_error_boundary",
+            outcome: "render_crash",
+            detail: workflowErrorDetail(error),
+            metadata: {
+                componentStack: workflowErrorDetail(info.componentStack ?? ""),
+            },
+        });
     }
 
     private handleReload = () => {

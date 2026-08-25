@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { emitWorkflowEventFireAndForget, workflowErrorDetail } from "@/services/workflow-logger.service";
 
 interface DialogProps {
     open: boolean;
@@ -235,7 +236,7 @@ export function IosConfirmActions({
 interface ConfirmDialogProps {
     open: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
     title: string;
     message: string;
     confirmLabel?: string;
@@ -260,8 +261,69 @@ export function ConfirmDialog({
     const confirm = confirmLabel ?? t("common.confirm");
     const cancel = cancelLabel ?? t("common.cancel");
     const confirmTitleId = useId();
+    const baseMetadata = { dialog: "confirm", danger: String(danger) };
     const handleClose = () => {
-        if (!loading) onClose();
+        if (loading) return;
+        emitWorkflowEventFireAndForget({
+            step: "cancel",
+            action: "confirm_dialog",
+            outcome: "cancel",
+            detail: title,
+            metadata: baseMetadata,
+        });
+        onClose();
+    };
+    const handleConfirm = () => {
+        if (loading) return;
+        emitWorkflowEventFireAndForget({
+            step: "primary_action",
+            action: "confirm_dialog",
+            outcome: "confirm_click",
+            detail: title,
+            metadata: baseMetadata,
+        });
+        try {
+            const result = onConfirm();
+            if (result && typeof (result as Promise<void>).then === "function") {
+                void (result as Promise<void>)
+                    .then(() => {
+                        emitWorkflowEventFireAndForget({
+                            step: "success",
+                            action: "confirm_dialog",
+                            outcome: "confirm_ok",
+                            detail: title,
+                            metadata: baseMetadata,
+                        });
+                    })
+                    .catch((error) => {
+                        emitWorkflowEventFireAndForget({
+                            step: "error",
+                            action: "confirm_dialog",
+                            outcome: "confirm_failed",
+                            detail: workflowErrorDetail(error),
+                            metadata: baseMetadata,
+                        });
+                        throw error;
+                    });
+                return;
+            }
+            emitWorkflowEventFireAndForget({
+                step: "success",
+                action: "confirm_dialog",
+                outcome: "confirm_ok",
+                detail: title,
+                metadata: baseMetadata,
+            });
+        } catch (error) {
+            emitWorkflowEventFireAndForget({
+                step: "error",
+                action: "confirm_dialog",
+                outcome: "confirm_failed",
+                detail: workflowErrorDetail(error),
+                metadata: baseMetadata,
+            });
+            throw error;
+        }
     };
     return (
         <Dialog
@@ -282,7 +344,7 @@ export function ConfirmDialog({
                     cancelLabel={cancel}
                     confirmLabel={confirm}
                     onCancel={handleClose}
-                    onConfirm={onConfirm}
+                    onConfirm={handleConfirm}
                     loading={loading}
                     destructive={danger}
                 />

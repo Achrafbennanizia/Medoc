@@ -1,4 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+    emitWorkflowEventFireAndForget,
+    WORKFLOW_LOG_COMMAND,
+    workflowErrorDetail,
+} from "@/services/workflow-logger.service";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +55,59 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function summarizeArgKeys(args: Record<string, unknown>): string {
+    return Object.keys(args).sort().slice(0, 24).join(",");
+}
+
+function isCancelLikeError(error: unknown): boolean {
+    const text = workflowErrorDetail(error).toLowerCase();
+    return text.includes("cancel") || text.includes("aborted") || text.includes("abgebrochen");
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const startedAt = performance.now();
+    const isWorkflowCommand = cmd === WORKFLOW_LOG_COMMAND;
+    const cleaned = args == null ? {} : omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    if (!isWorkflowCommand) {
+        emitWorkflowEventFireAndForget({
+            step: "primary_action",
+            action: cmd,
+            outcome: "invoke_start",
+            metadata: {
+                argCount: String(Object.keys(cleaned).length),
+                argKeys: summarizeArgKeys(cleaned),
+            },
+        });
+    }
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (!isWorkflowCommand) {
+            emitWorkflowEventFireAndForget({
+                step: "success",
+                action: cmd,
+                outcome: "invoke_ok",
+                metadata: {
+                    durationMs: Math.round(performance.now() - startedAt).toString(),
+                },
+            });
+        }
+        return result;
+    } catch (error) {
+        if (!isWorkflowCommand) {
+            emitWorkflowEventFireAndForget({
+                step: isCancelLikeError(error) ? "cancel" : "error",
+                action: cmd,
+                outcome: "invoke_failed",
+                detail: workflowErrorDetail(error),
+                metadata: {
+                    durationMs: Math.round(performance.now() - startedAt).toString(),
+                },
+            });
+        }
+        throw error;
+    }
 }
