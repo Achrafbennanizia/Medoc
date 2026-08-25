@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-08-25  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -19,7 +19,7 @@
 - **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`crates/shared/medoc-core/src/infrastructure/database/connection.rs`, `sqlcipher.rs`, `db_key.rs`).
-- **CI scope:** `.github/workflows/ci.yml` — Rust workspace (repo root): fmt, check, test, clippy, cargo-audit (requires `MEDOC_VENDOR_PUBKEY`); frontend: npm audit, lint, vitest, build from root `package.json`. **No** root-level `src/` Next.js tree in repo (2026-05-19).
+- **CI/CD scope:** Tiered workflows under `.github/workflows/` — `verify.yml` (Rust fmt/clippy/test/audit + JS lint/typecheck/test/build + axe critical WCAG gate), `autofix.yml` (PR-only deterministic fixes), `fix-proposal.yml` (draft PR proposals for non-deterministic fixes), and `release.yml` (verify gate + protected signed cross-platform build). Legacy `ci.yml` removed during workspace-path migration (2026-08-25).
 - **Vendor Ed25519 pubkey:** Compile-time via `apps/practice-host/build.rs` → `OUT_DIR/pubkey.rs`; used by `license.rs` and `update.rs` (`apps/practice-host/src/infrastructure/crypto/sig.rs`).
 - **Update signatures:** `update::evaluate` rejects unsigned/tampered manifests with `UpdateStatus::Error { message: "Signatur ungültig" }`.
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `einstellungen-company-portal-section.tsx`.
@@ -77,7 +77,7 @@
 | Tauri + versions | `package.json`, `apps/practice-host/Cargo.toml`, `apps/practice-host/tauri.conf.json` | 2026-06-06 |
 | SQLite SQLCipher connector | `crates/shared/medoc-core/src/infrastructure/database/connection.rs` | 2026-06-06 |
 | Frontend routes | `apps/practice-host-ui/src/App.tsx` | 2026-06-06 |
-| CI commands | `.github/workflows/ci.yml` | 2026-06-06 |
+| CI/CD commands | `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, `.github/workflows/release.yml` | 2026-08-25 |
 | Build + tests pass | Terminal: `npm run build`, `cargo test --workspace --tests` | 2026-06-06 |
 | Vendor pubkey build | `apps/practice-host/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-06-06 |
 | Update signature tests | `apps/practice-host/tests/update_signature_tests.rs` | 2026-06-06 |

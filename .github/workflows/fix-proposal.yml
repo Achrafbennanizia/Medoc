@@ -1,0 +1,331 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Failure class to target"
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - advisory
+          - typecheck
+      base_ref:
+        description: "Base branch for the proposal PR"
+        required: false
+        default: main
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - id: cfg
+        name: Resolve trigger context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target=${{ inputs.target }}" >> "$GITHUB_OUTPUT"
+            echo "base=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "trigger=workflow_dispatch" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=test" >> "$GITHUB_OUTPUT"
+            echo "base=main" >> "$GITHUB_OUTPUT"
+            echo "trigger=workflow_run_failure:${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.cfg.outputs.base }}
+          fetch-depth: 0
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies for Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install JavaScript dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager"; exit 1 ;;
+          esac
+
+      - id: attempt
+        name: Attempt fix and record evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET="${{ steps.cfg.outputs.target }}"
+          PM="${{ steps.pm.outputs.pm }}"
+          LOG_DIR="/tmp/fix-proposal-${GITHUB_RUN_ID}"
+          EVIDENCE_FILE=".github/fix-proposals/${GITHUB_RUN_ID}.md"
+          mkdir -p .github/fix-proposals "$LOG_DIR"
+
+          has_root_script() {
+            local script_name="$1"
+            node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));process.exit(p.scripts && p.scripts['${script_name}'] ? 0 : 1)"
+          }
+
+          run_pm_script() {
+            local script_name="$1"
+            case "$PM" in
+              pnpm) pnpm run "$script_name" ;;
+              yarn) yarn run "$script_name" ;;
+              npm) npm run "$script_name" ;;
+              *) echo "Unsupported package manager: $PM"; return 1 ;;
+            esac
+          }
+
+          run_typecheck_cmd() {
+            if has_root_script "typecheck"; then
+              run_pm_script "typecheck"
+            else
+              case "$PM" in
+                pnpm) pnpm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                yarn) yarn tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                npm) npm exec -- tsc --noEmit -p apps/practice-host-ui/tsconfig.json ;;
+                *) echo "Unsupported package manager: $PM"; return 1 ;;
+              esac
+            fi
+          }
+
+          run_checks() {
+            local phase="$1"
+            local status=0
+            case "$TARGET" in
+              advisory)
+                set +e
+                cargo audit > "${LOG_DIR}/${phase}-cargo-audit.log" 2>&1
+                local cargo_status=$?
+                set -e
+                if [ "$cargo_status" -ne 0 ]; then
+                  status=1
+                fi
+
+                if [ "$PM" = "npm" ]; then
+                  set +e
+                  npm audit --omit=dev > "${LOG_DIR}/${phase}-npm-audit.log" 2>&1
+                  local npm_status=$?
+                  set -e
+                  if [ "$npm_status" -ne 0 ]; then
+                    status=1
+                  fi
+                else
+                  echo "JavaScript advisory check skipped for package manager: $PM" > "${LOG_DIR}/${phase}-npm-audit.log"
+                fi
+                ;;
+              typecheck)
+                set +e
+                run_typecheck_cmd > "${LOG_DIR}/${phase}-typecheck.log" 2>&1
+                local typecheck_status=$?
+                set -e
+                if [ "$typecheck_status" -ne 0 ]; then
+                  status=1
+                fi
+                ;;
+              test)
+                set +e
+                cargo test --workspace --tests > "${LOG_DIR}/${phase}-cargo-test.log" 2>&1
+                local cargo_test_status=$?
+                set -e
+                if [ "$cargo_test_status" -ne 0 ]; then
+                  status=1
+                fi
+
+                set +e
+                run_pm_script "test" > "${LOG_DIR}/${phase}-npm-test.log" 2>&1
+                local npm_test_status=$?
+                set -e
+                if [ "$npm_test_status" -ne 0 ]; then
+                  status=1
+                fi
+                ;;
+              *)
+                echo "Unsupported target: $TARGET" >&2
+                return 2
+                ;;
+            esac
+            return "$status"
+          }
+
+          run_fix_attempt() {
+            case "$TARGET" in
+              advisory)
+                cargo update -w || true
+                if [ "$PM" = "npm" ]; then
+                  npm audit fix --package-lock-only --omit=dev || true
+                elif [ "$PM" = "pnpm" ]; then
+                  pnpm audit --fix || true
+                else
+                  echo "No automatic JavaScript advisory fixer configured for package manager: $PM"
+                fi
+                ;;
+              typecheck)
+                if has_root_script "lint:fix"; then
+                  run_pm_script "lint:fix" || true
+                fi
+                if has_root_script "format"; then
+                  run_pm_script "format" || true
+                fi
+                ;;
+              test)
+                cargo fix --workspace --all-targets --allow-dirty --allow-staged || true
+                if has_root_script "lint:fix"; then
+                  run_pm_script "lint:fix" || true
+                fi
+                if has_root_script "format"; then
+                  run_pm_script "format" || true
+                fi
+                ;;
+            esac
+          }
+
+          set +e
+          run_checks "before"
+          BEFORE_STATUS=$?
+          set -e
+
+          run_fix_attempt
+
+          set +e
+          run_checks "after"
+          AFTER_STATUS=$?
+          set -e
+
+          cat > "$EVIDENCE_FILE" <<EOF
+          ## CI fix proposal
+
+          ### Rationale
+          This draft PR was created by the Tier 3 fix-proposal workflow to attempt a non-deterministic fix on an isolated branch. It never auto-merges.
+
+          ### Trigger context
+          - Trigger: ${{ steps.cfg.outputs.trigger }}
+          - Target failure class: $TARGET
+          - Base branch: ${{ steps.cfg.outputs.base }}
+          - Package manager: $PM
+
+          ### Failing-before / passing-after evidence
+          - Before status: $BEFORE_STATUS
+          - After status: $AFTER_STATUS
+
+          Attempt logs are uploaded as workflow artifacts:
+          - \`${LOG_DIR}/before-*.log\`
+          - \`${LOG_DIR}/after-*.log\`
+
+          Status interpretation:
+          - \`0\` = check class passed.
+          - non-zero = still failing after attempted fix.
+          EOF
+
+          echo "before_status=$BEFORE_STATUS" >> "$GITHUB_OUTPUT"
+          echo "after_status=$AFTER_STATUS" >> "$GITHUB_OUTPUT"
+          echo "evidence_file=$EVIDENCE_FILE" >> "$GITHUB_OUTPUT"
+          echo "log_dir=$LOG_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Upload fix-attempt logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs-${{ github.run_id }}
+          path: ${{ steps.attempt.outputs.log_dir }}/*
+          if-no-files-found: ignore
+
+      - id: sensitive
+        name: Detect sensitive code touches
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only | rg -i "(security|audit|crypto|rbac|auth|secret|key)" > /tmp/fix-proposal-sensitive-paths.txt; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        name: Open draft pull request with proposal
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "ci: automated fix proposal (${{ steps.cfg.outputs.target }})"
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: ${{ steps.cfg.outputs.base }}
+          title: "ci: fix proposal for ${{ steps.cfg.outputs.target }} failure"
+          body-path: ${{ steps.attempt.outputs.evidence_file }}
+          draft: true
+          labels: |
+            ci
+            fix-proposal
+
+      - name: Ensure draft PR exists
+        if: steps.cpr.outputs.pull-request-number == ''
+        run: |
+          echo "Fix-proposal workflow did not create a draft PR."
+          exit 1
+
+      - name: Add needs-human-review label for sensitive touches
+        if: steps.sensitive.outputs.touched == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+
+      - name: Stop after sensitive touch labeling
+        if: steps.sensitive.outputs.touched == 'true'
+        run: |
+          echo "Sensitive-path changes detected. Added needs-human-review label and stopped automated progression."
+          exit 1
