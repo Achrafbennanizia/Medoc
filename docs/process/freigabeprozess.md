@@ -21,7 +21,7 @@ Pre-Release-Tags: `-alpha.N`, `-beta.N`, `-rc.N`.
 ### 3.1 Entwicklung
 - Feature-Branches von `main`.
 - Pull-Request mit verpflichtendem Code-Review (≥1 Reviewer).
-- CI-Gate: `cargo fmt -- --check`, `cargo check`, `cargo test`, `cargo clippy -- -D warnings`, `cargo audit`, `npm audit --omit=dev`, `npm run lint`, `npm test`, `npm run build` (siehe `.github/workflows/ci.yml`).
+- CI-Gate: push/PR `CI` wrapper delegates to reusable `.github/workflows/verify.yml` (Rust: `cargo fmt -- --check`, `cargo clippy -- -D warnings`, `cargo test`, `cargo audit`; Web: lint/typecheck/test/build; A11y: axe-core critical gate).
 
 ### 3.2 Stabilisierung (Release-Branch)
 - Branch `release/x.y.z` von `main`.

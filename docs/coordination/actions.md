@@ -1,6 +1,16 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-25 (CI/CD pipeline tier migration)
+
+## Done (2026-08-25 — CI/CD pipeline tier migration)
+
+- Added reusable tier-1 gate `.github/workflows/verify.yml` (Rust + web + a11y; no mutation).
+- Migrated `.github/workflows/ci.yml` to a compatibility wrapper that triggers reusable verify on push/PR.
+- Added tier-2 deterministic PR autofix workflow `.github/workflows/autofix.yml`.
+- Added tier-3 draft fix-proposal workflow `.github/workflows/fix-proposal.yml` with sensitive-path label guard.
+- Replaced tier-4 `.github/workflows/release.yml` with verify-gated, manual-approval, signed artifact build flow.
+- Added coordination design doc `docs/coordination/ci-cd-plan.md`.
+- Recorded command evidence in `docs/coordination/validation.md` (actionlint + retired-path checks).
 
 ## Now
 

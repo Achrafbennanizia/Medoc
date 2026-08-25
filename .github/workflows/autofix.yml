@@ -1,0 +1,98 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  autofix:
+    name: Deterministic PR autofix
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install JS dependencies
+        run: eval "${{ steps.pm.outputs.install }}"
+      - name: Loop guard on bot-authored commit
+        id: guard
+        run: |
+          LAST_AUTHOR="$(git log -1 --pretty=%an)"
+          LAST_EMAIL="$(git log -1 --pretty=%ae)"
+          if [ "$LAST_AUTHOR" = "github-actions[bot]" ] || [ "$LAST_EMAIL" = "github-actions[bot]@users.noreply.github.com" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Apply deterministic fixes
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_script_if_present() {
+            local script_name="$1"
+            if node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync("package.json","utf8")); const name=process.argv[1]; process.exit(pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts,name) ? 0 : 1);' "$script_name"; then
+              case "$PM" in
+                pnpm) pnpm run "$script_name" ;;
+                yarn) yarn "$script_name" ;;
+                npm) npm run "$script_name" ;;
+              esac
+            else
+              echo "Skipping missing script: $script_name"
+            fi
+          }
+
+          # Deterministic, logic-free fixes only.
+          cargo fmt --all
+          run_script_if_present lint:fix
+          run_script_if_present format
+      - name: Commit fixes if files changed
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No deterministic autofixes produced changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply deterministic autofixes"
+          git push origin "HEAD:${PR_HEAD_REF}"
