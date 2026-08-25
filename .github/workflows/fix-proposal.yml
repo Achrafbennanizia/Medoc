@@ -285,7 +285,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --name-only | rg -i "(security|audit|crypto|rbac)" > /tmp/fix-proposal-sensitive-paths.txt; then
+          if git diff --name-only | rg -i "(security|audit|crypto|rbac|auth|secret|key)" > /tmp/fix-proposal-sensitive-paths.txt; then
             echo "touched=true" >> "$GITHUB_OUTPUT"
           else
             echo "touched=false" >> "$GITHUB_OUTPUT"

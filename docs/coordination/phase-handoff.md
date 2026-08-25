@@ -7,7 +7,7 @@
 
 - **Tier 1 verify:** Added `.github/workflows/verify.yml` with Rust gates (`fmt --check`, `clippy -D warnings`, `test`, `cargo audit`), lockfile-driven JS manager detection, lint/typecheck/test/build, and axe-core critical WCAG 2.1 A/AA gate against built UI.
 - **Tier 2 autofix:** Added `.github/workflows/autofix.yml` on `pull_request` only, deterministic-only (`cargo fmt`, optional `lint:fix`, optional `format`), with `github-actions[bot]` loop guard and commit-if-changed behavior.
-- **Tier 3 fix proposal:** Added `.github/workflows/fix-proposal.yml` for manual dispatch and failed `verify` on `main`; attempts targeted non-deterministic fixes on proposal branch, opens draft PR, and labels/stops on `security|audit|crypto|rbac` touches.
+- **Tier 3 fix proposal:** Added `.github/workflows/fix-proposal.yml` for manual dispatch and failed `verify` on `main`; attempts targeted non-deterministic fixes on proposal branch, opens draft PR, and labels/stops on `security|audit|crypto|rbac|auth|secret|key` touches.
 - **Tier 4 release:** Replaced `.github/workflows/release.yml` so release first calls `verify.yml`, then builds signed cross-platform artifacts under protected `environment: release`; no source mutation steps.
 - **Legacy workflow migration:** Removed stale `.github/workflows/ci.yml` and documented the new design in `docs/coordination/ci-cd-plan.md`.
 - **Validation:** Workflow YAML parse **PASS** for all four workflows; stale-path grep (`app/src-tauri` or `app/`) in workflows returned no matches.

@@ -72,7 +72,7 @@ Behavior:
 - opens a **draft PR** (never auto-merges)
 
 Sensitive code guard:
-- if changed paths match `security|audit|crypto|rbac`, workflow adds `needs-human-review` label and stops progression.
+- if changed paths match `security|audit|crypto|rbac|auth|secret|key`, workflow adds `needs-human-review` label and stops progression.
 
 ### Tier 4 — `release.yml` (verify gate + signed build; no mutation)
 

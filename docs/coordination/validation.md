@@ -10,7 +10,7 @@
 | Retired path scan in workflows | `rg "app/src-tauri|\\bapp/" .github/workflows` | **PASS** — no matches (exit code 1 expected for empty result set) |
 | Workspace modifications snapshot | `git status --short` | **PASS** — expected workflow/doc changes only |
 
-**Delivered:** Removed stale `.github/workflows/ci.yml`; added Tier 1 `verify.yml`, Tier 2 `autofix.yml`, Tier 3 `fix-proposal.yml`, and rewired Tier 4 `release.yml` to gate on reusable verify + protected release environment. Added `docs/coordination/ci-cd-plan.md`.
+**Delivered:** Removed stale `.github/workflows/ci.yml`; added Tier 1 `verify.yml`, Tier 2 `autofix.yml`, Tier 3 `fix-proposal.yml`, and rewired Tier 4 `release.yml` to gate on reusable verify + protected release environment. Added `docs/coordination/ci-cd-plan.md`. Follow-up hardening: `autofix.yml` now uses `PR_HEAD_REF` env for push-back (instead of direct shell interpolation) and `fix-proposal.yml` sensitive-path detector includes `auth|secret|key`.
 
 **NOT RUN:** Full local `cargo`/`npm` validation suite on host for this change set (workflow and coordination docs only; runtime behavior must be validated by GitHub Actions execution).
 
