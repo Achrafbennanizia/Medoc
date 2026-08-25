@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-08-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` on `.github/workflows/*.yml` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` parsed successfully |
+| Retired path scan in workflows | `rg 'app/src-tauri|\\bapp/' .github/workflows` | **PASS** — no matches (exit 1 from ripgrep indicates no hit) |
+| a11y script syntax | `node --check scripts/ci/test-a11y.mjs` | **PASS** |
+| Root script wiring | `npm run` | **PASS** — `lint:fix`, `format`, `typecheck`, `test:a11y` present |
+| Root typecheck execution smoke | `npm run --silent typecheck --workspaces=false --if-present` | **FAIL** — `tsc: not found` (dependencies not installed in this local session) |
+| Workflow linter availability | `actionlint` | **FAIL** — command not found in this local environment |
+| End-to-end GitHub Actions execution | workflow run on GitHub | **NOT RUN** in this local session |
+
+**Delivered:** tiered CI/CD workflows with guardrails (`verify`, `autofix`, `fix-proposal`, `release`), package-manager lockfile detection, PR-only deterministic autofix loop guard, draft-only substantive fix proposals with sensitive-path labeling, and release gate via reusable verify workflow plus protected-environment signed builds.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
