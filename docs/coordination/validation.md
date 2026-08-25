@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-25 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-08-25)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Workflow lint (first pass) | `go install github.com/rhysd/actionlint/cmd/actionlint@latest && $(go env GOPATH)/bin/actionlint` | **FAIL → FIXED** | Reported script-injection warning in `autofix.yml` (`github.head_ref` used inline in shell); fixed by passing via env var `PR_HEAD_REF`. |
+| Workflow lint (final) | `$(go env GOPATH)/bin/actionlint` | **PASS** | All workflows valid after fix. |
+| Retired path guard | `rg -n "app/src-tauri|\\bapp/" .github/workflows/*.yml` | **PASS** | No matches; workflows target live `apps/*`, `crates/*`, `packages/*` workspace layout. |
+
+**Files added/updated for this gate model:** `.github/workflows/{verify.yml,autofix.yml,fix-proposal.yml,release.yml,ci.yml}` and `docs/coordination/ci-cd-plan.md`.
+
+**NOT RUN (this session):** live GitHub Actions execution of the new workflows (verify/autofix/fix-proposal/release) against a remote PR/tag; this ledger entry validates syntax and path migration only.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

@@ -1,0 +1,206 @@
+name: verify
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    name: Rust verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test --workspace
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: Web verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install JS dependencies
+        run: eval "${{ steps.pm.outputs.install }}"
+      - name: Lint, typecheck, test, build (no auto-fix)
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_script() {
+            case "$PM" in
+              pnpm) pnpm run "$1" ;;
+              yarn) yarn "$1" ;;
+              npm) npm run "$1" ;;
+            esac
+          }
+
+          has_script() {
+            node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync("package.json","utf8")); const name=process.argv[1]; process.exit(pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts,name) ? 0 : 1);' "$1"
+          }
+
+          if ! has_script lint; then
+            echo "::error::Required script 'lint' is missing from package.json"
+            exit 1
+          fi
+          run_script lint
+
+          if has_script typecheck; then
+            run_script typecheck
+          else
+            npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+          fi
+
+          if ! has_script test; then
+            echo "::error::Required script 'test' is missing from package.json"
+            exit 1
+          fi
+          run_script test
+
+          if ! has_script build; then
+            echo "::error::Required script 'build' is missing from package.json"
+            exit 1
+          fi
+          run_script build
+
+  a11y:
+    name: Accessibility verify (axe-core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - name: Install JS dependencies
+        run: eval "${{ steps.pm.outputs.install }}"
+      - name: Run accessibility gate
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          run_script() {
+            case "$PM" in
+              pnpm) pnpm run "$1" ;;
+              yarn) yarn "$1" ;;
+              npm) npm run "$1" ;;
+            esac
+          }
+
+          has_script() {
+            node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync("package.json","utf8")); const name=process.argv[1]; process.exit(pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts,name) ? 0 : 1);' "$1"
+          }
+
+          if has_script test:a11y; then
+            run_script test:a11y
+            exit 0
+          fi
+
+          # Fallback: build app, serve it, then run axe-core with WCAG 2.1 AA tags.
+          run_script build
+
+          pushd apps/practice-host-ui >/dev/null
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
+          PREVIEW_PID="$!"
+          trap 'kill "$PREVIEW_PID" >/dev/null 2>&1 || true' EXIT
+
+          READY=false
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              READY=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" != "true" ]; then
+            echo "::error::Vite preview did not become ready on :4173"
+            exit 1
+          fi
+
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" --tags wcag2aa --save axe-report.json || true
+
+          node - <<'NODE'
+          const fs = require("fs");
+          const reportPath = "axe-report.json";
+          if (!fs.existsSync(reportPath)) {
+            console.error("axe-core report was not generated");
+            process.exit(1);
+          }
+          let report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+          if (Array.isArray(report)) {
+            report = report[0] ?? {};
+          }
+          const violations = Array.isArray(report.violations) ? report.violations : [];
+          const critical = violations.filter((v) => v.impact === "critical");
+          if (critical.length > 0) {
+            console.error(`Found ${critical.length} critical WCAG 2.1 AA violations`);
+            for (const violation of critical) {
+              const nodeCount = Array.isArray(violation.nodes) ? violation.nodes.length : 0;
+              console.error(`- ${violation.id} (${nodeCount} nodes): ${violation.help}`);
+            }
+            process.exit(1);
+          }
+          console.log(`A11y gate passed: ${violations.length} WCAG 2.1 AA violations, 0 critical`);
+          NODE
+
+          popd >/dev/null

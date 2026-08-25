@@ -1,0 +1,201 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      rationale:
+        description: "Why this fix proposal run is being requested"
+        required: false
+        default: "Manual fix proposal run"
+      failing_run_url:
+        description: "Optional link to a failing verify/CI run"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose-fix:
+    name: Propose non-deterministic fix
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve trigger context
+        id: context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "base_ref=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "before_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+            printf 'reason<<EOF\n%s\nEOF\n' "Automatic fix proposal from failed CI run on main." >> "$GITHUB_OUTPUT"
+          else
+            echo "base_ref=main" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "before_url=${{ github.event.inputs.failing_run_url }}" >> "$GITHUB_OUTPUT"
+            printf 'reason<<EOF\n%s\nEOF\n' "${{ github.event.inputs.rationale }}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.base_sha }}
+          fetch-depth: 0
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - run: corepack enable
+      - name: Install JS dependencies
+        run: eval "${{ steps.pm.outputs.install }}"
+      - name: Run fix agent command
+        env:
+          FIX_PROPOSAL_AGENT_COMMAND: ${{ secrets.FIX_PROPOSAL_AGENT_COMMAND }}
+        run: |
+          if [ -z "${FIX_PROPOSAL_AGENT_COMMAND:-}" ]; then
+            echo "::error::Missing secret FIX_PROPOSAL_AGENT_COMMAND. Configure this to run the approved fix agent command."
+            exit 1
+          fi
+          bash -lc "$FIX_PROPOSAL_AGENT_COMMAND"
+      - name: Post-fix verification evidence
+        id: verify
+        run: |
+          set +e
+          cargo test --workspace > after-rust.log 2>&1
+          RUST_STATUS="$?"
+          PM="${{ steps.pm.outputs.pm }}"
+          if [ "$PM" = "pnpm" ]; then
+            pnpm run test > after-web.log 2>&1
+          elif [ "$PM" = "yarn" ]; then
+            yarn test > after-web.log 2>&1
+          else
+            npm run test > after-web.log 2>&1
+          fi
+          WEB_STATUS="$?"
+          set -e
+          echo "rust_status=$RUST_STATUS" >> "$GITHUB_OUTPUT"
+          echo "web_status=$WEB_STATUS" >> "$GITHUB_OUTPUT"
+      - name: Detect changed files
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Detect sensitive code touches
+        if: steps.diff.outputs.changed == 'true'
+        id: sensitive
+        run: |
+          MATCHES="$(git diff --name-only | rg -i '(^|/)(security|audit|crypto|rbac)(/|_|\\.)' || true)"
+          if [ -n "$MATCHES" ]; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            printf 'paths<<EOF\n%s\nEOF\n' "$MATCHES" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          RUST_RESULT="FAIL"
+          WEB_RESULT="FAIL"
+          if [ "${{ steps.verify.outputs.rust_status }}" = "0" ]; then RUST_RESULT="PASS"; fi
+          if [ "${{ steps.verify.outputs.web_status }}" = "0" ]; then WEB_RESULT="PASS"; fi
+
+          {
+            echo "## CI Fix Proposal (Draft)"
+            echo
+            echo "- Base branch: \`${{ steps.context.outputs.base_ref }}\`"
+            echo "- Base SHA: \`${{ steps.context.outputs.base_sha }}\`"
+            if [ -n "${{ steps.context.outputs.before_url }}" ]; then
+              echo "- Failing-before evidence: ${{ steps.context.outputs.before_url }}"
+            else
+              echo "- Failing-before evidence: not provided (manual dispatch)"
+            fi
+            echo "- Trigger rationale: ${{ steps.context.outputs.reason }}"
+            echo
+            echo "### Post-fix validation (this workflow run)"
+            echo
+            echo "- \`cargo test --workspace\`: **$RUST_RESULT** (exit ${{ steps.verify.outputs.rust_status }})"
+            echo "- \`npm test\`: **$WEB_RESULT** (exit ${{ steps.verify.outputs.web_status }})"
+            echo
+            if [ "${{ steps.sensitive.outputs.hit }}" = "true" ]; then
+              echo "### Sensitive-path guard"
+              echo
+              echo "This proposal touches security/audit/crypto/RBAC-related paths and is labeled \`needs-human-review\`."
+              echo
+              echo "```text"
+              echo "${{ steps.sensitive.outputs.paths }}"
+              echo "```"
+              echo
+            fi
+            echo "### Notes"
+            echo
+            echo "- This PR is intentionally created as **draft**."
+            echo "- Auto-merge is intentionally not used."
+            echo "- See artifacts \`after-rust.log\` and \`after-web.log\` for full command output."
+          } > fix-proposal-summary.md
+      - name: Upload verification logs
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: |
+            after-rust.log
+            after-web.log
+            fix-proposal-summary.md
+      - name: Set PR labels
+        if: steps.diff.outputs.changed == 'true'
+        id: labels
+        run: |
+          if [ "${{ steps.sensitive.outputs.hit }}" = "true" ]; then
+            echo "value=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open draft pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: ${{ steps.context.outputs.base_ref }}
+          commit-message: "ci: automated fix proposal attempt"
+          title: "ci: fix proposal for failing verify on ${{ steps.context.outputs.base_ref }}"
+          body-path: fix-proposal-summary.md
+          labels: ${{ steps.labels.outputs.value }}
+          draft: true
+      - name: No diff produced
+        if: steps.diff.outputs.changed != 'true'
+        run: |
+          echo "No code changes were produced by the fix agent; no draft PR created."

@@ -1,6 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD pipeline tier migration (2026-08-25)  
+**Last closed:** 4-tier workflow split (`verify`/`autofix`/`fix-proposal`/`release`), CI wrapper migration, validation ledger update.
+
+### Verified (2026-08-25 — CI/CD pipeline tier migration)
+
+- **Tier 1 verify gate:** `.github/workflows/verify.yml` with Rust (`fmt --check`, clippy `-D warnings`, tests, `cargo audit`), web (pm auto-detect + lint/typecheck/test/build), and a11y (`axe-core` critical gate).
+- **Push/PR wiring:** `.github/workflows/ci.yml` now delegates to reusable `verify.yml` and keeps `CI` check identity.
+- **Tier 2 safe autofix:** `.github/workflows/autofix.yml` is `pull_request` only, deterministic-only (`cargo fmt`, optional `lint:fix`, optional `format`), loop guard for bot-authored commits.
+- **Tier 3 fix proposal:** `.github/workflows/fix-proposal.yml` opens draft PRs only, requires configured agent command, and labels sensitive-path diffs (`security|audit|crypto|rbac`) with `needs-human-review`.
+- **Tier 4 release gate:** `.github/workflows/release.yml` re-runs verify through reusable workflow, then builds signed bundles in protected `release` environment with manual approval.
+- **Validation:** `actionlint` final run PASS; retired-path check (`app/src-tauri`, `app/`) in workflows had no matches; evidence captured in `docs/coordination/validation.md`.
+
+### Remains unverified
+
+- End-to-end runtime behavior of new workflows on GitHub runners (actual PR/tag executions).
+- Repository-level branch protection alignment with the new `verify` + wrapper topology.
+- Presence/quality of `FIX_PROPOSAL_AGENT_COMMAND` secret and operational readiness of tier 3.
+
+### Next
+
+1. Open PR and let CI execute new workflow topology on a real pull request.
+2. If needed, tune branch protection required checks (`CI` vs per-job checks) after first run.
+3. Dry-run release path (`workflow_dispatch`) in a staging tag and verify signed artifact outputs.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
