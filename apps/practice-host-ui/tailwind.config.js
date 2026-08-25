@@ -51,6 +51,9 @@ export default {
         card: "var(--radius-card)",
         ctl: "var(--radius-ctl)",
       },
+      spacing: {
+        18: "72px",
+      },
       boxShadow: {
         sm: "var(--shadow-sm)",
         md: "var(--shadow-md)",

@@ -109,6 +109,15 @@ Legacy redirects terminable: `/verwaltung/tagesabschluss` → finanzen-berichte;
 | R-017 | done | Export/report dialogs: mime default + Blob fix; break-glass dismiss key |
 | R-001–R-003 | deferred | Geräteverbund wire — feature track |
 
+## 2026-08-25 detection refresh (quality run)
+
+| ID | Workflow surface | Detection | Evidence | Severity | Status |
+| -- | ---------------- | --------- | -------- | -------- | ------ |
+| WF-2026-08-25-01 | Global FE test workflow | Non-terminable under default runner memory (OOM) during full `vitest run`. | `npm run test` failed with V8 heap OOM after most suites completed. | P1 | **Open** |
+| WF-2026-08-25-02 | Auth/session audit path | Rust workspace test gate blocked by ARZT-seat constraint in fixture flow. | `cargo test --workspace --tests` failed at `auth_session_audit_tests` with sqlite code 1811. | P1 | **Open** |
+| WF-2026-08-25-03 | Dialog cancel/confirm paths | Escape/backdrop/close and Enter-confirm transitions now explicitly logged and covered. | `dialog.workflow.test.tsx` (packages/ui + app copy) 8 tests pass. | P2 | **Closed** |
+| WF-2026-08-25-04 | Login route geometry + a11y | Login workflow route passes spacing token assertions and axe critical scan. | Playwright specs `ui-geometry.spec.ts` and `ui-accessibility.spec.ts` pass. | P2 | **Closed** |
+
 ## Route inventory (shell)
 
 Main authenticated routes in [`App.tsx`](../../apps/practice-host-ui/src/App.tsx): dashboard, termine, patienten, tickets, finanzen, bestellungen, bilanz, verwaltung/*, rezepte, atteste, leistungen, produkte, personal, statistik, audit, datenschutz, einstellungen, logs, ops, compliance, hilfe, feedback, migration, akten-zu-validieren.
