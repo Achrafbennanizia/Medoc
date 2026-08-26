@@ -1,21 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-08-26 (CI/CD pipeline migration)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration alignment)
 
-## CI/CD pipeline migration — verified (2026-08-26)
+## CI/CD pipeline migration alignment — verified (2026-08-26)
 
 | Check | Command | Result |
 |-------|---------|--------|
 | Workflow YAML parse | `python3 -c "import pathlib, yaml; [yaml.safe_load(pathlib.Path(p).read_text()) for p in pathlib.Path('.github/workflows').glob('*.yml')]; print('ok')"` | **PASS** (`ok`) |
-| Workspace install | `npm ci` | **PASS** |
-| Lint gate behavior | `npm run lint` | **FAIL** — existing ESLint errors/warnings in `apps/practice-host-ui/src/views/*` (hook ordering, manual memoization, ref-in-render, unused symbol) |
-| New typecheck gate behavior | `npm run typecheck` | **FAIL** — existing repository TypeScript errors surfaced (`document-print-html.ts` nullability + unused locals in `termin-*` modules) |
-| Rust fmt gate behavior | `cargo fmt --all --check` | **FAIL** — existing rustfmt drift in multiple files under `apps/practice-host/tests` and `crates/app/medoc-practice/src/**` |
 | a11y runner syntax | `node --check apps/practice-host-ui/scripts/run-a11y-audit.mjs` | **PASS** |
+| Workspace install | `npm ci` | **PASS** |
+| Lint gate behavior | `npm run lint` | **FAIL** — existing ESLint debt (58 findings: 20 errors, 38 warnings) in `apps/practice-host-ui/src/views/*` (`react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, `react-hooks/refs`, `@typescript-eslint/no-unused-vars`) |
+| Typecheck gate behavior | `npm run typecheck` | **FAIL** — existing TypeScript errors in `document-print-html.ts` nullability and unused locals in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| Rust fmt gate behavior | `cargo fmt --all --check` | **FAIL** — existing rustfmt drift across pre-existing Rust files (`apps/practice-host/tests/*`, `crates/app/medoc-practice/src/**`) |
 
-**Delivered:** migrated CI from legacy `ci.yml` to tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, rewritten `release.yml`), added package-manager lockfile detection, reusable verify gate (`workflow_call`) for release, deterministic PR-only autofix with loop guard, draft PR fix-proposal flow with evidence report + sensitive-path label guard, and accessibility gate wiring via Playwright + axe-core script.
+**Delivered:** migrated CI from legacy `ci.yml` to tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, rewritten `release.yml`), widened verify trigger to all pushes + PRs, kept package-manager lockfile detection, wired reusable verify gate (`workflow_call`) for release, kept deterministic PR-only autofix with loop guard, ensured fix-proposal draft PRs include full attempted diff plus sensitive-path label guard, and updated a11y runner to use the workflow-selected package manager for preview startup.
 
-**NOT RUN in this session:** full `cargo` verify matrix beyond fmt check, full `npm test`, and runtime `npm run test:a11y` browser audit (depends on a green web build; current lint/typecheck gates are red).
+**NOT RUN in this session:** full `cargo` verify matrix beyond fmt check, full `npm test`, and runtime `npm run test:a11y` browser audit (depends on a green build + Playwright browser install in CI path; current lint/typecheck gates are red).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

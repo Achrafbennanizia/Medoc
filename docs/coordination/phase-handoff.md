@@ -1,17 +1,17 @@
 # Phase handoff
 
 **Last phase label:** CI/CD pipeline migration (2026-08-26)  
-**Last closed:** tiered workflow split (`verify`/`autofix`/`fix-proposal`/`release`), lockfile-based PM detection, release gate wiring, a11y runner plumbing, validation ledger update.
+**Last closed:** tiered workflow split (`verify`/`autofix`/`fix-proposal`/`release`) plus alignment pass (verify on all pushes, Tier-3 full-diff draft PRs, PM-aware a11y runner), lockfile-based PM detection, release gate wiring, validation ledger refresh.
 
 ### Verified (2026-08-26 — CI/CD pipeline migration)
 
 - Added `.github/workflows/verify.yml` (push+PR+workflow_call) with Rust/Web/a11y jobs, timeout + concurrency controls, and zero-mutation verify behavior.
 - Added `.github/workflows/autofix.yml` (PR-only) with deterministic fixes (`cargo fmt`, `lint:fix`, `format`) and loop guard (`github.actor != github-actions[bot]`).
-- Added `.github/workflows/fix-proposal.yml` (manual + failed-main verify trigger) that branches, captures failing-before/passing-after evidence, attempts dependency remediations, and opens a **draft** PR.
+- Added `.github/workflows/fix-proposal.yml` (manual + failed-main verify trigger) that branches, captures failing-before/passing-after evidence, attempts dependency remediations (plus optional project fix command), and opens a **draft** PR with the full attempted diff.
 - Replaced legacy `.github/workflows/release.yml` with tag/dispatch release gate that reuses `verify.yml`, builds signed bundles under protected `release` environment, and never mutates source.
 - Removed legacy `.github/workflows/ci.yml` to avoid stale/duplicated CI paths.
 - Added `docs/coordination/ci-cd-plan.md` as the canonical CI/CD tier and guardrail document.
-- Added workspace scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and `apps/practice-host-ui/scripts/run-a11y-audit.mjs` (Playwright + axe-core critical WCAG gate).
+- Added workspace scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and `apps/practice-host-ui/scripts/run-a11y-audit.mjs` (Playwright + axe-core critical WCAG gate, PM-aware preview launcher).
 
 ### Remains unverified
 

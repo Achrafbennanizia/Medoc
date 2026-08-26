@@ -26,7 +26,7 @@ Release gates verify artifacts from reviewed commits. They do not rewrite source
 
 Trigger:
 
-- `push` to `main`
+- `push` (all branches)
 - `pull_request`
 - `workflow_call` (for release gate reuse)
 

@@ -13,6 +13,35 @@ const PREVIEW_HOST = process.env.A11Y_PREVIEW_HOST ?? "127.0.0.1";
 const PREVIEW_PORT = process.env.A11Y_PREVIEW_PORT ?? "4173";
 const PREVIEW_URL = `http://${PREVIEW_HOST}:${PREVIEW_PORT}`;
 
+function resolvePackageManager() {
+    const explicit = process.env.A11Y_PACKAGE_MANAGER?.trim();
+    if (explicit) return explicit;
+
+    const userAgent = process.env.npm_config_user_agent ?? "";
+    if (userAgent.startsWith("pnpm/")) return "pnpm";
+    if (userAgent.startsWith("yarn/")) return "yarn";
+    return "npm";
+}
+
+function previewCommand(packageManager) {
+    if (packageManager === "pnpm") {
+        return {
+            command: "pnpm",
+            args: ["run", "preview", "--", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
+        };
+    }
+    if (packageManager === "yarn") {
+        return {
+            command: "yarn",
+            args: ["run", "preview", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
+        };
+    }
+    return {
+        command: "npm",
+        args: ["run", "preview", "--", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
+    };
+}
+
 async function waitForPreviewServer(previewProcess, timeoutMs = 45_000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -48,9 +77,13 @@ function printCriticalViolation(violation) {
 let previewProcess;
 
 try {
+    const packageManager = resolvePackageManager();
+    const { command, args } = previewCommand(packageManager);
+    console.log(`Using ${packageManager} to start preview server.`);
+
     previewProcess = spawn(
-        "npm",
-        ["run", "preview", "--", "--host", PREVIEW_HOST, "--port", PREVIEW_PORT, "--strictPort"],
+        command,
+        args,
         {
             cwd: process.cwd(),
             env: process.env,

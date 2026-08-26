@@ -2,7 +2,6 @@ name: verify
 
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_call:
 
@@ -118,4 +117,6 @@ jobs:
       - name: Build web UI for accessibility scan
         run: ${{ steps.pm.outputs.pm }} run build
       - name: axe-core WCAG 2.1 AA critical gate
+        env:
+          A11Y_PACKAGE_MANAGER: ${{ steps.pm.outputs.pm }}
         run: ${{ steps.pm.outputs.pm }} run test:a11y

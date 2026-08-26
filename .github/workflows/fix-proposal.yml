@@ -122,6 +122,16 @@ jobs:
           fi
           set -e
 
+      - name: Attempt project-specific fix command (optional)
+        env:
+          MEDOC_FIX_PROPOSAL_COMMAND: ${{ secrets.MEDOC_FIX_PROPOSAL_COMMAND }}
+        run: |
+          if [ -n "${MEDOC_FIX_PROPOSAL_COMMAND:-}" ]; then
+            bash -lc "${MEDOC_FIX_PROPOSAL_COMMAND}"
+          else
+            echo "No MEDOC_FIX_PROPOSAL_COMMAND configured; skipping project-specific fix attempt."
+          fi
+
       - name: Capture passing-after evidence
         id: after
         run: |
@@ -160,7 +170,7 @@ jobs:
         id: sensitive
         run: |
           git diff --name-only > .ci/fix-proposal/changed-files.txt
-          if grep -Eq "(^|/)(security|audit|crypto|rbac)(/|\\.|_)" .ci/fix-proposal/changed-files.txt; then
+          if rg -n "(^|/)(security|audit|crypto|rbac)(/|\\.|_)" .ci/fix-proposal/changed-files.txt >/dev/null; then
             echo "needs_label=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_label=false" >> "$GITHUB_OUTPUT"
@@ -189,10 +199,6 @@ jobs:
             This PR is intentionally **draft** and is never auto-merged.
           draft: true
           labels: needs-human-review
-          add-paths: |
-            Cargo.lock
-            package-lock.json
-            docs/coordination/ci-fix-proposals/${{ github.run_id }}.md
 
       - name: Open draft pull request with evidence
         if: steps.sensitive.outputs.needs_label != 'true'
@@ -216,10 +222,6 @@ jobs:
 
             This PR is intentionally **draft** and is never auto-merged.
           draft: true
-          add-paths: |
-            Cargo.lock
-            package-lock.json
-            docs/coordination/ci-fix-proposals/${{ github.run_id }}.md
 
       - name: Stop when sensitive areas changed
         if: steps.sensitive.outputs.needs_label == 'true'
