@@ -1,0 +1,244 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base branch to target with the draft PR.
+        required: false
+        default: main
+      failing_command:
+        description: Optional command that currently fails (captured as before evidence).
+        required: false
+      fix_command:
+        description: Command that applies the proposed fix.
+        required: false
+      passing_command:
+        description: Optional command expected to pass after the fix.
+        required: false
+      rationale:
+        description: Human-readable rationale for the proposal.
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.base_ref || 'main' }}
+          fetch-depth: 0
+
+      - id: meta
+        name: Resolve proposal metadata and commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            base_ref="${{ github.event.workflow_run.head_branch }}"
+            failing_run_url="${{ github.event.workflow_run.html_url }}"
+          else
+            base_ref="${{ github.event.inputs.base_ref || 'main' }}"
+            failing_run_url=""
+          fi
+          base_slug="$(echo "$base_ref" | tr '/' '-')"
+          proposal_branch="ci/fix-proposal/${base_slug}-${{ github.run_id }}"
+
+          fix_command="${{ github.event.inputs.fix_command }}"
+          if [ -z "$fix_command" ]; then
+            fix_command="${{ secrets.CI_FIX_AGENT_COMMAND }}"
+          fi
+          failing_command="${{ github.event.inputs.failing_command }}"
+          passing_command="${{ github.event.inputs.passing_command }}"
+          rationale="${{ github.event.inputs.rationale }}"
+          if [ -z "$rationale" ]; then
+            rationale="Automated tier-3 fix proposal from CI."
+          fi
+          if [ -z "$fix_command" ]; then
+            echo "No fix command configured. Provide workflow_dispatch input 'fix_command' or set secret CI_FIX_AGENT_COMMAND."
+            exit 1
+          fi
+
+          evidence_dir="$RUNNER_TEMP/fix-proposal-evidence"
+          mkdir -p "$evidence_dir"
+
+          {
+            echo "base_ref=$base_ref"
+            echo "proposal_branch=$proposal_branch"
+            echo "failing_run_url=$failing_run_url"
+            echo "evidence_dir=$evidence_dir"
+            echo "fix_command<<EOF"
+            echo "$fix_command"
+            echo "EOF"
+            echo "failing_command<<EOF"
+            echo "$failing_command"
+            echo "EOF"
+            echo "passing_command<<EOF"
+            echo "$passing_command"
+            echo "EOF"
+            echo "rationale<<EOF"
+            echo "$rationale"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Capture failing-before evidence
+        if: steps.meta.outputs.failing_command != ''
+        env:
+          FAILING_COMMAND: ${{ steps.meta.outputs.failing_command }}
+          EVIDENCE_DIR: ${{ steps.meta.outputs.evidence_dir }}
+        shell: bash
+        run: |
+          set +e
+          bash -lc "$FAILING_COMMAND" > "$EVIDENCE_DIR/failing-before.log" 2>&1
+          echo "$?" > "$EVIDENCE_DIR/failing-before.exit"
+
+      - name: Run fix attempt command
+        env:
+          FIX_COMMAND: ${{ steps.meta.outputs.fix_command }}
+          EVIDENCE_DIR: ${{ steps.meta.outputs.evidence_dir }}
+        shell: bash
+        run: |
+          set +e
+          bash -lc "$FIX_COMMAND" > "$EVIDENCE_DIR/fix-attempt.log" 2>&1
+          echo "$?" > "$EVIDENCE_DIR/fix-attempt.exit"
+
+      - name: Capture passing-after evidence
+        if: steps.meta.outputs.passing_command != ''
+        env:
+          PASSING_COMMAND: ${{ steps.meta.outputs.passing_command }}
+          EVIDENCE_DIR: ${{ steps.meta.outputs.evidence_dir }}
+        shell: bash
+        run: |
+          set +e
+          bash -lc "$PASSING_COMMAND" > "$EVIDENCE_DIR/passing-after.log" 2>&1
+          echo "$?" > "$EVIDENCE_DIR/passing-after.exit"
+
+      - id: detect
+        name: Detect changed files and sensitive areas
+        env:
+          PROPOSAL_BRANCH: ${{ steps.meta.outputs.proposal_branch }}
+          EVIDENCE_DIR: ${{ steps.meta.outputs.evidence_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -b "$PROPOSAL_BRANCH"
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "sensitive_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          changed_files="$(git diff --name-only)"
+          printf '%s\n' "$changed_files" > "$EVIDENCE_DIR/changed-files.txt"
+          if printf '%s\n' "$changed_files" | rg -q '(^|/)(config/rbac\.yaml$|.*rbac.*\.(rs|ts|tsx|js|mjs|yaml)$|.*(security|audit|crypto).*)'; then
+            echo "sensitive_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail when no proposal diff exists
+        if: steps.detect.outputs.changed != 'true'
+        run: |
+          echo "Fix attempt produced no repository changes. No draft PR opened."
+          exit 1
+
+      - name: Commit and push proposal branch
+        env:
+          PROPOSAL_BRANCH: ${{ steps.meta.outputs.proposal_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: tier-3 fix proposal for verify failure"
+          git push --set-upstream origin "$PROPOSAL_BRANCH"
+
+      - name: Build draft PR body
+        env:
+          EVIDENCE_DIR: ${{ steps.meta.outputs.evidence_dir }}
+          FAILING_COMMAND: ${{ steps.meta.outputs.failing_command }}
+          PASSING_COMMAND: ${{ steps.meta.outputs.passing_command }}
+          FIX_COMMAND: ${{ steps.meta.outputs.fix_command }}
+          RATIONALE: ${{ steps.meta.outputs.rationale }}
+          FAILING_RUN_URL: ${{ steps.meta.outputs.failing_run_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          before_exit="NOT RUN"
+          fix_exit="NOT RUN"
+          after_exit="NOT RUN"
+          if [ -f "$EVIDENCE_DIR/failing-before.exit" ]; then before_exit="$(cat "$EVIDENCE_DIR/failing-before.exit")"; fi
+          if [ -f "$EVIDENCE_DIR/fix-attempt.exit" ]; then fix_exit="$(cat "$EVIDENCE_DIR/fix-attempt.exit")"; fi
+          if [ -f "$EVIDENCE_DIR/passing-after.exit" ]; then after_exit="$(cat "$EVIDENCE_DIR/passing-after.exit")"; fi
+          {
+            echo "## Tier 3 fix proposal"
+            echo
+            echo "- Rationale: $RATIONALE"
+            if [ -n "$FAILING_RUN_URL" ]; then
+              echo "- Triggered by failed verify run: $FAILING_RUN_URL"
+            fi
+            echo
+            echo "### Evidence"
+            echo
+            if [ -n "$FAILING_COMMAND" ]; then
+              echo "- failing-before command: \`$FAILING_COMMAND\`"
+              echo "- failing-before exit code: \`$before_exit\`"
+            else
+              echo "- failing-before command: **NOT RUN**"
+            fi
+            echo "- fix command: \`$FIX_COMMAND\`"
+            echo "- fix command exit code: \`$fix_exit\`"
+            if [ -n "$PASSING_COMMAND" ]; then
+              echo "- passing-after command: \`$PASSING_COMMAND\`"
+              echo "- passing-after exit code: \`$after_exit\`"
+            else
+              echo "- passing-after command: **NOT RUN**"
+            fi
+            echo
+            echo "Action artifacts in this run include command logs and changed-files listing."
+          } > ci-fix-proposal-body.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: ${{ steps.meta.outputs.evidence_dir }}
+
+      - id: pr
+        name: Open draft pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ steps.meta.outputs.base_ref }}
+          PROPOSAL_BRANCH: ${{ steps.meta.outputs.proposal_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_title="ci: tier-3 fix proposal for verify failure (${GITHUB_SHA::7})"
+          pr_url="$(gh pr create --base "$BASE_REF" --head "$PROPOSAL_BRANCH" --title "$pr_title" --body-file ci-fix-proposal-body.md --draft)"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Label and block sensitive proposals
+        if: steps.detect.outputs.sensitive_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr edit "$PR_URL" --add-label needs-human-review || true
+          echo "Sensitive files changed (security/audit/crypto/RBAC). Human review is required."
+          exit 1

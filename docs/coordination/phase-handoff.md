@@ -1,6 +1,41 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD tier migration (2026-08-26)  
+**Last closed:** Tiered GitHub Actions pipeline (`verify`, `autofix`, `fix-proposal`, `release`) and coordination plan.
+
+### Verified (2026-08-26 — CI/CD tier migration)
+
+- Legacy `.github/workflows/ci.yml` removed; tiered workflows added:
+  - `verify.yml` (push/PR/workflow_call; Rust + JS + a11y checks; concurrency + timeouts)
+  - `autofix.yml` (PR-only deterministic `cargo fmt` + JS `lint:fix`/`format`; bot loop guard)
+  - `fix-proposal.yml` (manual or failed-main trigger, new branch draft PR, evidence artifact, sensitive-area label/block)
+  - `release.yml` (reuses verify gate, protected `release` environment, signed cross-platform artifacts, no source mutation)
+- Workspace-aware CI commands now target live package/crate layout (`apps/*`, `crates/*`, `packages/*`), not retired `app/src-tauri` assumptions.
+- `apps/practice-host-ui` gained `typecheck`, `lint:fix`, `format`, `test:a11y` scripts and `scripts/run-a11y.mjs` (Playwright + axe-core critical WCAG 2.1 AA audit).
+- Coordination plan persisted at `docs/coordination/ci-cd-plan.md`.
+
+### Remains unverified
+
+- First end-to-end GitHub run of new workflows on hosted runners (**NOT OBSERVED** in this session).
+- Tier-3 auto-trigger behavior when `verify` fails on `main` with `CI_FIX_AGENT_COMMAND` configured (**NOT RUN**).
+- Release tag path with protected `release` environment approval and signed artifact upload (**NOT RUN**).
+
+### Understanding delta
+
+- Current codebase is not fully green for stricter verify gates: local `npm run typecheck -w medoc`, `npm run build -w medoc`, and `cargo fmt --all --check` surfaced pre-existing failures/drift. The new pipeline intentionally exposes these as blocking quality gates rather than silently passing.
+- Accessibility gate now has executable implementation details (`run-a11y.mjs`) rather than docs-only references to axe-core.
+
+### Next
+
+1. Run the new workflows in GitHub Actions and capture the first real runner outputs in `validation.md`.
+2. Triage and resolve pre-existing TypeScript/typecheck failures in `medoc` so `verify.yml` can pass.
+3. Triage and resolve repository-wide Rust formatting drift or intentionally scope fmt-check if policy changes.
+4. Configure/validate `CI_FIX_AGENT_COMMAND` secret for Tier 3 autonomous fix proposals.
+5. Execute a tag-driven release dry run through protected `release` approval.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
