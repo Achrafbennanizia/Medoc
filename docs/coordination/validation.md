@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Environment setup status | `if [ -f /tmp/cursor/async-install/install-user.status ]; then ...; fi` | **PASS** — `install_status=absent` (no pending async setup gate) |
+| Workflow YAML parse | `python3 -c "import glob, yaml; ..."` | **PASS** — parsed `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` |
+| Workflow whitespace check | `git diff --check` | **PASS** |
+| Rust fmt baseline | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — large existing formatting drift across many Rust files (e.g. `apps/practice-host/tests/akte_workflow_tests.rs`, `crates/app/medoc-practice/src/commands/admin/arbeitsplan_adjustment.rs`) unrelated to CI workflow edits |
+| GitHub workflow linter | `npx --yes actionlint` | **NOT RUN (tool unavailable)** — npm could not determine executable |
+
+**Delivered:** replaced monolithic `ci.yml` with tiered workflows: `verify.yml` (blocking verify + a11y gate), `autofix.yml` (PR-only deterministic fixes + loop guard), `fix-proposal.yml` (manual/failed-main draft PR proposals with evidence + sensitive-path label), and `release.yml` (verify gate + protected signed release build). Added plan doc: `docs/coordination/ci-cd-plan.md`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

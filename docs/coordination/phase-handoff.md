@@ -1,5 +1,34 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-08-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split; stale `ci.yml` removed; validation ledger updated.
+
+### Verified (2026-08-26 — CI/CD tiered pipeline migration)
+
+- **Tiered workflows:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, and updated `release.yml` now implement verify-only gates, PR-only deterministic autofix, draft fix proposals, and protected release build flow.
+- **Workspace alignment:** pipeline commands target repo-root Rust workspace (`Cargo.toml` members under `apps/*`, `crates/*`) and JS workspace (`package.json` workspaces under `apps/*`, `packages/*`), not retired `app/src-tauri` paths.
+- **Guardrails encoded:** verify jobs are non-mutating; autofix has bot loop guard; fix-proposal labels sensitive security/audit/crypto/RBAC touches; all jobs use timeout + concurrency cancellation.
+- **Coordination records:** `docs/coordination/ci-cd-plan.md` added and `docs/coordination/validation.md` appended with command evidence.
+
+### Remains unverified
+
+- End-to-end GitHub Actions execution of the new workflows on a live PR/tag.
+- Availability/configuration of optional tier-3 command source (`CI_FIX_AGENT_COMMAND`) in repository variables.
+- Protected `release` environment approval policy wiring in repository settings.
+
+### Understanding delta
+
+- `@axe-core/cli` requires matching Chrome/ChromeDriver versions; tier-1 a11y flow now provisions them via `browser-driver-manager` before scan.
+- Repository currently has pre-existing `cargo fmt` drift outside this change scope; CI formatting baseline remains red until separately normalized.
+
+### Next
+
+1. Run a PR dry-run to validate `verify.yml` + `autofix.yml` behavior (including loop guard).
+2. Configure and test `fix-proposal.yml` with a safe `CI_FIX_AGENT_COMMAND`.
+3. Trigger a tag/dispatch dry-run for `release.yml` once protected environment approvals are confirmed.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

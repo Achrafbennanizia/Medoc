@@ -1,0 +1,220 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Lint (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test workspace
+        run: cargo test --workspace --tests
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-audit
+          locked: true
+      - name: Audit Rust dependencies
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack for pnpm/yarn
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+          esac
+      - name: Lint (no auto-fix)
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run lint ;;
+            yarn) yarn run lint ;;
+            npm) npm run lint ;;
+          esac
+      - name: Type-check workspace apps
+        run: |
+          set -euo pipefail
+          run_tsc() {
+            local config_path="$1"
+            npx tsc --noEmit -p "$config_path"
+          }
+
+          if [ -f apps/practice-host-ui/tsconfig.json ]; then
+            run_tsc apps/practice-host-ui/tsconfig.json
+          fi
+          if [ -f apps/lan-web-client/tsconfig.json ]; then
+            run_tsc apps/lan-web-client/tsconfig.json
+          fi
+      - name: Test
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run test ;;
+            yarn) yarn run test ;;
+            npm) npm run test ;;
+          esac
+      - name: Build
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+
+          if [ -f apps/lan-web-client/package.json ]; then
+            case "$PM" in
+              pnpm) pnpm --filter medoc-lan-web-client run build ;;
+              yarn) yarn workspace medoc-lan-web-client run build ;;
+              npm) npm run build -w medoc-lan-web-client ;;
+            esac
+          fi
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack for pnpm/yarn
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+          esac
+      - name: Build practice-host UI
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn run build ;;
+            npm) npm run build ;;
+          esac
+      - name: Run axe-core WCAG 2.1 AA critical scan
+        run: |
+          set -euo pipefail
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/medoc-preview.log 2>&1 & ;;
+            yarn) yarn workspace medoc run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/medoc-preview.log 2>&1 & ;;
+            npm) npm run preview -w medoc -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/medoc-preview.log 2>&1 & ;;
+          esac
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID"' EXIT
+
+          STARTED=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 > /dev/null; then
+              STARTED=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$STARTED" -ne 1 ]; then
+            echo "Preview server did not start on time"
+            exit 1
+          fi
+
+          npx --yes browser-driver-manager install chrome
+          eval "$(npx --yes browser-driver-manager which)"
+
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" \
+            --chrome-path "$CHROME_TEST_PATH" \
+            --chromedriver-path "$CHROMEDRIVER_TEST_PATH" \
+            --tags wcag21aa,wcag2aa \
+            --save axe-report.json
+
+          node -e '
+            const fs = require("node:fs");
+            const report = JSON.parse(fs.readFileSync("axe-report.json", "utf8"));
+            const pages = Array.isArray(report) ? report : [report];
+            const critical = [];
+            for (const page of pages) {
+              for (const violation of page.violations || []) {
+                const hasAaTag = (violation.tags || []).some((tag) => tag === "wcag21aa" || tag === "wcag2aa");
+                if (violation.impact === "critical" && hasAaTag) {
+                  critical.push({
+                    url: page.url,
+                    id: violation.id,
+                    help: violation.help,
+                    impact: violation.impact,
+                    nodes: (violation.nodes || []).length
+                  });
+                }
+              }
+            }
+            if (critical.length > 0) {
+              console.error("Critical WCAG 2.1 AA violations detected:");
+              console.error(JSON.stringify(critical, null, 2));
+              process.exit(1);
+            }
+            console.log("No critical WCAG 2.1 AA violations detected.");
+          '
+      - name: Upload axe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: axe-report
+          path: axe-report.json

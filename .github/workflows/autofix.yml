@@ -1,0 +1,100 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    # Loop guard + protected branch guard:
+    # - never run on bot-authored commits
+    # - never run for fork PRs (no safe writeback to head branch)
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable Corepack for pnpm/yarn
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+          esac
+      - name: Deterministic Rust formatting
+        run: cargo fmt --all
+      - name: Deterministic JS autofix (lint + format)
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+
+          has_root_script() {
+            local script_name="$1"
+            node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts['$script_name'] ? 0 : 1)"
+          }
+
+          run_pm_script() {
+            local script_name="$1"
+            case "$PM" in
+              pnpm) pnpm run "$script_name" ;;
+              yarn) yarn run "$script_name" ;;
+              npm) npm run "$script_name" ;;
+            esac
+          }
+
+          if has_root_script "lint:fix"; then
+            run_pm_script "lint:fix"
+          elif has_root_script "lint"; then
+            case "$PM" in
+              pnpm) pnpm run lint -- --fix ;;
+              yarn) yarn run lint -- --fix ;;
+              npm) npm run lint -- --fix ;;
+            esac
+          else
+            echo "No JS lint fix command configured in root package.json; skipping."
+          fi
+
+          if has_root_script "format"; then
+            run_pm_script "format"
+          else
+            echo "No root format script configured; skipping format autofix."
+          fi
+      - name: Commit deterministic fixes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply automated formatting and lint fixes"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No deterministic autofixes required."
+          fi
