@@ -1,5 +1,43 @@
 # Phase handoff
 
+**Last phase label:** Workflow telemetry + UI quality sweep (2026-08-26)  
+**Last closed:** Playwright geometry/a11y execution fixed; workflow findings register updated.
+
+### Verified (2026-08-26 — workflow telemetry + UI quality)
+
+- Workflow log channel remains integrated (`workflow.log`, `medoc::workflow`, daily rotation) and workflow-event sanitization test passes (`sanitizes_secret_like_fields`).
+- Playwright suite now runs in browser-preview mode by stubbing Tauri invoke in test harness; geometry snapshots and critical axe checks pass:
+  - `npm run test:playwright -- --update-snapshots` **PASS**
+  - `npm run test:playwright` **PASS** (4 passed, 3 skipped)
+- Frontend suites/build remain green:
+  - `npm run test` **PASS** (317 passed, 3 skipped)
+  - `npm run build` **PASS**
+  - `npm run lint:tailwind-spacing` **PASS**
+- Rust workspace test binaries pass:
+  - `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` **PASS**
+- Workflow findings register entries recorded:
+  - **WF-001** (browser-only onboarding/login non-termination in Playwright harness) fixed in spec.
+  - **WF-002** (fmt/clippy gate contradiction) remains open.
+
+### Remains unverified
+
+- Exhaustive “every page/component” event coverage is still **PARTIAL** (high-traffic and shared UI covered; full page-by-page matrix not complete in this run).
+- Manual runtime verification of generated `workflow.log` content against real patient-flow UI interactions is **NOT OBSERVED** in this run (automated command/unit evidence only).
+
+### Understanding delta
+
+- Main blocker for geometry/a11y was not selector drift but lack of Tauri runtime in preview mode; a deterministic test-only invoke shim is required for route-gated screens.
+- Strict quality gates requested by runbook conflict with current repository baseline drift (`cargo fmt --check`, strict clippy), independent of this slice’s functional changes.
+
+### Required next steps (ordered)
+
+1. Decide whether to baseline-format Rust workspace (or scope fmt checks) to remove `cargo fmt --check` blocker.
+2. Resolve strict clippy blockers (`pdf_export.rs` + security-sensitive `cors_policy.rs`) with explicit maintainer review.
+3. Expand page-level event tests to full route matrix (remaining lower-traffic pages).
+4. Run manual Tauri workflow-log smoke to confirm sanitized runtime log lines across real user actions.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

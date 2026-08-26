@@ -1,6 +1,44 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (workflow telemetry + UI quality sweep)
+
+## Workflow telemetry + UI quality sweep — verified (2026-08-26)
+
+### Step 2 workflow map snapshot (read-only evidence)
+
+| Workflow | States observed | Exit/termination branch | Evidence |
+| --- | --- | --- | --- |
+| Onboarding → Login | `onboarding/*` route guards, `login` | `onboardingComplete -> /login` or explicit `/onboarding/*` redirects | `apps/practice-host-ui/src/App.tsx` route graph (`rg 'path="'`), `apps/practice-host-ui/src/views/components/verbund-onboarding-gate.tsx` lines 105-124 |
+| Login submit lifecycle | `route_enter` → `primary_action` (`login`) → `success` or `error` | On success `navigate(postLoginPath(session))`; on error alert renders and form stays actionable | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/views/pages/login.tsx` lines 91-105 |
+| Dialog dismiss paths | `open` → cancel via Escape / close icon / backdrop / cancel button | Always dispatches cancel event and closes | `packages/ui/src/dialog.tsx`, `packages/ui/src/ui-behavior.test.tsx` (Dialog + ConfirmDialog keyboard tests) |
+| G21/P0 route proxy flows | `login` → route access checks → feature page render | Successful page render or explicit redirect; no spinner dead-end in smoke suite | `npm run test` output: `critical-flows.smoke`, `g21-routing.smoke`, `p0-routes.smoke` all PASS |
+
+### Findings register updates
+
+- Added WF-001 and WF-002 to `docs/coordination/contradictions.md` (workflow harness non-termination in browser-only mode; baseline fmt/clippy gate contradiction).
+
+### Command outcomes
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Workspace dependency reset | `npm ci --workspaces --include-workspace-root --install-links` | **PASS** |
+| Playwright browser install | `npx playwright install chromium` | **PASS** |
+| Playwright geometry + a11y | `npm run test:playwright` | **PASS** — 4 passed, 3 skipped |
+| Frontend behavior suites | `npm run test` | **PASS** — 317 passed, 3 skipped |
+| Frontend build | `npm run build` | **PASS** |
+| Tailwind spacing lint | `npm run lint:tailwind-spacing` | **PASS** |
+| Rust workflow sanitization unit | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-core sanitizes_secret_like_fields` | **PASS** |
+| Rust workspace tests | `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` | **PASS** |
+| Rust formatting gate | `cargo fmt --all -- --check` | **FAIL** — repository-wide formatting drift (2105 diff lines) |
+| Rust lint gate | `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `clippy::useless_format` (`pdf_export.rs:616-617`), `clippy::result_large_err` (`cors_policy.rs:111`) |
+
+### Playwright-specific evidence
+
+| Attempt | Result | Evidence |
+| --- | --- | --- |
+| Initial run | **FAIL** | Missing browser binary (`Executable doesn't exist … chromium_headless_shell`) |
+| Post-browser install | **FAIL** | Login assertion failed because onboarding gate could not invoke Tauri API (`Cannot read properties of undefined (reading 'invoke')`) |
+| After test harness stub + snapshots | **PASS** | `npm run test:playwright -- --update-snapshots` then `npm run test:playwright` both green |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
