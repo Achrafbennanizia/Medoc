@@ -1,28 +1,28 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline wiring (2026-08-26)
+**Last closed:** verify/autofix/fix-proposal/release workflows, stale CI removal, a11y gate runner, coordination docs updates.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-08-26 — CI/CD pipeline)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Tiered workflows:** added `.github/workflows/{verify,autofix,fix-proposal,release}.yml`; removed deprecated `.github/workflows/ci.yml`.
+- **Verify gate:** Rust fmt/clippy/test/audit + web lint/typecheck/test/build + critical axe a11y gate (`apps/practice-host-ui/scripts/test-a11y.mjs`).
+- **Autofix guardrails:** PR-only trigger, `github-actions[bot]` loop guard, deterministic-only fixes (`cargo fmt`, lint/format scripts).
+- **Fix proposal guardrails:** manual/failing-main trigger, draft PR creation, sensitive path labeling (`needs-human-review`) for `security|audit|crypto|rbac`.
+- **Release gate:** `release.yml` now reuses `verify.yml` before signed cross-platform bundle build in protected `release` environment.
+- **Docs:** added `docs/coordination/ci-cd-plan.md`; updated `docs/process/freigabeprozess.md`, `project-truth.md`, `actions.md`.
+- **Validation evidence:** workflow YAML parse **PASS**; `bash -n scripts/ci/fix-proposal-attempt.sh` **PASS**; `node --check apps/practice-host-ui/scripts/test-a11y.mjs` **PASS**; stale-path scan `rg "app/src-tauri|\\bapp/" .github/workflows` returned no matches.
 
 ### Remains unverified
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- Live GitHub Actions execution of the new workflows (`verify`, `autofix`, `fix-proposal`, `release`) — **NOT RUN** in this local session.
+- Existing frontend type/build baseline in this branch still red (`npm run build -w medoc` / `npm run typecheck`) from pre-existing TypeScript errors; no functional product-code fix was part of this CI/CD wiring pass.
 
 ### Next
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+1. Open PR with the tiered pipeline migration and let CI execute on GitHub runners.
+2. Review the first `verify` run artifacts/logs and adjust package-manager command shims only if runner-specific issues surface.
+3. Plan follow-up branch for the pre-existing frontend TypeScript failures so tier-1 web checks can go green.
 
 ---
 

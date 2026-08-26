@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
 
 ## Now
 
@@ -32,6 +32,13 @@ Active cost-priority delivery plan and test allow-list:
 - `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
 - Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
 - `npm run build` **PASS** (2026-07-10).
+
+## Done (2026-08-26 — CI/CD tiered pipeline)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`; rewired `release.yml` as verify-gated, protected-environment signed build.
+- Removed deprecated `.github/workflows/ci.yml`.
+- Added workspace plan doc: `docs/coordination/ci-cd-plan.md`.
+- Added accessibility gate runner: `apps/practice-host-ui/scripts/test-a11y.mjs` + `test:a11y` workflow scripts.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
