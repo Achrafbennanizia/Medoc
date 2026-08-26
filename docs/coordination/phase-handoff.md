@@ -1,7 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline migration (2026-08-26)
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows with guardrails and coordination docs update.
+
+### Verified (2026-08-26 — CI/CD tiered pipeline migration)
+
+- Added `.github/workflows/verify.yml` with zero-mutation Rust/web/a11y gates: `cargo fmt --check`, clippy `-D warnings`, tests, `cargo audit`, lint, typecheck, test, build, and axe-core critical WCAG 2.1 AA checks.
+- Added `.github/workflows/autofix.yml` on `pull_request` only, with deterministic fix scope (`cargo fmt`, lint autofix, optional format script), bot loop guard, and PR-head pushback.
+- Added `.github/workflows/fix-proposal.yml` for manual dispatch and failed-main verify triggers: bounded fix attempt, before/after evidence capture, draft PR creation, and `needs-human-review` labeling for security/audit/crypto/RBAC touches.
+- Replaced `.github/workflows/release.yml` with verify-gated, protected-environment release flow (tag/dispatch, signed cross-platform artifacts, provenance attestation, no source mutation).
+- Added `docs/coordination/ci-cd-plan.md`; updated `docs/coordination/validation.md` with 2026-08-26 CI/CD migration evidence.
+- Validation evidence captured: workflow YAML parse **PASS**, stale `app/src-tauri` / `app/` scan in workflows **PASS**, `cargo fmt --all -- --check` **FAIL (pre-existing formatting drift)**.
+
+### Remains unverified
+
+- End-to-end GitHub Actions execution of new workflows on hosted runners (**NOT RUN** in this session).
+- Full repo baseline for `cargo fmt --all -- --check` remains red due pre-existing drift unrelated to this CI/CD migration.
+- Release environment approval/signing/provenance path on a real tag trigger (**NOT RUN**).
+
+### Next
+
+1. Trigger `verify.yml` and `autofix.yml` on a PR to confirm runtime behavior and loop-guard semantics.
+2. Trigger `fix-proposal.yml` manually to verify draft PR generation and sensitive-path labeling.
+3. Trigger `release.yml` on a dry-run tag in protected `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

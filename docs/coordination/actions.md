@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
 
 ## Now
 
@@ -11,6 +11,16 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **CI/CD rollout follow-up:** trigger `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and `release.yml` on GitHub runners for runtime confirmation (**NOT RUN** in this session).
+
+## Done (2026-08-26 — CI/CD tiered pipeline migration)
+
+- Added `.github/workflows/verify.yml` (push/PR/workflow_call verify gate; zero mutation; concurrency + timeouts).
+- Added `.github/workflows/autofix.yml` (`pull_request` only deterministic fixes with bot loop guard).
+- Added `.github/workflows/fix-proposal.yml` (manual + red-main trigger; bounded fix attempt; draft PR proposal; sensitive-path label).
+- Replaced `.github/workflows/release.yml` to verify-gate release path with protected `release` environment, signed cross-platform artifacts, and provenance attestation.
+- Removed legacy `.github/workflows/ci.yml`.
+- Added `docs/coordination/ci-cd-plan.md`; updated `docs/coordination/validation.md` and `docs/coordination/phase-handoff.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

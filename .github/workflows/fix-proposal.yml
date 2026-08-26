@@ -1,0 +1,235 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_kind:
+        description: "Failure class to target"
+        required: true
+        type: choice
+        options:
+          - test-failure
+          - advisory
+          - type-error
+        default: test-failure
+      rationale:
+        description: "Optional human rationale for this proposal"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.repository.default_branch }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.name }}
+      - name: Enable corepack for pnpm/yarn
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Resolve proposal metadata
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            kind="${{ inputs.failure_kind }}"
+            trigger_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            rationale="${{ inputs.rationale }}"
+          else
+            kind="test-failure"
+            trigger_url="${{ github.event.workflow_run.html_url }}"
+            rationale="Triggered automatically from failed verify run on main."
+          fi
+
+          branch="ci-fix-proposal-${kind}-${{ github.run_id }}"
+
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "trigger_url=$trigger_url" >> "$GITHUB_OUTPUT"
+          echo "rationale=$rationale" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Install cargo-audit when needed
+        if: steps.meta.outputs.kind == 'advisory'
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          mkdir -p .ci-artifacts
+          set +e
+          case "${{ steps.meta.outputs.kind }}" in
+            test-failure)
+              cargo test --workspace 2>&1 | tee .ci-artifacts/before.log
+              status=$?
+              ;;
+            advisory)
+              cargo audit 2>&1 | tee .ci-artifacts/before.log
+              status=$?
+              ;;
+            type-error)
+              (cd apps/practice-host-ui && npx tsc --noEmit) 2>&1 | tee .ci-artifacts/before.log
+              status=$?
+              ;;
+          esac
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Attempt bounded fix
+        run: |
+          case "${{ steps.meta.outputs.kind }}" in
+            test-failure)
+              cargo fmt --all || true
+              case "${{ steps.pm.outputs.name }}" in
+                pnpm) (pnpm run lint:fix || pnpm run lint -- --fix) || true ;;
+                yarn) (yarn lint:fix || yarn lint --fix) || true ;;
+                npm) (npm run lint:fix --if-present || npm run lint -- --fix) || true ;;
+              esac
+              ;;
+            advisory)
+              cargo update || true
+              case "${{ steps.pm.outputs.name }}" in
+                npm) npm audit fix --package-lock-only --omit=dev || true ;;
+                pnpm) pnpm audit --prod || true ;;
+                yarn) yarn npm audit --all || true ;;
+              esac
+              ;;
+            type-error)
+              case "${{ steps.pm.outputs.name }}" in
+                pnpm) (pnpm run lint:fix || pnpm run lint -- --fix) || true ;;
+                yarn) (yarn lint:fix || yarn lint --fix) || true ;;
+                npm) (npm run lint:fix --if-present || npm run lint -- --fix) || true ;;
+              esac
+              ;;
+          esac
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          set +e
+          case "${{ steps.meta.outputs.kind }}" in
+            test-failure)
+              cargo test --workspace 2>&1 | tee .ci-artifacts/after.log
+              status=$?
+              ;;
+            advisory)
+              cargo audit 2>&1 | tee .ci-artifacts/after.log
+              status=$?
+              ;;
+            type-error)
+              (cd apps/practice-host-ui && npx tsc --noEmit) 2>&1 | tee .ci-artifacts/after.log
+              status=$?
+              ;;
+          esac
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Write fix proposal report
+        id: report
+        run: |
+          timestamp="$(date -u +%Y%m%d-%H%M%S)"
+          report_path="docs/coordination/ci-fix-proposals/${timestamp}-${{ steps.meta.outputs.kind }}.md"
+          mkdir -p "$(dirname "$report_path")"
+
+          {
+            echo "# CI Fix Proposal"
+            echo
+            echo "- Kind: \`${{ steps.meta.outputs.kind }}\`"
+            echo "- Trigger: ${{ steps.meta.outputs.trigger_url }}"
+            echo "- Rationale: ${{ steps.meta.outputs.rationale }}"
+            echo "- Before exit code: \`${{ steps.before.outputs.exit_code }}\`"
+            echo "- After exit code: \`${{ steps.after.outputs.exit_code }}\`"
+            echo
+            echo "## Failing-before evidence"
+            echo
+            echo '```text'
+            sed -n '1,160p' .ci-artifacts/before.log
+            echo '```'
+            echo
+            echo "## Passing-after evidence"
+            echo
+            echo '```text'
+            sed -n '1,160p' .ci-artifacts/after.log
+            echo '```'
+          } > "$report_path"
+
+          echo "report_path=$report_path" >> "$GITHUB_OUTPUT"
+      - name: Detect security/audit/crypto/rbac touches
+        id: sensitive
+        run: |
+          if git diff --name-only | grep -E "^(apps|crates|packages|config)/.*(security|audit|crypto|rbac)|^config/rbac\.yaml$" >/dev/null; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open draft pull request for human review
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.meta.outputs.branch }}
+          delete-branch: false
+          commit-message: "ci: draft fix proposal for ${{ steps.meta.outputs.kind }}"
+          title: "ci: draft fix proposal for ${{ steps.meta.outputs.kind }}"
+          draft: true
+          labels: ci-fix-proposal
+          body: |
+            Automated fix proposal generated by `fix-proposal.yml`.
+
+            - Kind: `${{ steps.meta.outputs.kind }}`
+            - Trigger run: ${{ steps.meta.outputs.trigger_url }}
+            - Before exit code: `${{ steps.before.outputs.exit_code }}`
+            - After exit code: `${{ steps.after.outputs.exit_code }}`
+            - Detailed evidence: `${{ steps.report.outputs.report_path }}`
+
+            This PR is intentionally draft and requires human review before merge.
+      - name: Add needs-human-review label on sensitive touches
+        if: steps.sensitive.outputs.value == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop after sensitive-path proposal
+        if: steps.sensitive.outputs.value == 'true'
+        run: echo "Sensitive paths touched. needs-human-review label applied; automation stopped for manual review."
