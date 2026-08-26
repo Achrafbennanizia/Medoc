@@ -1,0 +1,91 @@
+name: autofix
+
+on: pull_request
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - name: Install dependencies
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Deterministic autofixes
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          cargo fmt --all
+          case "$PM" in
+            pnpm)
+              pnpm --filter medoc run lint:fix || true
+              pnpm --filter medoc run format || true
+              ;;
+            yarn)
+              yarn workspace medoc run lint:fix || true
+              yarn workspace medoc run format || true
+              ;;
+            npm)
+              npm run lint:fix -w medoc || true
+              npm run format -w medoc || true
+              ;;
+          esac
+      - name: Compliance guard for autofix scope
+        id: guard
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed_files="$(git diff --name-only)"
+          if printf '%s\n' "$changed_files" | grep -E '(^|/)(security|audit|crypto)(/|_|\.|$)|(^|/)rbac(\.|/|_|$)|(^|/)config/rbac\.yaml$'; then
+            echo "Autofix touched compliance-sensitive files; refusing automated commit."
+            exit 1
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+      - name: Commit fixes if changed
+        if: steps.guard.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply deterministic formatting and lint fixes"
+          git push origin "HEAD:${{ github.head_ref }}"

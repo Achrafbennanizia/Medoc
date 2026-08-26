@@ -1,7 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-08-26)  
+**Last closed:** four-tier pipeline wiring (`verify`, `autofix`, `fix-proposal`, `release`) and coordination docs update.
+
+### Verified (2026-08-26 — CI/CD tier migration)
+
+- Legacy `.github/workflows/ci.yml` removed; pipeline split into:
+  - `verify.yml` (blocking, immutable verification gate),
+  - `autofix.yml` (PR-branch deterministic fixes only),
+  - `fix-proposal.yml` (draft remediation PRs, no auto-merge),
+  - `release.yml` (tag/dispatch, re-verify, protected signed build with provenance).
+- Real workspace paths are used (`Cargo.toml` workspace at repo root with `apps/*` + `crates/*`; npm workspaces in `apps/*` + `packages/*`), and package manager detection is lockfile-based.
+- A11y gate added to Tier 1 using axe-core + Playwright script: `apps/practice-host-ui/scripts/axe-critical-check.mjs`.
+- Coordination artifacts updated: `docs/coordination/ci-cd-plan.md`, `project-truth.md`, `actions.md`.
+
+### Remains unverified
+
+- GitHub-hosted workflow execution status for the new four-tier workflows (**NOT OBSERVED** in this local session).
+- Protected `release` environment approval wiring in repository settings (**NOT OBSERVED**).
+- Tier 3 quality for non-audit failures remains heuristic-first (`cargo update` advisory path) and may require tighter domain-specific remediation rules.
+
+### Next
+
+1. Run first PR through `verify.yml` + `autofix.yml` and capture live GitHub run evidence in `validation.md`.
+2. Trigger `fix-proposal.yml` manually once to validate draft PR flow and `needs-human-review` labeling path.
+3. Run a tag or `workflow_dispatch` release dry run in protected `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
