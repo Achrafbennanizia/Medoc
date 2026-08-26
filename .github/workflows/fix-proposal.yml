@@ -1,0 +1,258 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this fix proposal is being requested
+        required: false
+        default: Manual fix proposal request
+      failing_reference:
+        description: Link to failing run / incident
+        required: false
+      fix_command:
+        description: Command that attempts a real fix on a fresh branch
+        required: true
+      verify_command:
+        description: Verification command run before and after the fix
+        required: false
+        default: cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && npm run typecheck && npm run test
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - id: context
+        name: Resolve fix and verify commands
+        shell: bash
+        env:
+          INPUT_FIX_COMMAND: ${{ inputs.fix_command }}
+          INPUT_VERIFY_COMMAND: ${{ inputs.verify_command }}
+          INPUT_REASON: ${{ inputs.reason }}
+          INPUT_FAILING_REFERENCE: ${{ inputs.failing_reference }}
+          RUN_FAILURE_URL: ${{ github.event.workflow_run.html_url }}
+          VAR_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+          VAR_VERIFY_COMMAND: ${{ vars.CI_FIX_PROPOSAL_VERIFY_COMMAND }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            fix_command="$INPUT_FIX_COMMAND"
+            verify_command="$INPUT_VERIFY_COMMAND"
+            reason="${INPUT_REASON:-Manual fix proposal request}"
+            failing_reference="${INPUT_FAILING_REFERENCE:-manual-trigger}"
+          else
+            fix_command="$VAR_FIX_COMMAND"
+            verify_command="$VAR_VERIFY_COMMAND"
+            reason="Triggered automatically after verify failed on main."
+            failing_reference="${RUN_FAILURE_URL:-workflow_run-trigger}"
+          fi
+
+          if [ -z "$fix_command" ]; then
+            echo "No fix command configured." >&2
+            echo "Use workflow input fix_command or set CI_FIX_PROPOSAL_COMMAND repo variable." >&2
+            exit 1
+          fi
+          if [ -z "$verify_command" ]; then
+            verify_command="cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && npm run typecheck && npm run test"
+          fi
+
+          {
+            echo "fix_command<<EOF"
+            echo "$fix_command"
+            echo "EOF"
+            echo "verify_command<<EOF"
+            echo "$verify_command"
+            echo "EOF"
+            echo "reason<<EOF"
+            echo "$reason"
+            echo "EOF"
+            echo "failing_reference<<EOF"
+            echo "$failing_reference"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.cache_dependency }}
+      - name: Linux Tauri deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+
+      - id: before
+        name: Capture failing-before status
+        shell: bash
+        env:
+          VERIFY_COMMAND: ${{ steps.context.outputs.verify_command }}
+        run: |
+          set +e
+          set -o pipefail
+          bash -lc "$VERIFY_COMMAND" 2>&1 | tee verify-before.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: fix
+        name: Attempt fix command
+        shell: bash
+        env:
+          FIX_COMMAND: ${{ steps.context.outputs.fix_command }}
+        run: |
+          set +e
+          set -o pipefail
+          bash -lc "$FIX_COMMAND" 2>&1 | tee fix-attempt.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: after
+        name: Capture passing-after status
+        shell: bash
+        env:
+          VERIFY_COMMAND: ${{ steps.context.outputs.verify_command }}
+        run: |
+          set +e
+          set -o pipefail
+          bash -lc "$VERIFY_COMMAND" 2>&1 | tee verify-after.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: diff
+        name: Detect changed files and protected paths
+        shell: bash
+        run: |
+          status_lines="$(git status --porcelain)"
+          changed_files="$(printf '%s\n' "$status_lines" | awk '{print $2}')"
+          protected_pattern='(^|/)(security|audit|crypto|rbac)(/|_|\.|$)'
+          protected_files="$(printf '%s\n' "$changed_files" | rg "$protected_pattern" || true)"
+
+          if [ -n "$status_lines" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$protected_files" ]; then
+            echo "protected_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "protected_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "changed_files<<EOF"
+            echo "$changed_files"
+            echo "EOF"
+            echo "protected_files<<EOF"
+            echo "$protected_files"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Stop when no proposal diff is generated
+        if: steps.diff.outputs.changed != 'true'
+        run: |
+          echo "Fix attempt produced no code changes; no draft PR can be created."
+          exit 1
+
+      - id: pr
+        name: Open draft pull request with evidence
+        uses: peter-evans/create-pull-request@v6
+        with:
+          base: main
+          branch: ci/fix-proposal-${{ github.run_id }}
+          commit-message: "ci: draft automated fix proposal"
+          title: "fix-proposal: automated CI remediation (${{ github.run_id }})"
+          draft: true
+          body: |
+            ## Automated fix proposal
+
+            **Reason:** ${{ steps.context.outputs.reason }}
+            **Failure reference:** ${{ steps.context.outputs.failing_reference }}
+
+            ### Commands
+
+            - Verify command: `${{ steps.context.outputs.verify_command }}`
+            - Fix command: `${{ steps.context.outputs.fix_command }}`
+
+            ### Evidence
+
+            - Failing-before exit code: `${{ steps.before.outputs.status }}`
+            - Fix-command exit code: `${{ steps.fix.outputs.status }}`
+            - Passing-after exit code: `${{ steps.after.outputs.status }}`
+
+            ### Changed files
+
+            ```text
+            ${{ steps.diff.outputs.changed_files }}
+            ```
+
+            ### Protected compliance paths touched
+
+            ```text
+            ${{ steps.diff.outputs.protected_files }}
+            ```
+          labels: |
+            ci
+            fix-proposal
+
+      - name: Add needs-human-review label for protected paths
+        if: steps.pr.outputs.pull-request-number != '' && steps.diff.outputs.protected_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.pr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop automation when protected compliance code changed
+        if: steps.diff.outputs.protected_changed == 'true'
+        run: |
+          echo "Protected compliance paths changed; draft PR labeled needs-human-review."
+          echo "No automated merge is permitted."
+          exit 1

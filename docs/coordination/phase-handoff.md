@@ -1,5 +1,29 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-08-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split + a11y gate wiring.
+
+### Verified (2026-08-26 — CI/CD tiered pipeline)
+
+- **Tiered workflows:** removed `.github/workflows/ci.yml`; added `verify.yml`, `autofix.yml`, `fix-proposal.yml`; rewired `release.yml` to gate through `verify.yml` and build in protected `release` environment.
+- **Workspace command surface:** root/app scripts now expose `typecheck`, `lint:fix`, `format`, `test:a11y`, `tauri:build`; axe runner added at `scripts/test-a11y.mjs`.
+- **Validation:** YAML parse **PASS**; `npm ci` **PASS**; `npm run typecheck` **PASS**; `npm run build` **PASS**; `npm run test:a11y` **PASS** (no critical WCAG 2.1 A/AA violations).
+- **TS strictness hygiene:** nullable/unused cleanup landed in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`.
+
+### Remains unverified
+
+- `release.yml` tag execution against a protected `release` environment (manual approval path) — **NOT RUN**.
+- `fix-proposal.yml` automatic mode with repository variable `CI_FIX_PROPOSAL_COMMAND` — **NOT RUN**.
+- `npm run test` stable termination in this environment — **NOT OBSERVED** (hung after many green suites).
+
+### Next
+
+1. Resolve or triage current lint baseline in `apps/practice-host-ui` (`npm run lint` currently fails).
+2. Investigate Vitest hang so `npm run test` can terminate deterministically in CI.
+3. Run a tag/dispatch smoke for `release.yml` after environment approvals are configured.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

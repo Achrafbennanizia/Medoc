@@ -1,6 +1,35 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** (`autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml`) |
+| JS dependency install (CI mode) | `npm ci` | **PASS** |
+| Type check gate | `npm run typecheck` | **PASS** |
+| Build gate | `npm run build` | **PASS** (Vite build completed; chunk-size warnings only) |
+| Playwright browser provisioning | `npx playwright install --with-deps chromium` | **PASS** |
+| Accessibility gate | `npm run test:a11y` | **PASS** — no critical WCAG 2.1 A/AA violations from axe-core |
+| Lint gate | `npm run lint` | **FAIL** — pre-existing lint baseline (**19 errors**, **38 warnings**) |
+| Test gate | `npm run test` | **PARTIAL / HUNG** — test run printed many green suites but did not exit; process terminated manually (no final Vitest summary) |
+
+**Delivered in this migration:**
+- Replaced monolithic CI with tiered workflows:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Removed legacy `.github/workflows/ci.yml`.
+- Added axe-core runner `scripts/test-a11y.mjs`.
+- Added root + app scripts for `typecheck`, `lint:fix`, `format`, `test:a11y`, and `tauri:build` wiring.
+- Added minimal non-functional TS hygiene fixes required for strict `typecheck`:
+  - `packages/shared/src/lib/document-print-html.ts`
+  - `packages/shared/src/lib/termin-availability.ts`
+  - `packages/shared/src/lib/termin-calendar-layout.ts`
+  - `apps/practice-host-ui/src/views/components/termin-week-day-grid.tsx`
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

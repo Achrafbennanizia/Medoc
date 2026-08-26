@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
 
 ## Now
 
@@ -23,6 +23,17 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-26 — CI/CD tiered pipeline migration)
+
+- Replaced monolithic `.github/workflows/ci.yml` with tiered workflows:
+  - `verify.yml` (immutable Rust/JS/a11y gate)
+  - `autofix.yml` (deterministic PR-branch fixes only)
+  - `fix-proposal.yml` (draft PR proposals for non-deterministic fixes)
+  - `release.yml` (verify-gated signed build in protected `release` env)
+- Added `scripts/test-a11y.mjs` and script wiring (`typecheck`, `lint:fix`, `format`, `test:a11y`, `tauri:build`).
+- Added `docs/coordination/ci-cd-plan.md`.
+- Validation snapshot: YAML parse/typecheck/build/a11y **PASS**; lint baseline still **FAIL**; `npm test` run hung and needs follow-up.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

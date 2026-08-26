@@ -4,7 +4,6 @@ import {
     isAppointmentSpanBlockedByPraxisConfig,
     isSlotBlockedByPraxisConfig,
     resolveBookingArbeitszeitenForArzt,
-    resolveEffectiveArbeitszeitenForArzt,
 } from "./praxis-planning";
 
 type TFn = (key: string) => string;
