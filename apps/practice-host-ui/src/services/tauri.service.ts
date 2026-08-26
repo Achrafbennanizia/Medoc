@@ -50,12 +50,127 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_EVENT_CMD = "record_workflow_event";
+const WORKFLOW_FIELD_MAX = 120;
+
+type WorkflowStage = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+interface WorkflowEvent {
+    stage: WorkflowStage;
+    route?: string;
+    action?: string;
+    outcome?: string;
+}
+
+function trimWorkflowField(value?: string): string | undefined {
+    if (!value) return undefined;
+    const compact = value.replace(/\s+/g, " ").trim();
+    if (!compact) return undefined;
+    return compact.length <= WORKFLOW_FIELD_MAX ? compact : compact.slice(0, WORKFLOW_FIELD_MAX);
+}
+
+function currentRoutePath(): string | undefined {
+    if (typeof window === "undefined" || !window.location) {
+        return undefined;
+    }
+    const route = `${window.location.pathname ?? ""}${window.location.search ?? ""}`;
+    return trimWorkflowField(route);
+}
+
+function classifyInvokeFailure(error: unknown): { stage: "cancel" | "error"; outcome: string } {
+    const raw =
+        typeof error === "string"
+            ? error
+            : error instanceof Error
+                ? error.message
+                : "";
+    const lower = raw.toLowerCase();
+    if (lower.includes("cancel")) {
+        return { stage: "cancel", outcome: "cancelled" };
+    }
+    if (lower.includes("timeout")) {
+        return { stage: "error", outcome: "timeout" };
+    }
+    if (lower.includes("401") || lower.includes("unauthorized")) {
+        return { stage: "error", outcome: "unauthorized" };
+    }
+    if (lower.includes("403") || lower.includes("forbidden")) {
+        return { stage: "error", outcome: "forbidden" };
+    }
+    return { stage: "error", outcome: "failed" };
+}
+
+export async function recordWorkflowEvent(event: WorkflowEvent): Promise<void> {
+    const payload = {
+        stage: trimWorkflowField(event.stage) ?? "other",
+        route: trimWorkflowField(event.route),
+        action: trimWorkflowField(event.action),
+        outcome: trimWorkflowField(event.outcome),
+    };
+    try {
+        await invoke<void>(WORKFLOW_EVENT_CMD, payload);
+    } catch {
+        // Workflow telemetry must never block core product actions.
+    }
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    if (cmd !== WORKFLOW_EVENT_CMD) {
+        await recordWorkflowEvent({
+            stage: "primary_action",
+            route: currentRoutePath(),
+            action: cmd,
+        });
+    }
     if (args == null) {
-        return invoke<T>(cmd, {});
+        try {
+            const result = await invoke<T>(cmd, {});
+            if (cmd !== WORKFLOW_EVENT_CMD) {
+                await recordWorkflowEvent({
+                    stage: "success",
+                    route: currentRoutePath(),
+                    action: cmd,
+                    outcome: "ok",
+                });
+            }
+            return result;
+        } catch (error) {
+            if (cmd !== WORKFLOW_EVENT_CMD) {
+                const failure = classifyInvokeFailure(error);
+                await recordWorkflowEvent({
+                    stage: failure.stage,
+                    route: currentRoutePath(),
+                    action: cmd,
+                    outcome: failure.outcome,
+                });
+            }
+            throw error;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_EVENT_CMD) {
+            await recordWorkflowEvent({
+                stage: "success",
+                route: currentRoutePath(),
+                action: cmd,
+                outcome: "ok",
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_EVENT_CMD) {
+            const failure = classifyInvokeFailure(error);
+            await recordWorkflowEvent({
+                stage: failure.stage,
+                route: currentRoutePath(),
+                action: cmd,
+                outcome: failure.outcome,
+            });
+        }
+        throw error;
+    }
 }
