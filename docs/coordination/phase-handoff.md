@@ -1,7 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tier wiring (2026-08-26)  
+**Last closed:** Tiered GitHub Actions pipeline migration (`verify`/`autofix`/`fix-proposal`/`release`) + coordination docs.
+
+### Verified (2026-08-26 — CI/CD pipeline tier wiring)
+
+- **Tier 1 verify gate added:** `.github/workflows/verify.yml` now runs Rust checks (`fmt --check`, clippy `-D warnings`, tests, `cargo audit`), JS lint/typecheck/test/build, and critical WCAG 2.1 A/AA axe-core check.
+- **Tier 2 safe auto-fix added:** `.github/workflows/autofix.yml` runs deterministic-only `cargo fmt`, `lint:fix`, `format` on PR heads with bot loop guard and write-back commit logic.
+- **Tier 3 proposal workflow added:** `.github/workflows/fix-proposal.yml` supports manual dispatch and failed-main `verify` trigger to open draft PR proposals with before/after evidence and `needs-human-review` guard for security/audit/crypto/RBAC surfaces.
+- **Tier 4 release gate migrated:** `.github/workflows/release.yml` now gates on reusable `verify`, then builds signed matrix artifacts in protected `release` environment with provenance attestation.
+- **Legacy CI path migrated:** `.github/workflows/ci.yml` now acts as a compatibility wrapper to reusable `verify`.
+- **Pipeline design doc added:** [`ci-cd-plan.md`](ci-cd-plan.md).
+- **Validation evidence captured:** Workflow YAML parse **PASS**; local lint/typecheck/build currently **FAIL** on pre-existing frontend issues (logged in [`validation.md`](validation.md)).
+
+### Remains unverified
+
+- First end-to-end GitHub run for new `verify.yml` across push and PR triggers.
+- Real PR-branch `autofix.yml` bot-loop behavior on an actual fix commit.
+- Tier-3 branch + draft-PR flow with a configured non-deterministic fixer (`FIX_PROPOSAL_COMMAND` or `scripts/ci/attempt-fix-proposal.sh`).
+- Tag-driven `release.yml` execution in protected `release` environment with approval gate.
+
+### Next
+
+1. Trigger `verify.yml` on a PR and fix baseline frontend lint/typecheck/build failures currently blocking green status.
+2. Run a controlled PR with format drift to validate `autofix.yml` single-pass behavior.
+3. Configure Tier-3 fix command and execute one manual `workflow_dispatch` dry run.
+4. Perform one signed tag dry run through protected `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

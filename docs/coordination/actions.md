@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tier wiring)
 
 ## Now
 
@@ -23,6 +23,17 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-26 — CI/CD tier wiring)
+
+- Added `.github/workflows/verify.yml` (push/PR/workflow_call): Rust gate + JS gate + critical axe-core a11y gate.
+- Added `.github/workflows/autofix.yml` (PR only): deterministic `cargo fmt`, `lint:fix`, `format`, bot loop guard.
+- Added `.github/workflows/fix-proposal.yml` (manual + failed-main verify): new branch + draft PR + before/after evidence + `needs-human-review` guard.
+- Migrated `.github/workflows/release.yml` to verify-gated, signed matrix build under protected `release` environment with provenance attestation.
+- Migrated `.github/workflows/ci.yml` to compatibility wrapper calling reusable `verify.yml`.
+- Added `docs/coordination/ci-cd-plan.md`.
+- Updated local scripts and Playwright a11y test wiring (`test:a11y`, `lint:fix`, `format`, `typecheck`, `a11y.spec.ts`).
+- Recorded validation evidence in [`validation.md`](validation.md): workflow YAML parse **PASS**; local lint/typecheck/build currently **FAIL** on pre-existing frontend issues.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

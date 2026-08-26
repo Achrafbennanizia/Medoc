@@ -1,0 +1,123 @@
+name: verify
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Rust formatting check
+        run: cargo fmt --all --check
+      - name: Rust lint check
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Rust dependency audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install JavaScript dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" && exit 1 ;;
+          esac
+      - name: Web lint check (no auto-fix)
+        run: ${{ steps.pm.outputs.pm }} run lint
+      - name: Web typecheck
+        run: ${{ steps.pm.outputs.pm }} run typecheck
+      - name: Web tests
+        run: ${{ steps.pm.outputs.pm }} run test
+      - name: Web build
+        run: ${{ steps.pm.outputs.pm }} run build
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install JavaScript dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" && exit 1 ;;
+          esac
+      - name: Install Playwright Chromium runtime
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm exec playwright install --with-deps chromium ;;
+            yarn) yarn exec playwright install --with-deps chromium ;;
+            npm) npx playwright install --with-deps chromium ;;
+            *) echo "Unsupported package manager: $PM" && exit 1 ;;
+          esac
+      - name: Critical WCAG 2.1 A/AA axe-core gate
+        env:
+          MEDOC_A11Y_WEB_SERVER: "1"
+          MEDOC_VITE_URL: http://127.0.0.1:4173
+          MEDOC_A11Y_HOST: 127.0.0.1
+          MEDOC_A11Y_PORT: "4173"
+        run: ${{ steps.pm.outputs.pm }} run test:a11y

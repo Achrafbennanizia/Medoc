@@ -1,6 +1,17 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline tier wiring)
+
+## CI/CD pipeline tier wiring — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load('.github/workflows/*.yml') ... PY` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`, `ci.yml` parsed |
+| Workspace typecheck | `npm run typecheck` | **FAIL** — pre-existing TS errors in `document-print-html.ts`, `i18n.ts`, and unused-symbol checks (`termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`) |
+| Workspace build | `npm run build` | **FAIL** — same pre-existing TS error set as typecheck |
+| Workspace lint | `npm run lint` | **FAIL** — pre-existing React hooks/compiler and lint-rule errors across `apps/practice-host-ui/src` |
+| A11y test wiring discovery | `npm run test:a11y -- --list` | **PASS** — Playwright resolves `a11y.spec.ts` (1 chromium test) |
+| Full a11y execution | `MEDOC_A11Y_WEB_SERVER=1 ... npm run test:a11y` | **FAIL** — Playwright webServer startup failed because `npm run build -w medoc` exits with the existing TypeScript errors |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
