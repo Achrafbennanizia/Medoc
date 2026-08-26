@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tier migration (2026-08-26)  
+**Last closed:** Tiered GitHub Actions workflows (`verify`, `autofix`, `fix-proposal`, `release`) + coordination plan + validation ledger update.
+
+### Verified (2026-08-26 — CI/CD pipeline tier migration)
+
+- **Tiered workflows wired:** added `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`; updated `release.yml`; retired legacy `.github/workflows/ci.yml`.
+- **Workspace-aware checks:** verify/release/autofix/fix-proposal detect package manager from lockfile and target live workspace package `medoc` instead of retired `app/`/`app/src-tauri` paths.
+- **Guardrails added:** verify is non-mutating; autofix is PR-only with bot loop guard and refuses commits touching security/audit/crypto/RBAC paths; fix-proposal opens draft PRs and halts with `needs-human-review` on security/audit/crypto/RBAC touches; release requires protected `release` environment.
+- **A11y gate added:** `verify.yml` runs axe-core against built UI preview and fails on critical WCAG 2.1 A/AA violations.
+- **Coordination docs:** added [`ci-cd-plan.md`](ci-cd-plan.md); updated `project-truth.md`.
+
+### Remains unverified
+
+- GitHub-hosted execution of the new workflows (local YAML lint passed, but workflows not yet observed running in Actions).
+- Protected-environment manual approval path in `release` on an actual tag run.
+- End-to-end `fix-proposal.yml` draft-PR flow on a real red-main incident.
+
+### Understanding delta
+
+- CI moved from a single workflow file to explicit verify/autofix/fix-proposal/release tiers, with release now reusing verify as a gate.
+- The prior historical references to `ci.yml` are now archival context; active gate logic lives in `verify.yml`.
+
+### Next
+
+1. Open PR and let GitHub Actions execute `verify.yml` and `autofix.yml` on real PR events.
+2. Trigger `fix-proposal.yml` once via `workflow_dispatch` to confirm branch + draft PR + evidence formatting.
+3. Run one tag or manual `release.yml` dry-run to verify protected-environment approval + signed artifact path.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

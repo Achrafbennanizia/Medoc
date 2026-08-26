@@ -1,9 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD pipeline tier migration)
+
+## Done (2026-08-26 — CI/CD pipeline tiers)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (Rust/web/a11y verify, zero mutation)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes with loop guard)
+  - `.github/workflows/fix-proposal.yml` (new-branch draft PR proposals with evidence + sensitive-path halt)
+  - `.github/workflows/release.yml` updated (verify gate + protected release build)
+- Retired legacy `.github/workflows/ci.yml`.
+- Added coordination artifact: [`ci-cd-plan.md`](ci-cd-plan.md).
+- Validation ledger updated with command evidence (YAML lint pass; current baseline Rust/TS lint/typecheck failures captured, not silently ignored).
 
 ## Now
 
+- Let GitHub Actions execute new workflows on PR events to confirm runtime behavior in hosted runners.
+- Address pre-existing frontend lint/typecheck failures blocking green verify baseline.
+- Decide whether repository-wide Rust format drift should be normalized in a dedicated formatting PR.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
