@@ -26,6 +26,7 @@ function ToastRow({
         clearTimeout(timeoutRef.current);
         if (pausedRef.current || stackPointerInside) return;
         const delay = remainingRef.current;
+        if (delay <= 0) return;
         endAtRef.current = Date.now() + delay;
         timeoutRef.current = setTimeout(() => {
             remove(toast.id);
@@ -72,7 +73,7 @@ function ToastRow({
             role={role}
             aria-live={live}
             tabIndex={0}
-            style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
+            style={toast.durationMs > 0 ? { ["--toast-dur" as string]: `${toast.durationMs}ms` } : undefined}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
         >
@@ -96,9 +97,11 @@ function ToastRow({
                     ×
                 </button>
             </div>
-            <div className="toast-progress-track" aria-hidden>
-                <div className="toast-progress-bar" />
-            </div>
+            {toast.durationMs > 0 ? (
+                <div className="toast-progress-track" aria-hidden>
+                    <div className="toast-progress-bar" />
+                </div>
+            ) : null}
         </div>
     );
 }

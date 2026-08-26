@@ -121,7 +121,6 @@ export type TerminClosedSpan = {
 
 function boundsFromSegments(
     segments: Array<{ from: string; to: string }>,
-    fallback: TerminTimelineBounds,
 ): TerminTimelineBounds | null {
     let minStart = Number.POSITIVE_INFINITY;
     let maxEnd = 0;
@@ -167,10 +166,7 @@ export function deriveTerminTimelineBounds(
             if (seg.from && seg.to && seg.from < seg.to) allSegments.push(seg);
         }
     }
-    return boundsFromSegments(allSegments, {
-        startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
-        endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
-    }) ?? {
+    return boundsFromSegments(allSegments) ?? {
         startMin: TERMIN_TIMELINE_DEFAULT_START_MIN,
         endMin: TERMIN_TIMELINE_DEFAULT_END_MIN,
     };
@@ -187,10 +183,8 @@ export function deriveDayTimelineBounds(
     if (!day?.aktiv) {
         return deriveTerminTimelineBounds(cfg, arztId);
     }
-    return (
-        boundsFromSegments(day.segments ?? [], deriveTerminTimelineBounds(cfg, arztId))
-        ?? deriveTerminTimelineBounds(cfg, arztId)
-    );
+    const fallback = deriveTerminTimelineBounds(cfg, arztId);
+    return boundsFromSegments(day.segments ?? []) ?? fallback;
 }
 
 /** Week grid: tallest day in the visible week sets the shared timeline height. */

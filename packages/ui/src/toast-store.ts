@@ -15,7 +15,7 @@ export interface Toast {
 
 const DURATION: Record<ToastType, number> = {
     success: 3000,
-    error: 6000,
+    error: 5000,
     info: 4000,
     warning: 5000,
 };
@@ -39,7 +39,7 @@ export const useToastStore = create<ToastState>((set) => ({
     setToastStackPointerInside: (v) => set({ toastStackPointerInside: v }),
     add: (message, type = "success", options) => {
         const id = crypto.randomUUID();
-        const durationMs = options?.durationMs ?? DURATION[type];
+        const durationMs = options?.durationMs ?? (options?.onUndo ? 0 : DURATION[type]);
         const toast: Toast = {
             id,
             message,
