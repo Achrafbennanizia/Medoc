@@ -1,0 +1,214 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_kind:
+        description: "Failure class to probe (test, advisory, typecheck, other)"
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - advisory
+          - typecheck
+          - other
+      fix_command:
+        description: "Optional shell command that attempts a substantive fix"
+        required: false
+        default: ""
+        type: string
+      base_ref:
+        description: "Branch or tag to branch from"
+        required: false
+        default: main
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: meta
+        name: resolve trigger metadata
+        run: |
+          branch="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            checkout_ref="${{ inputs.base_ref }}"
+            pr_base_ref="${{ inputs.base_ref }}"
+            failure_kind="${{ inputs.failure_kind }}"
+            fix_command="${{ inputs.fix_command }}"
+          else
+            checkout_ref="${{ github.event.workflow_run.head_sha }}"
+            pr_base_ref="${{ github.event.workflow_run.head_branch }}"
+            failure_kind="other"
+            fix_command=""
+          fi
+
+          if [ -n "$fix_command" ]; then
+            fix_command_display="$fix_command"
+          else
+            fix_command_display="NONE (diagnostic-only run)"
+          fi
+
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=$checkout_ref" >> "$GITHUB_OUTPUT"
+          echo "pr_base_ref=$pr_base_ref" >> "$GITHUB_OUTPUT"
+          echo "failure_kind=$failure_kind" >> "$GITHUB_OUTPUT"
+          echo "fix_command<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$fix_command" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "fix_command_display=$fix_command_display" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.checkout_ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - name: enable corepack
+        run: corepack enable
+      - name: install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+      - id: attempt
+        name: attempt fix and collect evidence
+        env:
+          FAILURE_KIND: ${{ steps.meta.outputs.failure_kind }}
+          FIX_COMMAND: ${{ steps.meta.outputs.fix_command }}
+          PM: ${{ steps.pm.outputs.pm }}
+        run: |
+          set +e
+          mkdir -p .ci-fix-evidence
+
+          run_probe() {
+            case "$FAILURE_KIND" in
+              typecheck)
+                (cd apps/practice-host-ui && "$PM" run typecheck)
+                ;;
+              advisory)
+                if ! command -v cargo-audit >/dev/null 2>&1; then
+                  cargo install cargo-audit --locked
+                fi
+                cargo audit
+                ;;
+              test)
+                cargo test --workspace
+                ;;
+              *)
+                cargo test --workspace
+                ;;
+            esac
+          }
+
+          before_status=0
+          run_probe > .ci-fix-evidence/before.log 2>&1 || before_status=$?
+
+          if [ -n "$FIX_COMMAND" ]; then
+            fix_status=0
+            bash -lc "$FIX_COMMAND" > .ci-fix-evidence/fix.log 2>&1 || fix_status=$?
+          else
+            fix_status=0
+            echo "No fix command provided; diagnostic probe only." > .ci-fix-evidence/fix.log
+          fi
+
+          after_status=0
+          run_probe > .ci-fix-evidence/after.log 2>&1 || after_status=$?
+
+          echo "before_status=$before_status" >> "$GITHUB_OUTPUT"
+          echo "after_status=$after_status" >> "$GITHUB_OUTPUT"
+          echo "fix_status=$fix_status" >> "$GITHUB_OUTPUT"
+      - id: guard
+        name: enforce sensitive-path guardrails
+        run: |
+          changed_files="$(git status --porcelain | awk '{print $2}')"
+          if [ -z "$changed_files" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "security_touched=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$changed_files" | rg -n '(^|/)(security|audit|crypto)(/|$)|(^|/)rbac([^/]*|/)' >/dev/null; then
+            echo "security_touched=true" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "security_touched=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+      - name: upload fix evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: .ci-fix-evidence/
+      - name: no-op if no changes
+        if: steps.guard.outputs.has_changes != 'true'
+        run: echo "No code changes were produced; draft PR not created."
+      - id: cpr
+        if: steps.guard.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.meta.outputs.branch }}
+          base: ${{ steps.meta.outputs.pr_base_ref }}
+          commit-message: "ci: fix proposal for ${{ steps.meta.outputs.failure_kind }}"
+          title: "ci: fix proposal for ${{ steps.meta.outputs.failure_kind }} failure"
+          labels: ${{ steps.guard.outputs.labels }}
+          draft: true
+          body: |
+            ## CI fix proposal
+
+            - Trigger: `${{ github.event_name }}`
+            - Failure kind: `${{ steps.meta.outputs.failure_kind }}`
+            - Probe before fix exit code: `${{ steps.attempt.outputs.before_status }}`
+            - Fix command exit code: `${{ steps.attempt.outputs.fix_status }}`
+            - Probe after fix exit code: `${{ steps.attempt.outputs.after_status }}`
+            - Fix command: `${{ steps.meta.outputs.fix_command_display }}`
+
+            ## Evidence
+
+            Evidence logs are attached as workflow artifacts (`fix-proposal-evidence-*`) for failing-before/passing-after comparison.
+
+            ## Guardrails
+
+            - This PR is always created as **draft**.
+            - No auto-merge is allowed.
+            - If sensitive paths (`security`, `audit`, `crypto`, `RBAC`) are touched, `needs-human-review` is applied and the workflow stops for manual review.
+      - name: stop on sensitive-path changes
+        if: steps.guard.outputs.security_touched == 'true' && steps.cpr.outputs.pull-request-number != ''
+        run: |
+          echo "Sensitive paths touched; needs-human-review label applied. Stopping for manual review."
+          exit 1
