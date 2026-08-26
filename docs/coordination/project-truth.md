@@ -1,7 +1,13 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-08-26  
 **Scope:** Canonical statements supported by repository evidence.
+
+## Quality snapshot (2026-08-26)
+
+- Workflow logger integration is now reflected in smoke harnesses: `critical-flows.smoke` and `g21-routing.smoke` pass with explicit `recordWorkflowEvent` mock compatibility and test-only isolation of heavy background gate components.
+- Frontend automated tests are green (`npm test`: 303 pass / 3 skip), but frontend build remains red due pre-existing TypeScript errors in `document-print-html` and unused-symbol strictness failures.
+- Rust quality gates are currently environment-blocked on this cloud host by missing OpenSSL development headers required by SQLCipher (`libsqlite3-sys` includes `openssl/crypto.h`).
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 

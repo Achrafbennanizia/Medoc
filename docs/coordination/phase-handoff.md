@@ -1,7 +1,37 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Workflow logger + smoke stabilization (2026-08-26)  
+**Last closed:** Repaired workflow-logger-related smoke regressions and refreshed quality-gate evidence.
+
+### Verified (2026-08-26 — incremental quality run)
+
+- `critical-flows.smoke` + `g21-routing.smoke` now pass under `vitest` after adding explicit tauri-service module-shape mocks (`recordWorkflowEvent`) and isolating heavy background gate components in those suites.
+- Frontend automated test gate is green again: `npm test` → **303 passed, 3 skipped**.
+- Findings register entries `QR-001..QR-005` were recorded in `docs/coordination/contradictions.md` with severity and actions.
+- Validation ledger now captures this run’s command evidence (frontend pass + build/lint/rust/playwright blockers).
+
+### Remains unverified
+
+- Full bounded run steps 4–6 remain blocked by a red frontend build (`npm run build` TS2322/TS6133).
+- Playwright geometry/spacing + visual snapshots are blocked until build is green (`webServer` startup fails).
+- Rust gates are blocked in this cloud environment: `libsqlite3-sys` cannot find `openssl/crypto.h`, so `cargo clippy` / `cargo test` cannot complete.
+- Workspace-wide `cargo fmt --check` remains red due broad pre-existing formatting drift.
+
+### Understanding delta
+
+- App-level smoke tests are sensitive to background polling/gate components and strict “throw-on-unknown” IPC mocks; deterministic behavior required targeted test-harness isolation rather than production-code changes.
+- Current blockers are primarily environment/baseline quality-gate debt, not regressions from the workflow logger bridge itself.
+
+### Next
+
+1. Fix TypeScript build blockers in `document-print-html` and unused-symbol failures (`termin-availability`, `termin-calendar-layout`, `termin-week-day-grid`), then re-run `npm run build`.
+2. Unblock SQLCipher toolchain in the environment by providing OpenSSL development headers, then re-run `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace --tests`.
+3. Re-run `MEDOC_UI_E2E=1 npx playwright test e2e-playwright/ui-spacing.spec.ts` once build is green; capture spacing/snapshot findings into the register.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
