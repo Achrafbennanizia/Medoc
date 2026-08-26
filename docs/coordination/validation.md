@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/{verify,autofix,fix-proposal,release}.yml` | **PASS** |
+| Workflow diff hygiene | `git diff --check` | **PASS** (no whitespace/conflict marker issues) |
+| Stale retired path references in workflows | `rg "app/src-tauri|\\bapp/" .github/workflows` | **PASS** (no matches) |
+| Runtime execution of new workflows | GitHub Actions run | **NOT RUN** (workflow files authored and statically validated in-repo) |
+
+**Delivered in this phase:**
+
+- Added tier-1 verify gate: `.github/workflows/verify.yml` (Rust + JS + a11y, non-mutating, concurrency cancelation, job timeouts).
+- Added tier-2 deterministic PR autofix: `.github/workflows/autofix.yml` (loop guard + sensitive-path block).
+- Added tier-3 draft fix proposal flow: `.github/workflows/fix-proposal.yml` (manual/failed-main trigger, proposal evidence, draft PR, `needs-human-review` label path).
+- Replaced release flow with tier-4 gated release: `.github/workflows/release.yml` (verify gate reuse + protected `release` env + signed cross-platform build + provenance).
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
