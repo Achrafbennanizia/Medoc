@@ -1,9 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
+
+## Done (2026-08-26 — CI/CD tiered pipeline wiring)
+
+- Added `.github/workflows/verify.yml` (Rust/Web/A11y verify, reusable `workflow_call`, concurrency/timeouts).
+- Added `.github/workflows/autofix.yml` (PR-only deterministic autofix with bot loop guard).
+- Added `.github/workflows/fix-proposal.yml` (manual + red-main trigger; draft PR proposal flow with before/after evidence and sensitive-path stop-labeling).
+- Reworked `.github/workflows/release.yml` to gate on verify and build signed artifacts in protected `release` environment.
+- Retired `.github/workflows/ci.yml`; documented the pipeline in `docs/coordination/ci-cd-plan.md`.
+- Added root/app scripts for `typecheck`, `lint:fix`, `format`, `test:a11y` and created `apps/practice-host-ui/scripts/test-a11y.mjs`.
 
 ## Now
 
+- Resolve pre-existing frontend lint/type/build failures so Tier 1 verify can become green.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
