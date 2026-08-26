@@ -1,0 +1,240 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_context:
+        description: "Optional failure context shown in the proposal PR"
+        required: false
+        type: string
+      verify_command:
+        description: "Command used for failing-before/passing-after evidence"
+        required: false
+        type: string
+      fix_command:
+        description: "Fix command to run on a fresh proposal branch"
+        required: false
+        type: string
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      LOG_DIR: /tmp/ci-fix-proposal
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Create proposal branch
+        id: branch
+        run: |
+          BRANCH="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "cache=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "cache=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci --workspaces --include-workspace-root" >> "$GITHUB_OUTPUT"
+            echo "run=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.cache }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install system deps for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+      - name: Resolve verify/fix commands
+        id: commands
+        env:
+          PM_RUN: ${{ steps.pm.outputs.run }} run
+          INPUT_VERIFY: ${{ github.event.inputs.verify_command }}
+          INPUT_FIX: ${{ github.event.inputs.fix_command }}
+          VAR_FIX: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+        run: |
+          VERIFY_DEFAULT="cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo audit && ${PM_RUN} lint && ${PM_RUN} typecheck && ${PM_RUN} test && ${PM_RUN} build"
+          if [ -n "$INPUT_VERIFY" ]; then
+            VERIFY_CMD="$INPUT_VERIFY"
+          else
+            VERIFY_CMD="$VERIFY_DEFAULT"
+          fi
+          if [ -n "$INPUT_FIX" ]; then
+            FIX_CMD="$INPUT_FIX"
+          elif [ -n "$VAR_FIX" ]; then
+            FIX_CMD="$VAR_FIX"
+          else
+            FIX_CMD=""
+          fi
+          {
+            echo "verify_cmd<<EOF"
+            echo "$VERIFY_CMD"
+            echo "EOF"
+            echo "fix_cmd<<EOF"
+            echo "$FIX_CMD"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Baseline failing-before check
+        id: before
+        run: |
+          mkdir -p "$LOG_DIR"
+          set +e
+          bash -lc '${{ steps.commands.outputs.verify_cmd }}' > "$LOG_DIR/before.log" 2>&1
+          STATUS=$?
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+      - name: Attempt fix command
+        id: fix
+        run: |
+          if [ -z "${{ steps.commands.outputs.fix_cmd }}" ]; then
+            echo "No fix command provided (input fix_command or repo variable CI_FIX_PROPOSAL_COMMAND)." > "$LOG_DIR/fix.log"
+            echo "status=78" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          bash -lc '${{ steps.commands.outputs.fix_cmd }}' > "$LOG_DIR/fix.log" 2>&1
+          STATUS=$?
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+      - name: Re-run passing-after check
+        id: after
+        run: |
+          set +e
+          bash -lc '${{ steps.commands.outputs.verify_cmd }}' > "$LOG_DIR/after.log" 2>&1
+          STATUS=$?
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+      - name: Detect changed files and sensitive paths
+        id: diffmeta
+        run: |
+          git diff --name-only > "$LOG_DIR/changed-files.txt"
+          if [ -s "$LOG_DIR/changed-files.txt" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -s "$LOG_DIR/changed-files.txt" ] && grep -E -i '(security|audit|crypto|rbac)' "$LOG_DIR/changed-files.txt" > /dev/null; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build draft PR body
+        id: prbody
+        env:
+          INPUT_CONTEXT: ${{ github.event.inputs.failure_context }}
+        run: |
+          CONTEXT="$INPUT_CONTEXT"
+          if [ -z "$CONTEXT" ] && [ "${{ github.event_name }}" = "workflow_run" ]; then
+            CONTEXT="verify workflow_run id ${{ github.event.workflow_run.id }} failed on branch ${{ github.event.workflow_run.head_branch }}"
+          fi
+          CHANGED_FILES="$(cat "$LOG_DIR/changed-files.txt" 2>/dev/null || true)"
+          if [ -z "$CHANGED_FILES" ]; then
+            CHANGED_FILES="(no file changes produced)"
+          fi
+          {
+            echo "body<<EOF"
+            echo "## CI fix proposal"
+            echo
+            echo "- Source trigger: \`${{ github.event_name }}\`"
+            echo "- Context: ${CONTEXT:-not provided}"
+            echo "- Branch: \`${{ steps.branch.outputs.name }}\`"
+            echo
+            echo "## Evidence"
+            echo
+            echo "- failing-before exit code: \`${{ steps.before.outputs.status }}\`"
+            echo "- fix command exit code: \`${{ steps.fix.outputs.status }}\`"
+            echo "- passing-after exit code: \`${{ steps.after.outputs.status }}\`"
+            echo
+            echo "## Commands"
+            echo
+            echo "- verify command: \`${{ steps.commands.outputs.verify_cmd }}\`"
+            echo "- fix command: \`${{ steps.commands.outputs.fix_cmd || 'UNSET' }}\`"
+            echo
+            echo "## Changed files"
+            echo
+            echo '```text'
+            echo "$CHANGED_FILES"
+            echo '```'
+            echo
+            echo "Logs are attached as workflow artifacts (\`before.log\`, \`fix.log\`, \`after.log\`)."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Upload fix logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/ci-fix-proposal/before.log
+            /tmp/ci-fix-proposal/fix.log
+            /tmp/ci-fix-proposal/after.log
+            /tmp/ci-fix-proposal/changed-files.txt
+      - name: Open draft PR with proposal diff
+        if: steps.diffmeta.outputs.changed == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: main
+          title: "ci: fix proposal from failing verification"
+          commit-message: "ci: propose fix for failing verification"
+          body: ${{ steps.prbody.outputs.body }}
+          draft: true
+          labels: ci-fix-proposal
+      - name: Label sensitive proposal for human review
+        if: steps.diffmeta.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop if sensitive code paths changed
+        if: steps.diffmeta.outputs.sensitive == 'true'
+        run: |
+          echo "Sensitive code paths were modified. Added needs-human-review label and stopping automation."
+          exit 1
+      - name: Stop when no proposal diff was produced
+        if: steps.diffmeta.outputs.changed != 'true'
+        run: |
+          echo "No diff was produced by the fix command; no draft PR could be opened."
+          exit 1
