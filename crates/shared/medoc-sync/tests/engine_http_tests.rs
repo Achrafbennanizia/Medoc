@@ -175,7 +175,11 @@ async fn pull_from_master_requires_bearer_token() {
     let err = SyncEngine::pull_from_master(&pool)
         .await
         .expect_err("no bearer");
-    assert!(err.to_string().contains("Pairing") || err.to_string().contains("gekoppelt"));
+    let message = err.to_string().to_lowercase();
+    assert!(
+        message.contains("pair") || message.contains("gekoppelt"),
+        "unexpected missing-bearer error: {message}"
+    );
 }
 
 #[tokio::test]

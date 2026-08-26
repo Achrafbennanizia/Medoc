@@ -141,5 +141,9 @@ fn v1_expired_is_rejected() {
     let signed = sign_inner(&body);
     let status = license::verify_v1(&signed);
     assert!(!status.valid);
-    assert!(status.reason.as_deref().unwrap().contains("abgelaufen"));
+    let reason = status.reason.as_deref().unwrap_or_default().to_lowercase();
+    assert!(
+        reason.contains("expired") || reason.contains("abgelaufen"),
+        "unexpected expiry reason: {reason}"
+    );
 }

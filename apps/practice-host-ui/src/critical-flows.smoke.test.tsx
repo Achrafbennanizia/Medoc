@@ -20,6 +20,7 @@ import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
+    logWorkflowRouteEnter: vi.fn(),
 }));
 
 const ARZT_SESSION: Session = {
@@ -131,6 +132,8 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     return { valid: true, format: "v1" };
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
+                case "onboarding_subscription_status":
+                    return { needsPracticeSetup: false, needsMemberAccount: false };
                 case "get_dashboard_stats":
                     return {
                         patienten_gesamt: 0,
@@ -366,6 +369,8 @@ describe("critical flow (f) login rejection on wrong password", () => {
                     return null;
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
+                case "onboarding_subscription_status":
+                    return { needsPracticeSetup: false, needsMemberAccount: false };
                 default:
                     throw new Error(`unmocked IPC in flow (f): ${cmd}`);
             }
